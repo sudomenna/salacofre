@@ -159,14 +159,14 @@ opened: 2026-05-17
 
 ### Fase 6 — Verificação dos RFs já entregues na S01
 
-- [ ] **T13 — Teste de verificação RF-006 / RF-007 (historical_results)**
+- [x] **T13 — Teste de verificação RF-006 / RF-007 (historical_results)**
   - Cria `tests/unit/tse/historical-coverage.test.ts`.
   - Query Neon: `SELECT ano, COUNT(*) FROM historical_results GROUP BY ano` — espera `2018` e `2022` com ≥119.000 linhas cada.
   - Query: `SELECT DISTINCT cargo, turno FROM historical_results WHERE ano=2022` — espera `{cargo:1,turno:1}, {cargo:1,turno:2}, {cargo:3,turno:1}, {cargo:3,turno:2}`.
   - Cobre: **RF-006, RF-007** (testes — implementação done na S01).
   - Estimado: 0.5h.
 
-- [ ] **T14 — Teste de verificação RF-008 / RF-009 (geo + eleitorado)**
+- [x] **T14 — Teste de verificação RF-008 / RF-009 (geo + eleitorado)**
   - `tests/unit/tse/geo-coverage.test.ts`:
     - `zonas` tem ≥2.600 linhas e join 100% contra `municipios`.
     - `eleitorado WHERE ano=2026` tem ≥2.500 zonas e ≥25 UFs (DF gap conhecido).
