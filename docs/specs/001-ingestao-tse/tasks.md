@@ -94,7 +94,7 @@ opened: 2026-05-17
 
 ### Fase 2 — Persistência (Neon + dedup)
 
-- [ ] **T06 — Repository de snapshots**
+- [x] **T06 — Repository de snapshots**
   - Cria `lib/tse/repository.ts` com:
     - `getLastEtagAndHash(target: Target): Promise<{ etag: string|null; hash: string|null }>` — lê `snapshots` por (cargo, turno, uf, cod_zona) ORDER BY ts DESC LIMIT 1.
     - `insertSnapshot(s: { target, etag, hash, payload: EA20, pctApurado, votosTotal }): Promise<bigint>` — INSERT-only, **proibido UPDATE/DELETE** (constituição § 10).
@@ -104,7 +104,7 @@ opened: 2026-05-17
   - Constitution § 10 — `constitution-guard` vai verificar.
   - Estimado: 2h.
 
-- [ ] **T07 — Logger de ingestão (`ingest_log`)**
+- [x] **T07 — Logger de ingestão (`ingest_log`)**
   - Em `lib/tse/repository.ts`, adiciona `logIngestRun({ durationMs, filesFetched, filesChanged, errors, notes })`.
   - Schema já existe (`lib/db/schema.ts` → tabela `ingest_log`). Conferir colunas reais antes de assumir (briefing diz: `id, ts, duration_ms, files_fetched, files_changed, errors, notes`).
   - Cobre: **RNF-032, RNF-033** (métricas custom: lag, files_changed).
