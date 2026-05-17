@@ -148,7 +148,7 @@ opened: 2026-05-17
 
 ### Fase 5 — Script de replay
 
-- [ ] **T12 — `scripts/replay-2022.ts` (skeleton)**
+- [x] **T12 — `scripts/replay-2022.ts` (skeleton)**
   - Cria `scripts/replay-2022.ts` (tsx-runnable, sem build).
   - Lê snapshots de 2022 (ainda inexistentes em Neon — usa fixtures `tests/fixtures/tse/2022/` ou um Postgres seed se a chore S02 entregar).
   - Ordena por `ts ASC`, **chama placeholder** `runModel(snapshot)` que apenas loga `[t=...] zona=... cargo=... pct=...`.
