@@ -27,7 +27,7 @@ Documentação Spec-Driven Development (SDD) do AtlasMenna — plataforma web p�
 
 ---
 
-## Specs (11)
+## Specs (12)
 
 | # | Spec | Status | Prioridade | Telas |
 |---|---|---|---|---|

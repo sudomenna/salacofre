@@ -141,9 +141,10 @@
       {
         "id": "2026-S01",
         "phase": "F1",
-        "status": "planned",
+        "status": "done",
         "start": "2026-05-18",
         "end": "2026-06-07",
+        "closed": "2026-05-17",
         "specs_in_flight": [],
         "path": "docs/sprints/2026-S01-f1-fundacao.md"
       },

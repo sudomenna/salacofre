@@ -1,9 +1,10 @@
 ---
 id: 2026-S01
 title: Sprint 01 — Fundação (Vercel + Schema + Históricos + PMTiles)
-status: planned
+status: done
 start: 2026-05-18
 end: 2026-06-07
+closed: 2026-05-17
 phase: F1
 goal: Infra Vercel funcionando, schema DB criado, históricos 2018+2022 carregados, PMTiles gerados e em Blob
 specs_in_flight: []
@@ -94,11 +95,26 @@ Nenhuma spec do produto entra ainda — toda a sprint é **infra e dados base**.
 
 _(preencher se mudar)_
 
-## Retrospective (preencher ao fechar)
+## Retrospective
 
-- O que funcionou:
-- O que melhorar:
-- Carry-over pra S02:
+Fechada em 2026-05-17, antes do `start: 2026-05-18` do frontmatter — execução em modo bootstrap intensivo no greenfield. Todo o DoD foi atingido em 1 PR (#1, squash-merged em `main` como commit `8dc5cc6`).
+
+**O que funcionou:**
+- **4 streams paralelos** (C.a IBGE, C.b Historical+Eleitorado, E CI, V BotID/Rolling Release) convergiram com pouca sobreposição. O subagent paralelo deu ~3x speedup vs sequencial.
+- **Idempotência dos scripts ETL** via UPSERT permitiu rodar reconciliação IBGE↔TSE como follow-up sem reset do banco.
+- **Background tsx sobreviveu ao freeze da sessão Claude** — o processo de import histórico/eleitorado continuou em background e completou sozinho enquanto a sessão estava trancada. Lição operacional: não matar processos quando Claude freezar.
+- **`tse-parser-builder` como subagent especializado** resolveu o blocker IBGE↔TSE com 100% de cobertura usando fallback por nome normalizado (TSE não publica tabela direta).
+
+**O que melhorar:**
+- **Verificação insuficiente de saída de subagent**: a Onda 3 reportou "C.b ainda rodando" sem checar contagens reais no banco. Próxima sessão precisou confiar e verificar antes de continuar. Subagents devem retornar contagens DB-side, não só "completou".
+- **Reconciliação IBGE↔TSE deveria estar no escopo original da Onda 3**, não como follow-up. `cod_municipio_tse` populado com placeholder IBGE causou 100% de órfãos no join — só detectado por análise posterior.
+- **`pnpm typecheck` foi reportado verde sem cobrir `data-pipeline/*.ts`** (faltava `allowImportingTsExtensions`). Reportar escopo do typecheck explicitamente, ou rodar em escopo total.
+- **`vercel.ts` com `rollingRelease` quebrou preview** — Vercel valida schema e rejeita propriedades extras. Princípio: declarar configs typed só pra coisas que o Vercel realmente consome.
+
+**Carry-over pra S02:**
+- **DF ausente em `eleitorado`** (gap de fonte — TSE 2024 não cobre DF). Resolve quando TSE publicar eleitorado 2026 no ciclo presidencial. Não-bloqueador.
+- **`validate-coverage.ts` reporta 25 falsos-positivos** em `historical_results` por causa de `uf='ZZ'` (voto em trânsito federal). Adicionar `AND h.uf <> 'ZZ'` na query `histGaps`. Trivial.
+- **Branch protection na `main`** bloqueada por GitHub Free (limitação de plano, não bug). Considerar upgrade ou enforcement via CODEOWNERS + review manual quando time crescer.
 
 ## Cross-refs
 
