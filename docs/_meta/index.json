@@ -265,7 +265,7 @@
     {
       "id": "001-ingestao-tse",
       "title": "Ingestão de dados do TSE",
-      "status": "draft",
+      "status": "shipped",
       "priority": "M",
       "personas": [],
       "screens": [],
@@ -283,7 +283,7 @@
       ],
       "depends_on": [],
       "apis": ["POST /api/ingest"],
-      "adrs": ["0001", "0002", "0008"],
+      "adrs": ["0001", "0002", "0008", "0011"],
       "path": "docs/specs/001-ingestao-tse/"
     },
     {

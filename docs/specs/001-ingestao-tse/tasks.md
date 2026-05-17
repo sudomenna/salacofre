@@ -1,9 +1,10 @@
 ---
 id: 001-ingestao-tse
 type: tasks
-status: in_progress
+status: done
 sprint: 2026-S02
 opened: 2026-05-17
+closed: 2026-05-17
 ---
 
 # Tasks — Spec 001 Ingestão TSE
@@ -246,12 +247,12 @@ opened: 2026-05-17
 
 Todos paralelos exceto onde indicado.
 
-- [ ] **T23 — Gate: `pnpm typecheck && pnpm lint && pnpm test`** verde.
-- [ ] **T24 — Gate: `constitution-guard`** — foco em § 10 (append-only) e § 1 (transparência). Despache em paralelo.
-- [ ] **T25 — Gate: `rf-coverage-checker`** — confirma RF-001..RF-010 cada um com teste. Sequencial após T23.
-- [ ] **T26 — Gate: a11y N/A** (sem UI nesta spec).
-- [ ] **T27 — Gate: model-validator N/A** (T12 só compila — validação real em S03).
-- [ ] **T28 — Promoção: spec.md `status: draft → shipped`** + despachar `spec-syncer` para propagar em `docs/_meta/traceability.md`, `docs/_meta/index.json`, `docs/README.md` e marcar checkbox em `docs/sprints/2026-S02-f2-ingestao.md`.
+- [x] **T23 — Gate: `pnpm typecheck && pnpm lint && pnpm test`** verde. (60/60 tests passed em 3.8s)
+- [x] **T24 — Gate: `constitution-guard`** — APROVADO COM RESSALVAS (ressalva menor: `ws` é transitivo de `@neondatabase/serverless` — não exige ADR, só nota em tech-stack.md).
+- [x] **T25 — Gate: `rf-coverage-checker`** — OK PARA SHIPPED. Todos 10 RFs cobertos. Sugere 4 atualizações pontuais em traceability.md (RF-002/003 add integration, RF-004 add unit, RF-007 add unit) — spec-syncer faz.
+- [x] **T26 — Gate: a11y N/A** (sem UI nesta spec).
+- [x] **T27 — Gate: model-validator N/A** (T12 só compila — validação real em S03).
+- [x] **T28 — Promoção: spec.md `status: draft → shipped`** + despachar `spec-syncer`.
 
 ## Caminho crítico
 

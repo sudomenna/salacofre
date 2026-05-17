@@ -88,6 +88,10 @@ A stack inclui bibliotecas pesadas — em particular **MapLibre GL** (~200KB gzi
 - **D3** é importado por módulo (`d3-scale`, `d3-shape`, `d3-array`) — nunca `import * from 'd3'` (puxaria 80KB+).
 - **PMTiles client** acompanha MapLibre no chunk lazy.
 
+## Notas sobre dependências transitivas
+
+A `@neondatabase/serverless` depende de `ws` para suporte a WebSocket em runtimes sem objeto `WebSocket` global (ex: scripts Node puro em `data-pipeline/`). Esta é uma dependência **transitiva** (não listada explicitamente) mas essencial — não constitui violação da stack (não é dep adicional fora do padrão Vercel).
+
 ## Cross-refs
 
 - ADRs que justificam decisões-chave: [./adrs/](./adrs/)

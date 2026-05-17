@@ -83,7 +83,7 @@ export function buildEA20Url(
  * A resolução TSE 2026 confirma o número exato quando publicada.
  */
 function getCodEleicao(): string {
-  const value = process.env["TSE_COD_ELEICAO"];
+  const value = process.env.TSE_COD_ELEICAO;
   if (!value || value.trim() === "") {
     throw new Error(
       "[targets] TSE_COD_ELEICAO não está definida. " +
@@ -200,7 +200,7 @@ export async function listIngestTargets(env: "preview" | "production"): Promise<
 // ---------------------------------------------------------------------------
 
 async function buildPreviewTargets(codEleicao: string): Promise<Target[]> {
-  const whitelist = parseWhitelist(process.env["TSE_TARGETS_WHITELIST"]);
+  const whitelist = parseWhitelist(process.env.TSE_TARGETS_WHITELIST);
 
   const targets: Target[] = [];
 

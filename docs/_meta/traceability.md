@@ -13,12 +13,12 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF | Descrição (resumo) | Prioridade | Spec | Componentes | Teste |
 |---|---|---|---|---|---|
 | RF-001 | Consumir feed EA20 TSE | M | [001](../specs/001-ingestao-tse/) | — | unit, integration |
-| RF-002 | Polling a cada 15s | M | [001](../specs/001-ingestao-tse/) | — | unit |
-| RF-003 | ETag (If-None-Match) | M | [001](../specs/001-ingestao-tse/) | — | unit |
-| RF-004 | Snapshots append-only | M | [001](../specs/001-ingestao-tse/) | — | integration |
+| RF-002 | Polling a cada 15s | M | [001](../specs/001-ingestao-tse/) | — | unit, integration |
+| RF-003 | ETag (If-None-Match) | M | [001](../specs/001-ingestao-tse/) | — | unit, integration |
+| RF-004 | Snapshots append-only | M | [001](../specs/001-ingestao-tse/) | — | unit, integration |
 | RF-005 | Replay completo | M | [001](../specs/001-ingestao-tse/) | — | replay |
 | RF-006 | Histórico 2022 zona | M | [001](../specs/001-ingestao-tse/) | — | unit |
-| RF-007 | Histórico 2018 zona | S | [001](../specs/001-ingestao-tse/) | — | — |
+| RF-007 | Histórico 2018 zona | S | [001](../specs/001-ingestao-tse/) | — | unit |
 | RF-008 | Mapeamento IBGE/TSE | M | [001](../specs/001-ingestao-tse/) | — | unit |
 | RF-009 | Eleitorado por zona/seção | M | [001](../specs/001-ingestao-tse/) | — | unit |
 | RF-010 | Cadastro como "interessado na divulgação" (res. TSE vigente p/ pleito 2026) | M | [001](../specs/001-ingestao-tse/) | — | manual |

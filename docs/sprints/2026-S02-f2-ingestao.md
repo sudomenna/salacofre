@@ -19,7 +19,7 @@ specs_planned_next: [002-modelo-estatistico]
 
 ## Specs in-flight
 
-- [ ] **001-ingestao-tse** — RF-001 a RF-010. Detalhes técnicos: [design.md](../specs/001-ingestao-tse/design.md). Tasks a serem geradas pelo `spec-implementer` em `docs/specs/001-ingestao-tse/tasks.md`.
+- [x] **001-ingestao-tse** — RF-001 a RF-010. Shipped em 2026-05-17. Detalhes técnicos: [design.md](../specs/001-ingestao-tse/design.md). Tasks a serem geradas pelo `spec-implementer` em `docs/specs/001-ingestao-tse/tasks.md`.
 
 ## Chores fora de spec
 

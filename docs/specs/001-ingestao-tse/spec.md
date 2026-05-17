@@ -1,7 +1,7 @@
 ---
 id: 001-ingestao-tse
 title: Ingestão de dados do TSE
-status: draft
+status: shipped
 priority: M
 personas: []
 screens: []
