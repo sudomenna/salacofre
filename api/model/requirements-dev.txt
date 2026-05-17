@@ -1,0 +1,4 @@
+# Spec 002 — deps Python só para tests locais/CI (NÃO vão pro Vercel).
+# Vercel detecta apenas `requirements.txt` (prod) na função.
+-r requirements.txt
+pytest>=8.0,<10.0

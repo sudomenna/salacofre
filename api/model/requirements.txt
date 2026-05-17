@@ -1,0 +1,17 @@
+# api/model/requirements.txt
+# Deps Python do endpoint /api/model/project (spec 002).
+# Vercel detecta automaticamente e instala no build da function.
+# Mantemos minimalista — só o que entra no bundle (limite 500 MB uncompressed).
+#
+# numpy: bootstrap resample + percentile + comparações vetorizadas (RF-012, RF-014).
+# pydantic: validação de payload de entrada (cargo, turno, trigger_ts).
+# psycopg[binary]: driver Postgres (cliente direto contra Neon — kickoff S03).
+#   `binary` empacota libpq nativa; sem build no Vercel. Cold start ~150ms.
+#   Alternativa avaliada: HTTP call interno a um helper Node. Rejeitada porque
+#   adiciona um hop de rede dentro da mesma região Vercel para algo que o driver
+#   nativo resolve em uma única conexão. Fallback documentado: se Neon serverless
+#   pooler quebrar no Fluid Compute (cold start ↔ pgbouncer prepared statements),
+#   migrar para HTTP helper Node em `/api/_internal/snapshots`.
+numpy>=2.0,<3.0
+pydantic>=2.0,<3.0
+psycopg[binary]>=3.2,<4.0

@@ -1,0 +1,8 @@
+[tool.pytest.ini_options]
+# Spec 002 — Python testes para o modelo estatístico em `api/model/`.
+# A raiz do repo é o rootdir; tests resolvem `from api.model import X` via
+# tests/unit/model/conftest.py que injeta a raiz em sys.path.
+minversion = "8.0"
+testpaths = ["tests/unit/model"]
+python_files = ["test_*.py"]
+addopts = "-ra --strict-markers"
