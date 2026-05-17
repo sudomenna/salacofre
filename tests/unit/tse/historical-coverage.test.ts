@@ -7,8 +7,8 @@
 // estes testes garantem que a cobertura permanece intacta no Neon antes
 // da spec 001 ir a `shipped`. Falha aqui indica regressão de dados.
 
-import { describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 
 describe("RF-006 / RF-007 — cobertura historical_results", () => {

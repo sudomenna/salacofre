@@ -27,7 +27,6 @@ import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
-  CACHE_DIR,
   downloadCached,
   FIXTURES_DIR,
   getPool,

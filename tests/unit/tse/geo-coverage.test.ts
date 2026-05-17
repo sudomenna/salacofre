@@ -8,15 +8,13 @@
 // tem município — `eleitorado` legitimamente exclui DF até o TSE publicar
 // o ciclo presidencial de 2026.
 
-import { describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 
 describe("RF-008 — mapeamento zona↔município↔UF", () => {
   it("zonas tem ao menos 2.600 linhas e nenhuma órfã contra municipios", async () => {
-    const total = await db.execute<{ n: number }>(
-      sql`SELECT COUNT(*)::int AS n FROM zonas`,
-    );
+    const total = await db.execute<{ n: number }>(sql`SELECT COUNT(*)::int AS n FROM zonas`);
     expect(total.rows[0]?.n ?? 0).toBeGreaterThanOrEqual(2_600);
 
     const orphans = await db.execute<{ n: number }>(

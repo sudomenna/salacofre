@@ -175,19 +175,19 @@ opened: 2026-05-17
 
 ### Fase 7 — Testes do pipeline ao vivo
 
-- [ ] **T15 — Fixtures EA20 reais 2022**
+- [x] **T15 — Fixtures EA20 reais 2022**
   - Chore de sprint (não-spec) entrega `tests/fixtures/tse/2022/`. Se ainda não chegou, criar **mocks mínimos** a partir do schema EA20 — 3 fixtures: `presidente-sp-z0001.json`, `presidente-sp-z0002.json` (variação de hash), `presidente-rj-z0001.json`.
   - Cobre: prerequisite de T16-T19.
   - Estimado: 1h (mocks) ou 0.3h (se chore S02 entregou fixtures reais).
 
-- [ ] **T16 — Unit: parser EA20 (T01) contra fixtures**
+- [x] **T16 — Unit: parser EA20 (T01) contra fixtures**
   - `tests/unit/tse/ea20-schema.test.ts`:
     - Parse sucesso para fixture válida.
     - Parse-fail (Zod throw) com fixture corrompida (campo `cand` ausente).
   - Cobre: **RF-001**.
   - Estimado: 0.5h.
 
-- [ ] **T17 — Unit: client com fetch mockado (T04, T05)**
+- [x] **T17 — Unit: client com fetch mockado (T04, T05)**
   - `tests/unit/tse/client.test.ts` (`vi.mock('node:fetch')` ou MSW):
     - GET 200 + body → `kind: 'fresh'` com hash determinístico.
     - GET 200 + header `ETag: "abc"` + posterior GET com `If-None-Match: "abc"` → 304 → `kind: 'not_modified'`.
