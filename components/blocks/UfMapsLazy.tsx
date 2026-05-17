@@ -22,22 +22,18 @@
  */
 
 import dynamic from "next/dynamic";
-import { MapPlaceholder } from "@/components/atoms/maps/MapPlaceholder";
 import type { BubbleMapMunicipio } from "@/components/atoms/maps/BubbleMap";
 import type { ChoroplethMunicipio } from "@/components/atoms/maps/ChoroplethMapUF";
+import { MapPlaceholder } from "@/components/atoms/maps/MapPlaceholder";
 import type { SwingArrow } from "@/components/atoms/maps/SwingArrowMap";
 
-const UFMapDuo = dynamic(
-  () => import("@/components/blocks/UFMapDuo").then((m) => m.UFMapDuo),
-  {
-    ssr: false,
-    loading: () => <MapPlaceholder label="Carregando mapas..." height={360} />,
-  },
-);
+const UFMapDuo = dynamic(() => import("@/components/blocks/UFMapDuo").then((m) => m.UFMapDuo), {
+  ssr: false,
+  loading: () => <MapPlaceholder label="Carregando mapas..." height={360} />,
+});
 
 const SwingArrowMap = dynamic(
-  () =>
-    import("@/components/atoms/maps/SwingArrowMap").then((m) => m.SwingArrowMap),
+  () => import("@/components/atoms/maps/SwingArrowMap").then((m) => m.SwingArrowMap),
   {
     ssr: false,
     loading: () => <MapPlaceholder label="Swing vs 2022" height={320} />,
@@ -45,8 +41,7 @@ const SwingArrowMap = dynamic(
 );
 
 const ChoroplethMapUF = dynamic(
-  () =>
-    import("@/components/atoms/maps/ChoroplethMapUF").then((m) => m.ChoroplethMapUF),
+  () => import("@/components/atoms/maps/ChoroplethMapUF").then((m) => m.ChoroplethMapUF),
   {
     ssr: false,
     loading: () => <MapPlaceholder label="Líder por município" height={320} />,

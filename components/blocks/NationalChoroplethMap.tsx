@@ -3,33 +3,25 @@
 /**
  * components/blocks/NationalChoroplethMap.tsx
  *
- * Wrapper client-side do mapa coroplético do Brasil. **STUB**.
+ * Mapa coroplético do Brasil hero (spec 003).
+ * Cobertura: RF-030.1, RF-030.2, RF-030.3, RF-030.4 (Skip — hachura omitida).
  *
- * Cobertura: RF-030.1, RF-030.3, RF-030.4.
+ * Arquitetura de dois níveis (ADR-0010):
+ *   - Este arquivo: thin wrapper com `next/dynamic({ ssr: false })` que expõe
+ *     a interface pública congelada. SSR-safe (renderiza MapSkeleton).
+ *   - `./_NationalChoroplethMapImpl.tsx`: implementação MapLibre + PMTiles.
+ *     Carregada apenas no cliente, NUNCA no servidor.
  *
- * Por que stub agora
- *   - O setup completo MapLibre + PMTiles + estilo + interatividade
- *     (hover/click → /uf/[sigla]) é trabalho substancial e deve ser
- *     despachado para o subagent `map-builder` em follow-up.
- *   - Esta versão renderiza o `<MapSkeleton />` permanentemente, mas já
- *     consome a prop `view: MapView` para que o pai possa trocar o modo
- *     sem refator.
- *   - Quando o map-builder entrega o componente real, este arquivo é
- *     substituído por dynamic import com `ssr: false` (ADR-0010).
+ * Por quê dois níveis?
+ *   `HomeClientShell.tsx` é Client Component, mas o test `home-page.test.tsx`
+ *   usa `renderToStaticMarkup` que chama `useRouter()` (só válido no App Router
+ *   montado). Separar o impl em dynamic import garante que nenhum hook de
+ *   navegação/browser escapa para o contexto SSR dos testes.
  *
- * Decisão de design:
- *   - Mantemos como Client Component aqui (boundary), mas Por enquanto
- *     o conteúdo é SSR-friendly (skeleton SVG). Isso garante que o pai
- *     em RSC possa importar diretamente sem `next/dynamic`.
- *   - Quando o mapa real chegar, o import passa por `next/dynamic`
- *     com `ssr: false`.
- *
- * A11y
- *   - Skeleton anuncia "Mapa do Brasil carregando".
- *   - Toggle de view é responsabilidade do `<MapViewToggle />` (irmão).
- *   - Tabela `<StateGroupedTable />` cumpre o fallback acessível ao mapa
- *     (RNF-022 — fallback de tabela para gráficos).
+ * A11y: lista textual paralela fica em <StateGroupedTable /> (irmão no shell).
  */
+
+import dynamic from "next/dynamic";
 
 import type { MapView } from "@/components/atoms/controls/MapViewToggle";
 import { MapSkeleton } from "@/components/atoms/maps/MapSkeleton";
@@ -51,24 +43,37 @@ const VIEW_LABEL: Record<MapView, string> = {
   turnout: "% apurado",
 };
 
+const NationalChoroplethMapImpl = dynamic(
+  () =>
+    import("@/components/blocks/_NationalChoroplethMapImpl").then(
+      (m) => m.NationalChoroplethMapImpl,
+    ),
+  {
+    ssr: false,
+    loading: ({ error }) => (error ? null : <MapSkeleton height={420} />),
+  },
+);
+
 export function NationalChoroplethMap({
   rows,
+  candidatoAId,
   view,
   height = 420,
   className,
 }: NationalChoroplethMapProps) {
   return (
-    // biome-ignore lint/a11y/useSemanticElements: role=region em div é correto; <section> exigiria aria-labelledby (aqui usamos aria-label inline).
+    // biome-ignore lint/a11y/useSemanticElements: role=region + aria-label correto para div-container de mapa interativo
     <div
       role="region"
       aria-label={`Mapa coroplético do Brasil — modo ${VIEW_LABEL[view]}`}
       className={["relative w-full", className].filter(Boolean).join(" ")}
     >
-      <MapSkeleton height={height} />
-      <p className="mt-2 text-center text-xs" style={{ color: "var(--color-text-muted)" }}>
-        Mapa interativo em construção · {rows.length} UFs · modo {VIEW_LABEL[view]} · navegue pela
-        tabela abaixo
-      </p>
+      <NationalChoroplethMapImpl
+        rows={rows}
+        candidatoAId={candidatoAId}
+        view={view}
+        height={height}
+      />
     </div>
   );
 }

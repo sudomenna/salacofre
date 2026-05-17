@@ -30,13 +30,7 @@ describe("UF page composition (smoke)", () => {
       <main>
         <WinnerBanner candidato="Lula" partido="PT" ufSigla="SP" cor="var(--color-pt)" />
         <CandidateRow nome="Lula" partido="PT" cor="var(--color-pt)" votos={null} pct={54.1} />
-        <CandidateRow
-          nome="Bolsonaro"
-          partido="PL"
-          cor="var(--color-pl)"
-          votos={null}
-          pct={45.9}
-        />
+        <CandidateRow nome="Bolsonaro" partido="PL" cor="var(--color-pl)" votos={null} pct={45.9} />
         <Needle
           needlePosition={0.5}
           pVitoria={0.78}
