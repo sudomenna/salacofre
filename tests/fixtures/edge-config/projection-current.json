@@ -1,0 +1,323 @@
+{
+  "ts": "2026-10-04T17:23:42-03:00",
+  "cargo": 1,
+  "turno": 1,
+  "pct_apurado_total": 23.4,
+  "ufs_apuradas": 14,
+  "national": {
+    "candidatos": [
+      {
+        "id": 13,
+        "nome": "Lula",
+        "partido": "PT",
+        "cor": "var(--color-pt)",
+        "votos_atuais": 18650432,
+        "votos_projetados": 79812408,
+        "pct_atual": 53.0,
+        "pct_projetado": 53.2,
+        "pct_projetado_lower": 51.9,
+        "pct_projetado_upper": 54.5,
+        "p_vitoria": 0.78
+      },
+      {
+        "id": 22,
+        "nome": "Bolsonaro",
+        "partido": "PL",
+        "cor": "var(--color-pl)",
+        "votos_atuais": 16450112,
+        "votos_projetados": 70140992,
+        "pct_atual": 47.0,
+        "pct_projetado": 46.8,
+        "pct_projetado_lower": 45.5,
+        "pct_projetado_upper": 48.1,
+        "p_vitoria": 0.22
+      }
+    ],
+    "needle_position": 0.56,
+    "needle_band": "likely_a",
+    "candidato_a_id": 13,
+    "candidato_b_id": 22
+  },
+  "por_uf": [
+    {
+      "sigla": "AC",
+      "pct_apurado": 18.0,
+      "lider": 22,
+      "margem_atual": 12.0,
+      "margem_projetada": 10.5,
+      "margem_projetada_ci": [8.0, 13.0],
+      "chamada": false,
+      "swing_vs_2022": -1.2
+    },
+    {
+      "sigla": "AL",
+      "pct_apurado": 21.0,
+      "lider": 13,
+      "margem_atual": 18.0,
+      "margem_projetada": 17.0,
+      "margem_projetada_ci": [15.0, 19.0],
+      "chamada": true,
+      "swing_vs_2022": 2.0
+    },
+    {
+      "sigla": "AP",
+      "pct_apurado": 15.0,
+      "lider": 13,
+      "margem_atual": 4.0,
+      "margem_projetada": 3.2,
+      "margem_projetada_ci": [0.5, 5.9],
+      "chamada": false,
+      "swing_vs_2022": -0.5
+    },
+    {
+      "sigla": "AM",
+      "pct_apurado": 19.0,
+      "lider": 13,
+      "margem_atual": 2.5,
+      "margem_projetada": 1.8,
+      "margem_projetada_ci": [-0.5, 4.1],
+      "chamada": false,
+      "swing_vs_2022": 1.4
+    },
+    {
+      "sigla": "BA",
+      "pct_apurado": 28.0,
+      "lider": 13,
+      "margem_atual": 28.0,
+      "margem_projetada": 27.4,
+      "margem_projetada_ci": [25.0, 29.8],
+      "chamada": true,
+      "swing_vs_2022": 2.8
+    },
+    {
+      "sigla": "CE",
+      "pct_apurado": 25.0,
+      "lider": 13,
+      "margem_atual": 24.0,
+      "margem_projetada": 23.5,
+      "margem_projetada_ci": [21.0, 26.0],
+      "chamada": true,
+      "swing_vs_2022": 1.5
+    },
+    {
+      "sigla": "DF",
+      "pct_apurado": 30.0,
+      "lider": 22,
+      "margem_atual": 8.0,
+      "margem_projetada": 7.2,
+      "margem_projetada_ci": [4.5, 9.9],
+      "chamada": false,
+      "swing_vs_2022": -1.0
+    },
+    {
+      "sigla": "ES",
+      "pct_apurado": 22.0,
+      "lider": 22,
+      "margem_atual": 14.0,
+      "margem_projetada": 13.5,
+      "margem_projetada_ci": [11.0, 16.0],
+      "chamada": true,
+      "swing_vs_2022": -0.8
+    },
+    {
+      "sigla": "GO",
+      "pct_apurado": 24.0,
+      "lider": 22,
+      "margem_atual": 20.0,
+      "margem_projetada": 19.4,
+      "margem_projetada_ci": [17.0, 21.8],
+      "chamada": true,
+      "swing_vs_2022": 0.5
+    },
+    {
+      "sigla": "MA",
+      "pct_apurado": 19.0,
+      "lider": 13,
+      "margem_atual": 32.0,
+      "margem_projetada": 31.0,
+      "margem_projetada_ci": [29.0, 33.0],
+      "chamada": true,
+      "swing_vs_2022": 1.0
+    },
+    {
+      "sigla": "MT",
+      "pct_apurado": 22.0,
+      "lider": 22,
+      "margem_atual": 22.0,
+      "margem_projetada": 21.5,
+      "margem_projetada_ci": [19.0, 24.0],
+      "chamada": true,
+      "swing_vs_2022": -0.7
+    },
+    {
+      "sigla": "MS",
+      "pct_apurado": 23.0,
+      "lider": 22,
+      "margem_atual": 16.0,
+      "margem_projetada": 15.5,
+      "margem_projetada_ci": [13.0, 18.0],
+      "chamada": true,
+      "swing_vs_2022": 1.1
+    },
+    {
+      "sigla": "MG",
+      "pct_apurado": 28.0,
+      "lider": 13,
+      "margem_atual": 4.5,
+      "margem_projetada": 4.0,
+      "margem_projetada_ci": [1.8, 6.2],
+      "chamada": false,
+      "swing_vs_2022": 4.2
+    },
+    {
+      "sigla": "PA",
+      "pct_apurado": 21.0,
+      "lider": 22,
+      "margem_atual": 3.0,
+      "margem_projetada": 2.4,
+      "margem_projetada_ci": [-0.2, 5.0],
+      "chamada": false,
+      "swing_vs_2022": -2.0
+    },
+    {
+      "sigla": "PB",
+      "pct_apurado": 23.0,
+      "lider": 13,
+      "margem_atual": 12.0,
+      "margem_projetada": 11.5,
+      "margem_projetada_ci": [9.0, 14.0],
+      "chamada": true,
+      "swing_vs_2022": 1.8
+    },
+    {
+      "sigla": "PR",
+      "pct_apurado": 25.0,
+      "lider": 22,
+      "margem_atual": 6.0,
+      "margem_projetada": 5.4,
+      "margem_projetada_ci": [3.0, 7.8],
+      "chamada": false,
+      "swing_vs_2022": 3.8
+    },
+    {
+      "sigla": "PE",
+      "pct_apurado": 24.0,
+      "lider": 13,
+      "margem_atual": 14.0,
+      "margem_projetada": 13.4,
+      "margem_projetada_ci": [11.0, 15.8],
+      "chamada": true,
+      "swing_vs_2022": -1.5
+    },
+    {
+      "sigla": "PI",
+      "pct_apurado": 20.0,
+      "lider": 13,
+      "margem_atual": 26.0,
+      "margem_projetada": 25.5,
+      "margem_projetada_ci": [23.0, 28.0],
+      "chamada": true,
+      "swing_vs_2022": 0.4
+    },
+    {
+      "sigla": "RJ",
+      "pct_apurado": 27.0,
+      "lider": 22,
+      "margem_atual": 3.5,
+      "margem_projetada": 2.8,
+      "margem_projetada_ci": [0.2, 5.4],
+      "chamada": false,
+      "swing_vs_2022": 5.1
+    },
+    {
+      "sigla": "RN",
+      "pct_apurado": 22.0,
+      "lider": 13,
+      "margem_atual": 16.0,
+      "margem_projetada": 15.5,
+      "margem_projetada_ci": [13.0, 18.0],
+      "chamada": true,
+      "swing_vs_2022": 1.0
+    },
+    {
+      "sigla": "RS",
+      "pct_apurado": 26.0,
+      "lider": 22,
+      "margem_atual": 2.5,
+      "margem_projetada": 1.8,
+      "margem_projetada_ci": [-0.8, 4.4],
+      "chamada": false,
+      "swing_vs_2022": 3.4
+    },
+    {
+      "sigla": "RO",
+      "pct_apurado": 21.0,
+      "lider": 22,
+      "margem_atual": 20.0,
+      "margem_projetada": 19.0,
+      "margem_projetada_ci": [17.0, 21.0],
+      "chamada": true,
+      "swing_vs_2022": 0.2
+    },
+    {
+      "sigla": "RR",
+      "pct_apurado": 17.0,
+      "lider": 22,
+      "margem_atual": 16.0,
+      "margem_projetada": 15.0,
+      "margem_projetada_ci": [12.0, 18.0],
+      "chamada": true,
+      "swing_vs_2022": -0.6
+    },
+    {
+      "sigla": "SC",
+      "pct_apurado": 25.0,
+      "lider": 22,
+      "margem_atual": 10.0,
+      "margem_projetada": 9.2,
+      "margem_projetada_ci": [7.0, 11.4],
+      "chamada": true,
+      "swing_vs_2022": 2.6
+    },
+    {
+      "sigla": "SP",
+      "pct_apurado": 30.0,
+      "lider": 13,
+      "margem_atual": 5.0,
+      "margem_projetada": 4.6,
+      "margem_projetada_ci": [2.4, 6.8],
+      "chamada": false,
+      "swing_vs_2022": 4.8
+    },
+    {
+      "sigla": "SE",
+      "pct_apurado": 22.0,
+      "lider": 13,
+      "margem_atual": 14.0,
+      "margem_projetada": 13.5,
+      "margem_projetada_ci": [11.0, 16.0],
+      "chamada": true,
+      "swing_vs_2022": 0.7
+    },
+    {
+      "sigla": "TO",
+      "pct_apurado": 20.0,
+      "lider": 22,
+      "margem_atual": 12.0,
+      "margem_projetada": 11.4,
+      "margem_projetada_ci": [9.0, 13.8],
+      "chamada": true,
+      "swing_vs_2022": -0.4
+    }
+  ],
+  "insights": [
+    "Lula amplia margem em MG (+4,2pp vs 2022), uma das UFs decisivas.",
+    "Disputa apertada em SP, RS e RJ — três UFs ainda em tossup com mais de 70% por apurar.",
+    "Bolsonaro mantém a Região Sul, mas com swing negativo em PR e RS."
+  ],
+  "composition": {
+    "pre_election": 0.1,
+    "model": 0.2,
+    "actual_results": 0.7
+  }
+}

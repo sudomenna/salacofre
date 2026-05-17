@@ -22,6 +22,15 @@
   --color-pt-band: #c8d4ed;
   --color-pl-band: #f0c9c8;
 
+  /* Bandas de probabilidade da agulha (spec 003 + spec 004).
+   * Mapeiam `NeedleBand` em lib/edge-config/types.ts — usadas pelo
+   * `<Needle />` para colorir o arco de fundo e por blocks que querem
+   * indicar "tossup / lean / likely / very_likely" sem cor partidária. */
+  --color-band-tossup: #d9d9d9;
+  --color-band-lean: #b8b8b8;
+  --color-band-likely: #888888;
+  --color-band-very_likely: #444444;
+
   /* Status */
   --color-success: #2c8e4a;
   --color-warning: #d97706;
