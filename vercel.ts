@@ -11,10 +11,41 @@ export type VercelCron = {
   schedule: string;
 };
 
+// Rolling Release não é serializável no bundle do projeto — é configuração
+// account/project-side aplicada via `vercel rolling-release configure`
+// (Vercel CLI) e armazenada no Vercel API. Mantemos aqui um marker tipado
+// como source-of-truth da política desejada, para auditoria e para que
+// `pnpm typecheck` quebre se alguém alterar sem revisar.
+export type RollingReleaseStage = {
+  /** Porcentagem de tráfego no canary nesta etapa (0..100). */
+  percentage: number;
+  /** Duração mínima antes de avançar (formato Vercel: ex. "5m", "10m"). */
+  duration?: string;
+};
+
+export type RollingReleasePolicy = {
+  enabled: boolean;
+  advancementType: "automatic" | "manual-approval";
+  stages: RollingReleaseStage[];
+};
+
 export type VercelProjectConfig = {
   $schema?: string;
   crons?: VercelCron[];
   regions?: string[];
+};
+
+// Rolling Release (RF-059, constituição § 7) — canary 10% → 50% → 100% com
+// manual-approval. NÃO é consumido pelo schema do vercel.ts (Vercel rejeita
+// propriedades extras na validação). É aplicado no projeto via:
+//   vercel rolling-release configure --enable \
+//     --advancement-type=manual-approval --stage=10 --stage=50
+// Estágio final (100%) é implícito quando o último stage é aprovado. Mantemos
+// este export como source-of-truth tipada da política para auditoria.
+export const rollingReleasePolicy: RollingReleasePolicy = {
+  enabled: true,
+  advancementType: "manual-approval",
+  stages: [{ percentage: 10 }, { percentage: 50 }],
 };
 
 const config: VercelProjectConfig = {
