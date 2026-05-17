@@ -58,48 +58,68 @@ export function TurnoutAreaChart({ points, width = 480, height = 200 }: TurnoutA
   if (!lastPoint) return null;
 
   return (
-    <svg
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      role="img"
-      aria-label={`Turnout cumulativo: ${lastPoint.pctApurado.toFixed(1)}% apurado.`}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d={areaPath} fill="var(--color-success)" opacity={0.18} />
-      <path d={linePath} fill="none" stroke="var(--color-success)" strokeWidth="2" />
+    <div>
+      <svg
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label={`Turnout cumulativo: ${lastPoint.pctApurado.toFixed(1)}% apurado.`}
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path d={areaPath} fill="var(--color-success)" opacity={0.18} />
+        <path d={linePath} fill="none" stroke="var(--color-success)" strokeWidth="2" />
 
-      {/* Ticks Y */}
-      <text
-        x={padX - 4}
-        y={yFor(0) + 3}
-        fontSize="9"
-        fontFamily="var(--font-sans)"
-        fill="var(--color-text-faint)"
-        textAnchor="end"
-      >
-        0%
-      </text>
-      <text
-        x={padX - 4}
-        y={yFor(50) + 3}
-        fontSize="9"
-        fontFamily="var(--font-sans)"
-        fill="var(--color-text-faint)"
-        textAnchor="end"
-      >
-        50%
-      </text>
-      <text
-        x={padX - 4}
-        y={yFor(100) + 3}
-        fontSize="9"
-        fontFamily="var(--font-sans)"
-        fill="var(--color-text-faint)"
-        textAnchor="end"
-      >
-        100%
-      </text>
-    </svg>
+        {/* Ticks Y */}
+        <text
+          x={padX - 4}
+          y={yFor(0) + 3}
+          fontSize="9"
+          fontFamily="var(--font-sans)"
+          fill="var(--color-text-muted)"
+          textAnchor="end"
+        >
+          0%
+        </text>
+        <text
+          x={padX - 4}
+          y={yFor(50) + 3}
+          fontSize="9"
+          fontFamily="var(--font-sans)"
+          fill="var(--color-text-muted)"
+          textAnchor="end"
+        >
+          50%
+        </text>
+        <text
+          x={padX - 4}
+          y={yFor(100) + 3}
+          fontSize="9"
+          fontFamily="var(--font-sans)"
+          fill="var(--color-text-muted)"
+          textAnchor="end"
+        >
+          100%
+        </text>
+      </svg>
+      {/* Fallback acessível (a11y RNF-023): tabela com a série completa. */}
+      <table className="sr-only">
+        <caption>Série temporal de turnout cumulativo (% apurado)</caption>
+        <thead>
+          <tr>
+            <th scope="col">Tempo</th>
+            <th scope="col">% Apurado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {points.map((p) => (
+            <tr key={p.ts}>
+              <td>{p.ts}</td>
+              <td>{p.pctApurado.toFixed(1)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

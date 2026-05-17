@@ -57,3 +57,18 @@ h3 {
   font-family: var(--font-serif);
   font-weight: 600;
 }
+
+/* Visually-hidden util (WAI-ARIA APG / Tailwind sr-only). Usado por charts
+ * SVG para anexar uma <table> com a série completa (a11y RNF-023): leitores
+ * de tela leem a tabela; usuários visuais veem só o SVG. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

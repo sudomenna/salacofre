@@ -429,7 +429,7 @@ function SwingIllustration() {
         y={zero - (5 / max) * (height / 2) + 3}
         fontSize="9"
         fontFamily="var(--font-sans)"
-        fill="var(--color-text-faint)"
+        fill="var(--color-text-muted)"
         textAnchor="end"
       >
         +5
@@ -447,7 +447,7 @@ function SwingIllustration() {
         y={zero + (5 / max) * (height / 2) + 3}
         fontSize="9"
         fontFamily="var(--font-sans)"
-        fill="var(--color-text-faint)"
+        fill="var(--color-text-muted)"
         textAnchor="end"
       >
         −5
@@ -491,7 +491,7 @@ function SwingIllustration() {
         y={190}
         fontSize="10"
         fontFamily="var(--font-sans)"
-        fill="var(--color-text-faint)"
+        fill="var(--color-text-muted)"
       >
         12 zonas fictícias (ilustração)
       </text>
@@ -568,7 +568,7 @@ function ConfidenceBandIllustration() {
         y={yFor(50) + 3}
         fontSize="10"
         fontFamily="var(--font-sans)"
-        fill="var(--color-text-faint)"
+        fill="var(--color-text-muted)"
         textAnchor="end"
       >
         50%
@@ -578,7 +578,7 @@ function ConfidenceBandIllustration() {
         y={yFor(58) + 3}
         fontSize="10"
         fontFamily="var(--font-sans)"
-        fill="var(--color-text-faint)"
+        fill="var(--color-text-muted)"
         textAnchor="end"
       >
         58%
@@ -588,7 +588,7 @@ function ConfidenceBandIllustration() {
         y={yFor(42) + 3}
         fontSize="10"
         fontFamily="var(--font-sans)"
-        fill="var(--color-text-faint)"
+        fill="var(--color-text-muted)"
         textAnchor="end"
       >
         42%
@@ -792,7 +792,7 @@ function NeedleIllustration() {
         y={cy + 50}
         fontSize="11"
         fontFamily="var(--font-sans)"
-        fill="var(--color-text-faint)"
+        fill="var(--color-text-muted)"
         textAnchor="middle"
       >
         (ilustração — números fictícios)

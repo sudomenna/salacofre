@@ -47,7 +47,7 @@
 .byline {
   font-family: var(--font-sans);
   font-size: 13px;
-  color: var(--color-text-faint);
+  color: var(--color-text-muted);
   padding-bottom: 24px;
   border-bottom: 1px solid var(--color-border);
   margin-bottom: 40px;
@@ -306,7 +306,7 @@
   border-top: 1px solid var(--color-border);
   font-family: var(--font-sans);
   font-size: 13px;
-  color: var(--color-text-faint);
+  color: var(--color-text-muted);
   text-align: center;
 }
 

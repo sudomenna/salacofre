@@ -125,6 +125,15 @@ export function NationalChoroplethMapImpl({
       protocolRegistered = true;
     }
 
+    // A11y RNF-026: respeita prefers-reduced-motion (constituição § 4).
+    // Anula a transição de fill-color que anima trocas de view (winner→margin etc).
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const fillTransition = prefersReducedMotion
+      ? { duration: 0, delay: 0 }
+      : { duration: 600, delay: 0 };
+
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: {
@@ -144,6 +153,7 @@ export function NationalChoroplethMapImpl({
             "source-layer": "ufs",
             paint: {
               "fill-color": ["coalesce", ["feature-state", "color"], "#d9d9d9"],
+              "fill-color-transition": fillTransition,
               "fill-opacity": 0.88,
             },
           },

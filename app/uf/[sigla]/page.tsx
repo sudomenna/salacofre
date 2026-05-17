@@ -27,7 +27,6 @@
  */
 
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { NewsClippingPlaceholder } from "@/components/atoms/banners/NewsClippingPlaceholder";
@@ -35,6 +34,7 @@ import { WinnerBanner } from "@/components/atoms/banners/WinnerBanner";
 import { ProbabilityOverTime } from "@/components/atoms/charts/ProbabilityOverTime";
 import { TimeSeriesChart } from "@/components/atoms/charts/TimeSeriesChart";
 import { TurnoutAreaChart } from "@/components/atoms/charts/TurnoutAreaChart";
+import { UFBreadcrumb } from "@/components/atoms/nav/UFBreadcrumb";
 import { Needle } from "@/components/atoms/needle/Needle";
 import { CandidateRow } from "@/components/atoms/tables/CandidateRow";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
@@ -100,11 +100,28 @@ interface UFPageProps {
 export async function generateMetadata({ params }: UFPageProps): Promise<Metadata> {
   const { sigla: raw } = await params;
   const sigla = raw.toUpperCase();
+  const title = `${sigla} — Apuração Presidencial 2026 | SalaCofre`;
+  const description = `Apuração presidencial 2026 em ${sigla}: projeção em tempo real, mapa de municípios, swing vs 2022.`;
   return {
     // RNF-027 — URL canônica /uf/<SIGLA>.
     alternates: { canonical: `/uf/${sigla}` },
-    title: `${sigla} — Apuração Presidencial 2026 | SalaCofre`,
-    description: `Apuração presidencial 2026 em ${sigla}: projeção em tempo real, mapa de municípios, swing vs 2022.`,
+    title,
+    description,
+    // RNF-028 — Meta/OG. Imagens dinâmicas (RF-051) ficam para spec 009;
+    // aqui só textuais.
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      locale: "pt_BR",
+      siteName: "SalaCofre",
+      url: `/uf/${sigla}`,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
   };
 }
 
@@ -217,7 +234,7 @@ export default async function UFPage({ params }: UFPageProps) {
   if (!payload) {
     return (
       <main className="mx-auto flex min-h-screen max-w-[1280px] flex-col px-5 py-6">
-        <NavBreadcrumb />
+        <UFBreadcrumb />
         <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
           {sigla} — Aguardando dados
         </h1>
@@ -246,7 +263,7 @@ export default async function UFPage({ params }: UFPageProps) {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-[1280px] flex-col gap-6 px-5 py-6">
-      <NavBreadcrumb />
+      <UFBreadcrumb />
 
       <header className="flex items-baseline justify-between gap-4">
         <h1 className="text-3xl leading-tight" style={{ fontFamily: "var(--font-serif)" }}>
@@ -441,23 +458,5 @@ export default async function UFPage({ params }: UFPageProps) {
 
       <Footer />
     </main>
-  );
-}
-
-/**
- * Breadcrumb RF-031. Inline aqui porque só usa em UF (não precisa virar
- * atom no catálogo para 1 uso).
- */
-function NavBreadcrumb() {
-  return (
-    <nav aria-label="Breadcrumb">
-      <Link
-        href="/"
-        className="text-sm"
-        style={{ color: "var(--color-text-muted)", textDecoration: "underline" }}
-      >
-        ‹ Voltar ao nacional
-      </Link>
-    </nav>
   );
 }

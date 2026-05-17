@@ -84,49 +84,69 @@ export function TimeSeriesChart({
   const lastX = xFor(points.length - 1);
 
   return (
-    <svg
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      role="img"
-      aria-label={`Margem de ${liderNome} ao longo do tempo: último valor ${lastPoint.margemPp.toFixed(
-        1,
-      )} pontos percentuais.`}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      {/* Eixo zero */}
-      <line
-        x1={padX}
-        x2={width - padX}
-        y1={yFor(0)}
-        y2={yFor(0)}
-        stroke="var(--color-border)"
-        strokeDasharray="3,3"
-      />
-      {/* Linha */}
-      <path d={path} fill="none" stroke={liderCor} strokeWidth="2" />
-      {/* Último ponto */}
-      <circle cx={lastX} cy={lastY} r={3.5} fill={liderCor} />
+    <div>
+      <svg
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label={`Margem de ${liderNome} ao longo do tempo: último valor ${lastPoint.margemPp.toFixed(
+          1,
+        )} pontos percentuais.`}
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        {/* Eixo zero */}
+        <line
+          x1={padX}
+          x2={width - padX}
+          y1={yFor(0)}
+          y2={yFor(0)}
+          stroke="var(--color-border)"
+          strokeDasharray="3,3"
+        />
+        {/* Linha */}
+        <path d={path} fill="none" stroke={liderCor} strokeWidth="2" />
+        {/* Último ponto */}
+        <circle cx={lastX} cy={lastY} r={3.5} fill={liderCor} />
 
-      {/* Labels */}
-      <text
-        x={padX}
-        y={padY - 6}
-        fontSize="10"
-        fontFamily="var(--font-sans)"
-        fill="var(--color-text-muted)"
-      >
-        +{yMax.toFixed(0)}pp
-      </text>
-      <text
-        x={padX}
-        y={height - 4}
-        fontSize="10"
-        fontFamily="var(--font-sans)"
-        fill="var(--color-text-muted)"
-      >
-        {yMin.toFixed(0)}pp
-      </text>
-    </svg>
+        {/* Labels */}
+        <text
+          x={padX}
+          y={padY - 6}
+          fontSize="10"
+          fontFamily="var(--font-sans)"
+          fill="var(--color-text-muted)"
+        >
+          +{yMax.toFixed(0)}pp
+        </text>
+        <text
+          x={padX}
+          y={height - 4}
+          fontSize="10"
+          fontFamily="var(--font-sans)"
+          fill="var(--color-text-muted)"
+        >
+          {yMin.toFixed(0)}pp
+        </text>
+      </svg>
+      {/* Fallback acessível (a11y RNF-023): tabela com a série completa para leitores de tela. */}
+      <table className="sr-only">
+        <caption>Série temporal de margem de {liderNome} (pontos percentuais)</caption>
+        <thead>
+          <tr>
+            <th scope="col">Tempo</th>
+            <th scope="col">Margem (pp)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {points.map((p) => (
+            <tr key={p.ts}>
+              <td>{p.ts}</td>
+              <td>{p.margemPp.toFixed(1)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

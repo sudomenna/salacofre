@@ -82,6 +82,15 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
 
     const bbox = UF_BBOX[ufSigla] ?? [-73.99, -33.75, -28.84, 5.27];
 
+    // A11y RNF-026: respeita prefers-reduced-motion. Anula transição de
+    // fill-color que anima trocas leader↔estimate.
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const fillTransition = prefersReducedMotion
+      ? { duration: 0, delay: 0 }
+      : { duration: 600, delay: 0 };
+
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: {
@@ -102,6 +111,7 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
             // (o viewport já enquadra a UF via bounds)
             paint: {
               "fill-color": ["coalesce", ["feature-state", "color"], "#d9d9d9"],
+              "fill-color-transition": fillTransition,
               "fill-opacity": 0.88,
             },
           },

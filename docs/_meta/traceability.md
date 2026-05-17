@@ -8,6 +8,14 @@ status: stable
 
 Atualizada a cada PR. Fonte de verdade para cobertura.
 
+> **Nota S04 — Cobertura de testes**: a coluna "Teste" reflete o que está
+> verde **hoje** (`pnpm test` + `tests/unit/**`). A suíte e2e Playwright
+> (diretório `tests/e2e/` é `.gitkeep`) está **deferida para S05**. Specs 003
+> e 004 foram promovidas a `shipped` com base em cobertura unit + integration
+> para os RFs M (Must) e Should. Marcadores "e2e (deferred S05)" indicam
+> validação de interação completa que exige browser real (hover de mapa
+> MapLibre, click → router.push, brushing entre componentes).
+
 ## RFs → Specs → Componentes → Testes
 
 | RF | Descrição (resumo) | Prioridade | Spec | Componentes | Teste |
@@ -32,36 +40,36 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-018 | UF <5% apurado | S | [002](../specs/002-modelo-estatistico/) | — | unit |
 | RF-019 | Recálculo por snapshot | M | [002](../specs/002-modelo-estatistico/) | — | integration |
 | RF-020 | Persistir cada cálculo | M | [002](../specs/002-modelo-estatistico/) | — | integration |
-| RF-021 | Agulha hero | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<Needle />`, `<NationalNeedle />` | e2e |
-| RF-022 | Votos absolutos projetados | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<HeadlineScore />`, `<NationalNeedle />` | e2e |
-| RF-023 | % projetado com CI | M | [003](../specs/003-home-nacional/) | `<HeadlineScore />`, `<ConfidenceBar />`, `<NationalNeedle />` | e2e |
-| RF-024 | UFs decisivas (top 6) | M | [003](../specs/003-home-nacional/) | `<DecisiveUFsGrid />` | e2e |
-| RF-025 | Tabela 27 UFs com dot-plot | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<UFForecastTable />`, `<DotPlotRange />` | e2e |
-| RF-026 | Timestamp última atualização | M | [003](../specs/003-home-nacional/) | `<LiveBadge />` | e2e |
-| RF-027 | Atualização sem reload | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | (SWR) | e2e |
-| RF-028 | "Ao vivo" pulsante | S | [003](../specs/003-home-nacional/) | `<LiveBadge />` | e2e |
-| RF-029 | Tabs Pres/Gov | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<Tabs />` | e2e |
-| RF-030 | Switch 1T/2T | M (no 2T) | [003](../specs/003-home-nacional/) | (Tabs/Switch) | e2e |
-| RF-030.1 | Mapa coroplético hero | M | [003](../specs/003-home-nacional/) | `<NationalChoroplethMap />` | e2e |
-| RF-030.2 | Toggles de visualização | M | [003](../specs/003-home-nacional/) | `<MapViewToggle />` | e2e |
-| RF-030.3 | Hover/tap em UF + tooltip + click navega | M | [003](../specs/003-home-nacional/), [008](../specs/008-interatividade-brushing/) | `<NationalChoroplethMap />`, `<HoverTooltip />` | e2e brushing |
-| RF-030.4 | Hachura UFs que viraram | S | [003](../specs/003-home-nacional/) | `<NationalChoroplethMap />` | e2e |
-| RF-030.5 | Scoreboard com gatilho 50%+1 | M | [003](../specs/003-home-nacional/) | `<HeadlineScore />` | e2e |
-| RF-030.6 | Tabela agrupada por margem | M | [003](../specs/003-home-nacional/) | `<StateGroupedTable />` | e2e |
-| RF-031 | Breadcrumb voltar nacional | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | — | e2e |
-| RF-032 | Winner banner P>95% | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<WinnerBanner />` | e2e |
-| RF-033 | Tabela de candidatos | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<CandidateRow />` | e2e |
-| RF-034 | Mapa estado choropleth (município) | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ChoroplethMap />` | e2e |
-| RF-035 | Mapa votos reportados (bubbles) | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<BubbleMap />`, `<UFMapDuo />` | e2e |
-| RF-036 | Mapa estimativa do que falta | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ChoroplethMap />`, `<UFMapDuo />` | e2e |
-| RF-037 | Tabela municípios virtualizada | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<MunicipioTable />` | e2e |
-| RF-038 | Mapa swing vs 2022 | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<SwingArrowMap />`, `<ChoroplethMap />` | e2e |
-| RF-039 | Agulha estadual + margem | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<Needle />`, `<ConfidenceBar />` | e2e |
-| RF-040 | Margem ao longo do tempo | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<TimeSeriesChart />` | e2e |
-| RF-041 | Probabilidade ao longo do tempo | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ProbabilityOverTime />` | e2e |
-| RF-042 | Turnout cumulativo | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<TurnoutAreaChart />` | e2e |
-| RF-043 | "O que está movendo o forecast" | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [003](../specs/003-home-nacional/) | `<ForecastTransparency />`, `<ModelComposition />` | e2e |
-| RF-044 | Insight textual por template | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [003](../specs/003-home-nacional/) | `<InsightCard />` | unit, e2e |
+| RF-021 | Agulha hero | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<Needle />`, `<NationalNeedle />` | unit |
+| RF-022 | Votos absolutos projetados | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<HeadlineScore />`, `<NationalNeedle />` | unit |
+| RF-023 | % projetado com CI | M | [003](../specs/003-home-nacional/) | `<HeadlineScore />`, `<ConfidenceBar />`, `<NationalNeedle />` | unit |
+| RF-024 | UFs decisivas (top 6) | M | [003](../specs/003-home-nacional/) | `<DecisiveUFsGrid />` | unit |
+| RF-025 | Tabela 27 UFs com dot-plot | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<UFForecastTable />`, `<DotPlotRange />` | deferred S05 |
+| RF-026 | Timestamp última atualização | M | [003](../specs/003-home-nacional/) | `<LiveBadge />` | unit |
+| RF-027 | Atualização sem reload | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | (SWR) | unit |
+| RF-028 | "Ao vivo" pulsante | S | [003](../specs/003-home-nacional/) | `<LiveBadge />` | unit |
+| RF-029 | Tabs Pres/Gov | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<Tabs />` | unit |
+| RF-030 | Switch 1T/2T | M (no 2T) | [003](../specs/003-home-nacional/) | (Tabs/Switch) | unit |
+| RF-030.1 | Mapa coroplético hero | M | [003](../specs/003-home-nacional/) | `<NationalChoroplethMap />` | unit (SSR shell) + e2e (deferred S05) |
+| RF-030.2 | Toggles de visualização | M | [003](../specs/003-home-nacional/) | `<MapViewToggle />` | unit |
+| RF-030.3 | Hover/tap em UF + tooltip + click navega | M | [003](../specs/003-home-nacional/), [008](../specs/008-interatividade-brushing/) | `<NationalChoroplethMap />`, `<HoverTooltip />` | unit (contrato semântico) + e2e (deferred S05) |
+| RF-030.4 | Hachura UFs que viraram | S | [003](../specs/003-home-nacional/) | `<NationalChoroplethMap />` | deferred S05 |
+| RF-030.5 | Scoreboard com gatilho 50%+1 | M | [003](../specs/003-home-nacional/) | `<HeadlineScore />` | unit |
+| RF-030.6 | Tabela agrupada por margem | M | [003](../specs/003-home-nacional/) | `<StateGroupedTable />` | unit |
+| RF-031 | Breadcrumb voltar nacional | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<UFBreadcrumb />` | unit |
+| RF-032 | Winner banner P>95% | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<WinnerBanner />` | unit |
+| RF-033 | Tabela de candidatos | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<CandidateRow />` | unit |
+| RF-034 | Mapa estado choropleth (município) | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ChoroplethMap />` | unit (mock MapLibre) + e2e (deferred S05) |
+| RF-035 | Mapa votos reportados (bubbles) | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<BubbleMap />`, `<UFMapDuo />` | unit (mock MapLibre) + e2e (deferred S05) |
+| RF-036 | Mapa estimativa do que falta | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ChoroplethMap />`, `<UFMapDuo />` | unit (mock MapLibre) + e2e (deferred S05) |
+| RF-037 | Tabela municípios virtualizada | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<MunicipioTable />` | unit |
+| RF-038 | Mapa swing vs 2022 | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<SwingArrowMap />`, `<ChoroplethMap />` | unit (mock MapLibre) + e2e (deferred S05) |
+| RF-039 | Agulha estadual + margem | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<Needle />`, `<ConfidenceBar />` | unit |
+| RF-040 | Margem ao longo do tempo | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<TimeSeriesChart />` | unit |
+| RF-041 | Probabilidade ao longo do tempo | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ProbabilityOverTime />` | unit |
+| RF-042 | Turnout cumulativo | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<TurnoutAreaChart />` | unit |
+| RF-043 | "O que está movendo o forecast" | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [003](../specs/003-home-nacional/) | `<ForecastTransparency />`, `<ModelComposition />` | unit |
+| RF-044 | Insight textual por template | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [003](../specs/003-home-nacional/) | `<InsightCard />` | unit |
 | RF-045 | Hover destaca em todas visualizações | M | [008](../specs/008-interatividade-brushing/) | (hover-store + consumers) | e2e brushing |
 | RF-046 | Hover em linha tabela destaca mapas | M | [008](../specs/008-interatividade-brushing/) | (hover-store) | e2e brushing |
 | RF-047 | Click navega para drill-down | M | [008](../specs/008-interatividade-brushing/) | — | e2e |
@@ -72,7 +80,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-052 | Botões de share | S | [009](../specs/009-compartilhamento-meta/) | `<ShareBar />` | manual |
 | RF-053 | URL com timestamp (snapshot) | C | [009](../specs/009-compartilhamento-meta/) | — | — |
 | RF-054 | Página Sobre o Modelo | M | [011](../specs/011-sobre-o-modelo/), [009](../specs/009-compartilhamento-meta/) | (MDX) | manual |
-| RF-055 | Footer fontes + disclaimer | M | [009](../specs/009-compartilhamento-meta/) | `<Footer />` | e2e |
+| RF-055 | Footer fontes + disclaimer | M | [009](../specs/009-compartilhamento-meta/) | `<Footer />` | unit |
 | RF-056 | Dashboard saúde pipeline | M | [010](../specs/010-operacao-monitoramento/), [012](../specs/012-dashboard-status/) | `<MetricCard />` | manual |
 | RF-057 | Alertas Slack se lag >60s | M | [010](../specs/010-operacao-monitoramento/) | — | manual (forçar) |
 | RF-058 | Modo manutenção amigável | M | [010](../specs/010-operacao-monitoramento/), [013](../specs/013-pagina-manutencao/) | — | manual |

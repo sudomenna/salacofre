@@ -21,7 +21,7 @@
  *   - Navegação por teclado (←/→) via tabIndex padrão dos botões.
  */
 
-import type { KeyboardEvent } from "react";
+import { type KeyboardEvent, useRef } from "react";
 
 export type MapView = "winner" | "margin" | "swing" | "turnout";
 
@@ -39,13 +39,21 @@ const OPTIONS: ReadonlyArray<{ id: MapView; label: string }> = [
 ];
 
 export function MapViewToggle({ value, onChange, className }: MapViewToggleProps) {
+  // Roving tabindex: mantemos refs dos botões para mover foco DOM ao usar
+  // ArrowLeft/ArrowRight (WAI-ARIA APG Tab pattern — RNF-024).
+  const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
   function handleKey(e: KeyboardEvent<HTMLButtonElement>, idx: number) {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
     e.preventDefault();
     const dir = e.key === "ArrowRight" ? 1 : -1;
     const nextIdx = (idx + dir + OPTIONS.length) % OPTIONS.length;
     const nextOpt = OPTIONS[nextIdx];
-    if (nextOpt) onChange(nextOpt.id);
+    if (nextOpt) {
+      onChange(nextOpt.id);
+      // WAI-ARIA APG: foco DOM acompanha a seleção em roving tabindex.
+      buttonRefs.current[nextIdx]?.focus();
+    }
   }
 
   return (
@@ -65,6 +73,9 @@ export function MapViewToggle({ value, onChange, className }: MapViewToggleProps
         return (
           <button
             key={opt.id}
+            ref={(el) => {
+              buttonRefs.current[idx] = el;
+            }}
             type="button"
             role="tab"
             aria-selected={active}

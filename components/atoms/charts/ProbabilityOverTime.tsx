@@ -64,58 +64,78 @@ export function ProbabilityOverTime({
   const lastX = xFor(points.length - 1);
 
   return (
-    <svg
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      role="img"
-      aria-label={`Probabilidade de vitória de ${liderNome} ao longo do tempo: última leitura ${Math.round(
-        lastPoint.pVitoria * 100,
-      )}%.`}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      {/* Linha 50% */}
-      <line
-        x1={padX}
-        x2={width - padX}
-        y1={yFor(0.5)}
-        y2={yFor(0.5)}
-        stroke="var(--color-border)"
-        strokeDasharray="3,3"
-      />
-      <text
-        x={padX - 4}
-        y={yFor(0.5) + 3}
-        fontSize="9"
-        fontFamily="var(--font-sans)"
-        fill="var(--color-text-faint)"
-        textAnchor="end"
+    <div>
+      <svg
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label={`Probabilidade de vitória de ${liderNome} ao longo do tempo: última leitura ${Math.round(
+          lastPoint.pVitoria * 100,
+        )}%.`}
+        xmlns="http://www.w3.org/2000/svg"
       >
-        50%
-      </text>
-      <text
-        x={padX - 4}
-        y={yFor(1) + 3}
-        fontSize="9"
-        fontFamily="var(--font-sans)"
-        fill="var(--color-text-faint)"
-        textAnchor="end"
-      >
-        100%
-      </text>
-      <text
-        x={padX - 4}
-        y={yFor(0) + 3}
-        fontSize="9"
-        fontFamily="var(--font-sans)"
-        fill="var(--color-text-faint)"
-        textAnchor="end"
-      >
-        0%
-      </text>
+        {/* Linha 50% */}
+        <line
+          x1={padX}
+          x2={width - padX}
+          y1={yFor(0.5)}
+          y2={yFor(0.5)}
+          stroke="var(--color-border)"
+          strokeDasharray="3,3"
+        />
+        <text
+          x={padX - 4}
+          y={yFor(0.5) + 3}
+          fontSize="9"
+          fontFamily="var(--font-sans)"
+          fill="var(--color-text-muted)"
+          textAnchor="end"
+        >
+          50%
+        </text>
+        <text
+          x={padX - 4}
+          y={yFor(1) + 3}
+          fontSize="9"
+          fontFamily="var(--font-sans)"
+          fill="var(--color-text-muted)"
+          textAnchor="end"
+        >
+          100%
+        </text>
+        <text
+          x={padX - 4}
+          y={yFor(0) + 3}
+          fontSize="9"
+          fontFamily="var(--font-sans)"
+          fill="var(--color-text-muted)"
+          textAnchor="end"
+        >
+          0%
+        </text>
 
-      <path d={path} fill="none" stroke={liderCor} strokeWidth="2" />
-      <circle cx={lastX} cy={lastY} r={3.5} fill={liderCor} />
-    </svg>
+        <path d={path} fill="none" stroke={liderCor} strokeWidth="2" />
+        <circle cx={lastX} cy={lastY} r={3.5} fill={liderCor} />
+      </svg>
+      {/* Fallback acessível (a11y RNF-023): tabela com a série completa. */}
+      <table className="sr-only">
+        <caption>Série temporal da probabilidade de vitória de {liderNome} (%)</caption>
+        <thead>
+          <tr>
+            <th scope="col">Tempo</th>
+            <th scope="col">Probabilidade</th>
+          </tr>
+        </thead>
+        <tbody>
+          {points.map((p) => (
+            <tr key={p.ts}>
+              <td>{p.ts}</td>
+              <td>{Math.round(p.pVitoria * 100)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

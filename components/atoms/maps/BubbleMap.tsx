@@ -117,6 +117,14 @@ export function BubbleMap({ ufSigla, municipios, height = 360 }: BubbleMapProps)
     const maxVotos = computeMaxVotos(municipiosRef.current);
     const bubblesGeo = buildBubblesGeoJSON(municipiosRef.current);
 
+    // A11y RNF-026: respeita prefers-reduced-motion (constituição § 4).
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const colorTransition = prefersReducedMotion
+      ? { duration: 0, delay: 0 }
+      : { duration: 600, delay: 0 };
+
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: {
@@ -163,6 +171,7 @@ export function BubbleMap({ ufSigla, municipios, height = 360 }: BubbleMapProps)
             source: "bubbles",
             paint: {
               "circle-color": ["get", "liderCor"],
+              "circle-color-transition": colorTransition,
               "circle-opacity": 0.75,
               // Raio proporcional a sqrt(votos/maxVotos) * 30 — clampado
               "circle-radius": [

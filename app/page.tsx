@@ -32,6 +32,8 @@
  *   - Gráficos de série temporal (RF-040..042).
  */
 
+import type { Metadata } from "next";
+
 import { Tabs } from "@/components/atoms/controls/Tabs";
 import { ApuracaoMeta } from "@/components/blocks/ApuracaoMeta";
 import { DecisiveUFsGrid } from "@/components/blocks/DecisiveUFsGrid";
@@ -49,6 +51,32 @@ import nationalFixture from "@/tests/fixtures/edge-config/projection-current.jso
   type: "json",
 };
 import { HomeClientShell } from "./HomeClientShell";
+
+/**
+ * RNF-028 — Meta/OG tags. Imagens dinâmicas OG (RF-051) ficam para spec 009;
+ * aqui injetamos apenas os campos textuais para sharing previews em redes
+ * sociais. `siteName` e `locale` aplicam o padrão pt_BR.
+ */
+export const metadata: Metadata = {
+  title: "SalaCofre — Apuração presidencial 2026",
+  description:
+    "Apuração presidencial 2026 em tempo real e projeção estatística do resultado final. Não oficial. Fonte: TSE.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "SalaCofre — Apuração presidencial 2026",
+    description:
+      "Apuração presidencial 2026 em tempo real e projeção estatística do resultado final.",
+    type: "website",
+    locale: "pt_BR",
+    siteName: "SalaCofre",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SalaCofre — Apuração presidencial 2026",
+    description:
+      "Apuração presidencial 2026 em tempo real e projeção estatística do resultado final.",
+  },
+};
 
 /** Polling SWR é gerenciado pelo `HomeClientShell`; o RSC fornece o estado inicial. */
 async function getInitialPayload(): Promise<EdgePayload> {

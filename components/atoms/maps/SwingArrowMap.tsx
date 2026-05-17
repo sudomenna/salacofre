@@ -92,6 +92,14 @@ export function SwingArrowMap({ ufSigla, arrows, height = 360 }: SwingArrowMapPr
     const bbox = UF_BBOX[ufSigla] ?? [-73.99, -33.75, -28.84, 5.27];
     const arrowsGeo = buildArrowsGeoJSON(arrowsRef.current);
 
+    // A11y RNF-026: respeita prefers-reduced-motion (constituição § 4).
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const colorTransition = prefersReducedMotion
+      ? { duration: 0, delay: 0 }
+      : { duration: 600, delay: 0 };
+
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: {
@@ -135,6 +143,7 @@ export function SwingArrowMap({ ufSigla, arrows, height = 360 }: SwingArrowMapPr
             source: "arrows",
             paint: {
               "circle-color": ["get", "color"],
+              "circle-color-transition": colorTransition,
               "circle-opacity": 0.75,
               "circle-radius": ["interpolate", ["linear"], ["get", "magnitude"], 0, 3, 30, 20],
               "circle-stroke-color": "#ffffff",
