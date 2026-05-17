@@ -74,7 +74,7 @@ opened: 2026-05-17
 
 ### Fase 1 — Cliente TSE (fetch + ETag + retry)
 
-- [ ] **T04 — `fetchEA20()` com If-None-Match**
+- [x] **T04 — `fetchEA20()` com If-None-Match**
   - Cria `lib/tse/client.ts` com `fetchEA20(opts: { url, etag? }): Promise<{ kind: 'fresh'; data: EA20; etag: string|null; hash: string } | { kind: 'not_modified' } | { kind: 'not_found' }>`.
   - `If-None-Match` enviado se `etag` presente; `Accept-Encoding: gzip`; `AbortSignal.timeout(5000)`.
   - User-Agent: `SalaCofre/1.0 (interessado-divulgacao-cadastrado)` (placeholder até OQ-2 / RF-010).
@@ -85,7 +85,7 @@ opened: 2026-05-17
   - Despacho: `tse-parser-builder`.
   - Estimado: 2.5h.
 
-- [ ] **T05 — Retry com backoff exponencial**
+- [x] **T05 — Retry com backoff exponencial**
   - Cria `lib/tse/retry.ts` com `withRetry<T>(fn, { attempts: 3, baseMs: 1000 })`.
   - Backoff: 1s/2s/4s (design.md). Não-retryable: 304, 404, parse errors.
   - Total wallclock max: ~7s — **dentro do timeout Vercel mesmo em Hobby (10s)**, mas justo. Documentar em comment.
