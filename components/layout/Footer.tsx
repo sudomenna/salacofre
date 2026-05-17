@@ -1,0 +1,42 @@
+/**
+ * components/layout/Footer.tsx
+ *
+ * Footer constitucional § 1 — "Não oficial. Fonte: TSE." precisa estar
+ * em TODAS as páginas da SalaCofre.
+ *
+ * Server Component puro. Minimal por design — o spec-implementer da spec
+ * 003 (home) ou um shared agent pode evoluir com mais links (sobre o
+ * modelo, dados abertos, etc.).
+ */
+
+import Link from "next/link";
+
+export function Footer() {
+  return (
+    <footer
+      className="mt-12 border-t px-5 py-6 text-center text-sm"
+      style={{
+        borderColor: "var(--color-border)",
+        color: "var(--color-text-muted)",
+      }}
+    >
+      <p>
+        Não oficial. Fonte:{" "}
+        <a
+          href="https://resultados.tse.jus.br"
+          rel="noopener noreferrer"
+          target="_blank"
+          style={{ color: "var(--color-text)", textDecoration: "underline" }}
+        >
+          TSE
+        </a>
+        . SalaCofre 2026.
+      </p>
+      <p className="mt-2 text-xs">
+        <Link href="/sobre-o-modelo" style={{ color: "var(--color-text-muted)" }}>
+          Sobre o modelo
+        </Link>
+      </p>
+    </footer>
+  );
+}

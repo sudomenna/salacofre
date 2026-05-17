@@ -1,0 +1,445 @@
+/**
+ * app/uf/[sigla]/page.tsx — Spec 004 (Página de UF Presidencial)
+ *
+ * Server Component. `generateStaticParams` lista as 27 UFs (PR-IBGE).
+ *
+ * Pipeline:
+ *   1. Lê `EdgePayloadUf` via `readUfProjection(sigla)` (ADR-0001 — Edge
+ *      Config no read path).
+ *   2. Identifica líder por `pct_projetado` desc (EdgePayloadUf não tem
+ *      `candidato_a_id`/`candidato_b_id` ainda — flagado em tasks.md como
+ *      risco/enhancement).
+ *   3. Compõe a tela conforme wireframe da spec.
+ *
+ * Mapas: importados via `next/dynamic({ ssr: false })` (ADR-0010) para
+ * manter o bundle above-the-fold <150KB (RNF-007a).
+ *
+ * Fallback: quando reader retorna `null` (pré-eleição / Edge Config vazio),
+ * renderiza mensagem "Aguardando dados" — UX não quebra (constituição § 3).
+ *
+ * RFs cobertos:
+ *   RF-031 (breadcrumb), RF-032 (winner banner), RF-033 (candidate rows),
+ *   RF-034 (choropleth UF), RF-035 (bubble map), RF-036 (estimate map),
+ *   RF-037 (municipios table), RF-038 (swing arrows), RF-039 (state needle),
+ *   RF-040 (margem timeseries), RF-041 (prob timeseries),
+ *   RF-042 (turnout area), RF-043 (forecast transparency),
+ *   RF-044 (insight card).
+ */
+
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+
+import { NewsClippingPlaceholder } from "@/components/atoms/banners/NewsClippingPlaceholder";
+import { WinnerBanner } from "@/components/atoms/banners/WinnerBanner";
+import { ProbabilityOverTime } from "@/components/atoms/charts/ProbabilityOverTime";
+import { TimeSeriesChart } from "@/components/atoms/charts/TimeSeriesChart";
+import { TurnoutAreaChart } from "@/components/atoms/charts/TurnoutAreaChart";
+import { Needle } from "@/components/atoms/needle/Needle";
+import { CandidateRow } from "@/components/atoms/tables/CandidateRow";
+import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
+import { InsightCard } from "@/components/blocks/InsightCard";
+import { type MunicipioRow, MunicipioTable } from "@/components/blocks/MunicipioTable";
+import {
+  UfLeaderMapLazy,
+  UfMapDuoLazy,
+  UfSwingArrowMapLazy,
+} from "@/components/blocks/UfMapsLazy";
+import { Footer } from "@/components/layout/Footer";
+import { LiveBadge } from "@/components/layout/LiveBadge";
+import { readUfProjection } from "@/lib/edge-config/reader";
+import nationalFixture from "@/tests/fixtures/edge-config/projection-current.json" with {
+  type: "json",
+};
+import type { EdgePayload, EdgePayloadUf, EdgeUfCandidate } from "@/lib/edge-config/types";
+
+// Mapas isolados em `UfMapsLazy` (Client Component) que internamente faz
+// `next/dynamic({ ssr: false })`. Mantém ADR-0010 (chunk separado) mesmo
+// com Next 16 proibindo `ssr: false` em Server Components.
+
+// 27 UFs IBGE. Inclui DF (carry-over S03 — DF estava ausente no payload nacional).
+const UFS_BRASIL = [
+  "AC",
+  "AL",
+  "AM",
+  "AP",
+  "BA",
+  "CE",
+  "DF",
+  "ES",
+  "GO",
+  "MA",
+  "MG",
+  "MS",
+  "MT",
+  "PA",
+  "PB",
+  "PE",
+  "PI",
+  "PR",
+  "RJ",
+  "RN",
+  "RO",
+  "RR",
+  "RS",
+  "SC",
+  "SE",
+  "SP",
+  "TO",
+] as const;
+
+export function generateStaticParams() {
+  return UFS_BRASIL.map((sigla) => ({ sigla }));
+}
+
+interface UFPageProps {
+  params: Promise<{ sigla: string }>;
+}
+
+export async function generateMetadata({ params }: UFPageProps): Promise<Metadata> {
+  const { sigla: raw } = await params;
+  const sigla = raw.toUpperCase();
+  return {
+    // RNF-027 — URL canônica /uf/<SIGLA>.
+    alternates: { canonical: `/uf/${sigla}` },
+    title: `${sigla} — Apuração Presidencial 2026 | SalaCofre`,
+    description: `Apuração presidencial 2026 em ${sigla}: projeção em tempo real, mapa de municípios, swing vs 2022.`,
+  };
+}
+
+/**
+ * Ordena candidatos por `pct_projetado` desc, tie-breaker por `id` asc.
+ * Mesma convenção do nacional (carry-over F0.1 S04). Quando o EdgePayloadUf
+ * for enriquecido com `candidato_a_id`/`candidato_b_id`, podemos pegar
+ * direto do payload — por ora derivamos.
+ */
+function sortByLeader(candidatos: readonly EdgeUfCandidate[]): EdgeUfCandidate[] {
+  return [...candidatos].sort((a, b) => {
+    if (b.pct_projetado !== a.pct_projetado) return b.pct_projetado - a.pct_projetado;
+    return a.id - b.id;
+  });
+}
+
+/**
+ * Computa probabilidade do líder a partir de `needle_position` em [-1, 1].
+ *   probA = (position + 1) / 2  → líder favorito quando >= 0.5.
+ * p_vitoria_lider = max(probA, 1 - probA).
+ */
+function leaderProbability(needlePosition: number): number {
+  const probA = (needlePosition + 1) / 2;
+  return Math.max(probA, 1 - probA);
+}
+
+/**
+ * Sintetiza um `EdgePayloadUf` a partir do fixture nacional, espelhando a
+ * lógica de `/api/projection?uf=`. Usado apenas quando o reader retorna
+ * null E não há `EDGE_CONFIG` (dev/preview sem credencial). Em produção
+ * com Edge Config configurado, esta função nunca é chamada.
+ */
+function synthesizeUfFromNational(sigla: string): EdgePayloadUf | null {
+  const national = nationalFixture as unknown as EdgePayload;
+  const row = national.por_uf.find((u) => u.sigla === sigla);
+  if (!row) return null;
+  return {
+    uf: sigla,
+    ts: national.ts,
+    cargo: national.cargo,
+    turno: national.turno,
+    pct_apurado: row.pct_apurado,
+    candidatos: national.national.candidatos.map((c) => ({
+      id: c.id,
+      nome: c.nome,
+      partido: c.partido,
+      cor: c.cor,
+      pct_atual: c.pct_atual,
+      pct_projetado: c.pct_projetado,
+      ci95: { lower: c.pct_projetado_lower, upper: c.pct_projetado_upper },
+    })),
+    needle_position: row.lider === national.national.candidato_a_id ? 0.4 : -0.4,
+    needle_band: "lean_a",
+    municipios: [],
+  };
+}
+
+/**
+ * Converte municípios do payload em rows da tabela. Por ora o payload UF
+ * não inclui `margem` nem `votos_reportados` por município (só `cod_ibge`,
+ * `nome`, `pct_apurado`, `lider`). Derivamos campos de display com
+ * heurísticas conservadoras + TODO no docstring. v2 enriquece payload.
+ */
+function toMunicipioRows(
+  payload: EdgePayloadUf,
+  candidateColor: Record<number, string>,
+  candidateShortName: Record<number, string>,
+): MunicipioRow[] {
+  return payload.municipios.map((m) => ({
+    cod_ibge: m.cod_ibge,
+    nome: m.nome,
+    lider: m.lider,
+    liderCor: candidateColor[m.lider] ?? "var(--color-text)",
+    liderNome: candidateShortName[m.lider] ?? `#${m.lider}`,
+    // TODO: payload precisa carregar margemPp e votosReportados por município.
+    // Por enquanto, valores derivados/placeholder.
+    margemPp: 5,
+    pctApurado: m.pct_apurado,
+    votosReportados: 0,
+  }));
+}
+
+export default async function UFPage({ params }: UFPageProps) {
+  const { sigla: raw } = await params;
+  const sigla = raw.toUpperCase();
+
+  if (!UFS_BRASIL.includes(sigla as (typeof UFS_BRASIL)[number])) {
+    notFound();
+  }
+
+  let payload = await readUfProjection(sigla);
+
+  // Dev fallback: quando o reader retorna `null` (chave UF ainda não publicada
+  // OR sem EDGE_CONFIG), em desenvolvimento sintetiza a partir do fixture
+  // nacional. Garante que `/uf/SP` renderiza em `pnpm dev` independente de
+  // credencial Vercel — constituição § 3 (UX nunca quebra).
+  //
+  // Em produção (NODE_ENV=production), respeita o reader: null = sem payload
+  // genuíno → renderiza "Aguardando dados".
+  if (!payload && process.env.NODE_ENV !== "production") {
+    payload = synthesizeUfFromNational(sigla);
+  }
+
+  // Pré-eleição absoluta OR Edge Config vazio. UX gentil (constituição § 3).
+  if (!payload) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-[1280px] flex-col px-5 py-6">
+        <NavBreadcrumb />
+        <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
+          {sigla} — Aguardando dados
+        </h1>
+        <p className="mt-2 text-sm" style={{ color: "var(--color-text-muted)" }}>
+          A projeção para esta UF começa quando o TSE divulgar os primeiros boletins.
+        </p>
+        <Footer />
+      </main>
+    );
+  }
+
+  const sortedCandidatos = sortByLeader(payload.candidatos);
+  const lider = sortedCandidatos[0];
+  const segundo = sortedCandidatos[1];
+  const pVitoriaLider = leaderProbability(payload.needle_position);
+
+  // Maps de id → cor / nome curto para os componentes de mapa+tabela.
+  const candidateColor: Record<number, string> = {};
+  const candidateShortName: Record<number, string> = {};
+  for (const c of payload.candidatos) {
+    candidateColor[c.id] = c.cor;
+    candidateShortName[c.id] = c.nome.split(" ")[0] ?? c.nome;
+  }
+
+  const municipioRows = toMunicipioRows(payload, candidateColor, candidateShortName);
+
+  return (
+    <main className="mx-auto flex min-h-screen max-w-[1280px] flex-col gap-6 px-5 py-6">
+      <NavBreadcrumb />
+
+      <header className="flex items-baseline justify-between gap-4">
+        <h1 className="text-3xl leading-tight" style={{ fontFamily: "var(--font-serif)" }}>
+          {sigla} — Apuração Presidencial 2026
+        </h1>
+        <LiveBadge active={payload.pct_apurado > 0 && payload.pct_apurado < 100} />
+      </header>
+
+      {/* RF-032: Winner banner quando p_vitoria_lider >= 0.95 */}
+      {lider && pVitoriaLider >= 0.95 && (
+        <WinnerBanner
+          candidato={lider.nome}
+          partido={lider.partido}
+          ufSigla={sigla}
+          cor={lider.cor}
+        />
+      )}
+
+      {/* Grid superior: tabela de candidatos | coroplético de municípios */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <section aria-labelledby="candidates-heading" className="flex flex-col gap-1">
+          <h2
+            id="candidates-heading"
+            className="mb-1 text-lg"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            Candidatos
+          </h2>
+          {sortedCandidatos.map((c) => (
+            <CandidateRow
+              key={c.id}
+              nome={c.nome}
+              partido={c.partido}
+              cor={c.cor}
+              votos={null}
+              pct={c.pct_projetado}
+            />
+          ))}
+          <p className="mt-2 text-xs" style={{ color: "var(--color-text-muted)" }}>
+            {payload.pct_apurado.toFixed(1)}% apurado em {sigla}
+          </p>
+        </section>
+
+        <section aria-labelledby="leader-map-heading" className="flex flex-col gap-2">
+          <h2
+            id="leader-map-heading"
+            className="text-lg"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            Mapa de municípios
+          </h2>
+          <UfLeaderMapLazy
+            ufSigla={sigla}
+            choropleth={payload.municipios.map((m) => ({
+              cod_ibge: m.cod_ibge,
+              cor: candidateColor[m.lider] ?? "var(--color-tossup)",
+              pctApurado: m.pct_apurado,
+            }))}
+            height={320}
+          />
+        </section>
+      </div>
+
+      {/* RF-044: insight textual */}
+      {/*
+        EdgePayloadUf não traz `insights` ainda. Quando o orchestrator
+        evoluir, substituímos pelo campo correto. v1: card vazio = não
+        renderiza (InsightCard retorna null com frases=[]).
+      */}
+      <InsightCard frases={[]} variant="uf" />
+
+      {/* RF-035 + RF-036: mapas duo */}
+      <UfMapDuoLazy
+        ufSigla={sigla}
+        bubbles={payload.municipios.map((m) => ({
+          cod_ibge: m.cod_ibge,
+          nome: m.nome,
+          centro: [0, 0],
+          votos: 0,
+          lider: m.lider,
+          liderCor: candidateColor[m.lider] ?? "var(--color-tossup)",
+        }))}
+        choropleth={payload.municipios.map((m) => ({
+          cod_ibge: m.cod_ibge,
+          cor: candidateColor[m.lider] ?? "var(--color-tossup)",
+          pctApurado: m.pct_apurado,
+        }))}
+        height={320}
+      />
+
+      {/* RF-037: tabela virtualizada */}
+      <MunicipioTable rows={municipioRows} />
+
+      {/* RF-038: swing arrows (Should) */}
+      <section aria-labelledby="swing-heading" className="flex flex-col gap-2">
+        <h3 id="swing-heading" className="text-lg" style={{ fontFamily: "var(--font-serif)" }}>
+          Como os votos se comparam com 2022
+        </h3>
+        <UfSwingArrowMapLazy ufSigla={sigla} arrows={[]} height={320} />
+      </section>
+
+      {/* RF-039: agulha estadual + estimated margin */}
+      {lider && segundo && (
+        <section
+          aria-labelledby="state-needle-heading"
+          className="flex flex-col items-center gap-2"
+        >
+          <h3
+            id="state-needle-heading"
+            className="text-lg"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            Forecast ao vivo de {sigla}
+          </h3>
+          <Needle
+            needlePosition={payload.needle_position}
+            needleBand={payload.needle_band}
+            pVitoria={pVitoriaLider}
+            candidatoA={lider.nome}
+            candidatoB={segundo.nome}
+            variant="uf"
+          />
+          <p className="text-sm tabular-nums" style={{ color: "var(--color-text-muted)" }}>
+            Margem estimada: {lider.nome.split(" ")[0]} +
+            {(lider.pct_projetado - segundo.pct_projetado).toFixed(1)}pp (CI95{" "}
+            {lider.ci95.lower.toFixed(1)} – {lider.ci95.upper.toFixed(1)})
+          </p>
+        </section>
+      )}
+
+      {/* RF-040, RF-041, RF-042: charts (Should) */}
+      {/*
+        EdgePayloadUf não traz series_temporais ainda — passamos vazio,
+        e cada chart renderiza placeholder "Série insuficiente".
+        Quando o orchestrator publicar series_temporais, basta plumbar.
+      */}
+      <section className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="flex flex-col gap-2">
+          <h4
+            className="text-sm uppercase tracking-wide"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            Margem ao longo do tempo
+          </h4>
+          <TimeSeriesChart
+            points={[]}
+            liderNome={lider?.nome ?? "Líder"}
+            liderCor={lider?.cor ?? "var(--color-text)"}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <h4
+            className="text-sm uppercase tracking-wide"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            Probabilidade ao longo do tempo
+          </h4>
+          <ProbabilityOverTime
+            points={[]}
+            liderNome={lider?.nome ?? "Líder"}
+            liderCor={lider?.cor ?? "var(--color-text)"}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <h4
+            className="text-sm uppercase tracking-wide"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            Turnout cumulativo
+          </h4>
+          <TurnoutAreaChart points={[]} />
+        </div>
+      </section>
+
+      {/* RF-043: forecast transparency */}
+      <ForecastTransparency pctApurado={payload.pct_apurado} variant="uf" />
+
+      {/* Slot "Repercussão na imprensa" (decisão kickoff S04, sem RF formal) */}
+      <NewsClippingPlaceholder />
+
+      <Footer />
+    </main>
+  );
+}
+
+/**
+ * Breadcrumb RF-031. Inline aqui porque só usa em UF (não precisa virar
+ * atom no catálogo para 1 uso).
+ */
+function NavBreadcrumb() {
+  return (
+    <nav aria-label="Breadcrumb">
+      <Link
+        href="/"
+        className="text-sm"
+        style={{ color: "var(--color-text-muted)", textDecoration: "underline" }}
+      >
+        ‹ Voltar ao nacional
+      </Link>
+    </nav>
+  );
+}

@@ -31,8 +31,8 @@ kickoff_decisions:
 
 ## Specs in-flight
 
-- [ ] **003-home-nacional** — RF-021 a RF-030.6, foco no shipping do esqueleto + mapa hero.
-- [ ] **004-pagina-uf-presidencial** — RF-031 a RF-044 + slot "Repercussão na imprensa" (placeholder visual, sem RF formal).
+- [~] **003-home-nacional** — RF-021 a RF-030.6, foco no shipping do esqueleto + mapa hero. _(implementing 2026-05-17: tasks.md fechado, atoms+blocks+page integrados, 90 tests verdes, `app/page.tsx` smoke OK; carry-overs: NationalChoroplethMap real (MapLibre+PMTiles) deve ser despachado ao `map-builder` antes de shipped; UFForecastTable RF-025 deferido para S05.)_
+- [~] **004-pagina-uf-presidencial** — RF-031 a RF-044 + slot "Repercussão na imprensa" (placeholder visual, sem RF formal). _(implementing — Fase B–G concluídas em 2026-05-17, `app/uf/[sigla]/page.tsx` HTTP 200 smoke verde, 24 tests verdes; mapas via placeholder client lazy → aguarda `map-builder`)._
 - [ ] **011-sobre-o-modelo** — RF-054 com mockup NYT-style (não texto puro). Bloqueante § 8 antes das 003/004 irem live.
 
 ## Chores fora de spec

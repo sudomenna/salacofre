@@ -1,7 +1,7 @@
 ---
 id: 004-pagina-uf-presidencial
 title: Página de UF — Presidencial (T-03)
-status: draft
+status: implementing
 priority: M
 personas: [P1, P2, P3, P4]
 screens: [T-03]
