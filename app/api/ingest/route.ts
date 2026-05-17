@@ -16,7 +16,7 @@
  */
 
 import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { notifySlack } from "@/lib/tse/alerts";
 import { fetchEA20 } from "@/lib/tse/client";
 import { parseEA20Numeric } from "@/lib/tse/ea20-schema";
@@ -108,6 +108,113 @@ function parseTurnoEnv(): 1 | 2 {
  * either higher concurrency, partitioned cron jobs, or Fluid Compute.
  */
 const CONCURRENCY = 20;
+
+// ---------------------------------------------------------------------------
+// Model trigger (T16 — Fase 5)
+// ---------------------------------------------------------------------------
+
+/**
+ * ACTIVE_CARGOS — cargos para os quais disparamos `/api/model/project` ao fim
+ * do ciclo de ingestão (RF-019). S03 cobre presidente (1) e governador (3).
+ *
+ * Cada cargo gera UM fire-and-forget independente do outro. Falha em um não
+ * bloqueia o outro nem o response do `/api/ingest`.
+ */
+const ACTIVE_CARGOS = [1, 3] as const;
+
+/**
+ * resolveInternalBaseUrl — base URL pra `/api/model/project` no mesmo deploy.
+ *
+ * Resolução em ordem:
+ *   1. `INTERNAL_BASE_URL` explícita (override de teste / staging custom).
+ *   2. `VERCEL_URL` injetada pelo runtime Vercel em preview/prod (sem scheme).
+ *   3. `http://localhost:${PORT ?? 3000}` em dev local.
+ *
+ * Por que NÃO usar `req.headers.get('host')`? Em Vercel o host externo pode
+ * ser um domínio customizado que não roteia interno-pra-interno; `VERCEL_URL`
+ * é sempre o `*.vercel.app` que aceita auto-chamadas.
+ */
+function resolveInternalBaseUrl(): string {
+  const explicit = process.env.INTERNAL_BASE_URL;
+  if (explicit && explicit.length > 0) return explicit.replace(/\/$/, "");
+
+  const vercelUrl = process.env.VERCEL_URL;
+  if (vercelUrl && vercelUrl.length > 0) return `https://${vercelUrl}`;
+
+  const port = process.env.PORT ?? "3000";
+  return `http://localhost:${port}`;
+}
+
+/**
+ * triggerModel — fire-and-forget POST para `/api/model/project` por cargo.
+ *
+ * Best-effort: erros são logados como warn e nunca propagam. O modelo
+ * recomputa a cada ciclo (RF-019), então uma falha aqui se auto-corrige em
+ * <60s. A persistência canônica (`projections`) é responsabilidade do próprio
+ * endpoint Python — não bloqueamos o cron à espera.
+ *
+ * Usa `after()` do Next 16 (ex-`waitUntil`) quando disponível para garantir
+ * que a serverless function não seja "freed" antes do fetch sair (Vercel
+ * cancela connections de funções já encerradas). Em runtime non-Vercel
+ * (testes/dev local) `after()` ainda funciona mas degrada para um Promise
+ * sem hold — o `void fetch` então é suficiente.
+ */
+function triggerModel(opts: {
+  baseUrl: string;
+  cargo: number;
+  turno: 1 | 2;
+  triggerTs: string;
+  modelSecret: string;
+}): void {
+  const { baseUrl, cargo, turno, triggerTs, modelSecret } = opts;
+  const url = `${baseUrl}/api/model/project`;
+
+  // Encapsulada como Promise pra entregar pra `after()` E para que erros
+  // sejam capturados num catch único (sem unhandled rejection).
+  const run = async () => {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "x-model-secret": modelSecret,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ cargo, turno, trigger_ts: triggerTs }),
+      });
+      // Não bloqueia o ciclo — apenas registra resultado pra observabilidade.
+      // Status 5xx do modelo = recompute do próximo ciclo se ressincroniza.
+      if (!res.ok) {
+        logWarn("model-trigger non-2xx", {
+          cargo,
+          turno,
+          status: res.status,
+          url,
+        });
+      }
+    } catch (err) {
+      logWarn("model-trigger-failed", {
+        cargo,
+        turno,
+        url,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  // `after()` é exportado por `next/server` em Next 16. Em ambientes que não
+  // garantem o ciclo (test env sem Next runtime), `after()` pode `throw` —
+  // o try/catch garante fallback para `void run()` puro.
+  //
+  // CRÍTICO: passamos um *thunk* (`() => Promise`) para `after()`, NÃO o
+  // Promise já em execução. Isso (a) deixa `after()` decidir quando rodar
+  // e (b) evita rodar duas vezes se o `after()` throw após o Promise já
+  // ter começado.
+  try {
+    after(run);
+  } catch {
+    void run();
+  }
+}
 
 function buildSemaphore(limit: number) {
   let active = 0;
@@ -398,13 +505,50 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const durationMs = Date.now() - t0;
 
+  // --------------------------------------------------------------------------
+  // 6a. Trigger modelo (RF-019) — fire-and-forget, 1× por cargo ativo.
+  //
+  // Só dispara quando o ciclo produziu mudança (`changed > 0`); ciclos
+  // 100% dedup (ETag/hash) não recomputam o modelo. Cada cargo é
+  // independente; falhas são logadas e não bloqueiam o response.
+  // --------------------------------------------------------------------------
+
+  let modelTriggered: number[] = [];
+  if (changed > 0) {
+    const modelSecret = process.env.MODEL_SECRET;
+    if (!modelSecret) {
+      logWarn("model-trigger skipped — MODEL_SECRET não configurada", {
+        changed,
+        env,
+      });
+    } else {
+      const baseUrl = resolveInternalBaseUrl();
+      const triggerTs = new Date().toISOString();
+      for (const cargo of ACTIVE_CARGOS) {
+        triggerModel({ baseUrl, cargo, turno, triggerTs, modelSecret });
+      }
+      modelTriggered = [...ACTIVE_CARGOS];
+      logInfo("model-trigger dispatched", {
+        cargos: modelTriggered,
+        turno,
+        baseUrl,
+      });
+    }
+  }
+
   try {
     await logIngestRun({
       durationMs,
       filesFetched: targets.length,
       filesChanged: changed,
       errors: errorsCount,
-      notes: JSON.stringify({ turno, env, unchanged, not_found: notFoundCount }),
+      notes: JSON.stringify({
+        turno,
+        env,
+        unchanged,
+        not_found: notFoundCount,
+        ...(modelTriggered.length > 0 ? { model_triggered: modelTriggered } : {}),
+      }),
     });
   } catch (err) {
     // logIngestRun failing must not suppress the primary metrics response.

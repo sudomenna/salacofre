@@ -29,10 +29,36 @@ export type RollingReleasePolicy = {
   stages: RollingReleaseStage[];
 };
 
+// Function-level overrides (runtime, maxDuration, memory).
+// Schema espelha https://vercel.com/docs/projects/project-configuration#functions.
+// Mantemos campos opcionais e fechado pra evitar drift (lição S01: vercel.ts
+// rejeita props extras na validação do deploy).
+export type VercelFunctionConfig = {
+  /**
+   * Runtime explícito — usado APENAS para third-party community runtimes
+   * com versão (ex.: "vercel-php@0.7.3"). Runtimes nativos do Vercel
+   * (Node.js, Edge, Python) NÃO são declarados aqui — são detectados
+   * automaticamente. Para Python, use `.python-version` na raiz.
+   */
+  runtime?: string;
+  /** Timeout máximo da invocation em segundos. Pro: até 800s com Fluid Compute. */
+  maxDuration?: number;
+  /** Memória em MB. Default 1024. */
+  memory?: number;
+  /** Glob de exclusão pra reduzir bundle (Python: limite 500MB uncompressed). */
+  excludeFiles?: string;
+};
+
 export type VercelProjectConfig = {
   $schema?: string;
   crons?: VercelCron[];
   regions?: string[];
+  /**
+   * Functions config — chave é glob relativo à raiz do projeto.
+   * Vercel reconhece functions Python sob `api/**.py` automaticamente,
+   * mas declaramos `runtime` e `maxDuration` explicitamente pra pinar.
+   */
+  functions?: Record<string, VercelFunctionConfig>;
 };
 
 // Rolling Release (RF-059, constituição § 7) — canary 10% → 50% → 100% com
@@ -70,6 +96,28 @@ const config: VercelProjectConfig = {
   ],
   // gru1 = São Paulo. Audiência majoritariamente BR — minimizar latência.
   regions: ["gru1"],
+  // Python functions da spec 002 (modelo estatístico).
+  // ADR-0006: Python 3.14 + NumPy em Vercel Fluid Compute.
+  //
+  // IMPORTANTE: NÃO declarar `runtime` aqui — o campo `runtime` em
+  // `functions` só aceita third-party runtimes com versão (ex.:
+  // "now-php@1.0.0"). Para Python NATIVO, o Vercel detecta o runtime
+  // automaticamente pela presença de `requirements.txt` em `api/`. A
+  // versão Python é pinada via `.python-version` na raiz (ver
+  // https://vercel.com/docs/functions/runtimes/python/python-version).
+  //
+  // maxDuration=60s alinha com o budget do ciclo de ingestão (também 60s).
+  // Bootstrap n=1000 × ~150 zonas executa em <5s em hardware típico —
+  // sobra margem.
+  functions: {
+    "api/model/project.py": {
+      maxDuration: 60,
+      // Bundle Python tende a inflar com numpy. Excluímos artefatos comuns
+      // que não são necessários em runtime.
+      excludeFiles:
+        "{tests/**,__tests__/**,**/*.test.py,**/test_*.py,**/__pycache__/**,**/*.pyc}",
+    },
+  },
 };
 
 export default config;
