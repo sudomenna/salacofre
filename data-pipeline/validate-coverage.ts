@@ -19,6 +19,7 @@ async function main(): Promise<void> {
           FROM historical_results h
           LEFT JOIN municipios m ON m.cod_municipio_tse = h.cod_municipio_tse
           WHERE h.cod_municipio_tse IS NOT NULL AND m.cod_municipio_tse IS NULL
+            AND h.uf <> 'ZZ'
           ORDER BY h.uf, h.cod_municipio_tse
           LIMIT 50
         `),
@@ -27,6 +28,7 @@ async function main(): Promise<void> {
           FROM eleitorado e
           LEFT JOIN municipios m ON m.cod_municipio_tse = e.cod_municipio_tse
           WHERE m.cod_municipio_tse IS NULL
+            AND e.uf <> 'ZZ'
           ORDER BY e.uf, e.cod_municipio_tse
           LIMIT 50
         `),

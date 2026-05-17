@@ -66,3 +66,9 @@ docs/ibge-2022/
 MEMORY.md
 
 .vercel
+
+# Python (spec 002 — modelo estatístico)
+__pycache__/
+*.py[cod]
+.venv-model/
+.pytest_cache/
