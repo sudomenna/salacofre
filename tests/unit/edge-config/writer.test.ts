@@ -253,6 +253,8 @@ function buildPayload(ufs: string[]): EdgePayload {
       candidatos: [],
       needle_position: 0,
       needle_band: "tossup",
+      candidato_a_id: null,
+      candidato_b_id: null,
     },
     por_uf: ufs.map((sigla) => ({
       sigla,

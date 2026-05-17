@@ -81,10 +81,30 @@ export interface EdgeCandidate {
 }
 
 export interface EdgeNational {
+  /**
+   * Candidatos da corrida. Ordenação canônica (FIX S04 — carry-over #1 da
+   * retro S03):
+   *   1. Líder semântico (id == `candidato_a_id`)
+   *   2. Segundo lugar (id == `candidato_b_id`)
+   *   3. Demais por `pct_projetado` desc, tie-breaker por `id` asc.
+   *
+   * Por que importa: a agulha consome `candidatos[0]` como "A" e
+   * `candidatos[1]` como "B". A versão anterior ordenava por `id` asc,
+   * o que invertia "A"/"B" quando o líder tinha id maior que o segundo.
+   */
   candidatos: EdgeCandidate[];
   /** Posição da agulha em [-1, 1]. -1 = vitória certa de B, +1 = vitória certa de A. */
   needle_position: number;
   needle_band: NeedleBand;
+  /**
+   * ID do líder ("A") por `pct_projetado` agregado. Pode ser `null` quando
+   * a projeção ainda não tem candidatos válidos (pré-apuração / RF-017
+   * caso degenerado total). Consumidores devem fazer fallback para
+   * `candidatos[0]?.id`.
+   */
+  candidato_a_id: number | null;
+  /** ID do segundo lugar ("B"). `null` quando há ≤1 candidato. */
+  candidato_b_id: number | null;
 }
 
 // ---------------------------------------------------------------------------

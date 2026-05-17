@@ -141,7 +141,7 @@ def _run_one_timestep(
         eleitorado=eleitorado,
     )
 
-    national_rows, p_vitoria_a = compute_national(
+    national_rows, p_vitoria_a, cand_a_id, cand_b_id = compute_national(
         cargo=cargo,
         turno=turno,
         estimates_by_uf=estimates_by_uf,
@@ -177,6 +177,10 @@ def _run_one_timestep(
         "national": {
             "candidatos": national_candidatos,
             "p_vitoria_a": float(p_vitoria_a),
+            # FIX S04: ids semânticos do líder/segundo (vide compute_national).
+            # Permite que o validador TS rotule corretamente quem é "A".
+            "candidato_a_id": cand_a_id,
+            "candidato_b_id": cand_b_id,
         },
     }
 

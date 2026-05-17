@@ -116,14 +116,28 @@ class ProjectRequest(BaseModel):
 class ProjectResponse(BaseModel):
     """Response 200 do endpoint.
 
-    `national_p_vitoria_a` = p_vitoria do candidato A (o primeiro na ordenação
-    canônica por candidatoId crescente). Quando só há 1 candidato ou nenhum,
-    retorna 1.0 ou 0.0 respectivamente — caller decide se trata como NaN.
+    `national_p_vitoria_a` = P(líder vence segundo lugar), onde "líder" e
+    "segundo lugar" são determinados pelo `pct_projetado` agregado nacional
+    (mean dos bootstrap estimates). Sempre ∈ [0.5, 1.0] no caso típico
+    (líder por definição tem mais votos esperados; flutuação de resamples
+    pode aproximar de 0.5 em tossup). Quando só há 1 candidato → 1.0; zero
+    candidatos → 0.0.
+
+    `candidato_a_id` / `candidato_b_id`: ids do líder e do segundo, para o
+    consumidor TS resolver nome/cor/partido sem precisar ordenar de novo.
+    `None` quando há menos de 2 candidatos com estimates válidas.
+
+    Por que mudou (S04 carry-over #1 da retro S03): a versão anterior
+    definia A = menor `candidato_id`, o que invertia a agulha quando o id
+    do PT > id do PL (replay 2022 com Ciro=3022112 < Lula=3022113 gerou
+    `p_vitoria_a` ≈ 0). Agora "A" é sempre o líder semântico.
     """
 
     computed: bool
     uf_count: int
     national_p_vitoria_a: float
+    candidato_a_id: int | None = None
+    candidato_b_id: int | None = None
     computed_duration_ms: int
 
 
@@ -532,7 +546,7 @@ def compute_national(
     turno: int,
     estimates_by_uf: dict[str, dict[int, np.ndarray]],
     eleitorado_total_by_uf: dict[str, int],
-) -> tuple[list[dict[str, Any]], float]:
+) -> tuple[list[dict[str, Any]], float, int | None, int | None]:
     """Agrega estimates UF → nacional ponderado pelo eleitorado da UF.
 
     Para cada candidato `c`:
@@ -540,10 +554,24 @@ def compute_national(
     O array nacional preserva o pareamento por índice de resample (constituição
     § 6), permitindo comparação A vs B em `p_vitoria` (T10).
 
+    Identificação de "A" e "B" (FIX S04 — carry-over #1 da retro S03):
+      A = líder por `mean(estimates_c)` (o `pct_projetado` nacional)
+      B = segundo lugar pelo mesmo critério
+      Tie-breaker (mesmo pct até 1e-9): `candidato_id` ASCENDENTE — estável
+      e reprodutível. Empate exato é raro (somas de floats nunca batem
+      exatamente em dataset real); o tie-breaker existe para garantir
+      determinismo bit-a-bit em fixtures sintéticas.
+
+      A versão anterior usava A = `min(candidato_id)`, o que invertia a
+      agulha quando o id do PT > id do PL (replay 2022 detectou o bug:
+      A=Ciro 3022112 < Lula 3022113 → `p_vitoria_a` semanticamente errado).
+
     Retorna:
-        - `rows`: linhas nacionais (uma por candidato).
-        - `p_vitoria_a`: probabilidade do candidato com menor cod (A) vencer
-                        o segundo (B). Se <2 candidatos → 1.0 ou 0.0.
+        - `rows`: linhas nacionais (uma por candidato; com `p_vitoria`
+          individual = P(c > max(outros))).
+        - `p_vitoria_a`: P(líder > segundo). Se <2 candidatos → 1.0 ou 0.0.
+        - `cand_a_id`: id do líder, ou None se 0 candidatos.
+        - `cand_b_id`: id do segundo, ou None se ≤1 candidato.
     """
     # Reúne candidatos vistos.
     all_candidates: set[int] = set()
@@ -551,7 +579,7 @@ def compute_national(
         all_candidates.update(cand_map.keys())
 
     if not all_candidates:
-        return [], 0.0
+        return [], 0.0, None, None
 
     # Determina shape do array nacional pelo primeiro estimates não vazio.
     sample_arr: np.ndarray | None = None
@@ -562,14 +590,14 @@ def compute_national(
         if sample_arr is not None:
             break
     if sample_arr is None:
-        return [], 0.0
+        return [], 0.0, None, None
 
     n_resamples = sample_arr.shape[0]
 
     national_estimates: dict[int, np.ndarray] = {}
     total_eleitorado = sum(eleitorado_total_by_uf.values())
     if total_eleitorado <= 0:
-        return [], 0.0
+        return [], 0.0, None, None
 
     for cand in all_candidates:
         agg = np.zeros(n_resamples, dtype=np.float64)
@@ -586,8 +614,20 @@ def compute_national(
         if weight_sum > 0:
             national_estimates[cand] = agg / weight_sum
 
-    # Ordenação canônica: A = menor cod, B = segundo menor.
-    ordered = sorted(national_estimates.keys())
+    if not national_estimates:
+        return [], 0.0, None, None
+
+    # Ordenação SEMÂNTICA: A = líder por pct_projetado (mean), B = segundo.
+    # Tie-breaker estável: candidato_id ASCENDENTE (segundo elemento do tuple).
+    # Negate o mean para `sorted` ASC nos dois critérios — Python sorts são
+    # estáveis, então (-mean, id) reproduz "pct desc, id asc" determinístico.
+    point_by_cand: dict[int, float] = {
+        cand: float(np.mean(arr)) for cand, arr in national_estimates.items()
+    }
+    ordered = sorted(
+        national_estimates.keys(),
+        key=lambda c: (-point_by_cand[c], c),
+    )
     cand_a = ordered[0]
     cand_b = ordered[1] if len(ordered) >= 2 else None
 
@@ -599,7 +639,7 @@ def compute_national(
 
     rows: list[dict[str, Any]] = []
     for cand, arr in national_estimates.items():
-        point = float(np.mean(arr))
+        point = point_by_cand[cand]
         ci_lower = float(np.percentile(arr, 2.5))
         ci_upper = float(np.percentile(arr, 97.5))
         # p_vitoria por candidato: vs o melhor adversário (max dos outros).
@@ -628,7 +668,7 @@ def compute_national(
             }
         )
 
-    return rows, p_a
+    return rows, p_a, cand_a, cand_b
 
 
 # ---------------------------------------------------------------------------
@@ -682,13 +722,18 @@ def build_edge_payload(
     uf_rows: list[dict[str, Any]],
     national_rows: list[dict[str, Any]],
     eleitorado_total_by_uf: dict[str, int],
+    cand_a_id: int | None = None,
+    cand_b_id: int | None = None,
 ) -> dict[str, Any]:
     """Monta o shape canônico `EdgePayload` (lib/edge-config/types.ts).
 
     v1 (S03):
-      - `national.candidatos[]` — usa `national_rows` com defaults para nome/
-        partido/cor (não temos catálogo de candidatos 2026 ingerido ainda).
-        T16+ ou spec 011 substitui os defaults por dados reais.
+      - `national.candidatos[]` — usa `national_rows`; o líder semântico
+        (`cand_a_id`, vindo de `compute_national`) é o PRIMEIRO da lista,
+        seguido do segundo (`cand_b_id`), depois os demais por `pct_projetado`
+        desc. Isso garante que a agulha consome `candidatos[0]` como "A"
+        sem precisar de re-ordenação no consumidor TS.
+        Defaults nome/partido/cor permanecem até spec 011 ingerir o catálogo.
       - `por_uf[]` — uma linha por UF presente em `uf_rows`. `lider`, `margem*`,
         `chamada`, `swing_vs_2022` v1 são heurística simples:
           lider = candidato_id com maior `pct_projetado` na UF;
@@ -701,6 +746,11 @@ def build_edge_payload(
         placeholder; spec 008 vai ponderar pelas 3 fontes).
       - `pct_apurado_total` = média ponderada pelo eleitorado UF.
       - `ufs_apuradas` = contagem de UFs com `pct_apurado > 0`.
+
+    FIX S04 (carry-over #1 retro S03): antes ordenávamos `national_rows` por
+    `candidato_id` ascendente e usávamos `candidatos[0].p_vitoria` na agulha
+    — isso invertia a banda quando o líder tinha id maior. Agora a agulha
+    usa diretamente a `p_vitoria` do líder (id == `cand_a_id`).
     """
     # Index UF rows por (uf, candidato).
     uf_by_sigla: dict[str, list[dict[str, Any]]] = {}
@@ -728,8 +778,27 @@ def build_edge_payload(
     )
 
     # Bloco nacional — candidatos.
+    # Ordenação SEMÂNTICA (FIX S04 carry-over #1): líder (cand_a_id) primeiro,
+    # segundo lugar (cand_b_id) em seguida, depois os outros por pct_projetado
+    # desc. Tie-breaker para a "cauda" é candidato_id asc — estável e
+    # determinístico.
+    rows_by_id: dict[int, dict[str, Any]] = {
+        int(r["candidato_id"]): r for r in national_rows
+    }
+
+    def _sort_key(r: dict[str, Any]) -> tuple[int, float, int]:
+        rid = int(r["candidato_id"])
+        if cand_a_id is not None and rid == cand_a_id:
+            tier = 0
+        elif cand_b_id is not None and rid == cand_b_id:
+            tier = 1
+        else:
+            tier = 2
+        return (tier, -float(r.get("pct_projetado") or 0.0), rid)
+
+    sorted_national = sorted(national_rows, key=_sort_key)
+
     national_candidatos: list[dict[str, Any]] = []
-    sorted_national = sorted(national_rows, key=lambda r: r["candidato_id"])
     for r in sorted_national:
         national_candidatos.append(
             {
@@ -750,11 +819,17 @@ def build_edge_payload(
             }
         )
 
-    # Needle nacional — usa p_vitoria do top-1 mapeada para [-1, 1].
-    # `position = 2 * p_a - 1`: p=0.5 → 0 (tossup), p=1 → +1, p=0 → -1.
-    if national_candidatos:
-        p_a = national_candidatos[0]["p_vitoria"]
+    # Needle nacional — usa p_vitoria do LÍDER (cand_a_id) mapeada para [-1, 1].
+    # `position = 2 * p_a - 1`: p=0.5 → 0 (tossup), p=1 → +1.
+    # Como `p_vitoria` por candidato é P(c > max(outros)) e o líder é o c com
+    # maior pct, p_vitoria_a ≈ P(líder > segundo) ≈ valor retornado em
+    # `national_p_vitoria_a`. Lemos do row do líder em vez de candidatos[0]
+    # por explicitude (também são equivalentes após a ordenação acima).
+    if cand_a_id is not None and cand_a_id in rows_by_id:
+        p_a = float(rows_by_id[cand_a_id].get("p_vitoria") or 0.0)
         needle_position = 2.0 * p_a - 1.0
+    elif national_candidatos:
+        needle_position = 2.0 * national_candidatos[0]["p_vitoria"] - 1.0
     else:
         needle_position = 0.0
     needle_band = _needle_band(needle_position)
@@ -795,6 +870,11 @@ def build_edge_payload(
             "candidatos": national_candidatos,
             "needle_position": float(needle_position),
             "needle_band": needle_band,
+            # FIX S04 carry-over #1 — ids semânticos do líder/segundo.
+            # Consumidores TS (spec 003/004) usam para resolver nome/cor sem
+            # re-ordenar. None quando ≤1 candidato com estimates válidas.
+            "candidato_a_id": cand_a_id,
+            "candidato_b_id": cand_b_id,
         },
         "por_uf": por_uf,
         "insights": [],
@@ -908,6 +988,8 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                     computed=False,
                     uf_count=0,
                     national_p_vitoria_a=0.0,
+                    candidato_a_id=None,
+                    candidato_b_id=None,
                     computed_duration_ms=int(duration_ms),
                 ).model_dump()
 
@@ -925,7 +1007,7 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 eleitorado=eleitorado,
             )
 
-            national_rows, national_p_a = compute_national(
+            national_rows, national_p_a, cand_a_id, cand_b_id = compute_national(
                 cargo=req.cargo,
                 turno=req.turno,
                 estimates_by_uf=estimates_by_uf,
@@ -950,6 +1032,8 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 uf_rows=uf_rows,
                 national_rows=national_rows,
                 eleitorado_total_by_uf=eleitorado_total_by_uf,
+                cand_a_id=cand_a_id,
+                cand_b_id=cand_b_id,
             )
             post_edge_write(edge_payload)
         except Exception as edge_exc:  # noqa: BLE001 — never block the response
@@ -980,6 +1064,8 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
         turno=req.turno,
         uf_count=uf_count,
         national_p_vitoria_a=national_p_a,
+        candidato_a_id=cand_a_id,
+        candidato_b_id=cand_b_id,
         duration_ms=int(duration_ms),
     )
 
@@ -987,6 +1073,8 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
         computed=True,
         uf_count=uf_count,
         national_p_vitoria_a=float(national_p_a),
+        candidato_a_id=cand_a_id,
+        candidato_b_id=cand_b_id,
         computed_duration_ms=int(duration_ms),
     ).model_dump()
 

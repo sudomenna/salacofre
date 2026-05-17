@@ -359,6 +359,164 @@ def test_determinism_different_trigger_ts_differs(fake_db, minimal_dataset) -> N
 # ---------------------------------------------------------------------------
 
 
+def test_compute_national_top2_by_pct_when_leader_has_higher_id() -> None:
+    """FIX S04 carry-over #1: A = líder por `pct_projetado` (mean dos estimates),
+    NÃO `min(candidato_id)`.
+
+    Cenário: candidato 200 (id MAIOR) tem mean ≈ 0.55; candidato 100 (id MENOR)
+    tem mean ≈ 0.45. Antes do fix, A = 100 → `p_vitoria_a = P(100 > 200) ≈ 0`.
+    Depois do fix, A = 200 → `p_vitoria_a = P(200 > 100) ≈ 1`.
+    """
+    import numpy as np
+    from api.model.project import compute_national
+
+    rng = np.random.default_rng(42)
+    # Mesmo rng para os dois candidatos garantiria pareamento; cada candidato
+    # com seu próprio rng filho descorrelaciona — o que queremos para que
+    # P(c200 > c100) seja efetivamente determinado pelo gap dos means.
+    estimates_by_uf = {
+        "SP": {
+            100: 0.45 + rng.normal(0, 0.005, 1000),  # menor id, segundo lugar
+            200: 0.55 + rng.normal(0, 0.005, 1000),  # maior id, LIDER
+        },
+    }
+    eleitorado_total = {"SP": 30_000_000}
+
+    rows, p_a, cand_a, cand_b = compute_national(
+        cargo=1,
+        turno=1,
+        estimates_by_uf=estimates_by_uf,
+        eleitorado_total_by_uf=eleitorado_total,
+    )
+
+    assert cand_a == 200, f"esperado lider=200 (maior pct), got {cand_a}"
+    assert cand_b == 100, f"esperado segundo=100, got {cand_b}"
+    # p_a = P(estimates_a > estimates_b) — com gap de 10pp e σ=0.5pp, ≈ 1.0.
+    assert p_a > 0.95, f"p_vitoria_a deveria ser ≈ 1 (lider claro), got {p_a}"
+    # 2 rows nacionais.
+    assert len(rows) == 2
+
+
+def test_compute_national_tiebreaker_by_id_when_pct_equal() -> None:
+    """FIX S04: se dois candidatos têm `pct_projetado` exatamente iguais
+    (raro em dados reais, mas possível em fixtures sintéticas), tie-breaker é
+    `candidato_id` ASCENDENTE — estável e determinístico.
+    """
+    import numpy as np
+    from api.model.project import compute_national
+
+    # Estimates idênticas → means idênticos por construção.
+    same = np.full(1000, 0.50, dtype=np.float64)
+    estimates_by_uf = {
+        "SP": {
+            500: same.copy(),
+            300: same.copy(),
+            700: same.copy(),
+        },
+    }
+    eleitorado_total = {"SP": 30_000_000}
+
+    rows, _p_a, cand_a, cand_b = compute_national(
+        cargo=1,
+        turno=1,
+        estimates_by_uf=estimates_by_uf,
+        eleitorado_total_by_uf=eleitorado_total,
+    )
+
+    # Empate total: tie-breaker == menor id primeiro.
+    assert cand_a == 300, f"empate exato → A = menor id (300), got {cand_a}"
+    assert cand_b == 500, f"segundo = próximo id (500), got {cand_b}"
+    assert len(rows) == 3
+
+
+def test_compute_national_single_candidate_returns_p_a_one() -> None:
+    """Sanity: 1 candidato apenas → p_vitoria_a = 1.0, cand_b = None."""
+    import numpy as np
+    from api.model.project import compute_national
+
+    estimates_by_uf = {
+        "SP": {42: np.full(1000, 0.80, dtype=np.float64)},
+    }
+    eleitorado_total = {"SP": 30_000_000}
+
+    rows, p_a, cand_a, cand_b = compute_national(
+        cargo=1,
+        turno=1,
+        estimates_by_uf=estimates_by_uf,
+        eleitorado_total_by_uf=eleitorado_total,
+    )
+
+    assert cand_a == 42
+    assert cand_b is None
+    assert p_a == 1.0
+    assert len(rows) == 1
+
+
+def test_edge_payload_orders_candidatos_by_leader_first(
+    fake_db, minimal_dataset, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """FIX S04: `national.candidatos[0]` é o líder semântico, não menor id.
+
+    Reusa `minimal_dataset`: SP tem PT (100) com 57.5% e PL (200) com 42.5%
+    (médias ponderadas). RJ tem PT com 49% e PL com 51%. Nacional ponderado
+    pelo eleitorado deve dar líder claro a alguém — e seja quem for, deve
+    aparecer em `candidatos[0]` do payload Edge.
+
+    Também verifica os campos novos `candidato_a_id` / `candidato_b_id`.
+    """
+    from api.model.project import _do_project, urllib as proj_urllib
+
+    snapshots, historical, eleitorado = minimal_dataset
+    fake_db(snapshots, historical, eleitorado)
+
+    monkeypatch.setenv("MODEL_SECRET", "test-secret")
+    monkeypatch.setenv("INTERNAL_BASE_URL", "http://localhost:13000")
+
+    captured: dict[str, Any] = {}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):  # noqa: ANN204
+            return self
+
+        def __exit__(self, *a):  # noqa: ANN001,ANN204
+            return None
+
+    def fake_urlopen(req, timeout=10):  # noqa: ANN001,ARG001
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr(proj_urllib.request, "urlopen", fake_urlopen)
+
+    status, response = _do_project(
+        json.dumps(
+            {"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}
+        ).encode("utf-8")
+    )
+    assert status == 200
+    # Response também expõe os ids.
+    assert response["candidato_a_id"] in (100, 200)
+    assert response["candidato_b_id"] in (100, 200)
+    assert response["candidato_a_id"] != response["candidato_b_id"]
+
+    payload = captured["body"]["payload"]
+    national = payload["national"]
+    cand_a = national["candidato_a_id"]
+    cand_b = national["candidato_b_id"]
+    assert cand_a is not None and cand_b is not None
+    # Primeiro candidato listado = líder semântico.
+    assert national["candidatos"][0]["id"] == cand_a
+    assert national["candidatos"][1]["id"] == cand_b
+    # Líder tem pct_projetado >= 2º.
+    assert (
+        national["candidatos"][0]["pct_projetado"]
+        >= national["candidatos"][1]["pct_projetado"]
+    )
+    # Needle aponta para o líder (>= 0).
+    assert national["needle_position"] >= 0.0
+
+
 def test_handler_class_importable() -> None:
     """Smoke: a classe `handler` está no módulo (entrypoint Vercel)."""
     from api.model import project as proj_mod
