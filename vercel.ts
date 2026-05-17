@@ -49,13 +49,23 @@ export const rollingReleasePolicy: RollingReleasePolicy = {
 };
 
 const config: VercelProjectConfig = {
-  // Cron placeholder — S02 define cadência real (RF-002) após resolução TSE 2026.
-  // Vercel exige cron com no mínimo 1 chamada/dia em planos pagos;
-  // este placeholder roda às 03:00 UTC e é substituído na S02.
+  // Crons da spec 001 (ingestão TSE).
+  // ADR-0011 fixou cadência em 60s — Vercel Cron mínimo nativo é 1/min.
+  // RNF-006: defasagem TSE→tela <90s.
+  //
+  // - Cron de apuração: a cada minuto na janela 17h–04h BRT (UTC-3 sem DST).
+  //   17h BRT = 20h UTC; 04h BRT = 07h UTC. Em cron UTC: hours 20-23,0-7.
+  // - Cron heartbeat diurno: 12:00 UTC = 09:00 BRT. Satisfaz exigência Vercel
+  //   de ≥1 execução/dia em plano pago. O handler retorna {skipped} fora
+  //   da janela, então o heartbeat é inofensivo.
   crons: [
     {
       path: "/api/ingest",
-      schedule: "0 3 * * *",
+      schedule: "* 20-23,0-7 * * *",
+    },
+    {
+      path: "/api/ingest",
+      schedule: "0 12 * * *",
     },
   ],
   // gru1 = São Paulo. Audiência majoritariamente BR — minimizar latência.

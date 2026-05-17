@@ -112,7 +112,7 @@ opened: 2026-05-17
 
 ### Fase 3 — API route `/api/ingest`
 
-- [ ] **T08 — Route handler `app/api/ingest/route.ts`**
+- [x] **T08 — Route handler `app/api/ingest/route.ts`**
   - `POST /api/ingest` (Fluid Compute Node, runtime `nodejs`, `maxDuration` configurada via export).
   - Auth: header `x-cron-secret` === `process.env.CRON_SECRET` (RNF-016). Sem secret → 401. Vercel Cron envia esse header automaticamente quando configurado.
   - Janela de tempo: se `process.env.CRON_ENABLED !== 'true'` **ou** `now()` fora de 17:00–04:00 BRT (e sem override `INGEST_WINDOW_OVERRIDE=true`), retorna 200 `{ skipped: 'out_of_window' }` sem ingerir. Cobre RF-002 GWT.
@@ -124,7 +124,7 @@ opened: 2026-05-17
   - Despacho: `tse-parser-builder` (parte da rota), depois `constitution-guard` lê pós-fato.
   - Estimado: 3h.
 
-- [ ] **T09 — Cadência via Vercel Cron 60s** *(D-1)*
+- [x] **T09 — Cadência via Vercel Cron 60s** *(D-1)*
   - Sem self-loop. O handler executa **1 ciclo completo por invocação**.
   - Janela checada no handler (17h–04h BRT) — fora dela retorna `{skipped:'out_of_window'}`.
   - **Pré-req**: ADR-0011 (cadência 60s) criado pelo `adr-author` — referenciar em comment.
@@ -134,13 +134,13 @@ opened: 2026-05-17
 
 ### Fase 4 — Vercel Cron config
 
-- [ ] **T10 — Atualizar `vercel.ts` crons**
+- [x] **T10 — Atualizar `vercel.ts` crons**
   - Substitui o placeholder `"0 3 * * *"` por cron de janela: `*/1 20-23,0-7 * * *` (UTC; equivale a 17h–04h BRT) apontando para `/api/ingest`.
   - Manter heartbeat diurno `0 12 * * *` (handler retorna `skipped` fora da janela) — necessário pra satisfazer regra Vercel "≥1 execução/dia em plano pago".
   - Cobre: **RF-002 (D-1)**.
   - Estimado: 0.5h.
 
-- [ ] **T11 — `maxDuration` em route handler**
+- [x] **T11 — `maxDuration` em route handler**
   - Plano Vercel confirmado: **Pro** (D-1).
   - Adicionar `export const maxDuration = 60;` em `app/api/ingest/route.ts`. Comment explicando: budget = polling 60s; se ciclo médio < 30s, sobra margem.
   - Cobre: **RF-002 (D-1), RNF-006 (D-1)**.
