@@ -48,7 +48,7 @@ opened: 2026-05-17
 
 ### Fase 0 — Tipos e infraestrutura compartilhada
 
-- [ ] **T01 — Schema Zod EA20 + tipos TS**
+- [x] **T01 — Schema Zod EA20 + tipos TS**
   - Cria `lib/tse/ea20-schema.ts` com `EA20Schema` (Zod) + tipo inferido `EA20`.
   - Espelha o shape do design.md §"Schema EA20 (parcial relevante)" — todos os campos string preservados como vieram do TSE (TSE devolve numéricos como string).
   - Helpers: `parseEA20Numeric(s: string): number` (vírgula decimal BR → number).
@@ -56,7 +56,7 @@ opened: 2026-05-17
   - ADRs: 0002.
   - Estimado: 1.5h.
 
-- [ ] **T02 — Tabela de targets (UF × cargo × zona)**
+- [x] **T02 — Tabela de targets (UF × cargo × zona)**
   - Cria `lib/tse/targets.ts` com função `listIngestTargets(env: 'preview'|'production'): Target[]`.
   - `Target = { uf: string; cargo: 1|3; codMunicipioTse: number; codZona: number; url: string; codEleicao: string }`.
   - Em preview: lê whitelist de env var `TSE_TARGETS_WHITELIST` (default: SP, cargo 1) — resolve OQ-4.
@@ -66,11 +66,11 @@ opened: 2026-05-17
   - Despacho: `tse-parser-builder` (conhece formato URL TSE).
   - Estimado: 2h.
 
-- [ ] **T03 — Tipos de erro e logs estruturados**
-  - Cria `lib/tse/errors.ts` com `TSEError extends Error` (`status`, `url`, `bodySample`) e `IngestError` (`reason: 'parse'|'persist'|'network'|'timeout'`).
-  - Cria `lib/tse/log.ts` — wrapper sobre `console.log` que serializa JSON com `{ level, ts, msg, ...ctx }`. Sem dep externa (next/observability funciona via console em Vercel).
+- [x] **T03 — Tipos de erro e logs estruturados**
+  - [x] Cria `lib/tse/errors.ts` com `TSEError extends Error` (`status`, `url`, `bodySample`) e `IngestError` (`reason: 'parse'|'persist'|'network'|'timeout'`).
+  - [x] Cria `lib/tse/log.ts` — wrapper sobre `console.log` que serializa JSON com `{ level, ts, msg, ...ctx }`. Sem dep externa (next/observability funciona via console em Vercel).
   - Cobre: **RNF-032** (logs estruturados).
-  - Estimado: 1h.
+  - Estimado: 1h. **Done 2026-05-17.**
 
 ### Fase 1 — Cliente TSE (fetch + ETag + retry)
 
