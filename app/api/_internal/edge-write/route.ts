@@ -27,7 +27,7 @@
  *   Convenção: rotas com path começando em `_internal` NUNCA são expostas
  *   publicamente. Vercel não filtra automaticamente, mas o auth header
  *   `x-model-secret` garante que só callers com o segredo passam.
- *   middleware.ts (futuro) pode adicionar IP allow-list extra.
+ *   proxy.ts (futuro) pode adicionar IP allow-list extra.
  *
  * Cobre
  *   - Ponte Python ↔ Node (T15).

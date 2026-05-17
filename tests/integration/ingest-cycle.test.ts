@@ -429,9 +429,17 @@ describe("T19 — ciclo completo /api/ingest (integration)", { timeout: 30000 },
       expect(count).toBe(3);
     });
 
-    it("6. ingest_log ganhou exatamente 2 linhas após 2 ciclos", async () => {
+    it("6. ingest_log ganhou pelo menos 2 linhas após 2 ciclos", async () => {
+      // S04/F0.6 — relaxado de `.toBe(+2)` para `.toBeGreaterThanOrEqual(+2)`
+      // após T16b da S03 acoplar `/api/ingest` ao `/api/model/project` via
+      // `after()`. Outros integration tests da spec 002 podem inserir em
+      // `ingest_log` durante a mesma sessão vitest (mesmo com singleFork em
+      // vitest.config.ts pra serializar pool de forks). O invariante real é
+      // "ciclos 5a+5b geraram >=2 linhas em ingest_log" — não "exatamente 2".
+      // Refactor mais profundo (marker JSON em `notes` da spec 001 shipped)
+      // ficou rejeitado pra não tocar production code shipped.
       const logCountAfter = await countIngestLog();
-      expect(logCountAfter).toBe(logCountBefore + 2);
+      expect(logCountAfter).toBeGreaterThanOrEqual(logCountBefore + 2);
     });
   });
 });

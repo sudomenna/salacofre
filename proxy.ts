@@ -1,4 +1,8 @@
-// middleware.ts — Edge Middleware aplicado a /api/*.
+// proxy.ts — Routing Middleware (Vercel) / Next.js Proxy aplicado a /api/*.
+//
+// Renomeado de `middleware.ts` em S04/F0.5 (Next 16 deprecation):
+// arquivo `middleware.ts` → `proxy.ts`, função `middleware` → `proxy`.
+// Comportamento e matcher idênticos.
 //
 // Propósito: bot detection via Vercel BotID (ADR-0009 + RNF-018). Rate limit
 // complementar (RNF-017) por IP fica para chore futura.
@@ -12,7 +16,7 @@ import { checkBotId } from "botid/server";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-export async function middleware(_req: NextRequest) {
+export async function proxy(_req: NextRequest) {
   const verdict = await checkBotId();
   if (verdict.isBot && !verdict.isVerifiedBot) {
     return new NextResponse(

@@ -30,7 +30,7 @@ source: PRD.md § 14.3
 | `<UFForecastTable />` | block | RF-025 | `components/blocks/UFForecastTable.tsx` |
 | `<UFMapDuo />` | block | RF-035, RF-036 | `components/blocks/UFMapDuo.tsx` |
 | `<MunicipioTable />` | block | RF-037 | `components/blocks/MunicipioTable.tsx` |
-| `<ForecastTransparency />` | block | RF-043 | `components/blocks/ForecastTransparency.tsx` |
+| `<ForecastTransparency />` ✅ shipped | block | RF-043 | [`components/blocks/ForecastTransparency.tsx`](../../components/blocks/ForecastTransparency.tsx) — unit tests: [`tests/unit/components/ForecastTransparency.test.tsx`](../../tests/unit/components/ForecastTransparency.test.tsx) |
 | `<InsightCard />` | block | RF-044 | `components/blocks/InsightCard.tsx` |
 | `<HoverTooltip />` | shared | RF-045, RF-048 | `components/shared/HoverTooltip.tsx` |
 | `<BottomSheet />` | shared | RF-049, RF-050 | `components/shared/BottomSheet.tsx` |
