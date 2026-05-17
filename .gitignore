@@ -1,0 +1,68 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Testing
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Production / cache
+.turbo/
+.cache/
+
+# Local env files (NEVER COMMIT)
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# Vercel
+.vercel/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Misc
+.eslintcache
+
+# Source data (binários grandes — IBGE shapefiles; baixar de https://www.ibge.gov.br/geociencias/organizacao-do-territorio/malhas-territoriais)
+docs/ibge-2022/
+
+# Auto-memória local do Claude (não-portátil)
+MEMORY.md
+
+.vercel

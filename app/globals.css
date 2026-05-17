@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+/* Tokens canônicos — espelha docs/design-system/tokens.md.
+ * Cores partidárias NYT-like (constituição § 2): PT=vermelho, PL=azul.
+ * Nunca cores oficiais de partido. */
+:root {
+  /* Tipografia (next/font injeta --font-sans e --font-serif no <html>) */
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Cores neutras */
+  --color-bg: #ffffff;
+  --color-bg-muted: #fafafa;
+  --color-text: #222222;
+  --color-text-muted: #666666;
+  --color-text-faint: #999999;
+  --color-border: #e5e5e5;
+
+  /* Cores partidárias (NYT-like) */
+  --color-pt: #d33732;
+  --color-pl: #2a52be;
+  --color-tossup: #d9d9d9;
+  --color-pt-band: #c8d4ed;
+  --color-pl-band: #f0c9c8;
+
+  /* Status */
+  --color-success: #2c8e4a;
+  --color-warning: #d97706;
+  --color-error: #b91c1c;
+  --color-live: #ef4444;
+
+  /* Layout */
+  --max-width: 1280px;
+}
+
+* {
+  font-variant-numeric: tabular-nums;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+}

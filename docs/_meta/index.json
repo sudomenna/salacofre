@@ -1,0 +1,493 @@
+{
+  "$schema": "https://atlasmenna.com.br/docs-index.schema.json",
+  "name": "AtlasMenna Docs Index",
+  "description": "Índice machine-readable da documentação SDD do AtlasMenna. Carregar este arquivo dá a um agente o mapa completo das specs, NFRs, ADRs e fontes canônicas.",
+  "version": "1.0",
+  "last_updated": "2026-05-17",
+  "source_prd": "docs/PRD.md",
+  "constitution": "docs/constitution.md",
+  "conventions": "docs/_meta/conventions.md",
+  "traceability": "docs/_meta/traceability.md",
+  "product": {
+    "vision": "docs/product/vision.md",
+    "personas": "docs/product/personas.md",
+    "use_cases": "docs/product/use-cases.md",
+    "success_metrics": "docs/product/success-metrics.md",
+    "roadmap": "docs/product/roadmap.md"
+  },
+  "architecture": {
+    "overview": "docs/architecture/overview.md",
+    "folder_structure": "docs/architecture/folder-structure.md",
+    "tech_stack": "docs/architecture/tech-stack.md",
+    "data_model": "docs/architecture/data-model.md",
+    "apis": "docs/architecture/apis-internas.md"
+  },
+  "adrs": [
+    {
+      "id": "0001",
+      "title": "Edge Config no read path",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0001-edge-config-no-read-path.md"
+    },
+    {
+      "id": "0002",
+      "title": "Polling com CDN cache",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0002-polling-cdn-cache.md"
+    },
+    {
+      "id": "0003",
+      "title": "PMTiles, não GeoJSON",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0003-pmtiles-nao-geojson.md"
+    },
+    {
+      "id": "0004",
+      "title": "MapLibre + PMTiles, não Mapbox",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0004-maplibre-nao-mapbox.md"
+    },
+    {
+      "id": "0005",
+      "title": "Templates de insights, não LLM",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0005-templates-nao-llm.md"
+    },
+    {
+      "id": "0006",
+      "title": "Bootstrap, não Bayesiano hierárquico",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0006-bootstrap-nao-bayesiano.md"
+    },
+    {
+      "id": "0007",
+      "title": "Granularidade zona (modelo) vs município (viz)",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0007-zona-vs-municipio.md"
+    },
+    {
+      "id": "0008",
+      "title": "Não usar Convex",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0008-nao-convex.md"
+    },
+    {
+      "id": "0009",
+      "title": "Vercel BotID, não Cloudflare",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0009-botid-vercel.md"
+    },
+    {
+      "id": "0010",
+      "title": "Mapa via next/dynamic sem SSR, fora do bundle above-the-fold",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0010-mapa-dynamic-import.md"
+    }
+  ],
+  "nfr": {
+    "performance": "docs/nfr/performance.md",
+    "availability": "docs/nfr/availability.md",
+    "scalability": "docs/nfr/scalability.md",
+    "security": "docs/nfr/security.md",
+    "accessibility": "docs/nfr/accessibility.md",
+    "seo": "docs/nfr/seo.md",
+    "observability": "docs/nfr/observability.md"
+  },
+  "design_system": {
+    "tokens": "docs/design-system/tokens.md",
+    "grid": "docs/design-system/grid.md",
+    "components": "docs/design-system/components.md",
+    "insights_templates": "docs/design-system/insights-templates.md",
+    "state_global": "docs/design-system/state-global.md",
+    "animations": "docs/design-system/animations.md"
+  },
+  "mapas": {
+    "pipeline_geo": "docs/mapas/pipeline-geo.md",
+    "maplibre_pmtiles": "docs/mapas/maplibre-pmtiles.md",
+    "coloracao": "docs/mapas/coloracao.md",
+    "brushing_linking": "docs/mapas/brushing-linking.md",
+    "mobile": "docs/mapas/mobile.md",
+    "performance": "docs/mapas/performance.md",
+    "acessibilidade": "docs/mapas/acessibilidade.md"
+  },
+  "testing": {
+    "strategy": "docs/testing/strategy.md",
+    "unit": "docs/testing/unit.md",
+    "integration": "docs/testing/integration.md",
+    "e2e": "docs/testing/e2e.md",
+    "replay": "docs/testing/replay.md",
+    "load": "docs/testing/load.md",
+    "accessibility": "docs/testing/accessibility.md",
+    "tse_simulados": "docs/testing/tse-simulados.md"
+  },
+  "operations": {
+    "runbook": "docs/operations/runbook.md",
+    "alerts": "docs/operations/alerts.md",
+    "dashboard_status": "docs/operations/dashboard-status.md",
+    "deployment": "docs/operations/deployment.md",
+    "pre_prod_checklist": "docs/operations/pre-prod-checklist.md"
+  },
+  "reference": {
+    "glossary": "docs/reference/glossary.md",
+    "data_sources": "docs/reference/data-sources.md",
+    "regulatory": "docs/reference/regulatory.md",
+    "risks": "docs/reference/risks.md"
+  },
+  "sprints": {
+    "readme": "docs/sprints/README.md",
+    "backlog": "docs/sprints/backlog.md",
+    "active_status_query": "grep -l 'status: active' docs/sprints/*.md",
+    "list": [
+      {
+        "id": "2026-S01",
+        "phase": "F1",
+        "status": "planned",
+        "start": "2026-05-18",
+        "end": "2026-06-07",
+        "specs_in_flight": [],
+        "path": "docs/sprints/2026-S01-f1-fundacao.md"
+      },
+      {
+        "id": "2026-S02",
+        "phase": "F2",
+        "status": "planned",
+        "start": "2026-06-08",
+        "end": "2026-06-21",
+        "specs_in_flight": ["001-ingestao-tse"],
+        "path": "docs/sprints/2026-S02-f2-ingestao.md"
+      },
+      {
+        "id": "2026-S03",
+        "phase": "F3",
+        "status": "planned",
+        "start": "2026-06-22",
+        "end": "2026-07-05",
+        "specs_in_flight": ["002-modelo-estatistico"],
+        "path": "docs/sprints/2026-S03-f3-modelo.md"
+      },
+      {
+        "id": "2026-S04",
+        "phase": "F4a",
+        "status": "planned",
+        "start": "2026-07-06",
+        "end": "2026-07-19",
+        "specs_in_flight": ["003-home-nacional", "004-pagina-uf-presidencial"],
+        "path": "docs/sprints/2026-S04-f4a-home-uf.md"
+      },
+      {
+        "id": "2026-S05",
+        "phase": "F4b",
+        "status": "planned",
+        "start": "2026-07-20",
+        "end": "2026-08-02",
+        "specs_in_flight": ["008-interatividade-brushing"],
+        "path": "docs/sprints/2026-S05-f4b-mapas-brushing.md"
+      },
+      {
+        "id": "2026-S06",
+        "phase": "F5",
+        "status": "planned",
+        "start": "2026-08-03",
+        "end": "2026-08-16",
+        "specs_in_flight": [
+          "005-pagina-uf-governador",
+          "006-grid-governadores",
+          "011-sobre-o-modelo"
+        ],
+        "path": "docs/sprints/2026-S06-f5-completo.md"
+      },
+      {
+        "id": "2026-S07",
+        "phase": "F6",
+        "status": "planned",
+        "start": "2026-08-17",
+        "end": "2026-08-30",
+        "specs_in_flight": [
+          "009-compartilhamento-meta",
+          "010-operacao-monitoramento",
+          "012-dashboard-status",
+          "013-pagina-manutencao"
+        ],
+        "path": "docs/sprints/2026-S07-f6-hardening.md"
+      },
+      {
+        "id": "2026-S08",
+        "phase": "F7",
+        "status": "planned",
+        "start": "2026-08-31",
+        "end": "2026-09-06",
+        "specs_in_flight": [],
+        "path": "docs/sprints/2026-S08-f7-estabilizacao.md"
+      },
+      {
+        "id": "D1",
+        "phase": "marker",
+        "status": "marker",
+        "date": "2026-10-04",
+        "path": "docs/sprints/_D1-04out2026.md"
+      },
+      {
+        "id": "2026-S09",
+        "phase": "F8a",
+        "status": "planned",
+        "start": "2026-10-05",
+        "end": "2026-10-14",
+        "specs_in_flight": [],
+        "path": "docs/sprints/2026-S09-f8a-retro1t.md"
+      },
+      {
+        "id": "2026-S10",
+        "phase": "F8b",
+        "status": "planned",
+        "start": "2026-10-15",
+        "end": "2026-10-24",
+        "specs_in_flight": [],
+        "path": "docs/sprints/2026-S10-f8b-prep2t.md"
+      },
+      {
+        "id": "D2",
+        "phase": "marker",
+        "status": "marker",
+        "date": "2026-10-25",
+        "path": "docs/sprints/_D2-25out2026.md"
+      }
+    ]
+  },
+  "specs": [
+    {
+      "id": "001-ingestao-tse",
+      "title": "Ingestão de dados do TSE",
+      "status": "draft",
+      "priority": "M",
+      "personas": [],
+      "screens": [],
+      "requirements": [
+        "RF-001",
+        "RF-002",
+        "RF-003",
+        "RF-004",
+        "RF-005",
+        "RF-006",
+        "RF-007",
+        "RF-008",
+        "RF-009",
+        "RF-010"
+      ],
+      "depends_on": [],
+      "apis": ["POST /api/ingest"],
+      "adrs": ["0001", "0002", "0008"],
+      "path": "docs/specs/001-ingestao-tse/"
+    },
+    {
+      "id": "002-modelo-estatistico",
+      "title": "Modelo estatístico (swing, bootstrap, projeção)",
+      "status": "draft",
+      "priority": "M",
+      "personas": [],
+      "screens": [],
+      "requirements": [
+        "RF-011",
+        "RF-012",
+        "RF-013",
+        "RF-014",
+        "RF-015",
+        "RF-016",
+        "RF-017",
+        "RF-018",
+        "RF-019",
+        "RF-020"
+      ],
+      "depends_on": ["001-ingestao-tse"],
+      "apis": ["POST /api/model/project"],
+      "adrs": ["0006", "0007"],
+      "path": "docs/specs/002-modelo-estatistico/"
+    },
+    {
+      "id": "003-home-nacional",
+      "title": "Home Nacional Presidencial (T-01)",
+      "status": "draft",
+      "priority": "M",
+      "personas": ["P1", "P2", "P3", "P4"],
+      "screens": ["T-01"],
+      "requirements": [
+        "RF-021",
+        "RF-022",
+        "RF-023",
+        "RF-024",
+        "RF-025",
+        "RF-026",
+        "RF-027",
+        "RF-028",
+        "RF-029",
+        "RF-030",
+        "RF-030.1",
+        "RF-030.2",
+        "RF-030.3",
+        "RF-030.4",
+        "RF-030.5",
+        "RF-030.6"
+      ],
+      "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "008-interatividade-brushing"],
+      "apis": ["GET /api/projection"],
+      "adrs": ["0001", "0002", "0003", "0004", "0005", "0010"],
+      "path": "docs/specs/003-home-nacional/"
+    },
+    {
+      "id": "004-pagina-uf-presidencial",
+      "title": "Página de UF — Presidencial (T-03)",
+      "status": "draft",
+      "priority": "M",
+      "personas": ["P1", "P2", "P3", "P4"],
+      "screens": ["T-03"],
+      "requirements": [
+        "RF-031",
+        "RF-032",
+        "RF-033",
+        "RF-034",
+        "RF-035",
+        "RF-036",
+        "RF-037",
+        "RF-038",
+        "RF-039",
+        "RF-040",
+        "RF-041",
+        "RF-042",
+        "RF-043",
+        "RF-044"
+      ],
+      "depends_on": [
+        "001-ingestao-tse",
+        "002-modelo-estatistico",
+        "008-interatividade-brushing",
+        "003-home-nacional"
+      ],
+      "apis": ["GET /api/projection?uf=<sigla>"],
+      "adrs": ["0001", "0003", "0004", "0007", "0010"],
+      "path": "docs/specs/004-pagina-uf-presidencial/"
+    },
+    {
+      "id": "005-pagina-uf-governador",
+      "title": "Página de UF — Governador (T-04)",
+      "status": "draft",
+      "priority": "M",
+      "personas": ["P1", "P2", "P3"],
+      "screens": ["T-04"],
+      "requirements": [
+        "RF-031",
+        "RF-032",
+        "RF-033",
+        "RF-034",
+        "RF-035",
+        "RF-036",
+        "RF-037",
+        "RF-038",
+        "RF-039",
+        "RF-040",
+        "RF-041",
+        "RF-042",
+        "RF-043",
+        "RF-044"
+      ],
+      "depends_on": [
+        "001-ingestao-tse",
+        "002-modelo-estatistico",
+        "004-pagina-uf-presidencial",
+        "008-interatividade-brushing"
+      ],
+      "apis": ["GET /api/projection?cargo=governador&uf=<sigla>"],
+      "adrs": ["0001", "0003", "0004", "0007", "0010"],
+      "path": "docs/specs/005-pagina-uf-governador/"
+    },
+    {
+      "id": "006-grid-governadores",
+      "title": "Grid Nacional Governadores (T-02)",
+      "status": "draft",
+      "priority": "M",
+      "personas": ["P1", "P2", "P3"],
+      "screens": ["T-02"],
+      "requirements": ["RF-021", "RF-022", "RF-025", "RF-027", "RF-029"],
+      "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "005-pagina-uf-governador"],
+      "apis": ["GET /api/projection?cargo=governador"],
+      "adrs": ["0001", "0002", "0010"],
+      "path": "docs/specs/006-grid-governadores/"
+    },
+    {
+      "id": "008-interatividade-brushing",
+      "title": "Interatividade — Brushing & Linking",
+      "status": "draft",
+      "priority": "M",
+      "personas": ["P1", "P2", "P3"],
+      "screens": ["T-01", "T-02", "T-03", "T-04", "T-05"],
+      "requirements": ["RF-045", "RF-046", "RF-047", "RF-048", "RF-049", "RF-050"],
+      "depends_on": [],
+      "apis": [],
+      "adrs": [],
+      "path": "docs/specs/008-interatividade-brushing/"
+    },
+    {
+      "id": "009-compartilhamento-meta",
+      "title": "Compartilhamento e Metadados (OG, Share buttons)",
+      "status": "draft",
+      "priority": "S",
+      "personas": ["P1", "P2"],
+      "screens": ["T-01", "T-02", "T-03", "T-04"],
+      "requirements": ["RF-051", "RF-052", "RF-053", "RF-054", "RF-055"],
+      "depends_on": ["003-home-nacional"],
+      "apis": [],
+      "adrs": [],
+      "path": "docs/specs/009-compartilhamento-meta/"
+    },
+    {
+      "id": "010-operacao-monitoramento",
+      "title": "Operação e Monitoramento",
+      "status": "draft",
+      "priority": "M",
+      "personas": [],
+      "screens": ["T-07"],
+      "requirements": ["RF-056", "RF-057", "RF-058", "RF-059", "RF-060"],
+      "depends_on": ["001-ingestao-tse", "012-dashboard-status", "013-pagina-manutencao"],
+      "apis": [],
+      "adrs": [],
+      "path": "docs/specs/010-operacao-monitoramento/"
+    },
+    {
+      "id": "011-sobre-o-modelo",
+      "title": "Página Sobre o Modelo (T-06)",
+      "status": "draft",
+      "priority": "M",
+      "personas": ["P2", "P3"],
+      "screens": ["T-06"],
+      "requirements": ["RF-054"],
+      "depends_on": ["002-modelo-estatistico"],
+      "apis": [],
+      "adrs": ["0005", "0006"],
+      "path": "docs/specs/011-sobre-o-modelo/"
+    },
+    {
+      "id": "012-dashboard-status",
+      "title": "Dashboard Operacional /_status (T-07)",
+      "status": "draft",
+      "priority": "M",
+      "personas": [],
+      "screens": ["T-07"],
+      "requirements": ["RF-056", "RF-057"],
+      "depends_on": ["001-ingestao-tse", "010-operacao-monitoramento"],
+      "apis": [],
+      "adrs": [],
+      "path": "docs/specs/012-dashboard-status/"
+    },
+    {
+      "id": "013-pagina-manutencao",
+      "title": "Página de Manutenção (T-08)",
+      "status": "draft",
+      "priority": "M",
+      "personas": [],
+      "screens": ["T-08"],
+      "requirements": ["RF-058"],
+      "depends_on": [],
+      "apis": [],
+      "adrs": [],
+      "path": "docs/specs/013-pagina-manutencao/"
+    }
+  ]
+}
