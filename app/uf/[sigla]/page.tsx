@@ -40,18 +40,19 @@ import { CandidateRow } from "@/components/atoms/tables/CandidateRow";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { InsightCard } from "@/components/blocks/InsightCard";
 import { type MunicipioRow, MunicipioTable } from "@/components/blocks/MunicipioTable";
-import {
-  UfLeaderMapLazy,
-  UfMapDuoLazy,
-  UfSwingArrowMapLazy,
-} from "@/components/blocks/UfMapsLazy";
+import { UfLeaderMapLazy, UfMapDuoLazy, UfSwingArrowMapLazy } from "@/components/blocks/UfMapsLazy";
 import { Footer } from "@/components/layout/Footer";
 import { LiveBadge } from "@/components/layout/LiveBadge";
 import { readUfProjection } from "@/lib/edge-config/reader";
+import type {
+  EdgePayload,
+  EdgePayloadUf,
+  EdgeUfCandidate,
+  EdgeUfMunicipio,
+} from "@/lib/edge-config/types";
 import nationalFixture from "@/tests/fixtures/edge-config/projection-current.json" with {
   type: "json",
 };
-import type { EdgePayload, EdgePayloadUf, EdgeUfCandidate } from "@/lib/edge-config/types";
 
 // Mapas isolados em `UfMapsLazy` (Client Component) que internamente faz
 // `next/dynamic({ ssr: false })`. Mantém ADR-0010 (chunk separado) mesmo
@@ -151,6 +152,8 @@ function synthesizeUfFromNational(sigla: string): EdgePayloadUf | null {
       nome: c.nome,
       partido: c.partido,
       cor: c.cor,
+      votos_atuais: c.votos_atuais,
+      votos_projetados: c.votos_projetados,
       pct_atual: c.pct_atual,
       pct_projetado: c.pct_projetado,
       ci95: { lower: c.pct_projetado_lower, upper: c.pct_projetado_upper },
@@ -158,32 +161,35 @@ function synthesizeUfFromNational(sigla: string): EdgePayloadUf | null {
     needle_position: row.lider === national.national.candidato_a_id ? 0.4 : -0.4,
     needle_band: "lean_a",
     municipios: [],
+    // S04/F2: campo opcional; em dev sem dados, séries vazias → charts
+    // exibem placeholder gentil ("Série temporal ainda insuficiente").
+    series_temporais: { margem: [], p_vitoria: [], turnout: [] },
   };
 }
 
 /**
- * Converte municípios do payload em rows da tabela. Por ora o payload UF
- * não inclui `margem` nem `votos_reportados` por município (só `cod_ibge`,
- * `nome`, `pct_apurado`, `lider`). Derivamos campos de display com
- * heurísticas conservadoras + TODO no docstring. v2 enriquece payload.
+ * Converte municípios do payload (EdgeUfMunicipio) em rows da tabela.
+ * S04/F2: o payload agora inclui margem e votos_reportados por município.
  */
 function toMunicipioRows(
-  payload: EdgePayloadUf,
+  municipios: EdgeUfMunicipio[],
   candidateColor: Record<number, string>,
   candidateShortName: Record<number, string>,
 ): MunicipioRow[] {
-  return payload.municipios.map((m) => ({
-    cod_ibge: m.cod_ibge,
-    nome: m.nome,
-    lider: m.lider,
-    liderCor: candidateColor[m.lider] ?? "var(--color-text)",
-    liderNome: candidateShortName[m.lider] ?? `#${m.lider}`,
-    // TODO: payload precisa carregar margemPp e votosReportados por município.
-    // Por enquanto, valores derivados/placeholder.
-    margemPp: 5,
-    pctApurado: m.pct_apurado,
-    votosReportados: 0,
-  }));
+  return municipios.map((m) => {
+    const liderId = m.lider.candidato_id;
+    const totalVotos = Object.values(m.votos_reportados).reduce((a, b) => a + b, 0);
+    return {
+      cod_ibge: m.cod_ibge,
+      nome: m.nome,
+      lider: liderId,
+      liderCor: candidateColor[liderId] ?? "var(--color-text)",
+      liderNome: candidateShortName[liderId] ?? `#${liderId}`,
+      margemPp: m.lider.margem_pp,
+      pctApurado: m.pct_apurado,
+      votosReportados: totalVotos,
+    };
+  });
 }
 
 export default async function UFPage({ params }: UFPageProps) {
@@ -236,7 +242,7 @@ export default async function UFPage({ params }: UFPageProps) {
     candidateShortName[c.id] = c.nome.split(" ")[0] ?? c.nome;
   }
 
-  const municipioRows = toMunicipioRows(payload, candidateColor, candidateShortName);
+  const municipioRows = toMunicipioRows(payload.municipios, candidateColor, candidateShortName);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-[1280px] flex-col gap-6 px-5 py-6">
@@ -275,7 +281,10 @@ export default async function UFPage({ params }: UFPageProps) {
               nome={c.nome}
               partido={c.partido}
               cor={c.cor}
-              votos={null}
+              // S04/F2: exibe votos reportados reais (antes era sempre `null`
+              // → "—"). Quando o payload é synthesized (dev fallback) ou
+              // pré-apuração, votos_atuais = 0 e a coluna mostra "0".
+              votos={c.votos_atuais ?? null}
               pct={c.pct_projetado}
             />
           ))}
@@ -296,7 +305,7 @@ export default async function UFPage({ params }: UFPageProps) {
             ufSigla={sigla}
             choropleth={payload.municipios.map((m) => ({
               cod_ibge: m.cod_ibge,
-              cor: candidateColor[m.lider] ?? "var(--color-tossup)",
+              cor: candidateColor[m.lider.candidato_id] ?? "var(--color-tossup)",
               pctApurado: m.pct_apurado,
             }))}
             height={320}
@@ -318,14 +327,14 @@ export default async function UFPage({ params }: UFPageProps) {
         bubbles={payload.municipios.map((m) => ({
           cod_ibge: m.cod_ibge,
           nome: m.nome,
-          centro: [0, 0],
-          votos: 0,
-          lider: m.lider,
-          liderCor: candidateColor[m.lider] ?? "var(--color-tossup)",
+          centro: [0, 0] as [number, number],
+          votos: m.lider.votos,
+          lider: m.lider.candidato_id,
+          liderCor: candidateColor[m.lider.candidato_id] ?? "var(--color-tossup)",
         }))}
         choropleth={payload.municipios.map((m) => ({
           cod_ibge: m.cod_ibge,
-          cor: candidateColor[m.lider] ?? "var(--color-tossup)",
+          cor: candidateColor[m.lider.candidato_id] ?? "var(--color-tossup)",
           pctApurado: m.pct_apurado,
         }))}
         height={320}
@@ -371,12 +380,10 @@ export default async function UFPage({ params }: UFPageProps) {
         </section>
       )}
 
-      {/* RF-040, RF-041, RF-042: charts (Should) */}
-      {/*
-        EdgePayloadUf não traz series_temporais ainda — passamos vazio,
-        e cada chart renderiza placeholder "Série insuficiente".
-        Quando o orchestrator publicar series_temporais, basta plumbar.
-      */}
+      {/* RF-040, RF-041, RF-042: charts (Should).
+          S04/F2: payload agora inclui `series_temporais` (optional para
+          forward-compat). Quando vazio ou ausente, charts caem no
+          placeholder "Série insuficiente" — nunca quebram. */}
       <section className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         <div className="flex flex-col gap-2">
           <h4
@@ -386,7 +393,10 @@ export default async function UFPage({ params }: UFPageProps) {
             Margem ao longo do tempo
           </h4>
           <TimeSeriesChart
-            points={[]}
+            points={(payload.series_temporais?.margem ?? []).map((pt) => ({
+              ts: pt.ts,
+              margemPp: pt.margem_pp,
+            }))}
             liderNome={lider?.nome ?? "Líder"}
             liderCor={lider?.cor ?? "var(--color-text)"}
           />
@@ -399,7 +409,10 @@ export default async function UFPage({ params }: UFPageProps) {
             Probabilidade ao longo do tempo
           </h4>
           <ProbabilityOverTime
-            points={[]}
+            points={(payload.series_temporais?.p_vitoria ?? []).map((pt) => ({
+              ts: pt.ts,
+              pVitoria: pt.p,
+            }))}
             liderNome={lider?.nome ?? "Líder"}
             liderCor={lider?.cor ?? "var(--color-text)"}
           />
@@ -411,7 +424,12 @@ export default async function UFPage({ params }: UFPageProps) {
           >
             Turnout cumulativo
           </h4>
-          <TurnoutAreaChart points={[]} />
+          <TurnoutAreaChart
+            points={(payload.series_temporais?.turnout ?? []).map((pt) => ({
+              ts: pt.ts,
+              pctApurado: pt.pct_apurado,
+            }))}
+          />
         </div>
       </section>
 

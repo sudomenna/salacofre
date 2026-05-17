@@ -102,6 +102,18 @@ const bodySchema = z.object({
       }),
     })
     .passthrough(), // permite campos extras (forward-compat com Python avançando o shape)
+  /**
+   * Mapa opcional `sigla → EdgePayloadUf` rico (S04/F2). Quando presente,
+   * `writeProjection` usa esses payloads para as chaves `projection:uf:<sigla>`
+   * em vez de sintetizar esqueleto do `por_uf` nacional. Forward-compat:
+   * orchestrators antigos sem `payloads_uf` continuam funcionando (cai no
+   * fallback de síntese).
+   *
+   * Cada UF é `passthrough` — o shape canônico vive em
+   * `lib/edge-config/types.ts § EdgePayloadUf`. Não duplicamos aqui para
+   * evitar divergência silenciosa entre TS e Python.
+   */
+  payloads_uf: z.record(z.string(), z.unknown()).optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -161,13 +173,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // usa para indexar `por_uf`.
   // biome-ignore lint/suspicious/noExplicitAny: bridge boundary; shape garantido pelo Python
   const payload = parsed.data.payload as any;
+  // biome-ignore lint/suspicious/noExplicitAny: bridge boundary; shape garantido pelo Python
+  const payloadsUf = parsed.data.payloads_uf as Record<string, any> | undefined;
 
   // --------------------------------------------------------------------------
   // 3. Materializa no Edge Config (writeProjection — T14)
   // --------------------------------------------------------------------------
   let keysWritten: number;
   try {
-    await writeProjection(payload);
+    await writeProjection(payload, payloadsUf);
     // N+1 chaves: 1 nacional + len(por_uf) UFs.
     keysWritten = 1 + payload.por_uf.length;
   } catch (err) {

@@ -196,17 +196,86 @@ export interface EdgeCi95 {
 
 /**
  * Candidato dentro do drill-down de UF. Subset do `EdgeCandidate` nacional
- * (sem `votos_*` totais e sem `p_vitoria` — esses só fazem sentido no
- * agregado nacional). `ci95` é o intervalo de confiança do `pct_projetado`.
+ * (sem `p_vitoria` — só faz sentido no agregado nacional). `ci95` é o
+ * intervalo de confiança do `pct_projetado`.
+ *
+ * `votos_atuais` e `votos_projetados` são absolutos NA UF — alimentam a
+ * coluna "Votos" do `<CandidateRow />` (RF-033) e a métrica "Total: X
+ * reportados" do wireframe da spec 004. Adicionados em S04/F2 para que a
+ * página de UF deixe de exibir "—" no slot de votos.
  */
 export interface EdgeUfCandidate {
   id: number;
   nome: string;
   partido: string;
   cor: string;
+  /** Votos absolutos REPORTADOS no momento (TSE). */
+  votos_atuais: number;
+  /** Votos absolutos PROJETADOS (modelo) ao final da apuração da UF. */
+  votos_projetados: number;
   pct_atual: number;
   pct_projetado: number;
   ci95: EdgeCi95;
+}
+
+/**
+ * Linha de município no drill-down de UF. Suficiente para alimentar
+ * `<MunicipioTable />` (RF-037) e os mapas (`UFMapDuo`, `BubbleMap`).
+ *
+ * S04/F2 — antes só tínhamos `{cod_ibge, nome, pct_apurado, lider}`,
+ * o que forçava `<MunicipioTable />` a usar placeholders para margem e
+ * votos. Enriquecemos para que a tabela mostre dados reais.
+ *
+ * `votos_reportados` é um mapa `{candidato_id → votos}` (não um total) —
+ * permite o caller calcular margem absoluta para qualquer par de
+ * candidatos, e somar para obter o total do município. Pequeno em
+ * bytes (até ~4–6 entradas por município = 30–60 bytes/município),
+ * dentro do orçamento de payload UF.
+ *
+ * `cod_ibge` é STRING (char(7) IBGE — preserva zero à esquerda;
+ * data-model.md § Municípios usa o mesmo tipo). Manter aqui como
+ * string é canônico — `00000NN` não cabe em `number` sem perda.
+ */
+export interface EdgeUfMunicipio {
+  cod_ibge: string;
+  nome: string;
+  pct_apurado: number; // 0–100
+  /** Líder no município com a margem em pp sobre o segundo. */
+  lider: {
+    candidato_id: number;
+    /** Partido do líder, para chip da tabela. */
+    partido: string;
+    /** Votos absolutos do líder no município. */
+    votos: number;
+    /** Margem em pp sobre o 2º (sempre ≥ 0). */
+    margem_pp: number;
+  };
+  /**
+   * Votos absolutos por candidato no município. Sparse — só candidatos
+   * com presença nos snapshots. Chave numérica (candidato_id).
+   */
+  votos_reportados: Record<number, number>;
+}
+
+/**
+ * Séries temporais da corrida na UF. Cada array é ordenado por `ts` ASC
+ * (constituição § 6 — determinismo). Janela = últimas 24h ou início da
+ * apuração, o que for menor (filtro aplicado no orchestrator).
+ *
+ * Origem: SELECT em `projections` filtrado por (cargo, turno, uf), agrupado
+ * por `ts` — cada ciclo do modelo (60s) gera 1 ponto. Em 8h de apuração
+ * isso dá até 480 pontos por série × 3 séries = 1440 valores numéricos
+ * (~30–40 KB serializado). Dentro do envelope ~5–10 KB declarado em
+ * data-model.md? **Não.** Carry-over: se aproximar dos 450KB no payload
+ * total da UF, paginar via chave separada `projection:uf:<sigla>:series`.
+ */
+export interface EdgeUfSeriesTemporais {
+  /** Margem do líder ao longo do tempo (RF-040). Em pp. */
+  margem: Array<{ ts: string; margem_pp: number }>;
+  /** p_vitoria do líder ao longo do tempo (RF-041). p em [0, 1]. */
+  p_vitoria: Array<{ ts: string; p: number }>;
+  /** % apurado da UF ao longo do tempo (RF-042). Monotônico não-decrescente. */
+  turnout: Array<{ ts: string; pct_apurado: number }>;
 }
 
 /**
@@ -229,12 +298,19 @@ export interface EdgePayloadUf {
   candidatos: EdgeUfCandidate[];
   needle_position: number; // [-1, 1]
   needle_band: NeedleBand;
-  /** Municípios para drill-down do mapa. Subset; lista zona-a-zona não cabe nesta chave. */
-  municipios: Array<{
-    cod_ibge: string;
-    nome: string;
-    pct_apurado: number; // 0–100
-    /** ID do candidato líder no município. */
-    lider: number;
-  }>;
+  /**
+   * Municípios para drill-down do mapa + tabela RF-037. Schema completo
+   * (margem, votos por candidato) habilitado em S04/F2 — antes era apenas
+   * `{cod_ibge, nome, pct_apurado, lider}` e a tabela usava placeholders.
+   * Zonas individuais NÃO cabem nesta chave (>512KB no pior caso).
+   */
+  municipios: EdgeUfMunicipio[];
+  /**
+   * Séries temporais (margem, p_vitoria, turnout) que alimentam os charts
+   * RF-040/041/042. Adicionado em S04/F2. **Optional** porque payloads
+   * gravados pré-S04/F2 não têm essa chave — consumidores devem coalescer
+   * para `{margem: [], p_vitoria: [], turnout: []}` para manter
+   * compatibilidade durante o rollout.
+   */
+  series_temporais?: EdgeUfSeriesTemporais;
 }

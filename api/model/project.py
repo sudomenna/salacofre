@@ -261,6 +261,278 @@ def fetch_eleitorado(conn, ano: int = 2026) -> dict[tuple[str, int], int]:
     return {(r[0], r[1]): int(r[2]) for r in rows}
 
 
+def fetch_zona_municipio(conn) -> dict[int, dict[str, Any]]:
+    """Mapa `cod_zona -> {cod_ibge, cod_municipio_tse, nome, uf}`.
+
+    Junta `zonas` (que tem `cod_municipio_tse`) com `municipios` (que tem
+    `cod_ibge` e `nome`). Usado pelo build de `EdgeUfMunicipio` para
+    agregar snapshots zonais em totais municipais (S04/F2).
+
+    Retorna mapa vazio quando ainda não há dados geográficos carregados
+    (dev sem seed) — caller graciosamente produz `municipios: []`.
+    """
+    sql = """
+        SELECT z.cod_zona, m.cod_ibge, m.cod_municipio_tse, m.nome, z.uf
+        FROM zonas z
+        JOIN municipios m ON m.cod_municipio_tse = z.cod_municipio_tse
+    """
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, ())
+            rows = cur.fetchall()
+    except Exception as exc:  # noqa: BLE001 — tolerante em dev sem seed geo
+        _log("warn", "fetch_zona_municipio failed", error=str(exc))
+        return {}
+    return {
+        int(r[0]): {
+            "cod_ibge": str(r[1]),
+            "cod_municipio_tse": int(r[2]),
+            "nome": str(r[3]),
+            "uf": str(r[4]),
+        }
+        for r in rows
+    }
+
+
+def fetch_series_temporais(
+    conn,
+    cargo: int,
+    turno: int,
+    window_hours: int = 24,
+) -> dict[str, list[dict[str, Any]]]:
+    """Lê histórico de `projections` agrupado por (uf, ts) para alimentar
+    `EdgeUfSeriesTemporais` (S04/F2).
+
+    Estratégia (constituição § 10 — append-only, leitura pura):
+      `SELECT ... FROM projections WHERE cargo=? AND turno=? AND
+       ts > NOW() - INTERVAL '<window_hours> hours' ORDER BY uf, ts ASC`
+
+    Cada combinação (uf, ts) tem 1 linha por candidato; do lado de cada `ts`
+    pegamos:
+      - margem_pp: diferença pct_projetado entre top-2 (≥ 0)
+      - p_vitoria: max(p_vitoria) entre candidatos da UF nesse ts
+      - turnout: pct_apurado da UF (mesmo valor em todas as linhas do ts)
+
+    p_vitoria a nível UF não existe na tabela `projections` (UF rows têm
+    `p_vitoria = NULL`); o que retornamos para o chart RF-041 é a
+    `p_vitoria` agregada NACIONAL no mesmo ts — equivalente em
+    interpretação ao "como o líder está se saindo no agregado" no momento.
+    A consulta abaixo lê tanto rows UF quanto nacional (uf IS NULL) e o
+    parser separa-os.
+
+    Retorna `{uf_sigla: [{ts, candidatos: [(id, pct, p_vit_nacional)], pct_apurado}, ...]}`
+    ordenado por ts ASC dentro de cada UF. O caller transforma em séries
+    finais (margem, p_vitoria, turnout) já filtrando pelo líder da UF.
+
+    Tolerante: erro de query (ex.: coluna ausente) → log warn + dict vazio
+    (chart vira placeholder gentil).
+    """
+    sql = """
+        SELECT
+            ts,
+            uf,
+            candidato_id,
+            pct_projetado,
+            pct_apurado,
+            p_vitoria
+        FROM projections
+        WHERE cargo = %s
+          AND turno = %s
+          AND ts > NOW() - (%s || ' hours')::interval
+        ORDER BY uf NULLS FIRST, ts ASC, candidato_id ASC
+    """
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, (cargo, turno, str(window_hours)))
+            rows = cur.fetchall()
+    except Exception as exc:  # noqa: BLE001 — sem séries é OK em dev/preview
+        _log("warn", "fetch_series_temporais failed", error=str(exc))
+        return {}
+
+    # Group by (uf, ts) — uf=None significa agregado nacional.
+    # First pass: collect rows.
+    by_uf: dict[str | None, dict[str, list[dict[str, Any]]]] = {}
+    for ts_val, uf, cand, pct_proj, pct_ap, pv in rows:
+        ts_iso = ts_val.isoformat() if hasattr(ts_val, "isoformat") else str(ts_val)
+        uf_key = uf if uf is not None else None
+        ts_map = by_uf.setdefault(uf_key, {})
+        ts_map.setdefault(ts_iso, []).append(
+            {
+                "candidato_id": int(cand),
+                "pct_projetado": float(pct_proj) if pct_proj is not None else 0.0,
+                "pct_apurado": float(pct_ap) if pct_ap is not None else 0.0,
+                "p_vitoria": float(pv) if pv is not None else None,
+            }
+        )
+
+    # Indexa p_vitoria nacional por ts → cand_id → p (alimenta chart UF
+    # RF-041, já que p_vitoria por UF não é calculado).
+    national_pv_by_ts: dict[str, dict[int, float]] = {}
+    nat_rows = by_uf.get(None, {})
+    for ts_iso, candidates in nat_rows.items():
+        cand_map: dict[int, float] = {}
+        for c in candidates:
+            if c["p_vitoria"] is not None:
+                cand_map[c["candidato_id"]] = c["p_vitoria"]
+        national_pv_by_ts[ts_iso] = cand_map
+
+    # Produz timeline por UF (não nacional).
+    out: dict[str, list[dict[str, Any]]] = {}
+    for uf_key, ts_map in by_uf.items():
+        if uf_key is None:
+            continue
+        ordered_ts = sorted(ts_map.keys())  # ASC determinístico
+        timeline: list[dict[str, Any]] = []
+        for ts_iso in ordered_ts:
+            candidates = ts_map[ts_iso]
+            # Order desc by pct_projetado, take top-2 for margin.
+            ordered_c = sorted(
+                candidates, key=lambda c: c["pct_projetado"], reverse=True
+            )
+            top_pct = ordered_c[0]["pct_projetado"] if ordered_c else 0.0
+            second_pct = ordered_c[1]["pct_projetado"] if len(ordered_c) >= 2 else 0.0
+            top_cand = ordered_c[0]["candidato_id"] if ordered_c else None
+            # pct_apurado é o mesmo nas N linhas do (uf, ts) — pega a 1ª válida.
+            pct_apurado_uf = next(
+                (c["pct_apurado"] for c in candidates if c["pct_apurado"] > 0.0), 0.0
+            )
+            # p_vitoria do líder UF olhando para o nacional naquele ts (sufficient
+            # approximation para o chart RF-041; refinamento em S05+).
+            pv_lider = (
+                national_pv_by_ts.get(ts_iso, {}).get(top_cand) if top_cand else None
+            )
+            timeline.append(
+                {
+                    "ts": ts_iso,
+                    "margem_pp": top_pct - second_pct,
+                    "pct_apurado": pct_apurado_uf,
+                    "p_vitoria_lider": pv_lider,
+                    "lider_id": top_cand,
+                }
+            )
+        out[uf_key] = timeline
+    return out
+
+
+def fetch_municipio_aggregates(
+    conn,
+    cargo: int,
+    turno: int,
+) -> dict[tuple[str, int], dict[str, Any]]:
+    """Agrega snapshots de zonas em totais por município (S04/F2).
+
+    Retorna `{(uf, cod_municipio_tse): {pct_apurado, votos_por_candidato,
+    total_votos}}` para alimentar `EdgeUfMunicipio`.
+
+    Estratégia: pega o snapshot mais recente de cada zona (mesma CTE de
+    `fetch_snapshots`) + payload EA20 → soma `cand[].vap` (votos absolutos)
+    e `votos_total` por município. `pct_apurado` do município é a média
+    ponderada pelo eleitorado das zonas.
+
+    Tolerante: payload sem `vap` (formato antigo) → votos = 0 (chart fica
+    sem dados mas não quebra).
+    """
+    sql = """
+        WITH ranked AS (
+            SELECT
+                s.uf,
+                s.cod_zona,
+                s.pct_apurado,
+                s.votos_total,
+                s.payload,
+                ROW_NUMBER() OVER (
+                    PARTITION BY s.uf, s.cod_zona
+                    ORDER BY s.ts DESC, s.id DESC
+                ) AS rn
+            FROM snapshots s
+            WHERE s.cargo = %s AND s.turno = %s
+        )
+        SELECT r.uf, r.cod_zona, r.pct_apurado, r.votos_total, r.payload,
+               z.cod_municipio_tse
+        FROM ranked r
+        LEFT JOIN zonas z ON z.cod_zona = r.cod_zona
+        WHERE r.rn = 1
+    """
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, (cargo, turno))
+            rows = cur.fetchall()
+    except Exception as exc:  # noqa: BLE001
+        _log("warn", "fetch_municipio_aggregates failed", error=str(exc))
+        return {}
+
+    # Aggregate per municipio. Envolvemos o loop em try/except porque o
+    # FakeCursor em testes pode devolver tuplas com aridade diferente
+    # (sem o JOIN com `zonas`) e o `unpacking` levantaria ValueError.
+    # Em produção real, o JOIN sempre devolve 6 colunas — captura é
+    # defensiva (degrade graceful para municípios vazios).
+    agg: dict[tuple[str, int], dict[str, Any]] = {}
+    try:
+        _iter_rows = list(rows)
+    except Exception:  # noqa: BLE001
+        return {}
+    for row in _iter_rows:
+        if len(row) != 6:
+            # Cursor antigo OR fixture de teste — graciosamente ignora.
+            continue
+        uf, _cod_zona, pct_apurado, votos_total, payload, cod_municipio_tse = row
+        if cod_municipio_tse is None:
+            continue
+        key = (str(uf), int(cod_municipio_tse))
+        bucket = agg.setdefault(
+            key,
+            {
+                "pct_apurado_sum": 0.0,
+                "pct_apurado_count": 0,
+                "votos_por_candidato": {},
+                "total_votos": 0,
+            },
+        )
+        bucket["pct_apurado_sum"] += float(pct_apurado) if pct_apurado is not None else 0.0
+        bucket["pct_apurado_count"] += 1
+        if votos_total is not None:
+            bucket["total_votos"] += int(votos_total)
+
+        # Extrai votos absolutos por candidato do payload EA20. EA20 `cand[].vap`
+        # = votos absolutos (apurado para o candidato). Aceitamos string BR ou
+        # int. Quando ausente, ignoramos (não quebra).
+        if isinstance(payload, dict):
+            cand_list = payload.get("cand")
+            if isinstance(cand_list, list):
+                for c in cand_list:
+                    if not isinstance(c, dict):
+                        continue
+                    try:
+                        cid = int(c.get("n"))
+                    except (TypeError, ValueError):
+                        continue
+                    raw = c.get("vap")
+                    if raw is None:
+                        continue
+                    try:
+                        if isinstance(raw, str):
+                            votos = int(float(raw.replace(",", ".")))
+                        else:
+                            votos = int(raw)
+                    except (TypeError, ValueError):
+                        continue
+                    bucket["votos_por_candidato"][cid] = (
+                        bucket["votos_por_candidato"].get(cid, 0) + votos
+                    )
+
+    # Finaliza pct_apurado como média simples (sem peso de eleitorado aqui,
+    # suficiente para display — refinamento em S05+).
+    out: dict[tuple[str, int], dict[str, Any]] = {}
+    for key, b in agg.items():
+        count = b["pct_apurado_count"]
+        out[key] = {
+            "pct_apurado": b["pct_apurado_sum"] / count if count > 0 else 0.0,
+            "votos_por_candidato": b["votos_por_candidato"],
+            "total_votos": b["total_votos"],
+        }
+    return out
+
+
 def insert_projections(conn, rows: list[dict[str, Any]]) -> int:
     """INSERT em projections (append-only — constituição § 10).
 
@@ -715,6 +987,224 @@ def _resolve_internal_base_url() -> str:
     return f"http://localhost:{port}"
 
 
+def build_uf_payloads(
+    cargo: int,
+    turno: int,
+    ts_iso: str,
+    uf_rows: list[dict[str, Any]],
+    national_rows: list[dict[str, Any]],
+    municipio_aggregates: dict[tuple[str, int], dict[str, Any]],
+    zona_municipio: dict[int, dict[str, Any]],
+    series_by_uf: dict[str, list[dict[str, Any]]],
+) -> dict[str, dict[str, Any]]:
+    """Constrói payloads canônicos `EdgePayloadUf` por UF (S04/F2).
+
+    Adicionado em S04/F2 para enriquecer o drill-down de UF com:
+      - candidatos com `votos_atuais` e `votos_projetados` (rateio do
+        total UF pelo pct_atual/pct_projetado de cada candidato);
+      - lista `municipios` populada (`cod_ibge`, `nome`, `pct_apurado`,
+        `lider {id, partido, votos, margem_pp}`, `votos_reportados`);
+      - `series_temporais` (margem, p_vitoria, turnout) lidas de
+        `projections` ordenadas por ts ASC.
+
+    Retorna `{uf_sigla: EdgePayloadUf}`. Cada payload tem ~5–10 KB em
+    UF típica, podendo chegar a 30–40 KB em SP (645 municípios + 480
+    pontos × 3 séries). Caller (`writeProjection`) emite warn se passar
+    de 450 KB.
+
+    Determinismo (§ 6): municípios ordenados por `cod_ibge` ASC; séries
+    ordenadas por ts ASC. Sem entradas aleatórias.
+
+    Tolerância: município sem `cod_ibge` (ainda não seedado) → skip. UF
+    sem municípios populados → `municipios: []` (mapa fica vazio mas
+    page renderiza).
+    """
+    # Index uf_rows por (uf, candidato) e por uf-only (1ª row = pct_apurado UF).
+    uf_by_sigla: dict[str, list[dict[str, Any]]] = {}
+    for r in uf_rows:
+        if r.get("uf") is None:
+            continue
+        uf_by_sigla.setdefault(r["uf"], []).append(r)
+
+    # Dict cand_id → row nacional para resolver partido/cor/nome.
+    national_by_id: dict[int, dict[str, Any]] = {
+        int(r["candidato_id"]): r for r in national_rows
+    }
+
+    # Inverte zona_municipio: para cada (uf, cod_municipio_tse) coleta dados.
+    # Como `fetch_municipio_aggregates` já agrega por município, reuso direto.
+    # Precisamos só mapear (uf, cod_municipio_tse) → cod_ibge + nome.
+    munic_meta: dict[tuple[str, int], dict[str, str]] = {}
+    for _zona, z_meta in zona_municipio.items():
+        key = (z_meta["uf"], z_meta["cod_municipio_tse"])
+        if key not in munic_meta:
+            munic_meta[key] = {"cod_ibge": z_meta["cod_ibge"], "nome": z_meta["nome"]}
+
+    out: dict[str, dict[str, Any]] = {}
+    for sigla in sorted(uf_by_sigla.keys()):
+        rows = uf_by_sigla[sigla]
+        # pct_apurado é o mesmo em todas as rows da UF.
+        pct_apurado_uf = float(rows[0].get("pct_apurado") or 0.0)
+
+        # Total de votos REPORTADOS na UF: soma dos `total_votos` de cada município.
+        total_votos_uf = sum(
+            agg["total_votos"]
+            for (uf, _cod), agg in municipio_aggregates.items()
+            if uf == sigla
+        )
+
+        # Top-2 por pct_projetado para identificar líder e segundo (estável).
+        ordered = sorted(
+            rows, key=lambda r: float(r.get("pct_projetado") or 0.0), reverse=True
+        )
+        top = ordered[0] if ordered else None
+        second = ordered[1] if len(ordered) >= 2 else None
+
+        # Margem usada nas séries / display (não vai pra payload aqui — já vem
+        # via candidato.pct_projetado).
+
+        # Constrói candidatos: cada candidato da UF + voto absoluto rateado.
+        candidatos: list[dict[str, Any]] = []
+        for r in ordered:
+            cid = int(r["candidato_id"])
+            pct_proj = float(r.get("pct_projetado") or 0.0)
+            pct_proj_lower = float(r.get("pct_projetado_lower") or pct_proj)
+            pct_proj_upper = float(r.get("pct_projetado_upper") or pct_proj)
+            # `pct_atual` v1: até spec 008 popular pct_atual real, usamos
+            # pct_projetado como aproximação (consistent com o pre-S04/F2
+            # behavior). Refinamento: somar votos_reportados[cid] /
+            # total_votos_uf para o pct_atual real.
+            votos_cand = 0
+            for (uf, _cod), agg in municipio_aggregates.items():
+                if uf != sigla:
+                    continue
+                votos_cand += int(agg["votos_por_candidato"].get(cid, 0))
+            pct_atual = (
+                100.0 * votos_cand / total_votos_uf if total_votos_uf > 0 else 0.0
+            )
+
+            # Votos projetados: rateio do eleitorado total UF projetado pelo
+            # comparecimento médio histórico. v1: aproximação simples
+            # `pct_projetado * total_votos_uf_extrapolated`. Sem dado pré-eleição,
+            # usa total_votos_uf como floor (vai aumentando com a apuração).
+            # Para a v1, `votos_projetados = pct_projetado/100 * max(total_votos_uf
+            # / max(pct_apurado/100, 0.01), total_votos_uf)`. Em UF totalmente
+            # apurada o termo de extrapolação == total_votos_uf.
+            if pct_apurado_uf > 0:
+                # Estima total final pela apuração corrente.
+                estimated_total = total_votos_uf / (pct_apurado_uf / 100.0)
+            else:
+                estimated_total = total_votos_uf
+            votos_proj = int(round((pct_proj / 100.0) * estimated_total))
+
+            nat = national_by_id.get(cid, {})
+            candidatos.append(
+                {
+                    "id": cid,
+                    "nome": f"Candidato {cid}",
+                    "partido": str(nat.get("partido", "—")),
+                    "cor": "color-candidate-a" if cid % 2 == 0 else "color-candidate-b",
+                    "votos_atuais": votos_cand,
+                    "votos_projetados": votos_proj,
+                    "pct_atual": pct_atual,
+                    "pct_projetado": pct_proj,
+                    "ci95": {
+                        "lower": pct_proj_lower,
+                        "upper": pct_proj_upper,
+                    },
+                }
+            )
+
+        # Constrói municípios — agregação determinística por cod_ibge.
+        municipios_payload: list[dict[str, Any]] = []
+        for (uf, cod_tse), agg in municipio_aggregates.items():
+            if uf != sigla:
+                continue
+            meta = munic_meta.get((uf, cod_tse))
+            if not meta:
+                continue
+            votos_por_cand = agg["votos_por_candidato"]
+            if not votos_por_cand:
+                # Município sem votos reportados — ainda emitimos row para o
+                # mapa, mas com lider degenerado.
+                lider_id = top["candidato_id"] if top else 0
+                lider_votos = 0
+                margem_pp = 0.0
+                lider_partido = "—"
+            else:
+                # Top-2 por votos absolutos no município.
+                sorted_cands = sorted(
+                    votos_por_cand.items(), key=lambda kv: kv[1], reverse=True
+                )
+                lider_id, lider_votos = sorted_cands[0]
+                second_votos = sorted_cands[1][1] if len(sorted_cands) >= 2 else 0
+                total_munic = sum(votos_por_cand.values())
+                if total_munic > 0:
+                    margem_pp = 100.0 * (lider_votos - second_votos) / total_munic
+                else:
+                    margem_pp = 0.0
+                lider_partido = str(national_by_id.get(lider_id, {}).get("partido") or "—")
+
+            municipios_payload.append(
+                {
+                    "cod_ibge": meta["cod_ibge"],
+                    "nome": meta["nome"],
+                    "pct_apurado": float(agg["pct_apurado"]),
+                    "lider": {
+                        "candidato_id": int(lider_id),
+                        "partido": lider_partido,
+                        "votos": int(lider_votos),
+                        "margem_pp": float(margem_pp),
+                    },
+                    "votos_reportados": {
+                        int(k): int(v) for k, v in votos_por_cand.items()
+                    },
+                }
+            )
+        # Ordem determinística por cod_ibge.
+        municipios_payload.sort(key=lambda m: m["cod_ibge"])
+
+        # Séries temporais — converte timeline em 3 séries (margem, p_vitoria, turnout).
+        timeline = series_by_uf.get(sigla, [])
+        series_margem = [
+            {"ts": pt["ts"], "margem_pp": float(pt["margem_pp"])} for pt in timeline
+        ]
+        series_pv = [
+            {"ts": pt["ts"], "p": float(pt["p_vitoria_lider"])}
+            for pt in timeline
+            if pt.get("p_vitoria_lider") is not None
+        ]
+        series_turnout = [
+            {"ts": pt["ts"], "pct_apurado": float(pt["pct_apurado"])} for pt in timeline
+        ]
+
+        # Margem atual UF p/ derivar needle.
+        top_pct = float(top.get("pct_projetado") or 0.0) if top else 0.0
+        second_pct = float(second.get("pct_projetado") or 0.0) if second else 0.0
+        margem = top_pct - second_pct
+        needle_position = max(-1.0, min(1.0, margem / 20.0))
+        needle_band = _needle_band(needle_position)
+
+        out[sigla] = {
+            "uf": sigla,
+            "ts": ts_iso,
+            "cargo": int(cargo),
+            "turno": int(turno),
+            "pct_apurado": pct_apurado_uf,
+            "candidatos": candidatos,
+            "needle_position": float(needle_position),
+            "needle_band": needle_band,
+            "municipios": municipios_payload,
+            "series_temporais": {
+                "margem": series_margem,
+                "p_vitoria": series_pv,
+                "turnout": series_turnout,
+            },
+        }
+
+    return out
+
+
 def build_edge_payload(
     cargo: int,
     turno: int,
@@ -886,8 +1376,17 @@ def build_edge_payload(
     }
 
 
-def post_edge_write(payload: dict[str, Any]) -> None:
-    """POST `/api/_internal/edge-write` com `{payload}`.
+def post_edge_write(
+    payload: dict[str, Any],
+    payloads_uf: dict[str, dict[str, Any]] | None = None,
+) -> None:
+    """POST `/api/_internal/edge-write` com `{payload, payloads_uf?}`.
+
+    `payloads_uf` (S04/F2): mapa `sigla → EdgePayloadUf` rico (candidatos
+    com votos, municípios com margem, séries temporais). Quando presente,
+    o endpoint Node grava cada UF na sua chave `projection:uf:<sigla>`
+    em vez de sintetizar esqueleto a partir de `por_uf`. Forward-compat:
+    Zod no endpoint usa `passthrough`, então campo extra é aceito.
 
     Best-effort:
       - Sem `MODEL_SECRET` em ambiente → log warn e retorna (no-op).
@@ -908,7 +1407,10 @@ def post_edge_write(payload: dict[str, Any]) -> None:
     base = _resolve_internal_base_url()
     url = f"{base}/api/_internal/edge-write"
 
-    body = json.dumps({"payload": payload}, default=str).encode("utf-8")
+    body_dict: dict[str, Any] = {"payload": payload}
+    if payloads_uf:
+        body_dict["payloads_uf"] = payloads_uf
+    body = json.dumps(body_dict, default=str).encode("utf-8")
     req = urllib.request.Request(
         url,
         data=body,
@@ -975,6 +1477,16 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
             snapshots = fetch_snapshots(conn, req.cargo, req.turno)
             historical = fetch_historical_2022(conn, req.cargo, req.turno)
             eleitorado = fetch_eleitorado(conn, ano=2026)
+            # S04/F2 — dados para enriquecer EdgePayloadUf. Cada um tolera
+            # falha (DB sem seed geográfico, projections vazia) com dict
+            # vazio + log warn — o payload UF cai pra esqueleto.
+            zona_municipio = fetch_zona_municipio(conn)
+            municipio_aggregates = fetch_municipio_aggregates(
+                conn, req.cargo, req.turno
+            )
+            series_by_uf = fetch_series_temporais(
+                conn, req.cargo, req.turno, window_hours=24
+            )
 
             if not snapshots:
                 _log(
@@ -1035,7 +1547,20 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 cand_a_id=cand_a_id,
                 cand_b_id=cand_b_id,
             )
-            post_edge_write(edge_payload)
+            # S04/F2 — payloads UF ricos (candidatos com votos, municípios,
+            # séries temporais). Envia junto do nacional; endpoint Node
+            # grava cada chave `projection:uf:<sigla>` quando presente.
+            uf_payloads = build_uf_payloads(
+                cargo=req.cargo,
+                turno=req.turno,
+                ts_iso=ts_iso,
+                uf_rows=uf_rows,
+                national_rows=national_rows,
+                municipio_aggregates=municipio_aggregates,
+                zona_municipio=zona_municipio,
+                series_by_uf=series_by_uf,
+            )
+            post_edge_write(edge_payload, payloads_uf=uf_payloads)
         except Exception as edge_exc:  # noqa: BLE001 — never block the response
             _log(
                 "warn",

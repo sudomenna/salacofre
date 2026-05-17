@@ -197,10 +197,19 @@ interface WriteFailure {
  *        chaves separadas é o que o data-model.md determina (~30 KB +
  *        5–10 KB × 27 = ~270 KB de drill-down, longe de caber num único PATCH).
  *
+ * @param payload     `EdgePayload` nacional canônico (chave `projection:current`).
+ * @param payloadsUf  Opcional (S04/F2): mapa `sigla → EdgePayloadUf` rico
+ *                    com candidatos completos, municípios e séries temporais.
+ *                    Quando presente, sobrescreve o esqueleto sintetizado
+ *                    de `payload.por_uf`. Falta de uma UF cai no fallback
+ *                    sintético — garante chave existe.
  * @throws Error agregando as chaves que falharam, com mensagem por chave.
  *               Se TODAS gravaram OK, resolve sem erro.
  */
-export async function writeProjection(payload: EdgePayload): Promise<void> {
+export async function writeProjection(
+  payload: EdgePayload,
+  payloadsUf?: Record<string, EdgePayloadUf>,
+): Promise<void> {
   // Tamanho do payload nacional (apenas — o por-UF é gravado em chaves
   // separadas e cada uma tem seu próprio orçamento). Stringify uma vez
   // para reusar tanto no warn quanto na chamada `writeEdgePayload` que
@@ -215,29 +224,45 @@ export async function writeProjection(payload: EdgePayload): Promise<void> {
     });
   }
 
-  // Build per-UF payloads do `por_uf` agregado. A lista nacional dá apenas
-  // o resumo (sigla, líder, margens) — o drill-down por chave UF tem
-  // candidatos + municípios completos, que NÃO vêm de cá. T16+ vai
-  // alimentar a struct completa; por enquanto sintetizamos um esqueleto
-  // a partir de `por_uf` para que a chave exista e o read path não 404.
-  //
-  // TODO(T16): receber `payloads_uf: EdgePayloadUf[]` separado em vez de
-  // sintetizar — o orchestrator Python tem candidatos+municípios completos.
-  const ufKeys: Array<{ key: string; payload: EdgePayloadUf }> = payload.por_uf.map((row) => ({
-    key: `projection:uf:${row.sigla}`,
-    payload: {
-      uf: row.sigla,
-      ts: payload.ts,
-      cargo: payload.cargo,
-      turno: payload.turno,
-      pct_apurado: row.pct_apurado,
-      // Sem candidatos detalhados aqui — placeholder vazio. T16 substitui.
-      candidatos: [],
-      needle_position: 0,
-      needle_band: "tossup",
-      municipios: [],
-    },
-  }));
+  // Build per-UF payloads. Prioridade:
+  //   1. `payloadsUf[sigla]` se fornecido (S04/F2 — payload rico do orchestrator).
+  //   2. Esqueleto sintetizado de `payload.por_uf` (backward-compat — quando
+  //      o orchestrator é antigo OU a UF caiu fora do mapa explícito).
+  // Em ambos casos a chave EXISTE no Edge Config — o read path nunca 404.
+  const ufKeys: Array<{ key: string; payload: EdgePayloadUf }> = payload.por_uf.map((row) => {
+    const explicit = payloadsUf?.[row.sigla];
+    if (explicit) {
+      // Validação leve do tamanho — payload UF rico pode crescer em UFs
+      // grandes (SP: 645 municípios + 480 ts × 3 séries ≈ 30–40 KB; se
+      // passar de 450 KB, é sinal de pipe quebrado).
+      const ufJson = JSON.stringify(explicit);
+      if (ufJson.length > EDGE_CONFIG_SIZE_WARN_BYTES) {
+        logWarn("edge-config uf payload oversize", {
+          key: `projection:uf:${row.sigla}`,
+          bytes: ufJson.length,
+          threshold: EDGE_CONFIG_SIZE_WARN_BYTES,
+          hardLimit: 512 * 1024,
+        });
+      }
+      return { key: `projection:uf:${row.sigla}`, payload: explicit };
+    }
+    return {
+      key: `projection:uf:${row.sigla}`,
+      payload: {
+        uf: row.sigla,
+        ts: payload.ts,
+        cargo: payload.cargo,
+        turno: payload.turno,
+        pct_apurado: row.pct_apurado,
+        // Esqueleto: orchestrator antigo sem payloads_uf. Página de UF
+        // renderiza com placeholders gentis (constituição § 3).
+        candidatos: [],
+        needle_position: 0,
+        needle_band: "tossup",
+        municipios: [],
+      },
+    };
+  });
 
   const failures: WriteFailure[] = [];
 

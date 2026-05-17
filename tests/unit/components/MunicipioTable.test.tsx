@@ -70,4 +70,30 @@ describe("<MunicipioTable />", () => {
     const heading = doc.querySelector("h3");
     expect(heading?.textContent).toContain("0");
   });
+
+  it("(g) S04/F2: exibe margem e votos reais (antes era placeholder de 5pp/0 votos)", () => {
+    // Linhas com campos derivados do payload UF enriquecido: o page faz
+    // `m.lider.margem_pp` + `sum(votos_reportados)`. Esta tabela espera
+    // os mesmos campos já transformados pelo caller.
+    const rows: MunicipioRow[] = [
+      {
+        cod_ibge: "3550308",
+        nome: "São Paulo",
+        lider: 13,
+        liderCor: "var(--color-pt)",
+        liderNome: "Lula",
+        margemPp: 8.2,
+        pctApurado: 100,
+        votosReportados: 4_213_847,
+      },
+    ];
+    const doc = parse(<MunicipioTable rows={rows} />);
+    const text = doc.body.textContent ?? "";
+    // Margem real, não placeholder de 5pp.
+    expect(text).toContain("8.2%");
+    // Votos formatados pt-BR.
+    expect(text).toContain("4.213.847");
+    // Nome do líder na coluna de margem.
+    expect(text).toContain("Lula");
+  });
 });

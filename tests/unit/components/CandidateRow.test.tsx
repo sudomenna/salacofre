@@ -50,4 +50,16 @@ describe("<CandidateRow />", () => {
     const bar = doc.querySelector('[role="progressbar"]');
     expect(bar?.getAttribute("aria-valuenow")).toBe("100");
   });
+
+  it("(f) S04/F2: exibe votos_atuais REAIS pt-BR (antes era sempre '—' em UF)", () => {
+    // O payload de UF agora carrega votos_atuais. CandidateRow recebe direto
+    // via prop `votos` — checa formatação BR em valor grande.
+    const doc = parse(
+      <CandidateRow nome="Lula" partido="PT" cor="var(--color-pt)" votos={4_213_847} pct={54.1} />,
+    );
+    const text = doc.body.textContent ?? "";
+    expect(text).toContain("4.213.847");
+    // Não deve ter "—" quando votos é número.
+    expect(text).not.toContain("—");
+  });
 });

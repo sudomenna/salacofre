@@ -71,6 +71,8 @@ export async function GET(req: Request): Promise<Response> {
             nome: c.nome,
             partido: c.partido,
             cor: c.cor,
+            votos_atuais: c.votos_atuais,
+            votos_projetados: c.votos_projetados,
             pct_atual: c.pct_atual,
             pct_projetado: c.pct_projetado,
             ci95: { lower: c.pct_projetado_lower, upper: c.pct_projetado_upper },

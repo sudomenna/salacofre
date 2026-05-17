@@ -63,5 +63,24 @@ Plano bottom-up: atoms → table virtualizada → mapas (delegação `map-builde
 ## Riscos descobertos
 
 - `EdgePayloadUf` **NÃO tem campos** equivalentes a `candidato_a_id`/`candidato_b_id` adicionados na F0.1. Para a página UF, precisamos derivar líder/segundo de `candidatos[]` por `pct_projetado` desc. Documentar e flagar ao orquestrador como possível enhancement futuro de tipo (parity nacional vs UF).
-- `EdgePayloadUf` não tem `series_temporais` (gráficos RF-040/041/042 são Should). Para a v1 vou usar fixtures stub dentro do page para os charts até o payload contemplar.
-- `EdgePayloadUf` não tem `votos_atuais` por candidato (só `pct_atual`/`pct_projetado`) — RF-033 pede votos. Vou exibir votos via aproximação `pct * (votos_totais_uf)` quando disponível, ou esconder a coluna gracefully (TODO documentado).
+- ~~`EdgePayloadUf` não tem `series_temporais`~~ → **RESOLVIDO em F2** (S04/F2): `EdgeUfSeriesTemporais` adicionado em `lib/edge-config/types.ts`; orchestrator Python lê histórico de `projections` em janela 24h (`fetch_series_temporais`) e popula `margem`, `p_vitoria`, `turnout`. Charts RF-040/041/042 consomem direto do payload (com fallback `[]` quando histórico ausente → placeholder gentil).
+- ~~`EdgePayloadUf` não tem `votos_atuais` por candidato~~ → **RESOLVIDO em F2**: `EdgeUfCandidate` agora carrega `votos_atuais` (soma de `vap` dos snapshots zonais via `fetch_municipio_aggregates`) e `votos_projetados` (rateio pelo `pct_projetado` × total extrapolado). `<CandidateRow />` da UF page exibe valores reais em pt-BR.
+- ~~Municípios placeholder~~ → **RESOLVIDO em F2**: `EdgeUfMunicipio` enriquecido com `{lider {candidato_id, partido, votos, margem_pp}, votos_reportados {[cand_id]: votos}}`. `<MunicipioTable />` mostra margem e votos reais.
+
+## F2 — Enrichment do payload UF (S04/F2 — 2026-05-17)
+
+- [x] T24. Estender `EdgePayloadUf` com `votos_atuais`/`votos_projetados` em candidatos, `municipios[]` rico (lider/votos), `series_temporais` (margem/p_vitoria/turnout). `lib/edge-config/types.ts`.
+- [x] T25. Adicionar queries Python: `fetch_zona_municipio`, `fetch_municipio_aggregates`, `fetch_series_temporais` (window 24h). `api/model/project.py`.
+- [x] T26. Criar `build_uf_payloads(...)` para gerar `EdgePayloadUf` por UF. Adicionar `payloads_uf` ao body do `/api/_internal/edge-write`. Zod schema com `passthrough` para forward-compat.
+- [x] T27. `writeProjection` aceita `payloadsUf?` opcional; prioriza explicit > esqueleto sintetizado. Warn em UF >450KB.
+- [x] T28. UF page (`app/uf/[sigla]/page.tsx`) consome `c.votos_atuais` em `<CandidateRow />` e `payload.series_temporais` nos 3 charts.
+- [x] T29. Tests Pytest: `build_uf_payloads_shape_minimal`, `build_uf_payloads_with_municipios`, `build_uf_payloads_with_series_temporais`, `edge_write_includes_payloads_uf` (4 testes novos).
+- [x] T30. Tests Vitest: `CandidateRow` (f), `MunicipioTable` (g), `charts` (consumo `EdgeUfSeriesTemporais`) — 3 testes novos.
+- [x] T31. Pytest 59 verdes, Vitest 157 verdes em arquivos relevantes.
+
+## Payload size — pior caso SP
+
+Estimado em F2 com 645 municípios × 8 candidatos + 480 timesteps × 3 séries: **~227 KB**, bem abaixo do warn (450KB) e do hard limit (512KB) do Edge Config. Margem confortável.
+
+Riscos remanescentes (para S05):
+- Se a apuração estender além de 8h ou a granularidade do modelo cair de 60s para 30s, o número de pontos × 3 séries pode dobrar (240→480→960). Plano B: paginar séries via chave separada `projection:uf:<sigla>:series` quando passar de 400KB.

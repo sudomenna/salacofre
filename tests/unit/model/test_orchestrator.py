@@ -53,7 +53,30 @@ class FakeCursor:
 
     def execute(self, sql: str, params: tuple) -> None:
         # Dispatching pelo conteúdo da query — suficiente para os 3 SELECTs.
-        if "FROM snapshots" in sql:
+        # S04/F2: também responde às 3 novas queries `fetch_zona_municipio`,
+        # `fetch_municipio_aggregates` e `fetch_series_temporais` (todas
+        # com fixtures vazias por default, já que o minimal_dataset não
+        # carrega zonas/municipios/projections histórico — orchestrator
+        # gracefully degrada).
+        if "FROM snapshots" in sql and "ranked" in sql and "JOIN zonas" in sql:
+            # fetch_municipio_aggregates (S04/F2): mesma CTE + LEFT JOIN com
+            # zonas. Em testes sem fixture de zonas, devolve cod_municipio_tse
+            # = None para cada snapshot — `fetch_municipio_aggregates` ignora
+            # rows sem cod_municipio_tse.
+            cargo, turno = params
+            self._last_rows = [
+                (
+                    s["uf"],
+                    s["cod_zona"],
+                    s["pct_apurado"],
+                    s.get("votos_total"),
+                    s["payload"],
+                    None,  # cod_municipio_tse — sem fixture de zonas
+                )
+                for s in self._conn.snapshots
+                if s["cargo"] == cargo and s["turno"] == turno
+            ]
+        elif "FROM snapshots" in sql:
             cargo, turno = params
             self._last_rows = [
                 (s["uf"], s["cod_zona"], s["pct_apurado"], s["payload"])
@@ -80,6 +103,12 @@ class FakeCursor:
                 for e in self._conn.eleitorado
                 if e["ano"] == ano
             ]
+        elif "FROM zonas z" in sql or "JOIN municipios" in sql:
+            # fetch_zona_municipio — sem fixture, devolve vazio.
+            self._last_rows = []
+        elif "FROM projections" in sql:
+            # fetch_series_temporais — sem fixture, devolve vazio.
+            self._last_rows = []
         else:
             raise AssertionError(f"FakeCursor sql não suportada: {sql[:80]}")
 
@@ -526,6 +555,307 @@ def test_handler_class_importable() -> None:
     assert issubclass(proj_mod.handler, BaseHTTPRequestHandler)
     assert hasattr(proj_mod.handler, "do_POST")
     assert hasattr(proj_mod.handler, "do_GET")
+
+
+# ---------------------------------------------------------------------------
+# S04/F2 — build_uf_payloads (EdgePayloadUf rico)
+# ---------------------------------------------------------------------------
+
+
+def test_build_uf_payloads_shape_minimal() -> None:
+    """S04/F2: `build_uf_payloads` retorna shape canônico `EdgePayloadUf`
+    com candidatos, municípios (vazio quando agregação ausente) e
+    series_temporais (vazio quando histórico ausente).
+    """
+    from api.model.project import build_uf_payloads
+
+    uf_rows = [
+        {
+            "cargo": 1,
+            "turno": 1,
+            "uf": "SP",
+            "candidato_id": 100,
+            "pct_projetado": 55.0,
+            "pct_projetado_lower": 53.0,
+            "pct_projetado_upper": 57.0,
+            "pct_apurado": 80.0,
+        },
+        {
+            "cargo": 1,
+            "turno": 1,
+            "uf": "SP",
+            "candidato_id": 200,
+            "pct_projetado": 45.0,
+            "pct_projetado_lower": 43.0,
+            "pct_projetado_upper": 47.0,
+            "pct_apurado": 80.0,
+        },
+    ]
+    national_rows = [
+        {"candidato_id": 100, "partido": "PT", "pct_projetado": 53.0},
+        {"candidato_id": 200, "partido": "PL", "pct_projetado": 47.0},
+    ]
+
+    out = build_uf_payloads(
+        cargo=1,
+        turno=1,
+        ts_iso="2026-10-04T18:23:15Z",
+        uf_rows=uf_rows,
+        national_rows=national_rows,
+        municipio_aggregates={},
+        zona_municipio={},
+        series_by_uf={},
+    )
+
+    assert "SP" in out
+    sp = out["SP"]
+    # Shape canônico EdgePayloadUf.
+    for key in (
+        "uf",
+        "ts",
+        "cargo",
+        "turno",
+        "pct_apurado",
+        "candidatos",
+        "needle_position",
+        "needle_band",
+        "municipios",
+        "series_temporais",
+    ):
+        assert key in sp, f"falta {key} no EdgePayloadUf"
+
+    # Candidatos têm votos_atuais e votos_projetados (novos S04/F2).
+    for c in sp["candidatos"]:
+        assert "votos_atuais" in c
+        assert "votos_projetados" in c
+        assert isinstance(c["votos_atuais"], int)
+        assert isinstance(c["votos_projetados"], int)
+        assert "ci95" in c
+        assert "lower" in c["ci95"]
+        assert "upper" in c["ci95"]
+
+    # Líder primeiro (pct_projetado desc).
+    assert sp["candidatos"][0]["id"] == 100
+    assert sp["candidatos"][1]["id"] == 200
+
+    # Municípios vazios sem fixture (graceful degradation).
+    assert sp["municipios"] == []
+
+    # Series_temporais shape — sempre presente, com 3 arrays vazios quando
+    # não há histórico.
+    assert sp["series_temporais"] == {"margem": [], "p_vitoria": [], "turnout": []}
+
+
+def test_build_uf_payloads_with_municipios() -> None:
+    """S04/F2: quando `municipio_aggregates` + `zona_municipio` populados,
+    `municipios[]` traz `{cod_ibge, nome, pct_apurado, lider, votos_reportados}`
+    ordenados por cod_ibge ASC.
+    """
+    from api.model.project import build_uf_payloads
+
+    uf_rows = [
+        {
+            "cargo": 1,
+            "turno": 1,
+            "uf": "SP",
+            "candidato_id": 100,
+            "pct_projetado": 55.0,
+            "pct_projetado_lower": 53.0,
+            "pct_projetado_upper": 57.0,
+            "pct_apurado": 100.0,
+        },
+        {
+            "cargo": 1,
+            "turno": 1,
+            "uf": "SP",
+            "candidato_id": 200,
+            "pct_projetado": 45.0,
+            "pct_projetado_lower": 43.0,
+            "pct_projetado_upper": 47.0,
+            "pct_apurado": 100.0,
+        },
+    ]
+    national_rows = [
+        {"candidato_id": 100, "partido": "PT", "pct_projetado": 53.0},
+        {"candidato_id": 200, "partido": "PL", "pct_projetado": 47.0},
+    ]
+    # 2 municípios em SP: São Paulo capital (3550308) e Campinas (3509502).
+    municipio_aggregates = {
+        ("SP", 71072): {  # cod_municipio_tse capital
+            "pct_apurado": 100.0,
+            "votos_por_candidato": {100: 4_200_000, 200: 3_000_000},
+            "total_votos": 7_200_000,
+        },
+        ("SP", 67016): {  # campinas
+            "pct_apurado": 100.0,
+            "votos_por_candidato": {100: 320_000, 200: 360_000},
+            "total_votos": 680_000,
+        },
+    }
+    # zona_municipio mapeia cod_zona → meta. Para o teste, qualquer cod_zona
+    # serve, contanto que produza meta para os (uf, cod_municipio_tse) acima.
+    zona_municipio = {
+        1: {"uf": "SP", "cod_municipio_tse": 71072, "cod_ibge": "3550308", "nome": "São Paulo"},
+        2: {"uf": "SP", "cod_municipio_tse": 67016, "cod_ibge": "3509502", "nome": "Campinas"},
+    }
+
+    out = build_uf_payloads(
+        cargo=1,
+        turno=1,
+        ts_iso="2026-10-04T18:23:15Z",
+        uf_rows=uf_rows,
+        national_rows=national_rows,
+        municipio_aggregates=municipio_aggregates,
+        zona_municipio=zona_municipio,
+        series_by_uf={},
+    )
+
+    municipios = out["SP"]["municipios"]
+    assert len(municipios) == 2
+    # Ordem determinística (cod_ibge ASC) — Campinas (3509502) antes de SP (3550308).
+    assert municipios[0]["cod_ibge"] == "3509502"
+    assert municipios[0]["nome"] == "Campinas"
+    assert municipios[1]["cod_ibge"] == "3550308"
+
+    # Líder em Campinas: 200 (360k > 320k); em SP capital: 100 (4.2M > 3M).
+    assert municipios[0]["lider"]["candidato_id"] == 200
+    assert municipios[1]["lider"]["candidato_id"] == 100
+    # Margem em pp positiva.
+    assert municipios[0]["lider"]["margem_pp"] > 0
+    assert municipios[1]["lider"]["margem_pp"] > 0
+
+    # votos_reportados sparse (apenas candidatos com presença).
+    assert municipios[0]["votos_reportados"] == {100: 320_000, 200: 360_000}
+    assert municipios[1]["votos_reportados"] == {100: 4_200_000, 200: 3_000_000}
+
+
+def test_build_uf_payloads_with_series_temporais() -> None:
+    """S04/F2: timeline em `series_by_uf` vira 3 séries (margem, p_vitoria,
+    turnout) ordenadas por ts ASC (constituição § 6).
+    """
+    from api.model.project import build_uf_payloads
+
+    uf_rows = [
+        {
+            "cargo": 1,
+            "turno": 1,
+            "uf": "SP",
+            "candidato_id": 100,
+            "pct_projetado": 55.0,
+            "pct_projetado_lower": 53.0,
+            "pct_projetado_upper": 57.0,
+            "pct_apurado": 80.0,
+        },
+    ]
+    series_by_uf = {
+        "SP": [
+            {
+                "ts": "2026-10-04T18:00:00Z",
+                "margem_pp": 5.0,
+                "pct_apurado": 20.0,
+                "p_vitoria_lider": 0.72,
+                "lider_id": 100,
+            },
+            {
+                "ts": "2026-10-04T18:01:00Z",
+                "margem_pp": 6.5,
+                "pct_apurado": 35.0,
+                "p_vitoria_lider": 0.81,
+                "lider_id": 100,
+            },
+            # Ponto sem p_vitoria_lider — entra em margem/turnout mas não em p_vitoria.
+            {
+                "ts": "2026-10-04T18:02:00Z",
+                "margem_pp": 7.0,
+                "pct_apurado": 50.0,
+                "p_vitoria_lider": None,
+                "lider_id": 100,
+            },
+        ]
+    }
+
+    out = build_uf_payloads(
+        cargo=1,
+        turno=1,
+        ts_iso="2026-10-04T18:23:15Z",
+        uf_rows=uf_rows,
+        national_rows=[{"candidato_id": 100, "partido": "PT", "pct_projetado": 55.0}],
+        municipio_aggregates={},
+        zona_municipio={},
+        series_by_uf=series_by_uf,
+    )
+
+    series = out["SP"]["series_temporais"]
+    # margem & turnout têm os 3 pontos (incluindo o sem p_vitoria).
+    assert len(series["margem"]) == 3
+    assert len(series["turnout"]) == 3
+    # p_vitoria só os 2 com valor.
+    assert len(series["p_vitoria"]) == 2
+
+    # Ordem determinística (ts ASC, idem ao input).
+    assert series["margem"][0]["ts"] == "2026-10-04T18:00:00Z"
+    assert series["margem"][0]["margem_pp"] == 5.0
+    assert series["p_vitoria"][0]["p"] == 0.72
+    assert series["turnout"][2]["pct_apurado"] == 50.0
+
+
+def test_edge_write_includes_payloads_uf(
+    fake_db,
+    minimal_dataset,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """S04/F2: `_do_project` envia `payloads_uf` no body para o endpoint
+    Node `/api/_internal/edge-write` (junto do nacional). Cada chave é
+    uma UF do `por_uf` nacional.
+    """
+    from api.model import project as proj_mod
+
+    snapshots, historical, eleitorado = minimal_dataset
+    fake_db(snapshots, historical, eleitorado)
+
+    monkeypatch.setenv("MODEL_SECRET", "test-secret")
+    monkeypatch.setenv("INTERNAL_BASE_URL", "http://localhost:13000")
+
+    captured: dict[str, Any] = {}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):  # noqa: ANN204
+            return self
+
+        def __exit__(self, *a):  # noqa: ANN001,ANN204
+            return None
+
+    def fake_urlopen(req, timeout=10):  # noqa: ANN001,ANN201,ARG001
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr(proj_mod.urllib.request, "urlopen", fake_urlopen)
+
+    body = json.dumps(
+        {"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}
+    ).encode("utf-8")
+
+    status, _payload = proj_mod._do_project(body)
+    assert status == 200
+
+    # S04/F2: body do edge-write agora tem `payloads_uf` ao lado do `payload`.
+    posted = captured["body"]
+    assert "payload" in posted
+    assert "payloads_uf" in posted
+    payloads_uf = posted["payloads_uf"]
+    # 2 UFs em `minimal_dataset` (SP + RJ) → 2 chaves em payloads_uf.
+    assert set(payloads_uf.keys()) == {"SP", "RJ"}
+    # Shape canônico EdgePayloadUf.
+    sp = payloads_uf["SP"]
+    assert "candidatos" in sp
+    assert "municipios" in sp
+    assert "series_temporais" in sp
+    # Candidatos têm os novos campos votos_atuais/votos_projetados.
+    for c in sp["candidatos"]:
+        assert "votos_atuais" in c
+        assert "votos_projetados" in c
 
 
 # ---------------------------------------------------------------------------

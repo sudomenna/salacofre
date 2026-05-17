@@ -75,3 +75,49 @@ describe("<TurnoutAreaChart />", () => {
     expect(svg?.getAttribute("aria-label")).toContain("65");
   });
 });
+
+describe("S04/F2 — charts consomem EdgeUfSeriesTemporais", () => {
+  /**
+   * Os 3 charts consomem `EdgeUfSeriesTemporais` (lib/edge-config/types.ts).
+   * A page de UF mapeia cada array em props normalizados (snake → camel).
+   * Aqui validamos o caminho `series_temporais → chart props` sem mocks.
+   */
+  it("mapeia series_temporais.margem → TimeSeriesChart.points", () => {
+    const series = {
+      margem: [
+        { ts: "2026-10-04T18:00:00Z", margem_pp: 2.0 },
+        { ts: "2026-10-04T18:01:00Z", margem_pp: 4.5 },
+      ],
+      p_vitoria: [
+        { ts: "2026-10-04T18:00:00Z", p: 0.65 },
+        { ts: "2026-10-04T18:01:00Z", p: 0.81 },
+      ],
+      turnout: [
+        { ts: "2026-10-04T18:00:00Z", pct_apurado: 15 },
+        { ts: "2026-10-04T18:01:00Z", pct_apurado: 35 },
+      ],
+    };
+    const margemPoints = series.margem.map((pt) => ({ ts: pt.ts, margemPp: pt.margem_pp }));
+    const probPoints = series.p_vitoria.map((pt) => ({ ts: pt.ts, pVitoria: pt.p }));
+    const turnoutPoints = series.turnout.map((pt) => ({ ts: pt.ts, pctApurado: pt.pct_apurado }));
+
+    const docM = parse(
+      <TimeSeriesChart points={margemPoints} liderNome="Lula" liderCor="var(--color-pt)" />,
+    );
+    const docP = parse(
+      <ProbabilityOverTime points={probPoints} liderNome="Lula" liderCor="var(--color-pt)" />,
+    );
+    const docT = parse(<TurnoutAreaChart points={turnoutPoints} />);
+
+    // Todos renderizam SVG real (não placeholder).
+    expect(docM.querySelector("svg")).not.toBeNull();
+    expect(docP.querySelector("svg")).not.toBeNull();
+    expect(docT.querySelector("svg")).not.toBeNull();
+    // Último valor da margem aparece no aria-label.
+    expect(docM.querySelector("svg")?.getAttribute("aria-label")).toContain("4.5");
+    // Último p_vitoria como % no aria-label.
+    expect(docP.querySelector("svg")?.getAttribute("aria-label")).toContain("81%");
+    // Último turnout no aria-label.
+    expect(docT.querySelector("svg")?.getAttribute("aria-label")).toContain("35");
+  });
+});
