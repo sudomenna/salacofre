@@ -196,7 +196,7 @@ opened: 2026-05-17
   - Cobre: **RF-001, RF-003, RNF-011**.
   - Estimado: 2h.
 
-- [ ] **T18 — Unit: repository append-only (T06)**
+- [x] **T18 — Unit: repository append-only (T06)**
   - `tests/unit/tse/repository.test.ts`:
     - Insert seguido de insert com mesmo hash → segundo é skipped (sem nova linha).
     - Insert com hash diferente → N+1 linhas; SELECT da primeira linha confirma **payload não alterado** (constituição § 10).
