@@ -205,7 +205,7 @@ opened: 2026-05-17
   - Despacho proativo: `constitution-guard` lê este teste para confirmar gate.
   - Estimado: 1h.
 
-- [ ] **T19 — Integration: ciclo completo `/api/ingest`**
+- [x] **T19 — Integration: ciclo completo `/api/ingest`**
   - `tests/integration/ingest-cycle.test.ts`:
     - Mock TSE servindo 3 fixtures (T15). Chama o route handler diretamente (sem subir Next dev).
     - Assert: `files_changed=3` no 1º ciclo; `=0` no 2º (ETag/hash dedup).
