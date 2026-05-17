@@ -28,6 +28,37 @@ O TSE publica uma resolução específica por ciclo eleitoral regulando a divulg
 5. Diff dos textos obrigatórios em footer/atribuição.
 6. Watch item ativo em [risks.md](./risks.md).
 
+## ⚠️ Mudança técnica anunciada pelo TSE para 2026 (2026-05-17)
+
+A página oficial **"Informações técnicas sobre a divulgação de resultados"** do TSE confirma:
+
+- **Formato de divulgação volta a ser JSON** (não EA20/HTML que usamos em 2022/2024 e que está implementado na spec 001 shipped).
+- **Audiência pública técnica está prevista para início de julho de 2026** — detalhes do schema, endpoints, cadenciamento e cabeçalhos serão apresentados ali.
+- Até a audiência, TSE recomenda usar **especificações técnicas de 2024** como referência de desenvolvimento.
+- Para 2024, simulados rodaram em **1º e 2 de outubro**, ambiente `resultados-sim`, ciclo `ele2024`, código de eleição simulado. Data exata do simulado 2026 **ainda não publicada**.
+
+**Impacto direto no SalaCofre**:
+
+| Componente atual | Status pós-2026 |
+|---|---|
+| `lib/tse/parser-ea20.ts` (S02 shipped) | **Obsoleto** — refatorar pra parser JSON pós-audiência |
+| ZIP/BZ2 wrapper (`fetcher.ts`) | A confirmar — JSON pode vir cru ou ainda em pacote comprimido |
+| `lib/tse/client.ts` (ETag/If-None-Match, retry, User-Agent) | **Provavelmente mantém** — comportamento HTTP genérico |
+| `app/api/ingest/route.ts` (semáforo, cron, persistência) | **Mantém** — orchestrator é format-agnostic |
+| Schemas Zod do EA20 (`lib/tse/schema.ts`) | **Substituir** pelo schema JSON pós-audiência |
+| Fixtures `tests/fixtures/tse/` | **Substituir** após simulado oficial 2026 |
+| Spec 001 frontmatter | **Reabrir** — RF-001..009 podem precisar ajuste textual; tasks de refactor entram em sprint dedicada (F2.1?) |
+
+**Plano de absorção**:
+
+1. **Pré-audiência (junho/2026)**: estudar specs 2024 de JSON do TSE (busca "TSE ele2024 JSON dispnibilização resultados"). Documentar shape esperado em design.md da spec 001 como ramo alternativo.
+2. **Pós-audiência (julho/2026)**: criar **spec 001.1 — Refactor parser EA20 → JSON** ou (se for trivial) integrar como chore de sprint pré-D1. Despachar `tse-parser-builder`.
+3. **Pré-simulado (setembro/2026)**: simulado oficial 2026 vira o gate técnico real — exercita parser JSON novo + valida latência + valida concorrência prod.
+
+**Cross-refs**:
+- Risco "TSE muda formato EA20 sem aviso" em `risks.md` agora é **fato confirmado**, não risco. Mudar status pra "Realizado" + nova linha de risco residual ("simulado oficial 2026 ainda não datado").
+- Watch ativo em `docs/operations/runbook.md` § "TSE — janela operacional" para datas de audiência e simulado.
+
 ## LGPD (Lei 13.709/2018)
 
 Tratamento de dados não-aplicável diretamente — SalaCofre não coleta PII por design (constituição § 5).

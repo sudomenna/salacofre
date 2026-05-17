@@ -168,9 +168,11 @@
       {
         "id": "2026-S03",
         "phase": "F3",
-        "status": "planned",
+        "status": "done",
         "start": "2026-06-22",
         "end": "2026-07-05",
+        "opened": "2026-05-17",
+        "closed": "2026-05-17",
         "specs_in_flight": ["002-modelo-estatistico"],
         "path": "docs/sprints/2026-S03-f3-modelo.md"
       },
@@ -288,9 +290,23 @@
       "path": "docs/specs/001-ingestao-tse/"
     },
     {
+      "id": "001.1-tse-json-refactor",
+      "title": "Refactor parser TSE — EA20 (legado) → JSON (2026)",
+      "status": "draft",
+      "priority": "M",
+      "personas": [],
+      "screens": [],
+      "requirements": ["RF-001.1", "RF-002.1", "RF-003.1", "RF-004.1", "RF-005.1"],
+      "depends_on": ["001-ingestao-tse"],
+      "apis": [],
+      "adrs": ["0008", "0011"],
+      "blocked_on": ["tse-audiencia-tecnica-2026-07", "tse-spec-json-2026"],
+      "path": "docs/specs/001.1-tse-json-refactor/"
+    },
+    {
       "id": "002-modelo-estatistico",
       "title": "Modelo estatístico (swing, bootstrap, projeção)",
-      "status": "draft",
+      "status": "implementing",
       "priority": "M",
       "personas": [],
       "screens": [],

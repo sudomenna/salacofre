@@ -1,7 +1,7 @@
 ---
 id: 002-modelo-estatistico
 title: Modelo estatístico (swing, bootstrap, projeção)
-status: draft
+status: implementing
 priority: M
 personas: []
 screens: []
@@ -11,6 +11,7 @@ apis: [POST /api/model/project]
 components: []
 nfr: [RNF-006]
 adrs: [0006, 0007]
+ship_blocked_on: [simulado-tse-2026, fix-p_vitoria-a-by-pct, fix-pct_validos-null-in-historical_results, sobre-o-modelo-page, botid-adr]
 ---
 
 # Spec 002 — Modelo estatístico

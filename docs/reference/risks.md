@@ -9,7 +9,8 @@ source: PRD.md § 22
 
 | Risco | Impacto | Probabilidade | Mitigação |
 |---|---|---|---|
-| TSE muda formato EA20 sem aviso | Alto | Baixa | Participar simulados; validação Zod com fail fast |
+| ~~TSE muda formato EA20 sem aviso~~ → **CONFIRMADO em 2026-05-17**: TSE anunciou volta ao JSON para 2026 (não EA20). Audiência técnica início julho/2026. | **Crítico** | **100% (fato)** | **Spec 001 (shipped) precisa refactor: parser EA20 → JSON. Plano em `docs/reference/regulatory.md § "Mudança técnica anunciada"`. Pré-audiência: estudar specs 2024 JSON. Pós-audiência: spec 001.1 refactor via `tse-parser-builder`. Pré-simulado: validar com `resultados-sim` 2026.** |
+| Data exata do simulado oficial TSE 2026 ainda não publicada | Alto | Alta | Watch ativo na página técnica TSE; em 2024 foram 1º–2/out. Provavelmente jul–set/2026. Mantém calendário S04..S08 flexível pra encaixar refactor + smoke contra simulado. |
 | TSE fica indisponível por >5min | Alto | Média | Graceful degradation com último valor; banner amarelo |
 | Modelo retorna projeção absurda em t=início | Alto | Média | Penalização forte de CI <5% apurado; guardrails de sanidade |
 | Pico de tráfego excede 20k | Médio | Média | Edge Config + CDN escalam automaticamente; load test 30k |
@@ -20,9 +21,15 @@ source: PRD.md § 22
 | Atribuição partidária problemática | Médio | Média | Disclaimer explícito; cores neutras se candidatos novos |
 | Custo de Vercel acima do orçado | Médio | Baixa | Monitorar consumo semanal; alertas de billing |
 | Bundle JS estoura RNF-007a (>150KB above-the-fold) | Médio | Média | CI fail por bundle-analyzer; ADR-0010 manda mapa via dynamic import; revisar deps adicionais sob lupa |
+| **Modelo: validação dinâmica pendente até simulado oficial TSE 2026** | **Alto** | **Média** | **Spec 002 em `implementing` (não shipped). Gate técnico OT-4 PASS (MAE@1h <2pp) mas dataset T21 era circular → swing efetivamente zero. Re-rodar `model-validator` no simulado oficial (jul–set/2026); aceitar relaxar OT-4 via ADR só se 3 tentativas falharem. Vide retrospective S03 (Carry-over #11) e `spec.md ship_blocked_on:`** |
+| **DF sem eleitorado em 2026** | Médio | Alta | Tabela `eleitorado` 2026 não tem DF; modelo silenciosamente exclui DF do MAE e da agregação nacional. Watch ativo no TSE; quando dataset publicado, rodar `data-pipeline/load-eleitorado.ts --uf=DF`. Carry-over #5 da S03. |
+| **Concorrência `/api/ingest` (CONCURRENCY=20) não cabe em 60s pra ~73k targets prod** | Alto | Alta | Cálculo: 73k × 500ms / 20 paralelos ≈ 1825s. 3 opções catalogadas em `docs/operations/runbook.md § "TSE — concorrência produção"`: (a) CONCURRENCY=100, (b) particionar por UF em 27 crons, (c) Fluid Compute `maxDuration=800s`. Decisão deferida pra S04/S05. Risco real apenas em D-1 turno; preview tem fan-out reduzido. Carry-over #14 da S03. |
+| **Drizzle baseline desconectado do Neon** (`pnpm db:generate` gera CREATE TABLE de tudo) | Baixo | Alta | Migrations S01/S02 foram manuais (`lib/db/migrations/0001_postgis.sql`, `0002_zonas_pk_fix.sql`); drizzle nunca viu o DB. Reconciliar via `drizzle-kit introspect` + baseline marcado como applied. Não bloqueia operação — afeta DX. Carry-over #10 da S03. |
+| **Vercel preview deploy do Python (Fluid Compute) ainda não validado end-to-end** | Médio | Média | T02 da S03 ficou parcial: smoke local OK (`python3.14` standalone), mas `curl https://<preview>/api/model/project` precisa de `vercel deploy` com creds owner. Handoff operacional pendente. Risco: descobrir gotcha de runtime tarde. Mitigação: rodar deploy preview cedo na S04 antes de UI consumir Edge Config. |
 
 ## Cross-refs
 
 - Disponibilidade: [../nfr/availability.md](../nfr/availability.md)
 - Modelo (penalização <5%): [../specs/002-modelo-estatistico/](../specs/002-modelo-estatistico/)
 - Runbook: [../operations/runbook.md](../operations/runbook.md)
+- Retrospective S03 (origem dos 6 itens novos abaixo da divisória): [../sprints/2026-S03-f3-modelo.md#retrospective](../sprints/2026-S03-f3-modelo.md#retrospective)

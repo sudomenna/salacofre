@@ -27,12 +27,13 @@ Documentação Spec-Driven Development (SDD) do SalaCofre — plataforma web pú
 
 ---
 
-## Specs (12)
+## Specs (13)
 
 | # | Spec | Status | Prioridade | Telas |
 |---|---|---|---|---|
 | 001 | [Ingestão TSE](./specs/001-ingestao-tse/) | shipped | M | — |
-| 002 | [Modelo estatístico](./specs/002-modelo-estatistico/) | draft | M | — |
+| 001.1 | [Refactor parser TSE EA20→JSON](./specs/001.1-tse-json-refactor/) | draft | M | — |
+| 002 | [Modelo estatístico](./specs/002-modelo-estatistico/) | implementing | M | — |
 | 003 | [Home Nacional Presidencial](./specs/003-home-nacional/) | draft | M | T-01 |
 | 004 | [Página UF Presidencial](./specs/004-pagina-uf-presidencial/) | draft | M | T-03 |
 | 005 | [Página UF Governador](./specs/005-pagina-uf-governador/) | draft | M | T-04 |
