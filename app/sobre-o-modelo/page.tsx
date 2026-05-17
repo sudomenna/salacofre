@@ -136,7 +136,14 @@ export default function SobreOModeloPage() {
               distribuição a priori. Para uma operação ao vivo onde cada execução precisa ser
               auditável, isso vale mais do que a sofisticação de um modelo bayesiano completo. A
               decisão está registrada no{" "}
-              <a href="/docs/architecture/adrs/0006-bootstrap-nao-bayesiano">ADR-0006</a>.
+              <a
+                href="https://github.com/sudomenna/salacofre/blob/main/docs/architecture/adrs/0006-bootstrap-nao-bayesiano.md"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                ADR-0006
+              </a>
+              .
             </p>
           </div>
         </section>
