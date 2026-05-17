@@ -1103,7 +1103,10 @@ def build_uf_payloads(
                     "id": cid,
                     "nome": f"Candidato {cid}",
                     "partido": str(nat.get("partido", "—")),
-                    "cor": "color-candidate-a" if cid % 2 == 0 else "color-candidate-b",
+                    # CSS var literal — consumida direto em `style={{ background: c.cor }}`
+                    # no front-end. Sem `var(...)` o browser ignora silenciosamente.
+                    # Tokens canônicos definidos em app/globals.css (constituição § 2).
+                    "cor": "var(--color-pt)" if cid % 2 == 0 else "var(--color-pl)",
                     "votos_atuais": votos_cand,
                     "votos_projetados": votos_proj,
                     "pct_atual": pct_atual,
@@ -1295,10 +1298,10 @@ def build_edge_payload(
                 "id": int(r["candidato_id"]),
                 "nome": f"Candidato {r['candidato_id']}",
                 "partido": "—",
-                # Token semântico do design system (constituição § 2): NUNCA
-                # hex literal — front-end resolve via CSS var (`var(--c-...)`).
-                # v1 alterna entre 2 tokens neutros estáveis.
-                "cor": "color-candidate-a" if r["candidato_id"] % 2 == 0 else "color-candidate-b",
+                # CSS var literal — consumida direto em `style={{ background: c.cor }}`
+                # no front-end (sem resolução intermediária). Constituição § 2:
+                # nunca hex partidário, sempre token canônico de app/globals.css.
+                "cor": "var(--color-pt)" if r["candidato_id"] % 2 == 0 else "var(--color-pl)",
                 "votos_atuais": 0,
                 "votos_projetados": int(r.get("votos_projetados") or 0),
                 "pct_atual": 0.0,
