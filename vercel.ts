@@ -114,8 +114,7 @@ const config: VercelProjectConfig = {
       maxDuration: 60,
       // Bundle Python tende a inflar com numpy. Excluímos artefatos comuns
       // que não são necessários em runtime.
-      excludeFiles:
-        "{tests/**,__tests__/**,**/*.test.py,**/test_*.py,**/__pycache__/**,**/*.pyc}",
+      excludeFiles: "{tests/**,__tests__/**,**/*.test.py,**/test_*.py,**/__pycache__/**,**/*.pyc}",
     },
   },
 };

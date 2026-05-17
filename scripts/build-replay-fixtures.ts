@@ -220,15 +220,10 @@ async function main(): Promise<void> {
   // 1. DB
   console.log("[1/5] lendo historical_results + eleitorado …");
   const { historical, eleitorado } = await fetchAll();
-  console.log(
-    `      historical=${historical.length} rows · eleitorado=${eleitorado.length} zonas`,
-  );
+  console.log(`      historical=${historical.length} rows · eleitorado=${eleitorado.length} zonas`);
 
   // 2. Agrupa por zona — todos os candidatos da zona vão pro mesmo T_zona.
-  const byZone = new Map<
-    string,
-    { uf: string; cod_zona: number; rows: HistoricalRowDb[] }
-  >();
+  const byZone = new Map<string, { uf: string; cod_zona: number; rows: HistoricalRowDb[] }>();
   for (const h of historical) {
     const key = `${h.uf}:${h.cod_zona}`;
     let bucket = byZone.get(key);

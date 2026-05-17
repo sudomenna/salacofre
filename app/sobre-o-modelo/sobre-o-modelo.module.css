@@ -1,0 +1,351 @@
+/*
+ * Página /sobre-o-modelo — tratamento NYT-style (The Upshot methodology).
+ * Spec 011, RF-054, constituição § 8 (transparência metodológica).
+ * Tokens vivem em app/globals.css e docs/design-system/tokens.md.
+ */
+
+.page {
+  background: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100vh;
+  padding-bottom: 96px;
+}
+
+.container {
+  max-width: 660px;
+  margin: 0 auto;
+  padding: 48px 24px 0;
+}
+
+.kicker {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: 12px;
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-size: 44px;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 16px;
+  color: var(--color-text);
+}
+
+.deck {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  margin: 0 0 32px;
+}
+
+.byline {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-text-faint);
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 40px;
+}
+
+.section {
+  padding-top: 40px;
+  border-top: 1px solid var(--color-border);
+  margin-top: 40px;
+}
+
+.section:first-of-type {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.sectionLabel {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.h2 {
+  font-family: var(--font-serif);
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 600;
+  margin: 0 0 20px;
+  color: var(--color-text);
+}
+
+.h3 {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 600;
+  margin: 24px 0 12px;
+}
+
+.body {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  line-height: 1.6;
+  color: var(--color-text);
+  margin: 0 0 18px;
+}
+
+.body strong {
+  font-weight: 600;
+}
+
+.body a,
+.footer a {
+  color: var(--color-text);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.body a:hover,
+.footer a:hover {
+  color: var(--color-pl);
+}
+
+.pullquote {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  line-height: 1.4;
+  color: var(--color-text);
+  border-left: 3px solid var(--color-text);
+  padding: 6px 0 6px 20px;
+  margin: 28px 0;
+  font-style: italic;
+}
+
+.callout {
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  padding: 20px 22px;
+  margin: 24px 0;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text);
+}
+
+.callout .calloutLabel {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.figure {
+  margin: 28px 0 32px;
+}
+
+.figcaption {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+.figcaption strong {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.svgFrame {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: var(--color-bg);
+}
+
+/* Tabela de bandas da agulha */
+.bandTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  margin: 16px 0 24px;
+}
+
+.bandTable th,
+.bandTable td {
+  text-align: left;
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.bandTable th {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--color-text);
+}
+
+.bandSwatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 8px;
+  border: 1px solid var(--color-border);
+}
+
+.bandRange {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+/* Limitações como cards numerados */
+.limitations {
+  display: grid;
+  gap: 20px;
+  margin: 24px 0;
+}
+
+.limitationItem {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 14px;
+  padding: 16px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.limitationItem:first-child {
+  border-top: 1px solid var(--color-text);
+}
+
+.limitationNumber {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.limitationBody {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.limitationBody strong {
+  font-weight: 600;
+}
+
+/* Lista de fontes */
+.sourceList {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+}
+
+.sourceList li {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  padding: 14px 0;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.sourceList li:first-child {
+  border-top: 1px solid var(--color-text);
+}
+
+.sourceList strong {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.sourceList span {
+  color: var(--color-text-muted);
+}
+
+/* Disclaimer / footer institucional */
+.disclaimer {
+  margin-top: 56px;
+  padding: 24px;
+  background: var(--color-bg-muted);
+  border-top: 3px solid var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--color-text);
+}
+
+.disclaimer strong {
+  font-weight: 600;
+}
+
+.footer {
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-text-faint);
+  text-align: center;
+}
+
+/* Responsivo: ajusta tipografia em mobile */
+@media (max-width: 540px) {
+  .container {
+    padding: 32px 20px 0;
+  }
+
+  .title {
+    font-size: 34px;
+  }
+
+  .deck {
+    font-size: 18px;
+  }
+
+  .h2 {
+    font-size: 24px;
+  }
+
+  .body,
+  .limitationBody {
+    font-size: 17px;
+  }
+
+  .pullquote {
+    font-size: 19px;
+  }
+}
+
+/* Respeita prefers-reduced-motion (constituição § 4).
+ * !important é justificável aqui: anula qualquer animação herdada de bibliotecas
+ * de terceiros que possam ser introduzidas futuramente em SVG inline. */
+@media (prefers-reduced-motion: reduce) {
+  .svgFrame * {
+    /* biome-ignore lint/complexity/noImportantStyles: a11y override for reduced motion */
+    animation: none !important;
+    /* biome-ignore lint/complexity/noImportantStyles: a11y override for reduced motion */
+    transition: none !important;
+  }
+}

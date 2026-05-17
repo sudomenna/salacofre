@@ -1,7 +1,7 @@
 ---
 id: 011-sobre-o-modelo
 title: Página Sobre o Modelo (T-06)
-status: draft
+status: implementing
 priority: M
 personas: [P2, P3]
 screens: [T-06]

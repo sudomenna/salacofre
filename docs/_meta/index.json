@@ -179,10 +179,15 @@
       {
         "id": "2026-S04",
         "phase": "F4a",
-        "status": "planned",
+        "status": "active",
         "start": "2026-07-06",
         "end": "2026-07-19",
-        "specs_in_flight": ["003-home-nacional", "004-pagina-uf-presidencial"],
+        "opened": "2026-05-17",
+        "specs_in_flight": [
+          "003-home-nacional",
+          "004-pagina-uf-presidencial",
+          "011-sobre-o-modelo"
+        ],
         "path": "docs/sprints/2026-S04-f4a-home-uf.md"
       },
       {
