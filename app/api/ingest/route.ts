@@ -17,10 +17,12 @@
 
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { notifySlack } from "@/lib/tse/alerts";
 import { fetchEA20 } from "@/lib/tse/client";
 import { parseEA20Numeric } from "@/lib/tse/ea20-schema";
 import { serialiseCause } from "@/lib/tse/errors";
 import { logDebug, logError, logInfo, logWarn } from "@/lib/tse/log";
+import { calculateLagSeconds } from "@/lib/tse/metrics";
 import { getLastEtagAndHash, insertSnapshot, logIngestRun } from "@/lib/tse/repository";
 import { withRetry } from "@/lib/tse/retry";
 import { listIngestTargets } from "@/lib/tse/targets";
@@ -217,6 +219,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let unchanged = 0;
   let notFoundCount = 0;
   let errorsCount = 0;
+  let maxLagSeconds: number | null = null;
 
   const withSlot = buildSemaphore(CONCURRENCY);
 
@@ -341,7 +344,26 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }
 
       // -----------------------------------------------------------------------
-      // 5e. Persist snapshot (append-only — constituição § 10)
+      // 5e. Calculate TSE lag (RNF-033) — best-effort, never aborts ingest
+      // -----------------------------------------------------------------------
+
+      try {
+        const lagSeconds = calculateLagSeconds(result.data.dg, result.data.hg);
+        if (maxLagSeconds === null || lagSeconds > maxLagSeconds) {
+          maxLagSeconds = lagSeconds;
+        }
+      } catch (err) {
+        // Malformed dg/hg is unusual but non-fatal. Log and continue.
+        logWarn("calculateLagSeconds falhou — lag não medido para este snapshot", {
+          url: target.url,
+          dg: result.data.dg,
+          hg: result.data.hg,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      // -----------------------------------------------------------------------
+      // 5f. Persist snapshot (append-only — constituição § 10)
       // -----------------------------------------------------------------------
 
       try {
@@ -399,9 +421,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     unchanged,
     notFound: notFoundCount,
     errors: errorsCount,
+    maxLagSeconds,
     turno,
     env,
   });
+
+  // ----------------------------------------------------------------------------
+  // 7. Slack alerts (RNF-034) — fire-and-forget, nunca bloqueia o response.
+  // ----------------------------------------------------------------------------
+
+  // TS narrowing perde o reassign dentro do async closure de `Promise.all`,
+  // então fazemos o cast explícito aqui.
+  const lagFinal = maxLagSeconds as number | null;
+  if (lagFinal !== null && lagFinal > 60) {
+    void notifySlack({
+      severity: "warn",
+      msg: `tse.lag_seconds > 60 (atual: ${lagFinal.toFixed(1)}s)`,
+      ctx: { maxLagSeconds: lagFinal, filesChanged: changed, errors: errorsCount, env, turno },
+    });
+  }
+  if (errorsCount >= 3) {
+    void notifySlack({
+      severity: "error",
+      msg: `${errorsCount} erros consecutivos no ciclo`,
+      ctx: { errors: errorsCount, filesFetched: targets.length, env, turno },
+    });
+  }
 
   return NextResponse.json({
     ok: true,

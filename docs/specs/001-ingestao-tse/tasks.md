@@ -217,7 +217,7 @@ opened: 2026-05-17
 
 ### Fase 8 — Observabilidade e alerting
 
-- [ ] **T20 — Métrica `tse.lag_seconds` + alerta Slack**
+- [x] **T20 — Métrica `tse.lag_seconds` + alerta Slack**
   - Em `lib/tse/log.ts`, emitir log estruturado `{ metric: 'tse.lag_seconds', value: now - snapshot.dg/hg, target: '...' }`.
   - Hook Slack: criar `lib/tse/alerts.ts` com `notifySlack({ severity, msg })` que POSTa em `process.env.SLACK_WEBHOOK_URL` se setado. Trigger: lag > 60s OU 3 erros consecutivos em um ciclo.
   - **Não bloquear** o ciclo se Slack falhar — fire-and-forget com `void`.
@@ -225,7 +225,7 @@ opened: 2026-05-17
   - Risco: Vercel não roda fora da função; usar `waitUntil()` se disponível na Next 16 API.
   - Estimado: 1.5h.
 
-- [ ] **T21 — Teste manual: forçar alerta Slack**
+- [x] **T21 — Teste manual: forçar alerta Slack**
   - Em preview, com `SLACK_WEBHOOK_URL` setado, injetar fixture com `dg/hg` antigo → confirmar mensagem em `#salacofre-ops`.
   - Documentar passo em `docs/operations/runbook.md` (seção "TSE indisponível").
   - Cobre: DoD sprint S02.
@@ -233,7 +233,7 @@ opened: 2026-05-17
 
 ### Fase 9 — RF-010 (conformidade regulatória)
 
-- [ ] **T22 — Checklist RF-010 e watch regulatório**
+- [x] **T22 — Checklist RF-010 e watch regulatório**
   - **NÃO é código** — entrada em `docs/operations/runbook.md` (seção "Conformidade TSE"):
     - User-Agent atual: `SalaCofre/1.0 (interessado-divulgacao-cadastrado)`.
     - Status cadastro TSE: **pendente** (resolução 2026 não publicada).

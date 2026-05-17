@@ -61,7 +61,7 @@ const TEST_UF = "ZT";
 const TEST_ZONES = [99010, 99011, 99012] as const;
 // Turno 1 — parseTurnoEnv() só aceita "1" ou "2"; turno 9 não é válido.
 // Isolamento é garantido por uf='ZT' + cod_zona sintético (não existe na prod).
-const TEST_TURNO = 1;
+const _TEST_TURNO = 1;
 const TEST_COD_MUNICIPIO_TSE = 99999;
 const FIXTURES_DIR = resolve(process.cwd(), "tests/fixtures/tse/2022");
 
@@ -117,7 +117,7 @@ function buildReq(headers: Record<string, string> = {}): NextRequest {
 // ---------------------------------------------------------------------------
 
 function cronHeaders(): Record<string, string> {
-  const secret = process.env["CRON_SECRET"];
+  const secret = process.env.CRON_SECRET;
   if (!secret) throw new Error("CRON_SECRET não definida no ambiente de teste");
   return { "x-cron-secret": secret };
 }
@@ -229,14 +229,14 @@ describe("T19 — ciclo completo /api/ingest (integration)", { timeout: 30000 },
 
   beforeAll(async () => {
     // Salvar estado original das env vars
-    originalCronSecret = process.env["CRON_SECRET"];
-    originalCronEnabled = process.env["CRON_ENABLED"];
-    originalWindowOverride = process.env["INGEST_WINDOW_OVERRIDE"];
-    originalTurno = process.env["TSE_TURNO"];
-    originalCodEleicao = process.env["TSE_COD_ELEICAO"];
+    originalCronSecret = process.env.CRON_SECRET;
+    originalCronEnabled = process.env.CRON_ENABLED;
+    originalWindowOverride = process.env.INGEST_WINDOW_OVERRIDE;
+    originalTurno = process.env.TSE_TURNO;
+    originalCodEleicao = process.env.TSE_COD_ELEICAO;
 
     // Garantir TSE_COD_ELEICAO definida para que getCodEleicao() não exploda
-    process.env["TSE_COD_ELEICAO"] = "ele2026/test";
+    process.env.TSE_COD_ELEICAO = "ele2026/test";
 
     // Limpar dados sentinel anteriores
     await cleanupTestData();
@@ -245,29 +245,29 @@ describe("T19 — ciclo completo /api/ingest (integration)", { timeout: 30000 },
   afterAll(async () => {
     // Restaurar env vars originais
     if (originalCronSecret !== undefined) {
-      process.env["CRON_SECRET"] = originalCronSecret;
+      process.env.CRON_SECRET = originalCronSecret;
     } else {
-      delete process.env["CRON_SECRET"];
+      delete process.env.CRON_SECRET;
     }
     if (originalCronEnabled !== undefined) {
-      process.env["CRON_ENABLED"] = originalCronEnabled;
+      process.env.CRON_ENABLED = originalCronEnabled;
     } else {
-      delete process.env["CRON_ENABLED"];
+      delete process.env.CRON_ENABLED;
     }
     if (originalWindowOverride !== undefined) {
-      process.env["INGEST_WINDOW_OVERRIDE"] = originalWindowOverride;
+      process.env.INGEST_WINDOW_OVERRIDE = originalWindowOverride;
     } else {
-      delete process.env["INGEST_WINDOW_OVERRIDE"];
+      delete process.env.INGEST_WINDOW_OVERRIDE;
     }
     if (originalTurno !== undefined) {
-      process.env["TSE_TURNO"] = originalTurno;
+      process.env.TSE_TURNO = originalTurno;
     } else {
-      delete process.env["TSE_TURNO"];
+      delete process.env.TSE_TURNO;
     }
     if (originalCodEleicao !== undefined) {
-      process.env["TSE_COD_ELEICAO"] = originalCodEleicao;
+      process.env.TSE_COD_ELEICAO = originalCodEleicao;
     } else {
-      delete process.env["TSE_COD_ELEICAO"];
+      delete process.env.TSE_COD_ELEICAO;
     }
 
     // Cleanup final dos dados sentinel
@@ -305,8 +305,8 @@ describe("T19 — ciclo completo /api/ingest (integration)", { timeout: 30000 },
   // -------------------------------------------------------------------------
 
   it("2. CRON_SECRET ausente no env → 500 { error: 'misconfigured' }", async () => {
-    const saved = process.env["CRON_SECRET"];
-    delete process.env["CRON_SECRET"];
+    const saved = process.env.CRON_SECRET;
+    delete process.env.CRON_SECRET;
 
     try {
       // Envia qualquer header (não importa — o check é se a env está definida)
@@ -318,7 +318,7 @@ describe("T19 — ciclo completo /api/ingest (integration)", { timeout: 30000 },
       expect(body).toMatchObject({ error: "misconfigured" });
     } finally {
       if (saved !== undefined) {
-        process.env["CRON_SECRET"] = saved;
+        process.env.CRON_SECRET = saved;
       }
     }
   });
@@ -332,7 +332,7 @@ describe("T19 — ciclo completo /api/ingest (integration)", { timeout: 30000 },
     vi.useFakeTimers({ now: new Date("2026-10-04T15:00:00.000Z") });
 
     // Garantir que override está desligado para que o check de janela atue
-    delete process.env["INGEST_WINDOW_OVERRIDE"];
+    delete process.env.INGEST_WINDOW_OVERRIDE;
 
     const req = buildReq(cronHeaders());
     const res = await POST(req);
@@ -349,7 +349,7 @@ describe("T19 — ciclo completo /api/ingest (integration)", { timeout: 30000 },
   // -------------------------------------------------------------------------
 
   it("4. CRON_ENABLED=false retorna 200 { skipped: 'cron_disabled' }", async () => {
-    process.env["CRON_ENABLED"] = "false";
+    process.env.CRON_ENABLED = "false";
 
     try {
       const req = buildReq(cronHeaders());
@@ -359,7 +359,7 @@ describe("T19 — ciclo completo /api/ingest (integration)", { timeout: 30000 },
       const body = await res.json();
       expect(body).toMatchObject({ skipped: "cron_disabled" });
     } finally {
-      delete process.env["CRON_ENABLED"];
+      delete process.env.CRON_ENABLED;
     }
   });
 
@@ -375,10 +375,10 @@ describe("T19 — ciclo completo /api/ingest (integration)", { timeout: 30000 },
       await cleanupTestData();
 
       // Configurar env para o ciclo rodar dentro da janela
-      process.env["INGEST_WINDOW_OVERRIDE"] = "true";
-      process.env["CRON_ENABLED"] = "true";
+      process.env.INGEST_WINDOW_OVERRIDE = "true";
+      process.env.CRON_ENABLED = "true";
       // Turno 1 — parseTurnoEnv() aceita "1" ou "2" apenas
-      process.env["TSE_TURNO"] = "1";
+      process.env.TSE_TURNO = "1";
 
       logCountBefore = await countIngestLog();
     });
@@ -387,9 +387,9 @@ describe("T19 — ciclo completo /api/ingest (integration)", { timeout: 30000 },
       // Limpar dados do ciclo de teste
       await cleanupTestData();
 
-      delete process.env["INGEST_WINDOW_OVERRIDE"];
-      delete process.env["CRON_ENABLED"];
-      delete process.env["TSE_TURNO"];
+      delete process.env.INGEST_WINDOW_OVERRIDE;
+      delete process.env.CRON_ENABLED;
+      delete process.env.TSE_TURNO;
     });
 
     it("5a. 1º ciclo — filesChanged=3, errors=0", async () => {
