@@ -1,16 +1,19 @@
 ---
 id: 011-sobre-o-modelo
 title: Página Sobre o Modelo (T-06)
-status: implementing
+status: shipped
 priority: M
 personas: [P2, P3]
 screens: [T-06]
 requirements: [RF-054]
 depends_on: [002-modelo-estatistico]
 apis: []
-components: []
+components: [SwingIllustration, ConfidenceBandIllustration, NeedleIllustration]
 nfr: [RNF-022, RNF-027, RNF-030]
 adrs: [0005, 0006]
+shipped_with_carry_overs:
+  - ilustracoes-SVG-inline-3-NYT-style-MVP-NeedleIllustration-mockup-estatico
+  - link-ADR-0006-externo-GitHub-em-vez-de-rota-interna-docs
 ---
 
 # Spec 011 — Página Sobre o Modelo

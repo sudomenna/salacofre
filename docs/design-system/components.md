@@ -31,10 +31,25 @@ source: PRD.md § 14.3
 | `<UFMapDuo />` | block | RF-035, RF-036 | `components/blocks/UFMapDuo.tsx` |
 | `<MunicipioTable />` | block | RF-037 | `components/blocks/MunicipioTable.tsx` |
 | `<ForecastTransparency />` ✅ shipped | block | RF-043 | [`components/blocks/ForecastTransparency.tsx`](../../components/blocks/ForecastTransparency.tsx) — unit tests: [`tests/unit/components/ForecastTransparency.test.tsx`](../../tests/unit/components/ForecastTransparency.test.tsx) |
-| `<InsightCard />` | block | RF-044 | `components/blocks/InsightCard.tsx` |
+| `<InsightCard />` ✅ shipped | block | RF-044 | `components/blocks/InsightCard.tsx` |
 | `<HoverTooltip />` | shared | RF-045, RF-048 | `components/shared/HoverTooltip.tsx` |
 | `<BottomSheet />` | shared | RF-049, RF-050 | `components/shared/BottomSheet.tsx` |
-| `<LiveBadge />` | layout | RF-026, RF-028 | `components/layout/LiveBadge.tsx` |
+| `<LiveBadge />` ✅ shipped | layout | RF-026, RF-028 | `components/layout/LiveBadge.tsx` |
+| `<Tabs />` ✅ shipped | layout | RF-029 | `components/layout/Tabs.tsx` |
+| `<WinnerBanner />` ✅ shipped | atom | RF-032 | `components/atoms/banners/WinnerBanner.tsx` |
+| `<CandidateRow />` ✅ shipped | atom | RF-033 | `components/atoms/tables/CandidateRow.tsx` |
+| `<NewsClippingPlaceholder />` ✅ shipped | atom | (spec 004 slot visual) | `components/atoms/cards/NewsClippingPlaceholder.tsx` |
+| `<ChoroplethMapUF />` ✅ shipped | atom | RF-034, RF-036, RF-038 | `components/atoms/maps/ChoroplethMapUF.tsx` |
+| `<BubbleMap />` ✅ shipped | atom | RF-035 | `components/atoms/maps/BubbleMap.tsx` |
+| `<SwingArrowMap />` ✅ shipped | atom | RF-038 | `components/atoms/maps/SwingArrowMap.tsx` |
+| `<MunicipioTable />` ✅ shipped | block | RF-037 | `components/blocks/MunicipioTable.tsx` |
+| `<UFMapDuo />` ✅ shipped | block | RF-035, RF-036 | `components/blocks/UFMapDuo.tsx` |
+| `<UfMapsLazy />` ✅ shipped | block | (lazy load wrapper) | `components/blocks/UfMapsLazy.tsx` |
+| `<UFBreadcrumb />` ✅ shipped | atom | RF-031 | `components/atoms/navigation/UFBreadcrumb.tsx` |
+| `<Footer />` ✅ shipped | layout | RF-055 | `components/layout/Footer.tsx` |
+| `<SwingIllustration />` ✅ shipped | atom | (spec 011) | `components/atoms/illustrations/SwingIllustration.tsx` |
+| `<ConfidenceBandIllustration />` ✅ shipped | atom | (spec 011) | `components/atoms/illustrations/ConfidenceBandIllustration.tsx` |
+| `<NeedleIllustration />` ✅ shipped | atom | (spec 011) | `components/atoms/illustrations/NeedleIllustration.tsx` |
 
 ## Cross-refs
 

@@ -1,7 +1,7 @@
 ---
 id: 003-home-nacional
 title: Home Nacional Presidencial (T-01)
-status: implementing
+status: shipped
 priority: M
 personas: [P1, P2, P3, P4]
 screens: [T-01]
@@ -11,6 +11,11 @@ apis: [GET /api/projection]
 components: [HeadlineScore, NationalChoroplethMap, MapViewToggle, StateGroupedTable, NationalNeedle, DecisiveUFsGrid, InsightCard, ForecastTransparency, LiveBadge, Tabs]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-007, RNF-008, RNF-022, RNF-023, RNF-024, RNF-025, RNF-026, RNF-028]
 adrs: [0001, 0002, 0003, 0004, 0005, 0010]
+shipped_with_carry_overs:
+  - RF-025-UFForecastTable-completa-deferida-S05
+  - RF-030.4-hachura-flip-MapLibre-sprite-deferida-S05
+  - chunk-MapLibre-287KB-acima-RNF-007b-pendente-ADR-aumentar-meta-300KB
+  - e2e-Playwright-cobertura-completa-deferida-S05
 ---
 
 # Spec 003 — Home Nacional Presidencial

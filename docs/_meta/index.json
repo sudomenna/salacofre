@@ -179,10 +179,11 @@
       {
         "id": "2026-S04",
         "phase": "F4a",
-        "status": "active",
+        "status": "done",
         "start": "2026-07-06",
         "end": "2026-07-19",
         "opened": "2026-05-17",
+        "closed": "2026-05-17",
         "specs_in_flight": [
           "003-home-nacional",
           "004-pagina-uf-presidencial",
@@ -335,7 +336,7 @@
     {
       "id": "003-home-nacional",
       "title": "Home Nacional Presidencial (T-01)",
-      "status": "draft",
+      "status": "shipped",
       "priority": "M",
       "personas": ["P1", "P2", "P3", "P4"],
       "screens": ["T-01"],
@@ -359,13 +360,15 @@
       ],
       "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "008-interatividade-brushing"],
       "apis": ["GET /api/projection"],
+      "components": ["HeadlineScore", "NationalChoroplethMap", "MapViewToggle", "StateGroupedTable", "NationalNeedle", "DecisiveUFsGrid", "InsightCard", "ForecastTransparency", "LiveBadge", "Tabs"],
+      "nfr": ["RNF-001", "RNF-002", "RNF-003", "RNF-007", "RNF-008", "RNF-022", "RNF-023", "RNF-024", "RNF-025", "RNF-026", "RNF-028"],
       "adrs": ["0001", "0002", "0003", "0004", "0005", "0010"],
       "path": "docs/specs/003-home-nacional/"
     },
     {
       "id": "004-pagina-uf-presidencial",
       "title": "Página de UF — Presidencial (T-03)",
-      "status": "draft",
+      "status": "shipped",
       "priority": "M",
       "personas": ["P1", "P2", "P3", "P4"],
       "screens": ["T-03"],
@@ -392,6 +395,8 @@
         "003-home-nacional"
       ],
       "apis": ["GET /api/projection?uf=<sigla>"],
+      "components": ["WinnerBanner", "CandidateRow", "NewsClippingPlaceholder", "ChoroplethMapUF", "BubbleMap", "SwingArrowMap", "MunicipioTable", "UFMapDuo", "UfMapsLazy", "Needle", "TimeSeriesChart", "ProbabilityOverTime", "TurnoutAreaChart", "ForecastTransparency", "InsightCard", "UFBreadcrumb", "Footer"],
+      "nfr": ["RNF-001", "RNF-002", "RNF-003", "RNF-008", "RNF-022", "RNF-023", "RNF-024", "RNF-025", "RNF-027"],
       "adrs": ["0001", "0003", "0004", "0007", "0010"],
       "path": "docs/specs/004-pagina-uf-presidencial/"
     },
@@ -483,13 +488,15 @@
     {
       "id": "011-sobre-o-modelo",
       "title": "Página Sobre o Modelo (T-06)",
-      "status": "draft",
+      "status": "shipped",
       "priority": "M",
       "personas": ["P2", "P3"],
       "screens": ["T-06"],
       "requirements": ["RF-054"],
       "depends_on": ["002-modelo-estatistico"],
       "apis": [],
+      "components": ["SwingIllustration", "ConfidenceBandIllustration", "NeedleIllustration"],
+      "nfr": ["RNF-022", "RNF-027", "RNF-030"],
       "adrs": ["0005", "0006"],
       "path": "docs/specs/011-sobre-o-modelo/"
     },
