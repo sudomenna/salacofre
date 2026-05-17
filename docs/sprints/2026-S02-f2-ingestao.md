@@ -1,10 +1,11 @@
 ---
 id: 2026-S02
 title: Sprint 02 — Pipeline TSE end-to-end
-status: active
+status: done
 start: 2026-06-08
 end: 2026-06-21
 opened: 2026-05-17
+closed: 2026-05-17
 phase: F2
 goal: Spec 001 (ingestão TSE) shipped, com cron rodando em preview e snapshots sendo persistidos append-only
 specs_in_flight: [001-ingestao-tse]
@@ -55,11 +56,43 @@ specs_planned_next: [002-modelo-estatistico]
 
 _(preencher se mudar)_
 
-## Retrospective (preencher ao fechar)
+## Retrospective
 
-- O que funcionou:
-- O que melhorar:
-- Carry-over pra S03:
+Fechada em 2026-05-17 (35 dias antes do `end: 2026-06-21` planejado), em modo bootstrap intensivo. Spec 001 entregue via 28 tasks em 7 commits sequenciais (`488f194` → `5c80948`). DoD essencialmente atingido com 3 ressalvas operacionais.
+
+**O que funcionou:**
+- **Plano por fases bottom-up gerado pelo `spec-implementer`** funcionou bem: 28 tasks com dependências explícitas, paralelizáveis em 3 cachos. Caminho crítico estimado em 19h, realidade ~10h efetivos.
+- **`tse-parser-builder` em série** com continuidade de contexto: T01→T02→T04→T05→T08→T17→T19 mantiveram convenções de import e tipos consistentes sem briefing repetido.
+- **Smoke local contra CDN real do TSE** (mesmo retornando 404 em todos) validou o pipeline inteiro em 6.7s — auth, semáforo 20-paralelo, retry, logger estruturado, persistência Neon, deduplicação code-side.
+- **Confirmação de schema do Neon antes de codar** (`Read lib/db/schema.ts` + queries `information_schema`) evitou a divergência que aconteceu na S01 (campo `hash_payload` real vs `hash` assumido — caught antes de quebrar runtime).
+- **Append-only auditado por `constitution-guard`** sem violações em production code: § 10 OK.
+
+**O que melhorar:**
+- **OQ-1 (cadência) deveria ter sido resolvida no design.md original**, não como bloqueante 5 dias antes de codar. O `spec-implementer` precisou esperar a decisão (60s vs self-loop) antes de gerar T08+T09. Em specs futuras, levantar limitações da plataforma já no design review.
+- **Vercel cron 15s era inviável e estava no design há semanas** — só viramos `60s` quando o spec-implementer flagou. ADR-0011 capturou bem, mas o RF-002 deveria ter nascido alinhado com Vercel docs.
+- **Subagent retornou checkbox marcado mas relatório truncado** (T20+T21) — perdeu metade do hand-off por limite de output. Próxima vez: pedir explicitamente "<350 palavras" e segmentar em despachos menores.
+- **Tests integration usam sentinel data em produção** (`uf='ZT'`, `cod_zona=99001/99010-12`). Funciona, mas se houver concorrência em CI será flaky. Branch separada do Neon ou local Postgres em CI fica como chore.
+
+**Ressalvas no DoD (não bloquearam shipped):**
+1. **"Cron rodando em preview a cada 15s"** — outdated pelo ADR-0011 (60s). Cron Vercel está configurado em `vercel.ts` (`* 20-23,0-7 * * *`) mas **não ativo** porque não promovemos production. Smoke via curl manual confirmou pipeline integral em 6.7s.
+2. **"Snapshots ganhando linhas em preview"** — não exercitado com TSE real porque o CDN do TSE limpou todos os arquivos de 2022/2024 por zona (só CSVs agregados permanecem). Integration test (T19) cobre o caminho `fresh→insert` com mock fetch + Neon real.
+3. **"Alerta Slack disparando em lag>60s"** — implementado + documentado em runbook, mas teste manual depende de `SLACK_WEBHOOK_URL` configurada (chore operacional do owner).
+
+**Carry-over pra S03:**
+
+*Técnicos:*
+- **Concorrência produção**: `CONCURRENCY=20` em `/api/ingest` não cabe em 60s pra ~73k targets reais. TODO(S03) está no código. Solução provável: particionar cron por UF (27 cron jobs) ou usar Fluid Compute com concorrência ~400.
+- **Filtro `AND h.uf <> 'ZZ'` em `validate-coverage.ts`** — carry-over da S01 que continua. Trivial.
+- **Next 16 deprecation**: `middleware.ts` → `proxy.ts`. Não-crítico, dev server avisa.
+
+*Operacionais:*
+- Setup `SLACK_WEBHOOK_URL` no preview/production Vercel
+- `TSE_COD_ELEICAO` placeholder até resolução TSE 2026 publicar (esperado jul–set/2026)
+- Cadastro como "interessado na divulgação" (RF-010) — janela típica jun–set/2026
+- Fixtures TSE 2022 reais permanecem **indisponíveis** (CDN limpou). Próxima oportunidade de teste end-to-end real: simulado oficial TSE 2026.
+
+*Fontes:*
+- DF ausente em `eleitorado` — esperando TSE publicar eleitorado 2026 ciclo presidencial.
 
 ## Cross-refs
 

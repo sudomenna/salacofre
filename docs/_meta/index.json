@@ -157,10 +157,11 @@
       {
         "id": "2026-S02",
         "phase": "F2",
-        "status": "active",
+        "status": "done",
         "start": "2026-06-08",
         "end": "2026-06-21",
         "opened": "2026-05-17",
+        "closed": "2026-05-17",
         "specs_in_flight": ["001-ingestao-tse"],
         "path": "docs/sprints/2026-S02-f2-ingestao.md"
       },

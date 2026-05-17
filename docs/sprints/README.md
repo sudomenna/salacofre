@@ -21,20 +21,20 @@ Camada temporal entre o [roadmap macro](../product/roadmap.md) (fases F1–F8) e
 
 ## Cronograma — 10 sprints + 2 marcos
 
-| Sprint | Fase | Período | Goal |
-|---|---|---|---|
-| [S01](./2026-S01-f1-fundacao.md) | F1 | 18/mai → 07/jun (3 sem) | Infra Vercel + schema + históricos 2018/2022 + PMTiles |
-| [S02](./2026-S02-f2-ingestao.md) | F2 | 08/jun → 21/jun (2 sem) | Pipeline TSE end-to-end shipped |
-| [S03](./2026-S03-f3-modelo.md) | F3 | 22/jun → 05/jul (2 sem) | Modelo estatístico shipped + replay 2022 com MAE<2pp |
-| [S04](./2026-S04-f4a-home-uf.md) | F4a | 06/jul → 19/jul (2 sem) | Home + página de UF (esqueleto sem brushing) |
-| [S05](./2026-S05-f4b-mapas-brushing.md) | F4b | 20/jul → 02/ago (2 sem) | Mapas wired + brushing & linking shipped |
-| [S06](./2026-S06-f5-completo.md) | F5 | 03/ago → 16/ago (2 sem) | Governadores, drill-down, sobre-modelo |
-| [S07](./2026-S07-f6-hardening.md) | F6 | 17/ago → 30/ago (2 sem) | Operação, share, manutenção + load test + simulado TSE |
-| [S08](./2026-S08-f7-estabilizacao.md) | F7 | 31/ago → 06/set (1 sem) | Bug bash + checklist pré-prod 100% |
-| **[D1](./_D1-04out2026.md)** | — | **04/out** | **Produção 1º turno** |
-| [S09](./2026-S09-f8a-retro1t.md) | F8a | 05/out → 14/out (1.5 sem) | Análise pós-1T + recalibração modelo |
-| [S10](./2026-S10-f8b-prep2t.md) | F8b | 15/out → 24/out (1.5 sem) | Ajustes + bug bash 2T |
-| **[D2](./_D2-25out2026.md)** | — | **25/out** | **Produção 2º turno** |
+| Sprint | Fase | Período | Status | Goal |
+|---|---|---|---|---|
+| [S01](./2026-S01-f1-fundacao.md) | F1 | 18/mai → 07/jun (3 sem) | done | Infra Vercel + schema + históricos 2018/2022 + PMTiles |
+| [S02](./2026-S02-f2-ingestao.md) | F2 | 08/jun → 21/jun (2 sem) | done | Pipeline TSE end-to-end shipped |
+| [S03](./2026-S03-f3-modelo.md) | F3 | 22/jun → 05/jul (2 sem) | planned | Modelo estatístico shipped + replay 2022 com MAE<2pp |
+| [S04](./2026-S04-f4a-home-uf.md) | F4a | 06/jul → 19/jul (2 sem) | planned | Home + página de UF (esqueleto sem brushing) |
+| [S05](./2026-S05-f4b-mapas-brushing.md) | F4b | 20/jul → 02/ago (2 sem) | planned | Mapas wired + brushing & linking shipped |
+| [S06](./2026-S06-f5-completo.md) | F5 | 03/ago → 16/ago (2 sem) | planned | Governadores, drill-down, sobre-modelo |
+| [S07](./2026-S07-f6-hardening.md) | F6 | 17/ago → 30/ago (2 sem) | planned | Operação, share, manutenção + load test + simulado TSE |
+| [S08](./2026-S08-f7-estabilizacao.md) | F7 | 31/ago → 06/set (1 sem) | planned | Bug bash + checklist pré-prod 100% |
+| **[D1](./_D1-04out2026.md)** | — | **04/out** | — | **Produção 1º turno** |
+| [S09](./2026-S09-f8a-retro1t.md) | F8a | 05/out → 14/out (1.5 sem) | planned | Análise pós-1T + recalibração modelo |
+| [S10](./2026-S10-f8b-prep2t.md) | F8b | 15/out → 24/out (1.5 sem) | planned | Ajustes + bug bash 2T |
+| **[D2](./_D2-25out2026.md)** | — | **25/out** | — | **Produção 2º turno** |
 
 ## Template de uma sprint
 
