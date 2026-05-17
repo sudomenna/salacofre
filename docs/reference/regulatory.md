@@ -11,11 +11,11 @@ source: PRD.md § 23.2
 
 O TSE publica uma resolução específica por ciclo eleitoral regulando a divulgação por terceiros. As resoluções dos últimos ciclos:
 
-| Pleito | Resolução TSE | Aplicabilidade ao AtlasMenna |
+| Pleito | Resolução TSE | Aplicabilidade ao SalaCofre |
 |---|---|---|
 | Eleição Geral 2022 | Res. 23.673/2021 | Referência histórica |
 | Eleição Municipal 2024 | **Res. 23.736/2024** | Referência de práticas; **não rege automaticamente o pleito 2026** |
-| **Eleição Geral 2026** | **A ser publicada** (esperada entre dez/2025 e mar/2026) | **Rege o AtlasMenna em produção** |
+| **Eleição Geral 2026** | **A ser publicada** (esperada entre dez/2025 e mar/2026) | **Rege o SalaCofre em produção** |
 
 **Status em 2026-05-17**: aguardando publicação. Até lá, usar 23.736/2024 como guia de boas práticas (cadastro, footer, atribuição), **sem** assumir reuso literal de regras técnicas (cadenciamento, headers, formatos).
 
@@ -30,7 +30,7 @@ O TSE publica uma resolução específica por ciclo eleitoral regulando a divulg
 
 ## LGPD (Lei 13.709/2018)
 
-Tratamento de dados não-aplicável diretamente — AtlasMenna não coleta PII por design (constituição § 5).
+Tratamento de dados não-aplicável diretamente — SalaCofre não coleta PII por design (constituição § 5).
 
 ## Aplicação atual
 

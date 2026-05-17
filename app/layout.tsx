@@ -17,7 +17,7 @@ const serif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "AtlasMenna — Apuração eleitoral 2026",
+  title: "SalaCofre — Apuração eleitoral 2026",
   description:
     "Plataforma pública de apuração eleitoral 2026 com projeção estatística. Não oficial. Fonte: TSE.",
 };

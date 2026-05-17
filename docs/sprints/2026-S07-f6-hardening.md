@@ -32,7 +32,7 @@ Tudo o que separa "feature completa" de "produção pronta": operação, monitor
 - [ ] **Lighthouse a11y >95** em CI para todas as rotas
 - [ ] Alertas Slack testados com falsos positivos forçados
 - [ ] Backup Postgres configurado (Neon snapshot diário)
-- [ ] DNS preparado (`atlasmenna.com.br` + `.com` apontando pro Vercel)
+- [ ] DNS preparado (`salacofre.com.br` + `.com` apontando pro Vercel)
 - [ ] **Se a resolução TSE 2026 já foi publicada**: rodar diff técnico via `tse-parser-builder` e ajustar pipeline se necessário
 
 ## Despachos sugeridos (paralelizáveis)

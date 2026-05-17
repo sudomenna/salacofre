@@ -27,7 +27,7 @@ Servida quando todos os endpoints estiverem indisponíveis (último recurso). Me
 - Página estática (sem fetch).
 - Mensagem clara explicando indisponibilidade temporária.
 - Link para `resultados.tse.jus.br`.
-- Manter brand do AtlasMenna.
+- Manter brand do SalaCofre.
 
 **Out**:
 - Lógica de quando ativar (escopo [spec 010](../010-operacao-monitoramento/)).

@@ -1,4 +1,4 @@
-# AtlasMenna
+# SalaCofre
 
 Plataforma web pública de apuração eleitoral 2026 com projeção estatística.
 

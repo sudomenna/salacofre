@@ -1,13 +1,13 @@
 ---
 title: Alertas Slack
-description: Canal #atlasmenna-ops com webhooks para anomalias críticas
+description: Canal #salacofre-ops com webhooks para anomalias críticas
 status: stable
 source: PRD.md § 19.4
 ---
 
 # Alertas Slack
 
-**Canal**: `#atlasmenna-ops`.
+**Canal**: `#salacofre-ops`.
 
 ## Critérios de disparo
 

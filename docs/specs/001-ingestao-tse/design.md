@@ -111,7 +111,7 @@ async function fetchEA20(opts: FetchOptions): Promise<EA20 | 'NOT_MODIFIED'> {
       // User-Agent identificável conforme exigência da resolução TSE vigente para 2026
       // (texto final depende da publicação — ver docs/reference/regulatory.md).
       // Cadastro de interessado na divulgação obrigatório (RF-010).
-      'User-Agent': 'AtlasMenna/1.0 (interessado-divulgacao-cadastrado)'
+      'User-Agent': 'SalaCofre/1.0 (interessado-divulgacao-cadastrado)'
     },
     cache: 'no-store',
     signal: AbortSignal.timeout(5000)
@@ -132,9 +132,11 @@ async function fetchEA20(opts: FetchOptions): Promise<EA20 | 'NOT_MODIFIED'> {
 | Sábado (dia anterior) <12h | 1× | Validar "divulgação zero" |
 | Sábado >12h, antes do domingo | 1×/hora | Heartbeat |
 | Domingo <17h | 1×/min | Aguardar abertura |
-| Domingo 17h–04h | A cada 15s | Apuração ativa |
+| Domingo 17h–04h | A cada 60s | Apuração ativa ([ADR-0011](../../architecture/adrs/0011-cadencia-60s.md)) |
 | Após 99% apurado | A cada 5min | Convergência final |
 | Pós-eleição | Manual | Reconciliação |
+
+**Nota**: a tabela original previa 15s no pico de apuração. Cadência foi revisada para 60s — granularidade mínima do Vercel Cron nativo, sem self-loop dentro da função. Defasagem TSE→tela ajustada de <30s para <90s ([RNF-006](../../nfr/performance.md)).
 
 ## Tratamento de falhas
 
@@ -154,7 +156,7 @@ Para Presidencial + 27 Governadores no 1º turno:
 
 - ~3.000 zonas × 28 cargos = **~84.000 arquivos EA20** existem
 - Em prática: apenas zonas que atualizaram em cada ciclo (~5–15%)
-- Ciclo de 15s = **~10.000 GETs/min no pico** (com 304s, ~1.500 transferências reais)
+- Ciclo de 60s = **~2.500 GETs/min no pico** (com 304s, ~400 transferências reais; após ADR-0011)
 - Banda total: 50–100GB ao longo da noite
 
 ## Persistência

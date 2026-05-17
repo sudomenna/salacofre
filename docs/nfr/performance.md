@@ -14,7 +14,7 @@ source: PRD.md § 6.1
 | RNF-003 | INP (Interaction to Next Paint) p95 | <200ms |
 | RNF-004 | Latência do endpoint `/api/projection` p95 | <100ms |
 | RNF-005 | Cache hit ratio na CDN no pico | >99% |
-| RNF-006 | Defasagem TSE → tela do usuário | <30s |
+| RNF-006 | Defasagem TSE → tela do usuário | <90s ([ADR-0011](../architecture/adrs/0011-cadencia-60s.md)) |
 | RNF-007a | Bundle JS above-the-fold (sem chunks lazy) | <150KB gzipped |
 | RNF-007b | Bundle JS do chunk do mapa (MapLibre + PMTiles client + componente) | <250KB gzipped |
 | RNF-007c | Bundle JS total da home (above-the-fold + chunks lazy) | <500KB gzipped |

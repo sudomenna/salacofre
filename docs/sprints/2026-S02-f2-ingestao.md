@@ -1,9 +1,10 @@
 ---
 id: 2026-S02
 title: Sprint 02 — Pipeline TSE end-to-end
-status: planned
+status: active
 start: 2026-06-08
 end: 2026-06-21
+opened: 2026-05-17
 phase: F2
 goal: Spec 001 (ingestão TSE) shipped, com cron rodando em preview e snapshots sendo persistidos append-only
 specs_in_flight: [001-ingestao-tse]
@@ -22,7 +23,7 @@ specs_planned_next: [002-modelo-estatistico]
 
 ## Chores fora de spec
 
-- [ ] Setup do canal Slack `#atlasmenna-ops` + webhook
+- [ ] Setup do canal Slack `#salacofre-ops` + webhook
 - [ ] Cron Vercel configurado em `vercel.ts` (apenas preview ativo nesta sprint; produção desabilitada via `CRON_ENABLED=false`)
 - [ ] Fixtures TSE 2022 reais baixadas pra `tests/fixtures/tse/2022/`
 - [ ] Atualizar [docs/operations/dashboard-status.md](../operations/dashboard-status.md) com URLs reais quando `/_status` existir (parcial — dashboard completo é S07)

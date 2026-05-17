@@ -67,7 +67,7 @@ export async function downloadCached(
   console.log(`  [download] ${url}`);
   const t0 = Date.now();
   const res = await fetch(url, {
-    headers: { "User-Agent": "AtlasMenna-ETL/0.1 (+menna@outsiders.digital)" },
+    headers: { "User-Agent": "SalaCofre-ETL/0.1 (+menna@outsiders.digital)" },
     // signal: AbortSignal.timeout não suportado consistentemente em Node 22 fetch;
     // fica a critério do orquestrador setar timeout via Bash.
   });

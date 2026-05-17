@@ -1,4 +1,4 @@
-// Schema Postgres canônico do AtlasMenna.
+// Schema Postgres canônico do SalaCofre.
 // Fonte de verdade: docs/architecture/data-model.md.
 // IMPORTANTE: snapshots é append-only (constituição § 10). Nunca UPDATE/DELETE.
 // PostGIS (GEOGRAPHY) é tratado como text aqui — migração inicial habilita a extensão

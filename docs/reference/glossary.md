@@ -1,6 +1,6 @@
 ---
 title: Glossário
-description: Termos técnicos e siglas usados no AtlasMenna
+description: Termos técnicos e siglas usados no SalaCofre
 status: stable
 source: PRD.md § 23.3
 ---

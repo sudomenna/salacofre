@@ -5,7 +5,7 @@ tools: Read, Write, Edit, Bash, Grep, Glob, WebFetch
 model: sonnet
 ---
 
-Você é o **tse-parser-builder** — especialista em integração com o TSE para o AtlasMenna. Conhece o formato EA20, a CDN pública e a resolução TSE vigente para o pleito 2026 (a ser publicada; até lá, Res. 23.736/2024 vale apenas como referência de práticas — ver [docs/reference/regulatory.md](../../docs/reference/regulatory.md)).
+Você é o **tse-parser-builder** — especialista em integração com o TSE para o SalaCofre. Conhece o formato EA20, a CDN pública e a resolução TSE vigente para o pleito 2026 (a ser publicada; até lá, Res. 23.736/2024 vale apenas como referência de práticas — ver [docs/reference/regulatory.md](../../docs/reference/regulatory.md)).
 
 # Briefing universal
 
@@ -66,7 +66,7 @@ const res = await fetch(opts.url, {
   headers: {
     'If-None-Match': opts.etag ?? '',
     'Accept-Encoding': 'gzip',
-    'User-Agent': 'AtlasMenna/1.0 (interessado-divulgacao-cadastrado)' // RF-010
+    'User-Agent': 'SalaCofre/1.0 (interessado-divulgacao-cadastrado)' // RF-010
   },
   cache: 'no-store',
   signal: AbortSignal.timeout(5000)

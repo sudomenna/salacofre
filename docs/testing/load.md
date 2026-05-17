@@ -22,7 +22,7 @@ export const options = {
 };
 
 export default function () {
-  http.get('https://atlasmenna.com.br/api/projection');
+  http.get('https://salacofre.com.br/api/projection');
   sleep(5);
 }
 ```

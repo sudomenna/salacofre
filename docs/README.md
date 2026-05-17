@@ -1,6 +1,6 @@
-# AtlasMenna — Documentação
+# SalaCofre — Documentação
 
-Documentação Spec-Driven Development (SDD) do AtlasMenna — plataforma web pública para apuração das eleições brasileiras de 2026 com projeção estatística em tempo real.
+Documentação Spec-Driven Development (SDD) do SalaCofre — plataforma web pública para apuração das eleições brasileiras de 2026 com projeção estatística em tempo real.
 
 > **Versão**: SDD v1.0 (picotada do PRD v0.1 em 2026-05-17)
 > **Status do código**: greenfield (sem implementação ainda)

@@ -18,7 +18,7 @@ source: PRD.md § 23.5
 - [ ] Rolling Release configurado com canary 10% inicial
 - [ ] OG images dinâmicas testadas em WhatsApp/X/Threads
 - [ ] Página de manutenção testada
-- [ ] DNS preparado (atlasmenna.com.br + .com)
+- [ ] DNS preparado (salacofre.com.br + .com)
 - [ ] Backup do Postgres configurado (Neon snapshot)
 - [ ] Plano de comunicação pré-D (post Linkedin/X anunciando)
 

@@ -10,7 +10,7 @@ depends_on: []
 apis: [POST /api/ingest]
 components: []
 nfr: [RNF-006, RNF-009, RNF-011, RNF-012, RNF-016, RNF-031, RNF-032, RNF-033, RNF-034]
-adrs: [0001, 0002, 0008]
+adrs: [0001, 0002, 0008, 0011]
 ---
 
 # Spec 001 — Ingestão de dados do TSE
@@ -48,14 +48,16 @@ WHEN o sistema precisa atualizar a apuração, the system SHALL consumir o feed 
 - Given um endpoint válido do TSE, when `/api/ingest` é acionado, then o sistema faz GET para a URL canônica de cada (UF × cargo × zona) relevante.
 - Given resposta 200 com payload EA20, when o parser Zod valida, then o snapshot é aceito.
 
-**RF-002 — Polling automático a cada 15s durante janela de apuração (17h–04h)**
+**RF-002 — Polling automático a cada 60s durante janela de apuração (17h–04h)**
 
-WHILE estamos na janela de apuração (17h00–04h00 horário oficial do dia D), the system SHALL acionar `/api/ingest` a cada 15 segundos via Vercel Cron.
+WHILE estamos na janela de apuração (17h00–04h00 horário oficial do dia D), the system SHALL acionar `/api/ingest` a cada 60 segundos via Vercel Cron.
 
 **Aceitação**:
 - Given a hora é 16:59:59 do dia D, when o cron é avaliado, then nenhuma execução dispara.
-- Given a hora é 17:00:00, when o cron é avaliado, then a primeira execução dispara dentro de ±5s.
+- Given a hora é 17:00:00, when o cron é avaliado, then a primeira execução dispara dentro de ±60s.
 - Given a hora é 04:00:01, when o cron é avaliado, then nenhuma nova execução dispara.
+
+**Nota histórica**: a versão inicial deste RF assumia 15s. Cadência foi revisada para 60s em [ADR-0011](../../architecture/adrs/0011-cadencia-60s.md) devido à granularidade mínima do Vercel Cron (1/min) e robustez operacional vs. complexidade de self-loop dentro da função. Defasagem TSE→tela ajustada de <30s para <90s em [RNF-006](../../nfr/performance.md).
 
 **RF-003 — Suporte a ETag (If-None-Match)**
 

@@ -1,11 +1,11 @@
 ---
-title: AtlasMenna — Constituição do Produto
+title: SalaCofre — Constituição do Produto
 description: Princípios não-negociáveis que governam toda decisão de produto, design e engenharia
 status: stable
 last_updated: 2026-05-17
 ---
 
-# Constituição do AtlasMenna
+# Constituição do SalaCofre
 
 Estes princípios são **invariantes**. Toda spec, ADR, PR ou decisão de produto precisa respeitá-los. Mudar um princípio exige justificativa explícita registrada em ADR + atualização desta constituição com versionamento (não silenciosamente).
 
