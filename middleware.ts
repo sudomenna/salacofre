@@ -8,9 +8,9 @@
 //   - ADR-0009: docs/architecture/adrs/0009-botid-vercel.md
 //   - NFR segurança: docs/nfr/security.md (RNF-017, RNF-018)
 
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
 import { checkBotId } from "botid/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 export async function middleware(_req: NextRequest) {
   const verdict = await checkBotId();

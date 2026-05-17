@@ -19,15 +19,9 @@
 //   node --experimental-strip-types data-pipeline/tse-mapping-reconcile.ts
 
 import { readdir } from "node:fs/promises";
-import { resolve, dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  CACHE_DIR,
-  getPool,
-  iterCsv,
-  readCsvHeader,
-  toIntOrNull,
-} from "./_tse-common.ts";
+import { CACHE_DIR, getPool, iterCsv, readCsvHeader, toIntOrNull } from "./_tse-common.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -262,12 +256,18 @@ async function main(): Promise<void> {
     const manualEntry = MANUAL_IBGE_TO_TSE[mun.cod_ibge];
     if (manualEntry !== undefined) {
       if (manualEntry === "SKIP") {
-        skipped.push(`SKIP (water body / no-TSE) uf=${mun.uf} ibge=${mun.cod_ibge} nome="${mun.nome}"`);
+        skipped.push(
+          `SKIP (water body / no-TSE) uf=${mun.uf} ibge=${mun.cod_ibge} nome="${mun.nome}"`,
+        );
         byUf.set(mun.uf, (byUf.get(mun.uf) ?? 0) + 1); // conta como "tratado"
         continue;
       }
       if (mun.cod_municipio_tse_atual !== manualEntry) {
-        updates.push({ codIbge: mun.cod_ibge, codMunicipioTseNovo: manualEntry, nomeTse: `[manual] ${mun.nome}` });
+        updates.push({
+          codIbge: mun.cod_ibge,
+          codMunicipioTseNovo: manualEntry,
+          nomeTse: `[manual] ${mun.nome}`,
+        });
       }
       byUf.set(mun.uf, (byUf.get(mun.uf) ?? 0) + 1);
       continue;
@@ -278,7 +278,9 @@ async function main(): Promise<void> {
     const key = `${mun.uf}|${nomeNorm}`;
     const tse = tsePairs.get(key);
     if (!tse) {
-      warnings.push(`NO_MATCH uf=${mun.uf} ibge=${mun.cod_ibge} nome="${mun.nome}" norm="${nomeNorm}"`);
+      warnings.push(
+        `NO_MATCH uf=${mun.uf} ibge=${mun.cod_ibge} nome="${mun.nome}" norm="${nomeNorm}"`,
+      );
       continue;
     }
     if (mun.cod_municipio_tse_atual !== tse.codMunicipioTse) {
@@ -337,7 +339,11 @@ async function main(): Promise<void> {
   );
 
   console.log("\n=== Fase 5: verificação final ===");
-  const { rows: afterRows } = await pool.query<{ uf: string; cnt: string; placeholder_cnt: string }>(
+  const { rows: afterRows } = await pool.query<{
+    uf: string;
+    cnt: string;
+    placeholder_cnt: string;
+  }>(
     `
     SELECT uf,
            COUNT(*)::text AS cnt,
@@ -358,7 +364,9 @@ async function main(): Promise<void> {
     totalPlaceholders += ph;
     if (ph > 0) {
       ufsWithPlaceholders++;
-      console.log(`  WARN: ${r.uf} ainda tem ${ph}/${cnt} placeholders (inclui ${skipCodes.size > 0 ? "possíveis water-bodies" : "gaps"})`);
+      console.log(
+        `  WARN: ${r.uf} ainda tem ${ph}/${cnt} placeholders (inclui ${skipCodes.size > 0 ? "possíveis water-bodies" : "gaps"})`,
+      );
     }
   }
 
