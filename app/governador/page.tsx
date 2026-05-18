@@ -41,6 +41,7 @@ import { GovernorCard } from "@/components/blocks/GovernorCard";
 import { HexCartogramBrasil } from "@/components/blocks/HexCartogramBrasil";
 import { RaceStatsCards } from "@/components/blocks/RaceStatsCards";
 import { Footer } from "@/components/layout/Footer";
+import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { LiveBadge } from "@/components/layout/LiveBadge";
 import { readProjection } from "@/lib/edge-config/reader";
 import type { EdgePayload, EdgeUfRow } from "@/lib/edge-config/types";
@@ -260,6 +261,8 @@ export default async function GovernadorGridPage({ searchParams }: PageProps) {
           .
         </p>
       )}
+
+      <ForecastTransparency pctApurado={pct_apurado_total} variant="national" />
 
       <Footer />
     </main>

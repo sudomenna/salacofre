@@ -73,10 +73,12 @@ export function HexCartogramBrasil({ rows, candidatos, hexRadius = 26 }: HexCart
             ? `${sigla}${lider ? `, líder ${lider.nome} (${lider.partido})` : ""}`
             : `${sigla}, sem dados`;
           const href = `/uf/${sigla.toLowerCase()}/governador`;
-          // Cor do texto: branco se rank 1..2 (fundo escuro), preto se rank >=3.
+          // Cor do texto via luminância do fundo: ranks com fundo escuro
+          // (1, 2, 5, 6 nas paletas atuais) recebem branco; demais recebem
+          // texto escuro. Bucket "indefinido" sempre escuro (cinza claro).
           const rank = lider?.rank ?? 99;
-          const textFill =
-            uf?.bucket === "indefinido" || rank >= 3 ? "var(--color-text)" : "#ffffff";
+          const isDarkBg = uf?.bucket !== "indefinido" && [1, 2, 5, 6].includes(rank);
+          const textFill = isDarkBg ? "#ffffff" : "var(--color-text)";
 
           return (
             <g key={sigla}>
@@ -116,6 +118,27 @@ export function HexCartogramBrasil({ rows, candidatos, hexRadius = 26 }: HexCart
           );
         })}
       </svg>
+
+      {/* Lista textual paralela (constituição § 4 + RNF-025): screen readers
+          navegam 27 UFs sequencialmente como landmark <nav>. */}
+      <nav aria-label="Navegação por UF — Governadores" className="sr-only">
+        <ul>
+          {Object.keys(UF_HEX_POSITIONS).map((sigla) => {
+            const uf = rowsBySigla.get(sigla);
+            const lider = uf ? candIndex.get(uf.lider) : undefined;
+            const liderText = lider
+              ? `${lider.nome} (${lider.partido}) líder`
+              : "sem dados";
+            return (
+              <li key={sigla}>
+                <a href={`/uf/${sigla.toLowerCase()}/governador`}>
+                  {sigla}: {liderText}
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
     </figure>
   );
 }
