@@ -25,10 +25,10 @@ Camada temporal entre o [roadmap macro](../product/roadmap.md) (fases F1–F8) e
 |---|---|---|---|---|
 | [S01](./2026-S01-f1-fundacao.md) | F1 | 18/mai → 07/jun (3 sem) | done | Infra Vercel + schema + históricos 2018/2022 + PMTiles |
 | [S02](./2026-S02-f2-ingestao.md) | F2 | 08/jun → 21/jun (2 sem) | done | Pipeline TSE end-to-end shipped |
-| [S03](./2026-S03-f3-modelo.md) | F3 | 22/jun → 05/jul (2 sem) | planned | Modelo estatístico shipped + replay 2022 com MAE<2pp |
-| [S04](./2026-S04-f4a-home-uf.md) | F4a | 06/jul → 19/jul (2 sem) | planned | Home + página de UF (esqueleto sem brushing) |
-| [S05](./2026-S05-f4b-mapas-brushing.md) | F4b | 20/jul → 02/ago (2 sem) | planned | Mapas wired + brushing & linking shipped |
-| [S06](./2026-S06-f5-completo.md) | F5 | 03/ago → 16/ago (2 sem) | planned | Governadores, drill-down, sobre-modelo |
+| [S03](./2026-S03-f3-modelo.md) | F3 | 22/jun → 05/jul (2 sem) | done | Modelo estatístico (Caminho C) — `implementing` até simulado oficial |
+| [S04](./2026-S04-f4a-home-uf.md) | F4a | 06/jul → 19/jul (2 sem) | done | Home + UF + Sobre-o-modelo (T-01, T-03, T-06) |
+| [S05](./2026-S05-f4c-multi-candidato.md) | F4c | 20/jul → 02/ago (2 sem) | done | Foundation multi-candidato 1T presidencial |
+| [S06](./2026-S06-f4d-2t-governadores.md) | F4d | 03/ago → 16/ago (2 sem) | active | 2º turno presidencial + Governadores 27 corridas |
 | [S07](./2026-S07-f6-hardening.md) | F6 | 17/ago → 30/ago (2 sem) | planned | Operação, share, manutenção + load test + simulado TSE |
 | [S08](./2026-S08-f7-estabilizacao.md) | F7 | 31/ago → 06/set (1 sem) | planned | Bug bash + checklist pré-prod 100% |
 | **[D1](./_D1-04out2026.md)** | — | **04/out** | — | **Produção 1º turno** |

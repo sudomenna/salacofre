@@ -95,5 +95,4 @@ WHEN o simulado oficial 2026 estiver disponível em `resultados-sim`, the system
 - Spec 002 (modelo — depende deste refactor pra gate OT-4 real): [../002-modelo-estatistico/](../002-modelo-estatistico/)
 - Fato regulatório: [../../reference/regulatory.md § "Mudança técnica anunciada"](../../reference/regulatory.md)
 - Risco confirmado: [../../reference/risks.md](../../reference/risks.md)
-- ADR-0008 (cadenciamento original 15s, superado por ADR-0011): [../../architecture/adrs/0008-cadenciamento-15s.md](../../architecture/adrs/0008-cadenciamento-15s.md)
-- ADR-0011 (cron 60s Vercel): [../../architecture/adrs/0011-cron-cadencia-60s.md](../../architecture/adrs/0011-cron-cadencia-60s.md)
+- ADR-0011 (cadência polling 60s Vercel Cron): [../../architecture/adrs/0011-cadencia-60s.md](../../architecture/adrs/0011-cadencia-60s.md)

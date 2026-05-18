@@ -151,7 +151,7 @@ _(preencher se mudar)_
 ## Cross-refs
 
 - Sprint anterior: [2026-S03-f3-modelo.md](./2026-S03-f3-modelo.md) — retro tem origem dos carry-overs táticos absorvidos acima
-- Próxima sprint: [2026-S05-f4b-mapas-brushing.md](./2026-S05-f4b-mapas-brushing.md)
+- Próxima sprint: [2026-S05-f4c-multi-candidato.md](./2026-S05-f4c-multi-candidato.md)
 - Specs: [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/)
 - Riscos persistentes pós-S03: [../reference/risks.md](../reference/risks.md)
 - Spec 002 (não-shipped) e seus `ship_blocked_on:`: [../specs/002-modelo-estatistico/spec.md](../specs/002-modelo-estatistico/spec.md)

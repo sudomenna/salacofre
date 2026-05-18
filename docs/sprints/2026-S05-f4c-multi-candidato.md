@@ -142,7 +142,7 @@ Specs 003+004 mantêm `status: shipped` (cobertura validada). Spec 002 segue `im
 ## Cross-refs
 
 - Sprint anterior: [2026-S04-f4a-home-uf.md](./2026-S04-f4a-home-uf.md)
-- Próxima sprint: [2026-S06-f5-completo.md](./2026-S06-f5-completo.md) (a renomear/reorientar pra "F4d 2T + Governadores" quando abrir)
+- Próxima sprint: [2026-S06-f4d-2t-governadores.md](./2026-S06-f4d-2t-governadores.md)
 - Plan: [/Users/tiagomenna/.claude/plans/voc-falou-algo-relevante-misty-token.md](file:///Users/tiagomenna/.claude/plans/voc-falou-algo-relevante-misty-token.md)
 - Spec 003: [../specs/003-home-nacional/](../specs/003-home-nacional/)
 - Spec 004: [../specs/004-pagina-uf-presidencial/](../specs/004-pagina-uf-presidencial/)

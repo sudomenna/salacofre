@@ -74,6 +74,6 @@ _(preencher se mudar)_
 
 ## Cross-refs
 
-- Sprint anterior: [2026-S06-f5-completo.md](./2026-S06-f5-completo.md)
+- Sprint anterior: [2026-S06-f4d-2t-governadores.md](./2026-S06-f4d-2t-governadores.md)
 - Próxima sprint: [2026-S08-f7-estabilizacao.md](./2026-S08-f7-estabilizacao.md)
 - Checklist pré-prod: [../operations/pre-prod-checklist.md](../operations/pre-prod-checklist.md)

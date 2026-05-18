@@ -3,7 +3,7 @@
   "name": "SalaCofre Docs Index",
   "description": "Índice machine-readable da documentação SDD do SalaCofre. Carregar este arquivo dá a um agente o mapa completo das specs, NFRs, ADRs e fontes canônicas.",
   "version": "1.0",
-  "last_updated": "2026-05-17",
+  "last_updated": "2026-05-18",
   "source_prd": "docs/PRD.md",
   "constitution": "docs/constitution.md",
   "conventions": "docs/_meta/conventions.md",
@@ -239,16 +239,20 @@
       },
       {
         "id": "2026-S06",
-        "phase": "F5",
-        "status": "planned",
+        "phase": "F4d",
+        "status": "active",
         "start": "2026-08-03",
         "end": "2026-08-16",
+        "opened": "2026-05-18",
         "specs_in_flight": [
           "005-pagina-uf-governador",
-          "006-grid-governadores",
-          "011-sobre-o-modelo"
+          "006-grid-governadores"
         ],
-        "path": "docs/sprints/2026-S06-f5-completo.md"
+        "specs_deferred": [
+          "014-boca-de-urna",
+          "015-drill-down-municipio"
+        ],
+        "path": "docs/sprints/2026-S06-f4d-2t-governadores.md"
       },
       {
         "id": "2026-S07",
@@ -613,6 +617,35 @@
       "apis": [],
       "adrs": [],
       "path": "docs/specs/013-pagina-manutencao/"
+    },
+    {
+      "id": "014-boca-de-urna",
+      "title": "Boca de urna + recorte demográfico",
+      "status": "draft",
+      "priority": "S",
+      "personas": ["P1", "P2", "P3"],
+      "screens": [],
+      "requirements": [],
+      "depends_on": ["004-pagina-uf-presidencial", "015-drill-down-municipio"],
+      "apis": [],
+      "adrs": [],
+      "blocked_on": ["fonte-licenciada-datafolha-pos-urna", "decisao-legal-licenciamento"],
+      "opens_after": "D1-04out2026",
+      "path": "docs/specs/014-boca-de-urna/"
+    },
+    {
+      "id": "015-drill-down-municipio",
+      "title": "Drill-down município (página /uf/[sigla]/municipio/[cod_ibge])",
+      "status": "draft",
+      "priority": "S",
+      "personas": ["P1", "P2", "P3"],
+      "screens": [],
+      "requirements": [],
+      "depends_on": ["004-pagina-uf-presidencial", "005-pagina-uf-governador"],
+      "apis": ["GET /api/projection?municipio=<cod_ibge>"],
+      "adrs": [],
+      "opens_after": "D1-04out2026",
+      "path": "docs/specs/015-drill-down-municipio/"
     }
   ]
 }
