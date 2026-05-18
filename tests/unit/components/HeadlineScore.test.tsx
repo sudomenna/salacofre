@@ -156,4 +156,29 @@ describe("<HeadlineScore />", () => {
     expect(docBinary.body.textContent).toContain("50%+1");
     expect(docMulti.body.textContent).not.toContain("50%+1");
   });
+
+  it("(k) mode='binary' renderiza slot `recap` acima do hero (ADR-0016)", () => {
+    const recapNode = <div data-testid="recap-slot">RECAP_1T_AQUI</div>;
+    const doc = parse(<HeadlineScore candidatos={[lula, bolso]} mode="binary" recap={recapNode} />);
+    expect(doc.body.textContent).toContain("RECAP_1T_AQUI");
+    // Recap deve vir antes do header
+    const html = renderToStaticMarkup(
+      <HeadlineScore candidatos={[lula, bolso]} mode="binary" recap={recapNode} />,
+    );
+    expect(html.indexOf("RECAP_1T_AQUI")).toBeLessThan(html.indexOf("Apuração Presidencial"));
+  });
+
+  it("(l) mode='multi-1t' ignora a prop `recap` (não renderiza)", () => {
+    const recapNode = <div>RECAP_1T_NAO_DEVE_APARECER</div>;
+    const doc = parse(
+      <HeadlineScore candidatos={[lula, bolso]} mode="multi-1t" turno={1} recap={recapNode} />,
+    );
+    expect(doc.body.textContent).not.toContain("RECAP_1T_NAO_DEVE_APARECER");
+  });
+
+  it("(m) mode='binary' sem prop `recap` segue funcionando (backward-compat)", () => {
+    const doc = parse(<HeadlineScore candidatos={[lula, bolso]} mode="binary" />);
+    expect(doc.body.textContent).toContain("Apuração Presidencial");
+    expect(doc.body.textContent).toContain("50%+1");
+  });
 });

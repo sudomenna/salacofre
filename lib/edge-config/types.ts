@@ -24,6 +24,12 @@
  *     <20 KB por UF (top_candidatos + bucket). `writeEdgePayload` warna em
  *     450 KB no agregado (margem para limite duro de 512 KB do Edge Config),
  *     com warns dedicados por chave em 75 KB / 20 KB.
+ *   - **S06/F4d (Fase 2 — mesorregião)**: adicionado `EdgePayloadUf.mesorregioes?`
+ *     opcional. Footprint estimado por UF: ~80–120 bytes por mesorregião
+ *     serializada (8 campos numéricos + nome + cod). SP tem ~15 mesorregiões
+ *     → ~1.5–2 KB extras. UFs pequenas (SE = 2 meso) → <0.3 KB. Cabe no
+ *     budget de 20 KB por UF sem regressão. Campo OPCIONAL: payload pode
+ *     omitir quando `municipios.mesorregiao_cod` ainda não está populado.
  *   - Chaves nomeadas (S05/F4c — ADR-0012): além de `projection:current`,
  *     o orchestrator pode gravar `projection:current:pres:t1`,
  *     `:pres:t2`, `:gov:t1`, `:gov:t2`, e `projection:archive:pres:t1`
@@ -407,6 +413,52 @@ export interface EdgeUfSeriesTemporais {
 }
 
 /**
+ * Linha agregada por mesorregião IBGE — S06/F4d (Fase 2).
+ *
+ * Adicionada para alimentar o bloco "Apuração por mesorregião" da página
+ * `/uf/[sigla]/governador` (spec 005, print 3 NYT-style). A agregação é
+ * feita server-side por `aggregate_by_mesorregiao` (api/model/project.py)
+ * sobre `municipios.mesorregiao_cod` (migration 0005).
+ *
+ * Footprint: ~80–120 bytes por linha JSON. SP (~15 mesorregiões) gera
+ * ~1.5–2 KB extras no payload UF — cabe no budget de 20 KB.
+ *
+ * Origem (agregação backend): cada município contribui com
+ * `votos_reportados` agregados na mesorregião; `lider_*` é o candidato
+ * com mais votos na mesorregião; `pct_apurado` é a média ponderada pelo
+ * total de votos por município (consistência com agregação UF).
+ *
+ * `delta_vs_2022` é OPCIONAL (null quando não há histórico mapeado para
+ * a mesorregião — caso comum em dev/preview enquanto seed histórico de
+ * mesorregião não chega).
+ *
+ * Determinismo (constituição § 6): array ordenado por `cod` ASC.
+ */
+export interface EdgeMesorregiao {
+  /** Código IBGE da mesorregião (4 chars, ex.: "3515" = SP / Metropolitana). */
+  cod: string;
+  /** Nome IBGE da mesorregião (ex.: "Metropolitana de São Paulo"). */
+  nome: string;
+  /** % apurado médio (ponderado pelo total de votos por município) na mesorregião. */
+  pct_apurado: number; // 0–100
+  /** ID do candidato líder agregado na mesorregião. */
+  lider_candidato_id: number;
+  /** % do líder sobre o total de votos válidos agregados. */
+  lider_pct: number; // 0–100
+  /** Margem em pp do líder sobre o 2º (≥ 0). */
+  margem: number; // 0–100
+  /**
+   * Swing em pp do `lider_pct` vs 2022 (positivo = ganho do líder atual
+   * em relação ao líder de 2022 na mesma mesorregião). `null` quando
+   * histórico 2022 não está mapeado para a mesorregião — UI deve
+   * mostrar "—".
+   */
+  delta_vs_2022: number | null;
+  /** Quantos municípios compõem a mesorregião (debug/tooltip). */
+  num_municipios: number;
+}
+
+/**
  * Drill-down de UMA UF. Chave canônica: `projection:uf:<sigla>` (ex.
  * `projection:uf:SP`). ~5–10 KB por UF conforme data-model.md § "Payload do
  * Edge Config" linha 158. Inclui municípios para o mapa zoom-in.
@@ -449,4 +501,24 @@ export interface EdgePayloadUf {
    * está definido — apenas reservamos a chave.
    */
   series_temporais?: EdgeUfSeriesTemporais;
+  /**
+   * Agregação por mesorregião IBGE — S06/F4d (Fase 2). Alimenta o bloco
+   * "Apuração por mesorregião" da página `/uf/[sigla]/governador` (print 3
+   * NYT-style). Lista ordenada por `cod` ASC (constituição § 6).
+   *
+   * **Optional** porque:
+   *   - Payloads pré-S06/F4d não têm essa chave.
+   *   - Em dev/preview o seed de `municipios.mesorregiao_cod` (migration
+   *     0005) pode ainda não estar populado — orchestrator omite o campo
+   *     em vez de emitir array vazio (semântica: "dado não disponível",
+   *     não "zero mesorregiões").
+   *
+   * Consumidores devem coalescer para `[]` e UI deve esconder o bloco
+   * inteiro quando ausente (não mostrar título "Apuração por mesorregião"
+   * sem conteúdo).
+   *
+   * Footprint estimado: 80–120 bytes/linha. SP (~15 meso) ≈ 1.5–2 KB;
+   * UFs pequenas (SE = 2 meso) ≈ <0.3 KB. Dentro do budget de 20 KB/UF.
+   */
+  mesorregioes?: EdgeMesorregiao[];
 }

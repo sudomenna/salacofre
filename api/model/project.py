@@ -262,36 +262,83 @@ def fetch_eleitorado(conn, ano: int = 2026) -> dict[tuple[str, int], int]:
 
 
 def fetch_zona_municipio(conn) -> dict[int, dict[str, Any]]:
-    """Mapa `cod_zona -> {cod_ibge, cod_municipio_tse, nome, uf}`.
+    """Mapa `cod_zona -> {cod_ibge, cod_municipio_tse, nome, uf,
+    mesorregiao_cod, mesorregiao_nome}`.
 
     Junta `zonas` (que tem `cod_municipio_tse`) com `municipios` (que tem
-    `cod_ibge` e `nome`). Usado pelo build de `EdgeUfMunicipio` para
-    agregar snapshots zonais em totais municipais (S04/F2).
+    `cod_ibge`, `nome` e — desde S06/F4d migration 0005 — `mesorregiao_cod`)
+    e `mesorregioes` (S06/F4d, opcional). Usado pelo build de
+    `EdgeUfMunicipio` para agregar snapshots zonais em totais municipais
+    (S04/F2) e por `aggregate_by_mesorregiao` (S06/F4d).
+
+    `mesorregiao_cod` / `mesorregiao_nome` ficam `None` quando:
+      - Migration 0005 não foi aplicada (coluna ainda não existe) → query
+        cai pro fallback que omite os 2 campos.
+      - Coluna existe mas não está populada (CSV pendente) → LEFT JOIN
+        retorna NULL.
 
     Retorna mapa vazio quando ainda não há dados geográficos carregados
     (dev sem seed) — caller graciosamente produz `municipios: []`.
     """
-    sql = """
+    # Tenta query enriquecida (S06+). Se falhar (coluna `mesorregiao_cod`
+    # ainda não existe), faz fallback pra query original (S04).
+    sql_with_meso = """
+        SELECT
+            z.cod_zona, m.cod_ibge, m.cod_municipio_tse, m.nome, z.uf,
+            m.mesorregiao_cod, meso.nome AS mesorregiao_nome
+        FROM zonas z
+        JOIN municipios m ON m.cod_municipio_tse = z.cod_municipio_tse
+        LEFT JOIN mesorregioes meso ON meso.cod = m.mesorregiao_cod
+    """
+    sql_fallback = """
         SELECT z.cod_zona, m.cod_ibge, m.cod_municipio_tse, m.nome, z.uf
         FROM zonas z
         JOIN municipios m ON m.cod_municipio_tse = z.cod_municipio_tse
     """
+    rows: list[Any]
+    has_meso_columns = True
     try:
         with conn.cursor() as cur:
-            cur.execute(sql, ())
+            cur.execute(sql_with_meso, ())
             rows = cur.fetchall()
-    except Exception as exc:  # noqa: BLE001 — tolerante em dev sem seed geo
-        _log("warn", "fetch_zona_municipio failed", error=str(exc))
-        return {}
-    return {
-        int(r[0]): {
+    except Exception as exc:  # noqa: BLE001 — pode ser coluna inexistente OU sem seed geo
+        _log(
+            "info",
+            "fetch_zona_municipio meso query failed, trying fallback",
+            error=str(exc),
+        )
+        # Rollback transação (se houver) — psycopg invalida o cursor após erro.
+        try:
+            conn.rollback()
+        except Exception:  # noqa: BLE001 — autocommit ou sem tx
+            pass
+        has_meso_columns = False
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql_fallback, ())
+                rows = cur.fetchall()
+        except Exception as exc2:  # noqa: BLE001 — sem seed geo
+            _log("warn", "fetch_zona_municipio fallback failed", error=str(exc2))
+            return {}
+
+    out: dict[int, dict[str, Any]] = {}
+    for r in rows:
+        entry: dict[str, Any] = {
             "cod_ibge": str(r[1]),
             "cod_municipio_tse": int(r[2]),
             "nome": str(r[3]),
             "uf": str(r[4]),
         }
-        for r in rows
-    }
+        if has_meso_columns and len(r) >= 7:
+            entry["mesorregiao_cod"] = (
+                str(r[5]).strip() if r[5] is not None else None
+            )
+            entry["mesorregiao_nome"] = str(r[6]) if r[6] is not None else None
+        else:
+            entry["mesorregiao_cod"] = None
+            entry["mesorregiao_nome"] = None
+        out[int(r[0])] = entry
+    return out
 
 
 def fetch_series_temporais(
@@ -1176,6 +1223,183 @@ def compute_national(
 
 
 # ---------------------------------------------------------------------------
+# Mesorregião aggregation (S06/F4d — Fase 2)
+# ---------------------------------------------------------------------------
+
+
+def aggregate_by_mesorregiao(
+    uf_row: dict[str, Any],
+    municipios: list[dict[str, Any]],
+    historical_by_meso: dict[str, float] | None = None,
+) -> list[dict[str, Any]]:
+    """Agrega municípios por mesorregião IBGE — S06/F4d.
+
+    Alimenta o bloco "Apuração por mesorregião" da página
+    `/uf/[sigla]/governador` (spec 005, print 3 NYT-style). Determinista:
+    pure function de (uf_row, municipios) — pode ser unit-tested sem DB.
+
+    Args:
+        uf_row: Linha de `EdgeUfRow` da UF (para identificar UF). Usa só
+            `sigla` (pra cross-check) — campos não-críticos.
+        municipios: Lista de municípios da UF, enriquecidos com
+            `mesorregiao_cod` (4-char string) e `mesorregiao_nome` (str).
+            Aceita campos faltantes — município sem `mesorregiao_cod` é
+            silenciosamente skipped (forward-compat com Postgres pré-S06
+            que ainda não tem a coluna populada). Cada município deve ter:
+              - `cod_ibge`: str (debug only)
+              - `mesorregiao_cod`: str | None
+              - `mesorregiao_nome`: str | None
+              - `pct_apurado`: float (0–100)
+              - `lider` (dict): `{candidato_id, votos, partido, margem_pp}`
+              - `votos_reportados` (dict): `{candidato_id: votos}`
+        historical_by_meso: Opcional `{cod_meso: pct_lider_2022}` para
+            calcular `delta_vs_2022`. Quando ausente ou cod_meso não está
+            no mapa, `delta_vs_2022 = None` (UI mostra "—").
+
+    Returns:
+        Lista de mesorregiões da UF — uma entrada por `mesorregiao_cod`
+        distinto entre os municípios. Cada entrada:
+
+        ```python
+        {
+            "nome": str,                       # nome IBGE da mesorregião
+            "cod": str,                        # 4-char IBGE code
+            "pct_apurado": float,              # média ponderada pelo total_votos
+            "lider_candidato_id": int,         # candidato com mais votos agregados
+            "lider_pct": float,                # % do líder sobre o total da meso
+            "margem": float,                   # margem em pp (lider - 2º)
+            "delta_vs_2022": float | None,     # swing pp vs 2022 (ou None)
+            "num_municipios": int,             # quantos municípios na meso
+        }
+        ```
+
+        Ordem determinística (constituição § 6): sort por `cod` ASC.
+
+    Edge cases:
+        - `municipios` vazio → `[]`
+        - Todos sem `mesorregiao_cod` → `[]` (UI omite o bloco; aceitável
+          em dev/preview sem CSV de mesorregião populado)
+        - Mesorregião com 0 votos reportados → `pct_apurado = 0`,
+          `lider_pct = 0`, `margem = 0`. Líder degenerado: primeiro
+          candidato lexicográfico nos `votos_reportados` (estabilidade).
+        - 1 município com `lider.candidato_id == 0` (placeholder) → entra
+          na agregação normalmente; resultado pode ter `lider_id = 0`.
+    """
+    # Sanity check (defensivo): se `uf_row` tem sigla, garante consistência
+    # com os municípios passados. Não falha — apenas loga. Útil pra pegar
+    # bug de orchestrator passando municípios da UF errada.
+    expected_uf = uf_row.get("sigla") if isinstance(uf_row, dict) else None
+    if expected_uf:
+        for m in municipios:
+            uf_m = m.get("uf")
+            if uf_m and uf_m != expected_uf:
+                _log(
+                    "warn",
+                    "aggregate_by_mesorregiao uf mismatch",
+                    expected=expected_uf,
+                    found=uf_m,
+                    cod_ibge=m.get("cod_ibge"),
+                )
+                break  # 1 warn é suficiente
+
+    # Agrupa por mesorregiao_cod.
+    by_meso: dict[str, dict[str, Any]] = {}
+    for m in municipios:
+        cod = m.get("mesorregiao_cod")
+        if not cod:
+            continue
+        nome = m.get("mesorregiao_nome") or f"Meso {cod}"
+        entry = by_meso.setdefault(
+            cod,
+            {
+                "cod": cod,
+                "nome": nome,
+                "_votos_por_cand": {},  # cand_id -> votos somados
+                "_total_votos": 0,
+                "_sum_pct_apurado_x_votos": 0.0,
+                "_num_municipios": 0,
+            },
+        )
+        # Soma votos por candidato.
+        votos_reportados = m.get("votos_reportados") or {}
+        munic_total = 0
+        for cand_id, votos in votos_reportados.items():
+            v = int(votos)
+            entry["_votos_por_cand"][int(cand_id)] = (
+                entry["_votos_por_cand"].get(int(cand_id), 0) + v
+            )
+            munic_total += v
+        entry["_total_votos"] += munic_total
+        # Média ponderada de pct_apurado pelo total_votos do município
+        # (consistência com a UF: município pequeno com 0% apurado e
+        # município grande com 90% apurado dá um agregado realista).
+        pct_ap = float(m.get("pct_apurado") or 0.0)
+        entry["_sum_pct_apurado_x_votos"] += pct_ap * munic_total
+        entry["_num_municipios"] += 1
+
+    # Materializa saída.
+    out: list[dict[str, Any]] = []
+    for cod in sorted(by_meso.keys()):
+        e = by_meso[cod]
+        total = e["_total_votos"]
+        votos_cand = e["_votos_por_cand"]
+
+        if total > 0 and votos_cand:
+            # Top-2 por votos absolutos. Tie-break por candidato_id ASC.
+            sorted_cands = sorted(
+                votos_cand.items(), key=lambda kv: (-kv[1], kv[0])
+            )
+            lider_id, lider_votos = sorted_cands[0]
+            second_votos = sorted_cands[1][1] if len(sorted_cands) >= 2 else 0
+            lider_pct = 100.0 * lider_votos / total
+            margem = 100.0 * (lider_votos - second_votos) / total
+        elif votos_cand:
+            # Degenerado: tem cand_id mas total=0 (todos zero). Estável.
+            lider_id = min(votos_cand.keys())
+            lider_pct = 0.0
+            margem = 0.0
+        else:
+            # Sem votos reportados em nenhum município. Líder degenerado: 0.
+            lider_id = 0
+            lider_pct = 0.0
+            margem = 0.0
+
+        # pct_apurado ponderado pelo total_votos da mesorregião. Se total=0,
+        # cai pra média simples dos municípios (preferível a NaN/0).
+        if total > 0:
+            pct_apurado_meso = e["_sum_pct_apurado_x_votos"] / total
+        else:
+            # Sem votos ainda — divide pelo número de municípios para
+            # evitar 0 absoluto quando alguns têm pct_apurado > 0 mas
+            # ninguém reportou votos (caso teórico). Em prática vai dar 0.
+            n_munic = e["_num_municipios"]
+            pct_apurado_meso = (
+                e["_sum_pct_apurado_x_votos"] / max(n_munic, 1) if n_munic else 0.0
+            )
+
+        # delta_vs_2022 — opcional.
+        if historical_by_meso is not None and cod in historical_by_meso:
+            delta = lider_pct - float(historical_by_meso[cod])
+        else:
+            delta = None
+
+        out.append(
+            {
+                "nome": e["nome"],
+                "cod": cod,
+                "pct_apurado": float(pct_apurado_meso),
+                "lider_candidato_id": int(lider_id),
+                "lider_pct": float(lider_pct),
+                "margem": float(margem),
+                "delta_vs_2022": float(delta) if delta is not None else None,
+                "num_municipios": int(e["_num_municipios"]),
+            }
+        )
+
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Edge Config publication (T16b — Fase 5)
 # ---------------------------------------------------------------------------
 
@@ -1274,12 +1498,18 @@ def build_uf_payloads(
 
     # Inverte zona_municipio: para cada (uf, cod_municipio_tse) coleta dados.
     # Como `fetch_municipio_aggregates` já agrega por município, reuso direto.
-    # Precisamos só mapear (uf, cod_municipio_tse) → cod_ibge + nome.
-    munic_meta: dict[tuple[str, int], dict[str, str]] = {}
+    # Precisamos só mapear (uf, cod_municipio_tse) → cod_ibge + nome
+    # (+ mesorregiao_cod/_nome quando disponíveis — S06/F4d).
+    munic_meta: dict[tuple[str, int], dict[str, Any]] = {}
     for _zona, z_meta in zona_municipio.items():
         key = (z_meta["uf"], z_meta["cod_municipio_tse"])
         if key not in munic_meta:
-            munic_meta[key] = {"cod_ibge": z_meta["cod_ibge"], "nome": z_meta["nome"]}
+            munic_meta[key] = {
+                "cod_ibge": z_meta["cod_ibge"],
+                "nome": z_meta["nome"],
+                "mesorregiao_cod": z_meta.get("mesorregiao_cod"),
+                "mesorregiao_nome": z_meta.get("mesorregiao_nome"),
+            }
 
     out: dict[str, dict[str, Any]] = {}
     for sigla in sorted(uf_by_sigla.keys()):
@@ -1363,7 +1593,10 @@ def build_uf_payloads(
             )
 
         # Constrói municípios — agregação determinística por cod_ibge.
+        # `municipios_for_meso` é a lista enriquecida com mesorregiao_cod/uf
+        # usada APENAS para `aggregate_by_mesorregiao` (não vai pro payload).
         municipios_payload: list[dict[str, Any]] = []
+        municipios_for_meso: list[dict[str, Any]] = []
         for (uf, cod_tse), agg in municipio_aggregates.items():
             if uf != sigla:
                 continue
@@ -1392,24 +1625,43 @@ def build_uf_payloads(
                     margem_pp = 0.0
                 lider_partido = str(national_by_id.get(lider_id, {}).get("partido") or "—")
 
-            municipios_payload.append(
+            votos_reportados_payload = {
+                int(k): int(v) for k, v in votos_por_cand.items()
+            }
+            payload_row = {
+                "cod_ibge": meta["cod_ibge"],
+                "nome": meta["nome"],
+                "pct_apurado": float(agg["pct_apurado"]),
+                "lider": {
+                    "candidato_id": int(lider_id),
+                    "partido": lider_partido,
+                    "votos": int(lider_votos),
+                    "margem_pp": float(margem_pp),
+                },
+                "votos_reportados": votos_reportados_payload,
+            }
+            municipios_payload.append(payload_row)
+            # S06/F4d — versão enriquecida pra aggregate_by_mesorregiao.
+            municipios_for_meso.append(
                 {
-                    "cod_ibge": meta["cod_ibge"],
-                    "nome": meta["nome"],
-                    "pct_apurado": float(agg["pct_apurado"]),
-                    "lider": {
-                        "candidato_id": int(lider_id),
-                        "partido": lider_partido,
-                        "votos": int(lider_votos),
-                        "margem_pp": float(margem_pp),
-                    },
-                    "votos_reportados": {
-                        int(k): int(v) for k, v in votos_por_cand.items()
-                    },
+                    **payload_row,
+                    "uf": uf,
+                    "mesorregiao_cod": meta.get("mesorregiao_cod"),
+                    "mesorregiao_nome": meta.get("mesorregiao_nome"),
                 }
             )
         # Ordem determinística por cod_ibge.
         municipios_payload.sort(key=lambda m: m["cod_ibge"])
+
+        # S06/F4d — agregação por mesorregião. Só inclui no payload se
+        # alguma mesorregião pôde ser derivada (≥1 município tem
+        # `mesorregiao_cod` não-nulo). Caso contrário, omite o campo
+        # `mesorregioes` inteiro (EdgePayloadUf.mesorregioes? é opcional).
+        mesorregioes_payload = aggregate_by_mesorregiao(
+            uf_row={"sigla": sigla},
+            municipios=municipios_for_meso,
+            historical_by_meso=None,  # spec 005 v2: enriquecer com 2022
+        )
 
         # Séries temporais — converte timeline em 3 séries (margem, p_vitoria, turnout).
         timeline = series_by_uf.get(sigla, [])
@@ -1432,7 +1684,7 @@ def build_uf_payloads(
         needle_position = max(-1.0, min(1.0, margem / 20.0))
         needle_band = _needle_band(needle_position)
 
-        out[sigla] = {
+        uf_payload: dict[str, Any] = {
             "uf": sigla,
             "ts": ts_iso,
             "cargo": int(cargo),
@@ -1448,6 +1700,14 @@ def build_uf_payloads(
                 "turnout": series_turnout,
             },
         }
+        # S06/F4d — só inclui `mesorregioes` quando há dado real
+        # (≥ 1 mesorregião derivada). Campo é opcional em
+        # `EdgePayloadUf`; omiti-lo quando vazio sinaliza "indisponível"
+        # (consumidor esconde o bloco UI) em vez de "zero mesorregiões".
+        if mesorregioes_payload:
+            uf_payload["mesorregioes"] = mesorregioes_payload
+
+        out[sigla] = uf_payload
 
     return out
 

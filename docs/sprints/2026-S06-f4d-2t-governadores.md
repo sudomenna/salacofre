@@ -104,14 +104,16 @@ Usuário enviou 3 prints NYT-style (The Upshot) como referência visual. Mapeame
 - **`app/page.tsx`** — ativa mode 2T (já tem dispatch S05 — só hidratar `<TurnoOneRecap />` e remover `<TwoRoundIndicator />` em 2T).
 - **`app/uf/[sigla]/page.tsx`** — idem ativação 2T.
 
-### Fase 5 — Carry-overs S05 + Tests (~13h)
+### Fase 5 — Carry-overs S05 + Tests (~15h)
 
 - **aria-describedby map ↔ StateGroupedTable** (constitution P3 MEDIUM S05)
 - **`--color-cand-4-strong` variant** (a11y antecipativo)
 - **`replay_batch.py`** serializar `p_passa_2t`, `p_fecha_1t`, `p_segundo_turno_overall` no report.json
 - **Fix `computeCalibration` em `scripts/replay-2022.ts:329`** (usa `candidatos[0]` por id, deveria usar `candidato_a_id` semântico)
+- **Fix `_NationalChoroplethMapImpl.tsx` useRouter SSR regression** (13 tests falhando em `tests/integration/home-page.test.tsx` — `useRouter` chamado em SSR via vitest sem provider de App Router. Solução: mover hook pra Client wrapper OU mockar router em setup do vitest). Descoberto S06 mas pré-existente S05.
 - **Spec 013 manutenção** entre 1T e 2T (~3h)
 - **Replay 2T 2022 + replay 1T estendido** (~10h, model-validator)
+- **CSV mesorregião IBGE 2022** — migration 0005 deixou schema mas não populou (CSV não está no repo). Bloqueante pra exibição real do bloco "Apuração por mesorregião" em `/uf/[sigla]/governador`. UI degrade gracioso (esconde se vazio). Owner: pull `RELATORIO_DTB_BRASIL_MUNICIPIO_2022.xls` do IBGE FTP, converter pra CSV, commitar em `docs/ibge-2022/municipios-mesorregiao.csv`, re-rodar `pnpm tsx data-pipeline/migrations/0005_municipios_mesorregiao.ts`.
 
 ### Fase 6 — Gates (~5h paralelos)
 

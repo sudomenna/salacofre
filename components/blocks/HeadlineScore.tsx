@@ -9,18 +9,24 @@
  *   - RF-023 (% projetado + CI95)
  *   - RF-030.5 (marca 50%+1 — só em mode="binary"; substituída em multi-1t
  *     pelo `<TwoRoundIndicator />` no caller, Fase 4)
+ *   - ADR-0016 (recap do 1T como header acima do hero em mode 2T — slot
+ *     opcional via prop `recap`; caller monta `<TurnoOneRecap />` e
+ *     passa pra cá).
  *
  * Server Component puro. Recebe o slice nacional do `EdgePayload` resolvido
  * pelo pai (`app/page.tsx`).
  *
- * Modos (S05/F3B — refator)
+ * Modos (S05/F3B — refator + S06/F1 — slot recap)
  *   - `mode="multi-1t"`: corrida 1T multi-candidato — renderiza só camada 1
  *     (top-2 hero). Sem barra "50%+1" interna; caller usa `<TwoRoundIndicator />`
  *     pra mostrar P(2T) global. Headline 1T menciona o terceiro candidato:
  *     "X lidera, Z briga pela 2ª vaga" (Z vem do array completo, mesmo que
  *     filtrado por `mostrarRanks`).
  *   - `mode="binary"`: corrida 2T (ou 1T com 2 candidatos) — comportamento S04:
- *     placar + barra "50%+1" (interno) marcando gatilho.
+ *     placar + barra "50%+1" (interno) marcando gatilho. Em 2T, prop `recap`
+ *     (ReactNode) renderiza acima do título — slot fixo pro `<TurnoOneRecap />`
+ *     (ADR-0016). Em 1T binário (cenário hipotético com 2 cands), `recap`
+ *     é normalmente null e a prop é ignorada.
  *
  * Default
  *   Quando `mode` não é passado, derivamos de `turno + candidatos.length`:
@@ -41,6 +47,8 @@
  *   - Cada barra é um `<CandidateBar>` (já com role=meter).
  *   - Marca 50%+1 (binary) com `<span aria-hidden>` no SVG; texto descritivo no caption.
  */
+
+import type { ReactNode } from "react";
 
 import { CandidateBar } from "@/components/atoms/bars/CandidateBar";
 import type { EdgeCandidate, Turno } from "@/lib/edge-config/types";
@@ -70,6 +78,14 @@ export interface HeadlineScoreProps {
    * em 1T multi-candidato, por exemplo).
    */
   mostrarRanks?: number[];
+  /**
+   * Slot opcional para o recap do 1º turno (ADR-0016) — renderiza acima do
+   * título do hero em mode 2T. Caller monta `<TurnoOneRecap recap={...} />`
+   * e passa aqui. Em `mode="multi-1t"` a prop é ignorada (não há recap em
+   * pleno 1T). Em `mode="binary"` 1T (cenário hipotético com 2 cands),
+   * `recap` é normalmente null e nada renderiza.
+   */
+  recap?: ReactNode;
   className?: string;
 }
 
@@ -80,6 +96,7 @@ export function HeadlineScore({
   mode,
   turno = 1,
   mostrarRanks = [1, 2],
+  recap,
   className,
 }: HeadlineScoreProps) {
   // Modo default — derivado de turno + #candidatos
@@ -138,8 +155,13 @@ export function HeadlineScore({
 
   const containerClass = ["flex flex-col gap-4", className].filter(Boolean).join(" ");
 
+  // Slot do recap do 1T (ADR-0016) — só renderiza em mode binary (2T tipicamente).
+  // Caller passa `<TurnoOneRecap recap={...} />` ou `null`; aqui só repassamos.
+  const recapSlot = effectiveMode === "binary" ? recap : null;
+
   return (
     <section aria-labelledby="headline-score-heading" className={containerClass}>
+      {recapSlot}
       <header>
         <h1
           id="headline-score-heading"

@@ -114,6 +114,12 @@
       "path": "docs/architecture/adrs/0015-k1-fallback-3-tier.md"
     },
     {
+      "id": "0016",
+      "title": "Recap do 1º turno como header fixo acima do hero do 2º turno, não como widget colapsável",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0016-turno-um-recap-placement.md"
+    },
+    {
       "id": "0017",
       "title": "Todos os candidatos do 1T visíveis em 3 camadas fixas, sem collapsible",
       "status": "accepted",
@@ -244,14 +250,8 @@
         "start": "2026-08-03",
         "end": "2026-08-16",
         "opened": "2026-05-18",
-        "specs_in_flight": [
-          "005-pagina-uf-governador",
-          "006-grid-governadores"
-        ],
-        "specs_deferred": [
-          "014-boca-de-urna",
-          "015-drill-down-municipio"
-        ],
+        "specs_in_flight": ["005-pagina-uf-governador", "006-grid-governadores"],
+        "specs_deferred": ["014-boca-de-urna", "015-drill-down-municipio"],
         "path": "docs/sprints/2026-S06-f4d-2t-governadores.md"
       },
       {
