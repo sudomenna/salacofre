@@ -1,10 +1,11 @@
 ---
 id: 2026-S06
 title: Sprint 06 — F4d 2º turno + Governadores V2 (NYT-style)
-status: active
+status: done
 start: 2026-08-03
 end: 2026-08-16
 opened: 2026-05-18
+closed: 2026-05-18
 phase: F4d
 goal: 2º turno presidencial binário ativado + Governadores 27 corridas (grid + UF) com componentes NYT-style (HexCartogramBrasil, MunicipioWaffleGrid, mesorregião, RaceStatsCards, BreakingNewsTicker). Specs 005+006 shipped. Print 2 (drill-down município) e Boca de urna explicitamente diferidos → specs 014/015.
 specs_in_flight: [005-pagina-uf-governador, 006-grid-governadores]
@@ -183,14 +184,49 @@ Usuário enviou 3 prints NYT-style (The Upshot) como referência visual. Mapeame
 
 _(preencher se mudar)_
 
-## Retrospective (preencher ao fechar)
+## Retrospective
 
-- O que funcionou:
-- O que melhorar:
-- Carry-over pra S07:
-  - **Estender `scripts/replay-2022.ts` + `api/model/replay_batch.py` para suportar 2T** — atualmente o replay só roda 1T (cargo=1, turno=1) com dataset 2022 binário. Para validar 2T (RNF-006, OT-4) precisa-se gerar fixture 2T 2022 (binário Lula × Bolsonaro 30/10/2022) e habilitar `turno: 2` na geração de timesteps. Gate OT-4 real só pós-simulado oficial TSE 2026 (mantém spec 002 em `implementing` até lá). Estimado ~10h. Owner: `model-validator`.
-  - **CSV mesorregião IBGE 2022** — `data-pipeline/migrations/0005_municipios_mesorregiao.ts` criou schema mas não populou (CSV não está no repo). UI degrade gracioso (bloco "Apuração por mesorregião" esconde quando `mesorregioes` ausente). Owner-action: baixar `RELATORIO_DTB_BRASIL_MUNICIPIO_2022.xls` do IBGE FTP, converter pra CSV, commitar em `docs/ibge-2022/municipios-mesorregiao.csv`, re-rodar a migration. Documentar em [risks.md](../reference/risks.md) como watch S07.
-  - **Carry-over técnico `api/model/project.py.build_uf_payloads`** — formalizado `EdgePayloadUf.model_fallback_tier?: 1 | 2 | 3` em `lib/edge-config/types.ts` na Fase 5; complementar a serialização Python no `build_uf_payloads` (extrair `projections.model_fallback_tier` por UF e propagar). Hoje a UI lê com fallback null (sem disclaimer extra) — funcional mas perde sinal K-1 visualmente.
+Fechada em 2026-05-18 (mesmo dia da abertura — sessão maratona). 9 commits sequenciais (`bc6d61b` → `a41f064`). Plan aprovado V2 com escopo expandido após 3 prints NYT-style enviados pelo usuário no kickoff.
+
+### O que funcionou
+
+- **Paralelização Fase 1+2 em mesma rodada**: dois `spec-implementer` em paralelo (componentes 2T + mesorregião) sem sobreposição de arquivos. Decomposição inicial cuidadosa eliminou contention entre subagents.
+- **5 gates Fase 6 em paralelo** (4 em background + spec-syncer sequencial): constitution-guard, a11y-perf-auditor, rf-coverage-checker, model-validator todos rodaram simultâneos. Tempo total dos gates ~10min walltime.
+- **Spec-driven incremental**: cada fase commitada separadamente (`feat(s06): Fase N`) tornou rollback granular se algum gate falhasse. Fixes pós-gate em commit dedicado (`fix(s06-gates):`).
+- **Decisões kickoff prévias fechadas** (8 itens via AskUserQuestion) eliminaram retrabalho de direção durante execução. Layout GovernorCard (b), hex SVG inline, tabs grayed-out, Print 2 diferido — nada renegociado mid-flight.
+- **Stubs 014/015 reservaram slot mental** sem custar tempo de implementação. Print 2 (drill-down município) e boca-de-urna documentados como pós-D1 com decisões já registradas no spec stub.
+- **Bugs latentes descobertos cedo**: Fase 5 corrigiu (a) `vai_a_2t_nacional` heurística invertida no `app/page.tsx` (impedia `<NationalWinnerBanner>` no caminho decisão-1T), e (b) cast `as unknown as` para `model_fallback_tier` substituído por type formal. Ambos teriam vazado pra produção.
+
+### O que melhorar
+
+- **Edge Config local quebrado mascarou problema 1 sessão inteira**: descobrimos no smoke pós-S06 que cada page-load esperava ~10s pelo `@vercel/edge-config` SDK desistir (endpoint inacessível). Reader não tem timeout curto. Mitigado comentando `EDGE_CONFIG` em `.env.local`. Chore S07: endurecer reader com `AbortController` (~1s dev, ~5s prod).
+- **Fixture sintética `cargo=gov` ausente**: smoke visual de `/governador` e `/uf/[sigla]/governador` só viu shell (degrade gracioso correto, mas conteúdo dos 27 cards e do waffle SP não testado em browser). Criar `tests/fixtures/edge-config/gov-current.json` destrava smoke completo pré-D1.
+- **Constitution-guard pegou contraste tarde**: tokens `--color-success #2c8e4a` e `--color-warning #d97706` viraram CRITICAL/HIGH no gate Fase 6 quando deveriam ter sido escolhidos com check de contraste no design (S04 ou S05). Padronizar: qualquer novo token em `globals.css` requer mini-check de contraste no PR review.
+- **HexCartogramBrasil lógica `textFill`**: a heurística `rank >= 3 ? texto-escuro : branco` falhou em ranks 5/6 (fundos lilás/taupe são escuros mas rank ≥ 3). Substituída por matriz explícita `[1, 2, 5, 6]` = fundo escuro. Estrutural: usar luminância calculada do `cor.hex` seria mais robusto que matriz hardcoded. Carry-over S07.
+- **Replay 2T não suportado em `scripts/replay-2022.ts`**: harness ainda roda só 1T mesmo após Fase 5 ter passado a serializar `p_passa_2t`/`p_fecha_1t` no report.json. Gate OT-4 real (spec 002 promoção) continua bloqueado por simulado oficial TSE 2026 — e agora também por replay 2T binário. ~10h estimado.
+
+### Carry-over pra S07 (Hardening)
+
+Pendências estratificadas em [risks.md](../reference/risks.md) e listadas aqui pra contexto da sprint:
+
+1. **Replay 2T 2022** — estender `scripts/replay-2022.ts` e `api/model/replay_batch.py` com fixture binária Lula × Bolsonaro 30/10/2022. Owner: `model-validator`.
+2. **CSV mesorregião IBGE 2022** — owner-action pull + commit + re-run migration 0005.
+3. **`build_uf_payloads` Python serializar `model_fallback_tier`** — type já formalizado em TS na Fase 5; falta popular no payload Python (hoje sempre null em dev).
+4. **Endurecer `lib/edge-config/reader.ts` com `AbortController`** — descoberto no smoke pós-S06 (Edge Config externo down → 10s wait).
+5. **Fixture `cargo=gov` em dev** — destrava smoke visual completo das 2 novas rotas governador.
+6. **Reativar ou recriar Edge Config externo** — `ecfg_mcoa3usgvm5dbqb27vae8ptmpdxl` está timing out; descobrir se foi deletado ou token expirou.
+7. **ADR-0018 RNF-007a 150→175KB** — formaliza débito do framework overhead React 19 + Next 16 (above-the-fold S06: 168KB gz).
+8. **ADR-0019 RNF-007b 250→300KB** — formaliza débito chunk MapLibre (S06: 281KB gz).
+9. **Spec 013 implementação completa** (S07): `<TurnoTransitionBanner />`, `<MaintenancePageMessage />`, middleware Edge Config flag `maintenance:mode`. RFs 058/058.1/058.2 já em traceability mas sem código (gate rf-coverage acusou).
+10. **Fix luminância dinâmica em `HexCartogramBrasil` `textFill`** — substituir matriz `[1,2,5,6]` por cálculo de luminância do hex de fundo.
+
+### Sinal qualitativo da sprint
+
+S06 entregou **8 componentes novos** (4 Fase 1 + 4 Fase 3) + **3 refators** (HeadlineScore, MunicipioTable, Tabs) + **2 pages novas** (`/governador`, `/uf/[sigla]/governador`) + **ativação 2T** em home e UF presidencial + **1 ADR novo** (0016) + **migration 0005** (schema mesorregião) + **agregador Python** + **3 carry-overs S05 endereçados** + **2 bugs latentes corrigidos**. **9 commits**, **317 vitest verdes** (+64 novos), **103 pytest verdes** (+15 novos). **5/5 gates Fase 6 PASS** após 2 ondas de fixes inline.
+
+Specs **005-pagina-uf-governador** e **006-grid-governadores** promovidas a `shipped`. Specs 003+004 mantêm shipped (ativações 2T herdadas via dispatch de mode). Spec 013 hidratada de `draft` → `ready` (implementação fica S07). Stubs 014 (boca-de-urna) e 015 (drill-down município) reservados pós-D1.
+
+**5 das 7 telas v1 materializadas** (T-01, T-02, T-03, T-04, T-06). Restam T-07 (`/_status`) e T-08 (`/manutencao`) pra S07.
 
 ## Cross-refs
 

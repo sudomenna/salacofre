@@ -246,10 +246,11 @@
       {
         "id": "2026-S06",
         "phase": "F4d",
-        "status": "active",
+        "status": "done",
         "start": "2026-08-03",
         "end": "2026-08-16",
         "opened": "2026-05-18",
+        "closed": "2026-05-18",
         "specs_in_flight": ["005-pagina-uf-governador", "006-grid-governadores"],
         "specs_deferred": ["014-boca-de-urna", "015-drill-down-municipio"],
         "path": "docs/sprints/2026-S06-f4d-2t-governadores.md"

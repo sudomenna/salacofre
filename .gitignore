@@ -72,3 +72,5 @@ __pycache__/
 *.py[cod]
 .venv-model/
 .pytest_cache/
+.playwright-mcp/
+smoke-*.png
