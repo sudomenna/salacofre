@@ -50,6 +50,18 @@ export interface MunicipioRow {
   pctApurado: number;
   /** Votos totais reportados no município. */
   votosReportados: number;
+  /**
+   * Total de eleitores (não confundir com `votosReportados`). Necessário
+   * apenas em `mode="top-by-eleitorado"` (S06/F4d). Opcional — caller que
+   * usa apenas o modo default pode omitir.
+   */
+  eleitorado?: number;
+  /**
+   * Delta vs eleição 2022 em pp (positivo = ganho do líder atual sobre o
+   * líder de 2022 no mesmo município). Opcional. Usado apenas em
+   * `mode="top-by-eleitorado"` (S06/F4d).
+   */
+  deltaVs2022?: number | null;
 }
 
 export interface MunicipioTableProps {
@@ -60,6 +72,17 @@ export interface MunicipioTableProps {
   rowHeight?: number;
   /** Linhas extras renderizadas fora da viewport (suaviza scroll). Default 6. */
   overscan?: number;
+  /**
+   * Modo de exibição. Default `"default"` preserva comportamento S04.
+   *
+   * - `"default"`: tabela virtualizada padrão (Município, Margem, % apurado, Votos).
+   * - `"top-by-eleitorado"` (S06/F4d): renderiza apenas os `topN` municípios
+   *   ordenados por `eleitorado` desc, sem virtualização (lista curta).
+   *   Substitui a coluna "Votos" por "Δ vs 2022".
+   */
+  mode?: "default" | "top-by-eleitorado";
+  /** Quantos municípios mostrar em `mode="top-by-eleitorado"`. Default 15. */
+  topN?: number;
 }
 
 function fmtVotos(v: number): string {
@@ -71,12 +94,107 @@ function fmtPct(pct: number): string {
   return Number.isInteger(r) ? `${r}%` : `${r.toFixed(1)}%`;
 }
 
-export function MunicipioTable({
+function fmtDelta(d: number | null | undefined): string {
+  if (d == null || !Number.isFinite(d)) return "—";
+  const sign = d > 0 ? "+" : "";
+  const r = Math.round(d * 10) / 10;
+  return `${sign}${r}pp`;
+}
+
+function TopByEleitoradoTable({ rows, topN }: { rows: MunicipioRow[]; topN: number }) {
+  const top = [...rows]
+    .filter((r) => r.eleitorado != null)
+    .sort((a, b) => (b.eleitorado ?? 0) - (a.eleitorado ?? 0))
+    .slice(0, topN);
+
+  return (
+    <section aria-labelledby="municipios-top-heading" data-testid="municipios-top-table">
+      <h3
+        id="municipios-top-heading"
+        className="mb-2 text-lg"
+        style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
+      >
+        Maiores municípios por eleitorado ({top.length.toLocaleString("pt-BR")})
+      </h3>
+      <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+        <colgroup>
+          <col />
+          <col style={{ width: "6rem" }} />
+          <col style={{ width: "5.5rem" }} />
+          <col style={{ width: "5.5rem" }} />
+        </colgroup>
+        <thead
+          style={{
+            backgroundColor: "var(--color-bg-muted)",
+            color: "var(--color-text-muted)",
+            borderBottom: "1px solid var(--color-border)",
+          }}
+        >
+          <tr>
+            <th
+              scope="col"
+              className="px-3 py-2 text-left text-xs uppercase tracking-wide font-normal"
+            >
+              Município
+            </th>
+            <th
+              scope="col"
+              className="px-3 py-2 text-right text-xs uppercase tracking-wide font-normal"
+            >
+              Eleitorado
+            </th>
+            <th
+              scope="col"
+              className="px-3 py-2 text-right text-xs uppercase tracking-wide font-normal"
+            >
+              Margem
+            </th>
+            <th
+              scope="col"
+              className="px-3 py-2 text-right text-xs uppercase tracking-wide font-normal"
+            >
+              Δ vs 2022
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {top.map((m) => (
+            <tr key={m.cod_ibge} style={{ borderBottom: "1px solid var(--color-border)" }}>
+              <td className="truncate px-3 py-2 text-sm" style={{ color: "var(--color-text)" }}>
+                <span title={m.nome}>{m.nome}</span>
+              </td>
+              <td
+                className="px-3 py-2 text-right text-sm tabular-nums"
+                style={{ color: "var(--color-text)" }}
+              >
+                {fmtVotos(m.eleitorado ?? 0)}
+              </td>
+              <td
+                className="px-3 py-2 text-right text-sm tabular-nums"
+                style={{ color: m.liderCor, fontWeight: 500 }}
+              >
+                {m.liderNome} +{fmtPct(m.margemPp)}
+              </td>
+              <td
+                className="px-3 py-2 text-right text-sm tabular-nums"
+                style={{ color: "var(--color-text-muted)" }}
+              >
+                {fmtDelta(m.deltaVs2022)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+function MunicipioTableDefault({
   rows,
   height = 480,
   rowHeight = 40,
   overscan = 6,
-}: MunicipioTableProps) {
+}: Omit<MunicipioTableProps, "mode" | "topN">) {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [clientHeight, setClientHeight] = useState(height);
@@ -215,5 +333,26 @@ export function MunicipioTable({
         </table>
       </div>
     </section>
+  );
+}
+
+/**
+ * Wrapper exportado: dispatcher entre os modos. Separar em sub-componentes
+ * evita violação de Rules-of-Hooks (cada modo tem seu próprio set de hooks
+ * ou nenhum) e mantém o modo default 100% retro-compatível com S04.
+ */
+export function MunicipioTable({
+  rows,
+  height,
+  rowHeight,
+  overscan,
+  mode = "default",
+  topN = 15,
+}: MunicipioTableProps) {
+  if (mode === "top-by-eleitorado") {
+    return <TopByEleitoradoTable rows={rows} topN={topN} />;
+  }
+  return (
+    <MunicipioTableDefault rows={rows} height={height} rowHeight={rowHeight} overscan={overscan} />
   );
 }

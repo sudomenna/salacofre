@@ -200,6 +200,21 @@ export interface EdgeNational {
    * coalesce para `[]` e UI esconde a seção.
    */
   cenarios_2t: Array<{ par: [number, number]; prob: number }>;
+  /**
+   * Chamadas recentes (broadcast-style breaking news) emitidas pelo
+   * orchestrator quando uma UF muda para `bucket === "chamada"` ou quando
+   * a corrida nacional atinge gatilhos narrativos (decisão no 1T, K-1
+   * convergência, etc.). Adicionado em S06/F4d (Fase 3) para alimentar
+   * `<BreakingNewsTicker />` no topo de `/governador` e `/`.
+   *
+   * Cada item é uma sentença pronta para renderizar (NUNCA LLM —
+   * constituição § 2, ADR-0005). Templates determinísticos por evento.
+   *
+   * Ordenação canônica: `ts` DESC (mais recente primeiro), top 5 itens
+   * (ringbuffer no orchestrator). Pré-S06/F4d ausente — consumidor
+   * coalesce para `[]` e UI esconde o ticker quando vazio.
+   */
+  chamadas_recentes?: Array<{ ts: string; texto: string }>;
 }
 
 // ---------------------------------------------------------------------------
