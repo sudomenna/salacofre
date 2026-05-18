@@ -193,12 +193,18 @@
       },
       {
         "id": "2026-S05",
-        "phase": "F4b",
-        "status": "planned",
+        "phase": "F4c",
+        "status": "active",
         "start": "2026-07-20",
         "end": "2026-08-02",
-        "specs_in_flight": ["008-interatividade-brushing"],
-        "path": "docs/sprints/2026-S05-f4b-mapas-brushing.md"
+        "opened": "2026-05-17",
+        "specs_in_flight": [
+          "003-home-nacional",
+          "004-pagina-uf-presidencial",
+          "011-sobre-o-modelo",
+          "002-modelo-estatistico"
+        ],
+        "path": "docs/sprints/2026-S05-f4c-multi-candidato.md"
       },
       {
         "id": "2026-S06",
@@ -360,8 +366,31 @@
       ],
       "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "008-interatividade-brushing"],
       "apis": ["GET /api/projection"],
-      "components": ["HeadlineScore", "NationalChoroplethMap", "MapViewToggle", "StateGroupedTable", "NationalNeedle", "DecisiveUFsGrid", "InsightCard", "ForecastTransparency", "LiveBadge", "Tabs"],
-      "nfr": ["RNF-001", "RNF-002", "RNF-003", "RNF-007", "RNF-008", "RNF-022", "RNF-023", "RNF-024", "RNF-025", "RNF-026", "RNF-028"],
+      "components": [
+        "HeadlineScore",
+        "NationalChoroplethMap",
+        "MapViewToggle",
+        "StateGroupedTable",
+        "NationalNeedle",
+        "DecisiveUFsGrid",
+        "InsightCard",
+        "ForecastTransparency",
+        "LiveBadge",
+        "Tabs"
+      ],
+      "nfr": [
+        "RNF-001",
+        "RNF-002",
+        "RNF-003",
+        "RNF-007",
+        "RNF-008",
+        "RNF-022",
+        "RNF-023",
+        "RNF-024",
+        "RNF-025",
+        "RNF-026",
+        "RNF-028"
+      ],
       "adrs": ["0001", "0002", "0003", "0004", "0005", "0010"],
       "path": "docs/specs/003-home-nacional/"
     },
@@ -395,8 +424,36 @@
         "003-home-nacional"
       ],
       "apis": ["GET /api/projection?uf=<sigla>"],
-      "components": ["WinnerBanner", "CandidateRow", "NewsClippingPlaceholder", "ChoroplethMapUF", "BubbleMap", "SwingArrowMap", "MunicipioTable", "UFMapDuo", "UfMapsLazy", "Needle", "TimeSeriesChart", "ProbabilityOverTime", "TurnoutAreaChart", "ForecastTransparency", "InsightCard", "UFBreadcrumb", "Footer"],
-      "nfr": ["RNF-001", "RNF-002", "RNF-003", "RNF-008", "RNF-022", "RNF-023", "RNF-024", "RNF-025", "RNF-027"],
+      "components": [
+        "WinnerBanner",
+        "CandidateRow",
+        "NewsClippingPlaceholder",
+        "ChoroplethMapUF",
+        "BubbleMap",
+        "SwingArrowMap",
+        "MunicipioTable",
+        "UFMapDuo",
+        "UfMapsLazy",
+        "Needle",
+        "TimeSeriesChart",
+        "ProbabilityOverTime",
+        "TurnoutAreaChart",
+        "ForecastTransparency",
+        "InsightCard",
+        "UFBreadcrumb",
+        "Footer"
+      ],
+      "nfr": [
+        "RNF-001",
+        "RNF-002",
+        "RNF-003",
+        "RNF-008",
+        "RNF-022",
+        "RNF-023",
+        "RNF-024",
+        "RNF-025",
+        "RNF-027"
+      ],
       "adrs": ["0001", "0003", "0004", "0007", "0010"],
       "path": "docs/specs/004-pagina-uf-presidencial/"
     },
