@@ -277,7 +277,9 @@ export default async function UFPage({ params }: UFPageProps) {
         </div>
       </header>
 
-      {/* RF-032: Winner banner quando p_vitoria_lider >= 0.95 */}
+      {/* RF-032: Winner banner quando p_vitoria_lider >= 0.95.
+          S06/F4d — em mode 2T (`payload.turno === 2`) o threshold continua
+          válido; a UF "chama" o vencedor estadual da disputa 2T. */}
       {lider && pVitoriaLider >= 0.95 && (
         <WinnerBanner
           candidato={lider.nome}

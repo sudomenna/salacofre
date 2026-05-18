@@ -1,16 +1,16 @@
 ---
 id: 006-grid-governadores
 title: Grid Nacional Governadores (T-02)
-status: draft
+status: ready
 priority: M
 personas: [P1, P2, P3]
 screens: [T-02]
 requirements: [RF-021, RF-022, RF-025, RF-027, RF-029]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 005-pagina-uf-governador]
 apis: [GET /api/projection?cargo=governador]
-components: [GovernorCard, GovernorFilterBar, LiveBadge, Tabs]
+components: [GovernorCard, HexCartogramBrasil, RaceStatsCards, BreakingNewsTicker, LiveBadge, Tabs]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-022, RNF-023, RNF-024]
-adrs: [0001, 0002, 0010]
+adrs: [0001, 0002, 0010, 0011, 0012, 0013, 0017]
 ---
 
 # Spec 006 — Grid Nacional Governadores
@@ -19,72 +19,99 @@ adrs: [0001, 0002, 0010]
 
 ## Objetivo
 
-Mostrar status de todas as 27 corridas estaduais em uma única tela.
+Mostrar status de todas as 27 corridas estaduais de governador em uma única tela — com layout NYT-style (cartograma hexagonal, cards individuais, stats sumarizadas, breaking news ticker).
 
 ## Escopo
 
 **In**:
-- Grid de 27 cards `<GovernorCard />` (um por UF).
-- Cada card: agulha mini, top 2 candidatos com %, status (chamada/em disputa).
-- Filtros: Todas / Em disputa / Chamadas / Apuradas.
-- Tab para alternar entre Presidente/Governador.
-- Header com contagem (ex: "14 chamados, 13 ainda em disputa").
+- Grid de 27 cards `<GovernorCard />` (um por UF) — layout opção (b): líder + top-3 compacto + chip de status.
+- `<HexCartogramBrasil />` — visão alternativa SVG inline (sem MapLibre — preserva bundle).
+- `<RaceStatsCards />` — 3 cards (eleitos no 1T / em 2T / em apuração).
+- `<BreakingNewsTicker />` — chamadas recentes (rotação 5s, respeita prefers-reduced-motion).
+- Filtros server-side via search params (`Todas | Em disputa | Decididos 1T | Vão a 2T | Chamadas`).
+- Tabs cargo: `Presidente | Governador (active) | Senado | Congresso | Assembleias` — últimas 3 grayed-out + tooltip "Disponível em breve".
 
 **Out**:
 - Drill-down por UF (escopo [spec 005](../005-pagina-uf-governador/)).
+- Senado, Congresso, Assembleias (pós-D1).
 
 ## Wireframe (desktop)
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ Governadores 2026                              [Pres] [Gov]      │
-│ 14 chamados, 13 ainda em disputa                                 │
+│ [Breaking news ticker] AGORA · 17:25 · SP chamada para Tarcísio  │
 ├──────────────────────────────────────────────────────────────────┤
-│ Filtros: [Todas] [Em disputa] [Chamadas] [Apuradas]              │
-│                                                                  │
-│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐                  │
-│ │ SP          │ │ MG          │ │ RJ          │                  │
-│ │ ╱─agulha─╲ │ │ ╱─agulha─╲ │ │ ╱─agulha─╲ │                  │
-│ │ Tarcísio 52│ │ Zema     61│ │ Castro   48│                  │
-│ │ Boulos   46│ │ Pacheco  37│ │ Freixo   40│                  │
-│ │ ✓ CHAMADA  │ │ ✓ CHAMADA  │ │ Em disputa │                  │
-│ └─────────────┘ └─────────────┘ └─────────────┘                  │
-│ ... (24 cards mais)                                              │
+│ Governadores 2026                                  [AO VIVO]     │
+│ 27 corridas estaduais — apuração em tempo real.                  │
+├──────────────────────────────────────────────────────────────────┤
+│ [Presidente] [Governador] [Senado*] [Congresso*] [Assembleias*]  │
+├──────────────────────────────────────────────────────────────────┤
+│ ┌───────────┐ ┌───────────┐ ┌───────────┐                        │
+│ │ Eleitos   │ │ Em 2T     │ │ Em apur.  │                        │
+│ │     9     │ │    14     │ │     4     │                        │
+│ └───────────┘ └───────────┘ └───────────┘                        │
+├──────────────────────────────────────────────────────────────────┤
+│ Mapa hexagonal — visão por líder                                 │
+│ [SVG: 27 hex pintados por bucket/líder]                          │
+├──────────────────────────────────────────────────────────────────┤
+│ Filtros: [Todas] [Em disputa] [Decididos] [Vão 2T] [Chamadas]    │
+│ 27 corridas — todas.                                             │
+│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
+│ │ São Paulo   │ │ Minas Gerais│ │ Rio Janeiro │ │ Bahia       │ │
+│ │ Tarcísio    │ │ Zema   ELE  │ │ Castro 2T   │ │ Costa  ELE  │ │
+│ │ Boulos      │ │ Pacheco     │ │ Freixo      │ │ Neto        │ │
+│ │ Outros      │ │ Outros      │ │ Outros      │ │ Outros      │ │
+│ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
 ## Requisitos Funcionais (EARS)
 
-Aplicam-se subsets dos RFs já definidos na home:
+Aplicam-se subsets dos RFs já definidos:
 
-**RF-021 (agulha)** — cada `<GovernorCard />` exibe mini-agulha.
-**RF-022 (votos absolutos)** — exibidos no card resumido.
-**RF-025 (tabela de UFs)** — substituída por grid de cards aqui.
-**RF-027 (atualização live)** — polling SWR a cada 5s.
-**RF-029 (tabs Pres/Gov)** — alterna entre `/` e `/governador`.
+**RF-021 (agulha por UF)** — substituída por `<GovernorCard />` que mostra top-3 candidatos + chip de status (não há agulha individual no grid — view hex cartogram cobre o resumo visual).
+**RF-022 (votos absolutos)** — exibidos no `<GovernorCard />` via barra colorida + pct.
+**RF-025 (tabela de UFs)** — substituída por grid de cards.
+**RF-027 (atualização live)** — ISR `revalidate = 60` (ADR-0011).
+**RF-029 (tabs cargo)** — alterna entre `/` e `/governador`; outros cargos grayed-out.
 
-### RFs específicos dessa tela
+### RFs específicos desta tela
 
-**RF-006.1 — Header com contagem de chamadas**
+**RF-006.1 — Header com contagem via RaceStatsCards**
 
-WHEN a página renderiza, the system SHALL exibir contagem `{n_chamadas} chamados, {n_em_disputa} ainda em disputa`.
+WHEN a página renderiza, the system SHALL exibir `<RaceStatsCards />` com counts `{eleitos, segundo_turno, em_apuracao}` agregando `EdgeUfRow.bucket` das 27 UFs.
 
-**RF-006.2 — Filtros por status**
+**RF-006.2 — Filtros por status (server-side)**
 
-WHEN o usuário clica em um filtro, the system SHALL filtrar cards visíveis por `Todas | Em disputa | Chamadas | Apuradas`.
+WHEN o usuário clica em um filtro, the system SHALL navegar para `/governador?status=<filtro>` e re-renderizar com `por_uf` filtrado por bucket. Filtros: `todas | em_disputa | decididos_1t | vai_2t | chamadas`. WHEN filtro inválido na URL, the system SHALL coalescer para `todas`.
 
-> Nota: esses RFs específicos são **adições à spec**, não estão no PRD original. Ver [traceability.md](../../_meta/traceability.md).
+**RF-006.3 — Cartograma hexagonal NYT-style**
+
+WHEN há ao menos 1 UF no payload, the system SHALL renderizar `<HexCartogramBrasil />` SVG inline com 27 hex pintados por líder via `colorForRank()`. UFs com `bucket === "indefinido"` recebem cinza neutro.
+
+**RF-006.4 — Breaking news ticker (broadcast)**
+
+WHEN `national.chamadas_recentes?.length > 0`, the system SHALL renderizar `<BreakingNewsTicker />` no topo com rotação 5s. WHEN `prefers-reduced-motion: reduce`, the system SHALL empilhar todas as chamadas verticalmente sem rotação.
+
+**RF-006.5 — Tabs cargo com cargos diferidos grayed-out**
+
+WHEN renderizar tabs, the system SHALL incluir Senado / Congresso / Assembleias como tabs `disabled` com tooltip "Disponível em breve" e `aria-disabled="true"` (sinaliza roadmap sem esconder).
+
+### Open question resolvida (kickoff S06)
+
+> Mobile: grid 1-col em portrait, 2-col em landscape?
+
+**Decisão**: 1 col `< 640px`, 2 cols `sm`, 3 cols `lg`, 4 cols `xl`. `<GovernorCard mode="compact">` degrada pra single-line `< 640px` (sigla + líder + chip). Sem dependência de orientation media query.
 
 ## Requisitos Não-Funcionais
 
-Mesmos da home (performance + a11y).
-
-## Open questions
-
-- Mobile: grid 1-col em portrait, 2-col em landscape? (atual: 1-col sempre <640px).
+Mesmos da home (performance + a11y). Bundle above-the-fold: respeita RNF-007a (sem MapLibre — só SVG inline pro cartogram e cards).
 
 ## Cross-refs
 
 - Design: [./design.md](./design.md)
 - Spec UF Governador (drill-down): [../005-pagina-uf-governador/](../005-pagina-uf-governador/)
 - Home Presidencial (modelo de tela espelho): [../003-home-nacional/](../003-home-nacional/)
+- ADR-0011 (cadência ISR 60s): [../../architecture/adrs/0011-cadencia-isr.md](../../architecture/adrs/0011-cadencia-isr.md)
+- ADR-0012 (chaves nomeadas): [../../architecture/adrs/0012-chaves-nomeadas-edge-config.md](../../architecture/adrs/0012-chaves-nomeadas-edge-config.md)
+- ADR-0017 (transparência multi-camada): [../../architecture/adrs/0017-transparencia-multi-camada.md](../../architecture/adrs/0017-transparencia-multi-camada.md)

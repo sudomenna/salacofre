@@ -46,17 +46,21 @@ import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { Tabs } from "@/components/atoms/controls/Tabs";
 import { MinorCandidatesList } from "@/components/atoms/lists/MinorCandidatesList";
 import { ApuracaoMeta } from "@/components/blocks/ApuracaoMeta";
+import { BreakingNewsTicker } from "@/components/blocks/BreakingNewsTicker";
 import { CandidateRanking } from "@/components/blocks/CandidateRanking";
 import { DecisiveUFsGrid } from "@/components/blocks/DecisiveUFsGrid";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { HeadlineScore } from "@/components/blocks/HeadlineScore";
 import { InsightCard } from "@/components/blocks/InsightCard";
 import { NationalNeedle } from "@/components/blocks/NationalNeedle";
+import { NationalWinnerBanner } from "@/components/blocks/NationalWinnerBanner";
+import { RunoffScenarios } from "@/components/blocks/RunoffScenarios";
 import { StateGroupedTable } from "@/components/blocks/StateGroupedTable";
+import { TurnoOneRecap } from "@/components/blocks/TurnoOneRecap";
 import { TwoRoundIndicator } from "@/components/blocks/TwoRoundIndicator";
 import { Footer } from "@/components/layout/Footer";
 import { LiveBadge } from "@/components/layout/LiveBadge";
-import { readNationalProjection } from "@/lib/edge-config/reader";
+import { readArchivedProjection, readNationalProjection } from "@/lib/edge-config/reader";
 import type { EdgePayload } from "@/lib/edge-config/types";
 import nationalFixture from "@/tests/fixtures/edge-config/projection-current.json" with {
   type: "json",
@@ -106,6 +110,17 @@ export default async function HomePage() {
   const mode: "binary" | "multi-1t" =
     turno === 2 || national.candidatos.length === 2 ? "binary" : "multi-1t";
 
+  // S06/F4d (Fase 4) — Mode 2T: lê archive do 1T para `<TurnoOneRecap />`
+  // (ADR-0016). `readArchivedProjection` retorna null se a chave ainda
+  // não foi gravada (pré-virada de turno) — degrade gracioso.
+  const recap1T = turno === 2 ? await readArchivedProjection({ cargo: "pres", turno: 1 }) : null;
+
+  // Sinal `vai_a_2t` agregado nacional — derivado de `p_segundo_turno_overall`.
+  // Em 1T, `false` ⇔ orchestrator declara decisão no 1T (P(2T) baixíssima).
+  // Em 2T não usado pelo banner (turno 2 já passa o gate).
+  const pSegundoTurno = national.p_segundo_turno_overall;
+  const vaiA2tNacional: boolean | null = pSegundoTurno == null ? null : pSegundoTurno < 0.01;
+
   // Mapping candidato_id → rank — alimenta paleta N-way no mapa e nas
   // colunas decisivas/grouped (ADR-0013). Pré-S05 ou fallback: array
   // já é ordenado por rank, então `index + 1` coincide com o rank.
@@ -140,20 +155,49 @@ export default async function HomePage() {
         </div>
       </header>
 
+      {/* S06/F4d — Breaking news ticker no topo. Renderiza só se há chamadas. */}
+      {(national.chamadas_recentes ?? []).length > 0 && (
+        <BreakingNewsTicker chamadas={national.chamadas_recentes ?? []} />
+      )}
+
       <ApuracaoMeta pctApurado={pct_apurado_total} ufsApuradas={ufs_apuradas} ts={ts} />
 
-      {/* Camada 1 (hero) — top-2 sempre. Em multi-1t o headline menciona rank 3. */}
-      <HeadlineScore candidatos={national.candidatos} mode={mode} turno={turno} />
+      {/* S06/F4d — Banner "ELEITO" nacional. Aparece quando threshold de
+          chamada final atingido (p_vitoria >= 0.99 ou apurado >= 99%). */}
+      <NationalWinnerBanner
+        national={national}
+        candidatos={national.candidatos}
+        pctApuradoTotal={pct_apurado_total}
+        turno={turno}
+        vaiA2t={vaiA2tNacional}
+      />
+
+      {/* Camada 1 (hero) — top-2 sempre. Em mode 2T, `recap` injeta
+          `<TurnoOneRecap />` acima do hero (ADR-0016). Em multi-1t a prop
+          é ignorada internamente pelo HeadlineScore. */}
+      <HeadlineScore
+        candidatos={national.candidatos}
+        mode={mode}
+        turno={turno}
+        recap={mode === "binary" && turno === 2 ? <TurnoOneRecap recap={recap1T} /> : null}
+      />
 
       {/* Em multi-1t: TwoRoundIndicator ao lado do hero (substitui o
-          ThresholdMarker50 antigo, agora interno ao HeadlineScore binary). */}
-      {mode === "multi-1t" && lider && (
+          ThresholdMarker50 antigo, agora interno ao HeadlineScore binary).
+          Em 2T não faz sentido (já passou). */}
+      {mode === "multi-1t" && turno !== 2 && lider && (
         <TwoRoundIndicator
           pSegundoTurno={national.p_segundo_turno_overall}
           liderPct={lider.pct_projetado}
           liderNome={lider.nome}
           liderCor={lider.cor}
         />
+      )}
+
+      {/* S06/F4d — RunoffScenarios em 1T tardio quando p_segundo_turno_overall
+          >= 0.4. O próprio componente faz o gate; aqui só não passamos em 2T. */}
+      {mode === "multi-1t" && turno !== 2 && (
+        <RunoffScenarios national={national} candidatos={national.candidatos} />
       )}
 
       {/* Camadas 2 + 3 — só em multi-1t. Em binary não há rank 3+ relevante. */}

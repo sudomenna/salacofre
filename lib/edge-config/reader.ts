@@ -94,6 +94,55 @@ export async function readNationalProjection(): Promise<EdgePayload | null> {
 }
 
 /**
+ * Lê o payload ARQUIVADO de uma corrida — sufixo `:archive` em vez de
+ * `:current` (ADR-0012, S06/F1). Usado pra acessar o resultado final do 1T
+ * a partir de uma página em mode 2T:
+ *
+ *   `projection:archive:<cargo>:t<turno>`  →  ex. `projection:archive:pres:t1`
+ *
+ * O orchestrator grava o archive na transição de turno (S07 — virada 1T→2T)
+ * congelando o último `projection:current:pres:t1` antes de mover a chave
+ * dinâmica `projection:current` para `pres:t2`. Simetria total com
+ * `readProjection`: mesmo shape `EdgePayload`, mesma serialização.
+ *
+ * Comportamento de retorno
+ *   - `null` quando `EDGE_CONFIG` ausente (dev/preview sem credencial).
+ *   - `null` quando a chave archive ainda não foi gravada (caso comum
+ *     pré-1T, ou se o orchestrator ainda não rodou a transição). UI deve
+ *     degradar graciosamente — `<TurnoOneRecap recap={null} />` retorna
+ *     `null` sem placeholder mentiroso (ADR-0016).
+ *
+ * Caller típico
+ *   ```ts
+ *   const recap = await readArchivedProjection({ cargo: "pres", turno: 1 });
+ *   // ... <TurnoOneRecap recap={recap} />
+ *   ```
+ *
+ * @param opts.cargo  Cargo arquivado. Default: cargo ativo (`currentRace`).
+ * @param opts.turno  Turno arquivado. Default: turno ativo - 1 não faz
+ *                    sentido aqui (caller passa explicitamente). Default
+ *                    é turno ativo, que SÓ retornará algo se já houve
+ *                    transição passada para o turno corrente.
+ */
+export async function readArchivedProjection(opts?: {
+  cargo?: Cargo;
+  turno?: Turno;
+}): Promise<EdgePayload | null> {
+  if (!process.env.EDGE_CONFIG) return null;
+  const race = currentRace();
+  const cargo = opts?.cargo ?? race.cargo;
+  const turno = opts?.turno ?? race.turno;
+
+  try {
+    const key = `projection:archive:${cargo}:t${turno}`;
+    const payload = await get<EdgePayload>(key);
+    return payload ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Lê o payload de drill-down de UMA UF do Edge Config.
  *
  * S05/F4c — chave para corridas com cargo/turno explícito:
