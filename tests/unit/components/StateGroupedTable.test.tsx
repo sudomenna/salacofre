@@ -22,6 +22,12 @@ const mkRow = (sigla: string, lider: number, margem: number, pctApurado = 30): E
   margem_projetada_ci: [margem - 2, margem + 2],
   chamada: false,
   swing_vs_2022: 1,
+  top_candidatos: [
+    { id: lider, pct: 50 + margem / 2 },
+    { id: lider === 13 ? 22 : 13, pct: 50 - margem / 2 },
+  ],
+  vai_a_2t: null,
+  bucket: "indefinido",
 });
 
 describe("<StateGroupedTable />", () => {

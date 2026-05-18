@@ -19,9 +19,16 @@
  *   - Determinismo (constituição § 6): todos os números aqui são funções puras
  *     de (snapshots, historical_results, seed). Não há ruído introduzido na
  *     serialização.
- *   - Tamanho-alvo: <30 KB para `projection:current`, <10 KB por UF.
- *     `writeEdgePayload` warna quando ultrapassar 450 KB (margem para limite
- *     duro de 512 KB do Edge Config).
+ *   - Tamanho-alvo: <30 KB para `projection:current` binário S04;
+ *     **S05/F4c (multi-candidato 11 cands + cenarios_2t)**: <75 KB nacional,
+ *     <20 KB por UF (top_candidatos + bucket). `writeEdgePayload` warna em
+ *     450 KB no agregado (margem para limite duro de 512 KB do Edge Config),
+ *     com warns dedicados por chave em 75 KB / 20 KB.
+ *   - Chaves nomeadas (S05/F4c — ADR-0012): além de `projection:current`,
+ *     o orchestrator pode gravar `projection:current:pres:t1`,
+ *     `:pres:t2`, `:gov:t1`, `:gov:t2`, e `projection:archive:pres:t1`
+ *     (na transição 1T→2T). `projection:current` segue como ALIAS dinâmico
+ *     resolvido por `lib/config/calendar.ts` → `(cargo, turno)` ativo.
  */
 
 // ---------------------------------------------------------------------------
@@ -59,12 +66,27 @@ export type NeedleBand =
  * (0–100), não frações (0–1) — segue a convenção do `data-model.md` linha
  * 122 (`pct_apurado_total: 0–100`). Probabilidades (`p_vitoria`) ficam em
  * [0, 1] porque é a convenção universal de stats.
+ *
+ * Multi-candidato (S05/F4c — ADR-0013, ADR-0014, ADR-0017):
+ *   - `rank` substitui a noção binária "candidato A / B". É o ranking
+ *     semântico do candidato (1 = líder por pct_projetado, 2 = segundo,
+ *     ...), determinado em `compute_national` com tie-breaker estável.
+ *   - `p_passa_2t` e `p_fecha_1t` são métricas multi-candidato derivadas
+ *     do mesmo array de estimates do bootstrap (zero novo custo).
  */
 export interface EdgeCandidate {
   id: number;
   nome: string;
   partido: string;
-  /** Hex (`#RRGGBB`) — token semântico do design system, NUNCA cor partidária oficial (constituição § 2). */
+  /**
+   * Token CSS literal — sempre da forma `var(--color-cand-N)` em payloads
+   * S05+ (ADR-0013, paleta dinâmica por rank). Consumido direto em
+   * `style={{ background: c.cor }}` no front-end (sem resolução
+   * intermediária). Constituição § 2: nunca hex partidário, sempre token
+   * canônico de app/globals.css. Em payloads antigos pode aparecer
+   * `var(--color-pt)` / `var(--color-pl)` (legacy binário) — consumidores
+   * S05+ devem aceitar ambos no decode (forward-compat).
+   */
   cor: string;
   votos_atuais: number;
   votos_projetados: number;
@@ -78,33 +100,100 @@ export interface EdgeCandidate {
   pct_projetado_upper: number;
   /** Probabilidade de vitória em [0, 1]. */
   p_vitoria: number;
+  /**
+   * Rank semântico do candidato no agregado nacional (1 = líder por
+   * `pct_projetado`, 2 = segundo, ...). Tie-breaker estável por
+   * `candidato_id` ASC. Adicionado em S05/F4c — ADR-0013 (paleta visual
+   * por rank) e ADR-0017 (transparência total: rank dirige qual camada
+   * do hero/ranking exibe o candidato).
+   *
+   * Payloads pré-S05 não têm essa chave — consumidores devem coalescer
+   * para `index + 1` no array `candidatos[]` (que já é ordenado por
+   * pct_projetado desc desde S04).
+   */
+  rank: number;
+  /**
+   * Probabilidade em [0, 1] de o candidato terminar TOP-2 do 1º turno
+   * — isto é, ir para o segundo turno OU ganhar no 1º (cobre os dois
+   * "passa adiante"). Frequência empírica nos resamples do bootstrap
+   * onde `pct_proj >= pct_2º_dos_outros`. Adicionado em S05/F4c
+   * (ADR-0014) para a coluna "vai pro 2T" do ranking multi-camada
+   * (RF-030.8). Em 2T, `p_passa_2t = p_vitoria` (degenera para a
+   * mesma métrica). Pré-S05 ausente → consumidor usa fallback null/0.
+   */
+  p_passa_2t: number;
+  /**
+   * Probabilidade em [0, 1] de o candidato FECHAR o 1T sozinho
+   * (`>= 50%+1` dos votos válidos no agregado nacional). Frequência
+   * empírica nos resamples onde `pct_proj >= 50`. Adicionado em S05/F4c
+   * (ADR-0014) para o gatilho "decisão no 1T" do HeadlineScore
+   * (RF-030.9) e fonte do banner "fecha no 1T se >X". Sempre `0.0`
+   * em payloads de 2T (vazio de semântica). Pré-S05 ausente →
+   * consumidor coalesce para 0.
+   */
+  p_fecha_1t: number;
 }
 
 export interface EdgeNational {
   /**
    * Candidatos da corrida. Ordenação canônica (FIX S04 — carry-over #1 da
    * retro S03):
-   *   1. Líder semântico (id == `candidato_a_id`)
-   *   2. Segundo lugar (id == `candidato_b_id`)
+   *   1. Líder semântico (id == `candidato_a_id`, rank == 1)
+   *   2. Segundo lugar (id == `candidato_b_id`, rank == 2)
    *   3. Demais por `pct_projetado` desc, tie-breaker por `id` asc.
    *
-   * Por que importa: a agulha consome `candidatos[0]` como "A" e
-   * `candidatos[1]` como "B". A versão anterior ordenava por `id` asc,
-   * o que invertia "A"/"B" quando o líder tinha id maior que o segundo.
+   * S05/F4c — multi-candidato (ADR-0017): array passa a conter TODOS os
+   * candidatos com presença no histórico/snapshot, não só top-2. UI usa
+   * `rank` para distribuir nas 3 camadas (hero rank 1–2, ranking rank 3–6,
+   * lista compacta rank 7+).
+   *
+   * Por que `candidato_a_id` / `candidato_b_id` continuam: backward-compat
+   * com consumidores S04 que liam o "duelo" binário. Em S05 a semântica
+   * é "líder e segundo por rank", não "duelo top-2 fechado".
    */
   candidatos: EdgeCandidate[];
   /** Posição da agulha em [-1, 1]. -1 = vitória certa de B, +1 = vitória certa de A. */
   needle_position: number;
   needle_band: NeedleBand;
   /**
-   * ID do líder ("A") por `pct_projetado` agregado. Pode ser `null` quando
-   * a projeção ainda não tem candidatos válidos (pré-apuração / RF-017
-   * caso degenerado total). Consumidores devem fazer fallback para
-   * `candidatos[0]?.id`.
+   * ID do líder semântico (rank == 1) por `pct_projetado` agregado. Pode ser
+   * `null` quando a projeção ainda não tem candidatos válidos (pré-apuração
+   * / RF-017 caso degenerado total). Consumidores devem fazer fallback para
+   * `candidatos[0]?.id`. S05+: equivale a `candidatos[rank == 1].id`.
    */
   candidato_a_id: number | null;
-  /** ID do segundo lugar ("B"). `null` quando há ≤1 candidato. */
+  /**
+   * ID do segundo lugar (rank == 2). `null` quando há ≤1 candidato. Em
+   * payloads S05+ multi-candidato a semântica continua "segundo por
+   * pct_projetado", não "adversário binário".
+   */
   candidato_b_id: number | null;
+  /**
+   * Probabilidade em [0, 1] de a eleição NÃO terminar no 1º turno (ou seja,
+   * P(nenhum candidato fecha 50%+1 sozinho)). Calculado pelo orchestrator
+   * a partir dos resamples do bootstrap (S05/F4c — ADR-0014). Frequência
+   * empírica `mean(max(estimates_por_cand) < 0.50)`. `null` em payloads
+   * de 2T (semântica vazia: o segundo turno JÁ é o cenário).
+   *
+   * Alimenta o medidor "P(2º turno)" do HeadlineScore (RF-030.7) e o
+   * gatilho narrativo do banner "decidido no 1T se >X". Pré-S05 ausente →
+   * consumidor coalesce para null e UI esconde o medidor.
+   */
+  p_segundo_turno_overall: number | null;
+  /**
+   * Top-3 pares (líder, segundo) mais prováveis no 2º turno — ordenados
+   * por `prob` desc. Cada `par` é uma tupla de candidato_ids `[A, B]`.
+   * Calculado por contagem de frequência nos resamples do bootstrap:
+   * para cada resample, o par `(top1_rank, top2_rank)` é registrado;
+   * os 3 pares mais frequentes entram aqui. Adicionado em S05/F4c
+   * (ADR-0014).
+   *
+   * `[]` em payloads de 2T (não faz sentido projetar cenário 2T quando
+   * já estamos no 2T). Alimenta o bloco "Cenários para o segundo turno"
+   * (RF-030.8) com chips dos top-3 duelos. Pré-S05 ausente → consumidor
+   * coalesce para `[]` e UI esconde a seção.
+   */
+  cenarios_2t: Array<{ par: [number, number]; prob: number }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +225,45 @@ export interface EdgeUfRow {
   chamada: boolean;
   /** Swing em pp vs. 2022 (positivo = em favor do líder). */
   swing_vs_2022: number;
+  /**
+   * Top-3 candidatos da UF por `pct_projetado` desc. Adicionado em S05/F4c
+   * (ADR-0017 — transparência total): a página de UF mostra TODOS os
+   * candidatos visíveis, mas a home / mapa precisa de um resumo compacto
+   * com no máximo 3 para chips e tooltips. `pct` é 0–100. Tie-breaker
+   * estável por candidato_id ASC.
+   *
+   * Pré-S05 ausente → consumidor coalesce para `[]` e UI degrada para
+   * só `lider` + `margem_*` (comportamento S04).
+   */
+  top_candidatos: Array<{ id: number; pct: number }>;
+  /**
+   * Para corridas de GOVERNADOR no 1T (cargo=3): `true` se o líder
+   * projetado tem `pct_projetado >= 50%+1` (decide no 1T); `false` se
+   * vai para 2º turno. `null` quando não aplicável (cargo presidencial
+   * 1T — a decisão de 2T para presidente é NACIONAL, não estadual; ou
+   * cargo gov em 2T). Adicionado em S05/F4c para o grid de governadores
+   * (RF-040+ em S06).
+   *
+   * Em payloads presidenciais S05 fica sempre `null`. Pré-S05 ausente
+   * → consumidor coalesce para null.
+   */
+  vai_a_2t: boolean | null;
+  /**
+   * Estado declarativo da UF para o grid de governadores e indicadores
+   * de status no mapa. Adicionado em S05/F4c (ADR-0017):
+   *
+   *   - `"chamada"`: UF chamada para o líder (margem decisiva, ver
+   *     `chamada: true`). Ortogonal ao `vai_a_2t`.
+   *   - `"decidido_1t"`: governador eleito no 1T (`vai_a_2t === false`
+   *     e `pct_projetado >= 50%+1`).
+   *   - `"vai_2t"`: governador disputa 2T (`vai_a_2t === true`).
+   *   - `"indefinido"`: ainda tossup, margem dentro do CI ou apuração
+   *     baixa demais para chamar.
+   *
+   * Pré-S05 ausente → consumidor coalesce para `"chamada"` se
+   * `chamada === true`, senão `"indefinido"`.
+   */
+  bucket: "decidido_1t" | "vai_2t" | "indefinido" | "chamada";
 }
 
 // ---------------------------------------------------------------------------
@@ -311,6 +439,14 @@ export interface EdgePayloadUf {
    * gravados pré-S04/F2 não têm essa chave — consumidores devem coalescer
    * para `{margem: [], p_vitoria: [], turnout: []}` para manter
    * compatibilidade durante o rollout.
+   *
+   * S05/F4c (ADR-0014): a série "p_vitoria do líder" (top-2 binário) é
+   * insuficiente em corrida multi-candidato. A série por-candidato vai
+   * morar numa CHAVE DEDICADA `projection:uf:<sigla>:series-por-cand`
+   * (não inline aqui) para não inflar `EdgePayloadUf` além do orçamento
+   * de 20 KB. Esta chave dedicada é placeholder até spec de "evolução
+   * histórica multi-candidato" (S06+); o tipo correspondente ainda não
+   * está definido — apenas reservamos a chave.
    */
   series_temporais?: EdgeUfSeriesTemporais;
 }

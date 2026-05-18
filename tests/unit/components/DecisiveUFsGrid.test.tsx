@@ -22,6 +22,12 @@ const mkRow = (sigla: string, swing: number, pctApurado: number, lider = 13): Ed
   margem_projetada_ci: [3, 7],
   chamada: false,
   swing_vs_2022: swing,
+  top_candidatos: [
+    { id: lider, pct: 53 },
+    { id: lider === 13 ? 22 : 13, pct: 47 },
+  ],
+  vai_a_2t: null,
+  bucket: "indefinido",
 });
 
 describe("<DecisiveUFsGrid />", () => {

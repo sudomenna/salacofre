@@ -255,6 +255,8 @@ function buildPayload(ufs: string[]): EdgePayload {
       needle_band: "tossup",
       candidato_a_id: null,
       candidato_b_id: null,
+      p_segundo_turno_overall: null,
+      cenarios_2t: [],
     },
     por_uf: ufs.map((sigla) => ({
       sigla,
@@ -265,6 +267,9 @@ function buildPayload(ufs: string[]): EdgePayload {
       margem_projetada_ci: [-5, 5],
       chamada: false,
       swing_vs_2022: 0,
+      top_candidatos: [],
+      vai_a_2t: null,
+      bucket: "indefinido" as const,
     })),
     insights: [],
     composition: { pre_election: 1, model: 0, actual_results: 0 },
@@ -272,7 +277,7 @@ function buildPayload(ufs: string[]): EdgePayload {
 }
 
 describe("writeProjection — multi-key fan-out", () => {
-  it("faz N+1 chamadas a fetch (1 nacional + N UFs) quando tudo OK", async () => {
+  it("grava chaves nomeadas + aliases legacy (2 nacionais + 2 por UF) quando tudo OK", async () => {
     process.env.EDGE_CONFIG_TOKEN = "tok";
     process.env.EDGE_CONFIG_ID = "ecfg_proj";
 
@@ -282,8 +287,8 @@ describe("writeProjection — multi-key fan-out", () => {
     const payload = buildPayload(["SP", "RJ", "MG"]);
     await writeProjection(payload);
 
-    // 1 nacional + 3 UFs = 4 chamadas
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    // 2 nacionais (nomeada + alias) + 2 × 3 UFs (nomeada + alias) = 8 chamadas (S05/F4c ADR-0012).
+    expect(fetchMock).toHaveBeenCalledTimes(8);
 
     // Extrai todos os `key` enviados nos bodies.
     const keysWritten = fetchMock.mock.calls.map((call) => {
@@ -294,6 +299,12 @@ describe("writeProjection — multi-key fan-out", () => {
       return body.items[0]?.key;
     });
 
+    // Nomeadas (S05+).
+    expect(keysWritten).toContain("projection:current:pres:t1");
+    expect(keysWritten).toContain("projection:uf:SP:pres:t1");
+    expect(keysWritten).toContain("projection:uf:RJ:pres:t1");
+    expect(keysWritten).toContain("projection:uf:MG:pres:t1");
+    // Aliases legacy (backward-compat S04).
     expect(keysWritten).toContain("projection:current");
     expect(keysWritten).toContain("projection:uf:SP");
     expect(keysWritten).toContain("projection:uf:RJ");
@@ -325,14 +336,16 @@ describe("writeProjection — multi-key fan-out", () => {
     process.env.EDGE_CONFIG_TOKEN = "tok";
     process.env.EDGE_CONFIG_ID = "ecfg_proj";
 
-    // Mock por URL: nacional+RJ+MG → 200, SP → 500. O Vercel API é uma URL
-    // única para todas as chaves; diferenciamos pela key dentro do body.
+    // Mock por URL: tudo OK exceto chaves SP (nomeada + alias) → 500.
+    // O Vercel API é uma URL única para todas as chaves; diferenciamos
+    // pela key dentro do body.
     const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
       const body = JSON.parse((init?.body as string) ?? "{}") as {
         items?: Array<{ key?: string }>;
       };
       const key = body.items?.[0]?.key ?? "";
-      if (key === "projection:uf:SP") {
+      // Ambas chaves SP (nomeada e alias) falham.
+      if (key === "projection:uf:SP" || key === "projection:uf:SP:pres:t1") {
         return Promise.resolve(new Response(JSON.stringify({ error: "boom" }), { status: 500 }));
       }
       return Promise.resolve(new Response(null, { status: 200 }));
@@ -343,12 +356,12 @@ describe("writeProjection — multi-key fan-out", () => {
 
     const payload = buildPayload(["SP", "RJ", "MG"]);
 
-    // Deve rejeitar com mensagem agregada mencionando SP.
+    // 2 chaves SP falham (nomeada + alias) de 8 totais → "2/8".
     await expect(writeProjection(payload)).rejects.toThrow(
-      /writeProjection: 1\/4 chave\(s\) falharam.*projection:uf:SP/s,
+      /writeProjection: 2\/8 chave\(s\) falharam.*projection:uf:SP/s,
     );
 
-    // Mesmo com SP falhando, RJ e MG foram tentados (4 chamadas ao todo).
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    // Mesmo com SP falhando, RJ e MG foram tentados (8 chamadas ao todo).
+    expect(fetchMock).toHaveBeenCalledTimes(8);
   });
 });

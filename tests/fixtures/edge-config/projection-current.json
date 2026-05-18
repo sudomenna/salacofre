@@ -7,313 +7,658 @@
   "national": {
     "candidatos": [
       {
-        "id": 13,
-        "nome": "Lula",
+        "id": 1001,
+        "nome": "Candidato PT",
         "partido": "PT",
-        "cor": "var(--color-pt)",
-        "votos_atuais": 18650432,
-        "votos_projetados": 79812408,
-        "pct_atual": 53.0,
-        "pct_projetado": 53.2,
-        "pct_projetado_lower": 51.9,
-        "pct_projetado_upper": 54.5,
-        "p_vitoria": 0.78
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 15240321,
+        "votos_projetados": 65150400,
+        "pct_atual": 43.5,
+        "pct_projetado": 43.2,
+        "pct_projetado_lower": 41.8,
+        "pct_projetado_upper": 44.6,
+        "p_vitoria": 0.72,
+        "rank": 1,
+        "p_passa_2t": 0.998,
+        "p_fecha_1t": 0.05
       },
       {
-        "id": 22,
-        "nome": "Bolsonaro",
+        "id": 1002,
+        "nome": "Candidato PL",
         "partido": "PL",
-        "cor": "var(--color-pl)",
-        "votos_atuais": 16450112,
-        "votos_projetados": 70140992,
-        "pct_atual": 47.0,
-        "pct_projetado": 46.8,
-        "pct_projetado_lower": 45.5,
-        "pct_projetado_upper": 48.1,
-        "p_vitoria": 0.22
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 13400000,
+        "votos_projetados": 57250000,
+        "pct_atual": 38.2,
+        "pct_projetado": 38.0,
+        "pct_projetado_lower": 36.6,
+        "pct_projetado_upper": 39.4,
+        "p_vitoria": 0.28,
+        "rank": 2,
+        "p_passa_2t": 0.985,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 1003,
+        "nome": "Candidato MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 1580000,
+        "votos_projetados": 6750000,
+        "pct_atual": 4.5,
+        "pct_projetado": 4.5,
+        "pct_projetado_lower": 3.8,
+        "pct_projetado_upper": 5.2,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.011,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 1004,
+        "nome": "Candidato PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 1050000,
+        "votos_projetados": 4500000,
+        "pct_atual": 3.0,
+        "pct_projetado": 3.0,
+        "pct_projetado_lower": 2.5,
+        "pct_projetado_upper": 3.5,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.005,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 1005,
+        "nome": "Candidato UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 700000,
+        "votos_projetados": 3000000,
+        "pct_atual": 2.0,
+        "pct_projetado": 2.0,
+        "pct_projetado_lower": 1.6,
+        "pct_projetado_upper": 2.4,
+        "p_vitoria": 0.0,
+        "rank": 5,
+        "p_passa_2t": 0.001,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 1006,
+        "nome": "Candidato NOVO",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 525000,
+        "votos_projetados": 2250000,
+        "pct_atual": 1.5,
+        "pct_projetado": 1.5,
+        "pct_projetado_lower": 1.2,
+        "pct_projetado_upper": 1.8,
+        "p_vitoria": 0.0,
+        "rank": 6,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 1007,
+        "nome": "Candidato PTB",
+        "partido": "PTB",
+        "cor": "var(--color-cand-7)",
+        "votos_atuais": 350000,
+        "votos_projetados": 1500000,
+        "pct_atual": 1.0,
+        "pct_projetado": 1.0,
+        "pct_projetado_lower": 0.8,
+        "pct_projetado_upper": 1.2,
+        "p_vitoria": 0.0,
+        "rank": 7,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 1008,
+        "nome": "Candidato UP",
+        "partido": "UP",
+        "cor": "var(--color-cand-8)",
+        "votos_atuais": 280000,
+        "votos_projetados": 1200000,
+        "pct_atual": 0.8,
+        "pct_projetado": 0.8,
+        "pct_projetado_lower": 0.65,
+        "pct_projetado_upper": 0.95,
+        "p_vitoria": 0.0,
+        "rank": 8,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 1009,
+        "nome": "Candidato PCB",
+        "partido": "PCB",
+        "cor": "var(--color-cand-9)",
+        "votos_atuais": 175000,
+        "votos_projetados": 750000,
+        "pct_atual": 0.5,
+        "pct_projetado": 0.5,
+        "pct_projetado_lower": 0.4,
+        "pct_projetado_upper": 0.6,
+        "p_vitoria": 0.0,
+        "rank": 9,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 1010,
+        "nome": "Candidato PSTU",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-10)",
+        "votos_atuais": 105000,
+        "votos_projetados": 450000,
+        "pct_atual": 0.3,
+        "pct_projetado": 0.3,
+        "pct_projetado_lower": 0.22,
+        "pct_projetado_upper": 0.38,
+        "p_vitoria": 0.0,
+        "rank": 10,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 1011,
+        "nome": "Candidato DC",
+        "partido": "DC",
+        "cor": "var(--color-cand-11)",
+        "votos_atuais": 70000,
+        "votos_projetados": 300000,
+        "pct_atual": 0.2,
+        "pct_projetado": 0.2,
+        "pct_projetado_lower": 0.15,
+        "pct_projetado_upper": 0.25,
+        "p_vitoria": 0.0,
+        "rank": 11,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
       }
     ],
-    "needle_position": 0.56,
-    "needle_band": "likely_a",
-    "candidato_a_id": 13,
-    "candidato_b_id": 22
+    "needle_position": 0.44,
+    "needle_band": "lean_a",
+    "candidato_a_id": 1001,
+    "candidato_b_id": 1002,
+    "p_segundo_turno_overall": 0.65,
+    "cenarios_2t": [
+      { "par": [1001, 1002], "prob": 0.92 },
+      { "par": [1001, 1003], "prob": 0.05 },
+      { "par": [1002, 1003], "prob": 0.02 }
+    ]
   },
   "por_uf": [
     {
       "sigla": "AC",
       "pct_apurado": 18.0,
-      "lider": 22,
+      "lider": 1002,
       "margem_atual": 12.0,
       "margem_projetada": 10.5,
       "margem_projetada_ci": [8.0, 13.0],
       "chamada": false,
-      "swing_vs_2022": -1.2
+      "swing_vs_2022": -1.2,
+      "top_candidatos": [
+        { "id": 1002, "pct": 49.0 },
+        { "id": 1001, "pct": 38.5 },
+        { "id": 1003, "pct": 5.0 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
     },
     {
       "sigla": "AL",
       "pct_apurado": 21.0,
-      "lider": 13,
+      "lider": 1001,
       "margem_atual": 18.0,
       "margem_projetada": 17.0,
       "margem_projetada_ci": [15.0, 19.0],
       "chamada": true,
-      "swing_vs_2022": 2.0
+      "swing_vs_2022": 2.0,
+      "top_candidatos": [
+        { "id": 1001, "pct": 55.0 },
+        { "id": 1002, "pct": 38.0 },
+        { "id": 1003, "pct": 3.5 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "AP",
       "pct_apurado": 15.0,
-      "lider": 13,
+      "lider": 1001,
       "margem_atual": 4.0,
       "margem_projetada": 3.2,
       "margem_projetada_ci": [0.5, 5.9],
       "chamada": false,
-      "swing_vs_2022": -0.5
+      "swing_vs_2022": -0.5,
+      "top_candidatos": [
+        { "id": 1001, "pct": 44.6 },
+        { "id": 1002, "pct": 41.4 },
+        { "id": 1004, "pct": 6.0 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
     },
     {
       "sigla": "AM",
       "pct_apurado": 19.0,
-      "lider": 13,
+      "lider": 1001,
       "margem_atual": 2.5,
       "margem_projetada": 1.8,
       "margem_projetada_ci": [-0.5, 4.1],
       "chamada": false,
-      "swing_vs_2022": 1.4
+      "swing_vs_2022": 1.4,
+      "top_candidatos": [
+        { "id": 1001, "pct": 43.9 },
+        { "id": 1002, "pct": 42.1 },
+        { "id": 1003, "pct": 5.5 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
     },
     {
       "sigla": "BA",
       "pct_apurado": 28.0,
-      "lider": 13,
+      "lider": 1001,
       "margem_atual": 28.0,
       "margem_projetada": 27.4,
       "margem_projetada_ci": [25.0, 29.8],
       "chamada": true,
-      "swing_vs_2022": 2.8
+      "swing_vs_2022": 2.8,
+      "top_candidatos": [
+        { "id": 1001, "pct": 61.7 },
+        { "id": 1002, "pct": 34.3 },
+        { "id": 1003, "pct": 2.0 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "CE",
       "pct_apurado": 25.0,
-      "lider": 13,
+      "lider": 1001,
       "margem_atual": 24.0,
       "margem_projetada": 23.5,
       "margem_projetada_ci": [21.0, 26.0],
       "chamada": true,
-      "swing_vs_2022": 1.5
+      "swing_vs_2022": 1.5,
+      "top_candidatos": [
+        { "id": 1001, "pct": 58.75 },
+        { "id": 1002, "pct": 35.25 },
+        { "id": 1003, "pct": 3.0 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "DF",
       "pct_apurado": 30.0,
-      "lider": 22,
+      "lider": 1002,
       "margem_atual": 8.0,
       "margem_projetada": 7.2,
       "margem_projetada_ci": [4.5, 9.9],
       "chamada": false,
-      "swing_vs_2022": -1.0
+      "swing_vs_2022": -1.0,
+      "top_candidatos": [
+        { "id": 1002, "pct": 46.6 },
+        { "id": 1001, "pct": 39.4 },
+        { "id": 1006, "pct": 5.0 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
     },
     {
       "sigla": "ES",
       "pct_apurado": 22.0,
-      "lider": 22,
+      "lider": 1002,
       "margem_atual": 14.0,
       "margem_projetada": 13.5,
       "margem_projetada_ci": [11.0, 16.0],
       "chamada": true,
-      "swing_vs_2022": -0.8
+      "swing_vs_2022": -0.8,
+      "top_candidatos": [
+        { "id": 1002, "pct": 53.0 },
+        { "id": 1001, "pct": 39.5 },
+        { "id": 1003, "pct": 3.5 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "GO",
       "pct_apurado": 24.0,
-      "lider": 22,
+      "lider": 1002,
       "margem_atual": 20.0,
       "margem_projetada": 19.4,
       "margem_projetada_ci": [17.0, 21.8],
       "chamada": true,
-      "swing_vs_2022": 0.5
+      "swing_vs_2022": 0.5,
+      "top_candidatos": [
+        { "id": 1002, "pct": 56.7 },
+        { "id": 1001, "pct": 37.3 },
+        { "id": 1003, "pct": 3.5 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "MA",
       "pct_apurado": 19.0,
-      "lider": 13,
+      "lider": 1001,
       "margem_atual": 32.0,
       "margem_projetada": 31.0,
       "margem_projetada_ci": [29.0, 33.0],
       "chamada": true,
-      "swing_vs_2022": 1.0
+      "swing_vs_2022": 1.0,
+      "top_candidatos": [
+        { "id": 1001, "pct": 63.5 },
+        { "id": 1002, "pct": 32.5 },
+        { "id": 1003, "pct": 2.0 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "MT",
       "pct_apurado": 22.0,
-      "lider": 22,
+      "lider": 1002,
       "margem_atual": 22.0,
       "margem_projetada": 21.5,
       "margem_projetada_ci": [19.0, 24.0],
       "chamada": true,
-      "swing_vs_2022": -0.7
+      "swing_vs_2022": -0.7,
+      "top_candidatos": [
+        { "id": 1002, "pct": 57.75 },
+        { "id": 1001, "pct": 36.25 },
+        { "id": 1003, "pct": 3.5 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "MS",
       "pct_apurado": 23.0,
-      "lider": 22,
+      "lider": 1002,
       "margem_atual": 16.0,
       "margem_projetada": 15.5,
       "margem_projetada_ci": [13.0, 18.0],
       "chamada": true,
-      "swing_vs_2022": 1.1
+      "swing_vs_2022": 1.1,
+      "top_candidatos": [
+        { "id": 1002, "pct": 54.75 },
+        { "id": 1001, "pct": 39.25 },
+        { "id": 1003, "pct": 3.5 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "MG",
       "pct_apurado": 28.0,
-      "lider": 13,
+      "lider": 1001,
       "margem_atual": 4.5,
       "margem_projetada": 4.0,
       "margem_projetada_ci": [1.8, 6.2],
       "chamada": false,
-      "swing_vs_2022": 4.2
+      "swing_vs_2022": 4.2,
+      "top_candidatos": [
+        { "id": 1001, "pct": 45.0 },
+        { "id": 1002, "pct": 41.0 },
+        { "id": 1003, "pct": 5.0 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
     },
     {
       "sigla": "PA",
       "pct_apurado": 21.0,
-      "lider": 22,
+      "lider": 1002,
       "margem_atual": 3.0,
       "margem_projetada": 2.4,
       "margem_projetada_ci": [-0.2, 5.0],
       "chamada": false,
-      "swing_vs_2022": -2.0
+      "swing_vs_2022": -2.0,
+      "top_candidatos": [
+        { "id": 1002, "pct": 44.2 },
+        { "id": 1001, "pct": 41.8 },
+        { "id": 1003, "pct": 4.5 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
     },
     {
       "sigla": "PB",
       "pct_apurado": 23.0,
-      "lider": 13,
+      "lider": 1001,
       "margem_atual": 12.0,
       "margem_projetada": 11.5,
       "margem_projetada_ci": [9.0, 14.0],
       "chamada": true,
-      "swing_vs_2022": 1.8
+      "swing_vs_2022": 1.8,
+      "top_candidatos": [
+        { "id": 1001, "pct": 52.75 },
+        { "id": 1002, "pct": 41.25 },
+        { "id": 1003, "pct": 3.5 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "PR",
       "pct_apurado": 25.0,
-      "lider": 22,
+      "lider": 1002,
       "margem_atual": 6.0,
       "margem_projetada": 5.4,
       "margem_projetada_ci": [3.0, 7.8],
       "chamada": false,
-      "swing_vs_2022": 3.8
+      "swing_vs_2022": 3.8,
+      "top_candidatos": [
+        { "id": 1002, "pct": 47.7 },
+        { "id": 1001, "pct": 42.3 },
+        { "id": 1006, "pct": 5.0 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
     },
     {
       "sigla": "PE",
       "pct_apurado": 24.0,
-      "lider": 13,
+      "lider": 1001,
       "margem_atual": 14.0,
       "margem_projetada": 13.4,
       "margem_projetada_ci": [11.0, 15.8],
       "chamada": true,
-      "swing_vs_2022": -1.5
+      "swing_vs_2022": -1.5,
+      "top_candidatos": [
+        { "id": 1001, "pct": 53.7 },
+        { "id": 1002, "pct": 40.3 },
+        { "id": 1003, "pct": 3.5 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "PI",
       "pct_apurado": 20.0,
-      "lider": 13,
+      "lider": 1001,
       "margem_atual": 26.0,
       "margem_projetada": 25.5,
       "margem_projetada_ci": [23.0, 28.0],
       "chamada": true,
-      "swing_vs_2022": 0.4
+      "swing_vs_2022": 0.4,
+      "top_candidatos": [
+        { "id": 1001, "pct": 59.75 },
+        { "id": 1002, "pct": 34.25 },
+        { "id": 1003, "pct": 3.5 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "RJ",
       "pct_apurado": 27.0,
-      "lider": 22,
+      "lider": 1002,
       "margem_atual": 3.5,
       "margem_projetada": 2.8,
       "margem_projetada_ci": [0.2, 5.4],
       "chamada": false,
-      "swing_vs_2022": 5.1
+      "swing_vs_2022": 5.1,
+      "top_candidatos": [
+        { "id": 1002, "pct": 44.4 },
+        { "id": 1001, "pct": 41.6 },
+        { "id": 1003, "pct": 5.5 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
     },
     {
       "sigla": "RN",
       "pct_apurado": 22.0,
-      "lider": 13,
+      "lider": 1001,
       "margem_atual": 16.0,
       "margem_projetada": 15.5,
       "margem_projetada_ci": [13.0, 18.0],
       "chamada": true,
-      "swing_vs_2022": 1.0
+      "swing_vs_2022": 1.0,
+      "top_candidatos": [
+        { "id": 1001, "pct": 54.75 },
+        { "id": 1002, "pct": 39.25 },
+        { "id": 1003, "pct": 3.5 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "RS",
       "pct_apurado": 26.0,
-      "lider": 22,
+      "lider": 1002,
       "margem_atual": 2.5,
       "margem_projetada": 1.8,
       "margem_projetada_ci": [-0.8, 4.4],
       "chamada": false,
-      "swing_vs_2022": 3.4
+      "swing_vs_2022": 3.4,
+      "top_candidatos": [
+        { "id": 1002, "pct": 43.9 },
+        { "id": 1001, "pct": 42.1 },
+        { "id": 1006, "pct": 5.0 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
     },
     {
       "sigla": "RO",
       "pct_apurado": 21.0,
-      "lider": 22,
+      "lider": 1002,
       "margem_atual": 20.0,
       "margem_projetada": 19.0,
       "margem_projetada_ci": [17.0, 21.0],
       "chamada": true,
-      "swing_vs_2022": 0.2
+      "swing_vs_2022": 0.2,
+      "top_candidatos": [
+        { "id": 1002, "pct": 56.5 },
+        { "id": 1001, "pct": 37.5 },
+        { "id": 1003, "pct": 3.0 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "RR",
       "pct_apurado": 17.0,
-      "lider": 22,
+      "lider": 1002,
       "margem_atual": 16.0,
       "margem_projetada": 15.0,
       "margem_projetada_ci": [12.0, 18.0],
       "chamada": true,
-      "swing_vs_2022": -0.6
+      "swing_vs_2022": -0.6,
+      "top_candidatos": [
+        { "id": 1002, "pct": 54.5 },
+        { "id": 1001, "pct": 39.5 },
+        { "id": 1003, "pct": 3.0 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "SC",
       "pct_apurado": 25.0,
-      "lider": 22,
+      "lider": 1002,
       "margem_atual": 10.0,
       "margem_projetada": 9.2,
       "margem_projetada_ci": [7.0, 11.4],
       "chamada": true,
-      "swing_vs_2022": 2.6
+      "swing_vs_2022": 2.6,
+      "top_candidatos": [
+        { "id": 1002, "pct": 50.6 },
+        { "id": 1001, "pct": 41.4 },
+        { "id": 1006, "pct": 5.0 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "SP",
       "pct_apurado": 30.0,
-      "lider": 13,
+      "lider": 1001,
       "margem_atual": 5.0,
       "margem_projetada": 4.6,
       "margem_projetada_ci": [2.4, 6.8],
       "chamada": false,
-      "swing_vs_2022": 4.8
+      "swing_vs_2022": 4.8,
+      "top_candidatos": [
+        { "id": 1001, "pct": 45.3 },
+        { "id": 1002, "pct": 40.7 },
+        { "id": 1003, "pct": 6.0 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
     },
     {
       "sigla": "SE",
       "pct_apurado": 22.0,
-      "lider": 13,
+      "lider": 1001,
       "margem_atual": 14.0,
       "margem_projetada": 13.5,
       "margem_projetada_ci": [11.0, 16.0],
       "chamada": true,
-      "swing_vs_2022": 0.7
+      "swing_vs_2022": 0.7,
+      "top_candidatos": [
+        { "id": 1001, "pct": 53.75 },
+        { "id": 1002, "pct": 40.25 },
+        { "id": 1003, "pct": 3.5 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     },
     {
       "sigla": "TO",
       "pct_apurado": 20.0,
-      "lider": 22,
+      "lider": 1002,
       "margem_atual": 12.0,
       "margem_projetada": 11.4,
       "margem_projetada_ci": [9.0, 13.8],
       "chamada": true,
-      "swing_vs_2022": -0.4
+      "swing_vs_2022": -0.4,
+      "top_candidatos": [
+        { "id": 1002, "pct": 51.7 },
+        { "id": 1001, "pct": 40.3 },
+        { "id": 1003, "pct": 4.5 }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
     }
   ],
   "insights": [
-    "Lula amplia margem em MG (+4,2pp vs 2022), uma das UFs decisivas.",
-    "Disputa apertada em SP, RS e RJ — três UFs ainda em tossup com mais de 70% por apurar.",
-    "Bolsonaro mantém a Região Sul, mas com swing negativo em PR e RS."
+    "Lula (PT) à frente com 43,2% — 92% de chance de ir ao 2º turno contra o PL.",
+    "Disputa apertada em MG, RJ e RS — três UFs ainda em tossup com mais de 70% por apurar.",
+    "P(2º turno) = 65%: liderança expressiva, mas longe de fechar no 1T."
   ],
   "composition": {
     "pre_election": 0.1,

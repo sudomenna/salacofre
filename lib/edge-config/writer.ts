@@ -39,6 +39,7 @@
  *     ausente). Exceção final agrega o que falhou.
  */
 
+import type { Cargo, Turno } from "@/lib/config/calendar";
 import type { EdgePayload, EdgePayloadUf } from "@/lib/edge-config/types";
 import { logInfo, logWarn } from "@/lib/tse/log";
 
@@ -170,6 +171,18 @@ export async function writeEdgePayload(key: string, value: unknown): Promise<voi
 const EDGE_CONFIG_SIZE_WARN_BYTES = 450 * 1024;
 
 /**
+ * Limites dedicados S05/F4c multi-candidato (ADR-0014, ADR-0017):
+ *   - Nacional com 11 candidatos + `cenarios_2t` + `p_passa_2t`/`p_fecha_1t`
+ *     em cada cand: tipicamente 30–55 KB. Warn em 75 KB = sinal de blow-up
+ *     (e.g. `cenarios_2t` virou top-50 em vez de top-3).
+ *   - UF com 11 candidatos + `top_candidatos` + `bucket` + municípios +
+ *     séries: tipicamente 8–15 KB (50 em SP). Warn em 20 KB = sinal de
+ *     vazamento (`series_temporais` cresceu além da janela 24h).
+ */
+const EDGE_CONFIG_NATIONAL_WARN_BYTES = 75 * 1024;
+const EDGE_CONFIG_UF_WARN_BYTES = 20 * 1024;
+
+/**
  * Sumário de uma chave que falhou dentro do `writeProjection`. Mantemos o
  * shape pequeno para caber numa mensagem de erro legível (cron logs).
  */
@@ -179,8 +192,27 @@ interface WriteFailure {
 }
 
 /**
- * Materializa UMA projeção completa no Edge Config: 1 chave nacional
- * (`projection:current`) + N chaves de drill-down (`projection:uf:<sigla>`).
+ * Mapeia o cargo numérico do TSE (1=Presidente, 3=Governador) para o
+ * literal `Cargo` ("pres" | "gov") usado nas chaves nomeadas (ADR-0012).
+ * Cargos fora dos 2 cobertos pelo SalaCofre caem em "pres" por
+ * defensividade — não há semântica útil para encerrar com erro aqui,
+ * o orchestrator nunca emite outros valores.
+ */
+function cargoFromTseNumeric(cargoTse: number): Cargo {
+  return cargoTse === 3 ? "gov" : "pres";
+}
+
+/**
+ * Materializa UMA projeção completa no Edge Config:
+ *
+ *   - 1 chave nacional NOMEADA `projection:current:<cargo>:t<turno>`
+ *     (ADR-0012 — S05/F4c).
+ *   - 1 alias `projection:current` apontando para o MESMO valor — preserva
+ *     o read path S04 dos consumidores que ainda não migraram.
+ *   - N chaves de drill-down NOMEADAS `projection:uf:<sigla>:<cargo>:t<turno>`.
+ *   - N aliases legacy `projection:uf:<sigla>` (mesmo valor).
+ *
+ * Total de chaves gravadas: `2 + 2N` (N = número de UFs em `por_uf`).
  *
  * Estratégia de granularidade do erro — **best-effort por chave**:
  *   Cada `writeEdgePayload` é tentado de forma INDEPENDENTE. Se a chave
@@ -197,7 +229,8 @@ interface WriteFailure {
  *        chaves separadas é o que o data-model.md determina (~30 KB +
  *        5–10 KB × 27 = ~270 KB de drill-down, longe de caber num único PATCH).
  *
- * @param payload     `EdgePayload` nacional canônico (chave `projection:current`).
+ * @param payload     `EdgePayload` nacional canônico. `payload.cargo` e
+ *                    `payload.turno` definem a chave nomeada.
  * @param payloadsUf  Opcional (S04/F2): mapa `sigla → EdgePayloadUf` rico
  *                    com candidatos completos, municípios e séries temporais.
  *                    Quando presente, sobrescreve o esqueleto sintetizado
@@ -210,14 +243,33 @@ export async function writeProjection(
   payload: EdgePayload,
   payloadsUf?: Record<string, EdgePayloadUf>,
 ): Promise<void> {
+  // Resolve a chave nomeada via cargo/turno do payload. ADR-0012:
+  // orchestrator é a fonte de verdade — payload.cargo/turno reflete a
+  // corrida sendo gravada, NÃO a corrida ativa pelo calendário.
+  const cargoLit: Cargo = cargoFromTseNumeric(payload.cargo);
+  const turnoLit: Turno = payload.turno as Turno;
+  const namedNationalKey = `projection:current:${cargoLit}:t${turnoLit}`;
+
   // Tamanho do payload nacional (apenas — o por-UF é gravado em chaves
   // separadas e cada uma tem seu próprio orçamento). Stringify uma vez
   // para reusar tanto no warn quanto na chamada `writeEdgePayload` que
   // vai re-stringify; o custo é negligível (<1 ms p/ ~30 KB típico).
   const nationalJson = JSON.stringify(payload);
+
+  // Warn dedicado multi-candidato (ADR-0014): 75KB é o sweet spot pro
+  // payload nacional cheio (11 cands + cenarios_2t).
+  if (nationalJson.length > EDGE_CONFIG_NATIONAL_WARN_BYTES) {
+    logWarn("edge-config national payload oversize (S05 budget)", {
+      key: namedNationalKey,
+      bytes: nationalJson.length,
+      threshold: EDGE_CONFIG_NATIONAL_WARN_BYTES,
+      hardLimit: 512 * 1024,
+    });
+  }
+  // Warn agregado (S04): fica até chegar perto do hard limit.
   if (nationalJson.length > EDGE_CONFIG_SIZE_WARN_BYTES) {
     logWarn("edge-config projection oversize", {
-      key: "projection:current",
+      key: namedNationalKey,
       bytes: nationalJson.length,
       threshold: EDGE_CONFIG_SIZE_WARN_BYTES,
       hardLimit: 512 * 1024,
@@ -229,44 +281,74 @@ export async function writeProjection(
   //   2. Esqueleto sintetizado de `payload.por_uf` (backward-compat — quando
   //      o orchestrator é antigo OU a UF caiu fora do mapa explícito).
   // Em ambos casos a chave EXISTE no Edge Config — o read path nunca 404.
-  const ufKeys: Array<{ key: string; payload: EdgePayloadUf }> = payload.por_uf.map((row) => {
+  //
+  // S05/F4c — para cada UF gravamos DUAS chaves:
+  //   - Nomeada: `projection:uf:<sigla>:<cargo>:t<turno>` (ADR-0012)
+  //   - Alias legacy: `projection:uf:<sigla>` (backward-compat S04)
+  // Mesmo valor nas duas chaves — escrita best-effort em paralelo.
+  type UfKey = { key: string; payload: EdgePayloadUf };
+  const ufKeys: UfKey[] = [];
+
+  for (const row of payload.por_uf) {
     const explicit = payloadsUf?.[row.sigla];
+    const ufPayload: EdgePayloadUf = explicit ?? {
+      uf: row.sigla,
+      ts: payload.ts,
+      cargo: payload.cargo,
+      turno: payload.turno,
+      pct_apurado: row.pct_apurado,
+      // Esqueleto: orchestrator antigo sem payloads_uf. Página de UF
+      // renderiza com placeholders gentis (constituição § 3).
+      candidatos: [],
+      needle_position: 0,
+      needle_band: "tossup",
+      municipios: [],
+    };
+
+    // Validação dedicada de tamanho UF (S05): 20KB é o orçamento pra UF
+    // típica com 11 cands + top_candidatos + bucket + 645 municípios (SP).
     if (explicit) {
-      // Validação leve do tamanho — payload UF rico pode crescer em UFs
-      // grandes (SP: 645 municípios + 480 ts × 3 séries ≈ 30–40 KB; se
-      // passar de 450 KB, é sinal de pipe quebrado).
       const ufJson = JSON.stringify(explicit);
+      if (ufJson.length > EDGE_CONFIG_UF_WARN_BYTES) {
+        logWarn("edge-config uf payload oversize (S05 budget)", {
+          key: `projection:uf:${row.sigla}:${cargoLit}:t${turnoLit}`,
+          bytes: ufJson.length,
+          threshold: EDGE_CONFIG_UF_WARN_BYTES,
+          hardLimit: 512 * 1024,
+        });
+      }
       if (ufJson.length > EDGE_CONFIG_SIZE_WARN_BYTES) {
         logWarn("edge-config uf payload oversize", {
-          key: `projection:uf:${row.sigla}`,
+          key: `projection:uf:${row.sigla}:${cargoLit}:t${turnoLit}`,
           bytes: ufJson.length,
           threshold: EDGE_CONFIG_SIZE_WARN_BYTES,
           hardLimit: 512 * 1024,
         });
       }
-      return { key: `projection:uf:${row.sigla}`, payload: explicit };
     }
-    return {
-      key: `projection:uf:${row.sigla}`,
-      payload: {
-        uf: row.sigla,
-        ts: payload.ts,
-        cargo: payload.cargo,
-        turno: payload.turno,
-        pct_apurado: row.pct_apurado,
-        // Esqueleto: orchestrator antigo sem payloads_uf. Página de UF
-        // renderiza com placeholders gentis (constituição § 3).
-        candidatos: [],
-        needle_position: 0,
-        needle_band: "tossup",
-        municipios: [],
-      },
-    };
-  });
+
+    // Nomeada (S05+, primária).
+    ufKeys.push({
+      key: `projection:uf:${row.sigla}:${cargoLit}:t${turnoLit}`,
+      payload: ufPayload,
+    });
+    // Alias legacy (S04 read path).
+    ufKeys.push({ key: `projection:uf:${row.sigla}`, payload: ufPayload });
+  }
 
   const failures: WriteFailure[] = [];
 
-  // Nacional primeiro (mais crítico — alimenta <HeadlineScore />).
+  // Nacional — grava em ambas as chaves (nomeada + alias).
+  // Sequencial nas 2 nacionais (alias replicado): permite cache do
+  // payload stringified intermediário sem complexidade extra.
+  try {
+    await writeEdgePayload(namedNationalKey, payload);
+  } catch (err) {
+    failures.push({
+      key: namedNationalKey,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
   try {
     await writeEdgePayload("projection:current", payload);
   } catch (err) {
@@ -295,13 +377,14 @@ export async function writeProjection(
   if (failures.length > 0) {
     const summary = failures.map((f) => `${f.key}: ${f.message}`).join("; ");
     throw new Error(
-      `writeProjection: ${failures.length}/${ufKeys.length + 1} chave(s) falharam — ${summary}`,
+      `writeProjection: ${failures.length}/${ufKeys.length + 2} chave(s) falharam — ${summary}`,
     );
   }
 
   logInfo("edge-config projection written", {
+    namedKey: namedNationalKey,
     nationalBytes: nationalJson.length,
     ufKeysWritten: ufKeys.length,
-    totalKeys: ufKeys.length + 1,
+    totalKeys: ufKeys.length + 2,
   });
 }

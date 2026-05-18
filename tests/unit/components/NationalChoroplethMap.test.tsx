@@ -34,6 +34,12 @@ const SAMPLE_ROWS: EdgeUfRow[] = [
     margem_projetada_ci: [3.1, 5.3],
     chamada: false,
     swing_vs_2022: 1.1,
+    top_candidatos: [
+      { id: 13, pct: 52.1 },
+      { id: 22, pct: 47.9 },
+    ],
+    vai_a_2t: null,
+    bucket: "indefinido",
   },
   {
     sigla: "RJ",
@@ -44,6 +50,12 @@ const SAMPLE_ROWS: EdgeUfRow[] = [
     margem_projetada_ci: [-3.6, -1.4],
     chamada: false,
     swing_vs_2022: -0.8,
+    top_candidatos: [
+      { id: 22, pct: 51.25 },
+      { id: 13, pct: 48.75 },
+    ],
+    vai_a_2t: null,
+    bucket: "indefinido",
   },
 ];
 

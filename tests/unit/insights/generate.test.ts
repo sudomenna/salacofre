@@ -22,6 +22,9 @@ const national: EdgeNational = {
       pct_projetado_lower: 51,
       pct_projetado_upper: 55,
       p_vitoria: 0.78,
+      rank: 1,
+      p_passa_2t: 0.99,
+      p_fecha_1t: 0.65,
     },
     {
       id: 22,
@@ -35,12 +38,17 @@ const national: EdgeNational = {
       pct_projetado_lower: 44,
       pct_projetado_upper: 49,
       p_vitoria: 0.22,
+      rank: 2,
+      p_passa_2t: 0.95,
+      p_fecha_1t: 0.0,
     },
   ],
   needle_position: 0.56,
   needle_band: "likely_a",
   candidato_a_id: 13,
   candidato_b_id: 22,
+  p_segundo_turno_overall: 0.35,
+  cenarios_2t: [{ par: [13, 22], prob: 0.95 }],
 };
 
 const ufBig: EdgeUfRow = {
@@ -52,6 +60,12 @@ const ufBig: EdgeUfRow = {
   margem_projetada_ci: [1.8, 6.2],
   chamada: false,
   swing_vs_2022: 4.8,
+  top_candidatos: [
+    { id: 13, pct: 52 },
+    { id: 22, pct: 48 },
+  ],
+  vai_a_2t: null,
+  bucket: "indefinido",
 };
 const ufTossup: EdgeUfRow = {
   sigla: "SP",
@@ -62,6 +76,12 @@ const ufTossup: EdgeUfRow = {
   margem_projetada_ci: [-1, 3.4],
   chamada: false,
   swing_vs_2022: 1.0,
+  top_candidatos: [
+    { id: 13, pct: 50.6 },
+    { id: 22, pct: 49.4 },
+  ],
+  vai_a_2t: null,
+  bucket: "indefinido",
 };
 
 describe("generateInsights()", () => {
@@ -118,6 +138,8 @@ describe("generateInsights()", () => {
       needle_band: "tossup",
       candidato_a_id: null,
       candidato_b_id: null,
+      p_segundo_turno_overall: null,
+      cenarios_2t: [],
     };
     const out = generateInsights({ national: empty, por_uf: [], pct_apurado_total: 0 });
     expect(out).toEqual([]);

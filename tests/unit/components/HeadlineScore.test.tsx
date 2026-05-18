@@ -26,6 +26,9 @@ const lula: EdgeCandidate = {
   pct_projetado_lower: 51.9,
   pct_projetado_upper: 54.5,
   p_vitoria: 0.78,
+  rank: 1,
+  p_passa_2t: 0.99,
+  p_fecha_1t: 0.65,
 };
 const bolso: EdgeCandidate = {
   id: 22,
@@ -39,6 +42,9 @@ const bolso: EdgeCandidate = {
   pct_projetado_lower: 45.5,
   pct_projetado_upper: 48.1,
   p_vitoria: 0.22,
+  rank: 2,
+  p_passa_2t: 0.95,
+  p_fecha_1t: 0.0,
 };
 
 describe("<HeadlineScore />", () => {

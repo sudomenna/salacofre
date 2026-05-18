@@ -27,6 +27,9 @@ const baseNational: EdgeNational = {
       pct_projetado_lower: 51,
       pct_projetado_upper: 55,
       p_vitoria: 0.78,
+      rank: 1,
+      p_passa_2t: 0.99,
+      p_fecha_1t: 0.65,
     },
     {
       id: 22,
@@ -40,12 +43,17 @@ const baseNational: EdgeNational = {
       pct_projetado_lower: 44,
       pct_projetado_upper: 49,
       p_vitoria: 0.22,
+      rank: 2,
+      p_passa_2t: 0.95,
+      p_fecha_1t: 0.0,
     },
   ],
   needle_position: 0.56,
   needle_band: "likely_a",
   candidato_a_id: 13,
   candidato_b_id: 22,
+  p_segundo_turno_overall: 0.35,
+  cenarios_2t: [{ par: [13, 22], prob: 0.95 }],
 };
 
 describe("<NationalNeedle />", () => {
