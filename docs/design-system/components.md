@@ -55,6 +55,13 @@ source: PRD.md § 14.3
 | `<MinorCandidatesList />` ✅ shipped S05 | atom | RF-030 ext, RF-031..044 ext | `components/atoms/lists/MinorCandidatesList.tsx` — tests: `tests/unit/components/MinorCandidatesList.test.tsx` |
 | `<TwoRoundIndicator />` ✅ shipped S05 | block | RF-030 ext (nova métrica P(2º turno)) | `components/blocks/TwoRoundIndicator.tsx` — tests: `tests/unit/components/TwoRoundIndicator.test.tsx` |
 | `<CandidateRanking />` ✅ shipped S05 | block | RF-030 ext, RF-031..044 ext (rank 3–6) | `components/blocks/CandidateRanking.tsx` — tests: `tests/unit/components/CandidateRanking.test.tsx` |
+| `<GovernorCard />` ✅ shipped S06 | block | RF-006.3 (grid) | `components/blocks/GovernorCard.tsx` — tests: `tests/unit/components/GovernorCard.test.tsx` |
+| `<HexCartogramBrasil />` ✅ shipped S06 | block | RF-006.3 | `components/blocks/HexCartogramBrasil.tsx` — tests: `tests/unit/components/HexCartogramBrasil.test.tsx` |
+| `<RaceStatsCards />` ✅ shipped S06 | block | RF-006.1 | `components/blocks/RaceStatsCards.tsx` — tests: `tests/unit/components/RaceStatsCards.test.tsx` |
+| `<BreakingNewsTicker />` ✅ shipped S06 | block | RF-006.4 | `components/blocks/BreakingNewsTicker.tsx` — tests: `tests/unit/components/BreakingNewsTicker.test.tsx` |
+| `<MunicipioWaffleGrid />` ✅ shipped S06 | block | RF-005.2 | `components/blocks/MunicipioWaffleGrid.tsx` — tests: `tests/unit/components/MunicipioWaffleGrid.test.tsx` |
+| `<TurnoTransitionBanner />` ✅ shipped S06 | block | RF-058.1 | `components/blocks/TurnoTransitionBanner.tsx` — tests: `tests/unit/components/TurnoTransitionBanner.test.tsx` |
+| `<MaintenancePageMessage />` ✅ shipped S06 | block | RF-058 | `components/blocks/MaintenancePageMessage.tsx` — tests: `tests/unit/components/MaintenancePageMessage.test.tsx` |
 
 ## Cross-refs
 

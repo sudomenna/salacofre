@@ -1,11 +1,12 @@
 ---
 id: 006-grid-governadores
 title: Grid Nacional Governadores (T-02)
-status: ready
+status: shipped
+shipped_date: 2026-05-18
 priority: M
 personas: [P1, P2, P3]
 screens: [T-02]
-requirements: [RF-021, RF-022, RF-025, RF-027, RF-029]
+requirements: [RF-021, RF-022, RF-025, RF-027, RF-029, RF-006.1, RF-006.2, RF-006.3, RF-006.4, RF-006.5]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 005-pagina-uf-governador]
 apis: [GET /api/projection?cargo=governador]
 components: [GovernorCard, HexCartogramBrasil, RaceStatsCards, BreakingNewsTicker, LiveBadge, Tabs]
@@ -112,6 +113,6 @@ Mesmos da home (performance + a11y). Bundle above-the-fold: respeita RNF-007a (s
 - Design: [./design.md](./design.md)
 - Spec UF Governador (drill-down): [../005-pagina-uf-governador/](../005-pagina-uf-governador/)
 - Home Presidencial (modelo de tela espelho): [../003-home-nacional/](../003-home-nacional/)
-- ADR-0011 (cadência ISR 60s): [../../architecture/adrs/0011-cadencia-isr.md](../../architecture/adrs/0011-cadencia-isr.md)
-- ADR-0012 (chaves nomeadas): [../../architecture/adrs/0012-chaves-nomeadas-edge-config.md](../../architecture/adrs/0012-chaves-nomeadas-edge-config.md)
-- ADR-0017 (transparência multi-camada): [../../architecture/adrs/0017-transparencia-multi-camada.md](../../architecture/adrs/0017-transparencia-multi-camada.md)
+- ADR-0011 (cadência ISR 60s): [../../architecture/adrs/0011-cadencia-60s.md](../../architecture/adrs/0011-cadencia-60s.md)
+- ADR-0012 (chaves nomeadas): [../../architecture/adrs/0012-edge-config-chaves-nomeadas.md](../../architecture/adrs/0012-edge-config-chaves-nomeadas.md)
+- ADR-0017 (transparência multi-camada): [../../architecture/adrs/0017-transparencia-total-3-camadas.md](../../architecture/adrs/0017-transparencia-total-3-camadas.md)

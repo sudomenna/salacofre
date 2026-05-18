@@ -55,6 +55,15 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-028 | "Ao vivo" pulsante | S | [003](../specs/003-home-nacional/) | `<LiveBadge />` | unit |
 | RF-029 | Tabs Pres/Gov | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<Tabs />` | unit |
 | RF-030 | Switch 1T/2T | M (no 2T) | [003](../specs/003-home-nacional/) | (Tabs/Switch) | unit |
+| RF-005.1 | K-1 disclaimer adaptativo | M | [005](../specs/005-pagina-uf-governador/) | `<K1Banner />` | unit |
+| RF-005.2 | Waffle de municípios | M | [005](../specs/005-pagina-uf-governador/) | `<MunicipioWaffleGrid />` | unit |
+| RF-005.3 | Apuração por mesorregião | M | [005](../specs/005-pagina-uf-governador/) | (tabela condicional) | unit |
+| RF-005.4 | Maiores municípios | M | [005](../specs/005-pagina-uf-governador/) | `<MunicipioTable mode="top-by-eleitorado" />` | unit |
+| RF-006.1 | Header com contagem de chamadas | M | [006](../specs/006-grid-governadores/) | `<RaceStatsCards />` | unit |
+| RF-006.2 | Filtros por status | M | [006](../specs/006-grid-governadores/) | `<FilterBar />` | unit |
+| RF-006.3 | Cartograma hexagonal | M | [006](../specs/006-grid-governadores/) | `<HexCartogramBrasil />` | unit |
+| RF-006.4 | Breaking news ticker | M | [006](../specs/006-grid-governadores/) | `<BreakingNewsTicker />` | unit |
+| RF-006.5 | Tabs cargo com disabled | M | [006](../specs/006-grid-governadores/) | `<Tabs disabled />` | unit |
 | RF-030.1 | Mapa coroplético hero | M | [003](../specs/003-home-nacional/) | `<NationalChoroplethMap />` | unit (SSR shell) + e2e (deferred S05) |
 | RF-030.2 | Toggles de visualização | M | [003](../specs/003-home-nacional/) | `<MapViewToggle />` | unit |
 | RF-030.3 | Hover/tap em UF + tooltip + click navega | M | [003](../specs/003-home-nacional/), [008](../specs/008-interatividade-brushing/) | `<NationalChoroplethMap />`, `<HoverTooltip />` | unit (contrato semântico) + e2e (deferred S05) |
@@ -89,6 +98,8 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-056 | Dashboard saúde pipeline | M | [010](../specs/010-operacao-monitoramento/), [012](../specs/012-dashboard-status/) | `<MetricCard />` | manual |
 | RF-057 | Alertas Slack se lag >60s | M | [010](../specs/010-operacao-monitoramento/) | — | manual (forçar) |
 | RF-058 | Modo manutenção amigável | M | [010](../specs/010-operacao-monitoramento/), [013](../specs/013-pagina-manutencao/) | — | manual |
+| RF-058.1 | Modo transição 1T→2T | M | [013](../specs/013-pagina-manutencao/) | `<TurnoTransitionBanner />` | unit |
+| RF-058.2 | Roteamento e redirect manutenção | M | [013](../specs/013-pagina-manutencao/) | (middleware) | unit |
 | RF-059 | Rolling release rollback | M | [010](../specs/010-operacao-monitoramento/) | — | manual |
 | RF-060 | Cron toggle via env var | M | [010](../specs/010-operacao-monitoramento/) | — | unit |
 
@@ -96,14 +107,21 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 
 | RF spec-local | Descrição | Spec |
 |---|---|---|
+| RF-005.1 | K-1 disclaimer adaptativo | [005](../specs/005-pagina-uf-governador/) |
+| RF-005.2 | Waffle de municípios | [005](../specs/005-pagina-uf-governador/) |
+| RF-005.3 | Apuração por mesorregião | [005](../specs/005-pagina-uf-governador/) |
+| RF-005.4 | Maiores municípios | [005](../specs/005-pagina-uf-governador/) |
 | RF-006.1 | Header com contagem de chamadas | [006](../specs/006-grid-governadores/) |
 | RF-006.2 | Filtros por status | [006](../specs/006-grid-governadores/) |
+| RF-006.3 | Cartograma hexagonal | [006](../specs/006-grid-governadores/) |
+| RF-006.4 | Breaking news ticker | [006](../specs/006-grid-governadores/) |
+| RF-006.5 | Tabs cargo com disabled | [006](../specs/006-grid-governadores/) |
 | RF-012.1 | Botão "Pausar Cron" | [012](../specs/012-dashboard-status/) |
 | RF-012.2 | Botão "Forçar refresh" | [012](../specs/012-dashboard-status/) |
 
 ## Cobertura
 
-**60 RFs originais do PRD** + 6 RFs adicionados nas specs = **66 RFs no total**. Todos mapeados pra alguma spec.
+**60 RFs originais do PRD** + 15 RFs adicionados nas specs (RF-005.1-4, RF-006.1-5, RF-012.1-2, RF-058.1-2) = **75 RFs no total**. Todos mapeados pra alguma spec.
 
 ## RNFs
 

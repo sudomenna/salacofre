@@ -10,7 +10,7 @@ depends_on: []
 apis: []
 components: [MaintenancePageMessage, TurnoTransitionBanner]
 nfr: [RNF-012, RNF-022, RNF-028]
-adrs: [ADR-0001]
+adrs: [0001]
 ---
 
 # Spec 013 — Página de Manutenção

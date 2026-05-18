@@ -1,11 +1,12 @@
 ---
 id: 005-pagina-uf-governador
 title: Página de UF — Governador (T-04)
-status: ready
+status: shipped
+shipped_date: 2026-05-18
 priority: M
 personas: [P1, P2, P3]
 screens: [T-04]
-requirements: [RF-031, RF-032, RF-033, RF-034, RF-035, RF-036, RF-037, RF-038, RF-039, RF-040, RF-041, RF-042, RF-043, RF-044]
+requirements: [RF-031, RF-032, RF-033, RF-034, RF-035, RF-036, RF-037, RF-038, RF-039, RF-040, RF-041, RF-042, RF-043, RF-044, RF-005.1, RF-005.2, RF-005.3, RF-005.4]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 004-pagina-uf-presidencial]
 apis: [GET /api/projection?cargo=governador&uf=<sigla>]
 components: [WinnerBanner, CandidateRow, ChoroplethMap, BubbleMap, MunicipioTable, MunicipioWaffleGrid, UFMapDuo, Needle, TimeSeriesChart, ProbabilityOverTime, TurnoutAreaChart, ForecastTransparency, InsightCard]
@@ -77,6 +78,6 @@ Mesmos da spec 004 — URL canônica `/uf/[sigla]/governador`. ISR cadência 60s
 - Spec irmã (Presidencial): [../004-pagina-uf-presidencial/](../004-pagina-uf-presidencial/)
 - Lista nacional Gov: [../006-grid-governadores/](../006-grid-governadores/)
 - Modelo (casos de borda): [../002-modelo-estatistico/spec.md](../002-modelo-estatistico/spec.md)
-- ADR-0015 (K-1 3-tier): [../../architecture/adrs/0015-k-minus-1-tiers.md](../../architecture/adrs/0015-k-minus-1-tiers.md)
+- ADR-0015 (K-1 3-tier): [../../architecture/adrs/0015-k1-fallback-3-tier.md](../../architecture/adrs/0015-k1-fallback-3-tier.md)
 - ADR-0016 (placement 2T recap): [../../architecture/adrs/0016-turno-um-recap-placement.md](../../architecture/adrs/0016-turno-um-recap-placement.md)
 - Design técnico: [./design.md](./design.md)

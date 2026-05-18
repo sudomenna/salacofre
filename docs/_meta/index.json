@@ -495,7 +495,7 @@
     {
       "id": "005-pagina-uf-governador",
       "title": "Página de UF — Governador (T-04)",
-      "status": "draft",
+      "status": "shipped",
       "priority": "M",
       "personas": ["P1", "P2", "P3"],
       "screens": ["T-04"],
@@ -513,7 +513,11 @@
         "RF-041",
         "RF-042",
         "RF-043",
-        "RF-044"
+        "RF-044",
+        "RF-005.1",
+        "RF-005.2",
+        "RF-005.3",
+        "RF-005.4"
       ],
       "depends_on": [
         "001-ingestao-tse",
@@ -522,20 +526,48 @@
         "008-interatividade-brushing"
       ],
       "apis": ["GET /api/projection?cargo=governador&uf=<sigla>"],
-      "adrs": ["0001", "0003", "0004", "0007", "0010"],
+      "components": [
+        "WinnerBanner",
+        "CandidateRow",
+        "ChoroplethMap",
+        "BubbleMap",
+        "MunicipioTable",
+        "MunicipioWaffleGrid",
+        "UFMapDuo",
+        "Needle",
+        "TimeSeriesChart",
+        "ProbabilityOverTime",
+        "TurnoutAreaChart",
+        "ForecastTransparency",
+        "InsightCard"
+      ],
+      "nfr": [
+        "RNF-001",
+        "RNF-002",
+        "RNF-003",
+        "RNF-008",
+        "RNF-022",
+        "RNF-023",
+        "RNF-024",
+        "RNF-025",
+        "RNF-027"
+      ],
+      "adrs": ["0001", "0003", "0004", "0007", "0010", "0012", "0013", "0015", "0016", "0017"],
       "path": "docs/specs/005-pagina-uf-governador/"
     },
     {
       "id": "006-grid-governadores",
       "title": "Grid Nacional Governadores (T-02)",
-      "status": "draft",
+      "status": "shipped",
       "priority": "M",
       "personas": ["P1", "P2", "P3"],
       "screens": ["T-02"],
-      "requirements": ["RF-021", "RF-022", "RF-025", "RF-027", "RF-029"],
+      "requirements": ["RF-021", "RF-022", "RF-025", "RF-027", "RF-029", "RF-006.1", "RF-006.2", "RF-006.3", "RF-006.4", "RF-006.5"],
       "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "005-pagina-uf-governador"],
       "apis": ["GET /api/projection?cargo=governador"],
-      "adrs": ["0001", "0002", "0010"],
+      "components": ["GovernorCard", "HexCartogramBrasil", "RaceStatsCards", "BreakingNewsTicker", "LiveBadge", "Tabs"],
+      "nfr": ["RNF-001", "RNF-002", "RNF-003", "RNF-022", "RNF-023", "RNF-024"],
+      "adrs": ["0001", "0002", "0010", "0011", "0012", "0013", "0017"],
       "path": "docs/specs/006-grid-governadores/"
     },
     {
@@ -608,14 +640,16 @@
     {
       "id": "013-pagina-manutencao",
       "title": "Página de Manutenção (T-08)",
-      "status": "draft",
+      "status": "ready",
       "priority": "M",
       "personas": [],
       "screens": ["T-08"],
-      "requirements": ["RF-058"],
+      "requirements": ["RF-058", "RF-058.1", "RF-058.2"],
       "depends_on": [],
       "apis": [],
-      "adrs": [],
+      "components": ["MaintenancePageMessage", "TurnoTransitionBanner"],
+      "nfr": ["RNF-012", "RNF-022", "RNF-028"],
+      "adrs": ["0001"],
       "path": "docs/specs/013-pagina-manutencao/"
     },
     {

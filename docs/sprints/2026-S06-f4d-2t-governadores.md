@@ -52,8 +52,8 @@ Usuário enviou 3 prints NYT-style (The Upshot) como referência visual. Mapeame
 
 ## Specs in-flight
 
-- [ ] **005-pagina-uf-governador** — herda 70% da 004, troca cargo + paleta multi-partido por UF + K-1 disclaimer + `<MunicipioWaffleGrid>` + apuração por mesorregião. Detalhes: [spec.md](../specs/005-pagina-uf-governador/spec.md).
-- [ ] **006-grid-governadores** — grid `/governador` com `<HexCartogramBrasil>` + `<GovernorCard>` + `<RaceStatsCards>` + `<BreakingNewsTicker>`. Detalhes: [spec.md](../specs/006-grid-governadores/spec.md).
+- [x] **005-pagina-uf-governador** — herda 70% da 004, troca cargo + paleta multi-partido por UF + K-1 disclaimer + `<MunicipioWaffleGrid>` + apuração por mesorregião. Detalhes: [spec.md](../specs/005-pagina-uf-governador/spec.md). **Status: SHIPPED**
+- [x] **006-grid-governadores** — grid `/governador` com `<HexCartogramBrasil>` + `<GovernorCard>` + `<RaceStatsCards>` + `<BreakingNewsTicker>`. Detalhes: [spec.md](../specs/006-grid-governadores/spec.md). **Status: SHIPPED**
 
 ## Stubs criados (slot reservado)
 
@@ -137,25 +137,25 @@ Usuário enviou 3 prints NYT-style (The Upshot) como referência visual. Mapeame
 
 ## Definition of Done
 
-- ✅ Specs 005 e 006 com `status: shipped`
-- ✅ Stubs 014 + 015 criados em `draft` com cross-refs corretas
-- ✅ Rotas novas: `/governador`, `/uf/[sigla]/governador`
-- ✅ Ativação 2T em `/` e `/uf/[sigla]/` (componentes da Fase 1 hidratados)
-- ✅ Componentes novos: `<RunoffScenarios>`, `<TurnoOneRecap>`, `<NationalWinnerBanner>`, `<GovernorCard>`, `<HexCartogramBrasil>`, `<RaceStatsCards>`, `<BreakingNewsTicker>`, `<MunicipioWaffleGrid>`
-- ✅ Refators: `<HeadlineScore mode="binary">`, `<MunicipioTable mode="top-by-eleitorado">`, `<Tabs disabled>`
-- ✅ Migration 0005 (mesorregião) idempotente aplicada Neon
-- ✅ Agregador Python `aggregate_by_mesorregiao` + pytest cobrindo
-- ✅ Bundle das novas rotas respeita RNF-007a/b/c (ou regressão documentada em ADR atualizando target)
-- ✅ Tabs Senado/Congresso/Assembleias grayed-out + tooltip (visual + a11y aria-disabled)
-- ✅ `pnpm typecheck && pnpm lint && pnpm test` verde. pytest cobre `aggregate_by_mesorregiao` + edge cases.
-- ✅ Smoke `pnpm dev`:
+- [x] Specs 005 e 006 com `status: shipped`
+- [x] Stubs 014 + 015 criados em `draft` com cross-refs corretas
+- [x] Rotas novas: `/governador`, `/uf/[sigla]/governador`
+- [x] Ativação 2T em `/` e `/uf/[sigla]/` (componentes da Fase 1 hidratados)
+- [x] Componentes novos: `<RunoffScenarios>`, `<TurnoOneRecap>`, `<NationalWinnerBanner>`, `<GovernorCard>`, `<HexCartogramBrasil>`, `<RaceStatsCards>`, `<BreakingNewsTicker>`, `<MunicipioWaffleGrid>`
+- [x] Refators: `<HeadlineScore mode="binary">`, `<MunicipioTable mode="top-by-eleitorado">`, `<Tabs disabled>`
+- [x] Migration 0005 (mesorregião) idempotente aplicada Neon
+- [x] Agregador Python `aggregate_by_mesorregiao` + pytest cobrindo
+- [x] Bundle das novas rotas respeita RNF-007a/b/c (ou regressão documentada em ADR atualizando target)
+- [x] Tabs Senado/Congresso/Assembleias grayed-out + tooltip (visual + a11y aria-disabled)
+- [x] `pnpm typecheck && pnpm lint && pnpm test` verde. pytest cobre `aggregate_by_mesorregiao` + edge cases.
+- [x] Smoke `pnpm dev`:
   - `/governador` exibe `<HexCartogramBrasil>` + 27 cards `<GovernorCard>` + `<RaceStatsCards>` + `<BreakingNewsTicker>` rotativo
   - `/uf/SP/governador` exibe waffle grid 645 municípios + apuração por mesorregião + maiores municípios
   - `/` em mode 2T exibe `<TurnoOneRecap>` no topo + `<NationalWinnerBanner>` quando aplicável
-- ✅ Viewport 375px: `<GovernorCard>` vira single-line; waffle grid scroll horizontal ou downsample
-- ✅ Replay 2T 2022 PASS + replay 1T 11 cands ainda PASS (model-validator)
-- ✅ K-1 disclaimer visível em UFs com candidato gov tier 2/3
-- ✅ ADR-0016 escrita
+- [x] Viewport 375px: `<GovernorCard>` vira single-line; waffle grid scroll horizontal ou downsample
+- [x] Replay 2T 2022 PASS + replay 1T 11 cands ainda PASS (model-validator)
+- [x] K-1 disclaimer visível em UFs com candidato gov tier 2/3
+- [x] ADR-0016 escrita
 
 ## Não-objetivos
 
