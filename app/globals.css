@@ -100,3 +100,19 @@ h3 {
   white-space: nowrap;
   border: 0;
 }
+
+/* RNF-026 — Reduced motion global.
+ * Conforme docs/design-system/animations.md: anula transições e animações CSS
+ * para usuários com `prefers-reduced-motion: reduce`. Componentes individuais
+ * (mapas MapLibre, LiveBadge) já têm guards JS específicos; este bloco cobre
+ * as transições Tailwind (`transition-colors`, `transition-opacity` etc.) e
+ * keyframes não-gerenciadas via JS.
+ * Aplicado em S05/F4c após a11y-perf-auditor flagar ausência. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

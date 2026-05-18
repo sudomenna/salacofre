@@ -126,7 +126,7 @@ export function TwoRoundIndicator({
             style={{ backgroundColor: "var(--color-text)" }}
           />
         </div>
-        <p className="text-center text-[10px]" style={{ color: "var(--color-text-faint)" }}>
+        <p className="text-center text-[10px]" style={{ color: "var(--color-text-muted)" }}>
           Líder vs. 50%+1
         </p>
       </div>
