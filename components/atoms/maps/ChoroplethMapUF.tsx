@@ -143,6 +143,7 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
       attributionControl: false,
       dragRotate: false,
       touchPitch: false,
+      scrollZoom: false,
     });
 
     mapRef.current = map;

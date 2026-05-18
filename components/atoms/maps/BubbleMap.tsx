@@ -215,6 +215,7 @@ export function BubbleMap({ ufSigla, municipios, height = 360 }: BubbleMapProps)
       attributionControl: false,
       dragRotate: false,
       touchPitch: false,
+      scrollZoom: false,
     });
 
     mapRef.current = map;

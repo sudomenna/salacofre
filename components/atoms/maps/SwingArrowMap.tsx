@@ -157,6 +157,7 @@ export function SwingArrowMap({ ufSigla, arrows, height = 360 }: SwingArrowMapPr
       attributionControl: false,
       dragRotate: false,
       touchPitch: false,
+      scrollZoom: false,
     });
 
     mapRef.current = map;

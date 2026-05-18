@@ -81,18 +81,29 @@ function resolveColor(row: EdgeUfRow, view: MapView, candidatoAId: number | null
   }
 }
 
+/**
+ * Aplica cores via expression `["match", ["get", "SIGLA_UF"], ...]` em vez de
+ * `setFeatureState`. Razão: tippecanoe gera IDs numéricos sequenciais por
+ * default — `setFeatureState({ id: "SP" })` não casa com feature id numérico
+ * (e nosso PMTiles foi gerado assim). Match por property `SIGLA_UF` é robusto
+ * independente do feature id. Custo: rebuild de expression a cada mudança de
+ * view (27 entries — trivial).
+ */
 function applyColors(
   map: maplibregl.Map,
   rows: EdgeUfRow[],
   view: MapView,
   candidatoAId: number | null,
 ) {
+  if (rows.length === 0) return;
+  const fallback = getCssVar("--color-tossup");
+  // ["match", ["get", "SIGLA_UF"], "SP", "#...", "RJ", "#...", ..., fallback]
+  const expression: (string | number | unknown[])[] = ["match", ["get", "SIGLA_UF"]];
   for (const row of rows) {
-    map.setFeatureState(
-      { source: "ufs", sourceLayer: "ufs", id: row.sigla },
-      { color: resolveColor(row, view, candidatoAId) },
-    );
+    expression.push(row.sigla, resolveColor(row, view, candidatoAId));
   }
+  expression.push(fallback);
+  map.setPaintProperty("ufs-fill", "fill-color", expression as unknown as string);
 }
 
 let protocolRegistered = false;
@@ -152,7 +163,9 @@ export function NationalChoroplethMapImpl({
             source: "ufs",
             "source-layer": "ufs",
             paint: {
-              "fill-color": ["coalesce", ["feature-state", "color"], "#d9d9d9"],
+              // Cor inicial cinza tossup; applyColors substitui via
+              // setPaintProperty com expression `["match", ["get", "SIGLA_UF"], ...]`.
+              "fill-color": getCssVar("--color-tossup") || "#d9d9d9",
               "fill-color-transition": fillTransition,
               "fill-opacity": 0.88,
             },
@@ -185,6 +198,10 @@ export function NationalChoroplethMapImpl({
       attributionControl: false,
       dragRotate: false,
       touchPitch: false,
+      // UX: scroll do mouse na página NÃO deve dar zoom no mapa embedded —
+      // usuário rolando vê página rolar, não mapa ampliar. Pinch em mobile
+      // continua funcionando via touchZoom (default true).
+      scrollZoom: false,
     });
 
     mapRef.current = map;
