@@ -813,6 +813,223 @@ def compute_uf_projections(
     return rows, estimates_by_uf
 
 
+def compute_p_passa_2t(
+    national_estimates: dict[int, np.ndarray],
+) -> dict[int, float]:
+    """P(candidato termina top-2 no 1º turno) — ADR-0014 (S05/F4c).
+
+    Para cada candidato `c`, conta a frequência empírica nos resamples do
+    bootstrap em que `c` aparece entre os 2 maiores valores. Soma das
+    `p_passa_2t` é exatamente 2.0 (cada resample contribui com 1 slot
+    top-1 e 1 slot top-2), modulo arredondamento.
+
+    Determinismo (§ 6): zero novo random. Reusa o array `estimates` já
+    calculado pelo bootstrap. Sem custo significativo extra — uma passada
+    O(n_resamples × n_cands * log n_cands) pequena.
+
+    Args:
+        national_estimates: `{cand_id: ndarray[shape=(n_resamples,)]}`
+            como emitido por `compute_national`.
+
+    Returns:
+        `{cand_id: prob}` com prob em [0, 1]. Candidatos ausentes do dict
+        recebem 0.0 implicitamente (não estão entre as keys retornadas).
+    """
+    if not national_estimates:
+        return {}
+    candidates = sorted(national_estimates.keys())  # ordem determinística
+    n = len(candidates)
+    if n == 0:
+        return {}
+    if n == 1:
+        # Só 1 candidato — está sempre no top-2 (vacuamente).
+        return {candidates[0]: 1.0}
+
+    # Stack: shape (n_cands, n_resamples).
+    matrix = np.stack([national_estimates[c] for c in candidates], axis=0)
+    n_resamples = matrix.shape[1]
+
+    # Para cada resample, encontra os 2 índices com maiores valores.
+    # argpartition é O(n) e suficiente (não precisamos do ranking
+    # completo dos n-2 restantes).
+    if n == 2:
+        # Caso degenerado: ambos os candidatos estão sempre no top-2.
+        return {c: 1.0 for c in candidates}
+
+    counts = np.zeros(n, dtype=np.int64)
+    # Argpartition retorna índices não ordenados, mas garante que os
+    # n-2 menores ficam à esquerda — top-2 fica nas últimas 2 posições.
+    top2_idx = np.argpartition(matrix, n - 2, axis=0)[n - 2 :, :]  # shape (2, n_resamples)
+    for j in range(n_resamples):
+        for k in range(2):
+            counts[top2_idx[k, j]] += 1
+
+    return {candidates[i]: float(counts[i]) / float(n_resamples) for i in range(n)}
+
+
+def compute_p_fecha_1t(
+    national_estimates: dict[int, np.ndarray],
+) -> dict[int, float]:
+    """P(candidato fecha 1T sozinho com >= 50%+1) — ADR-0014 (S05/F4c).
+
+    Para cada candidato `c`, conta a frequência empírica de
+    `estimates_c[i] >= 0.50` (fração; 0.50 = 50%) nos resamples.
+
+    Em casos saudáveis (líder estável ≥ 55%), `p_fecha_1t[lider]` cresce
+    rapidamente — gatilho do banner "Decidido no 1T se >X%" (RF-030.9).
+
+    Determinismo (§ 6): zero novo random.
+
+    Args:
+        national_estimates: `{cand_id: ndarray}` (frações [0, 1]).
+
+    Returns:
+        `{cand_id: prob}` em [0, 1].
+    """
+    out: dict[int, float] = {}
+    for cand, arr in national_estimates.items():
+        # `arr` está em fração (0–1) — comparar com 0.50 = 50%+1 limite.
+        out[cand] = float(np.mean(arr >= 0.50))
+    return out
+
+
+def compute_two_round_scenarios(
+    national_estimates: dict[int, np.ndarray],
+    _cand_ordered: list[int] | None = None,  # noqa: ARG001 — reservado pra logs/testes
+) -> dict[str, Any]:
+    """Calcula P(2º turno geral) + top-3 cenários de duelo no 2T — ADR-0014.
+
+    Para cada resample do bootstrap:
+      1. Identifica os 2 candidatos com maiores valores (top-2 do resample).
+      2. Conta `(par[0], par[1])` na frequência — normalizando o par para
+         ordenação canônica (id menor primeiro) evita dupla contagem do
+         mesmo duelo.
+      3. Conta se algum candidato fechou >= 50%+1 sozinho — `goes_to_2t`
+         é o complemento ((max(estimates) < 0.50) nos resamples).
+
+    Retorna:
+        {
+          "p_segundo_turno_overall": float ∈ [0, 1],
+          "cenarios_2t": [{"par": [id_a, id_b], "prob": float}, ...]
+            (top-3 ordenado desc por prob; vazio se < 2 candidatos)
+        }
+
+    Args:
+        national_estimates: `{cand_id: ndarray}` (frações [0, 1]).
+        cand_ordered: Lista opcional para deterministic ordering nos
+            empates (não usada na contagem; útil pra logs/testes).
+
+    Determinismo (§ 6): zero novo random. Pares são canonicalizados
+    (menor id primeiro) para dedupar AB == BA. Top-3 ordenado por prob
+    desc, tie-breaker pelo par (id_a, id_b) ASC.
+    """
+    if not national_estimates or len(national_estimates) < 2:
+        return {"p_segundo_turno_overall": 0.0, "cenarios_2t": []}
+
+    candidates = sorted(national_estimates.keys())
+    n = len(candidates)
+    matrix = np.stack([national_estimates[c] for c in candidates], axis=0)
+    n_resamples = matrix.shape[1]
+
+    # P(2T) = P(max(estimates) < 0.50) — ninguém fecha sozinho.
+    max_per_resample = np.max(matrix, axis=0)  # shape (n_resamples,)
+    p_2t = float(np.mean(max_per_resample < 0.50))
+
+    # Top-3 pares (top-1, top-2 do resample) por frequência.
+    # Para cada resample, identifica top-1 e top-2 (índices em `candidates`).
+    pair_counts: dict[tuple[int, int], int] = {}
+    if n == 2:
+        # Único par possível.
+        pair = (candidates[0], candidates[1])
+        pair_counts[pair] = n_resamples
+    else:
+        # argpartition n-2 → top-2 ficam nas 2 últimas posições, em ordem
+        # arbitrária. Sort dos top-2 por valor desc nos resamples seria
+        # mais "real" (top-1 vs top-2 no duelo), mas para contagem do
+        # PAR, a ordem dentro do par não importa — canonicalizamos.
+        top2_idx = np.argpartition(matrix, n - 2, axis=0)[n - 2 :, :]
+        for j in range(n_resamples):
+            a_idx = int(top2_idx[0, j])
+            b_idx = int(top2_idx[1, j])
+            a_id = candidates[a_idx]
+            b_id = candidates[b_idx]
+            # Canonicaliza par: menor id primeiro (deduplica AB == BA).
+            pair = (min(a_id, b_id), max(a_id, b_id))
+            pair_counts[pair] = pair_counts.get(pair, 0) + 1
+
+    # Top-3 desc por prob; tie-breaker pelo par ASC.
+    sorted_pairs = sorted(
+        pair_counts.items(),
+        key=lambda kv: (-kv[1], kv[0]),
+    )
+    top3 = [
+        {"par": [pair[0], pair[1]], "prob": float(count) / float(n_resamples)}
+        for pair, count in sorted_pairs[:3]
+    ]
+
+    return {"p_segundo_turno_overall": p_2t, "cenarios_2t": top3}
+
+
+def aggregate_national_estimates(
+    estimates_by_uf: dict[str, dict[int, np.ndarray]],
+    eleitorado_total_by_uf: dict[str, int],
+) -> dict[int, np.ndarray]:
+    """Agrega `estimates_by_uf` para `{cand_id: ndarray}` nacional.
+
+    Mesma lógica usada internamente em `compute_national`. Extraída em S05/F4c
+    para que callers externos (orchestrator) possam alimentar funções
+    derivadas como `compute_two_round_scenarios`, `compute_p_passa_2t`,
+    `compute_p_fecha_1t` sem duplicar código nem rodar bootstrap extra.
+
+    Determinismo (§ 6): mesma lógica determinística (pesos pelo eleitorado UF,
+    sem random). Mesma entrada → mesma saída bit-a-bit.
+
+    Args:
+        estimates_by_uf: `{uf: {cand_id: ndarray}}` emitido por
+            `compute_uf_projections`.
+        eleitorado_total_by_uf: `{uf: int}` (soma de aptos por UF).
+
+    Returns:
+        `{cand_id: ndarray}` em fração [0, 1] (espaço do bootstrap).
+        Vazio se nenhum candidato tem peso útil.
+    """
+    all_candidates: set[int] = set()
+    for cand_map in estimates_by_uf.values():
+        all_candidates.update(cand_map.keys())
+    if not all_candidates:
+        return {}
+
+    sample_arr: np.ndarray | None = None
+    for cand_map in estimates_by_uf.values():
+        for arr in cand_map.values():
+            sample_arr = arr
+            break
+        if sample_arr is not None:
+            break
+    if sample_arr is None:
+        return {}
+
+    n_resamples = sample_arr.shape[0]
+    national_estimates: dict[int, np.ndarray] = {}
+
+    for cand in all_candidates:
+        agg = np.zeros(n_resamples, dtype=np.float64)
+        weight_sum = 0
+        for uf, cand_map in estimates_by_uf.items():
+            arr = cand_map.get(cand)
+            if arr is None:
+                continue
+            w = eleitorado_total_by_uf.get(uf, 0)
+            if w <= 0:
+                continue
+            agg += arr * w
+            weight_sum += w
+        if weight_sum > 0:
+            national_estimates[cand] = agg / weight_sum
+
+    return national_estimates
+
+
 def compute_national(
     cargo: int,
     turno: int,
@@ -909,6 +1126,14 @@ def compute_national(
         else 1.0
     )
 
+    # S05/F4c (ADR-0014) — métricas multi-candidato pré-computadas a partir
+    # do mesmo `national_estimates`. Zero novo bootstrap, zero random.
+    p_passa_2t_by_cand = compute_p_passa_2t(national_estimates)
+    p_fecha_1t_by_cand = compute_p_fecha_1t(national_estimates)
+
+    # `rank` semântico por (-point, id) — mesma ordenação do `ordered` acima.
+    rank_by_cand: dict[int, int] = {cand: i + 1 for i, cand in enumerate(ordered)}
+
     rows: list[dict[str, Any]] = []
     for cand, arr in national_estimates.items():
         point = point_by_cand[cand]
@@ -937,6 +1162,13 @@ def compute_national(
                 "pct_projetado_upper": ci_upper,
                 "p_vitoria": pv,
                 "pct_apurado": None,
+                # S05/F4c — métricas multi-candidato enriquecidas. Persistem
+                # apenas na "memória" do orchestrator; o INSERT em
+                # `projections` só usa as colunas declaradas em
+                # `insert_projections` — campos extras são ignorados.
+                "rank": rank_by_cand.get(cand, 0),
+                "p_passa_2t": p_passa_2t_by_cand.get(cand, 0.0),
+                "p_fecha_1t": p_fecha_1t_by_cand.get(cand, 0.0),
             }
         )
 
@@ -1027,9 +1259,18 @@ def build_uf_payloads(
         uf_by_sigla.setdefault(r["uf"], []).append(r)
 
     # Dict cand_id → row nacional para resolver partido/cor/nome.
+    # S05/F4c (ADR-0013): `rank` populado em national_rows define `--color-cand-N`.
     national_by_id: dict[int, dict[str, Any]] = {
         int(r["candidato_id"]): r for r in national_rows
     }
+    # Mapping cand_id → rank canônico para cor.
+    rank_by_cand: dict[int, int] = {}
+    sorted_nat = sorted(
+        national_rows,
+        key=lambda r: (-float(r.get("pct_projetado") or 0.0), int(r["candidato_id"])),
+    )
+    for i, r in enumerate(sorted_nat):
+        rank_by_cand[int(r["candidato_id"])] = i + 1
 
     # Inverte zona_municipio: para cada (uf, cod_municipio_tse) coleta dados.
     # Como `fetch_municipio_aggregates` já agrega por município, reuso direto.
@@ -1098,6 +1339,8 @@ def build_uf_payloads(
             votos_proj = int(round((pct_proj / 100.0) * estimated_total))
 
             nat = national_by_id.get(cid, {})
+            # S05/F4c (ADR-0013) — paleta visual por rank semântico.
+            rank_cand = rank_by_cand.get(cid, len(candidatos) + 1)
             candidatos.append(
                 {
                     "id": cid,
@@ -1106,7 +1349,8 @@ def build_uf_payloads(
                     # CSS var literal — consumida direto em `style={{ background: c.cor }}`
                     # no front-end. Sem `var(...)` o browser ignora silenciosamente.
                     # Tokens canônicos definidos em app/globals.css (constituição § 2).
-                    "cor": "var(--color-pt)" if cid % 2 == 0 else "var(--color-pl)",
+                    # ADR-0013: paleta dinâmica `--color-cand-{1..11}`.
+                    "cor": f"var(--color-cand-{rank_cand})",
                     "votos_atuais": votos_cand,
                     "votos_projetados": votos_proj,
                     "pct_atual": pct_atual,
@@ -1217,6 +1461,8 @@ def build_edge_payload(
     eleitorado_total_by_uf: dict[str, int],
     cand_a_id: int | None = None,
     cand_b_id: int | None = None,
+    p_segundo_turno_overall: float | None = None,
+    cenarios_2t: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Monta o shape canônico `EdgePayload` (lib/edge-config/types.ts).
 
@@ -1293,6 +1539,10 @@ def build_edge_payload(
 
     national_candidatos: list[dict[str, Any]] = []
     for r in sorted_national:
+        # S05/F4c (ADR-0013): paleta visual por RANK (`var(--color-cand-N)`),
+        # não por partido. `rank` vem populado de `compute_national`; se
+        # ausente (caller legado), coalesce para a posição+1 no array.
+        rank = int(r.get("rank") or (len(national_candidatos) + 1))
         national_candidatos.append(
             {
                 "id": int(r["candidato_id"]),
@@ -1301,7 +1551,8 @@ def build_edge_payload(
                 # CSS var literal — consumida direto em `style={{ background: c.cor }}`
                 # no front-end (sem resolução intermediária). Constituição § 2:
                 # nunca hex partidário, sempre token canônico de app/globals.css.
-                "cor": "var(--color-pt)" if r["candidato_id"] % 2 == 0 else "var(--color-pl)",
+                # ADR-0013: paleta DINÂMICA por rank, --color-cand-{1..11}.
+                "cor": f"var(--color-cand-{rank})",
                 "votos_atuais": 0,
                 "votos_projetados": int(r.get("votos_projetados") or 0),
                 "pct_atual": 0.0,
@@ -1309,6 +1560,10 @@ def build_edge_payload(
                 "pct_projetado_lower": float(r.get("pct_projetado_lower") or 0.0),
                 "pct_projetado_upper": float(r.get("pct_projetado_upper") or 0.0),
                 "p_vitoria": float(r.get("p_vitoria") or 0.0),
+                # S05/F4c (ADR-0014) — métricas multi-candidato.
+                "rank": rank,
+                "p_passa_2t": float(r.get("p_passa_2t") or 0.0),
+                "p_fecha_1t": float(r.get("p_fecha_1t") or 0.0),
             }
         )
 
@@ -1339,6 +1594,34 @@ def build_edge_payload(
         margem = top_pct - second_pct
         ci_lower = float(top.get("pct_projetado_lower") or top_pct) - second_pct
         ci_upper = float(top.get("pct_projetado_upper") or top_pct) - second_pct
+
+        # S05/F4c (ADR-0017) — top-3 candidatos da UF, tie-break por id ASC.
+        top_candidatos = [
+            {
+                "id": int(r["candidato_id"]),
+                "pct": float(r.get("pct_projetado") or 0.0),
+            }
+            for r in ordered[:3]
+        ]
+
+        # vai_a_2t: aplicável apenas a governador 1T (cargo=3, turno=1).
+        # Para presidente, a decisão de 2T é NACIONAL — null por UF.
+        if int(cargo) == 3 and int(turno) == 1:
+            vai_a_2t: bool | None = top_pct < 50.0
+        else:
+            vai_a_2t = None
+
+        # bucket — estado declarativo (ADR-0017).
+        chamada = margem > 10.0
+        if chamada:
+            bucket = "chamada"
+        elif vai_a_2t is True:
+            bucket = "vai_2t"
+        elif vai_a_2t is False:
+            bucket = "decidido_1t"
+        else:
+            bucket = "indefinido"
+
         por_uf.append(
             {
                 "sigla": sigla,
@@ -1348,10 +1631,26 @@ def build_edge_payload(
                 "margem_projetada": float(margem),
                 "margem_projetada_ci": [float(ci_lower), float(ci_upper)],
                 # Placeholder v1: regra simples até spec de "chamada" definitiva.
-                "chamada": margem > 10.0,
+                "chamada": chamada,
                 "swing_vs_2022": 0.0,
+                # S05/F4c — multi-candidato (ADR-0017).
+                "top_candidatos": top_candidatos,
+                "vai_a_2t": vai_a_2t,
+                "bucket": bucket,
             }
         )
+
+    # S05/F4c (ADR-0014) — em 2T, métricas multi-candidato degeneram:
+    #   p_segundo_turno_overall = None (já estamos no 2T)
+    #   cenarios_2t = []         (não faz sentido projetar cenário 2T no 2T)
+    # Mantemos a semântica explícita aqui mesmo se caller não passou os
+    # parâmetros (orchestrator legado).
+    if int(turno) == 2:
+        p_2t_overall: float | None = None
+        cenarios_2t_payload: list[dict[str, Any]] = []
+    else:
+        p_2t_overall = p_segundo_turno_overall  # pode ser None se caller legado
+        cenarios_2t_payload = cenarios_2t if cenarios_2t is not None else []
 
     return {
         "ts": ts_iso,
@@ -1368,6 +1667,9 @@ def build_edge_payload(
             # re-ordenar. None quando ≤1 candidato com estimates válidas.
             "candidato_a_id": cand_a_id,
             "candidato_b_id": cand_b_id,
+            # S05/F4c (ADR-0014) — métricas multi-candidato 1T.
+            "p_segundo_turno_overall": p_2t_overall,
+            "cenarios_2t": cenarios_2t_payload,
         },
         "por_uf": por_uf,
         "insights": [],
@@ -1529,6 +1831,15 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 eleitorado_total_by_uf=eleitorado_total_by_uf,
             )
 
+            # S05/F4c (ADR-0014) — métricas multi-candidato pré-computadas
+            # uma vez aqui para serem reusadas pelo edge_payload abaixo.
+            # `aggregate_national_estimates` é a MESMA lógica usada
+            # internamente em `compute_national` — mesma saída bit-a-bit.
+            national_estimates = aggregate_national_estimates(
+                estimates_by_uf, eleitorado_total_by_uf
+            )
+            scenarios = compute_two_round_scenarios(national_estimates)
+
             # Persistência append-only (constituição § 10).
             insert_projections(conn, uf_rows + national_rows)
             conn.commit()
@@ -1549,6 +1860,9 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 eleitorado_total_by_uf=eleitorado_total_by_uf,
                 cand_a_id=cand_a_id,
                 cand_b_id=cand_b_id,
+                # S05/F4c (ADR-0014) — métricas multi-candidato.
+                p_segundo_turno_overall=scenarios.get("p_segundo_turno_overall"),
+                cenarios_2t=scenarios.get("cenarios_2t", []),
             )
             # S04/F2 — payloads UF ricos (candidatos com votos, municípios,
             # séries temporais). Envia junto do nacional; endpoint Node

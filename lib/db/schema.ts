@@ -128,7 +128,22 @@ export const snapshots = pgTable(
   ],
 );
 
-/** Cálculos de projeção (histórico do modelo). */
+/**
+ * Cálculos de projeção (histórico do modelo).
+ *
+ * Constituição § 10 — append-only. Nunca UPDATE/DELETE; cada ciclo do modelo
+ * gera novas rows com `ts` distinto. Replay = `SELECT ... ORDER BY ts`.
+ *
+ * S05/F4c (ADR-0014, ADR-0015) — colunas multi-candidato:
+ *   - `modelFallbackTier` ∈ {1, 2, 3}: qual tier do K-1 fallback foi usado
+ *     na linha (1 = mapping direto OU swing de partido, 2 = prior pesquisa
+ *     com CI inflado, 3 = modelo desabilitado). Permite auditoria do
+ *     comportamento do modelo por linha.
+ *   - `cenario2tJson`: dump JSON do `cenarios_2t` (top-3 pares mais prováveis)
+ *     na hora do snapshot — usado pra reconstruir histórico do "termômetro
+ *     de cenários 2T" sem precisar dos resamples originais. NULL nas
+ *     linhas UF (só faz sentido no nacional, `uf IS NULL`).
+ */
 export const projections = pgTable(
   "projections",
   {
@@ -144,6 +159,9 @@ export const projections = pgTable(
     pctProjetadoUpper: numeric("pct_projetado_upper", { precision: 8, scale: 5 }),
     pVitoria: numeric("p_vitoria", { precision: 5, scale: 4 }),
     pctApurado: numeric("pct_apurado", { precision: 5, scale: 2 }),
+    // S05/F4c — ver doc do bloco.
+    modelFallbackTier: smallint("model_fallback_tier"),
+    cenario2tJson: jsonb("cenario_2t_json"),
   },
   (t) => [index("ix_proj_lookup").on(t.cargo, t.turno, t.uf, t.ts)],
 );

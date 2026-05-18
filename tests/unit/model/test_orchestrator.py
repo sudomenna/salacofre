@@ -973,3 +973,95 @@ def test_edge_write_failure_does_not_break_response(
     assert status == 200, payload
     assert payload["computed"] is True
     assert payload["uf_count"] == 2
+
+
+# ---------------------------------------------------------------------------
+# S05/F4c — Multi-candidato (ADR-0014): rank, p_passa_2t, p_fecha_1t,
+# p_segundo_turno_overall e cenarios_2t no payload.
+# ---------------------------------------------------------------------------
+
+
+def test_s05_payload_has_rank_and_multi_candidate_metrics(
+    fake_db, minimal_dataset, monkeypatch
+) -> None:
+    """Sanity: o payload edge gerado pelo orchestrator inclui os campos
+    multi-candidato adicionados em S05/F4c.
+
+      - candidato.rank populado (1 = líder, 2 = segundo)
+      - candidato.p_passa_2t em [0, 1]
+      - candidato.p_fecha_1t em [0, 1]
+      - candidato.cor segue token `var(--color-cand-N)` (ADR-0013)
+      - national.p_segundo_turno_overall em [0, 1] OU None
+      - national.cenarios_2t é lista (top-3, vazia se < 2 cands)
+    """
+    from api.model.project import _do_project, urllib as proj_urllib
+
+    snapshots, historical, eleitorado = minimal_dataset
+    fake_db(snapshots, historical, eleitorado)
+
+    monkeypatch.setenv("MODEL_SECRET", "test-secret-s05")
+    monkeypatch.setenv("INTERNAL_BASE_URL", "http://localhost:13000")
+
+    captured: dict[str, Any] = {}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):  # noqa: ANN204
+            return self
+
+        def __exit__(self, *a):  # noqa: ANN001,ANN204
+            return None
+
+    def fake_urlopen(req, timeout=10):  # noqa: ANN001,ARG001
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr(proj_urllib.request, "urlopen", fake_urlopen)
+
+    status, _ = _do_project(
+        json.dumps({"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}).encode(
+            "utf-8"
+        )
+    )
+    assert status == 200
+
+    payload = captured["body"]["payload"]
+    national = payload["national"]
+
+    # rank populado e contíguo (1, 2, ...).
+    ranks = [c["rank"] for c in national["candidatos"]]
+    assert ranks == sorted(ranks)
+    assert ranks[0] == 1
+
+    # p_passa_2t e p_fecha_1t em [0, 1].
+    for c in national["candidatos"]:
+        assert "p_passa_2t" in c
+        assert "p_fecha_1t" in c
+        assert 0.0 <= c["p_passa_2t"] <= 1.0
+        assert 0.0 <= c["p_fecha_1t"] <= 1.0
+
+    # cor segue ADR-0013 — paleta dinâmica por rank.
+    for c in national["candidatos"]:
+        assert c["cor"].startswith("var(--color-cand-"), f"cor inesperada: {c['cor']}"
+
+    # national tem as 2 chaves novas.
+    assert "p_segundo_turno_overall" in national
+    assert "cenarios_2t" in national
+    p2t = national["p_segundo_turno_overall"]
+    assert p2t is None or (0.0 <= p2t <= 1.0)
+    assert isinstance(national["cenarios_2t"], list)
+    # No fixture minimal (2 candidatos), top-3 pode ter 1 entry só.
+    for s in national["cenarios_2t"]:
+        assert "par" in s and "prob" in s
+        assert len(s["par"]) == 2
+
+    # por_uf tem top_candidatos + bucket + vai_a_2t (presidencial 1T = null).
+    for row in payload["por_uf"]:
+        assert "top_candidatos" in row
+        assert "vai_a_2t" in row
+        assert "bucket" in row
+        # Presidencial 1T → vai_a_2t sempre null.
+        assert row["vai_a_2t"] is None
+        # bucket é um dos 4 estados válidos.
+        assert row["bucket"] in {"decidido_1t", "vai_2t", "indefinido", "chamada"}
