@@ -22,6 +22,34 @@
   --color-pt-band: #c8d4ed;
   --color-pl-band: #f0c9c8;
 
+  /* Multi-candidato (S05/F2, ADR-0013): paleta neutra NYT-like.
+   * 6 cores principais cobrem top-6 candidatos (≥1% pct projetado).
+   * Rank 7+ ou pct < 1% caem em --color-cand-other (cinza neutro).
+   * Color lock em pct_apurado ≥ 1% (ADR-0013) — orchestrator congela rank.
+   * Constituição § 2: nunca cor oficial partidária. Hex foram escolhidos
+   * mirando contraste WCAG 4.5:1 sobre branco; rank 3 (âmbar) e 5 (lilás)
+   * podem precisar variante -strong para texto pequeno (watch da Fase 3
+   * a11y-perf-auditor).
+   * --color-cand-1/2 são aliases dos hexes de --color-pt/-pl: garante
+   * continuidade visual enquanto specs 003/004 v1 ainda renderizam o
+   * payload v1 (PT vermelho, PL azul). */
+  --color-cand-1: #d33732; /* alias visual de --color-pt — vermelho NYT-like */
+  --color-cand-2: #2a52be; /* alias visual de --color-pl — azul NYT-like */
+  --color-cand-3: #c97c1f; /* âmbar/ocre seco */
+  --color-cand-4: #4a8b3e; /* verde-oliva neutro (não REDE/PV oficial) */
+  --color-cand-5: #7d4a8c; /* lilás-uva */
+  --color-cand-6: #5c5448; /* taupe quente */
+  --color-cand-other: #6e6e6e; /* cinza médio — rank 7+ ou pct < 1% */
+
+  /* Versões claras (bands) — fundos de mapa, pull-quotes, fills suaves */
+  --color-cand-band-1: var(--color-pt-band);
+  --color-cand-band-2: var(--color-pl-band);
+  --color-cand-band-3: #ecd4b3;
+  --color-cand-band-4: #c8dec1;
+  --color-cand-band-5: #d7c5dd;
+  --color-cand-band-6: #d4cfc2;
+  --color-cand-band-other: #d9d9d9; /* mesmo de --color-tossup */
+
   /* Bandas de probabilidade da agulha (spec 003 + spec 004).
    * Mapeiam `NeedleBand` em lib/edge-config/types.ts — usadas pelo
    * `<Needle />` para colorir o arco de fundo e por blocks que querem

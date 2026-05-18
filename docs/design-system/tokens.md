@@ -33,12 +33,29 @@ source: PRD.md § 14.1
   --color-text-faint: #999999;
   --color-border: #e5e5e5;
 
-  /* Cores partidárias (NYT-like) */
+  /* Cores partidárias (NYT-like) — v1, mantidas como aliases visuais
+   * dos rank-1/rank-2 da paleta multi-candidato (ver § seguinte). */
   --color-pt: #d33732;  /* PT / Lula — Vermelho */
   --color-pl: #2a52be;  /* PL / Bolsonaro — Azul */
   --color-tossup: #d9d9d9;
   --color-pt-band: #c8d4ed;
   --color-pl-band: #f0c9c8;
+
+  /* Multi-candidato (ADR-0013, S05/F2) — ver § "Paleta multi-candidato" */
+  --color-cand-1: #d33732;   /* mesmo hex de --color-pt */
+  --color-cand-2: #2a52be;   /* mesmo hex de --color-pl */
+  --color-cand-3: #c97c1f;
+  --color-cand-4: #4a8b3e;
+  --color-cand-5: #7d4a8c;
+  --color-cand-6: #5c5448;
+  --color-cand-other: #6e6e6e;
+  --color-cand-band-1: var(--color-pt-band);
+  --color-cand-band-2: var(--color-pl-band);
+  --color-cand-band-3: #ecd4b3;
+  --color-cand-band-4: #c8dec1;
+  --color-cand-band-5: #d7c5dd;
+  --color-cand-band-6: #d4cfc2;
+  --color-cand-band-other: #d9d9d9;
 
   /* Status */
   --color-success: #2c8e4a;
@@ -75,7 +92,65 @@ h1, h2, h3 { font-family: var(--font-serif); font-weight: 600; }
 - `tabular-nums` global garante alinhamento vertical de números em tabelas/contadores.
 - Serif para headlines (NYT-like); sans para corpo.
 
+## Paleta multi-candidato (S05/F2, ADR-0013)
+
+A partir de S05 (foundation 1T 2026) a UI deixa de mapear `cor` por sigla
+partidária e passa a mapear por **rank** projetado. O orchestrator Python
+publica `cor: "var(--color-cand-{rank})"` em cada `EdgeCandidate` do
+payload; componentes consomem `c.cor` direto.
+
+### Regra
+
+- Cores via tokens, **nunca** oficiais partidárias (constituição § 2).
+- Mapping é por **rank no payload publicado**, não por sigla. Top-6
+  candidatos com `pct_apurado_ou_projetado ≥ 1%` recebem cores 1..6.
+  Rank 7+ ou pct < 1% caem em `--color-cand-other` (cinza neutro).
+- **Color lock**: o orchestrator congela o rank de cada candidato no
+  primeiro snapshot em que `pct_apurado ≥ 1%`. Antes disso, rank é
+  ordenado pelo prior de pesquisa (último Datafolha + Quaest). Isso
+  evita troca de cor na tela durante a noite.
+
+### Tabela de tokens
+
+| Token                       | Hex       | Uso recomendado                                  |
+| --------------------------- | --------- | ------------------------------------------------ |
+| `--color-cand-1`            | `#d33732` | Líder projetado — alias visual de `--color-pt`   |
+| `--color-cand-2`            | `#2a52be` | 2º — alias visual de `--color-pl`                |
+| `--color-cand-3`            | `#c97c1f` | 3º — âmbar/ocre seco                             |
+| `--color-cand-4`            | `#4a8b3e` | 4º — verde-oliva neutro (não REDE/PV oficial)    |
+| `--color-cand-5`            | `#7d4a8c` | 5º — lilás-uva                                   |
+| `--color-cand-6`            | `#5c5448` | 6º — taupe quente                                |
+| `--color-cand-other`        | `#6e6e6e` | Rank 7+ ou pct < 1%                              |
+| `--color-cand-band-1..6`    | claro     | Fundos suaves: mapa fill, pull-quote bg, badges  |
+| `--color-cand-band-other`   | `#d9d9d9` | Mesmo de `--color-tossup` — fallback para mapa   |
+
+### Backward compatibility
+
+- `--color-pt` e `--color-pl` continuam definidos com os mesmos hexes
+  de `--color-cand-1` e `--color-cand-2`. Specs 003/004 que ainda
+  consomem o payload v1 (PT vermelho, PL azul) seguem renderizando
+  inalteradas até a migração de componentes na Fase 3 de S05/F2.
+- `--color-cand-band-1` e `--color-cand-band-2` são aliases CSS
+  (`var(--color-pt-band)` / `var(--color-pl-band)`) — uma única fonte
+  de verdade para a banda clara.
+
+### Helper TS
+
+`lib/utils/cand-color.ts` expõe `colorForRank(rank) →
+"var(--color-cand-N)"` e `resolveCandHex(rank) → "#RRGGBB"` (este
+último necessário para MapLibre `setPaintProperty`, que não aceita
+`var()` em paint values).
+
+### Watch a11y
+
+Rank 3 (`#c97c1f` âmbar) e rank 5 (`#7d4a8c` lilás) têm contraste
+WCAG marginal sobre branco em texto pequeno (~14px). Carry-over para
+`a11y-perf-auditor` na Fase Gates de S05/F2: se reprovar, criar
+variante `--color-cand-N-strong` para uso em legenda/labels.
+
 ## Cross-refs
 
 - Constituição § 2 (neutralidade): [../constitution.md](../constitution.md#2-neutralidade-política)
+- ADR-0013 (paleta multi-candidato + color lock): a formalizar na Fase 4 de S05/F2
+- Helper: [`lib/utils/cand-color.ts`](../../lib/utils/cand-color.ts)
 - Grid: [./grid.md](./grid.md)
