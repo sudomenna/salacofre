@@ -45,6 +45,7 @@ import { UfLeaderMapLazy, UfMapDuoLazy, UfSwingArrowMapLazy } from "@/components
 import { Footer } from "@/components/layout/Footer";
 import { LiveBadge } from "@/components/layout/LiveBadge";
 import { readUfProjection } from "@/lib/edge-config/reader";
+import { rankFromColorVar } from "@/lib/utils/cand-color";
 import type {
   EdgePayload,
   EdgePayloadUf,
@@ -283,6 +284,7 @@ export default async function UFPage({ params }: UFPageProps) {
           partido={lider.partido}
           ufSigla={sigla}
           cor={lider.cor}
+          rank={rankFromColorVar(lider.cor)}
         />
       )}
 

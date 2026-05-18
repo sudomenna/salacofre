@@ -111,3 +111,20 @@ export function resolveBandHex(rank: number): string {
       : `--color-cand-band-${rank}`;
   return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
 }
+
+/**
+ * Extrai o rank de uma string CSS var produzida por `colorForRank()`.
+ * Ex: `"var(--color-cand-3)"` → 3 | `"var(--color-cand-other)"` → undefined.
+ * Útil pra componentes (como `<WinnerBanner />`) que precisam decidir
+ * cor de texto adaptativa baseada no rank do candidato, mas só recebem
+ * a string `cor` do payload (não o rank numérico).
+ * Retorna `undefined` se a string não corresponder ao padrão esperado.
+ */
+export function rankFromColorVar(cor: string | undefined | null): number | undefined {
+  if (!cor) return undefined;
+  const match = cor.match(/--color-cand-(\d+)/);
+  if (!match) return undefined;
+  const rank = Number.parseInt(match[1] ?? "", 10);
+  if (!Number.isFinite(rank) || rank < 1 || rank > MAX_CAND_RANK) return undefined;
+  return rank;
+}

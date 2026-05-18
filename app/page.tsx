@@ -152,6 +152,7 @@ export default async function HomePage() {
           pSegundoTurno={national.p_segundo_turno_overall}
           liderPct={lider.pct_projetado}
           liderNome={lider.nome}
+          liderCor={lider.cor}
         />
       )}
 

@@ -10,8 +10,11 @@
  * A11y:
  *   - `role="status"` + `aria-live="polite"` — leitor de tela anuncia quando
  *     o banner aparecer mid-apuração.
- *   - Texto sobre cor escura usa contraste >4.5:1 (cor de fundo do banner é
- *     o token --color-pt ou --color-pl, ambos suficientemente escuros).
+ *   - Texto adaptativo via prop `rank`: branco sobre cores escuras (rank 1
+ *     vermelho, rank 2 azul) — contraste >4.5:1 garantido. Texto escuro
+ *     (`--color-text`) sobre cores médias/claras (rank 3 âmbar #c97c1f,
+ *     rank 4 verde-oliva, rank 5 lilás, rank 6 taupe) — corrige MEDIUM P4
+ *     do constitution-guard S05 (contraste #ffffff sobre cand-3 era ~2.8:1).
  */
 
 import type { CSSProperties } from "react";
@@ -29,12 +32,25 @@ export interface WinnerBannerProps {
    * do design system.
    */
   cor: string;
+  /**
+   * Rank do candidato (1..6 ou >6 = other). Define cor de texto:
+   * rank ∈ {1, 2} → texto branco (cores escuras); rank ≥ 3 → texto escuro
+   * (`--color-text`). Default: assume rank 1 (vermelho) → branco. Resolve
+   * MEDIUM P4 constitution-guard S05.
+   */
+  rank?: number;
 }
 
-export function WinnerBanner({ candidato, partido, ufSigla, cor }: WinnerBannerProps) {
+/** Ranks 1 e 2 têm fundos escuros (vermelho/azul); demais são médios/claros. */
+function shouldUseDarkText(rank: number | undefined): boolean {
+  return rank != null && rank >= 3;
+}
+
+export function WinnerBanner({ candidato, partido, ufSigla, cor, rank }: WinnerBannerProps) {
+  const useDarkText = shouldUseDarkText(rank);
   const style: CSSProperties = {
     backgroundColor: cor,
-    color: "#ffffff",
+    color: useDarkText ? "var(--color-text)" : "#ffffff",
   };
 
   return (

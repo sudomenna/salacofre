@@ -37,6 +37,14 @@ export interface TwoRoundIndicatorProps {
   liderPct: number;
   /** Nome do líder (usado no caption "Líder atual: <nome>"). */
   liderNome: string;
+  /**
+   * Cor do líder no thermometer fill — CSS var literal vinda do payload
+   * (ex: "var(--color-cand-1)"). Default = "var(--color-cand-1)" (rank 1
+   * por convenção). Necessário pra constituição § 2: não pintar sempre
+   * rank-1 quando líder pode ser rank 2/3+ (corrige constitution-guard
+   * MEDIUM P4 da S05).
+   */
+  liderCor?: string;
   className?: string;
 }
 
@@ -44,6 +52,7 @@ export function TwoRoundIndicator({
   pSegundoTurno,
   liderPct,
   liderNome,
+  liderCor = "var(--color-cand-1)",
   className,
 }: TwoRoundIndicatorProps) {
   // Gate 1: sem dado disponível
@@ -109,7 +118,7 @@ export function TwoRoundIndicator({
             className="absolute inset-y-0 left-0"
             style={{
               width: `${liderClamped}%`,
-              backgroundColor: "var(--color-cand-1)",
+              backgroundColor: liderCor,
             }}
           />
           <div
