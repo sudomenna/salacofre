@@ -1051,6 +1051,15 @@ def test_s05_payload_has_rank_and_multi_candidate_metrics(
     p2t = national["p_segundo_turno_overall"]
     assert p2t is None or (0.0 <= p2t <= 1.0)
     assert isinstance(national["cenarios_2t"], list)
+
+    # S06/F4d Fase 5 (carry-over) — vai_a_2t_nacional explícito.
+    # Em 1T sempre presente (bool ou None se caller legado); semântica
+    # alinhada com o nome: `true` ⇔ vai a 2T ⇔ p_segundo_turno_overall >= 0.01.
+    assert "vai_a_2t_nacional" in national
+    v2t_nac = national["vai_a_2t_nacional"]
+    assert v2t_nac is None or isinstance(v2t_nac, bool)
+    if p2t is not None and v2t_nac is not None:
+        assert v2t_nac == (p2t >= 0.01)
     # No fixture minimal (2 candidatos), top-3 pode ter 1 entry só.
     for s in national["cenarios_2t"]:
         assert "par" in s and "prob" in s

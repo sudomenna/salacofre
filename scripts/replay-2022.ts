@@ -92,6 +92,13 @@ interface NationalCandidato {
   pct_projetado_lower: number;
   pct_projetado_upper: number;
   p_vitoria: number;
+  // S05 carry-over → S06/F4d Fase 5 (ADR-0014). `p_passa_2t` é P(o candidato
+  // termina top-2 do 1T); `p_fecha_1t` é P(>= 50%+1 no agregado nacional).
+  // Sempre presentes na saída do `replay_batch.py` pós-Fase 5 (default 0.0
+  // quando ausente — payloads de 2T degeneram). Opcional aqui só pra
+  // não quebrar releitura de report.json antigos.
+  p_passa_2t?: number;
+  p_fecha_1t?: number;
 }
 
 interface TimestepResult {
@@ -101,7 +108,17 @@ interface TimestepResult {
   bucket: Bucket;
   duration_ms: number;
   uf_projections: UFProjection[];
-  national: { candidatos: NationalCandidato[]; p_vitoria_a: number };
+  national: {
+    candidatos: NationalCandidato[];
+    p_vitoria_a: number;
+    candidato_a_id?: number | null;
+    candidato_b_id?: number | null;
+    // S05 carry-over → S06/F4d Fase 5. `p_segundo_turno_overall` ∈ [0,1] em
+    // 1T; `null` em 2T (semântica "não aplicável"). `cenarios_2t` é top-3
+    // pares (id_a, id_b) ordenado por prob desc.
+    p_segundo_turno_overall?: number | null;
+    cenarios_2t?: Array<{ par: [number, number]; prob: number }>;
+  };
 }
 
 interface BatchResponse {
@@ -329,7 +346,19 @@ function computeCalibration(
   const finals = results.filter((r) => r.bucket === "final");
 
   for (const r of finals) {
-    const candA = r.national.candidatos[0];
+    // S05 carry-over → S06/F4d Fase 5: usa `candidato_a_id` semântico
+    // (líder real) em vez de `candidatos[0]` (que vem sorted por id ASC do
+    // Python — não pelo rank). Antes, em corridas multi-candidato, candA
+    // podia ser o candidato de menor id (ex.: 13/PT) mesmo quando o líder
+    // projetado era outro — quebrando a comparação `aWon = candA.id === winnerId`
+    // de forma silenciosa (`p_vitoria` continuava sendo do "candA por id",
+    // que NÃO necessariamente é o líder). Fallback pra candidatos[0] mantém
+    // compat com report.json gerados pré-Fase 5.
+    const candAId = r.national.candidato_a_id;
+    const candA =
+      candAId != null
+        ? (r.national.candidatos.find((c) => c.id === candAId) ?? r.national.candidatos[0])
+        : r.national.candidatos[0];
     if (!candA) continue;
     // Quem venceu de fato? Soma pct_final por candidato (proxy nacional).
     const totals = new Map<number, number>();

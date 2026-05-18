@@ -85,7 +85,9 @@ import time
 from typing import Any
 
 from api.model.project import (
+    aggregate_national_estimates,
     compute_national,
+    compute_two_round_scenarios,
     compute_uf_projections,
     derive_seed,
 )
@@ -148,6 +150,23 @@ def _run_one_timestep(
         eleitorado_total_by_uf=eleitorado_total,
     )
 
+    # S05/F4c (ADR-0014) — métricas multi-candidato. Espelha o orchestrator
+    # de produção (`_do_project`): mesma fonte (`national_estimates`) e mesma
+    # função (`compute_two_round_scenarios`) — drift zero entre replay e prod.
+    # Em 2T `compute_two_round_scenarios` retorna p=0/cenarios=[] (degenera).
+    # `p_passa_2t` e `p_fecha_1t` por candidato já saem de `compute_national`
+    # dentro de `national_rows[*]` — só precisamos serializá-los abaixo.
+    national_estimates = aggregate_national_estimates(estimates_by_uf, eleitorado_total)
+    scenarios = compute_two_round_scenarios(national_estimates)
+    p_segundo_turno_overall = scenarios.get("p_segundo_turno_overall")
+    if turno == 2:
+        # Em 2T `compute_two_round_scenarios` retorna 0.0; o payload
+        # canônico (build_edge_payload) emite None. Espelhamos aqui para o
+        # report.json refletir a semântica "não aplicável" em vez de "0%
+        # chance de 2T" (que seria certo mas ambíguo).
+        p_segundo_turno_overall = None
+    cenarios_2t = scenarios.get("cenarios_2t", [])
+
     # Serializa enxuto — só o que o TS precisa pra calcular MAE/calibração.
     uf_projections = [
         {
@@ -168,6 +187,12 @@ def _run_one_timestep(
             "pct_projetado_lower": float(r["pct_projetado_lower"]),
             "pct_projetado_upper": float(r["pct_projetado_upper"]),
             "p_vitoria": float(r["p_vitoria"] or 0.0),
+            # S05 carry-over → S06/F4d Fase 5: métricas multi-candidato
+            # (ADR-0014). Já populadas em `compute_national`; só serializamos.
+            # Permite que o report.json gerado pelo replay tenha paridade
+            # de campos com o payload de produção emitido por build_edge_payload.
+            "p_passa_2t": float(r.get("p_passa_2t") or 0.0),
+            "p_fecha_1t": float(r.get("p_fecha_1t") or 0.0),
         }
         for r in sorted(national_rows, key=lambda x: int(x["candidato_id"]))
     ]
@@ -181,6 +206,12 @@ def _run_one_timestep(
             # Permite que o validador TS rotule corretamente quem é "A".
             "candidato_a_id": cand_a_id,
             "candidato_b_id": cand_b_id,
+            # S05 carry-over → S06/F4d Fase 5: P(2º turno) agregada nacional
+            # (ADR-0014). None em 2T (já passou); [0,1] em 1T. Cenários top-3
+            # também serializados pra inspeção offline; cada item é
+            # `{par: [id_a, id_b], prob: float}`.
+            "p_segundo_turno_overall": p_segundo_turno_overall,
+            "cenarios_2t": cenarios_2t,
         },
     }
 

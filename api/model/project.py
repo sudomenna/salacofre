@@ -1908,9 +1908,22 @@ def build_edge_payload(
     if int(turno) == 2:
         p_2t_overall: float | None = None
         cenarios_2t_payload: list[dict[str, Any]] = []
+        # S06/F4d Fase 5 — em 2T, `vai_a_2t_nacional` degenera para None
+        # (já estamos no 2T, semântica vazia). Consumidor UI esconde o sinal.
+        vai_a_2t_nacional: bool | None = None
     else:
         p_2t_overall = p_segundo_turno_overall  # pode ser None se caller legado
         cenarios_2t_payload = cenarios_2t if cenarios_2t is not None else []
+        # S06/F4d Fase 5 (carry-over) — derivação centralizada do sinal binário
+        # "vai a 2T nacional?" a partir de `p_segundo_turno_overall`. Threshold
+        # 0.01 mantém paridade com a heurística que vivia em `app/page.tsx`
+        # (`vai_a_2t = p < 0.01`). Quando caller legado não passa
+        # `p_segundo_turno_overall`, emite `None` (consumidor coalesce pra
+        # derivação local — forward-compat).
+        if p_2t_overall is None:
+            vai_a_2t_nacional = None
+        else:
+            vai_a_2t_nacional = p_2t_overall >= 0.01
 
     return {
         "ts": ts_iso,
@@ -1930,6 +1943,8 @@ def build_edge_payload(
             # S05/F4c (ADR-0014) — métricas multi-candidato 1T.
             "p_segundo_turno_overall": p_2t_overall,
             "cenarios_2t": cenarios_2t_payload,
+            # S06/F4d Fase 5 — sinal binário explícito (paridade com EdgeUfRow.vai_a_2t).
+            "vai_a_2t_nacional": vai_a_2t_nacional,
         },
         "por_uf": por_uf,
         "insights": [],

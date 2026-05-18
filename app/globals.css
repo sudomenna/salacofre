@@ -41,6 +41,21 @@
   --color-cand-6: #5c5448; /* taupe quente */
   --color-cand-other: #6e6e6e; /* cinza médio — rank 7+ ou pct < 1% */
 
+  /* Versões "strong" — usar quando o token base não dá contraste 4.5:1 (WCAG AA)
+   * em texto pequeno sobre fundo claro. Definidas em S05 carry-over como
+   * preventivo: rank 3 (âmbar) e 5 (lilás) já flertam com 4.5:1 em corpo 12px.
+   * A paleta -strong escurece ~10-15% L em OKLCH-equivalent (ajuste manual hex
+   * pra preservar matiz). Componentes-tipo: chips compactos, números pequenos,
+   * legendas em waffle grid. Não usa hoje (S06 não invocou); adicionado pra
+   * paridade total da paleta 1..6 e evitar churn quando S07+ precisar.
+   * Constituição § 2: continua cor neutra NYT-like, nunca oficial partidária. */
+  --color-cand-1-strong: #a8221d; /* PT vermelho-escuro */
+  --color-cand-2-strong: #1d3a8a; /* PL azul-escuro */
+  --color-cand-3-strong: #9a5d12; /* âmbar-tostado */
+  --color-cand-4-strong: #346129; /* verde-oliva escuro */
+  --color-cand-5-strong: #5a3568; /* lilás-uva escuro */
+  --color-cand-6-strong: #3f3a32; /* taupe escuro */
+
   /* Versões claras (bands) — fundos de mapa, pull-quotes, fills suaves */
   --color-cand-band-1: var(--color-pt-band);
   --color-cand-band-2: var(--color-pl-band);

@@ -327,6 +327,12 @@ export function NationalChoroplethMapImpl({
         ref={containerRef}
         role="img"
         aria-label="Mapa interativo do Brasil — UFs coloridas por projeção"
+        // S05 carry-over (constitution P3 MEDIUM): liga o mapa semanticamente à
+        // tabela `<StateGroupedTable>` que vive abaixo na mesma página. Leitores
+        // de tela anunciam "descrito por: Resultados por estado" — quem não
+        // enxerga o choropleth pode ir direto à tabela equivalente (a11y RNF-022).
+        // O id "state-grouped-table-heading" é declarado no <h2> da tabela.
+        aria-describedby="state-grouped-table-heading"
         style={{ width: "100%", height }}
       />
       {/* Tooltip RF-030.3 */}

@@ -141,18 +141,16 @@ function toMunicipioRows(
 }
 
 /**
- * K-1 disclaimer adaptativo (ADR-0015). O orchestrator pode anexar
- * `model_fallback_tier` ao `EdgePayloadUf` quando o bloco político da UF
- * tem mapeamento 2022 problemático (tier 2 = pesquisa pré-eleitoral usada
- * como prior; tier 3 = sem prior, exibe parcial sem projeção).
+ * K-1 disclaimer adaptativo (ADR-0015). Lê `model_fallback_tier` do
+ * `EdgePayloadUf` (campo opcional formal — S06/F4d Fase 5). Quando ausente
+ * (payloads pré-S05 ou tier 1 ouro sem disclaimer), retorna null.
  *
- * O campo NÃO está formalmente no tipo `EdgePayloadUf` (S05/F4c) — é uma
- * extensão opcional reservada. Lemos via cast defensivo: se ausente,
- * `undefined` → null disclaimer.
+ * Pré-Fase 5 lia via cast (`as unknown as { ... }`) porque o campo não
+ * estava no tipo formal — Fase 5 da S06 promoveu o campo a opcional em
+ * `lib/edge-config/types.ts` e este consumidor passou a ler direto.
  */
 function readModelFallbackTier(payload: EdgePayloadUf): number | null {
-  const tier = (payload as unknown as { model_fallback_tier?: number }).model_fallback_tier;
-  return typeof tier === "number" ? tier : null;
+  return payload.model_fallback_tier ?? null;
 }
 
 export default async function UFGovernadorPage({ params }: UFGovernadorPageProps) {

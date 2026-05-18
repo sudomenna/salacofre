@@ -215,6 +215,24 @@ export interface EdgeNational {
    * coalesce para `[]` e UI esconde o ticker quando vazio.
    */
   chamadas_recentes?: Array<{ ts: string; texto: string }>;
+  /**
+   * Sinal binário "a eleição vai a 2º turno?" no agregado nacional —
+   * `true` quando o orchestrator avalia que nenhum candidato fecha o 1T,
+   * `false` quando há decisão no 1T (líder ≥ 50%+1), `null` quando
+   * indeterminado / 2T (degenera).
+   *
+   * Adicionado em S06/F4d Fase 5 (carry-over): consumidores do
+   * `<NationalWinnerBanner />` precisavam decidir entre "ELEITO" e
+   * "vai a 2T" derivando heuristicamente de `p_segundo_turno_overall`
+   * (`page.tsx`: `vai_a_2t_nacional = p < 0.01`). Eleva essa decisão para
+   * o orchestrator: emite explícito + auditável, espelhando a semântica
+   * já presente em `EdgeUfRow.vai_a_2t` (mas no agregado nacional).
+   *
+   * Pré-S06/F4d ausente — consumidor deve continuar derivando heuristicamente
+   * do `p_segundo_turno_overall` (forward-compat). Em 2T, o orchestrator
+   * deve emitir `null` (semântica vazia — já estamos no 2T).
+   */
+  vai_a_2t_nacional?: boolean | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -536,4 +554,31 @@ export interface EdgePayloadUf {
    * UFs pequenas (SE = 2 meso) ≈ <0.3 KB. Dentro do budget de 20 KB/UF.
    */
   mesorregioes?: EdgeMesorregiao[];
+  /**
+   * K-1 3-tier fallback (ADR-0015 / spec 002 K-1) — qual tier do bootstrap
+   * histórico foi efetivamente usado para esta UF nesta rodada do modelo:
+   *
+   *   - `1` ("ouro"): cobertura ≥ 80% de zonas com mapping direto histórico
+   *     (cargo + UF + zona) — caminho default. Sem disclaimer extra na UI.
+   *   - `2` ("prata"): tier 2 acionado por insuficiência de histórico no nível
+   *     zona. Bootstrap usa pre-election polls (api/model/pre_election_polls.py)
+   *     ou aproximação no nível UF. UI mostra disclaimer K-1 ("projeção
+   *     baseada em pesquisa pré-eleição; precisão menor").
+   *   - `3` ("bronze"): tier 3, último recurso — projeção sintetizada de
+   *     prior nacional. UI mostra disclaimer reforçado.
+   *
+   * Adicionado em S06/F4d Fase 5 (carry-over): a Fase 4 casteava como
+   * `unknown` (`(payload as { model_fallback_tier?: number })`) porque o
+   * campo não estava no tipo formal. Aqui formalizamos: opcional pra
+   * forward-compat com payloads pré-S05 que não emitiam o campo (consumidor
+   * coalesce para `1` = tier ouro = sem disclaimer, comportamento default).
+   *
+   * Origem do dado: `projections.model_fallback_tier` (smallint, migration
+   * 0004), populado pelo orchestrator em `_do_project` via `compute_uf_projections`.
+   * O serializador `build_uf_payloads` em api/model/project.py é responsável
+   * por propagar a coluna pro payload UF (S06/F4d Fase 5 — pode requerer
+   * complemento Python pra serializar; tracked como carry-over técnico de
+   * acompanhamento se ainda ausente no payload de produção).
+   */
+  model_fallback_tier?: 1 | 2 | 3;
 }

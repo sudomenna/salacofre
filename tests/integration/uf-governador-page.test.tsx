@@ -44,8 +44,8 @@ function makeMunicipio(i: number): EdgeUfMunicipio {
 function buildUfPayload(opts: {
   municipios: number;
   withMesorregioes: boolean;
-  modelTier?: number;
-}): EdgePayloadUf & { model_fallback_tier?: number } {
+  modelTier?: 1 | 2 | 3;
+}): EdgePayloadUf {
   const municipios = Array.from({ length: opts.municipios }, (_, i) => makeMunicipio(i));
   const base: EdgePayloadUf = {
     uf: "SP",

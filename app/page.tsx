@@ -115,11 +115,21 @@ export default async function HomePage() {
   // não foi gravada (pré-virada de turno) — degrade gracioso.
   const recap1T = turno === 2 ? await readArchivedProjection({ cargo: "pres", turno: 1 }) : null;
 
-  // Sinal `vai_a_2t` agregado nacional — derivado de `p_segundo_turno_overall`.
-  // Em 1T, `false` ⇔ orchestrator declara decisão no 1T (P(2T) baixíssima).
-  // Em 2T não usado pelo banner (turno 2 já passa o gate).
+  // Sinal `vai_a_2t` agregado nacional. S06/F4d Fase 5 promoveu a derivação ao
+  // orchestrator (`national.vai_a_2t_nacional`); aqui usamos direto quando
+  // presente, com fallback à derivação local pra payloads pré-Fase 5.
+  // Semântica alinhada com o NOME do campo: `true` ⇔ vai a 2T ⇔ P(2T) alta.
+  // O `<NationalWinnerBanner />` gate é `vaiA2t === false` (decisão 1T).
+  //
+  // Fix Fase 5: a heurística antiga local emitia `vaiA2tNacional = p < 0.01`,
+  // ou seja, **true quando NÃO vai a 2T** — invertido em relação ao nome.
+  // Com isso o banner NUNCA renderizava no caminho decisão-1T (sempre `!==
+  // false` ⇒ early return). Cobertura desse caminho passa a existir após
+  // Fase 5. Pré-Fase 5: payloads sem o campo agora caem em derivação
+  // SEMANTICAMENTE CORRETA (`>= 0.01`), corrigindo o gate retroativamente.
   const pSegundoTurno = national.p_segundo_turno_overall;
-  const vaiA2tNacional: boolean | null = pSegundoTurno == null ? null : pSegundoTurno < 0.01;
+  const vaiA2tNacional: boolean | null =
+    national.vai_a_2t_nacional ?? (pSegundoTurno == null ? null : pSegundoTurno >= 0.01);
 
   // Mapping candidato_id → rank — alimenta paleta N-way no mapa e nas
   // colunas decisivas/grouped (ADR-0013). Pré-S05 ou fallback: array

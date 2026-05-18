@@ -188,6 +188,9 @@ _(preencher se mudar)_
 - O que funcionou:
 - O que melhorar:
 - Carry-over pra S07:
+  - **Estender `scripts/replay-2022.ts` + `api/model/replay_batch.py` para suportar 2T** — atualmente o replay só roda 1T (cargo=1, turno=1) com dataset 2022 binário. Para validar 2T (RNF-006, OT-4) precisa-se gerar fixture 2T 2022 (binário Lula × Bolsonaro 30/10/2022) e habilitar `turno: 2` na geração de timesteps. Gate OT-4 real só pós-simulado oficial TSE 2026 (mantém spec 002 em `implementing` até lá). Estimado ~10h. Owner: `model-validator`.
+  - **CSV mesorregião IBGE 2022** — `data-pipeline/migrations/0005_municipios_mesorregiao.ts` criou schema mas não populou (CSV não está no repo). UI degrade gracioso (bloco "Apuração por mesorregião" esconde quando `mesorregioes` ausente). Owner-action: baixar `RELATORIO_DTB_BRASIL_MUNICIPIO_2022.xls` do IBGE FTP, converter pra CSV, commitar em `docs/ibge-2022/municipios-mesorregiao.csv`, re-rodar a migration. Documentar em [risks.md](../reference/risks.md) como watch S07.
+  - **Carry-over técnico `api/model/project.py.build_uf_payloads`** — formalizado `EdgePayloadUf.model_fallback_tier?: 1 | 2 | 3` em `lib/edge-config/types.ts` na Fase 5; complementar a serialização Python no `build_uf_payloads` (extrair `projections.model_fallback_tier` por UF e propagar). Hoje a UI lê com fallback null (sem disclaimer extra) — funcional mas perde sinal K-1 visualmente.
 
 ## Cross-refs
 
