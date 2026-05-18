@@ -96,8 +96,30 @@ describe("<NationalChoroplethMap /> — RF-030.1, RF-030.3", () => {
     expect(doc.querySelector('[role="region"]')).not.toBeNull();
   });
 
+  it("(e) aceita rankByLider sem erro — wrapper SSR repassa prop (S05/F3B)", () => {
+    // Wrapper SSR só renderiza casca; o impl com MapLibre só monta no cliente.
+    // Validamos apenas que o componente aceita a prop e renderiza sem crash.
+    const rankByLider: Record<number, number> = { 13: 1, 22: 2, 25: 3 };
+    const doc = parse(
+      <NationalChoroplethMap
+        rows={SAMPLE_ROWS}
+        candidatoAId={13}
+        view="winner"
+        rankByLider={rankByLider}
+      />,
+    );
+    expect(doc.querySelector('[role="region"]')).not.toBeNull();
+  });
+
+  it("(f) rankByLider undefined ainda renderiza (degrade S04 → cand-1)", () => {
+    const doc = parse(<NationalChoroplethMap rows={SAMPLE_ROWS} candidatoAId={13} view="winner" />);
+    expect(doc.querySelector('[role="region"]')).not.toBeNull();
+  });
+
   // NB: o impl (handler de click → router.push('/uf/[sigla]'), hover MapLibre +
-  // setFilter, tooltip) é validado em e2e Playwright. Mock completo de
-  // MapLibre GL aqui é desproporcional para o ganho de cobertura unit.
-  // Deferred para S05: tests/e2e/national-map.spec.ts.
+  // setFilter, tooltip, aplicação das cores N-way via setPaintProperty) é
+  // validado em e2e Playwright. Mock completo de MapLibre GL aqui é
+  // desproporcional para o ganho de cobertura unit. Deferred para S05/F4:
+  // tests/e2e/national-map.spec.ts cobre rankByLider com 3 ranks distintos
+  // → 3 cores aplicadas no canvas.
 });

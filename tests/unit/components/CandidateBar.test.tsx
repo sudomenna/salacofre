@@ -74,4 +74,11 @@ describe("<CandidateBar />", () => {
     expect(meters.length).toBe(1);
     expect(doc.body.textContent).not.toContain("CI95");
   });
+
+  it("(e) sem `cor`, `rank=3` resolve cor via colorForRank (S05/F3B)", () => {
+    const doc = parse(<CandidateBar nome="X" partido="MDB" pctProjetado={4.5} rank={3} />);
+    const fill = doc.querySelector('[role="meter"] > div');
+    // colorForRank(3) === "var(--color-cand-3)"
+    expect(fill?.getAttribute("style")).toContain("var(--color-cand-3)");
+  });
 });

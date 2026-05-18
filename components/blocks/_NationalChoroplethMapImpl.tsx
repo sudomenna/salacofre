@@ -23,6 +23,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { MapView } from "@/components/atoms/controls/MapViewToggle";
 import type { EdgeUfRow } from "@/lib/edge-config/types";
+import { resolveBandHex, resolveCandHex } from "@/lib/utils/cand-color";
 
 const PMTILES_BASE = "https://jbtu251tioj3y57z.public.blob.vercel-storage.com";
 
@@ -30,6 +31,14 @@ export interface NationalChoroplethMapImplProps {
   rows: EdgeUfRow[];
   candidatoAId: number | null;
   view: MapView;
+  /**
+   * Mapping `candidato_id → rank nacional` (S05/F3B). Permite ao mapa
+   * pintar UFs N-way em vez de binário (PT/PL): UF com líder rank 1 usa
+   * `--color-cand-1`, rank 3 usa `--color-cand-3` (âmbar), etc. Rank > 6
+   * cai em `--color-cand-other` (cinza). Construído na page a partir do
+   * `national.candidatos[]` (1 lookup O(1) por UF).
+   */
+  rankByLider?: Record<number, number>;
   height?: number;
 }
 
@@ -46,38 +55,65 @@ function getCssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-function marginToColor(margin: number, lider: number, candidatoAId: number | null): string {
-  const isA = lider === candidatoAId;
+/**
+ * S05/F3B — paleta N-way. Recebe `rank` do líder daquela UF (1..6 ou fallback
+ * rank 99 → "other"). `margin` decide intensidade: alta → cor sólida (cand-N),
+ * média → versão band (cand-band-N), baixa → tossup neutro.
+ */
+function marginToColor(margin: number, rank: number): string {
   const abs = Math.abs(margin);
   if (abs < 2) return getCssVar("--color-tossup");
-  if (isA) return abs >= 15 ? getCssVar("--color-pt") : getCssVar("--color-pt-band");
-  return abs >= 15 ? getCssVar("--color-pl") : getCssVar("--color-pl-band");
+  return abs >= 15 ? resolveCandHex(rank) : resolveBandHex(rank);
 }
 
-function turnoutToColor(pct: number, lider: number, candidatoAId: number | null): string {
+/**
+ * Turnout (view "turnout") — paleta neutra/única dimensão: o "líder" da UF
+ * pinta com sua cor sólida (top apurado) ou band (baixo apurado). Não tem
+ * cor partidária natural — semântica é "quanto já apurou". Mantemos o uso
+ * do rank pra dar continuidade visual entre views.
+ */
+function turnoutToColor(pct: number, rank: number): string {
   if (pct === 0) return getCssVar("--color-tossup");
-  const isA = lider === candidatoAId;
-  if (pct >= 80) return isA ? getCssVar("--color-pt") : getCssVar("--color-pl");
-  return isA ? getCssVar("--color-pt-band") : getCssVar("--color-pl-band");
+  if (pct >= 80) return resolveCandHex(rank);
+  return resolveBandHex(rank);
 }
 
+/**
+ * Swing (view "swing") — é um delta vs 2022; não tem cor partidária natural
+ * (swing > 0 = "movimento em favor do líder atual", swing < 0 = "fuga").
+ * Usamos paleta neutra: âmbar/ocre pro positivo, cinza-azulado pro negativo.
+ * Para manter o código simples e neutro, mapeamos para os tokens band
+ * neutros (band-likely / band-lean) — sem cor partidária ou por-rank.
+ */
 function swingToColor(swing: number): string {
   const abs = Math.abs(swing);
   if (abs < 2) return getCssVar("--color-tossup");
-  if (swing > 0) return abs >= 10 ? getCssVar("--color-pt") : getCssVar("--color-pt-band");
-  return abs >= 10 ? getCssVar("--color-pl") : getCssVar("--color-pl-band");
+  if (swing > 0)
+    return abs >= 10 ? getCssVar("--color-band-very_likely") : getCssVar("--color-band-likely");
+  return abs >= 10 ? getCssVar("--color-band-very_likely") : getCssVar("--color-band-lean");
 }
 
-function resolveColor(row: EdgeUfRow, view: MapView, candidatoAId: number | null): string {
+function rankFor(lider: number, rankByLider: Record<number, number> | undefined): number {
+  // Fallback: sem rankByLider → rank 99 (→ cor "other" cinza). Pré-S05 e
+  // testes legados usam isso.
+  return rankByLider?.[lider] ?? 99;
+}
+
+function resolveColor(
+  row: EdgeUfRow,
+  view: MapView,
+  rankByLider: Record<number, number> | undefined,
+): string {
+  const rank = rankFor(row.lider, rankByLider);
   switch (view) {
     case "winner":
-      return row.lider === candidatoAId ? getCssVar("--color-pt") : getCssVar("--color-pl");
+      return resolveCandHex(rank);
     case "margin":
-      return marginToColor(row.margem_projetada, row.lider, candidatoAId);
+      return marginToColor(row.margem_projetada, rank);
     case "swing":
       return swingToColor(row.swing_vs_2022);
     case "turnout":
-      return turnoutToColor(row.pct_apurado, row.lider, candidatoAId);
+      return turnoutToColor(row.pct_apurado, rank);
   }
 }
 
@@ -93,14 +129,14 @@ function applyColors(
   map: maplibregl.Map,
   rows: EdgeUfRow[],
   view: MapView,
-  candidatoAId: number | null,
+  rankByLider: Record<number, number> | undefined,
 ) {
   if (rows.length === 0) return;
   const fallback = getCssVar("--color-tossup");
   // ["match", ["get", "SIGLA_UF"], "SP", "#...", "RJ", "#...", ..., fallback]
   const expression: (string | number | unknown[])[] = ["match", ["get", "SIGLA_UF"]];
   for (const row of rows) {
-    expression.push(row.sigla, resolveColor(row, view, candidatoAId));
+    expression.push(row.sigla, resolveColor(row, view, rankByLider));
   }
   expression.push(fallback);
   map.setPaintProperty("ufs-fill", "fill-color", expression as unknown as string);
@@ -112,8 +148,16 @@ export function NationalChoroplethMapImpl({
   rows,
   candidatoAId,
   view,
+  rankByLider,
   height = 420,
 }: NationalChoroplethMapImplProps) {
+  // Backward-compat: caller pré-S05 só passa `candidatoAId`; sintetizamos um
+  // rankByLider mínimo `{ [candidatoAId]: 1 }` pra manter o líder em
+  // `--color-cand-1` (= --color-pt, mesmo hex). Líderes "diferentes" caem
+  // em rank 99 → cor "other" (cinza). É degradação cuidadosa: melhor que
+  // tudo cinza, ainda destaca o líder global.
+  const effectiveRankByLider: Record<number, number> | undefined =
+    rankByLider ?? (candidatoAId != null ? { [candidatoAId]: 1 } : undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
@@ -125,8 +169,9 @@ export function NationalChoroplethMapImpl({
     rowsMapRef.current = new Map(rows.map((r) => [r.sigla, r]));
   }, [rows]);
 
-  // Map init — runs once on mount
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mapa é ilha React; rows/view/candidatoAId geridos por refs e efeito separado
+  // Map init — runs once on mount. O efeito de re-color (rows/view/rankByLider)
+  // mora abaixo e usa refs pro handler de `map.on("load")`, garantindo que o
+  // mapa é "ilha React" e não remonta a cada mudança de prop.
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -212,7 +257,7 @@ export function NationalChoroplethMapImpl({
         map,
         Array.from(rowsMapRef.current.values()),
         viewRef.current,
-        candidatoAIdRef.current,
+        rankByLiderRef.current,
       );
     });
 
@@ -261,20 +306,20 @@ export function NationalChoroplethMapImpl({
     routerRef.current = router;
   }, [router]);
 
-  // Refs for view/candidatoAId used in load handler
+  // Refs for view/rankByLider used in load handler
   const viewRef = useRef(view);
-  const candidatoAIdRef = useRef(candidatoAId);
+  const rankByLiderRef = useRef(effectiveRankByLider);
   useEffect(() => {
     viewRef.current = view;
-    candidatoAIdRef.current = candidatoAId;
-  }, [view, candidatoAId]);
+    rankByLiderRef.current = effectiveRankByLider;
+  }, [view, effectiveRankByLider]);
 
-  // Recolor when view or rows change (zero re-fetch)
+  // Recolor when view, rows or rankByLider change (zero re-fetch)
   useEffect(() => {
     const map = mapRef.current;
     if (!map?.loaded()) return;
-    applyColors(map, rows, view, candidatoAId);
-  }, [view, rows, candidatoAId]);
+    applyColors(map, rows, view, effectiveRankByLider);
+  }, [view, rows, effectiveRankByLider]);
 
   return (
     <div style={{ position: "relative" }}>

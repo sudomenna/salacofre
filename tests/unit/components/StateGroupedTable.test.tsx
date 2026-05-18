@@ -7,7 +7,28 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { StateGroupedTable } from "@/components/blocks/StateGroupedTable";
-import type { EdgeUfRow } from "@/lib/edge-config/types";
+import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
+
+/**
+ * Helper pra montar EdgeCandidate sintético nos tests sem repetir o shape
+ * completo. Em mode="multi-1t" só `id`, `nome` e `rank` importam pro componente.
+ */
+const mkCand = (id: number, nome: string, rank: number): EdgeCandidate => ({
+  id,
+  nome,
+  partido: "X",
+  cor: `var(--color-cand-${rank})`,
+  votos_atuais: 0,
+  votos_projetados: 0,
+  pct_atual: 0,
+  pct_projetado: 0,
+  pct_projetado_lower: 0,
+  pct_projetado_upper: 0,
+  p_vitoria: 0,
+  rank,
+  p_passa_2t: 0,
+  p_fecha_1t: 0,
+});
 
 function parse(node: React.ReactElement): Document {
   return new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
@@ -94,5 +115,84 @@ describe("<StateGroupedTable />", () => {
     // XX deve estar na 3a coluna (tossup)
     const firstRow = Array.from(doc.querySelectorAll("tbody tr:first-child td"));
     expect(firstRow[2]?.textContent ?? "").toContain("XX");
+  });
+
+  // --- S05/F3B: mode="multi-1t" -------------------------------------------
+
+  it("(e) mode='binary' preservado: layout S04 com 5 colunas e labels antigas", () => {
+    const rows = [mkRow("SP", 13, 15), mkRow("RJ", 22, 12)];
+    const doc = parse(
+      <StateGroupedTable
+        rows={rows}
+        candidatoAId={13}
+        candidatoAName="Lula"
+        candidatoBName="Bolsonaro"
+        mode="binary"
+      />,
+    );
+    const headers = Array.from(doc.querySelectorAll("th")).map((t) => t.textContent ?? "");
+    expect(headers.length).toBe(5);
+    expect(headers[0]).toContain("Lula confortável");
+  });
+
+  it("(f) mode='multi-1t' com 3 colunas (PT, PL, MDB) + 'Em disputa'", () => {
+    const candidatos = [
+      mkCand(13, "PT-Cand", 1),
+      mkCand(22, "PL-Cand", 2),
+      mkCand(25, "MDB-Cand", 3),
+    ];
+    const rows: EdgeUfRow[] = [
+      mkRow("SP", 13, 15), // PT lidera (margem 15)
+      mkRow("RS", 13, 10), // PT lidera
+      mkRow("RJ", 22, 12), // PL lidera
+      mkRow("AM", 25, 8), // MDB lidera
+      mkRow("ZZ", 13, 1), // Em disputa (|1| < 2)
+    ];
+    const doc = parse(
+      <StateGroupedTable rows={rows} candidatoAId={13} candidatos={candidatos} mode="multi-1t" />,
+    );
+    const headers = Array.from(doc.querySelectorAll("th")).map((t) => t.textContent ?? "");
+    // 3 candidatos + 1 "Em disputa"
+    expect(headers.length).toBe(4);
+    expect(headers[0]).toContain("PT-Cand");
+    expect(headers[1]).toContain("PL-Cand");
+    expect(headers[2]).toContain("MDB-Cand");
+    expect(headers[3]).toContain("Em disputa");
+  });
+
+  it("(g) mode='multi-1t': ordenação por |margem| desc dentro de cada coluna", () => {
+    const candidatos = [mkCand(13, "Pri", 1)];
+    const rows: EdgeUfRow[] = [
+      mkRow("AAA", 13, 5), // |5|
+      mkRow("BBB", 13, 18), // |18|
+      mkRow("CCC", 13, 11), // |11|
+    ];
+    const doc = parse(
+      <StateGroupedTable rows={rows} candidatoAId={13} candidatos={candidatos} mode="multi-1t" />,
+    );
+    // 1ª coluna (Pri) deve ordenar BBB → CCC → AAA
+    const firstColCells = Array.from(doc.querySelectorAll("tbody tr td:first-child a")).map(
+      (a) => a.textContent?.match(/^([A-Z]{2,3})/)?.[1],
+    );
+    expect(firstColCells).toEqual(["BBB", "CCC", "AAA"]);
+  });
+
+  it("(h) mode='multi-1t': 'Em disputa' agrupa UFs tossup independente do líder", () => {
+    const candidatos = [mkCand(13, "P1", 1), mkCand(22, "P2", 2)];
+    const rows: EdgeUfRow[] = [
+      mkRow("XX", 13, 0.5), // tossup (margem < 2)
+      mkRow("YY", 22, -1.5), // tossup (|margem| < 2)
+      mkRow("ZZ", 13, 10), // P1 column
+    ];
+    const doc = parse(
+      <StateGroupedTable rows={rows} candidatoAId={13} candidatos={candidatos} mode="multi-1t" />,
+    );
+    // Última coluna = "Em disputa" — deve conter XX e YY
+    const lastColCells = Array.from(doc.querySelectorAll("tbody tr td:last-child a")).map(
+      (a) => a.textContent?.match(/^([A-Z]{2})/)?.[1],
+    );
+    expect(lastColCells).toContain("XX");
+    expect(lastColCells).toContain("YY");
+    expect(lastColCells).not.toContain("ZZ");
   });
 });

@@ -1,20 +1,36 @@
 /**
  * components/blocks/HeadlineScore.tsx
  *
- * Scoreboard hero — dois maiores candidatos lado-a-lado, estilo NYT
- * "Live Forecast". Marca visual de gatilho 50%+1 (segundo turno).
+ * Scoreboard hero — top-2 candidatos lado-a-lado em destaque (camada 1 do
+ * hero multi-camada, ADR-0017).
  *
  * Cobertura
  *   - RF-022 (votos absolutos projetados)
  *   - RF-023 (% projetado + CI95)
- *   - RF-030.5 (placar grande + marca 50%+1)
+ *   - RF-030.5 (marca 50%+1 — só em mode="binary"; substituída em multi-1t
+ *     pelo `<TwoRoundIndicator />` no caller, Fase 4)
  *
  * Server Component puro. Recebe o slice nacional do `EdgePayload` resolvido
  * pelo pai (`app/page.tsx`).
  *
+ * Modos (S05/F3B — refator)
+ *   - `mode="multi-1t"`: corrida 1T multi-candidato — renderiza só camada 1
+ *     (top-2 hero). Sem barra "50%+1" interna; caller usa `<TwoRoundIndicator />`
+ *     pra mostrar P(2T) global. Headline 1T menciona o terceiro candidato:
+ *     "X lidera, Z briga pela 2ª vaga" (Z vem do array completo, mesmo que
+ *     filtrado por `mostrarRanks`).
+ *   - `mode="binary"`: corrida 2T (ou 1T com 2 candidatos) — comportamento S04:
+ *     placar + barra "50%+1" (interno) marcando gatilho.
+ *
+ * Default
+ *   Quando `mode` não é passado, derivamos de `turno + candidatos.length`:
+ *   `turno === 2 || candidatos.length === 2` → `binary`; senão → `multi-1t`.
+ *
  * Ordenação canônica
- *   `EdgeNational` já garante candidatos[0] = líder ("A"), candidatos[1] = "B"
- *   (FIX S04 — carry-over #1). Aqui só lemos `candidatos[0]` e `candidatos[1]`.
+ *   `EdgeNational` já garante candidatos[0] = líder (rank 1), candidatos[1] =
+ *   rank 2, etc (FIX S04). Aqui filtramos por `mostrarRanks` (default [1, 2])
+ *   pra exibir só o top-2; o array completo segue acessível pra montar
+ *   headlines dinâmicas com referência a outros ranks.
  *
  * Edge cases
  *   - 0 candidatos → mensagem "Aguardando candidatos" (estado pré-eleição).
@@ -23,11 +39,13 @@
  * A11y
  *   - `<section aria-labelledby>` para semântica de landmark.
  *   - Cada barra é um `<CandidateBar>` (já com role=meter).
- *   - Marca 50%+1 com `<span aria-hidden>` no SVG; texto descritivo no caption.
+ *   - Marca 50%+1 (binary) com `<span aria-hidden>` no SVG; texto descritivo no caption.
  */
 
 import { CandidateBar } from "@/components/atoms/bars/CandidateBar";
-import type { EdgeCandidate } from "@/lib/edge-config/types";
+import type { EdgeCandidate, Turno } from "@/lib/edge-config/types";
+
+export type HeadlineScoreMode = "multi-1t" | "binary";
 
 export interface HeadlineScoreProps {
   candidatos: EdgeCandidate[];
@@ -35,6 +53,23 @@ export interface HeadlineScoreProps {
   titulo?: string;
   /** Subtítulo descritivo. */
   subtitulo?: string;
+  /**
+   * Modo do hero. Quando omitido, deriva de `turno + candidatos.length`:
+   * `turno === 2 || candidatos.length === 2` → `"binary"`; senão `"multi-1t"`.
+   */
+  mode?: HeadlineScoreMode;
+  /**
+   * Turno (1 ou 2). Usado só pra derivar `mode` quando ele não é passado.
+   * Default 1.
+   */
+  turno?: Turno;
+  /**
+   * Lista de ranks a exibir como hero (camada 1). Default `[1, 2]` — top-2.
+   * O componente FILTRA os candidatos por estes ranks, mas o array original
+   * continua acessível pra montagem do headline dinâmico (mencionar rank 3
+   * em 1T multi-candidato, por exemplo).
+   */
+  mostrarRanks?: number[];
   className?: string;
 }
 
@@ -42,10 +77,20 @@ export function HeadlineScore({
   candidatos,
   titulo = "Apuração Presidencial 2026",
   subtitulo = "Projeção em tempo real com base em apuração real do TSE e comparação com 2022.",
+  mode,
+  turno = 1,
+  mostrarRanks = [1, 2],
   className,
 }: HeadlineScoreProps) {
-  const a = candidatos[0];
-  const b = candidatos[1];
+  // Modo default — derivado de turno + #candidatos
+  const effectiveMode: HeadlineScoreMode =
+    mode ?? (turno === 2 || candidatos.length === 2 ? "binary" : "multi-1t");
+
+  // Hero (camada 1): top-2 por padrão. Filtra pelos ranks pedidos preservando
+  // ordem do array original (que já é ordenado por rank ascendente).
+  const heroCandidatos = candidatos.filter((c) => mostrarRanks.includes(c.rank ?? -1));
+  const a = heroCandidatos[0] ?? candidatos[0];
+  const b = heroCandidatos[1] ?? candidatos[1];
 
   // Estado pré-eleição
   if (!a) {
@@ -69,11 +114,20 @@ export function HeadlineScore({
     );
   }
 
-  // Headline dinâmico — "Lula à frente" / "Disputa apertada"
+  // Headline dinâmico. Em multi-1t menciona o terceiro candidato; em binary
+  // mantém o comportamento "X à frente / Disputa apertada".
   const lead = a.pct_projetado - (b?.pct_projetado ?? 0);
   let leadLabel: string;
   if (!b) {
     leadLabel = `${a.nome} confirmado`;
+  } else if (effectiveMode === "multi-1t") {
+    // Rank 3 do array original (acessível mesmo quando filtrado pelo hero)
+    const terceiro = candidatos.find((c) => (c.rank ?? -1) === 3);
+    if (terceiro) {
+      leadLabel = `${a.nome} lidera, ${terceiro.nome} briga pela 2ª vaga`;
+    } else {
+      leadLabel = `${a.nome} à frente`;
+    }
   } else if (Math.abs(lead) < 1) {
     leadLabel = "Disputa apertada";
   } else if (lead > 0) {
@@ -111,6 +165,7 @@ export function HeadlineScore({
           nome={a.nome}
           partido={a.partido}
           cor={a.cor}
+          rank={a.rank}
           pctProjetado={a.pct_projetado}
           pctLower={a.pct_projetado_lower}
           pctUpper={a.pct_projetado_upper}
@@ -121,6 +176,7 @@ export function HeadlineScore({
             nome={b.nome}
             partido={b.partido}
             cor={b.cor}
+            rank={b.rank}
             pctProjetado={b.pct_projetado}
             pctLower={b.pct_projetado_lower}
             pctUpper={b.pct_projetado_upper}
@@ -130,18 +186,20 @@ export function HeadlineScore({
         )}
       </div>
 
-      {/* Gatilho 50%+1 — barra horizontal mostrando proporção combinada
-          dos dois com tick em 50%. */}
-      {b && <Gatilho50 a={a} b={b} />}
+      {/* Marca 50%+1 — só em modo binary (2T ou 1T com 2 cands). Em multi-1t
+          o caller deve mostrar `<TwoRoundIndicator />` pra P(2T) global. */}
+      {effectiveMode === "binary" && b && <ThresholdMarker50 a={a} b={b} />}
     </section>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Gatilho 50% + 1 — barra empilhada (A à esquerda, B à direita), tick em 50%.
-// RF-030.5: marca visual em 50%+1.
+// Marca 50% + 1 — barra empilhada (A à esquerda, B à direita), tick em 50%.
+// RF-030.5: marca visual em 50%+1. Só renderiza em mode="binary".
+// (Renomeado de Gatilho50 em S05/F3B pra refletir semântica: é marca
+// visual de threshold no duelo, não gatilho de transição entre turnos.)
 // ---------------------------------------------------------------------------
-function Gatilho50({ a, b }: { a: EdgeCandidate; b: EdgeCandidate }) {
+function ThresholdMarker50({ a, b }: { a: EdgeCandidate; b: EdgeCandidate }) {
   const total = a.pct_projetado + b.pct_projetado || 1;
   const aPct = (a.pct_projetado / total) * 100;
   // Posição do líder vs 50% explicit

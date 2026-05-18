@@ -37,7 +37,17 @@ export interface InsightContext {
  *   2. Existe UF com swing |.| >= 4 → "Y surpreende: +4,8pp vs 2022."
  *   3. Existe UF em tossup com pct_apurado < 50 → "Z pode ser decisiva..."
  *
+ * Regras 1T multi-candidato (S05/F3B):
+ *   M1. `p_segundo_turno_overall >= 0.6` → "Disputa caminha para 2º turno (X%)"
+ *   M2. `p_fecha_1t(líder) >= 0.7` → "X pode encerrar no 1º turno"
+ *   M3. Candidato rank 3 com `p_passa_2t >= 0.3` → "Z briga pela vaga (X%)"
+ *
  * Limite: 3 frases. Determinístico (seleção por critério estável, sem random).
+ *
+ * Ordem de prioridade quando há overflow (>3 frases candidatas):
+ *   M1 (P(2T) alto) > M2 (líder fecha 1T) > regra binária 1 > M3 (terceiro
+ *   briga) > regra 2 (swing) > regra 3 (tossup). Regras multi-1t (Mx) só
+ *   disparam quando aplicáveis (pSegundoTurno != null, etc).
  */
 export function generateInsights(ctx: InsightContext): string[] {
   const lines: string[] = [];
@@ -47,6 +57,21 @@ export function generateInsights(ctx: InsightContext): string[] {
     national.candidatos.find((c) => c.id === national.candidato_a_id) ?? national.candidatos[0];
   const b =
     national.candidatos.find((c) => c.id === national.candidato_b_id) ?? national.candidatos[1];
+
+  // --- Regras 1T multi-candidato (M1..M3) — emitidas antes pra ganhar
+  // prioridade sobre regras binárias quando aplicáveis. -----------------
+
+  // M1: P(2T) >= 0.6 → "Disputa caminha para 2º turno"
+  if (national.p_segundo_turno_overall != null && national.p_segundo_turno_overall >= 0.6) {
+    const pct = formatPercent(national.p_segundo_turno_overall * 100, 0);
+    lines.push(`Disputa caminha para 2º turno (${pct} de chance).`);
+  }
+
+  // M2: líder com p_fecha_1t >= 0.7 → "X pode encerrar no 1º turno"
+  if (a && a.p_fecha_1t != null && a.p_fecha_1t >= 0.7) {
+    const pct = formatPercent(a.p_fecha_1t * 100, 0);
+    lines.push(`${a.nome} pode encerrar no 1º turno (${pct} de chance).`);
+  }
 
   if (a && b) {
     const diff = a.pct_projetado - b.pct_projetado;
@@ -62,8 +87,15 @@ export function generateInsights(ctx: InsightContext): string[] {
     }
   }
 
+  // M3: candidato rank 3 com p_passa_2t >= 0.3 → "briga pela vaga no 2º turno"
+  const terceiro = national.candidatos.find((c) => (c.rank ?? -1) === 3);
+  if (terceiro && terceiro.p_passa_2t != null && terceiro.p_passa_2t >= 0.3 && lines.length < 3) {
+    const pct = formatPercent(terceiro.p_passa_2t * 100, 0);
+    lines.push(`${terceiro.nome} briga pela vaga no 2º turno (${pct} de chance).`);
+  }
+
   // Maior swing absoluto
-  if (por_uf.length > 0) {
+  if (por_uf.length > 0 && lines.length < 3) {
     const ufMaxSwing = [...por_uf].sort(
       (x, y) => Math.abs(y.swing_vs_2022) - Math.abs(x.swing_vs_2022),
     )[0];

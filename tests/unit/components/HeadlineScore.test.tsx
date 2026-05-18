@@ -96,4 +96,64 @@ describe("<HeadlineScore />", () => {
     expect(a).not.toBeNull();
     expect(a?.textContent).toContain("Como funciona");
   });
+
+  it("(h) mode='multi-1t' smoke: renderiza top-2 hero e SEM marca 50%+1 interna", () => {
+    const terceiro: EdgeCandidate = {
+      ...lula,
+      id: 25,
+      nome: "Terceiro",
+      partido: "MDB",
+      cor: "var(--color-cand-3)",
+      pct_projetado: 4.5,
+      rank: 3,
+    };
+    const doc = parse(
+      <HeadlineScore candidatos={[lula, bolso, terceiro]} mode="multi-1t" turno={1} />,
+    );
+    // Hero ainda mostra top-2
+    expect(doc.body.textContent).toContain("Lula");
+    expect(doc.body.textContent).toContain("Bolsonaro");
+    // SEM marca 50%+1 (gatilho 2º turno) — substituída por TwoRoundIndicator no caller
+    expect(doc.body.textContent).not.toContain("50%+1");
+    expect(doc.body.textContent).not.toContain("gatilho de 2º turno");
+  });
+
+  it("(i) headline em 1T multi menciona o terceiro candidato", () => {
+    const terceiro: EdgeCandidate = {
+      ...lula,
+      id: 25,
+      nome: "Terceiro Lugar",
+      partido: "MDB",
+      cor: "var(--color-cand-3)",
+      pct_projetado: 4.5,
+      rank: 3,
+    };
+    const doc = parse(
+      <HeadlineScore candidatos={[lula, bolso, terceiro]} mode="multi-1t" turno={1} />,
+    );
+    expect(doc.body.textContent).toContain("Terceiro Lugar");
+    expect(doc.body.textContent).toContain("briga pela 2ª vaga");
+  });
+
+  it("(j) transição binary → multi: headline muda quando mode muda", () => {
+    const terceiro: EdgeCandidate = {
+      ...lula,
+      id: 25,
+      nome: "Tercio",
+      partido: "MDB",
+      cor: "var(--color-cand-3)",
+      pct_projetado: 4.5,
+      rank: 3,
+    };
+    const cands = [lula, bolso, terceiro];
+    const docBinary = parse(<HeadlineScore candidatos={cands} mode="binary" />);
+    const docMulti = parse(<HeadlineScore candidatos={cands} mode="multi-1t" turno={1} />);
+    // Binary: headline tradicional ("X à frente")
+    expect(docBinary.body.textContent).toContain("Lula à frente");
+    // Multi: headline menciona o terceiro
+    expect(docMulti.body.textContent).toContain("Tercio");
+    // Marca 50%+1 só aparece em binary
+    expect(docBinary.body.textContent).toContain("50%+1");
+    expect(docMulti.body.textContent).not.toContain("50%+1");
+  });
 });

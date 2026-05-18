@@ -1,19 +1,26 @@
 /**
  * components/blocks/DecisiveUFsGrid.tsx
  *
- * Top 6 UFs por contribuição ao swing nacional. Cobertura: RF-024.
+ * Top N UFs por "decisividade": quanto a UF pode mudar o resultado. Cobertura: RF-024.
  *
  * Cada card mostra:
  *   - Sigla da UF
- *   - Líder atual + margem projetada (com sinal)
+ *   - Líder atual + margem projetada (com sinal) — barra pintada com `colorForRank()`
  *   - Mini-bar (margem projetada visualizada como faixa)
  *   - Swing vs 2022 (pp)
  *   - Link para `/uf/[sigla]`
  *
- * "Contribuição ao swing" — proxy didático: usamos `|swing_vs_2022|`
- * ponderado por `pct_apurado` para estimar quanto a UF está movendo o
- * forecast. Não é o cálculo formal do modelo (que vive em
- * `lib/model/`), mas serve para destacar as UFs que mais variaram.
+ * Fórmula de "decisivo" (S05/F3B — refator)
+ *   `score = |margem_projetada| × (pct_apurado / 100)`  invertido depois pra
+ *   que MENOR margem com MAIS apurado = MAIOR score. Em outras palavras:
+ *   `score_dec = pct_apurado × (1 / (1 + |margem|))`. UFs com duelo local
+ *   apertado E muita apuração ficam no topo (são as "tossup quase decididas"
+ *   onde poucos pontos viram a chamada). Isso bate com a intuição de mesa
+ *   de TV: na noite, o que mais "pesa" é a UF que ainda pode virar com pouco.
+ *
+ *   Pré-S05 a fórmula era `|swing_vs_2022| × pct_apurado` — útil pra história
+ *   "swing", mas confunde com a view "swing" do mapa. A nova fórmula prioriza
+ *   *incerteza × peso* e é o canon do bloco "decisivas".
  *
  * Server Component puro. Sem estado, sem hooks.
  *
@@ -23,32 +30,53 @@
  */
 
 import type { EdgeUfRow } from "@/lib/edge-config/types";
+import { colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent, formatPp } from "@/lib/utils/format";
 
 export interface DecisiveUFsGridProps {
   rows: EdgeUfRow[];
-  /** ID do candidato A (líder global) — para colorir corretamente quando A vence. */
+  /**
+   * Mapping `candidato_id → rank nacional` (S05/F3B). Habilita paleta N-way
+   * por líder local: UF com líder rank 3 → barra âmbar. Quando omitido, o
+   * componente degrada para "líder = rank 1 (vermelho)" usando `candidatoAId`
+   * (back-compat S04). Calculado em `app/page.tsx`.
+   */
+  rankByLider?: Record<number, number>;
+  /**
+   * ID do candidato A (líder global). Mantido para back-compat S04 — quando
+   * `rankByLider` é omitido, usado pra resolver "isA → corA, senão corB".
+   */
   candidatoAId: number | null;
-  /** Cor token do candidato A (default vermelho PT). */
+  /** Cor token do candidato A (default cand-1 = vermelho). Usado só em modo back-compat. */
   corA?: string;
-  /** Cor token do candidato B (default azul PL). */
+  /** Cor token do candidato B (default cand-2 = azul). Usado só em modo back-compat. */
   corB?: string;
   className?: string;
   /** Quantos cards mostrar. Default 6. */
   top?: number;
 }
 
+/**
+ * Score "decisivo" (S05/F3B): UFs onde poucos pontos podem virar a chamada,
+ * ponderado por quanto já apurou. Formula:
+ *   `pct_apurado × max_margin_top2_uf × pct_apurado`
+ * onde `max_margin_top2_uf` aqui é `1 / (1 + |margem|)` — inverte a margem
+ * (menos margem = mais decisivo). Para uma UF "100% apurada e empate
+ * técnico" o score é alto; para "100% apurada com margem 30pp" o score é
+ * baixo. Garantia: scoreDecisivo é sempre 0 quando pct_apurado = 0
+ * (UFs ainda não apuradas não são "decisivas no momento").
+ */
 function decisiveScore(row: EdgeUfRow): number {
-  // |swing| ponderado pelo quanto a UF já se "definiu". UFs com swing alto e
-  // alguma apuração são as que mais movem o forecast.
-  return Math.abs(row.swing_vs_2022) * (0.3 + (row.pct_apurado / 100) * 0.7);
+  const pesoMargem = 1 / (1 + Math.abs(row.margem_projetada));
+  return (row.pct_apurado / 100) * pesoMargem;
 }
 
 export function DecisiveUFsGrid({
   rows,
+  rankByLider,
   candidatoAId,
-  corA = "var(--color-pt)",
-  corB = "var(--color-pl)",
+  corA = "var(--color-cand-1)",
+  corB = "var(--color-cand-2)",
   className,
   top = 6,
 }: DecisiveUFsGridProps) {
@@ -77,8 +105,14 @@ export function DecisiveUFsGrid({
         aria-label="Lista de UFs decisivas"
       >
         {sorted.map((row) => {
-          const isA = row.lider === candidatoAId;
-          const cor = isA ? corA : corB;
+          // Cor por rank quando temos `rankByLider`; fallback S04 quando não.
+          const rankDoLider = rankByLider?.[row.lider];
+          const cor =
+            typeof rankDoLider === "number"
+              ? colorForRank(rankDoLider)
+              : row.lider === candidatoAId
+                ? corA
+                : corB;
           const margemSafe = Math.max(0, Math.min(100, Math.abs(row.margem_projetada)));
           return (
             <li

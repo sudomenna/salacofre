@@ -91,4 +91,44 @@ describe("<NationalNeedle />", () => {
     const svg = doc.querySelector("svg");
     expect(svg?.getAttribute("aria-label")).toContain("Forecast nacional");
   });
+
+  it("(e) variant='national-1t' com pSegundoTurno=0.35 → posição +0.3 (decide 1T leve)", () => {
+    const doc = parse(
+      <NationalNeedle national={baseNational} variant="national-1t" pSegundoTurno={0.35} />,
+    );
+    const svg = doc.querySelector("svg");
+    // pDecide1T = 0.65 → aria-label fala em "decisão no 1º turno" + 65%
+    expect(svg?.getAttribute("aria-label")).toContain("decisão no 1º turno");
+    expect(svg?.getAttribute("aria-label")).toContain("65%");
+    // Labels laterais "2º turno" / "Decide 1T (Lula)"
+    const texts = Array.from(doc.querySelectorAll("text")).map((t) => t.textContent ?? "");
+    expect(texts.some((t) => t === "2º turno")).toBe(true);
+    expect(texts.some((t) => t.includes("Decide 1T") && t.includes("Lula"))).toBe(true);
+  });
+
+  it("(f) variant='national-2t' mantém comportamento S04 (duelo binário)", () => {
+    const doc = parse(<NationalNeedle national={baseNational} variant="national-2t" />);
+    const svg = doc.querySelector("svg");
+    expect(svg?.getAttribute("aria-label")).toContain("Lula");
+    expect(svg?.getAttribute("aria-label")).toContain("78%");
+  });
+
+  it("(g) variant='uf' renderiza com labels binários", () => {
+    const doc = parse(<NationalNeedle national={baseNational} variant="uf" />);
+    const svg = doc.querySelector("svg");
+    expect(svg?.getAttribute("aria-label")).toContain("Forecast estadual");
+  });
+
+  it("(h) variant='national-1t' com pSegundoTurno null → placeholder textual", () => {
+    const doc = parse(
+      <NationalNeedle
+        national={{ ...baseNational, p_segundo_turno_overall: null }}
+        variant="national-1t"
+        pSegundoTurno={null}
+      />,
+    );
+    // Não renderiza SVG; mostra placeholder textual.
+    expect(doc.querySelector("svg")).toBeNull();
+    expect(doc.body.textContent).toContain("indisponível");
+  });
 });

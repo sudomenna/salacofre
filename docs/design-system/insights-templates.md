@@ -42,6 +42,47 @@ source: PRD.md § 14.4
 }
 ```
 
+## Templates 1T multi-candidato (S05)
+
+Regras adicionadas em S05/F3B para corridas 1T com 3+ candidatos. Não usam
+template JSON (ainda) — vivem direto em `lib/insights/generate.ts`.
+
+```json
+{
+  "rules_1t_multi": [
+    {
+      "id": "p_segundo_turno_alto",
+      "condition": "p_segundo_turno_overall >= 0.6",
+      "variants": [
+        "Disputa caminha para 2º turno ({p_pct} de chance)."
+      ]
+    },
+    {
+      "id": "lider_fecha_1t",
+      "condition": "p_fecha_1t(lider) >= 0.7",
+      "variants": [
+        "{lider} pode encerrar no 1º turno ({p_pct} de chance)."
+      ]
+    },
+    {
+      "id": "terceiro_briga_2t",
+      "condition": "rank(c) == 3 && p_passa_2t(c) >= 0.3",
+      "variants": [
+        "{terceiro} briga pela vaga no 2º turno ({p_pct} de chance)."
+      ]
+    }
+  ]
+}
+```
+
+Ordem de prioridade quando há overflow (>3 frases candidatas):
+
+1. `p_segundo_turno_alto` (M1)
+2. `lider_fecha_1t` (M2)
+3. Regra binária `swing_significant`/`tight_race` (S04)
+4. `terceiro_briga_2t` (M3)
+5. UF tossup (S04)
+
 ## Princípios
 
 - **Sem LLM** — saída determinística, custo zero, sem alucinação ([ADR-0005](../architecture/adrs/0005-templates-nao-llm.md)).

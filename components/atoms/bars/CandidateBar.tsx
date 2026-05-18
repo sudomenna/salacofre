@@ -12,13 +12,25 @@
  *   - Números em tabular-nums (CSS global).
  */
 
+import { colorForRank } from "@/lib/utils/cand-color";
 import { formatCI, formatPercent, formatVotes } from "@/lib/utils/format";
 
 export interface CandidateBarProps {
   nome: string;
   partido: string;
-  /** Cor token (var(--color-pt) etc). NUNCA hex partidário direto. */
-  cor: string;
+  /**
+   * Cor token (var(--color-cand-N) / var(--color-pt) etc). NUNCA hex
+   * partidário direto. Quando ausente e `rank` é passado, derivamos via
+   * `colorForRank(rank)` (paleta neutra por rank — S05/F3B, ADR-0013).
+   */
+  cor?: string;
+  /**
+   * Rank semântico do candidato (1 = líder). Usado como fallback de cor
+   * quando `cor` não vier no payload (ex.: fixtures antigos pré-S05) e
+   * para garantir paleta neutra dinâmica. Quando ambos `cor` e `rank`
+   * são passados, `cor` tem prioridade — payload é fonte de verdade.
+   */
+  rank?: number;
   /** Percentual projetado (0-100). */
   pctProjetado: number;
   /** CI95 lower (0-100). */
@@ -36,6 +48,7 @@ export function CandidateBar({
   nome,
   partido,
   cor,
+  rank,
   pctProjetado,
   pctLower,
   pctUpper,
@@ -43,6 +56,11 @@ export function CandidateBar({
   alignRight = false,
   className,
 }: CandidateBarProps) {
+  // Resolução de cor: payload tem prioridade; sem payload, derivamos por rank;
+  // sem nenhum dos dois, caímos no token de fallback neutro (cand-1 = mesmo
+  // hex de --color-pt). Constituição § 2 — sempre token, nunca hex literal.
+  const corResolvida: string =
+    cor ?? (typeof rank === "number" ? colorForRank(rank) : "var(--color-cand-1)");
   const pctSafe = Number.isFinite(pctProjetado) ? Math.max(0, Math.min(100, pctProjetado)) : 0;
   const ariaLabel = `${nome} (${partido}): ${formatPercent(pctSafe)} projetado${
     typeof pctLower === "number" && typeof pctUpper === "number"
@@ -70,7 +88,7 @@ export function CandidateBar({
         <div className={numberClass}>
           <div
             className="font-serif text-3xl font-semibold tabular-nums leading-none"
-            style={{ color: cor }}
+            style={{ color: corResolvida }}
           >
             {formatPercent(pctSafe, 1)}
           </div>
@@ -93,7 +111,7 @@ export function CandidateBar({
           className="h-full"
           style={{
             width: `${pctSafe}%`,
-            backgroundColor: cor,
+            backgroundColor: corResolvida,
             marginLeft: alignRight ? "auto" : 0,
           }}
         />

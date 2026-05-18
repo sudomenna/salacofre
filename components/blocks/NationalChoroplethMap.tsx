@@ -31,6 +31,14 @@ export interface NationalChoroplethMapProps {
   rows: EdgeUfRow[];
   candidatoAId: number | null;
   view: MapView;
+  /**
+   * Mapping `candidato_id → rank nacional` (S05/F3B). Habilita paleta N-way
+   * via `colorForRank()`/`resolveCandHex()`. Quando omitido, o impl degrada
+   * para "líder = rank 1 (cand-1 vermelho)" mantendo o look S04. Construído
+   * em `app/page.tsx` a partir de `national.candidatos[]` (`Object.fromEntries(
+   * candidatos.map(c => [c.id, c.rank]))`).
+   */
+  rankByLider?: Record<number, number>;
   /** Altura do mapa em px. */
   height?: number;
   className?: string;
@@ -58,6 +66,7 @@ export function NationalChoroplethMap({
   rows,
   candidatoAId,
   view,
+  rankByLider,
   height = 420,
   className,
 }: NationalChoroplethMapProps) {
@@ -72,6 +81,7 @@ export function NationalChoroplethMap({
         rows={rows}
         candidatoAId={candidatoAId}
         view={view}
+        rankByLider={rankByLider}
         height={height}
       />
     </div>

@@ -144,4 +144,55 @@ describe("generateInsights()", () => {
     const out = generateInsights({ national: empty, por_uf: [], pct_apurado_total: 0 });
     expect(out).toEqual([]);
   });
+
+  // --- S05/F3B: regras 1T multi-candidato (M1..M3) -----------------------
+
+  it("(g) M1: P(2T) >= 0.6 → 'Disputa caminha para 2º turno (X%)'", () => {
+    const high2T: EdgeNational = { ...national, p_segundo_turno_overall: 0.75 };
+    const out = generateInsights({ national: high2T, por_uf: [], pct_apurado_total: 10 });
+    expect(out.some((l) => l.includes("Disputa caminha para 2º turno"))).toBe(true);
+    expect(out.some((l) => l.includes("75%"))).toBe(true);
+  });
+
+  it("(h) M2: líder com p_fecha_1t >= 0.7 → 'X pode encerrar no 1º turno'", () => {
+    const willClose: EdgeNational = {
+      ...national,
+      candidatos: [
+        { ...national.candidatos[0]!, p_fecha_1t: 0.85 },
+        { ...national.candidatos[1]!, p_fecha_1t: 0.0 },
+      ],
+      p_segundo_turno_overall: 0.15,
+    };
+    const out = generateInsights({ national: willClose, por_uf: [], pct_apurado_total: 10 });
+    expect(out.some((l) => l.includes("Lula") && l.includes("encerrar no 1º turno"))).toBe(true);
+    expect(out.some((l) => l.includes("85%"))).toBe(true);
+  });
+
+  it("(i) M3: rank 3 com p_passa_2t >= 0.3 → 'Z briga pela vaga no 2º turno'", () => {
+    const com3: EdgeNational = {
+      ...national,
+      candidatos: [
+        ...national.candidatos,
+        {
+          id: 25,
+          nome: "Terceiro",
+          partido: "MDB",
+          cor: "var(--color-cand-3)",
+          votos_atuais: 1,
+          votos_projetados: 1,
+          pct_atual: 8,
+          pct_projetado: 8.5,
+          pct_projetado_lower: 6,
+          pct_projetado_upper: 11,
+          p_vitoria: 0.05,
+          rank: 3,
+          p_passa_2t: 0.42,
+          p_fecha_1t: 0.0,
+        },
+      ],
+    };
+    const out = generateInsights({ national: com3, por_uf: [], pct_apurado_total: 10 });
+    expect(out.some((l) => l.includes("Terceiro") && l.includes("briga pela vaga"))).toBe(true);
+    expect(out.some((l) => l.includes("42%"))).toBe(true);
+  });
 });
