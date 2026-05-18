@@ -88,6 +88,36 @@
       "title": "Cadência de polling TSE em 60s (Vercel Cron nativo), não self-loop 15s",
       "status": "accepted",
       "path": "docs/architecture/adrs/0011-cadencia-60s.md"
+    },
+    {
+      "id": "0012",
+      "title": "Chaves nomeadas no Edge Config por corrida e turno, não chave única",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0012-edge-config-chaves-nomeadas.md"
+    },
+    {
+      "id": "0013",
+      "title": "Tokens visuais de candidato por rank de apuração, não por partido",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0013-tokens-multi-candidato-por-rank.md"
+    },
+    {
+      "id": "0014",
+      "title": "p_segundo_turno como métrica de primeira classe no payload, não derivada em UI",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0014-p-segundo-turno-primeira-classe.md"
+    },
+    {
+      "id": "0015",
+      "title": "Fallback de modelo em 3 tiers para candidatos sem mapeamento histórico K-1",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0015-k1-fallback-3-tier.md"
+    },
+    {
+      "id": "0017",
+      "title": "Todos os candidatos do 1T visíveis em 3 camadas fixas, sem collapsible",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0017-transparencia-total-3-camadas.md"
     }
   ],
   "nfr": {
