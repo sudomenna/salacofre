@@ -8,13 +8,18 @@ status: stable
 
 Atualizada a cada PR. Fonte de verdade para cobertura.
 
-> **Nota S04 — Cobertura de testes**: a coluna "Teste" reflete o que está
+> **Nota S05 — Cobertura de testes e extensões**: a coluna "Teste" reflete o que está
 > verde **hoje** (`pnpm test` + `tests/unit/**`). A suíte e2e Playwright
 > (diretório `tests/e2e/` é `.gitkeep`) está **deferida para S05**. Specs 003
 > e 004 foram promovidas a `shipped` com base em cobertura unit + integration
 > para os RFs M (Must) e Should. Marcadores "e2e (deferred S05)" indicam
 > validação de interação completa que exige browser real (hover de mapa
 > MapLibre, click → router.push, brushing entre componentes).
+>
+> **Extensões S05 (sem RFs novos formais)**: RF-021..044 foram expandidos para suportar
+> multi-candidato em 1T e 2º turno (novos componentes `<TurnoBadge />`, `<TwoRoundIndicator />`,
+> `<CandidateRanking />`, `<MinorCandidatesList />`, `<RaceTypeIndicator />`). Cobertura
+> desses componentes extensões está em `tests/unit/components/[nova-spec-05-componentes].test.tsx`.
 
 ## RFs → Specs → Componentes → Testes
 

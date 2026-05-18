@@ -10,7 +10,7 @@ depends_on: []
 apis: [POST /api/ingest]
 components: []
 nfr: [RNF-006, RNF-009, RNF-011, RNF-012, RNF-016, RNF-031, RNF-032, RNF-033, RNF-034]
-adrs: [0001, 0002, 0008, 0011]
+adrs: [0001, 0002, 0008, 0011, 0012]
 ---
 
 # Spec 001 — Ingestão de dados do TSE

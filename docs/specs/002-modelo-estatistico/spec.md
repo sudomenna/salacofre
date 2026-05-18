@@ -10,7 +10,7 @@ depends_on: [001-ingestao-tse]
 apis: [POST /api/model/project]
 components: []
 nfr: [RNF-006]
-adrs: [0006, 0007]
+adrs: [0006, 0007, 0012, 0014, 0015]
 ship_blocked_on: [simulado-tse-2026, fix-p_vitoria-a-by-pct, fix-pct_validos-null-in-historical_results, sobre-o-modelo-page, botid-adr]
 ---
 

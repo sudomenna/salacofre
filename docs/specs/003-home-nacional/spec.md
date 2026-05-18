@@ -10,7 +10,7 @@ depends_on: [001-ingestao-tse, 002-modelo-estatistico, 008-interatividade-brushi
 apis: [GET /api/projection]
 components: [HeadlineScore, NationalChoroplethMap, MapViewToggle, StateGroupedTable, NationalNeedle, DecisiveUFsGrid, InsightCard, ForecastTransparency, LiveBadge, Tabs]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-007, RNF-008, RNF-022, RNF-023, RNF-024, RNF-025, RNF-026, RNF-028]
-adrs: [0001, 0002, 0003, 0004, 0005, 0010]
+adrs: [0001, 0002, 0003, 0004, 0005, 0010, 0012, 0013, 0014, 0017]
 shipped_with_carry_overs:
   - RF-025-UFForecastTable-completa-deferida-S05
   - RF-030.4-hachura-flip-MapLibre-sprite-deferida-S05
@@ -199,6 +199,32 @@ WHEN estamos no 2º turno (data ≥ 2026-10-25), the system SHALL exibir switch 
 
 - Cores partidárias: a paleta atual em [`tokens.md`](../../design-system/tokens.md) mapeia PT → vermelho, PL → azul. Confirmar com QA de design antes de F4.
 - Carrossel mobile de UFs decisivas — swipe horizontal ou vertical scroll com snap? (atual: swipe horizontal).
+
+## v2 — S05 Multi-candidato (1º turno)
+
+Extensão da v1 binária (2 candidatos líderes) para suporte total a 2º turno e visualização de todos os candidatos em 1º turno.
+
+**Mudanças principais** (conforme [ADR-0017](../../architecture/adrs/0017-transparencia-total-3-camadas.md)):
+
+- **Hero headline**: top-2 líderes + indicador de 2º turno obrigatório (ADR-0014).
+- **Camada 2 (ranking)**: candidatos rank 3–6 em bloco colapsível com tokens de rank (ADR-0013).
+- **Camada 3 (minor)**: candidatos rank 7+ em lista compacta, visível por padrão; não collapsível.
+- **Métrica P(2º turno)**: componente novo `<TwoRoundIndicator />` exibe probabilidade calculada pelo modelo (ADR-0014, RF-030 extendido).
+- **Badges turno**: `<TurnoBadge />` identifica "1º turno" ou "2º turno" em contextos de seleção (RF-030).
+
+**Componentes novos**:
+- `<TurnoBadge />` — chip visual "1º/2º turno" (atom).
+- `<RaceTypeIndicator />` — cabeçalho "Disputa entre N candidatos" (atom).
+- `<MinorCandidatesList />` — camada 3 rank 7+ em linha compacta (atom).
+- `<TwoRoundIndicator />` — card com P(2º turno) e bandas de confiança (block).
+- `<CandidateRanking />` — camada 2 rank 3–6 renderizado dinamicamente (block).
+
+**Componentes refatorados**:
+- `<HeadlineScore />` agora aceita `mode: 'binary' | 'multi-candidate'` (padrão: `'binary'` para backward-compat).
+- `<NationalNeedle />` com variant `showTwoRoundIndicator` (integra a métrica de segundo turno).
+- `<NationalChoroplethMap />` com `rankByLider` filter (opcional, mostra só vitória do líder vs 2º lugar).
+
+**Status**: v1 (`status: shipped`) continua válida pra 1T binário. v2 estende e retrocompat é garantida.
 
 ## Cross-refs
 

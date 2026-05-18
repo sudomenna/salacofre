@@ -86,16 +86,113 @@ Critério de aceite: MAE em t=1h < 2pp (OT-4).
 { "computed": true, "uf_count": 14, "national_p_vitoria_a": 0.78 }
 ```
 
+## Cálculos S05 — 2º turno e K-1 fallback
+
+### `compute_two_round_scenarios`
+
+Função nova S05 (conforme [ADR-0014](../../architecture/adrs/0014-p-segundo-turno-primeira-classe.md)):
+
+```python
+def compute_two_round_scenarios(
+    p_vitoria: dict,
+    indeciso_pct: float,
+    margin_threshold: float = 0.05
+) -> dict:
+    """
+    Gera cenários de 2º turno baseado em bootstrap.
+    
+    Args:
+        p_vitoria: dicionário {candidato_id: P(>50% válidos)}
+        indeciso_pct: % de indecisos/votos brancos a redistribuir
+        margin_threshold: margem mínima para fechamento no 1T
+    
+    Returns:
+        {
+            'p_second_round_overall': float,  # P(nenhum fecha no 1T)
+            'scenarios': [
+                {
+                    'top_2': [cand_a, cand_b],
+                    'p_this_scenario': 0.35,
+                    'cand_a_p_passa': 0.92,
+                    'cand_b_p_passa': 0.88
+                },
+                ...
+            ]
+        }
+    """
+    pass
+```
+
+### `compute_p_passa_2t`
+
+Probabilidade por candidato de passar para 2º turno:
+
+```python
+def compute_p_passa_2t(
+    p_vitoria: float,
+    p_second_round_overall: float,
+    candidate_rank: int
+) -> float:
+    """
+    P(candidato passa para 2T) = P(2T acontece) × P(está no top-2 | 2T ocorre)
+    
+    Para rank=1,2: = p_second_round_overall (sempre no top-2 se houver 2T).
+    Para rank≥3: = 0.0 (não passa para 2T).
+    """
+    if candidate_rank <= 2:
+        return p_second_round_overall
+    else:
+        return 0.0
+```
+
+### `compute_p_fecha_1t`
+
+Probabilidade por candidato de fechar eleição no 1º turno:
+
+```python
+def compute_p_fecha_1t(
+    p_vitoria: float,
+    p_second_round_overall: float
+) -> float:
+    """
+    P(fecha 1T) = P(vitória > 50% | 1T encerrado)
+                = p_vitoria × (1 - p_second_round_overall)
+    """
+    return p_vitoria * (1 - p_second_round_overall)
+```
+
+### K-1 Fallback 3-tier (conforme [ADR-0015](../../architecture/adrs/0015-k1-fallback-3-tier.md))
+
+```python
+def fallback_k1_mapping(candidate_2026, uf: str) -> dict:
+    """
+    Quando candidato 2026 não tem mapeamento óbvio em 2022:
+    
+    Tier 1: Candidatos de mesmo partido em vizinhos geográficos (até 3 UFs próximas).
+    Tier 2: Candidatos de mesmo partido em zonas similares dentro da UF (crescimento pop, PIB).
+    Tier 3: Média nacional do partido em 2022.
+    
+    Retorna {'tier': int, 'mapping': historico_2022_ref, 'confidence': float}
+    Se todas as tiers falham, retorna {'disabled': True}
+    """
+    pass
+```
+
+Color lock em `pct_apurado ≥ 1%` (conforme [ADR-0013](../../architecture/adrs/0013-tokens-multi-candidato-por-rank.md)): candidatos com < 1% são greyed out, não recebem token de rank visual.
+
 ## Persistência
 
 - **`projections`** — append-only, uma linha por (cargo, turno, uf, candidato, ts).
-- **Edge Config** — escrita do payload consolidado (`projection:current` e `projection:uf:[sigla]`).
+- **Edge Config** — escrita do payload consolidado via chaves nomeadas ([ADR-0012](../../architecture/adrs/0012-edge-config-chaves-nomeadas.md)): `projection:current:pres:t1`, `projection:current:pres:t2`, etc.
 
 ## ADRs aplicáveis
 
 - [ADR-0006 Bootstrap, não Bayesiano](../../architecture/adrs/0006-bootstrap-nao-bayesiano.md)
 - [ADR-0007 Granularidade zona vs município](../../architecture/adrs/0007-zona-vs-municipio.md)
 - [ADR-0001 Edge Config write path](../../architecture/adrs/0001-edge-config-no-read-path.md)
+- [ADR-0012 Chaves nomeadas por corrida e turno](../../architecture/adrs/0012-edge-config-chaves-nomeadas.md)
+- [ADR-0014 Métricas de 2º turno primeira classe](../../architecture/adrs/0014-p-segundo-turno-primeira-classe.md)
+- [ADR-0015 K-1 fallback 3-tier](../../architecture/adrs/0015-k1-fallback-3-tier.md)
 
 ## Riscos técnicos
 

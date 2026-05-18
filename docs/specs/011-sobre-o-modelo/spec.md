@@ -54,6 +54,26 @@ WHEN o usuário acessa `/sobre-o-modelo`, the system SHALL exibir página MDX co
 - URL canônica ([RNF-027](../../nfr/seo.md)).
 - Lighthouse SEO >95 ([RNF-030](../../nfr/seo.md)).
 
+## S05 — Extensão: Métricas de 2º turno e K-1 fallback
+
+Com a introdução de suporte multi-turno ([ADR-0014](../../architecture/adrs/0014-p-segundo-turno-primeira-classe.md)) e fallback robusto para candidatos sem histórico ([ADR-0015](../../architecture/adrs/0015-k1-fallback-3-tier.md)), a página `/sobre-o-modelo` foi estendida para documentar:
+
+**Novos campos no payload do modelo**:
+- `p_segundo_turno_overall` — probabilidade de haver segundo turno para aquela corrida (nacional).
+- `cenarios_2t` — array de cenários (top 2 por P(vitória)) que teríamos se houvesse 2T.
+- `p_passa_2t` (por candidato) — probabilidade de passar para segundo turno, dado swing atual + voto indeciso.
+- `p_fecha_1t` (por candidato) — probabilidade de fechar eleição no 1T com >50% dos válidos.
+
+**Tratamento de candidatos sem mapeamento 2022** ([ADR-0015](../../architecture/adrs/0015-k1-fallback-3-tier.md)):
+- **Fallback 3-tier**: usar vizinhos geográficos (tier 1), depois zona similiar (tier 2), depois nacional (tier 3).
+- Se nenhum tier retorna dados históricos, candidato é marcado como "modelo desabilitado para essa corrida" — exibimos só parcial atual.
+- A página explica quando e por que isso ocorre.
+
+**Transparência sobre limitações** (constituição § 8):
+- 2º turno é especulativo — o modelo não prediz voto indeciso exato, só usa cenários plausíveis.
+- Multi-candidato em 1T aumenta incerteza da projeção — CI é mais largo (documentado).
+- K-1 é heurística — nem sempre disponível; fallback geográfico é impreciso para candidatos locais novos.
+
 ## Cross-refs
 
 - Design: [./design.md](./design.md)

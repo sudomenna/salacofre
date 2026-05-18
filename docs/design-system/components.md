@@ -50,6 +50,11 @@ source: PRD.md § 14.3
 | `<SwingIllustration />` ✅ shipped | atom | (spec 011) | `components/atoms/illustrations/SwingIllustration.tsx` |
 | `<ConfidenceBandIllustration />` ✅ shipped | atom | (spec 011) | `components/atoms/illustrations/ConfidenceBandIllustration.tsx` |
 | `<NeedleIllustration />` ✅ shipped | atom | (spec 011) | `components/atoms/illustrations/NeedleIllustration.tsx` |
+| `<TurnoBadge />` ✅ shipped S05 | atom | RF-030 ext | `components/atoms/badges/TurnoBadge.tsx` — tests: `tests/unit/components/TurnoBadge.test.tsx` |
+| `<RaceTypeIndicator />` ✅ shipped S05 | atom | RF-030 ext | `components/atoms/indicators/RaceTypeIndicator.tsx` — tests: `tests/unit/components/RaceTypeIndicator.test.tsx` |
+| `<MinorCandidatesList />` ✅ shipped S05 | atom | RF-030 ext, RF-031..044 ext | `components/atoms/lists/MinorCandidatesList.tsx` — tests: `tests/unit/components/MinorCandidatesList.test.tsx` |
+| `<TwoRoundIndicator />` ✅ shipped S05 | block | RF-030 ext (nova métrica P(2º turno)) | `components/blocks/TwoRoundIndicator.tsx` — tests: `tests/unit/components/TwoRoundIndicator.test.tsx` |
+| `<CandidateRanking />` ✅ shipped S05 | block | RF-030 ext, RF-031..044 ext (rank 3–6) | `components/blocks/CandidateRanking.tsx` — tests: `tests/unit/components/CandidateRanking.test.tsx` |
 
 ## Cross-refs
 

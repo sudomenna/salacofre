@@ -10,7 +10,7 @@ depends_on: [001-ingestao-tse, 002-modelo-estatistico, 008-interatividade-brushi
 apis: [GET /api/projection?uf=<sigla>]
 components: [WinnerBanner, CandidateRow, NewsClippingPlaceholder, ChoroplethMapUF, BubbleMap, SwingArrowMap, MunicipioTable, UFMapDuo, UfMapsLazy, Needle, TimeSeriesChart, ProbabilityOverTime, TurnoutAreaChart, ForecastTransparency, InsightCard, UFBreadcrumb, Footer]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-008, RNF-022, RNF-023, RNF-024, RNF-025, RNF-027]
-adrs: [0001, 0003, 0004, 0007, 0010]
+adrs: [0001, 0003, 0004, 0007, 0010, 0013, 0014, 0015, 0017]
 shipped_with_carry_overs:
   - NewsClippingPlaceholder-sem-RF-formal-clipping-midias-BR-virara-spec-em-F4b-F5
   - chunk-MapLibre-287KB-acima-RNF-007b-pendente-ADR-aumentar-meta-300KB
@@ -161,6 +161,30 @@ WHEN a página renderiza, the system SHALL exibir 1–3 frases analíticas gerad
 
 - Critério de "Chamada por AP/Reuters" — temos parceria editorial ou é placeholder? (atual: placeholder, decidir antes de F5).
 - Virtualização da tabela de municípios — Tanstack Virtual ou solução custom? (atual: pesquisar).
+
+## v2 — S05 Multi-candidato e 2º turno
+
+Extensão da v1 (2 candidatos em foco) para visualização completa de todos os candidatos em 1T e métricas de 2º turno.
+
+**Mudanças principais** (conforme [ADR-0017](../../architecture/adrs/0017-transparencia-total-3-camadas.md)):
+
+- **Tabela candidatos**: agora exibe todos, com rank visual; top-2 em destaque, 3–6 em bloco expandível, 7+ em lista compacta.
+- **Métricas de 2º turno**: novos campos `p_passa_2t` e `p_fecha_1t` por candidato ([ADR-0015](../../architecture/adrs/0015-k1-fallback-3-tier.md)).
+- **Tokens de rank**: cores/ícones por posição (ADR-0013), não por partido.
+- **Needle**: variante que exibe margem ou P(2º turno) conforme turno ativo.
+- **Breadcrumb**: "Voltar ao nacional (1T)" ou "...ao nacional (2T)" — dinâmico por turno.
+
+**Componentes novos**:
+- `<RaceTypeIndicator />` — "Disputa entre N candidatos" no header.
+- `<MinorCandidatesList />` — rank 7+ em linha única.
+- `<TurnoBadge />` — turno ativo.
+
+**Componentes refatorados**:
+- `<CandidateRow />` estendido com suporte a `p_passa_2t`, `p_fecha_1t` e modo compacto.
+- `<Needle />` com `metricMode: 'margin' | 'round2_probability'`.
+- `<UFBreadcrumb />` dinâmico por turno.
+
+**Status**: v1 (`status: shipped`) continua válida pra 1T binário. v2 estende e é backward-compatible.
 
 ## Cross-refs
 
