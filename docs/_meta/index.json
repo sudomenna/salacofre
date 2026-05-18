@@ -224,10 +224,11 @@
       {
         "id": "2026-S05",
         "phase": "F4c",
-        "status": "active",
+        "status": "done",
         "start": "2026-07-20",
         "end": "2026-08-02",
         "opened": "2026-05-17",
+        "closed": "2026-05-17",
         "specs_in_flight": [
           "003-home-nacional",
           "004-pagina-uf-presidencial",

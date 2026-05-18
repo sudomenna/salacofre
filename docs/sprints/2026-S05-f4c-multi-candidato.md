@@ -1,10 +1,11 @@
 ---
 id: 2026-S05
 title: Sprint 05 — Foundation multi-candidato 1º turno presidencial
-status: active
+status: done
 start: 2026-07-20
 end: 2026-08-02
 opened: 2026-05-17
+closed: 2026-05-17
 phase: F4c
 goal: Modelo, payload, tokens visuais e UI da home + UF presidencial 1T multi-candidato funcionais. Sem 2º turno e sem governadores ainda — esses entram em S06.
 specs_in_flight: [003-home-nacional, 004-pagina-uf-presidencial, 011-sobre-o-modelo, 002-modelo-estatistico]
@@ -91,11 +92,52 @@ Análise comparativa NYT (em sessão de 2026-05-17) expôs que a UI atual é bin
 
 _(preencher se mudar)_
 
-## Retrospective (preencher ao fechar)
+## Retrospective
 
-- O que funcionou:
-- O que melhorar:
-- Carry-over pra S06:
+Fechada em 2026-05-17 (47 dias antes do `end: 2026-08-02` planejado), na mesma sessão maratona que abriu S04 e S05 — modo bootstrap intensivo. Sprint entregue via **20 commits sequenciais** (`97303d4` → `0e20592`).
+
+### O que funcionou
+
+- **Plano aprovado em plan-mode antes de codar**: 4 AskUserQuestions resolveram ambiguidades (evolve in-place vs sub-specs, 3 sprints S05/S06/S07, K-1 3-tier, gov em S06). Zero retrabalho de direção durante execução. ADR-0017 (transparência total) brotou de uma única observação UX do usuário ("mostrar projeções de todos os candidatos") — captou direito.
+- **Paralelização agressiva**: 4 fases bem definidas (Modelo+payload, Tokens, UI 3A+3B, Pages+ADRs paralelos). Gates Fase 3 final em 4 agentes simultâneos (constitution + a11y-perf + rf-coverage + model-validator). Tempo total da S05 walltime ~6h vs ~127h estimadas (~21× compressão via subagents).
+- **Plan-mode revelou bug pré-existente cedo**: o agente F0.1 da S04 deixou `"color-candidate-a"` (string solta) em vez de `"var(--color-pt)"` (CSS var literal) — pegou no constitution-guard S04 mas voltou pra refator estrutural na S05 (paleta por rank). Fix permanente em commit `216938a`.
+- **Decomposição em 3A (atoms novos) + 3B (refator existentes)** evitou conflito de merge entre subagents — cada um teve scope isolado.
+- **Smoke visual antes dos gates**: usuário pediu pra ver no browser (`/`, `/uf/SP`, `/sobre-o-modelo`) em meio da sessão. Descobrimos 2 bugs de UX importantes que viraram fixes inline:
+  - Scroll do mouse ampliando o mapa (`scrollZoom: false` em todos os 4 mapas)
+  - Feature IDs no PMTiles numéricos (default tippecanoe) → expression `["match", ["get", "SIGLA_UF"], ...]` em vez de `setFeatureState`
+- **Análise comparativa NYT vs SalaCofre** trouxe insight chave: NYT esconde minor candidates atrás de clique. Decisão deliberada de divergir disso (ADR-0017) — narrativa do 1T BR exige transparência total. Aliou bem com personas P2/P3 da spec.
+
+### O que melhorar
+
+- **a11y-perf-auditor pegou 1 CRITICAL contraste tarde** (TwoRoundIndicator usando `--color-text-faint` 2.85:1) — devia ter sido pego no design do componente (Fase 3A), não no gate final. Risco mitigado por estar perto do fim da sprint. Padronizar: qualquer novo Server Component que usa cor de texto deve rodar mini-check de contraste no PR review.
+- **Bundle gaps RNF-007a (168KB) e RNF-007b (281KB)** continuam carry-overs S04. S05 não regrediu, mas também não resolveu. ADRs pra atualizar metas precisam ser escritas na S07 — não é mais "tolerar débito", é "redefinir target conforme realidade do framework React 19 + Next 16".
+- **Replay 1T 2022 com 11 candidatos** confirmou caveat circular S03 — `p_passa_2t` para Ciro é 0.0 (não 0.05+ como o brief sugeria) por variância zero do bootstrap. Não é bug do modelo, é dataset sintético. Mas escreveu uma "passing rate" otimista em métricas — futuro replay precisa ground-truth com ruído real.
+- **Spec-syncer pegou frontmatter divergência tarde**: spec 002 design.md não mencionava as 3 funções novas até o gate. Workflow: spec-implementer que entrega função nova DEVE atualizar design.md no mesmo commit, sem esperar spec-syncer.
+- **`Gatilho50` renomeado pra `ThresholdMarker50`** sobrevive em mode binary apenas — pequena dívida semântica. Cleanup S07.
+
+### Carry-over pra S06 (2T + Governadores) e S07 (Polish)
+
+**Bugs introduzidos por S05 (corrigir cedo na S06)**:
+1. **aria-describedby map ↔ StateGroupedTable** — relação semântica existe arquiteturalmente, mas falta ligação ARIA explícita (constitution-guard MEDIUM #3, MEDIUM constitutional).
+2. **`--color-cand-4-strong` variant** — preventivo pra uso futuro como texto small (hoje não é problema; só fundo de barra).
+3. **`replay_batch.py` não serializa novas métricas** (`p_passa_2t`, `p_fecha_1t`, `p_segundo_turno_overall`) no report.json — model-validator validou diretamente via Python. Estender pra reuse em S06/S07.
+4. **Helper TS `computeCalibration` em `scripts/replay-2022.ts:329`** usa `candidatos[0]` por id (não líder semântico) — bug pré-existente que afetou só calibração no relatório, não gate.
+
+**Resolução pendente (S07 polish)**:
+5. **ADR RNF-007a 150→175KB** (framework overhead inevitável React 19 + Next 16 — documentado em risks.md).
+6. **ADR RNF-007b 250→300KB** (MapLibre — já catalogado desde S04).
+7. **`app/sitemap.ts` + `app/robots.ts`** (RNF-029 pré-S05).
+8. **`browserslist` em package.json** pra cortar polyfills legados.
+9. **Tier 2 K-1 (pesquisa Datafolha)** — fonte licenciada/citável precisa decisão legal/owner pré-simulado oficial.
+10. **Color lock D-7** — fonte de prior precisa decisão owner.
+
+**Spec 002 segue em `implementing`** — gate OT-4 real só pós-simulado oficial TSE 2026 (carry-over S03, mantido).
+
+### Sinal qualitativo da sprint
+
+S05 entregou **5 ADRs novos** (0012-0015, 0017), **11 componentes** (5 novos + 6 refatorados), **3 funções Python novas** + K-1 3-tier, **paleta visual completa multi-cand**, **migration idempotente aplicada Neon**, e **smoke visual funcionando**. **20 commits**, **223 vitest verdes** (+96 novos), **88 pytest verdes** (+29 novos). Todos os 4 gates Fase 3 endereçados; 2 carry-overs S04 mantidos como ADRs pra S07.
+
+Specs 003+004 mantêm `status: shipped` (cobertura validada). Spec 002 segue `implementing`. **A próxima sprint (S06)** já tem chão sólido pra 2T binário + governadores 27 corridas reuse 70% do pattern aqui criado.
 
 ## Cross-refs
 
