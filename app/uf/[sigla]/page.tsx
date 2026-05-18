@@ -29,6 +29,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { NewsClippingPlaceholder } from "@/components/atoms/banners/NewsClippingPlaceholder";
 import { WinnerBanner } from "@/components/atoms/banners/WinnerBanner";
 import { ProbabilityOverTime } from "@/components/atoms/charts/ProbabilityOverTime";
@@ -265,11 +266,14 @@ export default async function UFPage({ params }: UFPageProps) {
     <main className="mx-auto flex min-h-screen max-w-[1280px] flex-col gap-6 px-5 py-6">
       <UFBreadcrumb />
 
-      <header className="flex items-baseline justify-between gap-4">
+      <header className="flex flex-wrap items-baseline justify-between gap-4">
         <h1 className="text-3xl leading-tight" style={{ fontFamily: "var(--font-serif)" }}>
           {sigla} — Apuração Presidencial 2026
         </h1>
-        <LiveBadge active={payload.pct_apurado > 0 && payload.pct_apurado < 100} />
+        <div className="flex flex-wrap items-center gap-3">
+          <LiveBadge active={payload.pct_apurado > 0 && payload.pct_apurado < 100} />
+          <TurnoBadge turno={payload.turno} />
+        </div>
       </header>
 
       {/* RF-032: Winner banner quando p_vitoria_lider >= 0.95 */}

@@ -78,4 +78,71 @@ describe("HomePage (integration / smoke)", () => {
     const html = renderToStaticMarkup(node);
     expect(html).toContain("AO VIVO");
   });
+
+  // -------------------------------------------------------------------------
+  // S05/F4 — Multi-candidato (Fase 4: pages dispatch + integração)
+  // Fixture é 1T (turno=1) com 11 candidatos e P(2T)=0.65 → modo multi-1t.
+  // -------------------------------------------------------------------------
+
+  it("(h) TurnoBadge mostra '1º turno' no header (multi-1t)", async () => {
+    const node = await HomePage();
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("1º turno");
+    expect(html).toContain('aria-label="Turno atual: 1º turno"');
+  });
+
+  it("(i) RaceTypeIndicator mostra contagem de candidatos em 1T", async () => {
+    const node = await HomePage();
+    const html = renderToStaticMarkup(node);
+    // Fixture S05 tem 11 candidatos com pct >= 0,5% (todos passam o
+    // threshold de 0,5% do RaceTypeIndicator em 1T).
+    expect(html).toMatch(/Disputa entre \d+ candidatos/);
+  });
+
+  it("(j) TwoRoundIndicator renderiza com P(2T)=65% (fixture)", async () => {
+    const node = await HomePage();
+    const html = renderToStaticMarkup(node);
+    // Fixture: p_segundo_turno_overall = 0.65 → 65%, fora do gate trivial
+    // (|0.65 − 0.5| > 0.1), então o medidor renderiza.
+    expect(html).toContain("65% de chance de ir a 2º turno");
+    // `role="meter"` com aria-valuenow=65
+    expect(html).toContain('role="meter"');
+    expect(html).toContain('aria-valuenow="65"');
+  });
+
+  it("(k) CandidateRanking renderiza candidatos rank 3..6", async () => {
+    const node = await HomePage();
+    const html = renderToStaticMarkup(node);
+    // Fixture: rank 3 = Candidato MDB, 4 = PDT, 5 = UNIÃO, 6 = NOVO
+    expect(html).toContain("Candidato MDB");
+    expect(html).toContain("Candidato PDT");
+    expect(html).toContain("Candidato UNIÃO");
+    expect(html).toContain("Candidato NOVO");
+  });
+
+  it("(l) MinorCandidatesList renderiza rank 7+", async () => {
+    const node = await HomePage();
+    const html = renderToStaticMarkup(node);
+    // Fixture rank 7..11: PTB, UP, PCB, PSTU, DC
+    expect(html).toContain("Candidato PTB");
+    expect(html).toContain("Candidato UP");
+    expect(html).toContain("Candidato DC");
+  });
+
+  it("(m) HeadlineScore mode=multi-1t menciona o terceiro candidato no headline", async () => {
+    const node = await HomePage();
+    const html = renderToStaticMarkup(node);
+    // Em multi-1t, o headline vira "X lidera, Z briga pela 2ª vaga".
+    // Z é o rank 3 (Candidato MDB no fixture).
+    expect(html).toMatch(/lidera, Candidato MDB briga pela 2ª vaga/);
+  });
+
+  it("(n) Agulha em variant=national-1t — labels 'Decide 1T' / '2º turno'", async () => {
+    const node = await HomePage();
+    const html = renderToStaticMarkup(node);
+    // Variant `national-1t` deve renderizar polos "2º turno" (esq) e
+    // "Decide 1T (lider)" (dir) em vez dos nomes dos top-2.
+    expect(html).toContain("2º turno");
+    expect(html).toMatch(/Decide 1T \(Candidato PT\)/);
+  });
 });

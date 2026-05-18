@@ -1,7 +1,8 @@
 /**
  * app/page.tsx
  *
- * Home Nacional Presidencial (T-01). Spec 003.
+ * Home Nacional Presidencial (T-01). Spec 003 + S05/F4 (ADR-0013, ADR-0014,
+ * ADR-0017 — multi-candidato).
  *
  * Server Component — lê Edge Config (`projection:current`) server-side via
  * `readNationalProjection()` (ADR-0001) e passa o payload como `fallbackData`
@@ -10,39 +11,49 @@
  * Em dev sem `EDGE_CONFIG`, o reader retorna null e o /api/projection cai num
  * fixture local — aqui também caímos no fixture para manter SSR funcional.
  *
- * Estrutura
+ * Mode dispatch (S05/F4)
+ *   - `mode = "binary"` quando `payload.turno === 2` ou `candidatos.length === 2`.
+ *   - `mode = "multi-1t"` quando `payload.turno === 1` com >2 candidatos.
+ *
+ * Layout em modo `multi-1t` (RF-030.5..030.8 — hero multi-camada, ADR-0017)
  *   Header
- *   ├── Cargo Tabs (Presidente | Governador)         RF-029
- *   ├── LiveBadge (AO VIVO)                          RF-028
- *   └── ApuracaoMeta (apurado, ufs, ts)              RF-026
- *   HeadlineScore                                    RF-022, RF-023, RF-030.5
- *   MapViewToggle + NationalChoroplethMap            RF-030.1-4
- *   NationalNeedle (P(vitória) + agulha)             RF-021
- *   DecisiveUFsGrid                                  RF-024
- *   StateGroupedTable                                RF-030.6
- *   InsightCard                                      RF-044 (consumido)
- *   ForecastTransparency                             RF-043 (consumido)
+ *   ├── Tabs (Presidente | Governador)               RF-029
+ *   ├── LiveBadge + TurnoBadge + RaceTypeIndicator   S05/F4
+ *   └── ApuracaoMeta                                 RF-026
+ *   HeadlineScore (camada 1: top-2 hero)             RF-022, RF-023
+ *   TwoRoundIndicator (P(2T) global)                 RF-030.7
+ *   CandidateRanking (camada 2: rank 3..6)           RF-030.8
+ *   MinorCandidatesList (camada 3: rank 7+)          RF-030.8
+ *   NationalChoroplethMap (rankByLider N-way)        RF-030.1-4
+ *   NationalNeedle variant=national-1t               RF-021 (S05)
+ *   DecisiveUFsGrid (rankByLider)                    RF-024
+ *   StateGroupedTable mode=multi-1t                  RF-030.6
+ *   InsightCard                                      RF-044
+ *   ForecastTransparency                             RF-043
  *   Footer                                           constituição § 1
  *
- * Cobertura: RF-021..030.6, RF-043, RF-044, RNF-002, RNF-007, RNF-022..028.
+ * Layout em modo `binary` (2T ou 1T com 2 cands): comportamento S04
+ * preservado — sem CandidateRanking / MinorCandidatesList /
+ * TwoRoundIndicator; agulha em variant=national-2t.
  *
- * Fora do escopo desta spec (mantidos para S05):
- *   - `<UFForecastTable />` (RF-025) — tabela 27 linhas com dot-plot inline.
- *   - Brushing entre componentes (spec 008).
- *   - Gráficos de série temporal (RF-040..042).
+ * Cobertura: RF-021..030.8, RF-043, RF-044, RNF-002, RNF-007, RNF-022..028.
  */
 
 import type { Metadata } from "next";
 
+import { RaceTypeIndicator } from "@/components/atoms/badges/RaceTypeIndicator";
+import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { Tabs } from "@/components/atoms/controls/Tabs";
+import { MinorCandidatesList } from "@/components/atoms/lists/MinorCandidatesList";
 import { ApuracaoMeta } from "@/components/blocks/ApuracaoMeta";
+import { CandidateRanking } from "@/components/blocks/CandidateRanking";
 import { DecisiveUFsGrid } from "@/components/blocks/DecisiveUFsGrid";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { HeadlineScore } from "@/components/blocks/HeadlineScore";
 import { InsightCard } from "@/components/blocks/InsightCard";
-import { NationalChoroplethMap } from "@/components/blocks/NationalChoroplethMap";
 import { NationalNeedle } from "@/components/blocks/NationalNeedle";
 import { StateGroupedTable } from "@/components/blocks/StateGroupedTable";
+import { TwoRoundIndicator } from "@/components/blocks/TwoRoundIndicator";
 import { Footer } from "@/components/layout/Footer";
 import { LiveBadge } from "@/components/layout/LiveBadge";
 import { readNationalProjection } from "@/lib/edge-config/reader";
@@ -87,9 +98,28 @@ async function getInitialPayload(): Promise<EdgePayload> {
 
 export default async function HomePage() {
   const payload = await getInitialPayload();
-  const { national, por_uf, pct_apurado_total, ufs_apuradas, ts, insights, composition } = payload;
-  const candidatoA = national.candidatos.find((c) => c.id === national.candidato_a_id);
-  const candidatoB = national.candidatos.find((c) => c.id === national.candidato_b_id);
+  const { national, por_uf, pct_apurado_total, ufs_apuradas, ts, insights, composition, turno } =
+    payload;
+
+  // Mode dispatch (S05/F4). `turno === 2` força binary; 1T com 2 cands
+  // também cai em binary (defensivo). 1T multi-candidato → multi-1t.
+  const mode: "binary" | "multi-1t" =
+    turno === 2 || national.candidatos.length === 2 ? "binary" : "multi-1t";
+
+  // Mapping candidato_id → rank — alimenta paleta N-way no mapa e nas
+  // colunas decisivas/grouped (ADR-0013). Pré-S05 ou fallback: array
+  // já é ordenado por rank, então `index + 1` coincide com o rank.
+  const rankByLider: Record<number, number> = Object.fromEntries(
+    national.candidatos.map((c, i) => [c.id, c.rank ?? i + 1]),
+  );
+
+  // Para tabela e indicadores que precisam do nome do líder.
+  const lider = national.candidatos.find((c) => (c.rank ?? -1) === 1) ?? national.candidatos[0];
+  const segundo = national.candidatos.find((c) => (c.rank ?? -1) === 2) ?? national.candidatos[1];
+
+  // Camadas 2 e 3 (multi-1t)
+  const ranking3a6 = national.candidatos.filter((c) => (c.rank ?? -1) >= 3 && (c.rank ?? -1) <= 6);
+  const minor7plus = national.candidatos.filter((c) => (c.rank ?? -1) >= 7);
 
   return (
     <main className="mx-auto flex max-w-container flex-col gap-8 px-4 py-6 md:px-6 md:py-10">
@@ -103,34 +133,69 @@ export default async function HomePage() {
             { id: "gov", label: "Governador", href: "/governador" },
           ]}
         />
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <LiveBadge active={pct_apurado_total > 0} />
+          <TurnoBadge turno={turno} />
+          <RaceTypeIndicator candidatos={national.candidatos} turno={turno} />
         </div>
       </header>
 
       <ApuracaoMeta pctApurado={pct_apurado_total} ufsApuradas={ufs_apuradas} ts={ts} />
 
-      <HeadlineScore candidatos={national.candidatos} />
+      {/* Camada 1 (hero) — top-2 sempre. Em multi-1t o headline menciona rank 3. */}
+      <HeadlineScore candidatos={national.candidatos} mode={mode} turno={turno} />
 
-      {/* Mapa hero — wraps view toggle client-side */}
-      <HomeClientShell rows={por_uf} candidatoAId={national.candidato_a_id}>
-        <NationalChoroplethMap rows={por_uf} candidatoAId={national.candidato_a_id} view="winner" />
-      </HomeClientShell>
+      {/* Em multi-1t: TwoRoundIndicator ao lado do hero (substitui o
+          ThresholdMarker50 antigo, agora interno ao HeadlineScore binary). */}
+      {mode === "multi-1t" && lider && (
+        <TwoRoundIndicator
+          pSegundoTurno={national.p_segundo_turno_overall}
+          liderPct={lider.pct_projetado}
+          liderNome={lider.nome}
+        />
+      )}
+
+      {/* Camadas 2 + 3 — só em multi-1t. Em binary não há rank 3+ relevante. */}
+      {mode === "multi-1t" && ranking3a6.length > 0 && <CandidateRanking candidatos={ranking3a6} />}
+      {mode === "multi-1t" && minor7plus.length > 0 && (
+        <MinorCandidatesList candidatos={minor7plus} />
+      )}
+
+      {/* Mapa hero — wraps view toggle client-side. `rankByLider` propaga
+          paleta N-way; `candidatoAId` mantido por backward-compat. */}
+      <HomeClientShell
+        rows={por_uf}
+        candidatoAId={national.candidato_a_id}
+        rankByLider={rankByLider}
+      />
 
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[1fr_auto]">
-        <NationalNeedle national={national} />
+        {/* Agulha — variant depende do modo. national-1t mede P(decisão 1T);
+            national-2t mantém duelo binário. */}
+        <NationalNeedle
+          national={national}
+          variant={mode === "multi-1t" ? "national-1t" : "national-2t"}
+          pSegundoTurno={national.p_segundo_turno_overall}
+          liderNome={lider?.nome}
+        />
         <ForecastTransparency pctApurado={pct_apurado_total} />
       </div>
 
-      <DecisiveUFsGrid rows={por_uf} candidatoAId={national.candidato_a_id} />
+      <DecisiveUFsGrid
+        rows={por_uf}
+        rankByLider={rankByLider}
+        candidatoAId={national.candidato_a_id}
+      />
 
       <StateGroupedTable
         rows={por_uf}
+        mode={mode}
+        candidatos={national.candidatos}
         candidatoAId={national.candidato_a_id}
-        candidatoAName={candidatoA?.nome ?? "Líder A"}
-        candidatoBName={candidatoB?.nome ?? "Líder B"}
-        corA={candidatoA?.cor ?? "var(--color-pt)"}
-        corB={candidatoB?.cor ?? "var(--color-pl)"}
+        candidatoAName={lider?.nome ?? "Líder A"}
+        candidatoBName={segundo?.nome ?? "Líder B"}
+        corA={lider?.cor ?? "var(--color-cand-1)"}
+        corB={segundo?.cor ?? "var(--color-cand-2)"}
       />
 
       {insights.length > 0 && <InsightCard frases={insights} heading="Análise" />}
