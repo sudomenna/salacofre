@@ -1,0 +1,327 @@
+TSE-EA11-Arquivo-de-configuracao-de-eleicoes.md                                                           2026-06-23
+
+
+
+
+      Divulgação de Resultados das Eleições
+      Especificação de Arquivo
+
+        EA11 – Arquivo de configuração de eleições
+    Sumário
+
+             1. Descrição
+             2. Formato do nome do arquivo
+             3. Representação do arquivo
+             4. Dicionário de dados
+
+    1. Descrição
+
+    Esse arquivo contém informações acerca de todas as eleições disponíveis para divulgação. Os arquivos JSON
+    serão consumidos pelo aplicativo Resultados.
+
+    2. Formato do nome do arquivo
+
+    O nome do arquivo é formado conforme o padrão a seguir:
+
+    ele-c.json
+
+    3. Representação do arquivo
+
+
+         {
+             "dg": "<dd/mm/aaaa>",
+             "hg": "<hh:mm:ss>",
+             "idg": "{inteiro}",
+             "f": "{s|o}",
+             "arq": [
+               {
+                 "tp":"<e|ab|u|cm|cs|a>",
+                 "dir":"<texto>"
+               }
+             ],
+             "pl": [
+               {
+                 "cd": "<inteiro>",
+                 "cdpr": "<inteiro>",
+                 "c": "<texto>",
+                 "dt": "<dd/mm/aaaa>",
+                 "dtlim": "<dd/mm/aaaa>",
+                 "e": [
+                   {
+                     "cd": "<inteiro>",
+                     "cdt2": "<inteiro>",
+                     "sqele":"<inteiro>",
+                     "nm": "<texto>",
+
+                                                        1/6
+TSE-EA11-Arquivo-de-configuracao-de-eleicoes.md                 2026-06-23
+
+
+
+                             "t": "{1|2}",
+                             "tp": "<inteiro>",
+                             "abr": [
+                               {
+                                 "cd": "{br|<sigla da uf>}",
+                                 "mu": [
+                                   {
+                                     "cd": "<inteiro>",
+                                     "cdi": "<inteiro>"
+                                   }
+                                 ],
+                                 "cp": [
+                                   {
+                                     "cd": "<inteiro>",
+                                     "ds": "<texto>",
+                                     "tp": "<inteiro>"
+                                   }
+                                 ]
+                               }
+                             ]
+                         }
+                     ]
+                 }
+             ]
+         }
+
+
+
+    Estrutura do Arquivo
+
+
+
+         EA11
+         ├── dg (Data de geração)
+         ├── hg (Hora de geração)
+         ├── idg (identificador de geração)
+         ├── f (Fase: 's' ou 'o')
+         ├── arq[] (Diretórios por tipo de arquivo)
+         │    ├── tp (Tipo do arquivo)
+         │    └── dir (Diretório base)
+         └── pl[] (Lista de pleitos)
+              ├── cd (Código do pleito)
+              ├── cdpr (Código do processo eleitoral)
+              ├── c (Ciclo eleitoral)
+              ├── dt (Data do pleito)
+              ├── dtlim (Data limite para divulgação)
+              └── e[] (Eleições)
+                  ├── cd (Código da eleição)
+                  ├── cdt2 (Código 2º turno - opcional)
+                  ├── nm (Nome)
+                  ├── t (Turno: '1' ou '2')
+                  ├── tp (Tipo da eleição)
+                  └── abr[] (Abrangências)
+                      ├── cd (Código: 'br' ou UF)
+                      ├── cp[] (Cargos ou perguntas)
+                      │   ├── cd, ds, tp
+                                                          2/6
+TSE-EA11-Arquivo-de-configuracao-de-eleicoes.md                                                                      2026-06-23
+
+
+
+                                └── mu[] (Municípios)
+                                    ├── cd (Código TSE - 5 dígitos)
+                                    └── cdi (Código IBGE - 5 dígitos)
+
+
+
+    4. Dicionário de dados
+
+          Elemento: [raiz]
+
+
+             Conteúdo: Um elemento “pl” para cada pleito do processo eleitoral.
+
+      Atributos
+
+      dg                 Data da geração do arquivo.
+
+      hg                 Hora da geração do arquivo.
+
+      idg                Código identificador da geração do arquivo json.
+
+                         Fase em que foi gerado o arquivo. Pode ser:
+      f                  - s: Simulado – se o arquivo foi gerado durante o simulado.
+                         - o: Oficial – se o arquivo foi gerado com resultados reais da eleição.
+
+
+          Elemento: arq
+
+
+             Conteúdo: Uma lista de tipos de arquivos JSON e seu respectivos caminhos para construção da URL de
+             download.
+
+      Atributos
+
+                         Tipo de arquivo, utilizado para identificar os tipos de arquivos JSON. Lista todos os tipos de
+                         arquivo vigentes exceto o arquivo de configuração de eleições e os arquivos de urna. Pode
+                         ser:
+                         e - Arquivo de eleitos
+                         u - Arquivo unificado
+      tp                 ab - Arquivo de acompanhamento UF e BR
+                         cm - Arquivo de configuração de municípios
+                         cs - Arquivo de configuração de seções eleitorais
+                         a - Certificado digital
+                         aux - Arquivo auxiliar de seção
+                         ft - Fotos de candidatos
+
+      dir                Diretório, contém o caminho onde os arquivos estão localizados. Exemplo:
+                         <base>/<ambiente>/<ciclo>/<cd_eleicao>/dados/<uf>. Pode ser utilizado para
+                         construir a URL para baixar os arquivos JSON, substituindo-se os parâmetros de acordo com
+                         o arquivo desejado. Tokens de substituição:
+                         - <base>: Host do servidor (ex: https://resultados.tse.jus.br)
+                         - <ambiente>: oficial ou simulado
+                         - <ciclo>: Ciclo eleitoral (ex: ele2024)
+                         - <cd_eleicao>: Código da eleição (ex: 544)
+
+                                                                 3/6
+TSE-EA11-Arquivo-de-configuracao-de-eleicoes.md                                                                     2026-06-23
+
+
+
+
+      Atributos
+
+                         - <uf>: Sigla da UF em letras minúsculas
+                         - <cd_pleito>: Código do pleito.
+                         Para mais informações ver documento de instruções para download dos arquivos.
+
+
+          Elemento: pl (Pleito)
+
+
+             Conteúdo: Um elemento “e” para cada eleição do pleito.
+
+      Atributos
+
+                         Código do pleito, utilizado para identificar os códigos de eleições que participam do mesmo
+      cd
+                         processo eleitoral.
+
+                         Código do processo eleitoral, utilizado para identificar os códigos de pleitos que participam
+      cdpr
+                         do mesmo processo eleitoral.
+
+      c                  Ciclo eleitoral dos softwares que foram usados para geração do arquivo.
+
+      dt                 Data de ocorrência das eleições do pleito no formato dd/mm/aaaa
+
+      dtlim              Data limite para a divulgação dos resultados no formato dd/mm/aaaa
+
+
+          Elemento: e (Eleição)
+
+
+             Conteúdo: Um elemento “abr” para cada UF que participa da eleição.
+
+      Atributos
+
+      cd                 Código da eleição
+
+      cdt2               Código da eleição para o segundo turno.
+
+                         Sequencial da eleição. Código sequencial que identifica a eleição no DivulgaCand. Não
+      sqele
+                         estará presente em consulta popular.
+
+      nm                 Nome da eleição
+
+      t                  Turno da eleição
+
+                         Número identificador do tipo da eleição. Pode ser:
+                         1 - Estadual ordinária
+                         2 - Estadual suplementar
+                         3 - Municipal ordinária
+                         4 - Municipal suplementar
+      tp
+                         5 - Consulta popular nacional
+                         6 - Consulta popular estadual
+                         7 - Consulta popular municipal
+                         8 - Federal ordinária
+                         9 - Federal suplementar
+
+
+          Elemento: abr (Abrangência)
+                                                                4/6
+TSE-EA11-Arquivo-de-configuracao-de-eleicoes.md                                                                               2026-06-23
+
+
+
+             Descrição: Abrangência onde ocorrerá a eleição em questão.
+             Conteúdo:
+                      Um elemento “cp” para cada cargo ou pergunta em disputa na abrangência e na eleição.
+                      Um elemento “mu” para cada município ou localidade do exterior que faz parte da abrangência
+                      em questão.
+
+      Atributos
+
+                         Código da abrangência, pode ser:
+
+                                  - A sigla br ocorre para os seguintes tipos de eleições:
+                                           I. Apenas 1° turno:
+                                                  1- Estadual ordinária e
+                                                  3- Municipal ordinária.
+                                           II. 5- Consulta popular nacional, 8- Federal ordinária e 9- Federal suplementar;
+      cd
+                                  - A sigla da UF ocorre para os seguintes tipos de eleições:
+                                           I. Apenas 2° turno:
+                                                  1- Estadual ordinária e
+                                                  3- Municipal ordinária.
+                                           II. 2- Estadual suplementar, 4- Municipal suplementar, 6- Consulta popular
+                                           estadual, 7- Consulta popular municipal
+
+
+
+        Elemento: mu (Municípios)
+
+
+             Descrição: Lista com informações dos municípios que participam da eleição em uma determinada UF
+             (especificada no elemento abr, no atributo cd). Será preenchido somente quando a eleição for do tipo:
+                      4- Municipal suplementar,
+                      7- Consulta popular municipal ou
+                      eleição de 2º turno com o tipo 3- Municipal ordinária.
+
+      Atributos
+
+                         Código identificador do município, de acordo com o cadastro da Justiça Eleitoral.
+      cd
+                         Ex.: 00001, 00002, 00003
+
+                         Código identificador do município, de acordo com o cadastro do Instituto Brasileiro de
+      cdi
+                         Geografia e Estatística - IBGE.
+
+
+        Elemento: cp (Cargo ou Pergunta)
+
+
+             Descrição: Contêm informações referentes ao cargo ou à pergunta.
+
+      Atributos
+
+      cd                 Código do cargo ou da pergunta.
+
+      ds                 Nome do cargo ou descrição da pergunta.
+
+
+
+
+                                                                     5/6
+TSE-EA11-Arquivo-de-configuracao-de-eleicoes.md                            2026-06-23
+
+
+
+
+      Atributos
+
+                         Número identificado do tipo de cargo. Pode ser:
+                         1 – Cargos majoritários
+      tp
+                         2 – Cargos proporcionais
+                         3 – Pergunta de consulta popular
+
+
+
+
+                                                              6/6
+

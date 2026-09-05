@@ -1,0 +1,438 @@
+                                                                                                                     Divulgação de Resultados das Eleições 2026
+
+
+
+
+           Instruções para download
+                               dos arquivos da
+             Divulgação de resultados
+                            das Eleições 2026
+
+
+
+
+Instruções para download dos arquivos da Divulgação de resultados das Eleições 2026   Versão 1.0 de 25/05/2026
+
+
+                                                                                                                 1
+Sumário
+
+
+
+
+                                                                                                                                                              Divulgação de Resultados das Eleições 2026
+1. Apresentação ..................................................................................................................................... 3
+2. Método de download dos arquivos ..................................................................................................... 3
+3. Organização dos arquivos e pastas ...................................................................................................... 3
+4. Procedimento para Download ............................................................................................................ 7
+5. Padronização dos nomes dos arquivos ................................................................................................ 8
+
+
+
+
+Instruções para download dos arquivos da Divulgação de resultados das Eleições 2026                                   Versão 1.0 de 25/05/2026
+
+
+                                                                                                                                                          2
+                       Divulgação dos Resultados das Eleições 2026
+
+
+
+
+                                                                                                                     Divulgação de Resultados das Eleições 2026
+                                    Instruções para download dos arquivos
+
+
+
+
+1. Apresentação
+Este guia visa instruir os interessados que irão consumir os arquivos de resultados, sobre as regras para
+baixar arquivos do Data Center / CDN através de aplicações próprias, para que não haja queda de perfor-
+mance e indisponibilidade no atendimento feito pelos servidores de aplicação disponíveis no TSE.
+
+2. Método de download dos arquivos
+Para realização do download dos arquivos, deve-se usar o método de desenvolvimento de solução própria.
+A solução própria deve ser desenvolvida obedecendo às regras definidas ao longo desse documento.
+
+3. Organização dos arquivos e pastas
+Os arquivos com os resultados das eleições obedecem a uma nomenclatura específica e estão organizados
+em pastas dentro do servidor HTTP (Data Center/CDN disponibilizado pelo TSE).
+
+No arquivo JSON de configuração de eleições (EA11), encontra-se o atributo arq, que contém uma lista dos
+tipos de arquivos e seus respectivos diretórios, parametrizados com tokens de substituição para a constru-
+ção da URL de download.
+
+Abaixo está representada a estrutura atual de pastas do servidor. A raiz dessa estrutura é o próprio o servi-
+dor HTTP do TSE, aqui identificado por “http://<host>/”.
+
+ ID da pasta       Nome da Pasta
+ 0                 http://<host>/
+ 1                   [ambiente]
+ 2                       [ciclo]
+ 3                            [eleicao]
+ 4                                “config”
+ 5                                “dados”
+ 6                                     {“br” | “zz” | [uf]}
+ 7                                “fotos”
+ 8                                     {“br” | “zz” | [uf]}
+ 9                            “arquivo-urna”
+ 10                               [pleito]
+ 11                                    “config”
+ 12                                        {“br” | “zz” | [uf]}
+ 13                                    “dados”
+ 14                                        {“br” | “zz” | [uf]}
+ 15                                              [municipio]
+ 16                                                      [zona]
+ 17                                                          [secao]
+ 18                                                               [hash]
+Instruções para download dos arquivos da Divulgação de resultados das Eleições 2026   Versão 1.0 de 25/05/2026
+
+
+                                                                                                                 3
+ 19                           “comum”
+ 20                               “config”
+
+
+
+
+                                                                                                                           Divulgação de Resultados das Eleições 2026
+Abaixo está a descrição de cada uma das pastas.
+
+ ID da pasta     Nome da pasta                   Descrição da pasta
+ 1               [ambiente]                      O nome dessa pasta é o nome do ambiente ao qual os arqui-
+                                                 vos pertencem. Por ambiente entende-se o contexto a que
+                                                 pertencem os dados dos arquivos da divulgação. Por exemplo,
+                                                 se os dados foram gerados em ambiente oficial, então o nome
+                                                 dessa pasta será “oficial”, bem como os dados dos arquivos
+                                                 serão dados oficiais. Porém, se os dados forem referentes a
+                                                 um simulado, essa pasta poderá se chamar “simulado” e todos
+                                                 os arquivos abaixo dessa pasta conteriam dados de simulado.
+                                                 O nome dessa pasta para os testes será divulgado oportuna-
+                                                 mente.
+ 2               [ciclo]                         Pasta que indica o ciclo eleitoral em que a eleição ocorre. Esse
+                                                 ciclo muda a cada um biênio. Todos os arquivos abaixo dessa
+                                                 pasta são referentes a eleições que ocorrem no mesmo ciclo
+                                                 eleitoral. O ciclo estará disponível no arquivo de configuração
+                                                 de eleições.
+ 3               [eleicao]                       O nome dessa pasta é um número que identifica univocamen-
+                                                 te uma determinada eleição. Todos os arquivos constantes
+                                                 nessa pasta e suas subpastas devem pertencer à eleição iden-
+                                                 tificada pelo número que dá nome à pasta, de forma que ar-
+                                                 quivos de eleições distintas não se misturem.
+                                                 Os números das eleições serão divulgados oportunamente.
+                                                 Entretanto, vale ressaltar que haverá um número para a elei-
+                                                 ção de 1º turno dos cargos de abrangência municipal, um nú-
+                                                 mero para a eleição de 1º turno dos cargos de abrangência
+                                                 federal, um número para a eleição de 2º turno dos cargos de
+                                                 abrangência municipal e outro número para a eleição de 2º
+                                                 turno dos cargos de abrangência federal. Caso haja algum
+                                                 plebiscito ou referendo ou eleição suplementar, estes terão
+                                                 números distintos aos da eleição geral.
+ 4               “config”                        Contém o arquivo de configuração de municípios e o arquivo
+                                                 de certificado digital referentes a uma eleição e ambiente,
+                                                 conforme definido nas pastas superiores.
+ 5               “dados”                         Essa pasta contém uma subpasta para cada abrangência de
+                                                 onde há arquivos de resultado. Uma abrangência pode ser
+                                                 uma Unidade Federativa, exterior ou Brasil.
+ 6               {“br"|[uf]|“zz”}                O nome dessa pasta é a sigla da Unidade da Federação em
+                                                 minúsculo, ou a sigla “br", ou a sigla ”zz” em caso de exterior.
+                                                 Trata-se de uma pasta folha, ou seja, não há subpastas abaixo
+                                                 dela e os arquivos estarão diretamente armazenados nessa
+                                                 pasta. Contém os arquivos de resultado, referentes à abran-
+                                                 gência, eleição e ambiente conforme estrutura das pastas
+                                                 superiores.
+                                                 Por arquivo de resultado, entendem-se os arquivos de dados
+                                                 unificados, os arquivos de resultados de eleitos e os arquivos
+                                                 de acompanhamento UF e Brasil.
+ 7               “fotos”                         Essa pasta contém uma subpasta para cada abrangência de
+
+Instruções para download dos arquivos da Divulgação de resultados das Eleições 2026         Versão 1.0 de 25/05/2026
+
+
+                                                                                                                       4
+                                                 onde há fotos dos candidatos. Uma abrangência pode ser uma
+                                                 Unidade Federativa, exterior ou Brasil.
+
+
+
+
+                                                                                                                           Divulgação de Resultados das Eleições 2026
+ 8               {“br"|[uf]|“zz”}                O nome dessa pasta é a sigla da Unidade da Federação em
+                                                 minúsculo, ou a sigla “br", ou a sigla ”zz” em caso de exterior.
+                                                 Trata-se de uma pasta folha, ou seja, não há subpastas abaixo
+                                                 dela e os arquivos estarão diretamente armazenados nessa
+                                                 pasta. Contêm os arquivos de fotos, referentes à abrangência,
+                                                 eleição e ambiente conforme estrutura das pastas superiores.
+                                                 Dentro desta pasta se encontram os arquivos com as fotos dos
+                                                 candidatos no formato [sqcand].jpeg.
+ 9               “arquivo-urna”                  Todas as pastas e arquivos abaixo dessa pasta são referentes
+                                                 aos arquivos de urna separados por pleito.
+ 10              [pleito]                        O nome dessa pasta é um número que identifica univocamen-
+                                                 te um determinado pleito. Todos os arquivos constantes nessa
+                                                 pasta e suas subpastas devem pertencer ao pleito identificado
+                                                 pelo número que dá nome à pasta, de forma que arquivos de
+                                                 pleitos distintos não se misturem. Os números dos pleitos
+                                                 devem ser obtidos do arquivo de configuração de eleições.
+ 11              “config”                        Essa pasta contém uma subpasta para cada abrangência do
+                                                 pleito.
+ 12              {“br"|[uf]|“zz”}                O nome dessa pasta é a sigla da Unidade da Federação em
+                                                 minúsculo, ou a sigla “br", ou a sigla ”zz” em caso de exterior.
+                                                 Contém os arquivos de configuração de seções de cada UF do
+                                                 pleito.
+ 13              “dados”                         Essa pasta contém uma subpasta para cada abrangência de
+                                                 onde há arquivos de urna. Uma abrangência pode ser uma
+                                                 Unidade Federativa, exterior ou Brasil.
+ 14              {“br"|[uf]|“zz”}                O nome dessa pasta é a sigla da Unidade da Federação em
+                                                 minúsculo, ou a sigla “br", ou a sigla ”zz” em caso de exterior.
+                                                 Contém subpastas dos municípios da uf e do pleito, conforme
+                                                 definido nas pastas superiores.
+ 15              [municipio]                     O nome dessa pasta é o código do município ou da localidade
+                                                 do exterior. Esse código deve ser obtido do arquivo de confi-
+                                                 guração de seções do pleito e da UF. Contém subpastas das
+                                                 zonas eleitorais.
+ 16              [zona]                          O nome dessa pasta é um número de 4 dígitos referente à
+                                                 uma zona eleitoral do município e pleito, conforme definido
+                                                 nas pastas superiores. Esse número deve ser obtido do arqui-
+                                                 vo de configuração de seções da UF e do pleito. Contém sub-
+                                                 pastas das seções eleitorais da zona.
+ 17              [secao]                         O nome dessa pasta é um número de 4 dígitos referente à
+                                                 uma seção eleitoral da zona eleitoral e município do pleito,
+                                                 conforme definido nas pastas superiores. Esse número deve
+                                                 ser obtido do arquivo de configuração de seções referente a
+                                                 uma UF do pleito. Contém um arquivo auxiliar de seção e
+                                                 subpastas dos hashes dos arquivos de urna da seção eleitoral.
+                                                 Entende-se por arquivo auxiliar o arquivo que contém a situa-
+                                                 ção e os hashes dos arquivos de urna recebidos.
+ 18              [hash]                          O nome dessa pasta é um código hash gerado a cada recebi-
+                                                 mento de arquivos de urna da seção. Deve ser obtido da lista
+                                                 de hashes do arquivo auxiliar. Em caso de reenvio de arquivos
+                                                 de urna da seção outra pasta hash será criada. Trata-se de
+                                                 uma pasta folha, ou seja, não há subpastas abaixo dela. Con-
+Instruções para download dos arquivos da Divulgação de resultados das Eleições 2026         Versão 1.0 de 25/05/2026
+
+
+                                                                                                                       5
+                                                 tém os arquivos de urna da seção eleitoral.
+ 19              “comum”                         Os arquivos abaixo dessa pasta são referentes a todas as elei-
+
+
+
+
+                                                                                                                          Divulgação de Resultados das Eleições 2026
+                                                 ções disponíveis para divulgação.
+ 20              “config”                        Trata-se de uma pasta folha, ou seja, não há subpastas abaixo
+                                                 dela. Contém o arquivo de configuração de eleição referente
+                                                 ao ambiente, conforme definido nas pastas superiores.
+
+
+Como é possível observar, nem todas as pastas possuem arquivos diretamente abaixo delas. A maioria é
+utilizada para organizar a estrutura. As pastas que possuem arquivos estão detalhadas abaixo:
+
+ ID da Nome da Pasta                    Arquivos contidos na Pasta
+ Pasta
+ 4        “config”                      cert-e<ELEICA>-a.cer
+                                                      Certificado digital utilizado para
+                                                      validação da assinatura dos arqui-
+                                                      vos gerados para uma eleição.
+                           mun-e<ELEICA>-cm.json      Arquivo de configuração de municí-
+                                                      pios. Ver documento EA12 para
+                                                      mais detalhes.
+ 6        {“br”|[uf]|“zz”} <br|uf|zz>-c<CCCC>-        Arquivo de resultado unificado BR,
+                           e<ELEICA>-u.json
+                                                      <UF> ou ZZ. Ver documento EA20
+                                                      para mais detalhes.
+                           <uf|zz><MUNIC>-c<CCCC>-    Arquivo de resultado unificado mu-
+                           e<ELEICA>-u.json
+                                                      nicipal. Ver documento EA20 para
+                                                      mais detalhes.
+                           <uf|zz><MUNIC>-z<ZONA>-    Arquivo de resultado unificado de
+                           c<CCCC>-e<ELEICA>-u.json
+                                                      zona eleitoral. Ver documento EA20
+                                                      para mais detalhes.
+                           <br|uf>-c<CCCC>-           Arquivo de eleitos. Ver documento
+                           e<ELEICA>-e.json
+                                                      EA10 para mais detalhes.
+                           br-e<ELEICA>-ab.json       Arquivo de acompanhamento Bra-
+                                                      sil. Ver documento EA14 para mais
+                                                      detalhes.
+                           <uf>-e<ELEICA>-ab.json     Arquivo de acompanhamento por
+                                                      UF. Ver documento EA15 para mais
+                                                      detalhes.
+ 8        {“br”|[uf]|“zz”} <sqcand>.jpeg              Arquivos de fotos dos candidatos.
+                                                      Ver documento EA20 para mais
+                                                      detalhes.
+ 12       “config”         <uf>-p<PLEITO>-cs.json     Arquivo de configuração de seções.
+                                                      Ver documento EA16 para mais
+                                                      detalhes.
+ 17       [seção]          p<PLEITO>-<uf>-m<MUNIC>-   Arquivo de auxiliar de seções. Ver
+                           z<ZONA>-s<SECA>-aux.json
+                                                      documento EA18 para mais deta-
+                                                      lhes.
+ 18       [hash]           Boletim   de  urna   (BU), Arquivos de urna. Os nomes dos
+                           RDV, Log da urna e arqui-
+                           vo de assinatura.          arquivos devem ser obtidos do ar-
+                                                      quivo auxiliar de seção. Ver docu-
+                                                      mento EA18 para mais detalhes.
+ 20       “config”         ele-c.json                 Arquivo de configuração de elei-
+                                                      ções. Ver documento EA11 para
+                                                      mais detalhes.
+
+Instruções para download dos arquivos da Divulgação de resultados das Eleições 2026        Versão 1.0 de 25/05/2026
+
+
+                                                                                                                      6
+4. Procedimento para Download
+
+
+
+
+                                                                                                                     Divulgação de Resultados das Eleições 2026
+        O processo para o download dos arquivos de dados da divulgação consiste em criar a URL do arqui-
+vo e com ela acessar o servidor HTTP (Data Center/CDN do TSE) para baixá-lo. As seguintes etapas podem
+ser seguidas para se chegar ao arquivo de resultado desejado:
+
+    I)   Baixar o arquivo de configuração de eleições (EA11) para obter a lista de eleições.
+             a. Se o arquivo desejado for de resultado, baixar o arquivo de configuração de municípios
+                 (EA12) da UF da eleição.
+             b. Se o arquivo desejado for de urna, baixar o arquivo de configuração de seções (EA16) da
+                 UF da eleição e, após, baixar o arquivo auxiliar da seção (EA18) desejada para obter a lista
+                 de arquivos.
+    II) Construir a URL e nome do arquivo, a partir dos dados obtidos dos arquivos anteriores, observando
+         a organização das pastas. Ver documentos EA14, EA15, EA20 e EA10.
+    III) Baixar o arquivo de resultado com a URL formada.
+
+
+    Abaixo segue um esquema com a hierarquia dos arquivos do processo descrito anteriormente.
+
+   JSON                                                                                  ASN.1
+
+                                       configuração                 resultado
+                                       de municípios                unificado
+                                          (EA12)                      (EA20)
+
+
+
+
+                                                                                                 BU
+                                         acompanha-
+                                            mento
+     configuração                         BR (EA14)
+      de eleições                         UF (EA15)
+        (EA11)
+
+
+
+
+                                                                                                 RDV
+                                          candidatos
+                                            eleitos
+                                            (EA10)
+
+
+
+
+                                        configuração               auxiliar de                   Log
+                                         de seçôes                    seção
+                                           (EA16)                    (EA18)
+
+
+
+
+Instruções para download dos arquivos da Divulgação de resultados das Eleições 2026   Versão 1.0 de 25/05/2026
+
+
+                                                                                                                 7
+5. Padronização dos nomes dos arquivos
+
+
+
+
+                                                                                                                     Divulgação de Resultados das Eleições 2026
+O nome dos arquivos envolvidos no processo de divulgação dos resultados segue um padrão pré-
+determinado. Esse padrão descreve que o nome de um arquivo é composto por uma ou mais variáveis se-
+paradas por um traço. Por exemplo, o arquivo de resultado unificado do estado de São Paulo tem o seguin-
+te nome: sp-c9999-e999999-u.json. Note que temos 4 variáveis: sp (identificador da UF), c9999 (identi-
+ficador do cargo), e999999 (identificador da eleição), u (identificador de arquivo unificado).
+
+Para mais detalhes sobre a nomenclatura de cada arquivo, recomenda-se a leitura da respectiva especifica-
+ção. Entretanto, faz-se necessário o esclarecimento inicial de algumas variáveis.
+
+ Variável          Descrição
+ <UF>              Sigla da Unidade da Federação a que ser refere o arquivo. São sempre duas letras em
+                   minúsculo. Exemplo: ac, am, df, mg, sp, to.
+ <MUNIC>           Código numérico do município a que ser refere o arquivo. Quando presente, esse códi-
+                   go sempre vem antecedido da variável <UF>, sem traço.
+                   Trata-se de um número de 5 dígitos, preenchido com zeros à esquerda, em conformi-
+                   dade com a base de dados de municípios da Justiça Eleitoral.
+                   Para se conhecer o código de cada município, consultar o arquivo de configuração de
+                   municípios mun-e<ELEICA>-cm.json.
+                   Exemplo:
+                       • mun-e99999-cm.json: Arquivo de configuração de municípios para a eleição
+                            99999
+
+           Haverá um único arquivo de configuração de municípios por eleição. Dentro de cada
+           arquivo de configuração, haverá uma lista com os municípios participantes para cada
+           Unidade Federativa que integrará a eleição. As Unidades Federativas participantes da
+           eleição serão uma lista identificada pelo elemento “abr”. Os municípios, por sua vez,
+           serão uma lista identificada pelo elemento “mu”.
+ c<CCCC>   Código numérico de 4 dígitos precedido pela letra c. O número é preenchido com zeros
+           à esquerda, do cargo a que se refere o arquivo. Segue o código de cada cargo:
+               • Presidente: 0001
+               • Governador: 0003
+               • Senador: 0005
+               • Deputado Federal: 0006
+               • Deputado Estadual: 0007
+               • Deputado Distrital: 0008
+               • Prefeito: 0011
+               • Vereador: 0013
+ e<ELEICA> Trata-se de um número de 6 dígitos precedido pela letra e. O número é preenchido
+           com zeros à esquerda, composto pelo código da eleição (4 dígitos). Como foi explanado
+           anteriormente, cada eleição possui um número que a identifica univocamente. Se a
+           eleição for identificada pelo código 544, o código e<ELEICA> para os arquivos das elei-
+           ções será:
+               • e000544
+
+ p<PLEITO> Trata-se de um número de 6 dígitos precedido pela letra p. O número é preenchido
+                   com zeros à esquerda, composto pelo código do pleito (4 dígitos). Cada pleito possui
+                   um número que o identifica univocamente. Um número de pleito identifica eleições
+                   que ocorrem em um mesmo dia. Caso as eleições forem identificadas pelo número de
+                   pleito 304, o código p<PLEITO> para os arquivos será:
+                       • p000304
+
+Instruções para download dos arquivos da Divulgação de resultados das Eleições 2026   Versão 1.0 de 25/05/2026
+
+
+                                                                                                                 8
+ z<ZONA>           Código numérico da zona eleitoral a que ser refere o arquivo. Quando presente, esse
+                   código sempre vem antecedido pelo prefixo z, em minúsculo.
+
+
+
+
+                                                                                                                     Divulgação de Resultados das Eleições 2026
+                   Trata-se de um número de 4 dígitos, preenchido com zeros à esquerda, em conformi-
+                   dade com a base de dados de cadastro da Justiça Eleitoral.
+
+                   Exemplo:
+
+                   Caso o número da zona seja 1, a formatação será:
+                      • z0001
+
+ s<SECA>           Código numérico da seção eleitoral a que ser refere o arquivo. Quando presente, esse
+                   código sempre vem antecedido pelo prefixo s, em minúsculo.
+                   Trata-se de um número de 4 dígitos, preenchido com zeros à esquerda, em conformi-
+                   dade com a base de dados de cadastro da Justiça Eleitoral.
+
+                   Exemplo:
+
+                   Caso o número da seção seja 2, a formatação será:
+                      • s0002
+
+
+
+
+Instruções para download dos arquivos da Divulgação de resultados das Eleições 2026   Versão 1.0 de 25/05/2026
+
+
+                                                                                                                 9
+

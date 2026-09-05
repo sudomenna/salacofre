@@ -1,0 +1,159 @@
+TSE-EA18-Arquivo-auxiliar-de-secao.md                                                                        2026-05-22
+
+
+
+
+      Divulgação de Resultados das Eleições
+      Especificação de Arquivo
+
+        EA18 – Arquivo auxilar de seção
+    Sumário
+
+             1. Descrição
+             2. Formato do nome do arquivo
+             3. Representação do arquivo
+             4. Dicionário de dados
+             5. Disponibilidade dos arquivos e situação da seção
+
+    1. Descrição
+
+    Esse arquivo contém informações de uma seção e os hashes dos arquivos de urna para auxiliar na construção
+    da URL para localização destes arquivos. Será gerado um arquivo JSON por seção eleitoral para ser
+    consumido pelo aplicativo Resultados, quando ocorrer recebimento de arquivos de urna para a seção. O
+    arquivo JSON poderá ser atualizado após cada totalização final ou retransmissão de arquivos de urna.
+
+    2. Formato do nome do arquivo
+
+    O nome do arquivo é formado conforme o padrão a seguir:
+
+    p<código do pleito>-<UF>-m<código município>-z<número da zona eleitoral>-s<número da
+    seção eleitoral>-aux.json
+
+    Exemplo: p000345-sp-m07152-z0001-s0015-aux.json
+
+    Onde:
+
+             <código do pleito>: Número de controle identificador do pleito eleitoral que se refere o arquivo.
+             Composto por seis dígitos. É o um número fixo para todos os arquivos de uma mesma eleição;
+             <UF>: Sigla da UF em minúsculo;
+             <código município>: Código do número do município com 5 posições, podendo ser preenchido com
+             zero à esquerda;
+             <número da zona eleitoral> := Número da zona eleitoral com 4 posições, podendo ser preenchido
+             com zero à esquerda;
+             <número da seção eleitoral> := Número da seção eleitoral com 4 posições, podendo ser
+             preenchido com zero à esquerda;
+
+    3. Representação do arquivo
+
+
+         {
+             "dg": "<dd/mm/aaaa>",
+             "hg": "<hh:mm:ss>",
+             "idg": "{inteiro}",
+             "f": "{s|o}",
+                                                           1/3
+TSE-EA18-Arquivo-auxiliar-de-secao.md                                                              2026-05-22
+
+
+
+               "st": "<texto>",
+               "hashes": [
+                 {
+                   "hash": "<texto>",
+                   "dr": "<dd/mm/aaaa>",
+                   "hr": "<hh:mm:ss>",
+                   "st": "<texto>",
+                   "arq":[
+                           {
+                             "nm":"<texto>",
+                             "tp":"<texto>"
+                           }
+                     ]
+                 }
+               ]
+           }
+
+
+
+
+    4. Dicionário de dados
+
+          Elemento: [raiz]
+
+
+      Atributos
+
+      dg                 Data da geração do arquivo
+
+      hg                 Hora da geração do arquivo
+
+      idg                Código identificador da geração do arquivo json.
+
+                         Fase em que foi gerado o arquivo. Pode ser:
+      f                  - s: Simulado – se o arquivo foi gerado durante o simulado.
+                         - o: Oficial – se o arquivo foi gerado com resultados reais da eleição.
+
+      st                 Situação da seção
+
+
+          Elemento: hashes
+
+
+               Descrição: Lista com os identificadores hash dos arquivos de urna recebidos.
+               Conteúdo: Contém informações dos arquivos de urna.
+
+      Atributos
+
+      hash               Código identificador dos arquivos
+
+      dr                 Data do recebimento dos arquivos
+
+      hr                 Hora da recebimento dos arquivos
+
+      st                 Situação dos arquivos
+
+
+          Elemento: arq
+
+
+                                                                 2/3
+TSE-EA18-Arquivo-auxiliar-de-secao.md                                                                        2026-05-22
+
+
+
+             Descrição: Lista com os arquivos de urna.
+             Conteúdo: Contém nome e tipo do arquivo de urna. São disponibilizados no Resultados o boletim de
+             urna, o registro digital do voto RDV e o log da urna.
+
+      Atributos
+
+      nm                 Nome do arquivo com extensão
+
+      tp                 Tipo do arquivo
+
+
+    5. Disponibilidade dos arquivos e situação da seção
+
+                                        Não há arquivos de                                   Após a
+                                                             Arquivos de urna recebidos
+                                        urna da seção                                        totalização final
+
+      Disponibilidade dos                                    Arquivo JSON gerado com os      Arquivo JSON
+                                        Não há json gerado
+      arquivos                                               dados do último hash recebido   atualizado
+
+                                                                                             - Não instalada
+                                                                                             - Não apurada
+      Situação da seção                 -                    Recebida
+                                                                                             - Anulada
+                                                                                             - Totalizada
+
+                                                                                             - Rejeitado
+      Situação do hash                  -                    Recebido                        - Excluído
+                                                                                             - Totalizado
+
+
+
+
+                                                             3/3
+

@@ -1,0 +1,552 @@
+TSE-EA15-Arquivo-de-acompanhamento-UF.md                                                                                 2026-06-10
+
+
+
+
+     Divulgação de Resultados das Eleições
+     Especificação de Arquivo
+
+       EA15 – Arquivo de acompanhamento UF
+   Sumário
+
+            1. Conteúdo
+            2. Formato do nome do arquivo
+            3. Representação do arquivo
+            4. Dicionário de dados do arquivo
+            5. Tipos de arquivos de acompanhamento
+
+   1. Conteúdo
+
+   Esse arquivo contém informações relevantes para acompanhamento da eleição nas abrangências Estadual e
+   municipal. As informações contidas nesse arquivo, para acompanhamento da eleição, são informações de seções e
+   eleitorado. Tais informações são relevantes para se mapear o estágio da eleição em todo o estado. Com esse arquivo
+   é possível acompanhar a quantidade de seções totalizadas, seções não totalizadas, eleitorado totalizado, etc.
+
+   Esse arquivo será gerado apenas para as eleições ordinárias de abrangência municipal e eleições ordinárias de
+   abrangência estadual. A relação entre o tipo de arquivo e o tipo de eleição é detalhada na tabela a seguir:
+
+       Quantidade de arquivos por tipo de Eleição.
+
+                                                                                         Consulta    Consulta      Consulta
+                                  Geral         Geral      Municipal      Municipal
+     Tipo                                                                                Popular      Popular      Popular
+                               Ordinária   Suplementar     Ordinária    Suplementar
+                                                                                         Nacional    Estadual      Municipal
+
+     Arquivo de
+     acompanhamento                 1             -            1              -              -           -               -
+     UF
+
+       Conteúdo por tipo de arquivo.
+
+     Tipo                                   Conteúdo
+
+     Arquivo de acompanhamento UF           Quantitativo de seções e eleitorado nas abrangências Estadual e Municipal.
+
+
+   2. Formato do nome do arquivo
+
+   O nome do arquivo obedece ao seguinte formato:
+
+   <Uf>-e<número da eleição>-ab.json
+
+            Exemplo: sp-e999999-ab.json
+
+   Onde:
+
+   <uf> := Sigla da UF em minúsculo.
+
+   e<número da eleição>:= Número de controle identificador da eleição a que ser refere o arquivo. Composto por
+   seis dígitos. É o um número fixo para todos os arquivos de uma mesma eleição.
+
+                                                               1/8
+TSE-EA15-Arquivo-de-acompanhamento-UF.md                                  2026-06-10
+
+
+
+   3. Representação do arquivo
+
+
+        {
+              "ele": "{inteiro}",
+              "t": "{1|2}",
+              "f": "{s|o}",
+              "dg": "{dd/mm/aaaa}",
+              "hg": "{hh:mm:ss}",
+              "idg": "{inteiro}",
+              "abr": [
+                  {
+                      "and": "{n|p|f}",
+                      "tpabr": "{uf|mun}",
+                      "cdabr": "{<sigla da uf>|<código do município>}",
+                      "dt": "<dd/mm/aaaa>",
+                      "ht": "<hh:mm:ss>",
+                      "munnr": "{inteiro}",
+                      "pmunnr": "{decimal}",
+                      "pmunnrn": "{decimal}",
+                      "munpt": "{inteiro}",
+                      "pmunpt": "{decimal}",
+                      "pmunptn": "{decimal}",
+                      "munf": "{inteiro}",
+                      "pmunf": "{decimal}",
+                      "pmunfn": "{decimal}",
+                      "s": {
+                          "ts": "{inteiro}",
+                          "st": "{inteiro}",
+                          "pst": "{decimal}",
+                          "pstn": "{decimal}",
+                          "snt": "{inteiro}",
+                          "psnt": "{decimal}",
+                          "psntn": "{decimal}",
+                          "si": "{inteiro}",
+                          "psi": "{decimal}",
+                          "psin": "{decimal}",
+                          "sni": "{inteiro}",
+                          "psni": "{decimal}",
+                          "psnin": "{decimal}",
+                          "sa": "{inteiro}",
+                          "psa": "{decimal}",
+                          "psan": "{decimal}",
+                          "sna": "{inteiro}",
+                          "psna": "{decimal}",
+                          "psnan": "{decimal}"
+                      },
+                      "e": {
+                          "te": "{inteiro}",
+                          "est": "{inteiro}",
+                          "pest": "{decimal}",
+                          "pestn": "{decimal}",
+                          "esnt": "{inteiro}",
+                          "pesnt": "{decimal}",
+                          "pesntn": "{decimal}",
+                          "esi": "{inteiro}",
+                          "pesi": "{decimal}",
+
+                                                    2/8
+TSE-EA15-Arquivo-de-acompanhamento-UF.md                                                                       2026-06-10
+
+
+
+                                  "pesin": "{decimal}",
+                                  "esni": "{inteiro}",
+                                  "pesni": "{decimal}",
+                                  "pesnin": "{decimal}",
+                                  "esa": "{inteiro}",
+                                  "pesa": "{decimal}",
+                                  "pesan": "{decimal}",
+                                  "esna": "{inteiro}",
+                                  "pesna": "{decimal}",
+                                  "pesnan": "{decimal}",
+                                  "c": "{inteiro}",
+                                  "pc": "{decimal}",
+                                  "pcn": "{decimal}",
+                                  "a": "{inteiro}",
+                                  "pa": "{decimal}",
+                                  "pan": "{decimal}"
+                            }
+                     }
+               ]
+         }
+
+
+
+   4. Dicionário de dados do arquivo
+
+         Elemento: [raiz]
+
+
+             Descrição: Elemento que contém informações gerais sobre a eleição representada pelo arquivo.
+             Conteúdo: Um ou mais elementos “abr”.
+
+     Atributos
+
+     ele              Código da eleição.
+
+                      Turno da eleição. Pode ser:
+
+     t                          1 – primeiro turno
+                                2 – segundo turno
+
+
+                      Fase em que foi gerado o arquivo. Pode ser:
+
+     f                          s – Fase simulada.
+                                o – Fase oficial.
+
+
+     dg               Data da geração do arquivo.
+
+     hg               Hora da geração do arquivo.
+
+     idg              Código identificador da geração do arquivo json.
+
+
+         Elemento: abr
+
+
+             Descrição:
+                    Elemento que contém informações gerais sobre a eleição representada pelo arquivo.
+                    Elemento que contém valores de acompanhamento da eleição, tais como seções e eleitorado.
+
+
+
+                                                               3/8
+TSE-EA15-Arquivo-de-acompanhamento-UF.md                                                                                     2026-06-10
+
+
+
+
+     Atributos
+
+                     Informa o andamento do recebimento de Boletins de Urna e do processo de totalização dentro
+                     da abrangência.
+                     Pode ser:
+                     - n: não houve totalização
+                     - p: totalização em andamento
+                     - f: totalização finalizada
+                     Totalização finalizada acontece quando 100% das seções foram totalizadas e houve totalização final.
+                     Totalização final é o processo de finalização da eleição, quando um juiz eleitoral finaliza a eleição
+                     elegendo ou não os candidatos.
+                     O campo "and" terá seu valor igual a f quando tiver 100% das seções totalizadas e houver
+     and
+                     totalização final na sua respectiva abrangência.
+                     Eleição Municipal
+                     "tpabr": mun, campo "and" será f quando houver totalização final
+                     "tpabr": uf, campo "and" será f quando houver totalização final em TODOS os municípios
+                     Eleição Estadual
+                     "tpabr": mun, campo "and" será f quando o campo "snt": 0
+                     "tpabr": uf, campo "and" será f quando houver totalização final
+                     Eleição Federal
+                     "tpabr": mun, campo "and" será f quando o campo "snt": 0
+                     "tpabr": uf, campo "and" será f quando o campo "snt": 0
+
+                     Tipo da abrangência - Pode ser:
+     tpabr           - uf : abrangência por UF
+                     - mun : abrangência por município
+
+                     Código da abrangência - Determina a qual unidade pertence o arquivo, podendo ser:
+                     - A sigla da UF, em letras minúsculas, indicando que esse arquivo se refere ao resultado de uma
+     cdabr
+                     determinada Unidade da Federação.
+                     - O código do município, com 5 dígitos numéricos (preenchidos com zero à esquerda)
+
+                     Data e hora da última totalização da abrangência
+     dt              - Para abrangência município será a data/hora da última totalização parcial.
+     ht              - Para abrangência UF será a data/hora da última totalização final, e na ausência de totalização final
+                     será a data/hora da última totalização parcial.
+
+                     Quantidade de Municípios que não iniciaram a totalização. Esse atributo estará disponível
+     munnr
+                     quando “tpabr” for uf. Equivale à quantidade de municípios com o atributo "and"="n".
+
+                     Percentual de Municípios que não iniciaram a totalização em relação ao total de municípios, da
+     pmunnr
+                     respectiva UF, que participaram da eleição. Esse atributo estará disponível quando “tpabr” for uf.
+
+                     Percentual de Municípios que não iniciaram a totalização em relação ao total de municípios, da
+                     respectiva UF, que participaram da eleição. Esse atributo estará disponível quando “tpabr” for uf.
+     pmunnrn
+                     Campo numérico com precisão de 9 casas decimais. Quando o percentual for igual a 0 ou 100, as
+                     casas decimais não serão apresentadas.
+
+                     Quantidade de Municípios que já iniciaram a totalização. Esse atributo estará disponível quando
+     munpt
+                     “tpabr” for uf. Equivale à quantidade de municípios com o atributo "and"="p".
+
+
+
+
+                                                                 4/8
+TSE-EA15-Arquivo-de-acompanhamento-UF.md                                                                                  2026-06-10
+
+
+
+
+     Atributos
+
+                     Percentual de Municípios que já iniciaram mas não finalizaram a totalização em relação ao total de
+     pmunpt          municípios, da respectiva UF, que participaram da eleição. Esse atributo estará disponível quando
+                     “tpabr” for uf.
+
+                     Percentual de Municípios que já iniciaram mas não finalizaram a totalização em relação ao total de
+                     municípios, da respectiva UF, que participaram da eleição. Esse atributo estará disponível quando
+     pmunptn
+                     “tpabr” for uf. Campo numérico com precisão de 9 casas decimais. Quando o percentual for igual a 0
+                     ou 100, as casas decimais não serão apresentadas.
+
+                     Quantidade de Municípios que já finalizaram a totalização. Esse atributo estará disponível
+     munf
+                     quando “tpabr” for uf. Equivale à quantidade de municípios com o atributo "and"="f".
+
+                     Percentual de Municípios que já finalizaram a totalização em relação ao total de municípios, da
+     pmunf
+                     respectiva UF, que participaram da eleição. Esse atributo estará disponível quando “tpabr” for uf.
+
+                     Percentual de Municípios que já finalizaram a totalização em relação ao total de municípios, da
+                     respectiva UF, que participaram da eleição. Esse atributo estará disponível quando “tpabr” for uf.
+     pmunfn
+                     Campo numérico com precisão de 9 casas decimais. Quando o percentual for igual a 0 ou 100, as
+                     casas decimais não serão apresentadas.
+
+
+       Elemento: s
+
+
+            Descrição: Elemento que contém os dados quantitativos de seções atualizados a cada totalização.
+
+   Hierarquia:
+
+
+
+          ts (Total de Seções)
+          ├── st (Totalizadas)
+          │   ├── si (Instaladas)
+          │   │   ├── sa (Apuradas)
+          │   │   └── sna (Não Apuradas)
+          │   └── sni (Não Instaladas)
+          └── snt (Não Totalizadas)
+
+
+
+     Atributos
+
+     ts              Seções - Quantidade de seções na abrangência.
+
+     st              Seções Totalizadas - Quantidade de seções totalizadas na abrangência.
+
+                     Percentual de Seções Totalizadas - percentual de seções totalizados em relação à quantidade de
+     pst
+                     seções
+
+                     Percentual de Seções Totalizadas - percentual de seções totalizados em relação à quantidade de
+     pstn            seções. Campo numérico com precisão de 9 casas decimais. Quando o percentual for igual a 0 ou
+                     100, as casas decimais não serão apresentadas.
+
+     snt             Seções Não Totalizadas - Quantidade de seções não totalizadas na abrangência.
+
+                     Percentual de Seções Não Totalizadas - percentual de seções não totalizados em relação à
+     psnt
+                     quantidade de seções
+
+
+
+                                                                5/8
+TSE-EA15-Arquivo-de-acompanhamento-UF.md                                                                                2026-06-10
+
+
+
+
+     Atributos
+
+                        Percentual de Seções Não Totalizadas - percentual de seções não totalizados em relação à
+     psntn              quantidade de seções. Campo numérico com precisão de 9 casas decimais. Quando o percentual for
+                        igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+                        Seções Instaladas – Quantidade de seções instaladas na abrangência. Essa informação só é obtida
+     si
+                        após a totalização da seção eleitoral.
+
+                        Percentual de Seções Instaladas - percentual de seções instaladas em relação à quantidade de
+     psi
+                        seções totalizadas
+
+                        Percentual de Seções Instaladas - percentual de seções instaladas em relação à quantidade de
+     psin               seções totalizadas. Campo numérico com precisão de 9 casas decimais. Quando o percentual for
+                        igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+                        Seções Não Instaladas – Quantidade de seções não instaladas na abrangência. Essa informação só é
+     sni
+                        obtida após a totalização da seção eleitoral.
+
+                        Percentual de Seções Não Instaladas - percentual de seções não instaladas com relação à
+     psni
+                        quantidade de seções totalizadas.
+
+                        Percentual de Seções Não Instaladas - percentual de seções não instaladas com relação à
+     psnin              quantidade de seções totalizadas. Campo numérico com precisão de 9 casas decimais. Quando o
+                        percentual for igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+                        Seções Apuradas - Quantidade de seções apuradas na abrangência. Essa informação só é obtida
+     sa
+                        após a totalização da seção eleitoral.
+
+                        Percentual de Seções Apuradas - percentual de seções apuradas com relação à quantidade de
+     psa
+                        seções instaladas
+
+                        Percentual de Seções Apuradas - percentual de seções apuradas com relação à quantidade de
+     psan               seções instaladas. Campo numérico com precisão de 9 casas decimais. Quando o percentual for igual
+                        a 0 ou 100, as casas decimais não serão apresentadas.
+
+                        Seções Marcadas como Não Apuradas - Quantidade de seções que foram marcadas como não
+     sna                apuradas no sistema de totalização na abrangência. Essa informação só é obtida após a totalização
+                        da seção eleitoral.
+
+                        Percentual de Seções Não Apuradas - percentual seções não apuradas em relação à quantidade de
+     psna
+                        seções instaladas.
+
+                        Percentual de Seções Não Apuradas - percentual seções não apuradas em relação à quantidade de
+     psnan              seções instaladas. Campo numérico com precisão de 9 casas decimais. Quando o percentual for igual
+                        a 0 ou 100, as casas decimais não serão apresentadas.
+
+
+          Elemento: e
+
+
+             Descrição: Elemento que contém os dados quantitativos de eleitores atualizados a cada totalização.
+
+   Hierarquia:
+
+
+
+          te (Total de Eleitores)
+          ├── est (Em seções totalizadas)
+          │   ├── esi (Em seções instaladas)
+                                                                   6/8
+TSE-EA15-Arquivo-de-acompanhamento-UF.md                                                                               2026-06-10
+
+
+
+          │   │   ├── esa (Em seções apuradas)
+          │   │   └── esna (Em seções não apuradas)
+          │   └── esni (Em seções não instaladas)
+          └── esnt (Em seções não totalizadas)
+
+
+
+     Atributos
+
+     te              Eleitorado - Quantidade de eleitores aptos da abrangência.
+
+     est             Eleitorado de Seções Totalizadas - Quantidade de eleitores das seções totalizadas na abrangência.
+
+                     Percentual do Eleitorado de Seções Totalizadas - percentual de eleitores das seções totalizados
+     pest
+                     em relação à quantidade de eleitores
+
+                     Percentual do Eleitorado de Seções Totalizadas - percentual de eleitores das seções totalizados
+     pestn           em relação à quantidade de eleitores. Campo numérico com precisão de 9 casas decimais. Quando o
+                     percentual for igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+                     Eleitorado de Seções Não Totalizadas - Quantidade de eleitores de seções não totalizadas na
+     esnt
+                     abrangência.
+
+                     Percentual do Eleitorado de Seções Não Totalizadas - percentual de eleitores das seções não
+     pesnt
+                     totalizados em relação à quantidade de eleitores
+
+                     Percentual do Eleitorado de Seções Não Totalizadas - percentual de eleitores das seções não
+     pesntn          totalizados em relação à quantidade de eleitores. Campo numérico com precisão de 9 casas
+                     decimais. Quando o percentual for igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+                     Eleitorado de Seções Instaladas - Quantidade de eleitores das seções instaladas. esi = c + a e
+     esi
+                     esi = esa + esna.
+
+                     Percentual do Eleitorado de Seções Instaladas - percentual de eleitores das seções instaladas em
+     pesi
+                     relação à quantidade de eleitores das seções totalizadas.
+
+                     Percentual do Eleitorado de Seções Instaladas - percentual de eleitores das seções instaladas em
+     pesin           relação à quantidade de eleitores das seções totalizadas. Campo numérico com precisão de 9 casas
+                     decimais. Quando o percentual for igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+     esni            Eleitorado de Seções Não Instaladas - Quantidade de eleitores das seções não instaladas.
+
+                     Percentual do Eleitorado de Seções Não Instaladas - percentual de eleitores das seções não
+     pesni
+                     instaladas em relação à quantidade de eleitores das seções totalizadas.
+
+                     Percentual do Eleitorado de Seções Não Instaladas - percentual de eleitores das seções não
+                     instaladas em relação à quantidade de eleitores das seções totalizadas. Campo numérico com
+     pesnin
+                     precisão de 9 casas decimais. Quando o percentual for igual a 0 ou 100, as casas decimais não serão
+                     apresentadas.
+
+                     Eleitorado das Seções Apuradas - Quantidade de eleitores das seções apuradas na abrangência.
+     esa
+                     Essa informação só é obtida após a totalização da seção eleitoral.
+
+                     Percentual do Eleitorado das Seções Apuradas - percentual de eleitores das seções apuradas em
+     pesa
+                     relação aos eleitores das seções instaladas
+
+                     Percentual do Eleitorado das Seções Apuradas - percentual de eleitores das seções apuradas em
+     pesan           relação aos eleitores das seções instaladas. Campo numérico com precisão de 9 casas decimais.
+                     Quando o percentual for igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+                                                                   7/8
+TSE-EA15-Arquivo-de-acompanhamento-UF.md                                                                                2026-06-10
+
+
+
+
+     Atributos
+
+                     Eleitorado de Seções Não Apuradas - Quantidade de eleitores de seções marcadas como não
+     esna            apuradas no sistema de totalização na abrangência. Essa informação só é obtida após a totalização
+                     da seção eleitoral.
+
+                     Percentual do Eleitorado de Seções Não Apuradas - percentual de eleitores de seções marcadas
+     pesna
+                     como não apuradas em relação aos eleitores das seções instaladas
+
+                     Percentual do Eleitorado de Seções Não Apuradas - percentual de eleitores de seções marcadas
+                     como não apuradas em relação aos eleitores das seções instaladas. Campo numérico com precisão
+     pesnan
+                     de 9 casas decimais. Quando o percentual for igual a 0 ou 100, as casas decimais não serão
+                     apresentadas.
+
+                     Comparecimento - Quantidade de comparecimento na abrangência. Contém o comparecimento do
+     c
+                     eleitorado das seções instaladas. Essa informação só é obtida após a totalização da seção eleitoral.
+
+                     Percentual de Comparecimento - percentual de comparecimento em relação aos eleitores das
+     pc
+                     seções instaladas.
+
+                     Percentual de Comparecimento - percentual de comparecimento em relação aos eleitores das
+     pcn             seções instaladas. Campo numérico com precisão de 9 casas decimais. Quando o percentual for igual
+                     a 0 ou 100, as casas decimais não serão apresentadas.
+
+                     Abstenção – Quantidade de abstenções na abrangência. Contém a abstenção do eleitorado das
+     a
+                     seções instaladas. Essa informação só é obtida após a totalização da seção eleitoral.
+
+     pa              Percentual de Abstenção - percentual de abstenção em relação aos eleitores das seções instaladas
+
+                     Percentual de Abstenção - percentual de abstenção em relação aos eleitores das seções instaladas.
+     pan             Campo numérico com precisão de 9 casas decimais. Quando o percentual for igual a 0 ou 100, as
+                     casas decimais não serão apresentadas.
+
+
+   5. Tipos de arquivos de acompanhamento
+
+         Arquivo de Acompanhamento Brasil
+
+
+   Esse arquivo contém as informações de acompanhamento da eleição em abrangência nacional. Entende-se por
+   acompanhamento informações que revelam a situação da eleição de forma geral, como, por exemplo, número de
+   seções totalizadas, número de eleitorado apurado, comparecimento e outros.
+
+   abr: há um elemento abr com tpabr igual a br e um elemento abr com tpabr uf para cada UF que tenha eleição
+   ordinária. Esse elemento contém a situação da eleição na respectiva abrangência. Exemplo: o atributo st apresenta o
+   número de seções totalizadas em todo o Brasil.
+
+         Arquivo de Acompanhamento UF
+
+
+   Esse arquivo contém as informações de acompanhamento da eleição em abrangência da uma UF. Entende-se por
+   acompanhamento informações que revelam a situação da eleição de forma geral, como, por exemplo, número de
+   seções totalizadas, número de eleitorado apurado, comparecimento e outros.
+
+   abr: há um elemento abr com tipabr igual a uf e um elemento abr com tpabr mun para cada município que tenha
+   eleição ordinária. Esse elemento contém a situação da eleição na respectiva abrangência.
+
+
+
+
+                                                                8/8
+

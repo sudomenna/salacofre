@@ -1,0 +1,202 @@
+TSE-EA16-Arquivo-de-configuracao-de-secoes-eleitorais.md                                                       2026-05-22
+
+
+
+
+      Divulgação de Resultados das Eleições
+      Especificação de Arquivo
+
+         EA16 – Arquivo de configuração de seções eleitorais
+    Sumário
+
+             Sumário
+             1. Descrição
+             2. Formato do nome do arquivo
+             3. Representação do arquivo
+             4. Dicionário de dados do arquivo
+
+    1. Descrição
+
+    Esse arquivo contém informações acerca das seções eleitorais disponíveis para divulgação dos boletins de
+    urna. Os arquivos JSON serão consumidos pelo aplicativo Resultados.
+
+    2. Formato do nome do arquivo
+
+    O nome do arquivo é formado conforme o padrão a seguir:
+
+    <UF>-p<número do pleito>-cs.json
+
+    Exemplo: mg-p012345-cs.json
+
+    Onde:
+
+    <uf> := Sigla da UF em minúsculo.
+
+    <número do pleito> : Número de controle identificador do pleito a que ser refere o arquivo. Composto por
+    seis dígitos.
+
+    3. Representação do arquivo
+
+
+         {
+             "dg": "<dd/mm/aaaa>",
+             "hg": "<hh:mm:ss>",
+             "idg": "{inteiro}",
+             "f": "{s|o}",
+             "cdp": "<inteiro>",
+             "abr": [
+               {
+                 "cd": "{<Sigla da UF>}",
+                 "ds": "<texto>",
+                 "mu": [
+                   {
+                     "cd": "<texto>",
+                     "nm": "<texto>",
+
+                                                           1/4
+TSE-EA16-Arquivo-de-configuracao-de-secoes-eleitorais.md                                                              2026-05-22
+
+
+
+                              "zon": [
+                                {
+                                  "cd": "<texto>",
+                                  "sec": [
+                                    {
+                                      "ns": "<texto>",
+                                      "nsp": "<texto>",
+                                      "nsa": ["<texto>"],
+                                      "da" : "<texto>",
+                                      "ha" : "<texto>"
+                                    }
+                                  ]
+                                }
+                              ]
+                          }
+                      ]
+                  }
+              ]
+          }
+
+
+
+
+    4. Dicionário de dados do arquivo
+
+          Elemento: [raiz]
+
+
+      Atributos
+
+      dg                  Data da geração do arquivo.
+
+      hg                  Hora da geração do arquivo.
+
+      idg                 Código identificador da geração do arquivo json.
+
+                          Fase em que foi gerado o arquivo. Pode ser:
+      f                   - s: Simulado – se o arquivo foi gerado durante o simulado.
+                          - o: Oficial – se o arquivo foi gerado com resultados reais da eleição.
+
+                          Código do pleito, utilizado para identificar as eleições que participam do mesmo processo
+      cdp
+                          eleitoral.
+
+
+          Elemento: abr (Abrangência)
+
+
+              Descrição: Lista com as UF’s - Unidades Federativas - que participam da eleição. Para Exterior, a sigla
+              será zz
+              Conteúdo: Contém um elemento “mu” para cada município ou localidade do exterior que faz parte da
+              UF em questão.
+
+      Atributos
+
+      cd                  Sigla da UF. Ex.: am, sp, zz
+
+      ds                  Nome descritivo da abrangência. Nesse caso, o nome da UF.
+
+                                                                  2/4
+TSE-EA16-Arquivo-de-configuracao-de-secoes-eleitorais.md                                                             2026-05-22
+
+
+
+         Elemento: mu (Municípios ou Localidades do Exterior)
+
+
+             Descrição: Lista com informações dos municípios ou localidades do Exterior que participam da eleição
+             em uma determinada UF (especificada no elemento abr, no atributo cd).
+             Conteúdo: Contém um elemento “zon” para cada zona eleitoral que faz parte do município em questão.
+
+      Atributos
+
+                         Código do município com cinco dígitos, preenchidos com zero à esquerda, de acordo com o
+      cd
+                         cadastro da Justiça Eleitoral. Ex.: 00001, 00002, 00003.
+
+      nm                 Nome do município.
+
+
+         Elemento: zon (Zonas Eleitorais)
+
+
+             Descrição: Lista com informações das zonas eleitorais que participam da eleição em um determinado
+             município.
+
+      Atributos
+
+                         Número da zona eleitoral com quatro dígitos, preenchidos com zero à esquerda, de acordo
+      cd
+                         com o cadastro da Justiça Eleitoral. Ex.: 0001, 0002, 0003
+
+                         Lista dos números das seções eleitorais da zona eleitoral em questão. Os números contém
+      sec                quatro dígitos, preenchidos com zeros à esquerda, separados por vírgula. Ex.: 0001, 0002,
+                         0003
+
+
+         Elemento: sec (Seções)
+
+
+             Descrição: Lista com informações das seções eleitorais que participam da eleição vinculada a
+             determinada zona. Uma seção eleitoral corresponde a uma urna eletrônica.
+
+      Atributos
+
+                         Número da seção eleitoral com quatro dígitos, preenchidos com zero à esquerda, de acordo
+      ns
+                         com o cadastro da Justiça Eleitoral. Ex.: 0001, 0002, 0003
+
+                         Número da seção eleitoral principal. Os números contém quatro dígitos, preenchidos com
+      nsp                zeros à esquerda, de acordo com o cadastro da Justiça Eleitoral. Ex.: 0001, 0002, 0003
+                         Esse atributo só estará disponível se ns for uma seção agregada.
+
+                         Lista dos números das seções eleitorais agregadas. Os números contém quatro dígitos,
+                         preenchidos com zeros à esquerda, de acordo com o cadastro da Justiça Eleitoral. Ex.: 0001,
+                         0002, 0003.
+      nsa                A seção eleitoral, quando há uma quantidade pequena de eleitores, será agregada a uma
+                         outra, chamada de principal. Com essa unificação, a seção principal engloba os votos dos
+                         eleitores das respectivas agregadas.
+                         Esse atributo só estará disponível se ns for uma seção principal e houver seções agregadas.
+
+                         Data do arquivo auxiliar da seção. Disponível somente para a seção principal e após a
+      da
+                         geração do arquivo auxiliar correspondente.
+
+                                                                3/4
+TSE-EA16-Arquivo-de-configuracao-de-secoes-eleitorais.md                                                         2026-05-22
+
+
+
+
+      Atributos
+
+                         Hora do arquivo auxiliar da seção. Disponível somente para a seção principal e após a
+      ha
+                         geração do arquivo auxiliar correspondente.
+
+
+
+
+                                                              4/4
+

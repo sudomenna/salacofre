@@ -1,0 +1,142 @@
+TSE-EA12-Arquivo-de-configuracao-de-municipios.md                                                         2026-05-22
+
+
+
+
+      Divulgação de Resultados das Eleições
+      Especificação de Arquivo
+
+        EA12 – Arquivo de configuração de municípios
+    Sumário
+
+             1. Descrição
+             2. Formato do nome do arquivo
+             3. Representação do arquivo
+             4. Dicionário de dados
+
+    1. Descrição
+
+    Esse arquivo contém informações acerca dos municípios das eleições disponíveis para divulgação. Os arquivos
+    JSON serão consumidos pelo aplicativo Resultados.
+
+    2. Formato do nome do arquivo
+
+    O nome do arquivo é formado conforme o padrão a seguir:
+
+    mun-e<número da eleição>-cm.json
+
+    Exemplo: mun-e012345-cm.json
+
+    Onde:
+
+    e<número da eleição>: Número de controle identificador da eleição a que ser refere o arquivo. Composto
+    por seis dígitos. É o um número fixo para todos os arquivos de uma mesma eleição.
+
+    3. Representação do arquivo
+
+
+         {
+             "dg": "<dd/mm/aaaa>",
+             "hg": "<hh:mm:ss>",
+             "idg": "{inteiro}",
+             "f": "{s|o}",
+             "abr": [
+               {
+                 "cd": "{<Sigla UF>}",
+                 "ds": "<texto>",
+                 "mu": [
+                   {
+                     "cd": "<inteiro>",
+                     "cdi": "<inteiro>",
+                     "nm": "<texto>",
+                     "c": "{s|n}",
+                     "z": ["<texto>"]
+                   }
+                 ]
+                                                        1/3
+TSE-EA12-Arquivo-de-configuracao-de-municipios.md                                                                   2026-05-22
+
+
+
+                  }
+              ]
+          }
+
+
+
+    4. Dicionário de dados
+
+          Elemento: [raiz]
+
+
+      Atributos
+
+      dg                 Data da geração do arquivo.
+
+      hg                 Hora da geração do arquivo.
+
+      idg                Código identificador da geração do arquivo json.
+
+                         Fase em que foi gerado o arquivo. Pode ser:
+      f                  - s: Simulado – se o arquivo foi gerado durante o simulado.
+                         - o: Oficial – se o arquivo foi gerado com resultados reais da eleição.
+
+
+          Elemento: abr (Abrangência)
+
+
+              Descrição: Lista com as UF’s - Unidades Federativas - que participam da eleição. Para Exterior, a sigla
+              será zz
+              Conteúdo: Contém um elemento “mu” para cada município ou localidade do exterior que faz parte da
+              UF em questão.
+
+      Atributos
+
+                         Sigla da UF
+      cd
+                         Ex.: am, sp, zz
+
+      ds                 Nome descritivo da abrangência. Nesse caso, o nome da UF.
+
+
+          Elemento: mu (Municípios ou Localidades do Exterior)
+
+
+              Descrição: Lista com informações dos municípios ou localidades do Exterior que participam da eleição
+              em uma determinada UF (especificada no elemento abr, no atributo cd).
+
+      Atributos
+
+                         Código do Município com cinco dígitos, preenchidos com zero à esquerda, de acordo com o
+      cd                 cadastro da Justiça Eleitoral.
+                         Ex.: 00001, 00002, 00003
+
+                         Código identificador do Município com cinco dígitos, preenchidos com zero à esquerda, de
+      cdi
+                         acordo com o cadastro do Instituto Brasileiro de Geografia e Estatística - IBGE.
+
+      nm                 Nome do Município
+
+
+
+                                                                 2/3
+TSE-EA12-Arquivo-de-configuracao-de-municipios.md                                                            2026-05-22
+
+
+
+
+      Atributos
+
+                         Indica se o Município é a capital da UF. Pode ser:
+      c                  s - sim, é capital da UF ou
+                         n - não é a capital da UF.
+
+                         Lista dos números das Zonas Eleitorais do Município. Os números contém quatro dígitos,
+      z                  preenchidos com zeros à esquerda.
+                         Ex.: 0001, 0002, 0003
+
+
+
+
+                                                               3/3
+

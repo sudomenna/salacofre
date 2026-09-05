@@ -1,0 +1,1427 @@
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                            2026-07-10
+
+
+
+
+      Divulgação de Resultados das Eleições
+      Especificação de Arquivo
+
+        EA20 – Arquivo de resultado unificado
+    Sumário
+
+             1. Conteúdo
+             2. Formato do nome do arquivo
+             3. Representação do arquivo JSON
+             4. Dicionário de dados do arquivo JSON
+
+    1. Conteúdo
+
+    Esse arquivo contém a parte fixa e a parte variável dos resultados das Eleições. Entende-se por parte fixa
+    aqueles dados que não variam durante a totalização dos resultados, tais como nome e número dos
+    candidatos, sigla e nome dos partidos, número de seções, eleitorado e outros. Entende-se por parte variável
+    aqueles dados que vão variar durante a eleição, isto é, que são extraídos da totalização dos votos. A
+    quantidade de votos dos candidatos, dos partidos, número de eleitores votantes, são exemplos de dados que
+    variam durante as apurações.
+
+    Embora o leiaute seja mantido em todos os arquivos, o conteúdo pode variar de acordo com o tipo de eleição
+    e a necessidade de informação. Sendo assim foram identificados quatro tipos de arquivos. A descrição desses
+    tipos bem como a relação entre o tipo de arquivo e o tipo de eleição são detalhados na tabela a seguir:
+
+        Quantidade de arquivos por tipo de Eleição
+
+                                                                           Consulta        Consulta        Consulta
+                                Eleição Geral       Eleição
+      Tipo                                                                 Popular         Popular         Popular
+                                  Ordinária        Municipal
+                                                                           Nacional        Estadual       Municipal
+
+                                                                             1 por
+      Arquivo BR             1 para presidente         -                                       -               -
+                                                                           pergunta
+
+                             1 por cargo da UF
+                                                                             1 por
+                                    e 1 para                                                 1 por
+      Arquivo UF                                       -                 pergunta para                         -
+                              presidente para                                              pergunta
+                                                                           cada UF
+                                    cada UF
+
+                             1 por cargo da UF                               1 por           1 por           1 por
+                                                  1 por cargo
+      Arquivo                       e 1 para                             pergunta para   pergunta para   pergunta para
+                                                   para cada
+      Município               presidente para                                cada            cada            cada
+                                                   município
+                               cada município                             município       município       município
+
+                             1 por cargo da UF
+      Arquivo                                    1 por cargo do              1 por           1 por           1 por
+                                    e 1 para
+      Zona                                       município para          pergunta para   pergunta para   pergunta para
+                              presidente para
+      Eleitoral                                    cada zona              cada zona       cada zona       cada zona
+                                  cada zona
+
+
+                                                                1 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                              2026-07-10
+
+
+
+        Conteúdo por tipo de arquivo
+
+      Tipo                   Conteúdo
+
+                             Dados de seções, eleitorado, comparecimento, abstenção e votos, informações dos
+                             candidatos ao cargo presidente, tais como partido, federação, coligação, vice, votação e
+      Arquivo BR
+                             situação do candidato e informações das perguntas e respostas, em caso de consulta
+                             popular nacional, na abrangência Nacional incluindo o exterior.
+
+                             Dados de seções, eleitorado, comparecimento, abstenção e votos, informações dos
+                             candidatos, tais como partido, federação, coligação, vice, votação e situação do candidato
+      Arquivo UF
+                             e informações das perguntas e respostas de consultas populares estaduais ou nacionais,
+                             na abrangência Estadual.
+
+                             Dados de seções, eleitorado, comparecimento, abstenção e votos, informações dos
+      Arquivo                candidatos, tais como partido, federação, coligação, vice, votação e situação do candidato
+      Município              e informações das perguntas e respostas de consultas populares municipais, estaduais ou
+                             nacionais, na abrangência Municipal.
+
+                             Dados de seções, eleitorado, comparecimento, abstenção e votos, informações dos
+      Arquivo
+                             candidatos, tais como partido, federação, coligação, vice, votação e situação do candidato
+      Zona
+                             e informações das perguntas e respostas de consultas populares municipais, estaduais ou
+      Eleitoral
+                             nacionais, na abrangência da zona eleitoral.
+
+
+    2. Formato do nome do arquivo
+
+    O nome do arquivo obedece ao seguinte formato:
+
+      Tipo de
+                                  Especificação do formato de nome
+      Arquivo
+
+                                  br-c<código do cargo>-e<número da eleição>-u.json
+      Arquivo BR
+                                  - Exemplo: br-c0003-e999999-u.json
+
+                                  <UF>-c<código do cargo>-e<número da eleição>-u.json
+      Arquivo UF
+                                  - Exemplo: sp-c0003-e999999-u.json
+
+      Arquivo                     <UF><código município>-c<código do cargo>-e<número da eleição>-u.json
+      Município                   - Exemplo: sp71072-c0003-e999999-u.json
+
+                                  <UF><código município>-z<código da zona>-c<código do cargo>-e<número
+      Arquivo Zona                da eleição>-u.json
+                                  - Exemplo: sp71072-z0001-c0003-e999999-u.json
+
+    Onde:
+
+             <UF> = sigla da UF em minúsculo
+             <código município> = Código do número do município com 5 posições preenchidos com zero à
+             esquerda
+             <código da zona> = Número do zona eleitoral com 4 posições preenchidos com zero à esquerda
+             <br> = fixo BR, Para os arquivos de abrangência nacional
+
+                                                                2 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                          2026-07-10
+
+
+
+             e<número da eleição> = Número de controle identificador da eleição a que ser refere o arquivo.
+             Composto por seis dígitos. É um número fixo para todos os arquivos de uma mesma eleição.
+             c<código do cargo> = Número do cargo ou, em caso de consulta popular, código da pergunta,
+             ambos com 4 dígitos. O número dos cargos é conhecido e descrito na tabela abaixo:
+
+                                                            Abrangência       Arquivo   Arquivo   Arquivo     Arquivo
+      Código          Cargo                  Tipo
+                                                            do cargo            BR        UF      Município    Zona
+
+      0001            Presidente             Majoritário    Brasil              🗸         🗸          🗸          🗸
+
+      0003            Governador*            Majoritário    UF                   -        🗸          🗸          🗸
+
+      0005            Senador*               Majoritário    UF                   -        🗸          🗸          🗸
+
+      0011            Prefeito*              Majoritário    Município            -         -         🗸          🗸
+
+                      Deputado
+      0006                                   Proporcional   UF                   -        🗸          🗸          🗸
+                      Federal*
+
+                      Deputado
+      0007                                   Proporcional   UF                   -        🗸          🗸          🗸
+                      Estadual
+
+                      Deputado
+      0008                                   Proporcional   UF                   -        🗸          🗸          🗸
+                      Distrital
+
+      0013            Vereador               Proporcional   Município            -         -         🗸          🗸
+
+    *Somente esses cargos são utilizados no formato do arquivo de resultado de eleitos
+
+    3. Representação do arquivo JSON
+
+
+         {
+                "ele": "{inteiro}",
+                "t": "{1|2}",
+                "f": "{s|o}",
+                "sup": "{s|n}",
+                "tpabr": "{br|uf|mu|zona}",
+                "cdabr": "{br|<uf>|<cód. município>|<zona>}",
+                "dg": "{dd/mm/aaaa}",
+                "hg": "{hh:mm:ss}",
+                "idg": "{inteiro}",
+                "dv":"{s|n}",
+                "dt": "{dd/mm/aaaa}",
+                "ht": "{hh:mm:ss}",
+                "tf": "{s|n}",
+                "and": "{n|p|f}",
+                "md": "{e|s|n}",
+                "esae": "{s|n}",
+                "mnae": [
+                    "{texto}"
+                ],
+                "carg": [
+                    {
+
+                                                                     3 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                      2026-07-10
+
+
+
+                               "cd": "{inteiro}",
+                               "nmn": "{texto}",
+                               "nmm": "{texto}",
+                               "nmf": "{texto}",
+                               "nv": "{inteiro}",
+                               "qe": "{inteiro}",
+                               "fed": [
+                                   {
+                                       "n": "{inteiro}",
+                                       "nm": "{texto}",
+                                       "sg": "{texto}",
+                                       "com": "{texto}",
+                                       "npar": [
+                                           "{inteiro}"
+                                       ]
+                                   }
+                               ],
+                               "agr": [
+                                   {
+                                       "n": "{inteiro}",
+                                       "nm": "{texto}",
+                                       "tp": "{c|i|f}",
+                                       "tvtn": "{inteiro}",
+                                       "tvtl": "{inteiro}",
+                                       "tvan": "{inteiro}",
+                                       "tval": "{inteiro}",
+                                       "vag": "{inteiro}",
+                                       "com": "{texto}",
+                                       "par": [
+                                           {
+                                               "n": "{inteiro}",
+                                               "sg": "{texto}",
+                                               "nm": "{texto}",
+                                               "nfed": "{inteiro}",
+                                               "dvt": "{texto}",
+                                               "tvtn": "{inteiro}",
+                                               "tvtl": "{inteiro}",
+                                               "tvan": "{inteiro}",
+                                               "tval": "{inteiro}",
+                                               "cand": [
+                                                   {
+                                                       "n": "{inteiro}",
+                                                       "sqcand": "{inteiro}",
+                                                       "nm": "{texto}",
+                                                       "nmu": "{texto}",
+                                                       "dt": "{dd/mm/aaaa}",
+                                                       "dvt": "{texto}",
+                                                       "seq": "{inteiro}",
+                                                       "e": "{s|n}",
+                                                       "st": "{texto}",
+                                                       "vap": "{inteiro}",
+                                                       "pvap": "{decimal}",
+                                                       "pvapn": "{decimal}",
+                                                       "vs": [
+                                                          4 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                        2026-07-10
+
+
+
+                                                                {
+                                                                         "tp": "{v|s1|s2}",
+                                                                         "sqcand": "{inteiro}",
+                                                                         "nm": "{texto}",
+                                                                         "nmu": "{texto}",
+                                                                         "sgp": "{texto}"
+                                                                }
+                                                             ],
+                                                             "subs": [
+                                                                 {
+                                                                     "nm": "{texto}",
+                                                                     "nmu": "{texto}",
+                                                                     "sgp": "{texto}"
+                                                                 }
+                                                             ]
+                                                         }
+                                                     ]
+                                                 }
+                                             ]
+                                      }
+                               ]
+                        }
+                ],
+                "perg": [
+                    {
+                        "cd": "{inteiro}",
+                        "ds": "{texto}",
+                        "resp": [
+                            {
+                                "n": "{inteiro}",
+                                "ds": "{texto}",
+                                "seq": "{inteiro}",
+                                "e": "{s|n}",
+                                "st": "{texto}",
+                                "vap": "{inteiro}",
+                                "pvap": "{decimal}",
+                                "pvapn": "{decimal}"
+                            }
+                        ]
+                    }
+                ],
+                "s": {
+                    "ts": "{inteiro}",
+                    "st": "{inteiro}",
+                    "pst": "{decimal}",
+                    "pstn": "{decimal}",
+                    "snt": "{inteiro}",
+                    "psnt": "{decimal}",
+                    "psntn": "{decimal}",
+                    "si": "{inteiro}",
+                    "psi": "{decimal}",
+                    "psin": "{decimal}",
+                    "sni": "{inteiro}",
+                    "psni": "{decimal}",
+                                                                5 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md               2026-07-10
+
+
+
+                        "psnin": "{decimal}",
+                        "sa": "{inteiro}",
+                        "psa": "{decimal}",
+                        "psan": "{decimal}",
+                        "sna": "{inteiro}",
+                        "psna": "{decimal}",
+                        "psnan": "{decimal}"
+                },
+                "e": {
+                    "te": "{inteiro}",
+                    "est": "{inteiro}",
+                    "pest": "{decimal}",
+                    "pestn": "{decimal}",
+                    "esnt": "{inteiro}",
+                    "pesnt": "{decimal}",
+                    "pesntn": "{decimal}",
+                    "esi": "{inteiro}",
+                    "pesi": "{decimal}",
+                    "pesin": "{decimal}",
+                    "esni": "{inteiro}",
+                    "pesni": "{decimal}",
+                    "pesnin": "{decimal}",
+                    "esa": "{inteiro}",
+                    "pesa": "{decimal}",
+                    "pesan": "{decimal}",
+                    "esna": "{inteiro}",
+                    "pesna": "{decimal}",
+                    "pesnan": "{decimal}",
+                    "c": "{inteiro}",
+                    "pc": "{decimal}",
+                    "pcn": "{decimal}",
+                    "a": "{inteiro}",
+                    "pa": "{decimal}",
+                    "pan": "{decimal}"
+                },
+                "v": {
+                    "tv": "{inteiro}",
+                    "vvc": "{inteiro}",
+                    "pvvc": "{decimal}",
+                    "pvvcn": "{decimal}",
+                    "vv": "{inteiro}",
+                    "pvv": "{decimal}",
+                    "pvvn": "{decimal}",
+                    "vl": "{inteiro}",
+                    "pvl": "{decimal}",
+                    "pvln": "{decimal}",
+                    "vnom": "{inteiro}",
+                    "pvnom": "{decimal}",
+                    "pvnomn": "{decimal}",
+                    "van": "{inteiro}",
+                    "pvan": "{decimal}",
+                    "pvann": "{decimal}",
+                    "vansj": "{inteiro}",
+                    "pvansj": "{decimal}",
+                                                6 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                  2026-07-10
+
+
+
+                        "pvansjn": "{decimal}",
+                        "vscv": "{inteiro}",
+                        "vb": "{inteiro}",
+                        "pvb": "{decimal}",
+                        "pvbn": "{decimal}",
+                        "tvn": "{inteiro}",
+                        "ptvn": "{decimal}",
+                        "ptvnn": "{decimal}",
+                        "vn": "{inteiro}",
+                        "pvn": "{decimal}",
+                        "pvnn": "{decimal}",
+                        "vnt": "{inteiro}",
+                        "pvnt": "{decimal}",
+                        "pvntn": "{decimal}",
+                        "vsan": "{inteiro}",
+                }
+         }
+
+
+
+    Estrutura do Arquivo
+
+
+
+         EA20
+         ├── ele (Código da eleição)
+         ├── t (Turno: '1' ou '2')
+         ├── f (Fase: 's' Simulada ou 'o' Oficial)
+         ├── sup (Suplementar: 's' ou 'n')
+         ├── tpabr (Tipo de abrangência: 'br', 'uf', 'mu', 'zona')
+         ├── cdabr (Código da abrangência - ex: código do município)
+         ├── dg (Data de geração), hg (Hora de geração), idg (Id de geração)
+         ├── dt (Data da totalização), ht (Hora da totalização)
+         ├── tf (Totalização Final: 's' ou 'n')
+         ├── and (Andamento: 'n' Não iniciado, 'p' Parcial ou 'f' Finalizado)
+         ├── md (Matematicamente definido: 'e' Eleito ou 's' Segundo Turno)
+         ├── dv (Divulgação: 's' ou 'n')
+         ├── esae (Sem atribuição de eleitos: 's' ou 'n'), mnae (Motivos)
+         ├── carg[] (Cargos)
+         │    ├── cd (Código), nmn (Nome neutro), nmm (Masc.), nmf (Fem.)
+         │    ├── nv (Vagas no Cargo)
+         │    ├── qe (Quociente Eleitoral - presente para cargo proporcional)
+         │    ├── fed[] (Federações)
+         │    │   ├── n (Número), nm (Nome), sg (Sigla), com (Composição)
+         │    │   └── npar[] (Lista Partidos)
+         │    └── agr[] (Agregação: Coligação, Federação ou Partido Isolado)
+         │        ├── n (Número), nm (Nome), tp (Tipo: 'c', 'f' ou 'i'), com (Composição)
+         │        ├── tvan (Votos Computados Nominais), tvtn (Votos Válidos Nominais)
+         │        ├── tval (Votos Computados Legenda), tvtl (Votos Válidos Legenda)
+         │        ├── vag (Vagas)
+         │        └── par[] (Partidos)
+         │            ├── n (Número), sg (Sigla), nm (Nome)
+         │            ├── vag (Vagas), nfed (Nº Federação)
+         │            ├── tvan (Votos Computados Nominais), tvtn (Votos Válidos Nominais)
+         │            ├── tval (Votos Computados Legenda), tvtl (Votos Válidos Legenda)
+         │            └── cand[] (Candidatos)
+                                                  7 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                  2026-07-10
+
+
+
+          │               ├── n (Nº urna), nm (Nome), nmu (Nome urna), sqcand
+          │               ├── dt (Nasc.), dvt (Destinação), seq (Seq. ordem)
+          │               ├── e (Eleito: 's'/'n'), st (Situação)
+          │               ├── vap (Votos), pvap (%), pvapn (%)
+          │               ├── vs[] (Vice / Suplentes)
+          │               │   ├── n (Nº), nm (Nome), nmu (Nome urna), sqcand
+          │               │   └── tp (Tipo: 'v' Vice, 's1' 1º Suplente, 's2' 2º Suplente)
+          │               └── subs[] (Substituídos)
+          │                   └── nm (Nome), nmu (Nome urna), sgp
+          ├── perg[] (Perguntas - presente para Consulta Popular)
+          │   ├── cd (Código), ds (Descrição da Pergunta)
+          │   └── resp[] (Respostas)
+          │       ├── n (Nº), nm (Nome), nmu (Nome urna)
+          │       ├── vap (Votos), pvap (%), pvapn (%)
+          │       └── e (Eleita: 's'/'n'), st (Situação)
+          ├── s (Seções)
+          │   └── ts (Total) ──> st (Totalizadas) + snt (Não Totalizadas)
+          │       └── st ────> si (Instaladas) + sni (Não Instaladas)
+          │           └── si ──> sa (Apuradas) + sna (Não Apuradas)
+          ├── e (Eleitores)
+          │   └── te (Total) ──> est (Totalizadas) + esnt (Não Totalizadas)
+          │       └── est ───> esi (Instaladas) + esni (Não Instaladas)
+          │           └── esi ─> c (Comparecimento) + a (Abstenção)
+          │           └── esi ─> esa (Apuradas) + esna (Não Apuradas)
+          └── v (Votos)
+              └── tv (Total) ──> vvc (Votáveis) + vb (Brancos) + tvn (Total Nulos) + vscv
+                  ├── vvc ───> vv (Válidos) + van (Anulados) + vansj (Sub Judice)
+                  │   └── vv ──> vnom (Nominais) + vl (Legenda)
+                  └── tvn ───> vn (Nulos) + vnt (Nulos Técnicos)
+
+
+
+    4. Dicionário de dados do arquivo JSON
+
+          Elemento: [raiz]
+
+
+             Descrição: Elemento que contém informações gerais sobre a eleição representada pelo arquivo.
+             Conteúdo: Um elemento carg ou perg, e os elementos s, e e v.
+
+      Atributos
+
+      ele                Código da eleição - Numérico identificador da Eleição que está sendo divulgada.
+
+                         Turno da eleição. Pode ser:
+
+      t                           1 – primeiro turno
+                                  2 – segundo turno
+
+
+                         Fase em que foi gerado o arquivo. Pode ser:
+
+      f                           s – se o arquivo foi gerado durante o simulado.
+                                  o – se o arquivo foi gerado com resultados reais da eleição.
+
+
+
+                                                                  8 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                         2026-07-10
+
+
+
+
+      Atributos
+
+                         Indica se é uma eleição suplementar. Pode ser:
+
+      sup                         s – a eleição é suplementar;
+                                  n – a eleição não é suplementar.
+
+
+                         Tipo da abrangência. Pode ser:
+                         - br : abrangência Brasil
+      tpabr              - uf : abrangência por UF
+                         - mu : abrangência por Município
+                         - zona : abrangência por Zona
+
+                         Código da abrangência - Código que determina, na abrangência, a qual unidade pertence o
+                         arquivo, podendo ser:
+                         - A sigla BR, para resultados nacionais;
+      cdabr              - A sigla da UF, indicando que esse arquivo se refere ao resultado de uma determinada
+                         Unidade da Federação.
+                         - O código do Município, com 5 dígitos numéricos (preenchidos com zero à esquerda)
+                         - O número da zona com quatro dígitos numéricos (preenchidos com zero à esquerda).
+
+      dg                 Data da geração do arquivo - formato dd/mm/aaaa .
+
+      hg                 Hora da geração do arquivo - formato hh:mm:ss.
+
+      idg                Código identificador da geração do arquivo json.
+
+                         Divulga Votação - Indica se a votação dos candidatos pode ser divulgada. Esse atributo,
+                         embora esteja presente em todos os arquivos, é aplicável apenas para os arquivos de
+                         Presidente. Os valores possíveis são:
+                         - s : pode divulgar
+      dv
+                         - n : não pode divulgar
+                         Quando o valor do campo for n, os votos serão informados com valor zero, ou seja, a votação
+                         não será disponibilizada no arquivo. O valor desse atributo é definido de acordo com as
+                         regras de divulgação aplicáveis à eleição.
+
+      dt                 Data da Totalização – Data no formato dd/mm/aaaa.
+
+      ht                 Hora da Totalização – Hora no formato hh:mm:ss.
+
+                         Totalização Final - Indica se é uma totalização final*. Pode ser:
+      tf                 - s : Há totalização final.
+                         - n : Não há totalização final.
+
+      and                Informa o andamento do recebimento de Boletins de Urna e do processo de totalização
+                         dentro da abrangência.
+                         Pode ser:
+                         - n: não tiver havido totalização
+                         - p: totalização em andamento
+                         - f: totalização finalizada
+
+
+
+                                                                    9 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                                 2026-07-10
+
+
+
+
+      Atributos
+                         Totalização finalizada não é o mesmo que totalização final (atributo tf). Totalização final é o
+                         processo de finalização da eleição, quando um juiz eleitoral finaliza a eleição elegendo ou
+                         não os candidatos.
+                         Em alguns momentos coincidem, como é caso de uma eleição municipal onde o campo
+                         receberá o valor f (totalização finalizada), na abrangência município, quando houver a
+                         totalização final do município. Mas no caso de uma eleição geral, na abrangência municipal, o
+                         campo recebe o valor f quando 100% das seções tiverem sido totalizadas.
+
+
+                         Eleição Municipal
+                         - arquivo de abrangência municipal, campo and será f quando houver totalização final
+                         - arquivo de abrangência estadual, campo and será f quando houver totalização final em
+                         TODOS os municípios
+                         - arquivo de abrangência federal, campo and será f quando houver totalização final em
+                         TODOS os municípios do país
+                         Eleição Estadual
+                         - arquivo de abrangência municipal, campo and será f quando o campo snt: 0
+                         - arquivo de abrangência estadual, campo and será f quando houver totalização final
+                         - arquivo de abrangência federal, campo and será f quando houver totalização final em
+                         TODAS as UFs do país
+                         Eleição Federal
+                         - arquivo de abrangência municipal, campo and será f quando o campo snt: 0
+                         - arquivo de abrangência estadual, campo and será f quando o campo snt: 0
+                         - arquivo de abrangência federal, campo and será f quando houver totalização final
+
+                         Matematicamente Definido - Indica o momento em que a quantidade de votos totalizados
+                         possibilita apurar que a eleição está matematicamente definida. Esse atributo deve estar
+                         presente apenas para os cargos de Presidente, Governador e Prefeito quando a eleição
+                         estiver matematicamente definida. O atributo só estará presente enquanto não houver
+      md
+                         totalização final (tf=n). Os valores podem ser:
+                         - s - Segundo turno;
+                         - e - Eleito;
+                         - n - Não definido;
+
+                         Eleição Sem Atribuição de Eleito - Indica o caso em que a totalização foi impossibilitada de
+                         atribuir eleitos para a eleição. O atributo estará presente após a totalização final (tf=s). Os
+      esae               valores podem ser:
+                         - n - Houve atribuição de eleito(s) para a eleição;
+                         - s - Não houve atribuição de eleitos para a eleição.
+
+                         Motivos de Não Atribuição de Eleito - Lista os motivos que impossibilitaram a atribuição de
+                         eleito para a eleição. O atributo estará presente após a totalização final (tf=s).
+      mnae
+                         Obs.:
+                         - Esse campo só deverá ser preenchido em caso de não atribuição de eleito (esae=s).
+
+
+        Elemento: carg
+
+
+
+
+                                                                10 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                         2026-07-10
+
+
+
+             Descrição: Contém os dados dos candidatos e partidos do cargo a que se refere o arquivo JSON. Esse
+             elemento não deve existir em caso de consulta popular.
+             Conteúdo: Um ou mais elementos agr e fed
+
+      Atributos
+
+      cd                  Número identificador do cargo.
+
+      nmn                 Nome do cargo neutro.
+
+      nmm                 Nome do cargo masculino.
+
+      nmf                 Nome do cargo feminino.
+
+      nv                  Número de vagas disponíveis para o cargo na abrangência.
+
+                          Quociente eleitoral – Esse atributo deve estar presente somente para cargos proporcionais
+      qe                  e somente nos arquivos de abrangência do respectivo cargo (ex.: deputados > arquivo de
+                          UF).
+
+
+          Elemento: fed
+
+
+             Descrição: Contém os dados das federações.
+
+      Atributos
+
+      n                   Número da federação.
+
+      sg                  Sigla da federação.
+
+      nm                  Nome da federação.
+
+                          Composição da federação - Sigla dos partidos que compõem a federação separada por
+      com
+                          uma barra /.
+
+      npar                Partidos da federação - Lista dos números dos partidos que compõem a federação.
+
+
+          Elemento: agr
+
+
+             Descrição: Contém os dados de uma Agremiação que pode ser uma Coligação ou uma Federação ou
+             um Partido isolado. Contém a votação obtida por um partido isolado ou uma federação em uma
+             determinada abrangência.
+             Conteúdo: Um ou mais elementos par.
+
+      Atributos
+
+                          Número da agremiação. Número de uma coligação ou de um partido isolado ou de uma
+      n
+                          federação, conforme inscrição no Sistema de Candidaturas da Justiça Eleitoral.
+
+      nm                  Nome da agremiação.
+
+      tp                  Tipo de agremiação. Indica se trata de Partido, Federação ou Coligação. Pode ser:
+                          c – para coligação (somente para cargo Majoritário),
+
+
+                                                               11 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                             2026-07-10
+
+
+
+
+      Atributos
+
+                          i – para partido isolado ou
+                          f – para federação.
+
+                          Composição da agremiação - Sigla dos partidos que compõem a coligação ou federação
+      com                 separada por uma barra /. Partidos com situação de inapto, apresentarão 2 asteriscos a sua
+                          direita. Só existe se tp for diferente de i.
+
+                          Total de votos válidos nominais - Quantidade de votos válidos designados para os
+      tvtn
+                          candidatos de uma coligação ou de uma federação. Só existe se tp for diferente de i.
+
+                          Total de votos válidos de legenda - Quantidade de votos válidos designados para os
+      tvtl                partidos de uma coligação ou de uma federação. Só existe se tp for diferente de i e
+                          somente para cargo proporcional.
+
+                          Total de votos computados nominais - Quantidade de votos computados¹ designados
+      tvan                para os candidatos de uma coligação ou de uma federação. Só existe se tp for diferente de
+                          i.
+
+                          Total de votos computados de legenda - Quantidade de votos computados¹ designados
+      tval                para os partidos de uma coligação ou de uma federação. Só existe se tp for diferente de i e
+                          somente para cargo proporcional.
+
+                          Número de vagas que a federação/partido isolado tem direito. Este atributo tem seu valor
+                          definitivo somente ao término das eleições, pois é calculado com base no quociente
+      vag
+                          eleitoral, quociente partidário e cálculo de médias e pode ter seu valor atualizado a cada
+                          totalização. Só existe para cargo proporcional e se for um partido isolado ou uma federação.
+
+
+          Elemento: par
+
+
+             Descrição: Contém dados referentes aos partidos que compõem a coligação, a federação ou do partido
+             isolado. Contém a votação obtida pelo partido que compõe uma federação.
+             Conteúdo: Um ou mais elementos Candidato. Caso não haja candidato no partido, esse elemento pode
+             ser suprimido.
+
+      Atributos
+
+      n                   Número do partido.
+
+                          Sigla do partido
+      sg
+                          Partidos com situação de inapto, apresentarão 2 asteriscos a sua direita.
+
+      nm                  Nome do partido
+
+      nfed                Número da federação da qual o partido faz parte se for um partido federado.
+
+                          Destinação do voto do partido. Indica a destinação do voto atribuído ao partido.
+                          Informação disponível somente após a primeira totalização parcial. Pode ser:
+      dvt                 - Válido (legenda);
+                          - Anulado;
+                          - Anulado sub judice.
+
+
+                                                                  12 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                       2026-07-10
+
+
+
+
+      Atributos
+
+                          Total de votos válidos nominais - Quantidade de votos válidos designados para os
+      tvtn
+                          candidatos do partido.
+
+                          Total de votos válidos de legenda - Quantidade de votos válidos designados para o
+      tvtl
+                          partido. Só existe para cargo proporcional.
+
+                          Total de votos computados nominais - Quantidade de votos computados¹ designados
+      tvan
+                          para os candidatos do partido.
+
+                          Total de votos computados de legenda - Quantidade de votos computados¹ designados
+      tval
+                          para o partido. Só existe para cargo proporcional.
+
+
+          Elemento: cand
+
+
+             Descrição: Elemento que contém dados de cada um dos candidatos de um partido que estão
+             concorrendo à eleição. Esse elemento não deve existir em caso de consulta popular.
+             Conteúdo:
+                      Para os cargos de Presidente, Governador e Prefeito, um elemento ViceSuplente representando o
+                      Vice;
+                      Para o cargo de Senador, um ou dois elementos ViceSuplente representando o(s) suplente(s).
+                      Um elemento Substituído, caso o candidato tenha sido substituído.
+
+      Atributos
+
+      n                   Número identificador do candidato. Número do candidato na urna.
+
+                          Sequencial do candidato. Identificador único do candidato, utilizado para fazer o download
+      sqcand
+                          da foto do candidato. Para mais informações, ver documento de instruções para download.
+
+      nm                  Nome do candidato
+
+      nmu                 Nome do candidato na urna. Nome conforme apresentado na urna.
+
+      dt                  Data de nascimento informada pelo candidato no processo de candidatura.
+
+                          Destinação do voto do candidato. Indica a destinação do voto atribuído ao candidato.
+                          Informação disponível somente após a primeira totalização parcial. Pode ser:
+                          - Válido;
+      dvt
+                          - Válido (legenda);
+                          - Anulado;
+                          - Anulado sub judice.
+
+      seq                 Sequencial da ordem do candidato. Indica a ordem do mesmo na eleição
+
+                          Indica se o candidato está eleito ou não. Caso o candidato tenha ido para o segundo
+                          turno, esse campo também será preenchido com s.
+      e                   Pode ser:
+                          - s : Sim, o candidato está eleito ou disputará o cargo no 2º turno.
+                          - n : Não, o candidato não está eleito.
+
+
+
+                                                                13 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                            2026-07-10
+
+
+
+
+      Atributos
+
+                          Situação da totalização do candidato. Esse campo somente será preenchido quando
+                          houver totalização final. Pode ser:
+                          - Eleito;
+                          - Eleito por QP;
+      st
+                          - Eleito por média;
+                          - Não eleito;
+                          - 2º turno;
+                          - Suplente
+
+      vap                 Quantidade de votos computados¹ para o candidato.
+
+                          Percentual de votos computados¹ atribuídos ao candidato em relação aos votos a votáveis
+      pvap
+                          concorrentes.
+
+                          Percentual de votos computados¹ atribuídos ao candidato em relação aos votos a votáveis
+      pvapn               concorrentes. Campo numérico com precisão de 9 casas decimais². Quando o percentual for
+                          igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+
+        Elemento: vs
+
+
+             Descrição: Dados de Vice (para os cargos de Presidente, Governador e Prefeito) e de Suplente (para o
+             cargo de Senador). Esse elemento estará presente apenas para os cargos majoritários.
+             Conteúdo: Não se aplica.
+
+      Atributos
+
+                          Tipo, pode ser vice v, para os cargos de presidente, governador e prefeito, ou primeiro
+      tp
+                          suplente s1 ou segundo suplente s2, para o cargo de senador.
+
+                          Sequencial do candidato. Identificador único do candidato, utilizado para fazer o download
+      sqcand
+                          da foto do candidato. Para mais informações, ver documento de instruções para download.
+
+      nm                  Nome do candidato a vice ou suplente.
+
+      nmu                 Nome do candidato a vice ou suplente, conforme apresentado na urna.
+
+      sgp                 Sigla do partido a que pertence o candidato a vice ou suplente.
+
+
+        Elemento: subs
+
+
+             Descrição: Dados de candidato substituído durante as eleições. Os dados do substituto passarão a ser
+             mostrados no elemento candidato. Esse elemento estará presente apenas quando houver substituição
+             de candidatos, ou seja, o candidato principal não irá mais concorrer à eleição, seja por inabilitação,
+             renúncia, falecimento ou outro motivo, e outro candidato foi colocado para concorrer em seu lugar. O
+             candidato substituto aparecerá no elemento cand, e o substituído irá para o elemento subs.
+             Conteúdo: Não se aplica.
+
+
+
+
+                                                                14 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                     2026-07-10
+
+
+
+
+      Atributos
+
+      nm                  Nome do candidato substituído.
+
+      nmu                 Nome do candidato substituído, conforme apresentado na urna.
+
+      sgp                 Sigla do partido a que pertence o candidato substituído.
+
+
+          Elemento: perg
+
+
+             Descrição: Contém os dados das respostas da pergunta a que se refere o arquivo JSON. Esse elemento
+             só existe em caso de consulta popular.
+             Conteúdo: Um ou mais elementos resposta.
+
+      Atributos
+
+      cd                  Número identificador da pergunta.
+
+      ds                  Descrição da pergunta.
+
+
+          Elemento: resp
+
+
+             Descrição: Elemento que contém dados de cada uma das respostas de uma pergunta da consulta
+             popular. Esse elemento só existe em caso de consulta popular. Conteúdo
+             Conteúdo: Não se aplica.
+
+      Atributos
+
+      n                   Número da resposta.
+
+      ds                  Descrição da resposta.
+
+      seq                 Sequencial de ordenação da resposta. Indica a ordem da mesma na eleição
+
+                          Indica se a resposta está eleita ou não. Pode ser:
+      e                   - s : Sim, a resposta está eleita.
+                          - n : Não, a resposta não está eleita.
+
+                          Situação da totalização da resposta. Esse campo somente será preenchido quando houver
+                          totalização final. Pode ser:
+      st
+                          - Eleita; e
+                          - Não eleita
+
+      vap                 Quantidade de votos computados¹ para a resposta.
+
+                          Percentual de votos computados¹ para a resposta em relação aos votos a votáveis
+      pvap
+                          concorrentes.
+
+                          Percentual de votos computados¹ para a resposta em relação aos votos a votáveis
+      pvapn               concorrentes. Campo numérico com precisão de 9 casas decimais. Quando o percentual for
+                          igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+
+          Elemento: s
+
+                                                                   15 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                      2026-07-10
+
+
+
+             Descrição: Elemento que contém os dados quantitativos de seções atualizados a cada totalização.
+
+    Hierarquia:
+
+
+
+           ts (Total de Seções)
+           ├── st (Totalizadas)
+           │   ├── si (Instaladas)
+           │   │   ├── sa (Apuradas)
+           │   │   └── sna (Não Apuradas)
+           │   └── sni (Não Instaladas)
+           └── snt (Não Totalizadas)
+
+
+
+      Atributos
+
+      ts                 Seções - Quantidade de seções na abrangência.
+
+      st                 Seções Totalizadas - Quantidade de seções totalizadas na abrangência.
+
+                         Percentual de Seções Totalizadas - percentual de seções totalizados em relação à
+      pst
+                         quantidade de seções
+
+                         Percentual de Seções Totalizadas - percentual de seções totalizados em relação à
+      pstn               quantidade de seções. Campo numérico com precisão de 9 casas decimais. Quando o
+                         percentual for igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+      snt                Seções Não Totalizadas - Quantidade de seções não totalizadas na abrangência.
+
+                         Percentual de Seções Não Totalizadas - percentual de seções não totalizados em relação à
+      psnt
+                         quantidade de seções
+
+                         Percentual de Seções Não Totalizadas - percentual de seções não totalizados em relação à
+      psntn              quantidade de seções. Campo numérico com precisão de 9 casas decimais. Quando o
+                         percentual for igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+                         Seções Instaladas – Quantidade de seções instaladas na abrangência. Essa informação só é
+      si
+                         obtida após a totalização da seção eleitoral.
+
+                         Percentual de Seções Instaladas - percentual de seções instaladas em relação à quantidade
+      psi
+                         de seções totalizadas
+
+                         Percentual de Seções Instaladas - percentual de seções instaladas em relação à quantidade
+      psin               de seções totalizadas. Campo numérico com precisão de 9 casas decimais. Quando o
+                         percentual for igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+                         Seções Não Instaladas – Quantidade de seções não instaladas na abrangência. Essa
+      sni
+                         informação só é obtida após a totalização da seção eleitoral.
+
+                         Percentual de Seções Não Instaladas - percentual de seções não instaladas com relação à
+      psni
+                         quantidade de seções totalizadas.
+
+      psnin              Percentual de Seções Não Instaladas - percentual de seções não instaladas com relação à
+                         quantidade de seções totalizadas. Campo numérico com precisão de 9 casas decimais.
+
+                                                                16 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                        2026-07-10
+
+
+
+
+      Atributos
+
+                         Quando o percentual for igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+                         Seções Apuradas - Quantidade de seções apuradas na abrangência. Essa informação só é
+      sa
+                         obtida após a totalização da seção eleitoral.
+
+                         Percentual de Seções Apuradas - percentual de seções apuradas com relação à quantidade
+      psa
+                         de seções instaladas
+
+                         Percentual de Seções Apuradas - percentual de seções apuradas com relação à quantidade
+      psan               de seções instaladas. Campo numérico com precisão de 9 casas decimais. Quando o
+                         percentual for igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+                         Seções Marcadas como Não Apuradas - Quantidade de seções que foram marcadas como
+      sna                não apuradas no sistema de totalização na abrangência. Essa informação só é obtida após a
+                         totalização da seção eleitoral.
+
+                         Percentual de Seções Não Apuradas - percentual seções não apuradas em relação à
+      psna
+                         quantidade de seções instaladas.
+
+                         Percentual de Seções Não Apuradas - percentual seções não apuradas em relação à
+      psnan              quantidade de seções instaladas. Campo numérico com precisão de 9 casas decimais.
+                         Quando o percentual for igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+
+        Elemento: e
+
+
+             Descrição: Elemento que contém os dados quantitativos de eleitores atualizados a cada totalização.
+
+    Hierarquia:
+
+
+
+           te (Total de Eleitores)
+           ├── est (Em seções totalizadas)
+           │   ├── esi (Em seções instaladas)
+           │   │   ├── esa (Em seções apuradas)
+           │   │   └── esna (Em seções não apuradas)
+           │   └── esni (Em seções não instaladas)
+           └── esnt (Em seções não totalizadas)
+
+
+
+      Atributos
+
+      te                 Eleitorado - Quantidade de eleitores aptos da abrangência.
+
+                         Eleitorado de Seções Totalizadas - Quantidade de eleitores das seções totalizadas na
+      est
+                         abrangência.
+
+                         Percentual do Eleitorado de Seções Totalizadas - percentual de eleitores das seções
+      pest
+                         totalizados em relação à quantidade de eleitores
+
+      pestn              Percentual do Eleitorado de Seções Totalizadas - percentual de eleitores das seções
+                         totalizados em relação à quantidade de eleitores. Campo numérico com precisão de 9 casas
+
+
+                                                                17 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                           2026-07-10
+
+
+
+
+      Atributos
+
+                         decimais. Quando o percentual for igual a 0 ou 100, as casas decimais não serão
+                         apresentadas.
+
+                         Eleitorado de Seções Não Totalizadas - Quantidade de eleitores de seções não totalizadas
+      esnt
+                         na abrangência.
+
+                         Percentual do Eleitorado de Seções Não Totalizadas - percentual de eleitores das seções
+      pesnt
+                         não totalizados em relação à quantidade de eleitores
+
+                         Percentual do Eleitorado de Seções Não Totalizadas - percentual de eleitores das seções
+                         não totalizados em relação à quantidade de eleitores. Campo numérico com precisão de 9
+      pesntn
+                         casas decimais. Quando o percentual for igual a 0 ou 100, as casas decimais não serão
+                         apresentadas.
+
+                         Eleitorado de Seções Instaladas - Quantidade de eleitores das seções instaladas. esi = esa
+      esi
+                         + esna.
+
+                         Percentual do Eleitorado de Seções Instaladas - percentual de eleitores das seções
+      pesi
+                         instaladas em relação à quantidade de eleitores das seções totalizadas.
+
+                         Percentual do Eleitorado de Seções Instaladas - percentual de eleitores das seções
+                         instaladas em relação à quantidade de eleitores das seções totalizadas. Campo numérico com
+      pesin
+                         precisão de 9 casas decimais. Quando o percentual for igual a 0 ou 100, as casas decimais
+                         não serão apresentadas.
+
+      esni               Eleitorado de Seções Não Instaladas - Quantidade de eleitores das seções não instaladas.
+
+                         Percentual do Eleitorado de Seções Não Instaladas - percentual de eleitores das seções
+      pesni
+                         não instaladas em relação à quantidade de eleitores das seções totalizadas.
+
+                         Percentual do Eleitorado de Seções Não Instaladas - percentual de eleitores das seções
+                         não instaladas em relação à quantidade de eleitores das seções totalizadas. Campo numérico
+      pesnin
+                         com precisão de 9 casas decimais. Quando o percentual for igual a 0 ou 100, as casas
+                         decimais não serão apresentadas.
+
+                         Eleitorado das Seções Apuradas - Quantidade de eleitores das seções apuradas na
+      esa
+                         abrangência. Essa informação só é obtida após a totalização da seção eleitoral.
+
+                         Percentual do Eleitorado das Seções Apuradas - percentual de eleitores das seções
+      pesa
+                         apuradas em relação aos eleitores das seções instaladas
+
+                         Percentual do Eleitorado das Seções Apuradas - percentual de eleitores das seções
+                         apuradas em relação aos eleitores das seções instaladas. Campo numérico com precisão de 9
+      pesan
+                         casas decimais. Quando o percentual for igual a 0 ou 100, as casas decimais não serão
+                         apresentadas.
+
+                         Eleitorado de Seções Não Apuradas - Quantidade de eleitores de seções marcadas como
+      esna               não apuradas no sistema de totalização na abrangência. Essa informação só é obtida após a
+                         totalização da seção eleitoral.
+
+                         Percentual do Eleitorado de Seções Não Apuradas - percentual de eleitores de seções
+      pesna
+                         marcadas como não apuradas em relação aos eleitores das seções instaladas
+                                                               18 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                           2026-07-10
+
+
+
+
+      Atributos
+
+                         Percentual do Eleitorado de Seções Não Apuradas - percentual de eleitores de seções
+                         marcadas como não apuradas em relação aos eleitores das seções instaladas. Campo
+      pesnan
+                         numérico com precisão de 9 casas decimais. Quando o percentual for igual a 0 ou 100, as
+                         casas decimais não serão apresentadas.
+
+                         Comparecimento - Quantidade de comparecimento na abrangência. Contém o
+      c                  comparecimento do eleitorado das seções instaladas. Essa informação só é obtida após a
+                         totalização da seção eleitoral.
+
+                         Percentual de Comparecimento - percentual de comparecimento em relação aos eleitores
+      pc
+                         das seções instaladas.
+
+                         Percentual de Comparecimento - percentual de comparecimento em relação aos eleitores
+      pcn                das seções instaladas. Campo numérico com precisão de 9 casas decimais. Quando o
+                         percentual for igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+                         Abstenção – Quantidade de abstenções na abrangência. Contém a abstenção do eleitorado
+      a
+                         das seções instaladas. Essa informação só é obtida após a totalização da seção eleitoral.
+
+                         Percentual de Abstenção - percentual de abstenção em relação aos eleitores das seções
+      pa
+                         instaladas
+
+                         Percentual de Abstenção - percentual de abstenção em relação aos eleitores das seções
+      pan                instaladas. Campo numérico com precisão de 9 casas decimais. Quando o percentual for igual
+                         a 0 ou 100, as casas decimais não serão apresentadas.
+
+
+          Elemento: v
+
+
+             Descrição: Elemento que contém a votação do cargo na abrangência atualizada a cada totalização.
+
+    Hierarquia:
+
+
+
+          tv (Total de Votos)
+          ├── vvc (Votos a Votáveis Concorrentes)
+          │   ├── van (Votos Anulados)
+          │   ├── vansj (Votos Anulados Sub Judice)
+          │   └── vv (Votos Válidos)
+          │       ├── vnom (Votos Nominais)
+          │       └── vl (Votos de Legenda)
+          ├── vb (Votos em Branco)
+          ├── tvn (Total de Votos Nulos)
+          │   ├── vn (Votos Nulos)
+          │   └── vnt (Votos Nulos Técnicos)
+          └── vscv (Votos Sem Candidato para Votar)
+
+
+
+
+                                                               19 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                           2026-07-10
+
+
+
+
+      Atributos
+
+                         Total de Votos - Quantidade total de votos computados na abrangência. É a soma dos votos
+                         brancos vb, dos nulos vn, dos nulos técnicos vnt, dos anulados van, dos anulados sub judice
+                         vansj e dos votos válidos vv.
+                         (tv = vb + vn + vnt + van + vansj + vv)
+      tv
+
+                         No caso de consulta popular, considerar a quantidade de Votos a Votáveis Concorrentes vvc
+                         no total dos votos.
+                         (tv = vb + vn + vnt + vvc)
+
+                         Votos a Votáveis Concorrentes – Quantidade de votos dados a votáveis concorrentes é a
+                         soma dos votos dos candidatos com destinação de votos igual a Válidos, Válidos (legenda),
+      vvc
+                         Anulados e Anulados sub judice. No caso de consulta popular, são os votos computados na
+                         abrangência para as respostas.
+
+                         Percentual de Votos a Votáveis Concorrentes - percentual de votos dados a
+      pvvc
+                         candidatos/respostas concorrentes em relação ao total de votos computados na abrangência.
+
+                         Percentual de Votos a Votáveis Concorrentes - percentual de votos dados a
+                         candidatos/respostas concorrentes em relação ao total de votos computados na abrangência.
+      pvvcn
+                         Campo numérico com precisão de 9 casas decimais. Quando o percentual for igual a 0 ou
+                         100, as casas decimais não serão apresentadas.
+
+                         Votos Válidos - Quantidade de votos válidos computados na abrangência. Composto pelos
+      vv                 votos nominais e votos de legenda. Esse atributo não deve estar presente em caso de
+                         consulta popular.
+
+                         Percentual de Votos Válidos - Percentual de votos válidos em relação aos votos a votáveis
+      pvv
+                         concorrentes. Esse atributo não deve estar presente em caso de consulta popular.
+
+                         Percentual de Votos Válidos - Percentual de votos válidos em relação aos votos a votáveis
+                         concorrentes. Campo numérico com precisão de 9 casas decimais. Quando o percentual for
+      pvvn
+                         igual a 0 ou 100, as casas decimais não serão apresentadas. Esse atributo não deve estar
+                         presente em caso de consulta popular.
+
+                         Votos Nominais – Quantidade de votos válidos atribuídos nominalmente a candidatos na
+      vnom
+                         abrangência. Esse atributo não deve estar presente em caso de consulta popular.
+
+                         Percentual de Votos Nominais – Percentual de votos nominais em relação aos votos válidos.
+      pvnom
+                         Esse atributo não deve estar presente em caso de consulta popular.
+
+                         Percentual de Votos Nominais – Percentual de votos nominais em relação aos votos válidos.
+                         Esse atributo não deve estar presente em caso de consulta popular. Campo numérico com
+      pvnomn
+                         precisão de 9 casas decimais. Quando o percentual for igual a 0 ou 100, as casas decimais
+                         não serão apresentadas.
+
+                         Votos de Legenda – Quantidade de votos válidos atribuídos a legendas na abrangência. Esse
+      vl
+                         atributo deve estar presente somente para cargos proporcionais.
+
+                         Percentual de Votos de Legenda – percentual de votos de legenda em relação aos votos
+      pvl
+                         válidos. Esse atributo deve estar presente somente para cargos proporcionais.
+
+                                                              20 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                           2026-07-10
+
+
+
+
+      Atributos
+
+                         Percentual de Votos de Legenda – percentual de votos de legenda em relação aos votos
+                         válidos. Campo numérico com precisão de 9 casas decimais. Quando o percentual for igual a
+      pvln
+                         0 ou 100, as casas decimais não serão apresentadas. Esse atributo deve estar presente
+                         somente para cargos proporcionais.
+
+                         Votos Anulados – Quantidade de votos anulados computados na abrangência. Esse atributo
+      van
+                         não deve estar presente em caso de consulta popular.
+
+                         Percentual de Votos Anulados - percentual de votos anulados em relação aos votos a
+      pvan
+                         votáveis concorrentes. Esse atributo não deve estar presente em caso de consulta popular.
+
+                         Percentual de Votos Anulados - percentual de votos anulados em relação aos votos a
+                         votáveis concorrentes. Esse atributo não deve estar presente em caso de consulta popular.
+      pvann
+                         Campo numérico com precisão de 9 casas decimais. Quando o percentual for igual a 0 ou
+                         100, as casas decimais não serão apresentadas.
+
+                         Votos Anulados Sub Judice – Quantidade de votos anulados sub judice computados na
+      vansj
+                         abrangência. Esse atributo não deve estar presente em caso de consulta popular.
+
+                         Percentual de Votos Anulados Sub Judice - percentual de votos sub judice em relação aos
+      pvansj             votos a votáveis concorrentes. Esse atributo não deve estar presente em caso de consulta
+                         popular.
+
+                         Percentual de Votos Anulados Sub Judice - percentual de votos sub judice em relação aos
+                         votos a votáveis concorrentes. Esse atributo não deve estar presente em caso de consulta
+      pvansjn
+                         popular. Campo numérico com precisão de 9 casas decimais. Quando o percentual for igual a
+                         0 ou 100, as casas decimais não serão apresentadas.
+
+      vb                 Votos Brancos - Quantidade de votos brancos computados na abrangência.
+
+                         Percentual de Votos Brancos - percentual de votos brancos em relação ao total de votos
+      pvb
+                         computados
+
+                         Percentual de Votos Brancos - percentual de votos brancos em relação ao total de votos
+      pvbn               computados. Campo numérico com precisão de 9 casas decimais. Quando o percentual for
+                         igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+                         Total de Votos Nulos - Quantidade total de votos nulos computados na abrangência (vn +
+      tvn
+                         vnt).
+
+                         Percentual Total de Votos Nulos - percentual total de votos nulos em relação ao total de
+      ptvn
+                         votos computados.
+
+                         Percentual Total de Votos Nulos - percentual total de votos nulos em relação ao total de
+      ptvnn              votos computados. Campo numérico com precisão de 9 casas decimais. Quando o percentual
+                         for igual a 0 ou 100, as casas decimais não serão apresentadas.
+
+                         Votos Nulos - Quantidade de votos nulos computados na abrangência. Esse atributo não
+      vn
+                         deve estar presente em caso de consulta popular.
+
+
+
+
+                                                               21 / 22
+TSE-EA20-Arquivo-de-resultado-unificado.md                                                                            2026-07-10
+
+
+
+
+      Atributos
+
+                         Percentual de Votos Nulos - percentual de votos nulos em relação ao total de votos nulos.
+      pvn
+                         Esse atributo não deve estar presente em caso de consulta popular.
+
+                         Percentual de Votos Nulos - percentual de votos nulos em relação ao total de votos nulos.
+                         Esse atributo não deve estar presente em caso de consulta popular. Campo numérico com
+      pvnn
+                         precisão de 9 casas decimais. Quando o percentual for igual a 0 ou 100, as casas decimais
+                         não serão apresentadas.
+
+                         Votos Nulos Técnicos - Quantidade de votos nulos técnicos computados na abrangência.
+      vnt
+                         Esse atributo não deve estar presente em caso de consulta popular.
+
+                         Percentual de Votos Nulos Técnicos - percentual de votos nulos técnicos em relação ao
+      pvnt
+                         total de votos nulos. Esse atributo não deve estar presente em caso de consulta popular.
+
+                         Percentual de Votos Nulos Técnicos - percentual de votos nulos técnicos em relação ao
+                         total de votos nulos. Esse atributo não deve estar presente em caso de consulta popular.
+      pvntn
+                         Campo numérico com precisão de 9 casas decimais. Quando o percentual for igual a 0 ou
+                         100, as casas decimais não serão apresentadas.
+
+                         Votos Sem Candidato para Votar – Quantidade de votos computados quando não há
+                         candidato para votar no cargo. Quando esse valor for maior que 0 (zero), os demais atributos
+      vscv
+                         de quantitativos de votos deverão estar zerados, com exceção do atributo tv. Esse atributo
+                         não deve estar presente em caso de consulta popular.
+
+                         Votos de Seções Anuladas – Quantidade de votos de Seções Anuladas. Esse atributo deve
+      vsan
+                         estar presente quando existirem seções anuladas na abrangência.
+
+
+    ¹ Votos Computados: São os votos que foram destinados ao candidato, ou à resposta, ou ao partido, pela urna
+    eletrônica, antes de passar pela regras de totalização.
+
+    ² Cálculo dos percentuais:
+
+             Cada percentual calculado está representado em dois atributos:
+                      Um atributo com precisão de duas casas decimais com o formato ###,##. Exemplos: 0,00 ; 9,90;
+                      9,00 ; 100,00
+                      Um atributo numérico com precisão de nove casas decimais. Mesmo que as últimas casas
+                      decimais sejam zeros, todas as nove casas serão apresentadas. Os números inteiros não são
+                      apresentados com casas decimais.
+             A regra de arredondamento utilizada é a aproximação por defeito e por excesso. Isso significa que, se o
+             dígito depois da casa decimal escolhida for 5 ou maior, o dígito anterior é aumentado em 1 e os
+             demais são eliminados. Se for menor que 5, o dígito anterior é mantido e os demais são eliminados.
+
+
+
+
+                                                              22 / 22
+

@@ -1,0 +1,255 @@
+             Divulgação de Resultados - Eleições 2026
+
+                                            Julho/2026
+
+
+                                                       Audiência Técnica
+                                                                    Wesley Melo
+                                                   Seção de Totalização e Divulgação de Resultados
+                                                                TSE/STI/CSELE/SETOT
+
+
+
+
+Tribunal Superior Eleitoral – Secretaria de Tecnologia da Informação/STI
+   Resolução nº 23.751/2026
+   Processo da Divulgação
+   Meios de obtenção dos arquivos
+   Arquivos
+   Simulados
+   Parâmetros Oficiais
+   Contatos
+     Resolução nº 23.751/2026
+Atos gerais do processo eleitoral para as eleições 2026
+
+ Da Divulgação dos Resultados
+    Título III, Capítulo VI, Artigos 264 a 269.
+ Art. 266 apresentar as definições do modelo de distribuição e os
+  padrões tecnológicos e de segurança até 10 de julho de 2026
+           Disponibilidade dos dados
+Art. 265
+
+• § 1º A divulgação do resultado para o cargo de Presidente da República será
+  liberada a partir das 17h (dezessete horas) do horário de Brasília,
+  para todas as unidades da Federação e do exterior
+
+
+Art. 267
+
+• Os dados dos resultados das eleições estarão disponíveis em centro de dados provido pelo
+  Tribunal Superior Eleitoral até 4 de abril de 2028, 18 (dezoito) meses a partir da data do
+  primeiro turno.
+• Os dados do resultado das eleições serão distribuídos pela Justiça Eleitoral às entidades
+  interessadas na divulgação por meio de arquivo digital ou de programa de computador.
+                     Exigências
+
+Art. 267
+
+• § 2º Será de responsabilidade das entidades interessadas em
+  divulgar os resultados estabelecer infraestrutura de comunicação
+  com o centro de dados provido pelo Tribunal Superior Eleitoral.
+
+• § 3º As entidades interessadas na divulgação dos resultados
+  deverão buscar os arquivos periodicamente à medida que forem
+  atualizados, em conformidade com os padrões definidos pela
+  Justiça Eleitoral.
+                              Restrições
+Art. 267
+
+• § 4º É vedado às entidades mencionadas neste artigo promover qualquer alteração de
+  conteúdo dos dados distribuídos pela Justiça Eleitoral.
+
+Art. 268
+
+• Na divulgação dos resultados parciais ou totais das eleições, as entidades envolvidas não
+  poderão majorar o preço de seus serviços em razão dos dados fornecidos pela Justiça
+  Eleitoral.
+
+Art. 269
+
+• O não cumprimento das exigências descritas neste capítulo impedirá o acesso da entidade
+  ao centro de dados provido pelo Tribunal Superior Eleitoral ou acarretará sua desconexão.
+                                             Processo da Divulgação
+                                                                                                      Entidade externa ao TSE
+Encerramento
+  das urnas        1
+
+
+
+
+ Transmissão           2                                                                               Solução Própria            Resultados
+
+
+
+
+                                                                                                                    Público
+
+                                 TSE                               Data Center CDN - TSE
+           Recebimento     Totalização   Divulgação   Replicação                           Obtenção
+                                                                         Fornecimento
+
+                                                                                                                         Resultados
+               3             4              5            6                                    8
+                                                                             7
+               Meios de obtenção dos arquivos
+
+                   Aplicação híbrida disponível para web e app (iOS e Android);
+                   Usado para consultar os resultados das Eleições;
+                   Acessa o Data Center, faz o download dos arquivos e
+  Resultados
+                    apresenta o resultado.
+                   Terá uma nova versão para 2026.
+
+
+                   As entidades interessadas na divulgação dos resultados
+                    podem construir solução própria para obtenção dos arquivos,
+Solução Própria     desde que respeitem as regras definidas pelo TSE.
+                     Tipos de arquivos
+Arquivos JSON
+
+• Arquivos com os dados da totalização.
+• É gerado um arquivo de assinatura para cada arquivo de dados (.json).                JSON
+• Os arquivos são assinados digitalmente usando certificado padrão X.509.
+
+
+Arquivos ASN.1
+
+• Arquivos da urna eletrônica.
+  • Boletim de Urna,
+                                                                                       ASN.1
+  • RDV, Log e assinatura
+• Instruções para leitura do arquivo produzido pela urna estarão disponíveis em: https
+  ://www.tse.jus.br/eleicoes/eleicoes-2026
+                                               Arquivos JSON
+         Nome do arquivo especificação                                                Conteúdo
+EA11 – Arquivo de configuração de eleições                         Informações acerca de todas as eleições disponíveis
+
+EA12 – Arquivo de configuração de municípios                    Informações acerca dos municípios das eleições disponíveis
+
+EA20 – Arquivo de resultado unificado                              Informações dos resultados de votação das Eleições.
+
+
+EA14 – Arquivo de resultado de acompanhamento BR         Informações dos resultados de seções e eleitorado da abrangência Brasil.
+
+
+EA15 – Arquivo de resultado de acompanhamento UF   Informações dos resultados de seções e eleitorado da abrangência da UF e municípios.
+
+                                                    Contém o resultado de todos os candidatos eleitos a um determinado cargo e uma
+EA10 – Arquivo de resultado de eleitos
+                                                      determinada abrangência (Governador, Senador, Deputado Federal e Prefeito).
+
+EA16 – Arquivo de configuração de seções                          Informações acerca das seções das eleições disponíveis
+
+EA18 – Arquivo auxiliar de seção                                    Informações acerca dos arquivos de urna da seção
+          Hierarquia de arquivos
+JSON                                                        ASN.1
+
+                    configuração de         resultado
+                   municípios (EA12)    unificado (EA20)
+
+                                                                    BU
+
+ configuração de   acompanhamento       acompanhamento
+ eleições (EA11)      BR (EA14)            UF (EA15)
+
+
+                   candidatos eleitos                               RDV
+                        (EA10)
+
+
+
+                    configuração de     auxiliar de seção
+                     seçôes (EA16)            (EA18)
+                                                                    Log
+                 Principais novidades
+EA11 – Arquivo de configuração de eleições
+
+• Alteração para permitir a visualização de eleições de múltiplos ciclos eleitorais
+
+
+EA16 – Arquivo de configuração de seções
+
+• Inclusão dos atributos:
+  • da: data de recebimento dos arquivos de urna
+  • ha: hora de recebimento dos arquivos de urna
+
+
+E20 – Arquivo de resultado unificado
+
+• Inclusão do atributo:
+  • qe: quociente eleitoral
+
+
+Arquivos JSON
+
+• Inclusão do atributo:
+  • idg: identificador da geração do arquivo
+                                            Quantitativo de arquivos
+  Arquivo                                       Distribuição                                                              Total
+EA11 – Arquivo de configuração de eleições      1 por período de divulgação (a partir de 2024)                            1
+EA12 – Arquivo de configuração de municípios    1 por eleição                                                             1 * X (eleições) = 1X
+
+                                                1 arquivo por UF e cargo                                                  1 * 29 (27 UFs + 1 BR + 1 ZZ) * 5 (cargos) =
+                                                1 arquivo por município e cargo                                           145
+EA20 – Arquivo de resultado unificado
+                                                1 arquivo por zona eleitoral e cargo                                      1 * 5.569(municípios) * 5 (cargos) = 27.845
+                                                                                                                          1 * 6.083(zonas) * 5 (cargos) = 30.415
+EA10 – Arquivo de resultado de eleitos          1 para cada cargo (gov, sen e dep federal)                                1 * 3 (cargos) = 3
+EA14 – Arquivo de acompanhamento Brasil         1 arquivo por eleição para BR                                             2 * 27 (UFs) + 2 (BR) + 1 (ZZ) = 57
+EA15 – Arquivo de acompanhamento UF             1 arquivo por eleição por UF
+EA16 – Arquivo de configuração de seções        1 arquivo por UF e pleito                                                 1 * 1 (pleito) * 28 (27 UFs + 1 ZZ) = 28
+
+EA18 – Arquivo de auxiliar de seção             1 arquivo por seção eleitoral, gerado no recebimento do BU e atualizado   1 * 464.263 (seções)
+                                                após a totalização
+
+Arquivo de assinatura                           1 para cada arquivo json, exceto arquivo de configuração de eleição e     58.496 (JSON) - 1 (ele-c.json) = 58.495
+                                                arquivo auxiliar de seção
+Arquivos de certificados digitais (*.cer)       * 1 arquivo por eleição                                                   1
+Arquivos de fotos dos candidatos (*.jpeg)       1 arquivo por candidato                                                   27.625 (candidatos), aproximadamente
+Arquivos de urna                                1 conjunto de arquivos de urna por seção eleitoral                        4 * 464.263 (seções) = 1.857.052
+
+                                                                                                                          TOTAL: 2.465.832, aproximado por ciclo
+                                                                                                                          eleitoral
+Regras de consumo dos arquivos
+q Os arquivos estarão disponíveis pela Internet no Data Center / CDN;​
+
+q O caminho e o nome do arquivo obedecem a uma padronização que está detalhada
+
+    em manuais próprios
+q Máximo de 100 requisições por IP por segundo.
+
+       § Bloqueio de 10 minutos (renovado)
+
+ qCaso os endereços sejam requisitados de forma incorreta (404), também pode haver
+
+    bloqueio.
+ qOs arquivos devem ser atualizados periodicamente.​
+
+q Não é possível listar os arquivos
+                            Simulados
+
+
+q Teste que consiste na geração e disponibilização de dados simulados de
+  eleição, com o objetivo de permitir que os interessados coloquem à prova
+  suas soluções.
+q Será simulado o recebimento e totalização de 100% das seções, incluindo a
+  totalização final dos resultados.​
+q A agenda de testes e demais informações serão divulgadas no site do TSE.
+             Parâmetros oficiais
+
+ Os dados estarão disponíveis no site do TSE a partir de sábado
+  (03/10/2026)
+ Os códigos das eleições estarão disponíveis no arquivo de
+  configuração de eleições (EA11) em:
+   o https://resultados.tse.jus.br/oficial/comum/config/ele-c.json
+                   Obrigado!
+Seção de Totalização e Divulgação de Resultados –SETOT/CSELE
+
+                    https://30308800.tse.jus.br - Assunto: Resultados - Divulgação
+
+
+
+                    www.tse.jus.br/eleicoes/informacoes-tecnicas-sobr
+                    e-a-divulgacao-de-resultados
+                    (61) 3030-8800
+
