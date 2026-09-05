@@ -64,6 +64,83 @@ export type NeedleBand =
   | "very_likely_b";
 
 // ---------------------------------------------------------------------------
+// Participação — abstenção, brancos/nulos e "Outros" (S07/Fase 1a)
+// ---------------------------------------------------------------------------
+
+/**
+ * Denominador de uma métrica de participação. **Rotulado explicitamente**
+ * porque o hero do 1º turno mistura três bases diferentes na mesma tela
+ * (seis termômetros) — sem rótulo, o leitor somaria percentuais que não
+ * pertencem ao mesmo universo.
+ *
+ *   - `"votaveis"` — % sobre os **votos a votáveis concorrentes**
+ *     (válidos + anulados + sub judice). É a base do campo `pvap` do TSE,
+ *     conforme o dicionário oficial de leiautes
+ *     (`docs/reference/tse-2026-leiautes.md`). **Não** é "% dos válidos":
+ *     o rótulo na UI deve dizer "% dos votos a votáveis".
+ *   - `"comparecimento"` — % sobre quem compareceu (base de brancos/nulos).
+ *   - `"eleitores_instalados"` — % sobre os eleitores aptos das seções já
+ *     instaladas (base da abstenção). Não é o eleitorado total do país:
+ *     enquanto a apuração corre, só as seções instaladas entram no
+ *     denominador.
+ */
+export type ParticipacaoBase = "votaveis" | "comparecimento" | "eleitores_instalados";
+
+/**
+ * Uma métrica de participação projetada pelo modelo (regra de três sobre
+ * as zonas apuradas + bootstrap para o IC95 — spec 002 / api/model/turnout.py).
+ *
+ * Todos os percentuais em 0–100 (convenção do payload, ver `EdgeCandidate`).
+ *
+ * `pct_atual` é `null` quando ainda não há zona apurada suficiente para
+ * uma razão literal — UI mostra o termômetro **sem** marcador de apurado
+ * e escreve "sem apuração" (nunca esconde a métrica: ADR-0017).
+ */
+export interface EdgeParticipacaoMetric {
+  /** % observado agora (razão literal das zonas apuradas), ou null. */
+  pct_atual: number | null;
+  /** % projetado ao final da apuração (0–100). */
+  pct_projetado: number;
+  /** CI95 inferior (0–100). */
+  lower: number;
+  /** CI95 superior (0–100). */
+  upper: number;
+  /** Denominador da métrica — dirige o rótulo exibido. */
+  base: ParticipacaoBase;
+}
+
+/**
+ * Bloco de participação do payload — S07/Fase 2 (hero de seis termômetros
+ * no 1º turno). Cada métrica é **opcional**: o orchestrator OMITE a chave
+ * quando não é calculável (0 zonas com aptos > 0, histórico ausente etc.).
+ * Omitir ≠ zero. A UI renderiza o termômetro em estado "aguardando
+ * projeção" — sempre no DOM (ADR-0017 proíbe esconder camadas).
+ *
+ * O bloco inteiro é opcional em `EdgeNational` / `EdgePayloadUf` para não
+ * quebrar payloads e fixtures pré-S07.
+ */
+export interface EdgeParticipacao {
+  /** Abstenção — sobre os eleitores das seções instaladas. */
+  abstencao?: EdgeParticipacaoMetric & { base: "eleitores_instalados" };
+  /** Brancos + nulos agregados — sobre o comparecimento. */
+  brancos_nulos?: EdgeParticipacaoMetric & { base: "comparecimento" };
+  /**
+   * Agregado dos candidatos de rank ≥ 4 ("Outros candidatos"), com IC95
+   * derivado do MESMO array de resamples do bootstrap dos candidatos —
+   * por isso mora aqui e não é reconstruído no front-end. Quando ausente,
+   * a UI cai em `100 − Σtop3` **sem faixa de incerteza** e com nota
+   * "IC indisponível".
+   */
+  outros?: EdgeParticipacaoMetric & { base: "votaveis"; n_candidatos: number };
+  /**
+   * Metadados do cálculo — alimentam a transparência metodológica
+   * (constituição § 8). `tipo` é o identificador do estimador
+   * (ex. "extrapolacao_apurado").
+   */
+  metodo?: { tipo: string; n_zonas: number; pct_apurado: number };
+}
+
+// ---------------------------------------------------------------------------
 // Bloco "nacional" — alimenta <HeadlineScore />, agulha e barras
 // ---------------------------------------------------------------------------
 
@@ -233,6 +310,17 @@ export interface EdgeNational {
    * deve emitir `null` (semântica vazia — já estamos no 2T).
    */
   vai_a_2t_nacional?: boolean | null;
+  /**
+   * Participação nacional (abstenção, brancos/nulos, "Outros") — S07/Fase 1a.
+   * Alimenta os termômetros 4–6 do hero de 1º turno (`<ProjectionThermometers />`).
+   *
+   * **Opcional** para forward/backward-compat: payloads pré-S07 não têm a
+   * chave, e o orchestrator omite métricas individuais quando não são
+   * calculáveis. Semântica de 2º turno: o hero de 2T (modo `binary`) não
+   * consome este bloco — o orchestrator pode omiti-lo inteiro em payloads
+   * de turno 2.
+   */
+  participacao?: EdgeParticipacao;
 }
 
 // ---------------------------------------------------------------------------
@@ -581,4 +669,14 @@ export interface EdgePayloadUf {
    * acompanhamento se ainda ausente no payload de produção).
    */
   model_fallback_tier?: 1 | 2 | 3;
+  /**
+   * Participação NESTA UF (abstenção, brancos/nulos, "Outros") — S07/Fase 1a.
+   * Mesma semântica de `EdgeNational.participacao`, calculada sobre as zonas
+   * da UF. Alimenta os termômetros das páginas `/uf/[sigla]` e
+   * `/uf/[sigla]/governador` no 1º turno.
+   *
+   * **Opcional** — payloads pré-S07 não têm a chave; métricas não
+   * calculáveis são omitidas individualmente (não emitir 0).
+   */
+  participacao?: EdgeParticipacao;
 }

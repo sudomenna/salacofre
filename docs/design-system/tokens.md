@@ -57,6 +57,16 @@ source: PRD.md § 14.1
   --color-cand-band-6: #d4cfc2;
   --color-cand-band-other: #d9d9d9;
 
+  /* Participação (S07/Fase 2) — ver § "Participação e trilhas" */
+  --color-part-brancos-nulos: #565656;
+  --color-part-brancos-nulos-band: #dcdcdc;
+  --color-part-abstencao: #24504d;
+  --color-part-abstencao-band: #cfe0de;
+
+  /* Identidade de trilha (S07/Fase 2) — default neutro no :root */
+  --trilha-accent: var(--color-text);
+  --trilha-accent-soft: var(--color-bg-muted);
+
   /* Status */
   --color-success: #2c8e4a;
   --color-warning: #d97706;
@@ -147,6 +157,57 @@ Rank 3 (`#c97c1f` âmbar) e rank 5 (`#7d4a8c` lilás) têm contraste
 WCAG marginal sobre branco em texto pequeno (~14px). Carry-over para
 `a11y-perf-auditor` na Fase Gates de S05/F2: se reprovar, criar
 variante `--color-cand-N-strong` para uso em legenda/labels.
+
+## Participação e trilhas (S07/Fase 2)
+
+O hero do 1º turno deixa de ser um duelo e passa a ser **seis termômetros**
+(1º, 2º, 3º colocados, "Outros candidatos", brancos/nulos e abstenção). As
+duas últimas métricas não pertencem a candidato nenhum — precisam de cor
+própria, nunca reaproveitada de `--color-cand-*` (que é por rank e muda de
+dono durante a noite, ADR-0013).
+
+### Tokens de participação
+
+| Token                              | Hex       | Contraste s/ branco | Uso                                   |
+| ---------------------------------- | --------- | ------------------- | ------------------------------------- |
+| `--color-part-brancos-nulos`       | `#565656` | 7.34:1              | Termômetro de brancos e nulos         |
+| `--color-part-brancos-nulos-band`  | `#dcdcdc` | —                   | Faixa de IC95 do mesmo termômetro     |
+| `--color-part-abstencao`           | `#24504d` | 9.01:1              | Termômetro de abstenção               |
+| `--color-part-abstencao-band`      | `#cfe0de` | —                   | Faixa de IC95 do mesmo termômetro     |
+
+Ambos ≥ 7:1 (AAA para texto normal) e escolhidos para não colidirem com
+`--color-cand-2` (`#2a52be`, azul vivo, 6.89:1) nem com `--color-cand-4`
+(`#4a8b3e`, verde-oliva, 4.16:1): o cinza é acromático e o teal é ~2× mais
+escuro que o oliva e muito menos saturado que o azul.
+
+### Denominador rotulado
+
+Os seis termômetros usam **três bases diferentes** e por isso não somam 100.
+`lib/utils/participacao.ts` é a fonte dos rótulos:
+
+| `ParticipacaoBase`       | Rótulo                                   | Métrica                     |
+| ------------------------ | ---------------------------------------- | --------------------------- |
+| `votaveis`               | `% dos votos a votáveis`                 | candidatos e "Outros"       |
+| `comparecimento`         | `% do comparecimento`                    | brancos e nulos             |
+| `eleitores_instalados`   | `% dos eleitores das seções instaladas`  | abstenção                   |
+
+Nunca escrever "% dos válidos" para `votaveis`: o `pvap` do TSE é percentual
+sobre **votos a votáveis concorrentes** (válidos + anulados + sub judice),
+conforme o dicionário oficial em
+[../reference/tse-2026-leiautes.md](../reference/tse-2026-leiautes.md).
+
+### Identidade de trilha
+
+`--trilha-accent` / `--trilha-accent-soft` dão identidade de navegação por
+cargo (kicker, borda-topo do header, tab ativa, LiveBadge). São cores de
+**navegação**, estáveis a noite inteira — não são cores de candidato nem de
+partido (constituição § 2). O default no `:root` é neutro; cada página
+declara a trilha no elemento `main`:
+
+```css
+main[data-trilha="pres"] { --trilha-accent: #17365c; --trilha-accent-soft: #dbe3ee; } /* 12.2:1 */
+main[data-trilha="gov"]  { --trilha-accent: #1c4d3a; --trilha-accent-soft: #d7e6dd; } /* 9.7:1 */
+```
 
 ## Cross-refs
 

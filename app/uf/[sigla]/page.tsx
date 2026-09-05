@@ -24,12 +24,21 @@
  *   RF-040 (margem timeseries), RF-041 (prob timeseries),
  *   RF-042 (turnout area), RF-043 (forecast transparency),
  *   RF-044 (insight card).
+ *
+ * S07/Fase 2
+ *   - Dispatch de modo idêntico ao da home: `binary` quando `turno === 2`
+ *     ou há exatamente 2 candidatos; `multi-1t` caso contrário.
+ *   - Em `multi-1t`, `<ProjectionThermometers />` (ADR-0018) abre a página,
+ *     acima da lista de `<CandidateRow />` (o IC vem de `ci95`). Em binary
+ *     nada muda.
+ *   - Identidade da trilha presidencial: `<main data-trilha="pres">`,
+ *     `<RaceHeader />` com kicker "PRESIDÊNCIA · Brasil › <UF>" e breadcrumb
+ *     de profundidade real (ADR-0019).
  */
 
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { NewsClippingPlaceholder } from "@/components/atoms/banners/NewsClippingPlaceholder";
 import { WinnerBanner } from "@/components/atoms/banners/WinnerBanner";
 import { ProbabilityOverTime } from "@/components/atoms/charts/ProbabilityOverTime";
@@ -41,9 +50,10 @@ import { CandidateRow } from "@/components/atoms/tables/CandidateRow";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { InsightCard } from "@/components/blocks/InsightCard";
 import { type MunicipioRow, MunicipioTable } from "@/components/blocks/MunicipioTable";
+import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
 import { UfLeaderMapLazy, UfMapDuoLazy, UfSwingArrowMapLazy } from "@/components/blocks/UfMapsLazy";
 import { Footer } from "@/components/layout/Footer";
-import { LiveBadge } from "@/components/layout/LiveBadge";
+import { RaceHeader } from "@/components/layout/RaceHeader";
 import { readUfProjection } from "@/lib/edge-config/reader";
 import type {
   EdgePayload,
@@ -177,6 +187,11 @@ function synthesizeUfFromNational(sigla: string): EdgePayloadUf | null {
       pct_projetado: c.pct_projetado,
       ci95: { lower: c.pct_projetado_lower, upper: c.pct_projetado_upper },
     })),
+    // Dev-only: reaproveita o bloco `participacao` nacional para que os
+    // termômetros de brancos/nulos e abstenção rendam algo em `pnpm dev`
+    // sem Edge Config. Em produção o payload da UF traz o bloco calculado
+    // sobre as zonas da própria UF.
+    participacao: national.national.participacao,
     needle_position: row.lider === national.national.candidato_a_id ? 0.4 : -0.4,
     needle_band: "lean_a",
     municipios: [],
@@ -235,8 +250,11 @@ export default async function UFPage({ params }: UFPageProps) {
   // Pré-eleição absoluta OR Edge Config vazio. UX gentil (constituição § 3).
   if (!payload) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-[1280px] flex-col px-5 py-6">
-        <UFBreadcrumb />
+      <main
+        data-trilha="pres"
+        className="mx-auto flex min-h-screen max-w-[1280px] flex-col px-5 py-6"
+      >
+        <UFBreadcrumb trilha="pres" items={[{ label: "Brasil", href: "/" }, { label: sigla }]} />
         <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
           {sigla} — Aguardando dados
         </h1>
@@ -253,6 +271,11 @@ export default async function UFPage({ params }: UFPageProps) {
   const segundo = sortedCandidatos[1];
   const pVitoriaLider = leaderProbability(payload.needle_position);
 
+  // Mesma regra da home (S07/Fase 2): 2T ou duelo → binary; 1T
+  // multi-candidato → multi-1t (hero de termômetros, ADR-0018).
+  const mode: "binary" | "multi-1t" =
+    payload.turno === 2 || payload.candidatos.length === 2 ? "binary" : "multi-1t";
+
   // Maps de id → cor / nome curto para os componentes de mapa+tabela.
   const candidateColor: Record<number, string> = {};
   const candidateShortName: Record<number, string> = {};
@@ -264,18 +287,20 @@ export default async function UFPage({ params }: UFPageProps) {
   const municipioRows = toMunicipioRows(payload.municipios, candidateColor, candidateShortName);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-[1280px] flex-col gap-6 px-5 py-6">
-      <UFBreadcrumb />
-
-      <header className="flex flex-wrap items-baseline justify-between gap-4">
-        <h1 className="text-3xl leading-tight" style={{ fontFamily: "var(--font-serif)" }}>
-          {sigla} — Apuração Presidencial 2026
-        </h1>
-        <div className="flex flex-wrap items-center gap-3">
-          <LiveBadge active={payload.pct_apurado > 0 && payload.pct_apurado < 100} />
-          <TurnoBadge turno={payload.turno} />
-        </div>
-      </header>
+    <main
+      data-trilha="pres"
+      className="mx-auto flex min-h-screen max-w-[1280px] flex-col gap-6 px-5 py-6"
+    >
+      <RaceHeader
+        trilha="pres"
+        crumbs={["Brasil", sigla]}
+        titulo={`${sigla} — Apuração Presidencial 2026`}
+        liveActive={payload.pct_apurado > 0 && payload.pct_apurado < 100}
+        turno={payload.turno}
+        breadcrumb={
+          <UFBreadcrumb trilha="pres" items={[{ label: "Brasil", href: "/" }, { label: sigla }]} />
+        }
+      />
 
       {/* RF-032: Winner banner quando p_vitoria_lider >= 0.95.
           S06/F4d — em mode 2T (`payload.turno === 2`) o threshold continua
@@ -287,6 +312,16 @@ export default async function UFPage({ params }: UFPageProps) {
           ufSigla={sigla}
           cor={lider.cor}
           rank={rankFromColorVar(lider.cor)}
+        />
+      )}
+
+      {/* Hero 1T — seis termômetros com o IC de `ci95` (ADR-0018). Em 2T
+          (mode binary) o layout segue como em S04/S06, sem este bloco. */}
+      {mode === "multi-1t" && (
+        <ProjectionThermometers
+          candidatos={sortedCandidatos}
+          participacao={payload.participacao}
+          heading={`Projeção do 1º turno em ${sigla}`}
         />
       )}
 

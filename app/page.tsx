@@ -2,7 +2,8 @@
  * app/page.tsx
  *
  * Home Nacional Presidencial (T-01). Spec 003 + S05/F4 (ADR-0013, ADR-0014,
- * ADR-0017 — multi-candidato).
+ * ADR-0017 — multi-candidato) + S07/Fase 2 (ADR-0018 hero de seis
+ * termômetros em 1T, ADR-0019 identidade de trilha).
  *
  * Server Component — lê Edge Config (`projection:current`) server-side via
  * `readNationalProjection()` (ADR-0001) e passa o payload como `fallbackData`
@@ -15,26 +16,30 @@
  *   - `mode = "binary"` quando `payload.turno === 2` ou `candidatos.length === 2`.
  *   - `mode = "multi-1t"` quando `payload.turno === 1` com >2 candidatos.
  *
- * Layout em modo `multi-1t` (RF-030.5..030.8 — hero multi-camada, ADR-0017)
- *   Header
- *   ├── Tabs (Presidente | Governador)               RF-029
- *   ├── LiveBadge + TurnoBadge + RaceTypeIndicator   S05/F4
- *   └── ApuracaoMeta                                 RF-026
- *   HeadlineScore (camada 1: top-2 hero)             RF-022, RF-023
+ * Layout em modo `multi-1t` (ADR-0018 — hero de seis termômetros)
+ *   RaceHeader (kicker + h1 + Tabs + badges)         RF-029, ADR-0019
+ *   ├── ApuracaoMeta                                 RF-026
+ *   ProjectionThermometers (hero: 1º/2º/3º/outros/
+ *   brancos-nulos/abstenção)                         RF-022, RF-023
+ *   MinorCandidatesList "Composição de Outros"
+ *   (rank >= 4, sempre no DOM — ADR-0017)            RF-030.8
  *   TwoRoundIndicator (P(2T) global)                 RF-030.7
- *   CandidateRanking (camada 2: rank 3..6)           RF-030.8
- *   MinorCandidatesList (camada 3: rank 7+)          RF-030.8
+ *   RunoffScenarios                                  S06/F4d
  *   NationalChoroplethMap (rankByLider N-way)        RF-030.1-4
- *   NationalNeedle variant=national-1t               RF-021 (S05)
  *   DecisiveUFsGrid (rankByLider)                    RF-024
  *   StateGroupedTable mode=multi-1t                  RF-030.6
  *   InsightCard                                      RF-044
  *   ForecastTransparency                             RF-043
  *   Footer                                           constituição § 1
  *
- * Layout em modo `binary` (2T ou 1T com 2 cands): comportamento S04
- * preservado — sem CandidateRanking / MinorCandidatesList /
- * TwoRoundIndicator; agulha em variant=national-2t.
+ * ADR-0018 substitui, **apenas em `multi-1t`**, o trio `HeadlineScore` +
+ * `CandidateRanking` + `NationalNeedle variant="national-1t"` pelos
+ * termômetros. Um duelo top-2 em uma corrida de 11 candidatos é leitura
+ * enganosa, e abstenção/brancos/nulos ficavam fora da tela.
+ *
+ * Layout em modo `binary` (2T ou 1T com 2 cands): comportamento S04/S06
+ * preservado **integralmente** — HeadlineScore como camada 1, recap do 1T
+ * (ADR-0016), agulha em variant=national-2t, sem termômetros.
  *
  * Cobertura: RF-021..030.8, RF-043, RF-044, RNF-002, RNF-007, RNF-022..028.
  */
@@ -42,27 +47,28 @@
 import type { Metadata } from "next";
 
 import { RaceTypeIndicator } from "@/components/atoms/badges/RaceTypeIndicator";
-import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
-import { Tabs } from "@/components/atoms/controls/Tabs";
 import { MinorCandidatesList } from "@/components/atoms/lists/MinorCandidatesList";
 import { ApuracaoMeta } from "@/components/blocks/ApuracaoMeta";
 import { BreakingNewsTicker } from "@/components/blocks/BreakingNewsTicker";
-import { CandidateRanking } from "@/components/blocks/CandidateRanking";
 import { DecisiveUFsGrid } from "@/components/blocks/DecisiveUFsGrid";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { HeadlineScore } from "@/components/blocks/HeadlineScore";
 import { InsightCard } from "@/components/blocks/InsightCard";
 import { NationalNeedle } from "@/components/blocks/NationalNeedle";
 import { NationalWinnerBanner } from "@/components/blocks/NationalWinnerBanner";
+import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
 import { RunoffScenarios } from "@/components/blocks/RunoffScenarios";
 import { StateGroupedTable } from "@/components/blocks/StateGroupedTable";
 import { TurnoOneRecap } from "@/components/blocks/TurnoOneRecap";
 import { TwoRoundIndicator } from "@/components/blocks/TwoRoundIndicator";
 import { Footer } from "@/components/layout/Footer";
-import { LiveBadge } from "@/components/layout/LiveBadge";
+import { RaceHeader } from "@/components/layout/RaceHeader";
 import { readArchivedProjection, readNationalProjection } from "@/lib/edge-config/reader";
 import type { EdgePayload } from "@/lib/edge-config/types";
 import nationalFixture from "@/tests/fixtures/edge-config/projection-current.json" with {
+  type: "json",
+};
+import nationalFixtureT2 from "@/tests/fixtures/edge-config/projection-current-t2.json" with {
   type: "json",
 };
 import { HomeClientShell } from "./HomeClientShell";
@@ -93,11 +99,27 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * Fixture usada quando não há Edge Config (dev local, preview sem credencial
+ * e testes). `FIXTURE_VARIANT=t2` troca para o payload de 2º turno.
+ *
+ * Por que uma env var e não um parâmetro: a página é um Server Component sem
+ * props, e o smoke SSR precisa exercitar o modo `binary` (que só existe com
+ * `turno === 2`). Injetar por env mantém `app/page.tsx` com a mesma forma em
+ * produção — onde o reader responde antes e a fixture nunca é lida — em vez
+ * de reestruturar a página só para testar. Em produção a env não é definida.
+ */
+function fixturePayload(): EdgePayload {
+  const variant = process.env.FIXTURE_VARIANT;
+  const fixture = variant === "t2" ? nationalFixtureT2 : nationalFixture;
+  return fixture as unknown as EdgePayload;
+}
+
 /** Polling SWR é gerenciado pelo `HomeClientShell`; o RSC fornece o estado inicial. */
 async function getInitialPayload(): Promise<EdgePayload> {
   const fromEdge = await readNationalProjection();
   if (fromEdge) return fromEdge;
-  return nationalFixture as unknown as EdgePayload;
+  return fixturePayload();
 }
 
 export default async function HomePage() {
@@ -142,28 +164,40 @@ export default async function HomePage() {
   const lider = national.candidatos.find((c) => (c.rank ?? -1) === 1) ?? national.candidatos[0];
   const segundo = national.candidatos.find((c) => (c.rank ?? -1) === 2) ?? national.candidatos[1];
 
-  // Camadas 2 e 3 (multi-1t)
-  const ranking3a6 = national.candidatos.filter((c) => (c.rank ?? -1) >= 3 && (c.rank ?? -1) <= 6);
-  const minor7plus = national.candidatos.filter((c) => (c.rank ?? -1) >= 7);
+  // ADR-0018 — "Composição de Outros": os candidatos que o termômetro
+  // agregado resume (rank >= 4). Substitui as antigas camadas 2 (rank 3..6,
+  // `<CandidateRanking />`) e 3 (rank 7+), já que rank 3 subiu para o hero.
+  const outrosCandidatos = national.candidatos.filter((c, i) => (c.rank ?? i + 1) >= 4);
 
   return (
-    <main className="mx-auto flex max-w-container flex-col gap-8 px-4 py-6 md:px-6 md:py-10">
-      {/* Header */}
-      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <Tabs
-          ariaLabel="Cargo"
-          value="pres"
-          options={[
+    <main
+      data-trilha="pres"
+      className="mx-auto flex max-w-container flex-col gap-8 px-4 py-6 md:px-6 md:py-10"
+    >
+      {/* Header compartilhado (ADR-0019). O `<h1>` só é emitido em multi-1t:
+          em binary ele continua vindo do `<HeadlineScore />` (ADR-0017), e
+          duas <h1> na mesma página seriam regressão de a11y. */}
+      <RaceHeader
+        trilha="pres"
+        crumbs={["Brasil"]}
+        titulo={mode === "multi-1t" ? "Apuração Presidencial 2026" : undefined}
+        subtitulo={
+          mode === "multi-1t"
+            ? "Projeção do resultado final a partir dos boletins do TSE. Não oficial."
+            : undefined
+        }
+        tabs={{
+          ariaLabel: "Cargo",
+          value: "pres",
+          options: [
             { id: "pres", label: "Presidente", href: "/" },
             { id: "gov", label: "Governador", href: "/governador" },
-          ]}
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <LiveBadge active={pct_apurado_total > 0} />
-          <TurnoBadge turno={turno} />
-          <RaceTypeIndicator candidatos={national.candidatos} turno={turno} />
-        </div>
-      </header>
+          ],
+        }}
+        liveActive={pct_apurado_total > 0}
+        turno={turno}
+        extras={<RaceTypeIndicator candidatos={national.candidatos} turno={turno} />}
+      />
 
       {/* S06/F4d — Breaking news ticker no topo. Renderiza só se há chamadas. */}
       {(national.chamadas_recentes ?? []).length > 0 && (
@@ -182,15 +216,39 @@ export default async function HomePage() {
         vaiA2t={vaiA2tNacional}
       />
 
-      {/* Camada 1 (hero) — top-2 sempre. Em mode 2T, `recap` injeta
-          `<TurnoOneRecap />` acima do hero (ADR-0016). Em multi-1t a prop
-          é ignorada internamente pelo HeadlineScore. */}
-      <HeadlineScore
-        candidatos={national.candidatos}
-        mode={mode}
-        turno={turno}
-        recap={mode === "binary" && turno === 2 ? <TurnoOneRecap recap={recap1T} /> : null}
-      />
+      {/* Camada 1 (hero).
+          - binary (2T): `<HeadlineScore />` intocado — com `recap` do 1T
+            injetado acima (ADR-0016).
+          - multi-1t: seis termômetros (ADR-0018). O `<HeadlineScore />` e o
+            `<CandidateRanking />` saem do fluxo; rank >= 4 continua no DOM
+            logo abaixo, como "Composição de Outros" (ADR-0017). */}
+      {mode === "binary" ? (
+        <HeadlineScore
+          candidatos={national.candidatos}
+          mode={mode}
+          turno={turno}
+          recap={turno === 2 ? <TurnoOneRecap recap={recap1T} /> : null}
+        />
+      ) : (
+        <>
+          <ProjectionThermometers
+            candidatos={national.candidatos}
+            participacao={national.participacao}
+          />
+          {outrosCandidatos.length > 0 && (
+            <section aria-labelledby="composicao-outros-heading" className="flex flex-col gap-2">
+              <h3
+                id="composicao-outros-heading"
+                className="text-sm uppercase tracking-wide"
+                style={{ color: "var(--color-text-muted)" }}
+              >
+                Composição de Outros
+              </h3>
+              <MinorCandidatesList candidatos={outrosCandidatos} />
+            </section>
+          )}
+        </>
+      )}
 
       {/* Em multi-1t: TwoRoundIndicator ao lado do hero (substitui o
           ThresholdMarker50 antigo, agora interno ao HeadlineScore binary).
@@ -210,12 +268,6 @@ export default async function HomePage() {
         <RunoffScenarios national={national} candidatos={national.candidatos} />
       )}
 
-      {/* Camadas 2 + 3 — só em multi-1t. Em binary não há rank 3+ relevante. */}
-      {mode === "multi-1t" && ranking3a6.length > 0 && <CandidateRanking candidatos={ranking3a6} />}
-      {mode === "multi-1t" && minor7plus.length > 0 && (
-        <MinorCandidatesList candidatos={minor7plus} />
-      )}
-
       {/* Mapa hero — wraps view toggle client-side. `rankByLider` propaga
           paleta N-way; `candidatoAId` mantido por backward-compat. */}
       <HomeClientShell
@@ -225,14 +277,17 @@ export default async function HomePage() {
       />
 
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[1fr_auto]">
-        {/* Agulha — variant depende do modo. national-1t mede P(decisão 1T);
-            national-2t mantém duelo binário. */}
-        <NationalNeedle
-          national={national}
-          variant={mode === "multi-1t" ? "national-1t" : "national-2t"}
-          pSegundoTurno={national.p_segundo_turno_overall}
-          liderNome={lider?.nome}
-        />
+        {/* Agulha — só em binary (2T). Em multi-1t a agulha `national-1t`
+            media P(2T), a mesma métrica do `<TwoRoundIndicator />` acima:
+            ADR-0018 tirou a duplicata do fluxo. */}
+        {mode === "binary" && (
+          <NationalNeedle
+            national={national}
+            variant="national-2t"
+            pSegundoTurno={national.p_segundo_turno_overall}
+            liderNome={lider?.nome}
+          />
+        )}
         <ForecastTransparency pctApurado={pct_apurado_total} />
       </div>
 

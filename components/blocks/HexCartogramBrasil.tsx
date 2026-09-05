@@ -126,9 +126,7 @@ export function HexCartogramBrasil({ rows, candidatos, hexRadius = 26 }: HexCart
           {Object.keys(UF_HEX_POSITIONS).map((sigla) => {
             const uf = rowsBySigla.get(sigla);
             const lider = uf ? candIndex.get(uf.lider) : undefined;
-            const liderText = lider
-              ? `${lider.nome} (${lider.partido}) líder`
-              : "sem dados";
+            const liderText = lider ? `${lider.nome} (${lider.partido}) líder` : "sem dados";
             return (
               <li key={sigla}>
                 <a href={`/uf/${sigla.toLowerCase()}/governador`}>

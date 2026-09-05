@@ -30,21 +30,31 @@
  *     § 3 (degrade gracioso), § 8 (transparência — disclaimer K-1
  *     herdado da página UF Gov).
  *
+ * S07/Fase 2
+ *   - `<main data-trilha="gov">` + `<RaceHeader />` com kicker
+ *     "GOVERNADOR · Brasil (27 UFs)" (ADR-0019). O grid de 27 cards e o
+ *     cartograma seguem inalterados.
+ *   - `<ProjectionThermometers variant="participacao-only" />` acima dos
+ *     `<RaceStatsCards />`, **só** quando o payload traz `participacao`
+ *     (ADR-0018). Não há "top 3 nacional" de governador — só Presidente tem
+ *     abrangência Brasil no EA20 —, por isso a variante de participação.
+ *
  * ISR: cadência de 60s (ADR-0011) — `revalidate = 60`.
  */
 
 import type { Metadata } from "next";
 
-import { Tabs } from "@/components/atoms/controls/Tabs";
 import { BreakingNewsTicker } from "@/components/blocks/BreakingNewsTicker";
+import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { GovernorCard } from "@/components/blocks/GovernorCard";
 import { HexCartogramBrasil } from "@/components/blocks/HexCartogramBrasil";
+import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
 import { RaceStatsCards } from "@/components/blocks/RaceStatsCards";
 import { Footer } from "@/components/layout/Footer";
-import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
-import { LiveBadge } from "@/components/layout/LiveBadge";
+import { RaceHeader } from "@/components/layout/RaceHeader";
 import { readProjection } from "@/lib/edge-config/reader";
 import type { EdgePayload, EdgeUfRow } from "@/lib/edge-config/types";
+import govFixture from "@/tests/fixtures/edge-config/gov-current.json" with { type: "json" };
 
 export const revalidate = 60;
 
@@ -140,11 +150,15 @@ export default async function GovernadorGridPage({ searchParams }: PageProps) {
     ? rawStatus
     : "todas";
 
-  // Leitura. Em dev sem EDGE_CONFIG cai pro payload vazio (graceful).
+  // Leitura. Sem Edge Config: em `pnpm dev` caímos na fixture de governador (a
+  // mesma que os testes usam) para a página renderizar completa em
+  // `pnpm dev`; em produção, payload vazio gracioso (constituição § 3).
   const payload =
     (await readProjection({ cargo: "gov", turno: 1 })) ??
     (await readProjection({ cargo: "gov", turno: 2 })) ??
-    emptyPayload();
+    (process.env.NODE_ENV === "development"
+      ? (govFixture as unknown as EdgePayload)
+      : emptyPayload());
 
   const { national, por_uf, pct_apurado_total, chamadas_recentes } = {
     national: payload.national,
@@ -166,30 +180,34 @@ export default async function GovernadorGridPage({ searchParams }: PageProps) {
   ] as const;
 
   return (
-    <main className="mx-auto flex max-w-container flex-col gap-6 px-4 py-6 md:px-6 md:py-10">
+    <main
+      data-trilha="gov"
+      className="mx-auto flex max-w-container flex-col gap-6 px-4 py-6 md:px-6 md:py-10"
+    >
       {/* Breaking news no topo — só renderiza se há chamadas */}
       {chamadas_recentes.length > 0 && <BreakingNewsTicker chamadas={chamadas_recentes} />}
 
-      {/* Header */}
-      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-col gap-1">
-          <h1
-            className="text-3xl md:text-4xl"
-            style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
-          >
-            Governadores 2026
-          </h1>
-          <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-            27 corridas estaduais — apuração em tempo real. Não oficial. Fonte: TSE.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <LiveBadge active={pct_apurado_total > 0} />
-        </div>
-      </header>
+      <RaceHeader
+        trilha="gov"
+        crumbs={["Brasil (27 UFs)"]}
+        titulo="Governadores 2026"
+        subtitulo="27 corridas estaduais — apuração em tempo real. Não oficial. Fonte: TSE."
+        tabs={{ ariaLabel: "Cargo", value: "gov", options: tabsOptions }}
+        liveActive={pct_apurado_total > 0}
+      />
 
-      {/* Tabs cargo */}
-      <Tabs ariaLabel="Cargo" value="gov" options={tabsOptions} />
+      {/* Participação nacional agregada (ADR-0018). Sem o bloco no payload
+          o componente inteiro fica fora — aqui não há "aguardando", porque
+          uma corrida nacional de governador não existe: o que existe são 27
+          corridas, e a participação é o único agregado nacional legítimo. */}
+      {national.participacao && (
+        <ProjectionThermometers
+          variant="participacao-only"
+          participacao={national.participacao}
+          candidatos={national.candidatos}
+          heading="Participação do eleitorado"
+        />
+      )}
 
       {/* Stats cards */}
       <RaceStatsCards rows={por_uf} />

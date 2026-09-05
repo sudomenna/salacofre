@@ -45,6 +45,10 @@ function buildUfPayload(opts: {
   municipios: number;
   withMesorregioes: boolean;
   modelTier?: 1 | 2 | 3;
+  /** S07/Fase 2 — corrida de 1T com mais de dois nomes (modo multi-1t). */
+  multiCandidato?: boolean;
+  comParticipacao?: boolean;
+  turno?: 1 | 2;
 }): EdgePayloadUf {
   const municipios = Array.from({ length: opts.municipios }, (_, i) => makeMunicipio(i));
   const base: EdgePayloadUf = {
@@ -82,6 +86,60 @@ function buildUfPayload(opts: {
     municipios,
     series_temporais: { margem: [], p_vitoria: [], turnout: [] },
   };
+  base.turno = opts.turno ?? 1;
+  if (opts.multiCandidato) {
+    base.candidatos = [
+      ...base.candidatos,
+      {
+        id: 3,
+        nome: "Marina",
+        partido: "REDE",
+        cor: "var(--color-cand-3)",
+        votos_atuais: 700000,
+        votos_projetados: 1100000,
+        pct_atual: 6,
+        pct_projetado: 6,
+        ci95: { lower: 5, upper: 7 },
+      },
+      {
+        id: 4,
+        nome: "Datena",
+        partido: "PSDB",
+        cor: "var(--color-cand-4)",
+        votos_atuais: 300000,
+        votos_projetados: 500000,
+        pct_atual: 3,
+        pct_projetado: 3,
+        ci95: { lower: 2, upper: 4 },
+      },
+    ];
+  }
+  if (opts.comParticipacao) {
+    base.participacao = {
+      abstencao: {
+        pct_atual: 20.4,
+        pct_projetado: 21.2,
+        lower: 19.9,
+        upper: 22.6,
+        base: "eleitores_instalados",
+      },
+      brancos_nulos: {
+        pct_atual: 7.1,
+        pct_projetado: 7.5,
+        lower: 6.8,
+        upper: 8.3,
+        base: "comparecimento",
+      },
+      outros: {
+        pct_atual: 3.0,
+        pct_projetado: 3.2,
+        lower: 2.4,
+        upper: 4.1,
+        base: "votaveis",
+        n_candidatos: 1,
+      },
+    };
+  }
   if (opts.withMesorregioes) {
     base.mesorregioes = [
       {
@@ -121,15 +179,23 @@ vi.mock("@/lib/edge-config/reader", () => ({
 }));
 
 describe("UFGovernadorPage (integration / smoke)", () => {
-  it("(a) renderiza header e breadcrumb apontando pra /governador", async () => {
+  it("(a) renderiza header e breadcrumb 'Governadores › SP' apontando pra /governador", async () => {
     readUfProjectionMock.mockResolvedValueOnce(
       buildUfPayload({ municipios: 20, withMesorregioes: false }),
     );
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
-    const html = renderToStaticMarkup(node);
-    expect(html).toContain("Governador SP — Apuração 2026");
-    expect(html).toContain("Voltar à lista de governadores");
-    expect(html).toContain('href="/governador"');
+    const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
+
+    expect(doc.body.textContent).toContain("Governador SP — Apuração 2026");
+    // ADR-0019: breadcrumb passa a mostrar a profundidade real da trilha
+    // governador (que não tem nó nacional), preservando o link de volta.
+    const crumbs = [...doc.querySelectorAll('nav[aria-label="Breadcrumb"] li')].map((li) =>
+      li.textContent?.replace(/[\s›]+/g, " ").trim(),
+    );
+    expect(crumbs).toEqual(["Governadores", "SP"]);
+    expect(doc.querySelector('nav[aria-label="Breadcrumb"] a')?.getAttribute("href")).toBe(
+      "/governador",
+    );
   });
 
   it("(b) renderiza waffle grid com SVG e legend", async () => {
@@ -196,6 +262,66 @@ describe("UFGovernadorPage (integration / smoke)", () => {
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const html = renderToStaticMarkup(node);
     expect(html).toContain("sem mapeamento histórico");
+  });
+
+  // -------------------------------------------------------------------------
+  // S07/Fase 2 — ADR-0018 (hero 1T) + ADR-0019 (trilha gov).
+  // -------------------------------------------------------------------------
+
+  it("(i) 1T com mais de dois candidatos → seis termômetros", async () => {
+    readUfProjectionMock.mockResolvedValueOnce(
+      buildUfPayload({
+        municipios: 10,
+        withMesorregioes: false,
+        multiCandidato: true,
+        comParticipacao: true,
+      }),
+    );
+    const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
+    const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
+
+    const bloco = doc.querySelector('section[aria-labelledby="projecao-termometros-heading"]');
+    expect(bloco?.querySelectorAll('[role="meter"]')).toHaveLength(6);
+    expect(doc.body.textContent).toContain("Projeção do 1º turno — Governador SP");
+    // Top 3 da corrida estadual, não do nacional.
+    expect(doc.querySelector("#termometro-cand-1")).not.toBeNull();
+    expect(doc.querySelector("#termometro-cand-3")).not.toBeNull();
+    expect(doc.querySelector("#termometro-cand-4")).toBeNull();
+  });
+
+  it("(j) duelo (2 candidatos) e 2º turno → sem termômetros", async () => {
+    readUfProjectionMock.mockResolvedValueOnce(
+      buildUfPayload({ municipios: 10, withMesorregioes: false }),
+    );
+    const duelo = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
+    expect(renderToStaticMarkup(duelo)).not.toContain('id="termometro-');
+
+    readUfProjectionMock.mockResolvedValueOnce(
+      buildUfPayload({
+        municipios: 10,
+        withMesorregioes: false,
+        multiCandidato: true,
+        turno: 2,
+      }),
+    );
+    const segundoTurno = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
+    const html = renderToStaticMarkup(segundoTurno);
+    expect(html).not.toContain('id="termometro-');
+    // Layout de 2T preservado: agulha estadual continua lá.
+    expect(html).toContain("Forecast ao vivo — Governador SP");
+  });
+
+  it("(k) trilha gov: main[data-trilha=gov] + kicker 'GOVERNADOR · SP'", async () => {
+    readUfProjectionMock.mockResolvedValueOnce(
+      buildUfPayload({ municipios: 10, withMesorregioes: false }),
+    );
+    const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
+    const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
+
+    expect(doc.querySelector("main")?.getAttribute("data-trilha")).toBe("gov");
+    expect(
+      doc.querySelector("[data-trilha-kicker]")?.textContent?.replace(/\s+/g, " ").trim(),
+    ).toBe("GOVERNADOR · SP");
   });
 
   it("(h) pré-eleição (payload null) renderiza fallback gentil", async () => {

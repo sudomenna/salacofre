@@ -1,0 +1,2059 @@
+{
+  "ts": "2026-10-04T19:12:05-03:00",
+  "cargo": 3,
+  "turno": 1,
+  "pct_apurado_total": 51.6,
+  "ufs_apuradas": 27,
+  "national": {
+    "candidatos": [
+      {
+        "id": 3011,
+        "nome": "Gov AC MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 945161,
+        "votos_projetados": 2133049,
+        "pct_atual": 41.8,
+        "pct_projetado": 40.7,
+        "pct_projetado_lower": 38.7,
+        "pct_projetado_upper": 42.0,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3012,
+        "nome": "Gov AC PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 90761,
+        "votos_projetados": 284813,
+        "pct_atual": 20.5,
+        "pct_projetado": 21.1,
+        "pct_projetado_lower": 19.7,
+        "pct_projetado_upper": 22.3,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3013,
+        "nome": "Gov AC PSB",
+        "partido": "PSB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 187416,
+        "votos_projetados": 287279,
+        "pct_atual": 19.9,
+        "pct_projetado": 20.1,
+        "pct_projetado_lower": 18.7,
+        "pct_projetado_upper": 22.6,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3021,
+        "nome": "Gov AL PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 1194304,
+        "votos_projetados": 1943935,
+        "pct_atual": 58.1,
+        "pct_projetado": 58.0,
+        "pct_projetado_lower": 56.0,
+        "pct_projetado_upper": 59.7,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.71
+      },
+      {
+        "id": 3022,
+        "nome": "Gov AL PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 269607,
+        "votos_projetados": 550410,
+        "pct_atual": 32.6,
+        "pct_projetado": 32.3,
+        "pct_projetado_lower": 30.8,
+        "pct_projetado_upper": 34.4,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3023,
+        "nome": "Gov AL REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 49135,
+        "votos_projetados": 101926,
+        "pct_atual": 2.6,
+        "pct_projetado": 2.0,
+        "pct_projetado_lower": 1.0,
+        "pct_projetado_upper": 3.1,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3031,
+        "nome": "Gov AP PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 1662578,
+        "votos_projetados": 3212301,
+        "pct_atual": 50.2,
+        "pct_projetado": 49.0,
+        "pct_projetado_lower": 46.9,
+        "pct_projetado_upper": 50.9,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3032,
+        "nome": "Gov AP PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 729838,
+        "votos_projetados": 1580566,
+        "pct_atual": 24.4,
+        "pct_projetado": 24.4,
+        "pct_projetado_lower": 22.3,
+        "pct_projetado_upper": 26.1,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3033,
+        "nome": "Gov AP REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 617774,
+        "votos_projetados": 1378950,
+        "pct_atual": 18.3,
+        "pct_projetado": 18.8,
+        "pct_projetado_lower": 16.9,
+        "pct_projetado_upper": 20.1,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3041,
+        "nome": "Gov AM PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 422591,
+        "votos_projetados": 821060,
+        "pct_atual": 51.1,
+        "pct_projetado": 51.1,
+        "pct_projetado_lower": 49.3,
+        "pct_projetado_upper": 53.3,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.71
+      },
+      {
+        "id": 3042,
+        "nome": "Gov AM PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 741018,
+        "votos_projetados": 1190768,
+        "pct_atual": 23.2,
+        "pct_projetado": 22.4,
+        "pct_projetado_lower": 20.7,
+        "pct_projetado_upper": 24.7,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3043,
+        "nome": "Gov AM MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 114881,
+        "votos_projetados": 314312,
+        "pct_atual": 20.9,
+        "pct_projetado": 20.8,
+        "pct_projetado_lower": 19.4,
+        "pct_projetado_upper": 23.0,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3051,
+        "nome": "Gov BA PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 1064003,
+        "votos_projetados": 1714336,
+        "pct_atual": 36.6,
+        "pct_projetado": 37.0,
+        "pct_projetado_lower": 35.5,
+        "pct_projetado_upper": 39.2,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3052,
+        "nome": "Gov BA PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 466667,
+        "votos_projetados": 1166358,
+        "pct_atual": 20.2,
+        "pct_projetado": 20.2,
+        "pct_projetado_lower": 18.2,
+        "pct_projetado_upper": 21.5,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3053,
+        "nome": "Gov BA UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 260567,
+        "votos_projetados": 803828,
+        "pct_atual": 18.2,
+        "pct_projetado": 19.2,
+        "pct_projetado_lower": 17.4,
+        "pct_projetado_upper": 20.7,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3061,
+        "nome": "Gov CE PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 783957,
+        "votos_projetados": 2299744,
+        "pct_atual": 49.0,
+        "pct_projetado": 47.9,
+        "pct_projetado_lower": 46.4,
+        "pct_projetado_upper": 49.1,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3062,
+        "nome": "Gov CE PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 528009,
+        "votos_projetados": 1659986,
+        "pct_atual": 29.2,
+        "pct_projetado": 30.4,
+        "pct_projetado_lower": 28.4,
+        "pct_projetado_upper": 32.4,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3063,
+        "nome": "Gov CE MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 134483,
+        "votos_projetados": 226498,
+        "pct_atual": 9.9,
+        "pct_projetado": 10.6,
+        "pct_projetado_lower": 9.4,
+        "pct_projetado_upper": 12.8,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3071,
+        "nome": "Gov DF PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 271061,
+        "votos_projetados": 730670,
+        "pct_atual": 44.8,
+        "pct_projetado": 44.2,
+        "pct_projetado_lower": 42.7,
+        "pct_projetado_upper": 45.3,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3072,
+        "nome": "Gov DF PSB",
+        "partido": "PSB",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 566400,
+        "votos_projetados": 1429858,
+        "pct_atual": 33.2,
+        "pct_projetado": 32.1,
+        "pct_projetado_lower": 30.0,
+        "pct_projetado_upper": 34.4,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3073,
+        "nome": "Gov DF PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 235475,
+        "votos_projetados": 583417,
+        "pct_atual": 14.6,
+        "pct_projetado": 13.6,
+        "pct_projetado_lower": 11.2,
+        "pct_projetado_upper": 15.5,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3081,
+        "nome": "Gov ES MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 64781,
+        "votos_projetados": 145366,
+        "pct_atual": 39.1,
+        "pct_projetado": 39.6,
+        "pct_projetado_lower": 37.2,
+        "pct_projetado_upper": 41.6,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3082,
+        "nome": "Gov ES PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 539933,
+        "votos_projetados": 1325723,
+        "pct_atual": 24.8,
+        "pct_projetado": 23.9,
+        "pct_projetado_lower": 22.8,
+        "pct_projetado_upper": 25.5,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3083,
+        "nome": "Gov ES PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 214464,
+        "votos_projetados": 634574,
+        "pct_atual": 23.9,
+        "pct_projetado": 22.9,
+        "pct_projetado_lower": 20.5,
+        "pct_projetado_upper": 25.1,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3091,
+        "nome": "Gov GO MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 851623,
+        "votos_projetados": 1962020,
+        "pct_atual": 58.2,
+        "pct_projetado": 58.6,
+        "pct_projetado_lower": 56.1,
+        "pct_projetado_upper": 60.2,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.71
+      },
+      {
+        "id": 3092,
+        "nome": "Gov GO PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 273498,
+        "votos_projetados": 828119,
+        "pct_atual": 26.9,
+        "pct_projetado": 27.6,
+        "pct_projetado_lower": 26.1,
+        "pct_projetado_upper": 30.0,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3093,
+        "nome": "Gov GO PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 113626,
+        "votos_projetados": 264366,
+        "pct_atual": 4.0,
+        "pct_projetado": 4.4,
+        "pct_projetado_lower": 2.1,
+        "pct_projetado_upper": 6.1,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3101,
+        "nome": "Gov MA PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 166212,
+        "votos_projetados": 355989,
+        "pct_atual": 36.4,
+        "pct_projetado": 36.2,
+        "pct_projetado_lower": 33.8,
+        "pct_projetado_upper": 37.7,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3102,
+        "nome": "Gov MA PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 514690,
+        "votos_projetados": 1042072,
+        "pct_atual": 22.2,
+        "pct_projetado": 21.5,
+        "pct_projetado_lower": 19.6,
+        "pct_projetado_upper": 23.8,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3103,
+        "nome": "Gov MA PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 35251,
+        "votos_projetados": 109307,
+        "pct_atual": 20.9,
+        "pct_projetado": 20.5,
+        "pct_projetado_lower": 17.9,
+        "pct_projetado_upper": 22.4,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3111,
+        "nome": "Gov MT MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 1005375,
+        "votos_projetados": 1451406,
+        "pct_atual": 58.5,
+        "pct_projetado": 57.4,
+        "pct_projetado_lower": 55.8,
+        "pct_projetado_upper": 58.7,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.71
+      },
+      {
+        "id": 3112,
+        "nome": "Gov MT UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 487620,
+        "votos_projetados": 911361,
+        "pct_atual": 21.1,
+        "pct_projetado": 21.9,
+        "pct_projetado_lower": 19.4,
+        "pct_projetado_upper": 23.9,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3113,
+        "nome": "Gov MT PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 346008,
+        "votos_projetados": 843276,
+        "pct_atual": 9.9,
+        "pct_projetado": 10.6,
+        "pct_projetado_lower": 8.2,
+        "pct_projetado_upper": 12.7,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3121,
+        "nome": "Gov MS PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 514669,
+        "votos_projetados": 1614723,
+        "pct_atual": 44.1,
+        "pct_projetado": 43.3,
+        "pct_projetado_lower": 42.2,
+        "pct_projetado_upper": 44.5,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3122,
+        "nome": "Gov MS MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 926034,
+        "votos_projetados": 2480658,
+        "pct_atual": 29.5,
+        "pct_projetado": 28.9,
+        "pct_projetado_lower": 26.8,
+        "pct_projetado_upper": 31.4,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3123,
+        "nome": "Gov MS PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 528794,
+        "votos_projetados": 1303780,
+        "pct_atual": 17.7,
+        "pct_projetado": 16.8,
+        "pct_projetado_lower": 15.0,
+        "pct_projetado_upper": 19.0,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3131,
+        "nome": "Gov MG REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 1179473,
+        "votos_projetados": 2674651,
+        "pct_atual": 47.9,
+        "pct_projetado": 46.7,
+        "pct_projetado_lower": 45.1,
+        "pct_projetado_upper": 48.5,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3132,
+        "nome": "Gov MG PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 967743,
+        "votos_projetados": 1642599,
+        "pct_atual": 34.2,
+        "pct_projetado": 33.4,
+        "pct_projetado_lower": 31.5,
+        "pct_projetado_upper": 35.7,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3133,
+        "nome": "Gov MG PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 309011,
+        "votos_projetados": 801885,
+        "pct_atual": 11.0,
+        "pct_projetado": 10.5,
+        "pct_projetado_lower": 8.3,
+        "pct_projetado_upper": 11.6,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3141,
+        "nome": "Gov PA PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 591868,
+        "votos_projetados": 1685228,
+        "pct_atual": 52.1,
+        "pct_projetado": 53.1,
+        "pct_projetado_lower": 51.3,
+        "pct_projetado_upper": 55.1,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.71
+      },
+      {
+        "id": 3142,
+        "nome": "Gov PA UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 297580,
+        "votos_projetados": 500554,
+        "pct_atual": 22.8,
+        "pct_projetado": 23.7,
+        "pct_projetado_lower": 21.8,
+        "pct_projetado_upper": 26.1,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3143,
+        "nome": "Gov PA PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 225003,
+        "votos_projetados": 484683,
+        "pct_atual": 14.8,
+        "pct_projetado": 13.6,
+        "pct_projetado_lower": 11.6,
+        "pct_projetado_upper": 15.5,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3151,
+        "nome": "Gov PB PSB",
+        "partido": "PSB",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 1554620,
+        "votos_projetados": 3926756,
+        "pct_atual": 48.4,
+        "pct_projetado": 49.3,
+        "pct_projetado_lower": 47.4,
+        "pct_projetado_upper": 51.5,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3152,
+        "nome": "Gov PB PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 686324,
+        "votos_projetados": 2046552,
+        "pct_atual": 27.7,
+        "pct_projetado": 27.5,
+        "pct_projetado_lower": 25.2,
+        "pct_projetado_upper": 29.6,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3153,
+        "nome": "Gov PB PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 479165,
+        "votos_projetados": 939052,
+        "pct_atual": 19.3,
+        "pct_projetado": 18.7,
+        "pct_projetado_lower": 16.1,
+        "pct_projetado_upper": 20.1,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3161,
+        "nome": "Gov PR PSB",
+        "partido": "PSB",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 905117,
+        "votos_projetados": 2863889,
+        "pct_atual": 43.6,
+        "pct_projetado": 43.9,
+        "pct_projetado_lower": 41.5,
+        "pct_projetado_upper": 45.4,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3162,
+        "nome": "Gov PR PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 310998,
+        "votos_projetados": 901482,
+        "pct_atual": 25.7,
+        "pct_projetado": 25.4,
+        "pct_projetado_lower": 23.6,
+        "pct_projetado_upper": 27.8,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3163,
+        "nome": "Gov PR PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 66951,
+        "votos_projetados": 166436,
+        "pct_atual": 18.6,
+        "pct_projetado": 18.9,
+        "pct_projetado_lower": 16.9,
+        "pct_projetado_upper": 21.4,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3171,
+        "nome": "Gov PE PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 1483233,
+        "votos_projetados": 3186483,
+        "pct_atual": 46.6,
+        "pct_projetado": 45.9,
+        "pct_projetado_lower": 44.1,
+        "pct_projetado_upper": 48.4,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3172,
+        "nome": "Gov PE PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 199421,
+        "votos_projetados": 434162,
+        "pct_atual": 28.3,
+        "pct_projetado": 27.2,
+        "pct_projetado_lower": 25.1,
+        "pct_projetado_upper": 29.7,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3173,
+        "nome": "Gov PE REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 571071,
+        "votos_projetados": 1255631,
+        "pct_atual": 23.2,
+        "pct_projetado": 22.3,
+        "pct_projetado_lower": 21.2,
+        "pct_projetado_upper": 24.8,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3181,
+        "nome": "Gov PI PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 274149,
+        "votos_projetados": 682218,
+        "pct_atual": 53.2,
+        "pct_projetado": 53.4,
+        "pct_projetado_lower": 51.8,
+        "pct_projetado_upper": 55.6,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.71
+      },
+      {
+        "id": 3182,
+        "nome": "Gov PI PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 555102,
+        "votos_projetados": 781463,
+        "pct_atual": 21.5,
+        "pct_projetado": 20.4,
+        "pct_projetado_lower": 18.3,
+        "pct_projetado_upper": 22.5,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3183,
+        "nome": "Gov PI PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 233454,
+        "votos_projetados": 570857,
+        "pct_atual": 19.9,
+        "pct_projetado": 19.4,
+        "pct_projetado_lower": 18.4,
+        "pct_projetado_upper": 20.7,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3191,
+        "nome": "Gov RJ PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 93684,
+        "votos_projetados": 263411,
+        "pct_atual": 56.6,
+        "pct_projetado": 56.1,
+        "pct_projetado_lower": 54.3,
+        "pct_projetado_upper": 57.1,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.71
+      },
+      {
+        "id": 3192,
+        "nome": "Gov RJ PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 563527,
+        "votos_projetados": 991346,
+        "pct_atual": 17.6,
+        "pct_projetado": 18.5,
+        "pct_projetado_lower": 16.8,
+        "pct_projetado_upper": 20.8,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3193,
+        "nome": "Gov RJ REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 264504,
+        "votos_projetados": 751786,
+        "pct_atual": 16.6,
+        "pct_projetado": 16.3,
+        "pct_projetado_lower": 14.4,
+        "pct_projetado_upper": 17.8,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3201,
+        "nome": "Gov RN PSB",
+        "partido": "PSB",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 855151,
+        "votos_projetados": 2398592,
+        "pct_atual": 48.0,
+        "pct_projetado": 48.6,
+        "pct_projetado_lower": 47.5,
+        "pct_projetado_upper": 50.3,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3202,
+        "nome": "Gov RN PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 103244,
+        "votos_projetados": 306714,
+        "pct_atual": 23.5,
+        "pct_projetado": 22.6,
+        "pct_projetado_lower": 20.1,
+        "pct_projetado_upper": 25.0,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3203,
+        "nome": "Gov RN REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 707270,
+        "votos_projetados": 2242245,
+        "pct_atual": 21.3,
+        "pct_projetado": 21.6,
+        "pct_projetado_lower": 20.4,
+        "pct_projetado_upper": 23.3,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3211,
+        "nome": "Gov RS PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 1200682,
+        "votos_projetados": 3217417,
+        "pct_atual": 36.8,
+        "pct_projetado": 37.1,
+        "pct_projetado_lower": 34.6,
+        "pct_projetado_upper": 38.9,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3212,
+        "nome": "Gov RS PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 57298,
+        "votos_projetados": 103255,
+        "pct_atual": 34.5,
+        "pct_projetado": 33.4,
+        "pct_projetado_lower": 31.8,
+        "pct_projetado_upper": 35.4,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3213,
+        "nome": "Gov RS REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 695460,
+        "votos_projetados": 1493099,
+        "pct_atual": 22.5,
+        "pct_projetado": 22.6,
+        "pct_projetado_lower": 20.4,
+        "pct_projetado_upper": 24.8,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3221,
+        "nome": "Gov RO PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 101438,
+        "votos_projetados": 231553,
+        "pct_atual": 45.0,
+        "pct_projetado": 45.0,
+        "pct_projetado_lower": 43.1,
+        "pct_projetado_upper": 46.2,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3222,
+        "nome": "Gov RO UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 241389,
+        "votos_projetados": 623680,
+        "pct_atual": 21.7,
+        "pct_projetado": 21.8,
+        "pct_projetado_lower": 20.1,
+        "pct_projetado_upper": 24.0,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3223,
+        "nome": "Gov RO PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 30197,
+        "votos_projetados": 46886,
+        "pct_atual": 20.0,
+        "pct_projetado": 20.8,
+        "pct_projetado_lower": 18.5,
+        "pct_projetado_upper": 23.3,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3231,
+        "nome": "Gov RR MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 845317,
+        "votos_projetados": 1547422,
+        "pct_atual": 41.0,
+        "pct_projetado": 41.9,
+        "pct_projetado_lower": 40.7,
+        "pct_projetado_upper": 43.1,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3232,
+        "nome": "Gov RR REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 122551,
+        "votos_projetados": 206944,
+        "pct_atual": 22.6,
+        "pct_projetado": 21.5,
+        "pct_projetado_lower": 19.3,
+        "pct_projetado_upper": 22.9,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3233,
+        "nome": "Gov RR PSB",
+        "partido": "PSB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 688439,
+        "votos_projetados": 1625798,
+        "pct_atual": 21.2,
+        "pct_projetado": 20.5,
+        "pct_projetado_lower": 19.0,
+        "pct_projetado_upper": 22.5,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3241,
+        "nome": "Gov SC PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 373934,
+        "votos_projetados": 765834,
+        "pct_atual": 59.0,
+        "pct_projetado": 59.5,
+        "pct_projetado_lower": 57.2,
+        "pct_projetado_upper": 61.0,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.71
+      },
+      {
+        "id": 3242,
+        "nome": "Gov SC PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 585292,
+        "votos_projetados": 1381854,
+        "pct_atual": 32.0,
+        "pct_projetado": 32.4,
+        "pct_projetado_lower": 31.3,
+        "pct_projetado_upper": 33.4,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3243,
+        "nome": "Gov SC REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 10784,
+        "votos_projetados": 31757,
+        "pct_atual": 2.7,
+        "pct_projetado": 2.6,
+        "pct_projetado_lower": 1.3,
+        "pct_projetado_upper": 4.1,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3251,
+        "nome": "Gov SP PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 311647,
+        "votos_projetados": 920840,
+        "pct_atual": 50.1,
+        "pct_projetado": 50.5,
+        "pct_projetado_lower": 49.1,
+        "pct_projetado_upper": 52.5,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.71
+      },
+      {
+        "id": 3252,
+        "nome": "Gov SP PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 488242,
+        "votos_projetados": 1483242,
+        "pct_atual": 21.3,
+        "pct_projetado": 20.1,
+        "pct_projetado_lower": 18.8,
+        "pct_projetado_upper": 22.1,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3253,
+        "nome": "Gov SP PSB",
+        "partido": "PSB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 62514,
+        "votos_projetados": 168913,
+        "pct_atual": 18.7,
+        "pct_projetado": 19.1,
+        "pct_projetado_lower": 17.5,
+        "pct_projetado_upper": 21.1,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3261,
+        "nome": "Gov SE UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 654683,
+        "votos_projetados": 1119697,
+        "pct_atual": 58.5,
+        "pct_projetado": 57.7,
+        "pct_projetado_lower": 56.2,
+        "pct_projetado_upper": 60.3,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.71
+      },
+      {
+        "id": 3262,
+        "nome": "Gov SE PSB",
+        "partido": "PSB",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 569306,
+        "votos_projetados": 1042824,
+        "pct_atual": 25.1,
+        "pct_projetado": 25.3,
+        "pct_projetado_lower": 24.0,
+        "pct_projetado_upper": 26.5,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3263,
+        "nome": "Gov SE MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 51875,
+        "votos_projetados": 117376,
+        "pct_atual": 4.0,
+        "pct_projetado": 5.1,
+        "pct_projetado_lower": 4.1,
+        "pct_projetado_upper": 7.7,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3271,
+        "nome": "Gov TO REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 1327592,
+        "votos_projetados": 2677755,
+        "pct_atual": 57.2,
+        "pct_projetado": 57.0,
+        "pct_projetado_lower": 54.8,
+        "pct_projetado_upper": 58.5,
+        "p_vitoria": 0.86,
+        "rank": 1,
+        "p_passa_2t": 0.97,
+        "p_fecha_1t": 0.71
+      },
+      {
+        "id": 3272,
+        "nome": "Gov TO PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 176272,
+        "votos_projetados": 267119,
+        "pct_atual": 26.9,
+        "pct_projetado": 26.4,
+        "pct_projetado_lower": 25.3,
+        "pct_projetado_upper": 27.5,
+        "p_vitoria": 0.12,
+        "rank": 2,
+        "p_passa_2t": 0.62,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 3273,
+        "nome": "Gov TO PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 118481,
+        "votos_projetados": 339941,
+        "pct_atual": 7.4,
+        "pct_projetado": 6.5,
+        "pct_projetado_lower": 5.5,
+        "pct_projetado_upper": 8.3,
+        "p_vitoria": 0.02,
+        "rank": 3,
+        "p_passa_2t": 0.08,
+        "p_fecha_1t": 0.0
+      }
+    ],
+    "needle_position": 0.0,
+    "needle_band": "tossup",
+    "candidato_a_id": null,
+    "candidato_b_id": null,
+    "p_segundo_turno_overall": null,
+    "cenarios_2t": [],
+    "chamadas_recentes": [
+      {
+        "ts": "2026-10-04T19:08:00-03:00",
+        "texto": "AC chamada para o líder projetado."
+      },
+      {
+        "ts": "2026-10-04T18:57:00-03:00",
+        "texto": "12 estados já com mais de 50% das seções apuradas."
+      }
+    ],
+    "vai_a_2t_nacional": null,
+    "participacao": {
+      "abstencao": {
+        "pct_atual": 21.6,
+        "pct_projetado": 22.4,
+        "lower": 20.9,
+        "upper": 23.9,
+        "base": "eleitores_instalados"
+      },
+      "brancos_nulos": {
+        "pct_atual": 7.8,
+        "pct_projetado": 8.1,
+        "lower": 7.3,
+        "upper": 9.0,
+        "base": "comparecimento"
+      },
+      "metodo": {
+        "tipo": "extrapolacao_apurado",
+        "n_zonas": 2871,
+        "pct_apurado": 51.6
+      }
+    }
+  },
+  "por_uf": [
+    {
+      "sigla": "AC",
+      "pct_apurado": 33.4,
+      "lider": 3011,
+      "margem_atual": 18.8,
+      "margem_projetada": 19.6,
+      "margem_projetada_ci": [16.4, 21.9],
+      "chamada": false,
+      "swing_vs_2022": 2.7,
+      "top_candidatos": [
+        {
+          "id": 3011,
+          "pct": 40.7
+        },
+        {
+          "id": 3012,
+          "pct": 21.1
+        },
+        {
+          "id": 3013,
+          "pct": 20.1
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "vai_2t"
+    },
+    {
+      "sigla": "AL",
+      "pct_apurado": 35.5,
+      "lider": 3021,
+      "margem_atual": 26.0,
+      "margem_projetada": 25.7,
+      "margem_projetada_ci": [22.6, 28.4],
+      "chamada": false,
+      "swing_vs_2022": -2.6,
+      "top_candidatos": [
+        {
+          "id": 3021,
+          "pct": 58.0
+        },
+        {
+          "id": 3022,
+          "pct": 32.3
+        },
+        {
+          "id": 3023,
+          "pct": 2.0
+        }
+      ],
+      "vai_a_2t": false,
+      "bucket": "decidido_1t"
+    },
+    {
+      "sigla": "AP",
+      "pct_apurado": 81.4,
+      "lider": 3031,
+      "margem_atual": 24.8,
+      "margem_projetada": 24.6,
+      "margem_projetada_ci": [21.7, 27.4],
+      "chamada": false,
+      "swing_vs_2022": 0.1,
+      "top_candidatos": [
+        {
+          "id": 3031,
+          "pct": 49.0
+        },
+        {
+          "id": 3032,
+          "pct": 24.4
+        },
+        {
+          "id": 3033,
+          "pct": 18.8
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "vai_2t"
+    },
+    {
+      "sigla": "AM",
+      "pct_apurado": 38.1,
+      "lider": 3041,
+      "margem_atual": 28.0,
+      "margem_projetada": 28.7,
+      "margem_projetada_ci": [25.3, 31.5],
+      "chamada": false,
+      "swing_vs_2022": -1.9,
+      "top_candidatos": [
+        {
+          "id": 3041,
+          "pct": 51.1
+        },
+        {
+          "id": 3042,
+          "pct": 22.4
+        },
+        {
+          "id": 3043,
+          "pct": 20.8
+        }
+      ],
+      "vai_a_2t": false,
+      "bucket": "decidido_1t"
+    },
+    {
+      "sigla": "BA",
+      "pct_apurado": 40.0,
+      "lider": 3051,
+      "margem_atual": 17.4,
+      "margem_projetada": 16.8,
+      "margem_projetada_ci": [13.5, 19.7],
+      "chamada": false,
+      "swing_vs_2022": 1.6,
+      "top_candidatos": [
+        {
+          "id": 3051,
+          "pct": 37.0
+        },
+        {
+          "id": 3052,
+          "pct": 20.2
+        },
+        {
+          "id": 3053,
+          "pct": 19.2
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "vai_2t"
+    },
+    {
+      "sigla": "CE",
+      "pct_apurado": 71.8,
+      "lider": 3061,
+      "margem_atual": 17.5,
+      "margem_projetada": 17.5,
+      "margem_projetada_ci": [14.5, 19.7],
+      "chamada": false,
+      "swing_vs_2022": 4.2,
+      "top_candidatos": [
+        {
+          "id": 3061,
+          "pct": 47.9
+        },
+        {
+          "id": 3062,
+          "pct": 30.4
+        },
+        {
+          "id": 3063,
+          "pct": 10.6
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "vai_2t"
+    },
+    {
+      "sigla": "DF",
+      "pct_apurado": 88.6,
+      "lider": 3071,
+      "margem_atual": 12.9,
+      "margem_projetada": 12.1,
+      "margem_projetada_ci": [10.0, 14.6],
+      "chamada": false,
+      "swing_vs_2022": -3.3,
+      "top_candidatos": [
+        {
+          "id": 3071,
+          "pct": 44.2
+        },
+        {
+          "id": 3072,
+          "pct": 32.1
+        },
+        {
+          "id": 3073,
+          "pct": 13.6
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "vai_2t"
+    },
+    {
+      "sigla": "ES",
+      "pct_apurado": 45.7,
+      "lider": 3081,
+      "margem_atual": 16.1,
+      "margem_projetada": 15.7,
+      "margem_projetada_ci": [12.3, 18.4],
+      "chamada": false,
+      "swing_vs_2022": -5.3,
+      "top_candidatos": [
+        {
+          "id": 3081,
+          "pct": 39.6
+        },
+        {
+          "id": 3082,
+          "pct": 23.9
+        },
+        {
+          "id": 3083,
+          "pct": 22.9
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "vai_2t"
+    },
+    {
+      "sigla": "GO",
+      "pct_apurado": 13.6,
+      "lider": 3091,
+      "margem_atual": 30.0,
+      "margem_projetada": 31.0,
+      "margem_projetada_ci": [28.7, 34.4],
+      "chamada": false,
+      "swing_vs_2022": 5.6,
+      "top_candidatos": [
+        {
+          "id": 3091,
+          "pct": 58.6
+        },
+        {
+          "id": 3092,
+          "pct": 27.6
+        },
+        {
+          "id": 3093,
+          "pct": 4.4
+        }
+      ],
+      "vai_a_2t": false,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "MA",
+      "pct_apurado": 73.4,
+      "lider": 3101,
+      "margem_atual": 15.8,
+      "margem_projetada": 14.7,
+      "margem_projetada_ci": [12.4, 18.2],
+      "chamada": false,
+      "swing_vs_2022": -1.8,
+      "top_candidatos": [
+        {
+          "id": 3101,
+          "pct": 36.2
+        },
+        {
+          "id": 3102,
+          "pct": 21.5
+        },
+        {
+          "id": 3103,
+          "pct": 20.5
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "vai_2t"
+    },
+    {
+      "sigla": "MT",
+      "pct_apurado": 51.1,
+      "lider": 3111,
+      "margem_atual": 34.9,
+      "margem_projetada": 35.5,
+      "margem_projetada_ci": [32.9, 38.1],
+      "chamada": false,
+      "swing_vs_2022": -2.9,
+      "top_candidatos": [
+        {
+          "id": 3111,
+          "pct": 57.4
+        },
+        {
+          "id": 3112,
+          "pct": 21.9
+        },
+        {
+          "id": 3113,
+          "pct": 10.6
+        }
+      ],
+      "vai_a_2t": false,
+      "bucket": "decidido_1t"
+    },
+    {
+      "sigla": "MS",
+      "pct_apurado": 30.0,
+      "lider": 3121,
+      "margem_atual": 15.7,
+      "margem_projetada": 14.4,
+      "margem_projetada_ci": [11.1, 17.6],
+      "chamada": false,
+      "swing_vs_2022": -2.3,
+      "top_candidatos": [
+        {
+          "id": 3121,
+          "pct": 43.3
+        },
+        {
+          "id": 3122,
+          "pct": 28.9
+        },
+        {
+          "id": 3123,
+          "pct": 16.8
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "MG",
+      "pct_apurado": 48.1,
+      "lider": 3131,
+      "margem_atual": 11.9,
+      "margem_projetada": 13.3,
+      "margem_projetada_ci": [11.1, 16.7],
+      "chamada": false,
+      "swing_vs_2022": -5.0,
+      "top_candidatos": [
+        {
+          "id": 3131,
+          "pct": 46.7
+        },
+        {
+          "id": 3132,
+          "pct": 33.4
+        },
+        {
+          "id": 3133,
+          "pct": 10.5
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "vai_2t"
+    },
+    {
+      "sigla": "PA",
+      "pct_apurado": 24.6,
+      "lider": 3141,
+      "margem_atual": 28.3,
+      "margem_projetada": 29.4,
+      "margem_projetada_ci": [26.1, 31.9],
+      "chamada": false,
+      "swing_vs_2022": -6.6,
+      "top_candidatos": [
+        {
+          "id": 3141,
+          "pct": 53.1
+        },
+        {
+          "id": 3142,
+          "pct": 23.7
+        },
+        {
+          "id": 3143,
+          "pct": 13.6
+        }
+      ],
+      "vai_a_2t": false,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "PB",
+      "pct_apurado": 46.0,
+      "lider": 3151,
+      "margem_atual": 22.7,
+      "margem_projetada": 21.8,
+      "margem_projetada_ci": [20.0, 24.8],
+      "chamada": false,
+      "swing_vs_2022": -2.0,
+      "top_candidatos": [
+        {
+          "id": 3151,
+          "pct": 49.3
+        },
+        {
+          "id": 3152,
+          "pct": 27.5
+        },
+        {
+          "id": 3153,
+          "pct": 18.7
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "vai_2t"
+    },
+    {
+      "sigla": "PR",
+      "pct_apurado": 84.0,
+      "lider": 3161,
+      "margem_atual": 17.9,
+      "margem_projetada": 18.5,
+      "margem_projetada_ci": [16.5, 21.3],
+      "chamada": false,
+      "swing_vs_2022": 1.9,
+      "top_candidatos": [
+        {
+          "id": 3161,
+          "pct": 43.9
+        },
+        {
+          "id": 3162,
+          "pct": 25.4
+        },
+        {
+          "id": 3163,
+          "pct": 18.9
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "vai_2t"
+    },
+    {
+      "sigla": "PE",
+      "pct_apurado": 78.3,
+      "lider": 3171,
+      "margem_atual": 19.6,
+      "margem_projetada": 18.7,
+      "margem_projetada_ci": [15.9, 20.8],
+      "chamada": false,
+      "swing_vs_2022": 2.3,
+      "top_candidatos": [
+        {
+          "id": 3171,
+          "pct": 45.9
+        },
+        {
+          "id": 3172,
+          "pct": 27.2
+        },
+        {
+          "id": 3173,
+          "pct": 22.3
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "vai_2t"
+    },
+    {
+      "sigla": "PI",
+      "pct_apurado": 15.5,
+      "lider": 3181,
+      "margem_atual": 32.0,
+      "margem_projetada": 33.0,
+      "margem_projetada_ci": [30.2, 35.9],
+      "chamada": false,
+      "swing_vs_2022": -2.3,
+      "top_candidatos": [
+        {
+          "id": 3181,
+          "pct": 53.4
+        },
+        {
+          "id": 3182,
+          "pct": 20.4
+        },
+        {
+          "id": 3183,
+          "pct": 19.4
+        }
+      ],
+      "vai_a_2t": false,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "RJ",
+      "pct_apurado": 72.7,
+      "lider": 3191,
+      "margem_atual": 38.5,
+      "margem_projetada": 37.6,
+      "margem_projetada_ci": [35.1, 39.3],
+      "chamada": true,
+      "swing_vs_2022": 0.9,
+      "top_candidatos": [
+        {
+          "id": 3191,
+          "pct": 56.1
+        },
+        {
+          "id": 3192,
+          "pct": 18.5
+        },
+        {
+          "id": 3193,
+          "pct": 16.3
+        }
+      ],
+      "vai_a_2t": false,
+      "bucket": "chamada"
+    },
+    {
+      "sigla": "RN",
+      "pct_apurado": 83.8,
+      "lider": 3201,
+      "margem_atual": 26.1,
+      "margem_projetada": 26.0,
+      "margem_projetada_ci": [23.8, 29.3],
+      "chamada": false,
+      "swing_vs_2022": -4.6,
+      "top_candidatos": [
+        {
+          "id": 3201,
+          "pct": 48.6
+        },
+        {
+          "id": 3202,
+          "pct": 22.6
+        },
+        {
+          "id": 3203,
+          "pct": 21.6
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "vai_2t"
+    },
+    {
+      "sigla": "RS",
+      "pct_apurado": 68.7,
+      "lider": 3211,
+      "margem_atual": 2.5,
+      "margem_projetada": 3.7,
+      "margem_projetada_ci": [0.4, 7.0],
+      "chamada": false,
+      "swing_vs_2022": -0.8,
+      "top_candidatos": [
+        {
+          "id": 3211,
+          "pct": 37.1
+        },
+        {
+          "id": 3212,
+          "pct": 33.4
+        },
+        {
+          "id": 3213,
+          "pct": 22.6
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "vai_2t"
+    },
+    {
+      "sigla": "RO",
+      "pct_apurado": 11.7,
+      "lider": 3221,
+      "margem_atual": 22.6,
+      "margem_projetada": 23.2,
+      "margem_projetada_ci": [21.1, 26.2],
+      "chamada": false,
+      "swing_vs_2022": 6.6,
+      "top_candidatos": [
+        {
+          "id": 3221,
+          "pct": 45.0
+        },
+        {
+          "id": 3222,
+          "pct": 21.8
+        },
+        {
+          "id": 3223,
+          "pct": 20.8
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "RR",
+      "pct_apurado": 56.7,
+      "lider": 3231,
+      "margem_atual": 20.6,
+      "margem_projetada": 20.4,
+      "margem_projetada_ci": [17.2, 22.5],
+      "chamada": false,
+      "swing_vs_2022": -2.9,
+      "top_candidatos": [
+        {
+          "id": 3231,
+          "pct": 41.9
+        },
+        {
+          "id": 3232,
+          "pct": 21.5
+        },
+        {
+          "id": 3233,
+          "pct": 20.5
+        }
+      ],
+      "vai_a_2t": true,
+      "bucket": "vai_2t"
+    },
+    {
+      "sigla": "SC",
+      "pct_apurado": 68.5,
+      "lider": 3241,
+      "margem_atual": 26.1,
+      "margem_projetada": 27.1,
+      "margem_projetada_ci": [24.0, 29.8],
+      "chamada": true,
+      "swing_vs_2022": 4.6,
+      "top_candidatos": [
+        {
+          "id": 3241,
+          "pct": 59.5
+        },
+        {
+          "id": 3242,
+          "pct": 32.4
+        },
+        {
+          "id": 3243,
+          "pct": 2.6
+        }
+      ],
+      "vai_a_2t": false,
+      "bucket": "chamada"
+    },
+    {
+      "sigla": "SP",
+      "pct_apurado": 65.0,
+      "lider": 3251,
+      "margem_atual": 31.7,
+      "margem_projetada": 30.4,
+      "margem_projetada_ci": [28.1, 33.1],
+      "chamada": false,
+      "swing_vs_2022": -5.9,
+      "top_candidatos": [
+        {
+          "id": 3251,
+          "pct": 50.5
+        },
+        {
+          "id": 3252,
+          "pct": 20.1
+        },
+        {
+          "id": 3253,
+          "pct": 19.1
+        }
+      ],
+      "vai_a_2t": false,
+      "bucket": "decidido_1t"
+    },
+    {
+      "sigla": "SE",
+      "pct_apurado": 32.9,
+      "lider": 3261,
+      "margem_atual": 30.9,
+      "margem_projetada": 32.4,
+      "margem_projetada_ci": [29.9, 34.9],
+      "chamada": false,
+      "swing_vs_2022": 2.5,
+      "top_candidatos": [
+        {
+          "id": 3261,
+          "pct": 57.7
+        },
+        {
+          "id": 3262,
+          "pct": 25.3
+        },
+        {
+          "id": 3263,
+          "pct": 5.1
+        }
+      ],
+      "vai_a_2t": false,
+      "bucket": "decidido_1t"
+    },
+    {
+      "sigla": "TO",
+      "pct_apurado": 34.3,
+      "lider": 3271,
+      "margem_atual": 32.0,
+      "margem_projetada": 30.6,
+      "margem_projetada_ci": [28.8, 32.4],
+      "chamada": false,
+      "swing_vs_2022": 3.6,
+      "top_candidatos": [
+        {
+          "id": 3271,
+          "pct": 57.0
+        },
+        {
+          "id": 3272,
+          "pct": 26.4
+        },
+        {
+          "id": 3273,
+          "pct": 6.5
+        }
+      ],
+      "vai_a_2t": false,
+      "bucket": "decidido_1t"
+    }
+  ],
+  "insights": [
+    "Governadores: 27 corridas em apuração — recorte por status no filtro acima.",
+    "14 estados caminham para 2º turno segundo a projeção.",
+    "2 corridas já chamadas para o líder."
+  ],
+  "composition": {
+    "pre_election": 0.31,
+    "model": 0.29,
+    "actual_results": 0.4
+  }
+}

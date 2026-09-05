@@ -189,10 +189,48 @@
     "candidato_b_id": 1002,
     "p_segundo_turno_overall": 0.65,
     "cenarios_2t": [
-      { "par": [1001, 1002], "prob": 0.92 },
-      { "par": [1001, 1003], "prob": 0.05 },
-      { "par": [1002, 1003], "prob": 0.02 }
-    ]
+      {
+        "par": [1001, 1002],
+        "prob": 0.92
+      },
+      {
+        "par": [1001, 1003],
+        "prob": 0.05
+      },
+      {
+        "par": [1002, 1003],
+        "prob": 0.02
+      }
+    ],
+    "participacao": {
+      "abstencao": {
+        "pct_atual": 20.1,
+        "pct_projetado": 21.4,
+        "lower": 19.8,
+        "upper": 23.0,
+        "base": "eleitores_instalados"
+      },
+      "brancos_nulos": {
+        "pct_atual": 6.9,
+        "pct_projetado": 7.3,
+        "lower": 6.6,
+        "upper": 8.1,
+        "base": "comparecimento"
+      },
+      "outros": {
+        "pct_atual": 9.3,
+        "pct_projetado": 9.3,
+        "lower": 8.4,
+        "upper": 10.3,
+        "base": "votaveis",
+        "n_candidatos": 8
+      },
+      "metodo": {
+        "tipo": "extrapolacao_apurado",
+        "n_zonas": 1234,
+        "pct_apurado": 23.4
+      }
+    }
   },
   "por_uf": [
     {
@@ -205,9 +243,18 @@
       "chamada": false,
       "swing_vs_2022": -1.2,
       "top_candidatos": [
-        { "id": 1002, "pct": 49.0 },
-        { "id": 1001, "pct": 38.5 },
-        { "id": 1003, "pct": 5.0 }
+        {
+          "id": 1002,
+          "pct": 49.0
+        },
+        {
+          "id": 1001,
+          "pct": 38.5
+        },
+        {
+          "id": 1003,
+          "pct": 5.0
+        }
       ],
       "vai_a_2t": null,
       "bucket": "indefinido"
@@ -222,9 +269,18 @@
       "chamada": true,
       "swing_vs_2022": 2.0,
       "top_candidatos": [
-        { "id": 1001, "pct": 55.0 },
-        { "id": 1002, "pct": 38.0 },
-        { "id": 1003, "pct": 3.5 }
+        {
+          "id": 1001,
+          "pct": 55.0
+        },
+        {
+          "id": 1002,
+          "pct": 38.0
+        },
+        {
+          "id": 1003,
+          "pct": 3.5
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -239,9 +295,18 @@
       "chamada": false,
       "swing_vs_2022": -0.5,
       "top_candidatos": [
-        { "id": 1001, "pct": 44.6 },
-        { "id": 1002, "pct": 41.4 },
-        { "id": 1004, "pct": 6.0 }
+        {
+          "id": 1001,
+          "pct": 44.6
+        },
+        {
+          "id": 1002,
+          "pct": 41.4
+        },
+        {
+          "id": 1004,
+          "pct": 6.0
+        }
       ],
       "vai_a_2t": null,
       "bucket": "indefinido"
@@ -256,9 +321,18 @@
       "chamada": false,
       "swing_vs_2022": 1.4,
       "top_candidatos": [
-        { "id": 1001, "pct": 43.9 },
-        { "id": 1002, "pct": 42.1 },
-        { "id": 1003, "pct": 5.5 }
+        {
+          "id": 1001,
+          "pct": 43.9
+        },
+        {
+          "id": 1002,
+          "pct": 42.1
+        },
+        {
+          "id": 1003,
+          "pct": 5.5
+        }
       ],
       "vai_a_2t": null,
       "bucket": "indefinido"
@@ -273,9 +347,18 @@
       "chamada": true,
       "swing_vs_2022": 2.8,
       "top_candidatos": [
-        { "id": 1001, "pct": 61.7 },
-        { "id": 1002, "pct": 34.3 },
-        { "id": 1003, "pct": 2.0 }
+        {
+          "id": 1001,
+          "pct": 61.7
+        },
+        {
+          "id": 1002,
+          "pct": 34.3
+        },
+        {
+          "id": 1003,
+          "pct": 2.0
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -290,9 +373,18 @@
       "chamada": true,
       "swing_vs_2022": 1.5,
       "top_candidatos": [
-        { "id": 1001, "pct": 58.75 },
-        { "id": 1002, "pct": 35.25 },
-        { "id": 1003, "pct": 3.0 }
+        {
+          "id": 1001,
+          "pct": 58.75
+        },
+        {
+          "id": 1002,
+          "pct": 35.25
+        },
+        {
+          "id": 1003,
+          "pct": 3.0
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -307,9 +399,18 @@
       "chamada": false,
       "swing_vs_2022": -1.0,
       "top_candidatos": [
-        { "id": 1002, "pct": 46.6 },
-        { "id": 1001, "pct": 39.4 },
-        { "id": 1006, "pct": 5.0 }
+        {
+          "id": 1002,
+          "pct": 46.6
+        },
+        {
+          "id": 1001,
+          "pct": 39.4
+        },
+        {
+          "id": 1006,
+          "pct": 5.0
+        }
       ],
       "vai_a_2t": null,
       "bucket": "indefinido"
@@ -324,9 +425,18 @@
       "chamada": true,
       "swing_vs_2022": -0.8,
       "top_candidatos": [
-        { "id": 1002, "pct": 53.0 },
-        { "id": 1001, "pct": 39.5 },
-        { "id": 1003, "pct": 3.5 }
+        {
+          "id": 1002,
+          "pct": 53.0
+        },
+        {
+          "id": 1001,
+          "pct": 39.5
+        },
+        {
+          "id": 1003,
+          "pct": 3.5
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -341,9 +451,18 @@
       "chamada": true,
       "swing_vs_2022": 0.5,
       "top_candidatos": [
-        { "id": 1002, "pct": 56.7 },
-        { "id": 1001, "pct": 37.3 },
-        { "id": 1003, "pct": 3.5 }
+        {
+          "id": 1002,
+          "pct": 56.7
+        },
+        {
+          "id": 1001,
+          "pct": 37.3
+        },
+        {
+          "id": 1003,
+          "pct": 3.5
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -358,9 +477,18 @@
       "chamada": true,
       "swing_vs_2022": 1.0,
       "top_candidatos": [
-        { "id": 1001, "pct": 63.5 },
-        { "id": 1002, "pct": 32.5 },
-        { "id": 1003, "pct": 2.0 }
+        {
+          "id": 1001,
+          "pct": 63.5
+        },
+        {
+          "id": 1002,
+          "pct": 32.5
+        },
+        {
+          "id": 1003,
+          "pct": 2.0
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -375,9 +503,18 @@
       "chamada": true,
       "swing_vs_2022": -0.7,
       "top_candidatos": [
-        { "id": 1002, "pct": 57.75 },
-        { "id": 1001, "pct": 36.25 },
-        { "id": 1003, "pct": 3.5 }
+        {
+          "id": 1002,
+          "pct": 57.75
+        },
+        {
+          "id": 1001,
+          "pct": 36.25
+        },
+        {
+          "id": 1003,
+          "pct": 3.5
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -392,9 +529,18 @@
       "chamada": true,
       "swing_vs_2022": 1.1,
       "top_candidatos": [
-        { "id": 1002, "pct": 54.75 },
-        { "id": 1001, "pct": 39.25 },
-        { "id": 1003, "pct": 3.5 }
+        {
+          "id": 1002,
+          "pct": 54.75
+        },
+        {
+          "id": 1001,
+          "pct": 39.25
+        },
+        {
+          "id": 1003,
+          "pct": 3.5
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -409,9 +555,18 @@
       "chamada": false,
       "swing_vs_2022": 4.2,
       "top_candidatos": [
-        { "id": 1001, "pct": 45.0 },
-        { "id": 1002, "pct": 41.0 },
-        { "id": 1003, "pct": 5.0 }
+        {
+          "id": 1001,
+          "pct": 45.0
+        },
+        {
+          "id": 1002,
+          "pct": 41.0
+        },
+        {
+          "id": 1003,
+          "pct": 5.0
+        }
       ],
       "vai_a_2t": null,
       "bucket": "indefinido"
@@ -426,9 +581,18 @@
       "chamada": false,
       "swing_vs_2022": -2.0,
       "top_candidatos": [
-        { "id": 1002, "pct": 44.2 },
-        { "id": 1001, "pct": 41.8 },
-        { "id": 1003, "pct": 4.5 }
+        {
+          "id": 1002,
+          "pct": 44.2
+        },
+        {
+          "id": 1001,
+          "pct": 41.8
+        },
+        {
+          "id": 1003,
+          "pct": 4.5
+        }
       ],
       "vai_a_2t": null,
       "bucket": "indefinido"
@@ -443,9 +607,18 @@
       "chamada": true,
       "swing_vs_2022": 1.8,
       "top_candidatos": [
-        { "id": 1001, "pct": 52.75 },
-        { "id": 1002, "pct": 41.25 },
-        { "id": 1003, "pct": 3.5 }
+        {
+          "id": 1001,
+          "pct": 52.75
+        },
+        {
+          "id": 1002,
+          "pct": 41.25
+        },
+        {
+          "id": 1003,
+          "pct": 3.5
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -460,9 +633,18 @@
       "chamada": false,
       "swing_vs_2022": 3.8,
       "top_candidatos": [
-        { "id": 1002, "pct": 47.7 },
-        { "id": 1001, "pct": 42.3 },
-        { "id": 1006, "pct": 5.0 }
+        {
+          "id": 1002,
+          "pct": 47.7
+        },
+        {
+          "id": 1001,
+          "pct": 42.3
+        },
+        {
+          "id": 1006,
+          "pct": 5.0
+        }
       ],
       "vai_a_2t": null,
       "bucket": "indefinido"
@@ -477,9 +659,18 @@
       "chamada": true,
       "swing_vs_2022": -1.5,
       "top_candidatos": [
-        { "id": 1001, "pct": 53.7 },
-        { "id": 1002, "pct": 40.3 },
-        { "id": 1003, "pct": 3.5 }
+        {
+          "id": 1001,
+          "pct": 53.7
+        },
+        {
+          "id": 1002,
+          "pct": 40.3
+        },
+        {
+          "id": 1003,
+          "pct": 3.5
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -494,9 +685,18 @@
       "chamada": true,
       "swing_vs_2022": 0.4,
       "top_candidatos": [
-        { "id": 1001, "pct": 59.75 },
-        { "id": 1002, "pct": 34.25 },
-        { "id": 1003, "pct": 3.5 }
+        {
+          "id": 1001,
+          "pct": 59.75
+        },
+        {
+          "id": 1002,
+          "pct": 34.25
+        },
+        {
+          "id": 1003,
+          "pct": 3.5
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -511,9 +711,18 @@
       "chamada": false,
       "swing_vs_2022": 5.1,
       "top_candidatos": [
-        { "id": 1002, "pct": 44.4 },
-        { "id": 1001, "pct": 41.6 },
-        { "id": 1003, "pct": 5.5 }
+        {
+          "id": 1002,
+          "pct": 44.4
+        },
+        {
+          "id": 1001,
+          "pct": 41.6
+        },
+        {
+          "id": 1003,
+          "pct": 5.5
+        }
       ],
       "vai_a_2t": null,
       "bucket": "indefinido"
@@ -528,9 +737,18 @@
       "chamada": true,
       "swing_vs_2022": 1.0,
       "top_candidatos": [
-        { "id": 1001, "pct": 54.75 },
-        { "id": 1002, "pct": 39.25 },
-        { "id": 1003, "pct": 3.5 }
+        {
+          "id": 1001,
+          "pct": 54.75
+        },
+        {
+          "id": 1002,
+          "pct": 39.25
+        },
+        {
+          "id": 1003,
+          "pct": 3.5
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -545,9 +763,18 @@
       "chamada": false,
       "swing_vs_2022": 3.4,
       "top_candidatos": [
-        { "id": 1002, "pct": 43.9 },
-        { "id": 1001, "pct": 42.1 },
-        { "id": 1006, "pct": 5.0 }
+        {
+          "id": 1002,
+          "pct": 43.9
+        },
+        {
+          "id": 1001,
+          "pct": 42.1
+        },
+        {
+          "id": 1006,
+          "pct": 5.0
+        }
       ],
       "vai_a_2t": null,
       "bucket": "indefinido"
@@ -562,9 +789,18 @@
       "chamada": true,
       "swing_vs_2022": 0.2,
       "top_candidatos": [
-        { "id": 1002, "pct": 56.5 },
-        { "id": 1001, "pct": 37.5 },
-        { "id": 1003, "pct": 3.0 }
+        {
+          "id": 1002,
+          "pct": 56.5
+        },
+        {
+          "id": 1001,
+          "pct": 37.5
+        },
+        {
+          "id": 1003,
+          "pct": 3.0
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -579,9 +815,18 @@
       "chamada": true,
       "swing_vs_2022": -0.6,
       "top_candidatos": [
-        { "id": 1002, "pct": 54.5 },
-        { "id": 1001, "pct": 39.5 },
-        { "id": 1003, "pct": 3.0 }
+        {
+          "id": 1002,
+          "pct": 54.5
+        },
+        {
+          "id": 1001,
+          "pct": 39.5
+        },
+        {
+          "id": 1003,
+          "pct": 3.0
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -596,9 +841,18 @@
       "chamada": true,
       "swing_vs_2022": 2.6,
       "top_candidatos": [
-        { "id": 1002, "pct": 50.6 },
-        { "id": 1001, "pct": 41.4 },
-        { "id": 1006, "pct": 5.0 }
+        {
+          "id": 1002,
+          "pct": 50.6
+        },
+        {
+          "id": 1001,
+          "pct": 41.4
+        },
+        {
+          "id": 1006,
+          "pct": 5.0
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -613,9 +867,18 @@
       "chamada": false,
       "swing_vs_2022": 4.8,
       "top_candidatos": [
-        { "id": 1001, "pct": 45.3 },
-        { "id": 1002, "pct": 40.7 },
-        { "id": 1003, "pct": 6.0 }
+        {
+          "id": 1001,
+          "pct": 45.3
+        },
+        {
+          "id": 1002,
+          "pct": 40.7
+        },
+        {
+          "id": 1003,
+          "pct": 6.0
+        }
       ],
       "vai_a_2t": null,
       "bucket": "indefinido"
@@ -630,9 +893,18 @@
       "chamada": true,
       "swing_vs_2022": 0.7,
       "top_candidatos": [
-        { "id": 1001, "pct": 53.75 },
-        { "id": 1002, "pct": 40.25 },
-        { "id": 1003, "pct": 3.5 }
+        {
+          "id": 1001,
+          "pct": 53.75
+        },
+        {
+          "id": 1002,
+          "pct": 40.25
+        },
+        {
+          "id": 1003,
+          "pct": 3.5
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"
@@ -647,9 +919,18 @@
       "chamada": true,
       "swing_vs_2022": -0.4,
       "top_candidatos": [
-        { "id": 1002, "pct": 51.7 },
-        { "id": 1001, "pct": 40.3 },
-        { "id": 1003, "pct": 4.5 }
+        {
+          "id": 1002,
+          "pct": 51.7
+        },
+        {
+          "id": 1001,
+          "pct": 40.3
+        },
+        {
+          "id": 1003,
+          "pct": 4.5
+        }
       ],
       "vai_a_2t": null,
       "bucket": "chamada"

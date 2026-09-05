@@ -1,0 +1,666 @@
+{
+  "ts": "2026-10-25T18:41:07-03:00",
+  "cargo": 1,
+  "turno": 2,
+  "pct_apurado_total": 41.7,
+  "ufs_apuradas": 22,
+  "national": {
+    "candidatos": [
+      {
+        "id": 1001,
+        "nome": "Candidato PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 28450120,
+        "votos_projetados": 61800000,
+        "pct_atual": 51.8,
+        "pct_projetado": 51.2,
+        "pct_projetado_lower": 50.1,
+        "pct_projetado_upper": 52.3,
+        "p_vitoria": 0.83,
+        "rank": 1,
+        "p_passa_2t": 0.83,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 1002,
+        "nome": "Candidato PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 26470310,
+        "votos_projetados": 58900000,
+        "pct_atual": 48.2,
+        "pct_projetado": 48.8,
+        "pct_projetado_lower": 47.7,
+        "pct_projetado_upper": 49.9,
+        "p_vitoria": 0.17,
+        "rank": 2,
+        "p_passa_2t": 0.17,
+        "p_fecha_1t": 0.0
+      }
+    ],
+    "needle_position": 0.31,
+    "needle_band": "lean_a",
+    "candidato_a_id": 1001,
+    "candidato_b_id": 1002,
+    "p_segundo_turno_overall": null,
+    "cenarios_2t": [],
+    "chamadas_recentes": [
+      {
+        "ts": "2026-10-25T18:39:00-03:00",
+        "texto": "BA chamada para o Candidato PT (PT)."
+      },
+      {
+        "ts": "2026-10-25T18:22:00-03:00",
+        "texto": "SC chamada para o Candidato PL (PL)."
+      }
+    ],
+    "vai_a_2t_nacional": null
+  },
+  "por_uf": [
+    {
+      "sigla": "AC",
+      "pct_apurado": 19.9,
+      "lider": 1001,
+      "margem_atual": 12.8,
+      "margem_projetada": 12.8,
+      "margem_projetada_ci": [9.1, 14.6],
+      "chamada": false,
+      "swing_vs_2022": -3.3,
+      "top_candidatos": [
+        {
+          "id": 1001,
+          "pct": 56.4
+        },
+        {
+          "id": 1002,
+          "pct": 43.6
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "AL",
+      "pct_apurado": 51.7,
+      "lider": 1002,
+      "margem_atual": 14.0,
+      "margem_projetada": 15.1,
+      "margem_projetada_ci": [12.2, 18.4],
+      "chamada": false,
+      "swing_vs_2022": 3.2,
+      "top_candidatos": [
+        {
+          "id": 1002,
+          "pct": 57.5
+        },
+        {
+          "id": 1001,
+          "pct": 42.5
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "AP",
+      "pct_apurado": 61.6,
+      "lider": 1001,
+      "margem_atual": 14.7,
+      "margem_projetada": 13.7,
+      "margem_projetada_ci": [10.7, 15.5],
+      "chamada": true,
+      "swing_vs_2022": 3.8,
+      "top_candidatos": [
+        {
+          "id": 1001,
+          "pct": 56.9
+        },
+        {
+          "id": 1002,
+          "pct": 43.1
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
+    },
+    {
+      "sigla": "AM",
+      "pct_apurado": 41.7,
+      "lider": 1002,
+      "margem_atual": 19.8,
+      "margem_projetada": 20.5,
+      "margem_projetada_ci": [17.3, 22.5],
+      "chamada": false,
+      "swing_vs_2022": -3.0,
+      "top_candidatos": [
+        {
+          "id": 1002,
+          "pct": 60.2
+        },
+        {
+          "id": 1001,
+          "pct": 39.8
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "BA",
+      "pct_apurado": 76.7,
+      "lider": 1001,
+      "margem_atual": 22.4,
+      "margem_projetada": 23.6,
+      "margem_projetada_ci": [19.6, 26.4],
+      "chamada": true,
+      "swing_vs_2022": -5.1,
+      "top_candidatos": [
+        {
+          "id": 1001,
+          "pct": 61.8
+        },
+        {
+          "id": 1002,
+          "pct": 38.2
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
+    },
+    {
+      "sigla": "CE",
+      "pct_apurado": 34.5,
+      "lider": 1002,
+      "margem_atual": 14.0,
+      "margem_projetada": 13.2,
+      "margem_projetada_ci": [10.6, 16.9],
+      "chamada": false,
+      "swing_vs_2022": 2.4,
+      "top_candidatos": [
+        {
+          "id": 1002,
+          "pct": 56.6
+        },
+        {
+          "id": 1001,
+          "pct": 43.4
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "DF",
+      "pct_apurado": 50.1,
+      "lider": 1001,
+      "margem_atual": 2.1,
+      "margem_projetada": 2.9,
+      "margem_projetada_ci": [0.5, 5.5],
+      "chamada": false,
+      "swing_vs_2022": -1.2,
+      "top_candidatos": [
+        {
+          "id": 1001,
+          "pct": 51.5
+        },
+        {
+          "id": 1002,
+          "pct": 48.5
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "ES",
+      "pct_apurado": 50.7,
+      "lider": 1002,
+      "margem_atual": 12.7,
+      "margem_projetada": 11.2,
+      "margem_projetada_ci": [8.4, 14.6],
+      "chamada": false,
+      "swing_vs_2022": 1.2,
+      "top_candidatos": [
+        {
+          "id": 1002,
+          "pct": 55.6
+        },
+        {
+          "id": 1001,
+          "pct": 44.4
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "GO",
+      "pct_apurado": 44.4,
+      "lider": 1001,
+      "margem_atual": 22.1,
+      "margem_projetada": 21.1,
+      "margem_projetada_ci": [18.6, 24.9],
+      "chamada": false,
+      "swing_vs_2022": -0.2,
+      "top_candidatos": [
+        {
+          "id": 1001,
+          "pct": 60.5
+        },
+        {
+          "id": 1002,
+          "pct": 39.5
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "MA",
+      "pct_apurado": 46.2,
+      "lider": 1002,
+      "margem_atual": 2.1,
+      "margem_projetada": 1.0,
+      "margem_projetada_ci": [-0.8, 2.6],
+      "chamada": false,
+      "swing_vs_2022": 2.5,
+      "top_candidatos": [
+        {
+          "id": 1002,
+          "pct": 50.5
+        },
+        {
+          "id": 1001,
+          "pct": 49.5
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "MT",
+      "pct_apurado": 70.5,
+      "lider": 1001,
+      "margem_atual": 3.8,
+      "margem_projetada": 4.3,
+      "margem_projetada_ci": [1.6, 7.0],
+      "chamada": false,
+      "swing_vs_2022": -3.3,
+      "top_candidatos": [
+        {
+          "id": 1001,
+          "pct": 52.1
+        },
+        {
+          "id": 1002,
+          "pct": 47.9
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "MS",
+      "pct_apurado": 70.5,
+      "lider": 1002,
+      "margem_atual": 15.6,
+      "margem_projetada": 15.4,
+      "margem_projetada_ci": [12.7, 19.2],
+      "chamada": true,
+      "swing_vs_2022": 5.8,
+      "top_candidatos": [
+        {
+          "id": 1002,
+          "pct": 57.7
+        },
+        {
+          "id": 1001,
+          "pct": 42.3
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
+    },
+    {
+      "sigla": "MG",
+      "pct_apurado": 48.0,
+      "lider": 1001,
+      "margem_atual": 14.1,
+      "margem_projetada": 14.8,
+      "margem_projetada_ci": [12.5, 18.3],
+      "chamada": false,
+      "swing_vs_2022": 0.0,
+      "top_candidatos": [
+        {
+          "id": 1001,
+          "pct": 57.4
+        },
+        {
+          "id": 1002,
+          "pct": 42.6
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "PA",
+      "pct_apurado": 43.6,
+      "lider": 1002,
+      "margem_atual": 21.4,
+      "margem_projetada": 21.1,
+      "margem_projetada_ci": [18.9, 23.3],
+      "chamada": false,
+      "swing_vs_2022": -5.6,
+      "top_candidatos": [
+        {
+          "id": 1002,
+          "pct": 60.5
+        },
+        {
+          "id": 1001,
+          "pct": 39.5
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "PB",
+      "pct_apurado": 55.3,
+      "lider": 1001,
+      "margem_atual": 14.9,
+      "margem_projetada": 14.7,
+      "margem_projetada_ci": [11.9, 17.4],
+      "chamada": false,
+      "swing_vs_2022": 5.1,
+      "top_candidatos": [
+        {
+          "id": 1001,
+          "pct": 57.4
+        },
+        {
+          "id": 1002,
+          "pct": 42.6
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "PR",
+      "pct_apurado": 29.2,
+      "lider": 1002,
+      "margem_atual": 12.4,
+      "margem_projetada": 12.4,
+      "margem_projetada_ci": [8.8, 15.9],
+      "chamada": false,
+      "swing_vs_2022": 0.7,
+      "top_candidatos": [
+        {
+          "id": 1002,
+          "pct": 56.2
+        },
+        {
+          "id": 1001,
+          "pct": 43.8
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "PE",
+      "pct_apurado": 71.9,
+      "lider": 1001,
+      "margem_atual": 20.2,
+      "margem_projetada": 19.5,
+      "margem_projetada_ci": [15.7, 21.2],
+      "chamada": true,
+      "swing_vs_2022": 2.3,
+      "top_candidatos": [
+        {
+          "id": 1001,
+          "pct": 59.8
+        },
+        {
+          "id": 1002,
+          "pct": 40.2
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
+    },
+    {
+      "sigla": "PI",
+      "pct_apurado": 63.8,
+      "lider": 1002,
+      "margem_atual": 13.1,
+      "margem_projetada": 12.9,
+      "margem_projetada_ci": [9.0, 16.8],
+      "chamada": true,
+      "swing_vs_2022": 4.1,
+      "top_candidatos": [
+        {
+          "id": 1002,
+          "pct": 56.5
+        },
+        {
+          "id": 1001,
+          "pct": 43.5
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
+    },
+    {
+      "sigla": "RJ",
+      "pct_apurado": 43.6,
+      "lider": 1001,
+      "margem_atual": 2.9,
+      "margem_projetada": 2.0,
+      "margem_projetada_ci": [-0.7, 3.7],
+      "chamada": false,
+      "swing_vs_2022": 3.0,
+      "top_candidatos": [
+        {
+          "id": 1001,
+          "pct": 51.0
+        },
+        {
+          "id": 1002,
+          "pct": 49.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "RN",
+      "pct_apurado": 39.1,
+      "lider": 1002,
+      "margem_atual": 11.6,
+      "margem_projetada": 9.7,
+      "margem_projetada_ci": [8.2, 12.7],
+      "chamada": false,
+      "swing_vs_2022": 5.2,
+      "top_candidatos": [
+        {
+          "id": 1002,
+          "pct": 54.9
+        },
+        {
+          "id": 1001,
+          "pct": 45.1
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "RS",
+      "pct_apurado": 17.5,
+      "lider": 1001,
+      "margem_atual": 19.4,
+      "margem_projetada": 18.4,
+      "margem_projetada_ci": [15.3, 21.8],
+      "chamada": false,
+      "swing_vs_2022": 5.5,
+      "top_candidatos": [
+        {
+          "id": 1001,
+          "pct": 59.2
+        },
+        {
+          "id": 1002,
+          "pct": 40.8
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "RO",
+      "pct_apurado": 56.1,
+      "lider": 1002,
+      "margem_atual": 15.8,
+      "margem_projetada": 14.4,
+      "margem_projetada_ci": [12.1, 17.4],
+      "chamada": false,
+      "swing_vs_2022": 3.2,
+      "top_candidatos": [
+        {
+          "id": 1002,
+          "pct": 57.2
+        },
+        {
+          "id": 1001,
+          "pct": 42.8
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "RR",
+      "pct_apurado": 74.7,
+      "lider": 1001,
+      "margem_atual": 12.6,
+      "margem_projetada": 13.5,
+      "margem_projetada_ci": [11.7, 15.6],
+      "chamada": true,
+      "swing_vs_2022": 1.1,
+      "top_candidatos": [
+        {
+          "id": 1001,
+          "pct": 56.8
+        },
+        {
+          "id": 1002,
+          "pct": 43.2
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
+    },
+    {
+      "sigla": "SC",
+      "pct_apurado": 75.2,
+      "lider": 1002,
+      "margem_atual": 21.2,
+      "margem_projetada": 21.2,
+      "margem_projetada_ci": [19.5, 24.4],
+      "chamada": true,
+      "swing_vs_2022": 5.2,
+      "top_candidatos": [
+        {
+          "id": 1002,
+          "pct": 60.6
+        },
+        {
+          "id": 1001,
+          "pct": 39.4
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
+    },
+    {
+      "sigla": "SP",
+      "pct_apurado": 63.7,
+      "lider": 1001,
+      "margem_atual": 22.1,
+      "margem_projetada": 21.3,
+      "margem_projetada_ci": [18.8, 24.8],
+      "chamada": true,
+      "swing_vs_2022": 0.2,
+      "top_candidatos": [
+        {
+          "id": 1001,
+          "pct": 60.6
+        },
+        {
+          "id": 1002,
+          "pct": 39.4
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "chamada"
+    },
+    {
+      "sigla": "SE",
+      "pct_apurado": 25.0,
+      "lider": 1002,
+      "margem_atual": 1.8,
+      "margem_projetada": 0.2,
+      "margem_projetada_ci": [-3.5, 1.8],
+      "chamada": false,
+      "swing_vs_2022": -1.8,
+      "top_candidatos": [
+        {
+          "id": 1002,
+          "pct": 50.1
+        },
+        {
+          "id": 1001,
+          "pct": 49.9
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "TO",
+      "pct_apurado": 35.3,
+      "lider": 1001,
+      "margem_atual": 18.8,
+      "margem_projetada": 16.9,
+      "margem_projetada_ci": [14.1, 19.2],
+      "chamada": false,
+      "swing_vs_2022": -2.4,
+      "top_candidatos": [
+        {
+          "id": 1001,
+          "pct": 58.5
+        },
+        {
+          "id": 1002,
+          "pct": 41.5
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    }
+  ],
+  "insights": [
+    "Candidato PT (PT) lidera o 2º turno com 51,2% projetados — intervalo [50,1; 52,3].",
+    "22 das 27 UFs já reportaram boletins; margem nacional dentro de 2,4 pp.",
+    "Nenhuma virada registrada nas últimas 3 rodadas do modelo."
+  ],
+  "composition": {
+    "pre_election": 0.18,
+    "model": 0.24,
+    "actual_results": 0.58
+  }
+}

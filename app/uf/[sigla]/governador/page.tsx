@@ -20,13 +20,19 @@
  *   - Constituição § 2 (cores via tokens, paleta multi-partido),
  *     § 3 (degrade gracioso), § 8 (transparência K-1).
  *
+ * S07/Fase 2
+ *   - Dispatch de modo (`binary` | `multi-1t`) com a mesma regra da home;
+ *     em `multi-1t` os seis termômetros (ADR-0018) abrem a página.
+ *   - Trilha governador: `<main data-trilha="gov">`, `<RaceHeader />` com
+ *     kicker "GOVERNADOR · <UF>" e breadcrumb "Governadores › <UF>"
+ *     (ADR-0019 — a trilha de governador não tem nó nacional).
+ *
  * ISR: cadência 60s (ADR-0011).
  */
 
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { WinnerBanner } from "@/components/atoms/banners/WinnerBanner";
 import { ProbabilityOverTime } from "@/components/atoms/charts/ProbabilityOverTime";
 import { TimeSeriesChart } from "@/components/atoms/charts/TimeSeriesChart";
@@ -38,12 +44,19 @@ import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { InsightCard } from "@/components/blocks/InsightCard";
 import { type MunicipioRow, MunicipioTable } from "@/components/blocks/MunicipioTable";
 import { MunicipioWaffleGrid } from "@/components/blocks/MunicipioWaffleGrid";
+import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
 import { UfLeaderMapLazy, UfMapDuoLazy } from "@/components/blocks/UfMapsLazy";
 import { Footer } from "@/components/layout/Footer";
-import { LiveBadge } from "@/components/layout/LiveBadge";
+import { RaceHeader } from "@/components/layout/RaceHeader";
 import { readUfProjection } from "@/lib/edge-config/reader";
-import type { EdgePayloadUf, EdgeUfCandidate, EdgeUfMunicipio } from "@/lib/edge-config/types";
+import type {
+  EdgePayload,
+  EdgePayloadUf,
+  EdgeUfCandidate,
+  EdgeUfMunicipio,
+} from "@/lib/edge-config/types";
 import { rankFromColorVar } from "@/lib/utils/cand-color";
+import govFixture from "@/tests/fixtures/edge-config/gov-current.json" with { type: "json" };
 
 export const revalidate = 60;
 
@@ -153,6 +166,60 @@ function readModelFallbackTier(payload: EdgePayloadUf): number | null {
   return payload.model_fallback_tier ?? null;
 }
 
+/**
+ * Sintetiza um `EdgePayloadUf` de governador a partir da fixture nacional de
+ * gov — espelho de `synthesizeUfFromNational` na rota presidencial. Só roda
+ * fora de produção e só quando o reader devolve null (dev/preview sem
+ * `EDGE_CONFIG`), para a página renderizar completa em `pnpm dev`.
+ */
+function synthesizeGovUfFromFixture(sigla: string): EdgePayloadUf | null {
+  const fixture = govFixture as unknown as EdgePayload;
+  const row = fixture.por_uf.find((u) => u.sigla === sigla);
+  if (!row) return null;
+
+  const ids = new Set((row.top_candidatos ?? []).map((t) => t.id));
+  const candidatos: EdgeUfCandidate[] = fixture.national.candidatos
+    .filter((c) => ids.has(c.id))
+    .map((c) => ({
+      id: c.id,
+      nome: c.nome,
+      partido: c.partido,
+      cor: c.cor,
+      votos_atuais: c.votos_atuais,
+      votos_projetados: c.votos_projetados,
+      pct_atual: c.pct_atual,
+      pct_projetado: c.pct_projetado,
+      ci95: { lower: c.pct_projetado_lower, upper: c.pct_projetado_upper },
+    }));
+  if (candidatos.length === 0) return null;
+
+  return {
+    uf: sigla,
+    ts: fixture.ts,
+    cargo: 3,
+    turno: fixture.turno,
+    pct_apurado: row.pct_apurado,
+    candidatos,
+    // Dev-only: a participação nacional da fixture serve de stand-in; em
+    // produção o payload da UF traz o bloco das zonas da própria UF.
+    participacao: fixture.national.participacao,
+    needle_position: 0.3,
+    needle_band: "lean_a",
+    municipios: [],
+    series_temporais: { margem: [], p_vitoria: [], turnout: [] },
+  };
+}
+
+/** Breadcrumb da trilha governador — sem nó nacional (ADR-0019). */
+function govBreadcrumb(sigla: string) {
+  return (
+    <UFBreadcrumb
+      trilha="gov"
+      items={[{ label: "Governadores", href: "/governador" }, { label: sigla }]}
+    />
+  );
+}
+
 export default async function UFGovernadorPage({ params }: UFGovernadorPageProps) {
   const { sigla: raw } = await params;
   const sigla = raw.toUpperCase();
@@ -163,12 +230,21 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
 
   // Leitura específica: cargo=gov, turno=1 default (orchestrator alterna
   // pra turno=2 via chave dinâmica em S07).
-  const payload = await readUfProjection(sigla, { cargo: "gov", turno: 1 });
+  let payload = await readUfProjection(sigla, { cargo: "gov", turno: 1 });
+
+  // Só em `pnpm dev`: em teste (NODE_ENV=test) e em produção o caminho
+  // "Aguardando dados" continua sendo exercitado de verdade.
+  if (!payload && process.env.NODE_ENV === "development") {
+    payload = synthesizeGovUfFromFixture(sigla);
+  }
 
   if (!payload) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-[1280px] flex-col px-5 py-6">
-        <UFBreadcrumb href="/governador" label="‹ Voltar à lista de governadores" />
+      <main
+        data-trilha="gov"
+        className="mx-auto flex min-h-screen max-w-[1280px] flex-col px-5 py-6"
+      >
+        {govBreadcrumb(sigla)}
         <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
           Governador {sigla} — Aguardando dados
         </h1>
@@ -214,23 +290,27 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
     p_fecha_1t: 0,
   }));
 
+  // Mesma regra de dispatch da home e da UF presidencial (S07/Fase 2).
+  const mode: "binary" | "multi-1t" =
+    payload.turno === 2 || payload.candidatos.length === 2 ? "binary" : "multi-1t";
+
   const mesorregioes = payload.mesorregioes ?? [];
   const modelTier = readModelFallbackTier(payload);
   const k1Disclaimer = modelTier != null && modelTier >= 2;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-[1280px] flex-col gap-6 px-5 py-6">
-      <UFBreadcrumb href="/governador" label="‹ Voltar à lista de governadores" />
-
-      <header className="flex flex-wrap items-baseline justify-between gap-4">
-        <h1 className="text-3xl leading-tight" style={{ fontFamily: "var(--font-serif)" }}>
-          Governador {sigla} — Apuração 2026
-        </h1>
-        <div className="flex flex-wrap items-center gap-3">
-          <LiveBadge active={payload.pct_apurado > 0 && payload.pct_apurado < 100} />
-          <TurnoBadge turno={payload.turno} />
-        </div>
-      </header>
+    <main
+      data-trilha="gov"
+      className="mx-auto flex min-h-screen max-w-[1280px] flex-col gap-6 px-5 py-6"
+    >
+      <RaceHeader
+        trilha="gov"
+        crumbs={[sigla]}
+        titulo={`Governador ${sigla} — Apuração 2026`}
+        liveActive={payload.pct_apurado > 0 && payload.pct_apurado < 100}
+        turno={payload.turno}
+        breadcrumb={govBreadcrumb(sigla)}
+      />
 
       {/* K-1 disclaimer (ADR-0015 + constituição § 8) — banner sobre o hero
           quando bloco político não tem mapping 2022 confiável. */}
@@ -263,6 +343,16 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
           ufSigla={sigla}
           cor={lider.cor}
           rank={rankFromColorVar(lider.cor)}
+        />
+      )}
+
+      {/* Hero 1T — seis termômetros (ADR-0018). Em 2T (mode binary) a
+          corrida é literalmente binária e o layout segue como em S06. */}
+      {mode === "multi-1t" && (
+        <ProjectionThermometers
+          candidatos={sortedCandidatos}
+          participacao={payload.participacao}
+          heading={`Projeção do 1º turno — Governador ${sigla}`}
         />
       )}
 

@@ -19,13 +19,13 @@
  */
 
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import GovernadorGridPage from "@/app/governador/page";
 import type { EdgePayload, EdgeUfRow } from "@/lib/edge-config/types";
 
 // Helper pra construir um payload de governador com bucket diverso.
-function buildPayload(buckets: Array<EdgeUfRow["bucket"]>): EdgePayload {
+function buildPayload(buckets: Array<EdgeUfRow["bucket"]>, comParticipacao = true): EdgePayload {
   const candidatos = [
     {
       id: 1,
@@ -105,7 +105,7 @@ function buildPayload(buckets: Array<EdgeUfRow["bucket"]>): EdgePayload {
     vai_a_2t: null,
     bucket: buckets[i % buckets.length] ?? "indefinido",
   }));
-  return {
+  const payload: EdgePayload = {
     ts: "2026-10-04T17:30:00-03:00",
     cargo: 3,
     turno: 1,
@@ -127,7 +127,29 @@ function buildPayload(buckets: Array<EdgeUfRow["bucket"]>): EdgePayload {
     insights: [],
     composition: { pre_election: 0.4, model: 0.3, actual_results: 0.3 },
   };
+  if (comParticipacao) {
+    payload.national.participacao = {
+      abstencao: {
+        pct_atual: 21.6,
+        pct_projetado: 22.4,
+        lower: 20.9,
+        upper: 23.9,
+        base: "eleitores_instalados",
+      },
+      brancos_nulos: {
+        pct_atual: 7.8,
+        pct_projetado: 8.1,
+        lower: 7.3,
+        upper: 9.0,
+        base: "comparecimento",
+      },
+    };
+  }
+  return payload;
 }
+
+/** Alternado por teste — permite exercitar o payload sem `participacao`. */
+let comParticipacao = true;
 
 vi.mock("@/lib/edge-config/reader", () => ({
   readProjection: vi.fn(async (opts?: { cargo?: string }) => {
@@ -137,7 +159,7 @@ vi.mock("@/lib/edge-config/reader", () => ({
       for (let i = 0; i < 9; i++) buckets.push("decidido_1t");
       for (let i = 0; i < 14; i++) buckets.push("vai_2t");
       for (let i = 0; i < 4; i++) buckets.push("indefinido");
-      return buildPayload(buckets);
+      return buildPayload(buckets, comParticipacao);
     }
     return null;
   }),
@@ -147,6 +169,10 @@ vi.mock("@/lib/edge-config/reader", () => ({
 }));
 
 describe("GovernadorGridPage (integration / smoke)", () => {
+  beforeEach(() => {
+    comParticipacao = true;
+  });
+
   it("(a) renderiza header 'Governadores 2026'", async () => {
     const node = await GovernadorGridPage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);
@@ -222,5 +248,50 @@ describe("GovernadorGridPage (integration / smoke)", () => {
     const html = renderToStaticMarkup(node);
     expect(html).toContain("Não oficial");
     expect(html).toContain("TSE");
+  });
+
+  // -------------------------------------------------------------------------
+  // S07/Fase 2 — ADR-0018 (participação) + ADR-0019 (trilha gov).
+  // -------------------------------------------------------------------------
+
+  it("(i) trilha governador: main[data-trilha=gov] + kicker 'GOVERNADOR · Brasil (27 UFs)'", async () => {
+    const node = await GovernadorGridPage({ searchParams: Promise.resolve({}) });
+    const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
+
+    expect(doc.querySelector("main")?.getAttribute("data-trilha")).toBe("gov");
+    expect(
+      doc.querySelector("[data-trilha-kicker]")?.textContent?.replace(/\s+/g, " ").trim(),
+    ).toBe("GOVERNADOR · Brasil (27 UFs)");
+  });
+
+  it("(j) com `participacao` renderiza só os dois termômetros de participação, acima dos stats", async () => {
+    const node = await GovernadorGridPage({ searchParams: Promise.resolve({}) });
+    const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
+
+    const bloco = doc.querySelector('section[aria-labelledby="projecao-termometros-heading"]');
+    expect(bloco).not.toBeNull();
+    expect(bloco?.getAttribute("data-variant")).toBe("participacao-only");
+    expect(bloco?.querySelectorAll('[role="meter"]')).toHaveLength(2);
+    expect(doc.querySelector("#termometro-brancos-nulos")).not.toBeNull();
+    expect(doc.querySelector("#termometro-abstencao")).not.toBeNull();
+    // Sem "top 3 nacional" de governador — não existe abrangência Brasil.
+    expect(doc.querySelector('[id^="termometro-cand-"]')).toBeNull();
+    expect(doc.querySelector("#termometro-outros")).toBeNull();
+
+    const stats = doc.querySelector('[data-testid="stat-eleitos"]');
+    expect(
+      bloco && stats && bloco.compareDocumentPosition(stats) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("(k) sem `participacao` no payload o bloco inteiro fica fora (grid intocado)", async () => {
+    comParticipacao = false;
+    const node = await GovernadorGridPage({ searchParams: Promise.resolve({}) });
+    const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
+
+    expect(doc.querySelector('[id^="termometro-"]')).toBeNull();
+    // Cartograma e cards seguem lá.
+    expect(doc.body.textContent).toContain("Mapa hexagonal");
+    expect(doc.body.textContent).toContain("São Paulo");
   });
 });

@@ -123,7 +123,21 @@
       "id": "0017",
       "title": "Todos os candidatos do 1T visíveis em 3 camadas fixas, sem collapsible",
       "status": "accepted",
-      "path": "docs/architecture/adrs/0017-transparencia-total-3-camadas.md"
+      "path": "docs/architecture/adrs/0017-transparencia-total-3-camadas.md",
+      "note": "parcialmente superado por ADR-0018 no modo multi-1t (apenas Camada 1); ver seção Status do arquivo"
+    },
+    {
+      "id": "0018",
+      "title": "Seis termômetros de projeção como hero do 1º turno, não duelo top-2",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0018-termometros-hero-1t.md",
+      "supersedes": "0017 (parcial — apenas Camada 1 em modo multi-1t)"
+    },
+    {
+      "id": "0019",
+      "title": "Identidade visual por trilha (presidencial vs. governador), não paleta única",
+      "status": "accepted",
+      "path": "docs/architecture/adrs/0019-identidade-visual-por-trilha.md"
     }
   ],
   "nfr": {
@@ -563,10 +577,28 @@
       "priority": "M",
       "personas": ["P1", "P2", "P3"],
       "screens": ["T-02"],
-      "requirements": ["RF-021", "RF-022", "RF-025", "RF-027", "RF-029", "RF-006.1", "RF-006.2", "RF-006.3", "RF-006.4", "RF-006.5"],
+      "requirements": [
+        "RF-021",
+        "RF-022",
+        "RF-025",
+        "RF-027",
+        "RF-029",
+        "RF-006.1",
+        "RF-006.2",
+        "RF-006.3",
+        "RF-006.4",
+        "RF-006.5"
+      ],
       "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "005-pagina-uf-governador"],
       "apis": ["GET /api/projection?cargo=governador"],
-      "components": ["GovernorCard", "HexCartogramBrasil", "RaceStatsCards", "BreakingNewsTicker", "LiveBadge", "Tabs"],
+      "components": [
+        "GovernorCard",
+        "HexCartogramBrasil",
+        "RaceStatsCards",
+        "BreakingNewsTicker",
+        "LiveBadge",
+        "Tabs"
+      ],
       "nfr": ["RNF-001", "RNF-002", "RNF-003", "RNF-022", "RNF-023", "RNF-024"],
       "adrs": ["0001", "0002", "0010", "0011", "0012", "0013", "0017"],
       "path": "docs/specs/006-grid-governadores/"

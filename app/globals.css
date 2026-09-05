@@ -57,13 +57,52 @@
   --color-cand-6-strong: #3f3a32; /* taupe escuro */
 
   /* Versões claras (bands) — fundos de mapa, pull-quotes, fills suaves */
-  --color-cand-band-1: var(--color-pt-band);
-  --color-cand-band-2: var(--color-pl-band);
+  /* FIX 2026-09-05: antes aliasavam --color-pt-band/--color-pl-band, cujos
+     valores estão invertidos entre si (pt→azul, pl→rosa). O bug era invisível
+     enquanto o IC era só texto; ficou evidente com <ProjectionThermometer>,
+     que desenha a faixa. Agora com hex explícito, derivado da própria cor do
+     rank. Os tokens legados seguem intocados porque /sobre-o-modelo os usa
+     como swatch de intensidade (Lean/Likely) — uso indevido, a corrigir à parte. */
+  --color-cand-band-1: #f0c9c8; /* clareado de --color-cand-1 (#d33732) */
+  --color-cand-band-2: #c8d4ed; /* clareado de --color-cand-2 (#2a52be) */
   --color-cand-band-3: #ecd4b3;
   --color-cand-band-4: #c8dec1;
   --color-cand-band-5: #d7c5dd;
   --color-cand-band-6: #d4cfc2;
   --color-cand-band-other: #d9d9d9; /* mesmo de --color-tossup */
+
+  /* Participação (S07/Fase 2 — hero 1T de seis termômetros).
+   * Cores das métricas que NÃO são candidato: brancos/nulos e abstenção.
+   * Constituição § 2: neutras por construção (nenhum partido tem dono do
+   * "voto nulo"); nunca reutilizar --color-cand-* aqui — a paleta de
+   * candidato é por rank (ADR-0013) e trocaria de dono durante a noite.
+   *
+   * Contraste medido sobre --color-bg (#ffffff), WCAG 2.1 relative luminance:
+   *   --color-part-brancos-nulos  #565656  →  7.34:1
+   *   --color-part-abstencao      #24504d  →  9.01:1
+   * Ambos ≥ 7:1 (AAA para texto normal), acima da meta RNF de 4.5:1.
+   *
+   * Distinção visual exigida:
+   *   - vs --color-cand-2 (#2a52be, azul vivo): ambos os tokens são
+   *     desaturados e mais escuros (Δcontraste ≥ 0.45 e croma muito menor).
+   *   - vs --color-cand-4 (#4a8b3e, verde-oliva, 4.16:1): o teal de
+   *     abstenção é ~2.2× mais escuro e ciano-deslocado; o cinza de
+   *     brancos/nulos é acromático.
+   *   - entre si: um acromático (cinza) e um cromático (teal escuro). */
+  --color-part-brancos-nulos: #565656;
+  --color-part-brancos-nulos-band: #dcdcdc;
+  --color-part-abstencao: #24504d;
+  --color-part-abstencao-band: #cfe0de;
+
+  /* Identidade de trilha (S07/Fase 2 — `main[data-trilha]`).
+   * Accent institucional por trilha de cargo, consumido por kicker,
+   * borda-topo do header, tab ativa e LiveBadge. NÃO são cores de
+   * candidato nem de partido (constituição § 2) — são cores de
+   * *navegação*, estáveis durante toda a noite.
+   * Default no :root = neutro (páginas sem `data-trilha` não herdam
+   * identidade presidencial por acidente). */
+  --trilha-accent: var(--color-text);
+  --trilha-accent-soft: var(--color-bg-muted);
 
   /* Bandas de probabilidade da agulha (spec 003 + spec 004).
    * Mapeiam `NeedleBand` em lib/edge-config/types.ts — usadas pelo
@@ -82,6 +121,22 @@
 
   /* Layout */
   --max-width: 1280px;
+}
+
+/* Trilha presidencial — azul-marinho institucional (#17365c, 12.2:1 sobre
+ * branco). Escuro e desaturado o bastante para nunca ser lido como "a cor
+ * do candidato azul" (--color-cand-2 = #2a52be, 6.9:1). */
+main[data-trilha="pres"] {
+  --trilha-accent: #17365c;
+  --trilha-accent-soft: #dbe3ee;
+}
+
+/* Trilha de governadores — verde-escuro institucional (#1c4d3a, 9.7:1).
+ * Distinto do verde-oliva de candidato (--color-cand-4 = #4a8b3e, 4.2:1):
+ * ~2.3× mais escuro e mais frio. */
+main[data-trilha="gov"] {
+  --trilha-accent: #1c4d3a;
+  --trilha-accent-soft: #d7e6dd;
 }
 
 * {

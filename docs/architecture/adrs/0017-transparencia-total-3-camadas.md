@@ -9,7 +9,11 @@ date: 2026-05-17
 
 ## Status
 
-Aceito.
+Aceito (parcialmente superado por [ADR-0018](0018-termometros-hero-1t.md) no modo `multi-1t`).
+
+> **Nota 2026-09-05**: não há precedente de supersessão parcial anterior neste repositório — ADRs até aqui eram supersedidos por inteiro ou permaneciam integralmente aceitos. Registra-se aqui o critério adotado: quando um ADR novo altera apenas uma fração de uma decisão anterior, o ADR antigo mantém `status: accepted` no frontmatter (a decisão como um todo continua majoritariamente vigente) e a seção `## Status` narra explicitamente qual parte foi substituída e em qual contexto.
+>
+> Especificamente: a definição de **Camada 1** (hero) deste ADR — `<HeadlineScore />` top-2 — deixa de valer no modo `multi-1t` (1º turno com >2 candidatos), onde o ADR-0018 a substitui por `<ProjectionThermometers />` (seis termômetros: 1º, 2º, 3º colocados, "Outros", brancos/nulos, abstenção). A regra estrutural deste ADR — **todas as camadas sempre presentes no DOM, sem collapsibles** — permanece **integralmente vigente** em ambos os modos, assim como a definição completa da Camada 2 (`<CandidateRanking />`) e da Camada 3 (`<MinorCandidatesList />`, agora também consumida pelo ADR-0018 como "Composição de Outros"). Para o modo `binary` (2º turno), este ADR aplica-se **sem nenhuma alteração** — `<HeadlineScore />` continua sendo a Camada 1.
 
 ## Contexto
 
@@ -50,6 +54,7 @@ A densidade mobile é resolvida via tipografia: Camada 3 usa `font-size: 0.75rem
 
 ## Cross-refs
 
+- ADR-0018 (seis termômetros como Camada 1 em `multi-1t` — supera parcialmente este ADR nesse modo específico): [0018-termometros-hero-1t.md](0018-termometros-hero-1t.md)
 - ADR-0013 (tokens por rank — paleta usada pelas 3 camadas): [0013-tokens-multi-candidato-por-rank.md](0013-tokens-multi-candidato-por-rank.md)
 - ADR-0014 (p_segundo_turno — Camada 1 pode exibir `<TwoRoundIndicator />`): [0014-p-segundo-turno-primeira-classe.md](0014-p-segundo-turno-primeira-classe.md)
 - Spec afetada: `docs/specs/003-home-nacional/spec.md` (seção de candidatos, componente `HeadlineScore`)

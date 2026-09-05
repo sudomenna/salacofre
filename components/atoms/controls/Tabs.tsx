@@ -63,8 +63,11 @@ export function Tabs({ options, value, ariaLabel, className }: TabsProps) {
         const active = opt.id === value;
         const disabled = opt.disabled === true;
         const baseClass = "px-4 py-1.5 transition-colors";
+        // A aba ativa usa o accent da trilha (ADR-0019). O `:root` define
+        // `--trilha-accent: var(--color-text)`, então páginas sem
+        // `main[data-trilha]` renderizam exatamente como antes de S07.
         const styleObj: React.CSSProperties = {
-          backgroundColor: active && !disabled ? "var(--color-text)" : "transparent",
+          backgroundColor: active && !disabled ? "var(--trilha-accent)" : "transparent",
           color: disabled
             ? "var(--color-text-muted)"
             : active
