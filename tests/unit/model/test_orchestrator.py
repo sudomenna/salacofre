@@ -37,12 +37,90 @@ import pytest
 def _synthetic_payload(
     cand_pcts: dict[int, float],
 ) -> dict[str, Any]:
-    """Constrói payload EA20 mínimo com candidatos e seus pvap (em %)."""
+    """Constrói payload EA20 ACHATADO `{cand: [...]}` (sem envelope).
+
+    Mantido por compat com o restante deste arquivo e com o dataset de
+    replay 2022 (`tests/fixtures/replay-2022/snapshots.json`, T21) — NÃO
+    é o formato real gravado pelo ingest (`app/api/ingest/route.ts:483`).
+    Para o payload EA20 real (envelope completo), veja `_synthetic_envelope`.
+    """
     return {
         "cand": [
             {"n": str(cod), "pvap": f"{pct:.2f}".replace(".", ",")}
             for cod, pct in cand_pcts.items()
         ]
+    }
+
+
+def _synthetic_envelope(cand_pcts: dict[int, float]) -> dict[str, Any]:
+    """Constrói payload EA20 ENVELOPE COMPLETO — formato REAL 2026 gravado
+    por `app/api/ingest/route.ts` e validado por `lib/tse/ea20-schema.ts`
+    (`EA20Schema`, reescrito 2026-09-05 contra os PDFs oficiais do TSE —
+    ver `docs/reference/tse-2026-leiautes.md`). **Sem array `abr[]`**
+    (premissa anterior nunca confirmada contra o documento oficial):
+    candidatos em `carg[].agr[].par[].cand[]`, participação em `e`/`v`/`s`
+    de raiz.
+
+    Fixture análoga a `tests/fixtures/tse/2026/zona-presidente-sp-z0001.json`,
+    parametrizada pelos mesmos `{cod_candidato: pct_pvap}` de
+    `_synthetic_payload` — usada para provar que o orchestrator lê o
+    payload real (BUG 1 original — `_extract_zone_candidate_pcts` fazia
+    `payload.get("cand")` no topo e retornava `{}`; o schema do envelope em
+    si também estava errado até a correção de 2026-09-05).
+
+    Cada candidato ganha sua própria `agr`/`par` (partido isolado `tp: "i"`)
+    — suficiente para os testes deste arquivo, que não verificam
+    coligação/federação.
+    """
+    return {
+        "ele": "999999",
+        "t": "1",
+        "f": "o",
+        "tpabr": "zona",
+        "cdabr": "0001",
+        "dg": "04/10/2026",
+        "hg": "18:00:00",
+        "carg": [
+            {
+                "cd": "1",
+                "nmn": "Presidente",
+                "agr": [
+                    {
+                        "n": str(cod),
+                        "nm": "PARTIDO",
+                        "tp": "i",
+                        "par": [
+                            {
+                                "n": str(cod),
+                                "sg": "PP",
+                                "nm": "PARTIDO",
+                                "cand": [
+                                    {
+                                        "n": str(cod),
+                                        "sqcand": f"{cod}0000000001",
+                                        "nm": f"CANDIDATO {cod}",
+                                        "nmu": f"CANDIDATO {cod}",
+                                        "e": "n",
+                                        "vap": "0",
+                                        "pvap": f"{pct:.2f}".replace(".", ","),
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                    for cod, pct in cand_pcts.items()
+                ],
+            }
+        ],
+        "s": {
+            "ts": "1", "st": "1", "pst": "100,00",
+            "si": "1", "psi": "100,00", "sa": "1", "psa": "100,00",
+        },
+        "e": {"te": "1000", "esi": "1000", "c": "800", "a": "200"},
+        "v": {
+            "tv": "800", "vvc": "780", "vv": "780", "vnom": "780",
+            "vb": "10", "tvn": "10", "vn": "10", "vnt": "0",
+        },
     }
 
 
@@ -411,7 +489,7 @@ def test_compute_national_top2_by_pct_when_leader_has_higher_id() -> None:
     }
     eleitorado_total = {"SP": 30_000_000}
 
-    rows, p_a, cand_a, cand_b = compute_national(
+    rows, p_a, cand_a, cand_b, _outros = compute_national(
         cargo=1,
         turno=1,
         estimates_by_uf=estimates_by_uf,
@@ -445,7 +523,7 @@ def test_compute_national_tiebreaker_by_id_when_pct_equal() -> None:
     }
     eleitorado_total = {"SP": 30_000_000}
 
-    rows, _p_a, cand_a, cand_b = compute_national(
+    rows, _p_a, cand_a, cand_b, _outros = compute_national(
         cargo=1,
         turno=1,
         estimates_by_uf=estimates_by_uf,
@@ -468,7 +546,7 @@ def test_compute_national_single_candidate_returns_p_a_one() -> None:
     }
     eleitorado_total = {"SP": 30_000_000}
 
-    rows, p_a, cand_a, cand_b = compute_national(
+    rows, p_a, cand_a, cand_b, _outros = compute_national(
         cargo=1,
         turno=1,
         estimates_by_uf=estimates_by_uf,
@@ -1074,3 +1152,215 @@ def test_s05_payload_has_rank_and_multi_candidate_metrics(
         assert row["vai_a_2t"] is None
         # bucket é um dos 4 estados válidos.
         assert row["bucket"] in {"decidido_1t", "vai_2t", "indefinido", "chamada"}
+
+
+# ---------------------------------------------------------------------------
+# S07 fix — BUG 1 (envelope EA20) + BUG 2 (escala) end-to-end via _do_project
+# ---------------------------------------------------------------------------
+
+
+def test_envelope_payload_end_to_end_reads_swing_and_scales_to_pct(
+    fake_db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """BUG 1 + BUG 2 (S07): payload EA20 REAL (envelope completo — não
+    achatado) deve alimentar o swing corretamente, e o `pct_projetado`
+    resultante no payload Edge deve sair em 0–100 (não fração [0,1]).
+
+    Cenário: 1 UF (SP), 1 zona, 2 candidatos. 2022: 100 teve 40%, 200 teve
+    60%. 2026 (envelope): 100 tem 45%, 200 tem 55% → swing = +5pp / -5pp.
+    Com 1 única zona, o bootstrap sempre resample a mesma zona (sem
+    variância) → `pct_projetado` determinístico = p_2022 + swing:
+      100 → 0.40 + 0.05 = 0.45 → 45.0 (não 0.45!)
+      200 → 0.60 - 0.05 = 0.55 → 55.0 (não 0.55!)
+
+    Se BUG 1 não estivesse corrigido, `_extract_zone_candidate_pcts`
+    devolveria `{}` para o envelope → zona excluída do swing → RF-017
+    (zero apurado) aplicaria fallback `point = p_2022` SEM o swing:
+      100 → 40.0 (❌, não 45.0)
+      200 → 60.0 (❌, não 55.0)
+    Este teste falha nesse cenário — prova que o envelope é lido.
+
+    Se BUG 2 não estivesse corrigido, os valores sairiam em fração
+    (0.45/0.55) em vez de percentual (45.0/55.0) — a asserção com
+    `pytest.approx(45.0)` também falharia.
+    """
+    from api.model.project import _do_project, urllib as proj_urllib
+
+    snapshots = [
+        {
+            "cargo": 1,
+            "turno": 1,
+            "uf": "SP",
+            "cod_zona": 1,
+            "pct_apurado": 100.0,
+            "payload": _synthetic_envelope({100: 45.0, 200: 55.0}),
+        }
+    ]
+    historical = [
+        {
+            "cargo": 1, "turno": 1, "uf": "SP", "cod_zona": 1,
+            "cod_candidato": 100, "pct_validos": 0.40, "partido": "PT",
+        },
+        {
+            "cargo": 1, "turno": 1, "uf": "SP", "cod_zona": 1,
+            "cod_candidato": 200, "pct_validos": 0.60, "partido": "PL",
+        },
+    ]
+    eleitorado = [{"ano": 2026, "uf": "SP", "cod_zona": 1, "eleitores_aptos": 100_000}]
+
+    fake_db(snapshots, historical, eleitorado)
+
+    monkeypatch.setenv("MODEL_SECRET", "test-secret-envelope")
+    monkeypatch.setenv("INTERNAL_BASE_URL", "http://localhost:13000")
+
+    captured: dict[str, Any] = {}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):  # noqa: ANN204
+            return self
+
+        def __exit__(self, *a):  # noqa: ANN001,ANN204
+            return None
+
+    def fake_urlopen(req, timeout=10):  # noqa: ANN001,ARG001
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr(proj_urllib.request, "urlopen", fake_urlopen)
+
+    status, response = _do_project(
+        json.dumps(
+            {"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}
+        ).encode("utf-8")
+    )
+    assert status == 200, response
+    assert response["computed"] is True
+    assert response["uf_count"] == 1
+
+    payload = captured["body"]["payload"]
+    by_id = {c["id"]: c for c in payload["national"]["candidatos"]}
+    assert set(by_id.keys()) == {100, 200}
+
+    assert by_id[100]["pct_projetado"] == pytest.approx(45.0, abs=0.05)
+    assert by_id[200]["pct_projetado"] == pytest.approx(55.0, abs=0.05)
+
+    # por_uf também em 0–100 (mesma fronteira de escala).
+    sp_row = next(r for r in payload["por_uf"] if r["sigla"] == "SP")
+    assert sp_row["margem_atual"] == pytest.approx(10.0, abs=0.1)  # 55 - 45
+
+
+# ---------------------------------------------------------------------------
+# Fase 1a (RF-020.1) — participação (abstenção, brancos/nulos, outros) via
+# envelope EA20 real, end-to-end através de `_do_project`.
+# ---------------------------------------------------------------------------
+
+
+def test_participacao_end_to_end_com_envelope_real(
+    fake_db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fase 1a: com um payload EA20 ENVELOPE REAL (`e`/`v`/`s` de raiz) e
+    4 candidatos (o suficiente para "outros" existir, rank >= 4), o payload
+    Edge publicado deve trazer `national.participacao` e
+    `payloads_uf.SP.participacao` com as 3 métricas (abstenção,
+    brancos/nulos, outros), bases corretas (D3 — denominador misto
+    rotulado) e valores em 0–100.
+
+    `_synthetic_envelope` fixa `e.te=1000, e.esi=1000, e.c=800, e.a=200`
+    (abstenção = 200/1000 = 20%) e `v.vb=10, v.tvn=10` sobre
+    `comparecimento=800` (brancos+nulos = 20/800 = 2.5%) — mesmos números
+    para os 4 "candidatos" porque `e`/`v`/`s` vivem na raiz do envelope,
+    não por candidato.
+    """
+    from api.model.project import _do_project, urllib as proj_urllib
+
+    cand_pcts = {100: 40.0, 200: 30.0, 300: 20.0, 400: 10.0}
+    snapshots = [
+        {
+            "cargo": 1,
+            "turno": 1,
+            "uf": "SP",
+            "cod_zona": 1,
+            "pct_apurado": 100.0,
+            "payload": _synthetic_envelope(cand_pcts),
+        }
+    ]
+    historical = [
+        {
+            "cargo": 1, "turno": 1, "uf": "SP", "cod_zona": 1,
+            "cod_candidato": cod, "pct_validos": pct / 100.0, "partido": "PP",
+        }
+        for cod, pct in cand_pcts.items()
+    ]
+    eleitorado = [{"ano": 2026, "uf": "SP", "cod_zona": 1, "eleitores_aptos": 100_000}]
+
+    fake_db(snapshots, historical, eleitorado)
+
+    monkeypatch.setenv("MODEL_SECRET", "test-secret-participacao")
+    monkeypatch.setenv("INTERNAL_BASE_URL", "http://localhost:13000")
+
+    captured: dict[str, Any] = {}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):  # noqa: ANN204
+            return self
+
+        def __exit__(self, *a):  # noqa: ANN001,ANN204
+            return None
+
+    def fake_urlopen(req, timeout=10):  # noqa: ANN001,ARG001
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr(proj_urllib.request, "urlopen", fake_urlopen)
+
+    status, response = _do_project(
+        json.dumps(
+            {"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}
+        ).encode("utf-8")
+    )
+    assert status == 200, response
+    assert response["computed"] is True
+
+    body = captured["body"]
+    national = body["payload"]["national"]
+    uf_sp = body["payloads_uf"]["SP"]
+
+    for block, base_expected in (
+        (national, {
+            "abstencao": "eleitores_instalados",
+            "brancos_nulos": "comparecimento",
+            "outros": "votaveis",
+        }),
+        (uf_sp, {
+            "abstencao": "eleitores_instalados",
+            "brancos_nulos": "comparecimento",
+            "outros": "votaveis",
+        }),
+    ):
+        assert "participacao" in block, block.keys()
+        participacao = block["participacao"]
+        assert "metodo" in participacao
+        assert participacao["metodo"]["tipo"] == "extrapolacao_apurado"
+        assert participacao["metodo"]["n_zonas"] == 1
+        for metric_key, base in base_expected.items():
+            assert metric_key in participacao, (metric_key, participacao.keys())
+            metric = participacao[metric_key]
+            assert metric["base"] == base
+            for field in ("pct_projetado", "lower", "upper"):
+                assert 0.0 <= metric[field] <= 100.0
+
+        # abstenção = 200/1000 = 20%.
+        assert participacao["abstencao"]["pct_projetado"] == pytest.approx(20.0, abs=0.5)
+        assert participacao["abstencao"]["pct_atual"] == pytest.approx(20.0, abs=0.5)
+        # brancos+nulos = 20/800 = 2.5%.
+        assert participacao["brancos_nulos"]["pct_projetado"] == pytest.approx(2.5, abs=0.1)
+        # outros: só o candidato 400 (rank 4, 10%) — n_candidatos == 1.
+        assert participacao["outros"]["n_candidatos"] == 1
+        # `pct_atual` de "outros" fica None quando não há
+        # `municipio_aggregates` real por trás (fixture minimal não popula
+        # `cod_municipio_tse` — ver FakeCursor) — nunca um falso `0.0`.
+        assert participacao["outros"]["pct_atual"] is None

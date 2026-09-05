@@ -70,6 +70,15 @@ Cálculo de MAE é feito do lado TS (`scripts/replay-2022.ts`) — esta CLI só
 expõe as projeções; mantém a CLI focada e o cálculo de métricas auditável
 no script principal.
 
+Escala (fix S07 — docs/architecture/data-model.md § "Escala de
+percentuais"): `compute_uf_projections`/`compute_national` emitem
+`pct_projetado*` em percentual 0–100 (mesma convenção de `insert_projections`
+e `build_edge_payload`). Este módulo SEMPRE se comunicou com
+`scripts/replay-2022.ts` em fração [0,1] (contrato stdout acima, ground_truth
+do dataset T21, gate OT-4 `< 0.02`) — `_pct_to_frac` faz essa conversão na
+serialização de `uf_projections`/`national.candidatos`. `pct_apurado` NÃO é
+convertido (sempre foi 0–100 nos dois lados).
+
 Uso (manual / debug):
   python3 api/model/replay_batch.py < dataset.json > projections.json
 
@@ -91,6 +100,15 @@ from api.model.project import (
     compute_uf_projections,
     derive_seed,
 )
+
+
+def _pct_to_frac(x: float) -> float:
+    """Converte percentual 0–100 (saída de `compute_uf_projections` /
+    `compute_national` pós fix de escala) para fração [0,1] — espaço em
+    que este módulo sempre se comunicou com `scripts/replay-2022.ts`
+    (ground_truth do dataset T21 e o gate OT-4 `< 0.02` são fração).
+    """
+    return float(x) / 100.0
 
 
 def _build_eleitorado_lookup(
@@ -143,7 +161,10 @@ def _run_one_timestep(
         eleitorado=eleitorado,
     )
 
-    national_rows, p_vitoria_a, cand_a_id, cand_b_id = compute_national(
+    # Fase 1a: `compute_national` ganhou um 5º elemento de retorno
+    # ("outros" com IC real, D4) — não usado pelo replay/gate OT-4;
+    # `*_` absorve sem quebrar o contrato stdin/stdout deste módulo.
+    national_rows, p_vitoria_a, cand_a_id, cand_b_id, *_ = compute_national(
         cargo=cargo,
         turno=turno,
         estimates_by_uf=estimates_by_uf,
@@ -168,13 +189,24 @@ def _run_one_timestep(
     cenarios_2t = scenarios.get("cenarios_2t", [])
 
     # Serializa enxuto — só o que o TS precisa pra calcular MAE/calibração.
+    #
+    # Escala (docs/architecture/data-model.md § "Escala de percentuais"):
+    # `uf_rows`/`national_rows` (saída de `compute_uf_projections` /
+    # `compute_national`) chegam aqui em percentual 0–100 — mesma
+    # convenção de `insert_projections`/`build_edge_payload`. O contrato
+    # deste módulo com `scripts/replay-2022.ts` (gate OT-4) SEMPRE foi em
+    # fração [0,1] (`ground_truth` do dataset T21 é fração; comparação
+    # `computeMae` em replay-2022.ts é direta, sem conversão do lado TS).
+    # `_pct_to_frac` faz essa ponte de volta — sem isso, `computeMae`
+    # compararia 0–100 contra fração e o gate `< 0.02` falharia sempre
+    # (erro artificial de ~50pp).
     uf_projections = [
         {
             "uf": r["uf"],
             "candidato_id": int(r["candidato_id"]),
-            "pct_projetado": float(r["pct_projetado"]),
-            "pct_projetado_lower": float(r["pct_projetado_lower"]),
-            "pct_projetado_upper": float(r["pct_projetado_upper"]),
+            "pct_projetado": _pct_to_frac(r["pct_projetado"]),
+            "pct_projetado_lower": _pct_to_frac(r["pct_projetado_lower"]),
+            "pct_projetado_upper": _pct_to_frac(r["pct_projetado_upper"]),
             "pct_apurado": float(r["pct_apurado"] or 0.0),
         }
         for r in uf_rows
@@ -183,9 +215,9 @@ def _run_one_timestep(
     national_candidatos = [
         {
             "id": int(r["candidato_id"]),
-            "pct_projetado": float(r["pct_projetado"]),
-            "pct_projetado_lower": float(r["pct_projetado_lower"]),
-            "pct_projetado_upper": float(r["pct_projetado_upper"]),
+            "pct_projetado": _pct_to_frac(r["pct_projetado"]),
+            "pct_projetado_lower": _pct_to_frac(r["pct_projetado_lower"]),
+            "pct_projetado_upper": _pct_to_frac(r["pct_projetado_upper"]),
             "p_vitoria": float(r["p_vitoria"] or 0.0),
             # S05 carry-over → S06/F4d Fase 5: métricas multi-candidato
             # (ADR-0014). Já populadas em `compute_national`; só serializamos.

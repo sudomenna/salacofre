@@ -12,6 +12,8 @@ minimal e valida que os campos novos aparecem com tipos corretos.
 
 from __future__ import annotations
 
+import pytest
+
 from api.model.replay_batch import run_batch
 
 
@@ -86,6 +88,34 @@ def test_replay_batch_serializes_multi_candidate_metrics() -> None:
         assert "p_fecha_1t" in c
         assert 0.0 <= c["p_passa_2t"] <= 1.0
         assert 0.0 <= c["p_fecha_1t"] <= 1.0
+
+
+def test_replay_batch_output_scale_is_fraction_not_percent() -> None:
+    """S07 fix — BUG 2 (escala): `compute_uf_projections`/`compute_national`
+    agora emitem `pct_projetado*` em 0–100 (fix de escala). `run_batch`
+    (via `_pct_to_frac`) deve converter de volta para fração [0,1] na
+    serialização de `uf_projections`/`national.candidatos` — contrato
+    histórico com `scripts/replay-2022.ts` (ground_truth é fração; gate
+    OT-4 `< 0.02` compara fração contra fração).
+
+    Cenário: `_minimal_payload` replica o histórico (pvap 52,00/48,00 ==
+    pct_validos 0,52/0,48) → swing ≈ 0 → `pct_projetado` ≈ p_2022 (fração).
+    Se a conversão de volta para fração estivesse ausente, os valores
+    sairiam ≈52.0/≈48.0 (percentual) e este teste falharia.
+    """
+    out = run_batch(_minimal_payload())
+    r = out["results"][0]
+
+    uf13 = next(u for u in r["uf_projections"] if u["candidato_id"] == 13)
+    assert uf13["pct_projetado"] == pytest.approx(0.52, abs=0.02)
+    assert 0.0 <= uf13["pct_projetado_lower"] <= uf13["pct_projetado_upper"] <= 1.0
+
+    nat13 = next(c for c in r["national"]["candidatos"] if c["id"] == 13)
+    assert nat13["pct_projetado"] == pytest.approx(0.52, abs=0.02)
+    assert 0.0 <= nat13["pct_projetado_lower"] <= nat13["pct_projetado_upper"] <= 1.0
+
+    # `pct_apurado` NUNCA foi fração — permanece em 0–100 (não convertido).
+    assert uf13["pct_apurado"] == pytest.approx(100.0)
 
 
 def test_replay_batch_turno_2_emits_none_for_p_segundo_turno() -> None:

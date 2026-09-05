@@ -108,6 +108,33 @@ CREATE TABLE ingest_log (
 );
 ```
 
+## Escala de percentuais
+
+O modelo (`api/model/`) trabalha internamente em **fração [0,1]** — é o
+espaço do bootstrap (`bootstrap_uf`), de `edge_cases.py` (RF-017/RF-018) e
+de `p_vitoria`. A fronteira de saída é `compute_uf_projections` /
+`compute_national`: ambas convertem para **percentual 0–100** antes de
+devolver `rows` (via `_frac_to_pct`) — mesma escala de `projections.pct_projetado*`
+(coluna `NUMERIC(8,5)`, comporta até 999.99999) e do payload Edge Config
+(`EdgeCandidate.pct_projetado*`, ver abaixo). `estimates_by_uf` /
+`national_estimates` (os arrays do bootstrap, reusados por
+`aggregate_national_estimates`, `compute_p_passa_2t`, `compute_p_fecha_1t`,
+`compute_two_round_scenarios`) permanecem em fração — só `rows` cruza a
+fronteira.
+
+`api/model/replay_batch.py` (usado por `scripts/replay-2022.ts`, gate OT-4)
+converte de volta para fração na serialização de stdout — o contrato com o
+dataset de replay (`ground_truth`) e o threshold `< 0.02` sempre foram em
+fração, e continuam sendo.
+
+Linhas pré-simulado (2026-09-14 e antes) em `projections.pct_projetado*`
+podem estar em fração (bug corrigido em S07) — não comparar diretamente
+com linhas novas sem normalizar a escala.
+
+`pct_apurado` (tabela `snapshots`, `historical_results.pct_total`, campo
+`pct_apurado` de `rows`/payload) sempre foi 0–100 — não sofre essa
+conversão em nenhum ponto do pipeline.
+
 ## Payload do Edge Config
 
 Chave `projection:current` — JSON único de ~30KB:

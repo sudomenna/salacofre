@@ -65,7 +65,7 @@ import urllib.error
 import urllib.request
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypedDict
 
 import numpy as np
 from pydantic import BaseModel, Field, ValidationError
@@ -75,6 +75,13 @@ from api.model.edge_cases import inflate_ci_low_apurado, inflate_ci_zero_apurado
 from api.model.p_vitoria import p_vitoria
 from api.model.projection import project_uf
 from api.model.swing import swing_zone
+from api.model.turnout import (
+    Metric as ParticipacaoMetric,
+    ParticipacaoEstimate,
+    ZonaParticipacao,
+    aggregate_national_participacao,
+    estimate_uf_participacao,
+)
 from api.model.weighted_average import swing_uf
 
 # ---------------------------------------------------------------------------
@@ -540,32 +547,23 @@ def fetch_municipio_aggregates(
         if votos_total is not None:
             bucket["total_votos"] += int(votos_total)
 
-        # Extrai votos absolutos por candidato do payload EA20. EA20 `cand[].vap`
-        # = votos absolutos (apurado para o candidato). Aceitamos string BR ou
-        # int. Quando ausente, ignoramos (não quebra).
-        if isinstance(payload, dict):
-            cand_list = payload.get("cand")
-            if isinstance(cand_list, list):
-                for c in cand_list:
-                    if not isinstance(c, dict):
-                        continue
-                    try:
-                        cid = int(c.get("n"))
-                    except (TypeError, ValueError):
-                        continue
-                    raw = c.get("vap")
-                    if raw is None:
-                        continue
-                    try:
-                        if isinstance(raw, str):
-                            votos = int(float(raw.replace(",", ".")))
-                        else:
-                            votos = int(raw)
-                    except (TypeError, ValueError):
-                        continue
-                    bucket["votos_por_candidato"][cid] = (
-                        bucket["votos_por_candidato"].get(cid, 0) + votos
-                    )
+        # Extrai votos absolutos por candidato do payload EA20. EA20 real:
+        # `carg[].agr[].par[].cand[].vap` = votos absolutos (apurado para o
+        # candidato) — ver `_iter_cands`. `_iter_cands` normaliza envelope
+        # real OU payload achatado (mesmo helper de
+        # `_extract_zone_candidate_pcts`). Aceita string BR ou int. Quando
+        # ausente, ignora (não quebra).
+        for c in _iter_cands(payload):
+            try:
+                cid = int(c.get("n"))
+            except (TypeError, ValueError):
+                continue
+            votos_f = _parse_br_number(c.get("vap"))
+            if votos_f is None:
+                continue
+            bucket["votos_por_candidato"][cid] = (
+                bucket["votos_por_candidato"].get(cid, 0) + int(votos_f)
+            )
 
     # Finaliza pct_apurado como média simples (sem peso de eleitorado aqui,
     # suficiente para display — refinamento em S05+).
@@ -614,43 +612,313 @@ def insert_projections(conn, rows: list[dict[str, Any]]) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _extract_zone_candidate_pcts(payload: Any) -> dict[int, float]:
-    """Extrai `{cod_candidato: pct_validos}` do payload EA20 de uma zona.
+def _parse_br_number(raw: Any) -> float | None:
+    """Converte string BR ("12,34"), string canônica ("12.34") ou número
+    para `float`. `None` se ausente/inválido — nunca levanta.
 
-    Payload EA20 (parseado em lib/tse/ea20-schema.ts) tem `cand[]` com
-    `n` (cod_candidato) e `pvap` (% sobre válidos, em string '0,00' BR-format
-    ou já normalizado). Tolerante: se o payload vier em outro formato
-    inesperado, retorna {} — a zona será excluída do swing.
+    Compartilhado por `_extract_zone_candidate_pcts`,
+    `_extract_zone_participacao` e `fetch_municipio_aggregates` — único
+    ponto de parsing numérico BR do payload EA20 (evita 3 implementações
+    ligeiramente diferentes do mesmo parser).
+    """
+    if raw is None:
+        return None
+    try:
+        if isinstance(raw, str):
+            return float(raw.replace(",", "."))
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _payload_root(payload: Any) -> dict[str, Any] | None:
+    """Normaliza a raiz do payload EA20 de uma zona — envelope real 2026 OU
+    achatado legado.
+
+    Payload REAL, gravado por `app/api/ingest/route.ts` e validado por
+    `lib/tse/ea20-schema.ts` (`EA20Schema`, reescrito 2026-09-05 contra os
+    9 PDFs oficiais do TSE — ver `docs/reference/tse-2026-leiautes.md`), é o
+    envelope EA20 completo de UMA ÚNICA abrangência (BR/UF/Município/Zona).
+    **Não existe array `abr[]`** no EA20 real (confirmado: 0 ocorrências de
+    "abr" como array de abrangências no documento oficial — a única premissa
+    anterior, `payload["abr"][0]`, nunca foi validada contra o PDF e estava
+    simplesmente errada). O envelope inteiro JÁ é a zona/UF/BR — não há nada
+    para "desembrulhar" além de reconhecer o formato:
+      - Candidatos vivem em `carg[].agr[].par[].cand[]` (ver `_iter_cands`).
+      - Participação/seções/votos vivem nos objetos de raiz `e`, `v`, `s`
+        (ver `_extract_zone_participacao`).
+
+    Payload ACHATADO `{cand: [...]}` (sem envelope, sem `e`/`v`/`s`) segue
+    aceito — é o formato usado por `tests/fixtures/replay-2022/snapshots.json`
+    (replay 2022, T21) e pelos builders sintéticos de
+    `tests/unit/model/test_orchestrator.py`/`test_scale.py`. O replay nunca
+    passou pelo pipeline de ingestão real (não tem `carg`/`e`/`v`/`s`, só
+    `cod_candidato` + `pvap` por zona) — mantido por não haver necessidade
+    de portar o dataset de replay para o envelope real só para extrair
+    percentuais de candidato.
+
+    Retorna:
+      - o próprio `payload` se reconhecido em qualquer um dos formatos
+        (`carg` lista não-vazia OU `cand` no topo OU `e`/`v`/`s` de raiz);
+      - `None` se nenhum for reconhecido (payload corrompido/inesperado) —
+        caller degrada graciosamente.
     """
     if not isinstance(payload, dict):
-        return {}
-    cand_list = payload.get("cand")
-    if not isinstance(cand_list, list):
-        return {}
+        return None
+    carg_list = payload.get("carg")
+    if isinstance(carg_list, list) and carg_list:
+        return payload
+    if "cand" in payload:
+        return payload
+    if (
+        isinstance(payload.get("e"), dict)
+        or isinstance(payload.get("v"), dict)
+        or isinstance(payload.get("s"), dict)
+    ):
+        return payload
+    return None
 
-    out: dict[int, float] = {}
+
+def _iter_cands(payload: Any, cargo: int | None = None) -> list[dict[str, Any]]:
+    """Lista de dicts de candidato do payload EA20 real ou achatado,
+    enriquecidos com o partido do nível `par[]` (um nível acima do
+    candidato — ver `docs/reference/tse-2026-leiautes.md` § 2, "Estrutura
+    de candidatos — antes vs. depois").
+
+    Envelope real: percorre `carg[] → agr[] → par[] → cand[]`. Cada dict de
+    candidato devolvido ganha duas chaves extras (não presentes no EA20
+    original): `partido_sg` (`par.sg`) e `partido_n` (`par.n`) — usadas por
+    `api/model/party_mapping.py` / K-1 3-tier (ADR-0015) para mapear
+    candidato → bloco político por partido sem precisar re-navegar a
+    hierarquia. Payload achatado legado não tem essa hierarquia — as duas
+    chaves saem como `None`.
+
+    `cargo`: se informado, filtra `carg[]` pelo campo `cd` (comparação
+    numérica tolerante a string/int). Hoje um snapshot é sempre de um único
+    cargo (o parâmetro é opcional e usado por nenhum caller ainda), mas
+    deixa o contrato explícito para consumidores futuros (Fase 1a) que
+    eventualmente recebam um payload com mais de um `carg`.
+
+    `[]` se payload não reconhecido, sem `carg`/`cand`, ou `cargo` pedido
+    não bate com nenhum elemento de `carg[]`.
+    """
+    root = _payload_root(payload)
+    if root is None:
+        return []
+
+    carg_list = root.get("carg")
+    if isinstance(carg_list, list) and carg_list:
+        out: list[dict[str, Any]] = []
+        for carg in carg_list:
+            if not isinstance(carg, dict):
+                continue
+            if cargo is not None:
+                cd = carg.get("cd")
+                try:
+                    if cd is None or int(cd) != int(cargo):
+                        continue
+                except (TypeError, ValueError):
+                    continue
+            agr_list = carg.get("agr")
+            if not isinstance(agr_list, list):
+                continue
+            for agr in agr_list:
+                if not isinstance(agr, dict):
+                    continue
+                par_list = agr.get("par")
+                if not isinstance(par_list, list):
+                    continue
+                for par in par_list:
+                    if not isinstance(par, dict):
+                        continue
+                    cand_list = par.get("cand")
+                    if not isinstance(cand_list, list):
+                        continue
+                    partido_sg = par.get("sg")
+                    partido_n = par.get("n")
+                    for c in cand_list:
+                        if not isinstance(c, dict):
+                            continue
+                        enriched = dict(c)
+                        enriched["partido_sg"] = partido_sg
+                        enriched["partido_n"] = partido_n
+                        out.append(enriched)
+        return out
+
+    # Payload achatado legado — sem hierarquia de partido.
+    cand_list = root.get("cand")
+    if not isinstance(cand_list, list):
+        return []
+    out = []
     for c in cand_list:
         if not isinstance(c, dict):
             continue
+        enriched = dict(c)
+        enriched.setdefault("partido_sg", None)
+        enriched.setdefault("partido_n", None)
+        out.append(enriched)
+    return out
+
+
+class ZonaParticipacaoRaw(TypedDict):
+    """Participação/comparecimento/votação crus de uma zona/UF/BR (Fase 1a
+    — turnout.py), extraídos dos objetos de raiz `e` (eleitores) e `v`
+    (votos) do EA20 real (RENOMEADO 2026-09-05 — o formato anterior lia
+    campos `tap/tc/ta/tvb/tvnu/tvv/psa` de `abr[0]` que nunca existiram no
+    documento oficial).
+
+    Todos os campos de contagem são `int` (arredondados do BR-string TSE);
+    `psa` fica em `float` (0–100, % seções apuradas). Extraído por
+    `_extract_zone_participacao` — consumido pela Fase 1a do plano
+    aprovado (comparecimento vs 2022), ainda não fiado neste módulo.
+    """
+
+    eleitores_aptos: int
+    eleitores_instalados: int
+    comparecimento: int
+    abstencao: int
+    brancos: int
+    nulos: int
+    validos: int
+    anulados: int
+    sub_judice: int
+    psa: float
+
+
+def _extract_zone_participacao(payload: Any) -> ZonaParticipacaoRaw | None:
+    """Extrai participação/comparecimento (RF futuro — turnout, Fase 1a) dos
+    objetos de raiz `e`, `v`, `s` do EA20 real.
+
+    Mapeamento (confirmado contra o dicionário oficial,
+    `tse-ea20-arquivo-de-resultado-unificado.txt:1053-1406`):
+      - `eleitores_aptos`      ← `e.te`    (eleitorado total da abrangência).
+      - `eleitores_instalados` ← `e.esi`   (eleitorado das seções
+         instaladas). **Este, não `te`, é o denominador correto de
+         `comparecimento`/`abstencao` abaixo** — o próprio dicionário define
+         `e.pc`/`e.pa` como "percentual ... em relação aos eleitores das
+         seções instaladas", não em relação a `te` (que inclui eleitores de
+         seções ainda não instaladas, inflando artificialmente a abstenção
+         aparente durante apuração parcial).
+      - `comparecimento`  ← `e.c`.
+      - `abstencao`       ← `e.a`.
+      - `brancos`         ← `v.vb`.
+      - `nulos`           ← `v.tvn` (TOTAL de nulos = `v.vn` + `v.vnt` —
+         não confundir com `v.vn`, que é só "nulos" stricto sensu).
+      - `validos`         ← `v.vv`.
+      - `anulados`        ← `v.van` — sem uso imediato, mas capturado porque
+         o art. 265 §2º da Res. TSE 23.751/2026 exige que painéis informem
+         votos válidos, sub judice e anulados.
+      - `sub_judice`      ← `v.vansj` — idem.
+      - `psa`             ← `s.psa`, lido DIRETO do payload (o TSE já
+         calcula e publica o percentual — não precisa ser derivado de
+         `s.sa`/`s.si` neste módulo).
+
+    Campo fatal: `eleitores_aptos` (`e.te`) — é o único campo `required`
+    (não-opcional) do elemento `e` no schema EA20 (`EleitoresSchema.te`),
+    presente mesmo em zonas com 0% apurado. Ausente/inválido/`<= 0` → `None`
+    (payload corrompido ou zona sem eleitorado — dado de participação
+    não-confiável; caller deve excluir a zona, análogo ao contrato de
+    `swing_zone`).
+
+    Demais campos (`eleitores_instalados`, `comparecimento`, `abstencao`,
+    `brancos`, `nulos`, `validos`, `anulados`, `sub_judice`, `psa`) degradam
+    para `0`/`0.0` quando ausentes — esperado antes da primeira totalização
+    parcial (`e.esi`/`e.c`/`e.a` só existem "após a totalização da seção
+    eleitoral", por definição do dicionário oficial) — não invalidam a zona
+    inteira.
+    """
+    root = _payload_root(payload)
+    if root is None:
+        return None
+
+    e = root.get("e")
+    if not isinstance(e, dict):
+        return None
+    v = root.get("v") if isinstance(root.get("v"), dict) else {}
+    s = root.get("s") if isinstance(root.get("s"), dict) else {}
+
+    te = _parse_br_number(e.get("te"))
+    if te is None or te <= 0:
+        return None
+
+    esi = _parse_br_number(e.get("esi")) or 0.0
+    comparecimento = _parse_br_number(e.get("c")) or 0.0
+    abstencao = _parse_br_number(e.get("a")) or 0.0
+    brancos = _parse_br_number(v.get("vb")) or 0.0
+    nulos = _parse_br_number(v.get("tvn")) or 0.0
+    validos = _parse_br_number(v.get("vv")) or 0.0
+    anulados = _parse_br_number(v.get("van")) or 0.0
+    sub_judice = _parse_br_number(v.get("vansj")) or 0.0
+    psa = _parse_br_number(s.get("psa")) or 0.0
+
+    return {
+        "eleitores_aptos": int(round(te)),
+        "eleitores_instalados": int(round(esi)),
+        "comparecimento": int(round(comparecimento)),
+        "abstencao": int(round(abstencao)),
+        "brancos": int(round(brancos)),
+        "nulos": int(round(nulos)),
+        "validos": int(round(validos)),
+        "anulados": int(round(anulados)),
+        "sub_judice": int(round(sub_judice)),
+        "psa": psa,
+    }
+
+
+def _extract_zone_candidate_pcts(
+    payload: Any, cargo: int | None = None
+) -> dict[int, float]:
+    """Extrai `{cod_candidato: pct_vvc}` do payload EA20 de uma zona.
+
+    Usa `cand[].pvap` — que o dicionário oficial define como "percentual de
+    votos computados atribuídos ao candidato em relação aos **votos a
+    votáveis concorrentes**" (`v.vvc` = válidos + anulados + anulados sub
+    judice), **não** em relação a `v.vv` (só válidos) como um comentário
+    anterior presumia sem checar o documento. Na prática os dois
+    denominadores quase sempre coincidem (anulados/sub judice tendem a ~0
+    em cargos majoritários — ver `tests/fixtures/tse/2022/presidente-sp-
+    z0001.json`, onde `vvc=270` e `vv=260` diferem só pelos 10 votos de
+    `tvn`, que não entram em nenhum dos dois), mas a semântica exata importa
+    para RF-011 (swing zona-a-zona): o EA20 não expõe um campo "% sobre
+    válidos" isolado — `pvap` é o único percentual por candidato que o TSE
+    de fato publica, então é o que este pipeline usa, com a ressalva acima
+    registrada.
+
+    `pvapn` (mesma métrica, precisão de 9 casas em vez de 2) também existe
+    mas é `optional` no schema (`CandidatoSchema.pvapn`) — usamos `pvap`
+    (sempre presente, `required`) por garantir que nunca faltamos o dado;
+    ambos chegam como string BR-decimal (vírgula), mesmo parser
+    (`_parse_br_number`).
+
+    Payload achatado legado `{cand: [...]}` (replay 2022 / fixtures
+    sintéticas) também é aceito via `_iter_cands`. Tolerante: se o payload
+    vier em outro formato inesperado, retorna `{}` — a zona será excluída
+    do swing.
+    """
+    out: dict[int, float] = {}
+    for c in _iter_cands(payload, cargo=cargo):
         try:
             cod = int(c.get("n"))
         except (TypeError, ValueError):
             continue
-        raw = c.get("pvap")
-        if raw is None:
-            continue
-        # EA20 normalmente entrega como string BR ("12,34"); aceitamos float também.
-        try:
-            if isinstance(raw, str):
-                # Aceita "12,34" (BR) e "12.34" (canônico).
-                pct = float(raw.replace(",", "."))
-            else:
-                pct = float(raw)
-        except (TypeError, ValueError):
+        pct = _parse_br_number(c.get("pvap"))
+        if pct is None:
             continue
         # pvap vem em escala 0-100 — converter para fração [0,1] como T06 espera.
         out[cod] = pct / 100.0
     return out
+
+
+def _frac_to_pct(x: float) -> float:
+    """Converte fração [0,1] (espaço do bootstrap/T06-T11) para percentual
+    0–100 (espaço de `rows`/`projections`/payload Edge — `lib/edge-config/
+    types.ts`, `docs/architecture/data-model.md` § "Escala de percentuais").
+
+    Arredonda em 5 casas — mesma precisão de `NUMERIC(8,5)` na coluna
+    `projections.pct_projetado` (evita ruído de float além da precisão
+    persistida).
+    """
+    return round(100.0 * x, 5)
 
 
 def build_candidate_to_partido_2022(
@@ -842,6 +1110,14 @@ def compute_uf_projections(
 
             # p_vitoria por UF não faz sentido (é métrica nacional); deixamos
             # None na linha UF e o caller agrega no nacional.
+            #
+            # Escala (docs/architecture/data-model.md § "Escala de
+            # percentuais"): `point`/`ci_lower`/`ci_upper` chegam aqui em
+            # fração [0,1] (espaço do bootstrap/edge_cases). `rows` — e
+            # tudo que consome `rows` a partir daqui (insert_projections,
+            # build_uf_payloads, build_edge_payload) — espera 0–100.
+            # `estimates_by_uf` continua em fração (usado por
+            # aggregate_national_estimates/compute_national/p_vitoria).
             rows.append(
                 {
                     "cargo": cargo,
@@ -849,9 +1125,9 @@ def compute_uf_projections(
                     "uf": uf,
                     "candidato_id": cand,
                     "votos_projetados": None,
-                    "pct_projetado": float(point),
-                    "pct_projetado_lower": float(ci_lower),
-                    "pct_projetado_upper": float(ci_upper),
+                    "pct_projetado": _frac_to_pct(point),
+                    "pct_projetado_lower": _frac_to_pct(ci_lower),
+                    "pct_projetado_upper": _frac_to_pct(ci_upper),
                     "p_vitoria": None,
                     "pct_apurado": float(uf_pct_apurado),
                 }
@@ -1077,12 +1353,261 @@ def aggregate_national_estimates(
     return national_estimates
 
 
+def compute_outros_estimates(
+    estimates: dict[int, np.ndarray],
+    rank_by_cand: dict[int, int],
+    min_rank: int = 4,
+) -> tuple[np.ndarray, int]:
+    """"Outros" com IC real (D4 do plano `sim-monte-um-planejamento-magical-
+    key.md`) — soma, resample a resample, dos `estimates` (fração [0,1])
+    dos candidatos com `rank >= min_rank`.
+
+    Por que soma de resamples e não `100 - Σ(top3)`: a subtração descarta
+    toda a incerteza dos candidatos de cauda (vira um número fixo). Somar
+    os arrays PAREADOS por índice de resample preserva a covariância entre
+    eles e devolve um IC genuíno para "Outros" — mesma filosofia de
+    `aggregate_national_estimates`/`p_vitoria` (comparação/soma sempre
+    pareada por resample, nunca por estatística agregada isolada).
+
+    Determinismo (§ 6): soma elementwise de arrays já sorteados por
+    `bootstrap_uf`/`estimate_uf_participacao` — zero `random` novo aqui.
+
+    Args:
+        estimates: `{cand_id: ndarray}` em fração [0,1], todos com o MESMO
+            shape `(n_resamples,)` — garantido por quem produz `estimates`
+            (`aggregate_national_estimates`/`estimates_by_uf[uf]`).
+        rank_by_cand: `{cand_id: rank}` 1-based — mesma semântica de
+            `compute_national`/`build_uf_payloads` (rank 1 = líder).
+            Candidato ausente do dict é tratado como rank `0` (nunca entra
+            em "outros" por omissão — fail-safe).
+        min_rank: candidatos com `rank >= min_rank` entram na soma
+            (default 4 — "Outros" = tudo além do pódio top-3, D2 do plano).
+
+    Returns:
+        `(soma, n_candidatos)`. `n_candidatos == 0` (menos de 4 candidatos
+        na corrida, ou `estimates` vazio) devolve um array de zeros no
+        shape do primeiro `estimates` encontrado (`np.zeros(0)` se
+        `estimates` vazio) — caller trata `n_candidatos <= 0` como
+        "omitir a chave `outros` inteira".
+    """
+    if not estimates:
+        return np.zeros(0, dtype=np.float64), 0
+
+    sample_shape = next(iter(estimates.values())).shape
+    tail = [c for c in estimates if rank_by_cand.get(c, 0) >= min_rank]
+    if not tail:
+        return np.zeros(sample_shape, dtype=np.float64), 0
+
+    agg = np.zeros(sample_shape, dtype=np.float64)
+    for c in tail:
+        agg = agg + estimates[c]
+    return agg, len(tail)
+
+
+def _outros_metric_payload(
+    estimates: np.ndarray, n_candidatos: int
+) -> dict[str, Any] | None:
+    """Constrói o bloco `participacao.outros` a partir do resultado de
+    `compute_outros_estimates` — `pct_projetado`/`lower`/`upper` em
+    percentual 0–100, `base: "votaveis"` (D3 — % sobre votos a candidatos
+    votáveis, mesma base semântica de `pvap`).
+
+    `pct_atual` sai sempre `None` aqui — quem povoa é o caller que tem
+    acesso a `municipio_aggregates` (`build_edge_payload`/
+    `build_uf_payloads`), somando os `pct_atual` reais dos candidatos de
+    cauda (rank >= `min_rank`).
+
+    Returns:
+        `None` se `n_candidatos <= 0` (menos de 4 candidatos na corrida —
+        "outros" não existe; caller omite a chave inteira).
+    """
+    if n_candidatos <= 0:
+        return None
+    return {
+        "pct_atual": None,
+        "pct_projetado": _frac_to_pct(float(np.mean(estimates))),
+        "lower": _frac_to_pct(float(np.percentile(estimates, 2.5))),
+        "upper": _frac_to_pct(float(np.percentile(estimates, 97.5))),
+        "base": "votaveis",
+        "n_candidatos": n_candidatos,
+    }
+
+
+def _participacao_metric_payload(
+    est: ParticipacaoEstimate, base: str
+) -> dict[str, Any]:
+    """Converte `ParticipacaoEstimate` (turnout.py) para o shape de payload
+    `participacao.<abstencao|brancos_nulos>` (Fase 1a, D3/D5/D6)."""
+    return {
+        "pct_atual": est["pct_atual"],
+        "pct_projetado": est["pct_projetado"],
+        "lower": est["lower"],
+        "upper": est["upper"],
+        "base": base,
+    }
+
+
+def build_participacao_payload(
+    abstencao: ParticipacaoEstimate | None,
+    brancos_nulos: ParticipacaoEstimate | None,
+    outros: dict[str, Any] | None,
+    pct_apurado: float,
+) -> dict[str, Any] | None:
+    """Monta o bloco `participacao` do payload Edge Config (Fase 1a —
+    D3 denominador misto rotulado, D4 outros com IC real, D5 regra de
+    três, D6 shape `participacao?`).
+
+    Omite a chave inteira de cada métrica (`abstencao`/`brancos_nulos`/
+    `outros`) quando o dado subjacente não pôde ser calculado (0 zonas
+    úteis para participação, ou <4 candidatos para "outros"). Retorna
+    `None` (bloco `participacao` inteiro omitido) se NENHUMA das três
+    métricas está disponível — evita emitir `{"metodo": {...}}` órfão,
+    sem nenhum dado real por trás.
+
+    `metodo.n_zonas` = MAIOR `n_zonas` entre `abstencao`/`brancos_nulos`
+    disponíveis (as duas métricas podem ter conjuntos de zonas úteis
+    ligeiramente diferentes — zona com `comparecimento == 0` mas
+    `eleitores_instalados > 0`, por exemplo — o maior é o mais
+    representativo do "quanto já apuramos" para efeito de rótulo).
+    """
+    out: dict[str, Any] = {}
+    n_zonas = 0
+    if abstencao is not None:
+        out["abstencao"] = _participacao_metric_payload(
+            abstencao, "eleitores_instalados"
+        )
+        n_zonas = max(n_zonas, abstencao["n_zonas"])
+    if brancos_nulos is not None:
+        out["brancos_nulos"] = _participacao_metric_payload(
+            brancos_nulos, "comparecimento"
+        )
+        n_zonas = max(n_zonas, brancos_nulos["n_zonas"])
+    if outros is not None:
+        out["outros"] = outros
+    if not out:
+        return None
+    out["metodo"] = {
+        "tipo": "extrapolacao_apurado",
+        "n_zonas": n_zonas,
+        "pct_apurado": pct_apurado,
+    }
+    return out
+
+
+def compute_participacao(
+    cargo: int,
+    turno: int,
+    seed_base: int,
+    snapshots: list[LatestSnapshot],
+    eleitorado: dict[tuple[str, int], int],
+) -> tuple[
+    dict[str, dict[str, ParticipacaoEstimate | None]],
+    dict[str, ParticipacaoEstimate | None],
+]:
+    """Fiação da Fase 1a (RF-020.1) — projeta abstenção e brancos/nulos por
+    UF (regra de três, D5, `turnout.py`) e agrega nacionalmente.
+
+    Reusa o MESMO snapshot mais recente por zona já lido por
+    `fetch_snapshots`/consumido por `compute_uf_projections` — nenhuma
+    query adicional ao Postgres. Extrai participação via
+    `_extract_zone_participacao` (não `_extract_zone_candidate_pcts` —
+    aquele lê candidatos, este lê os objetos de raiz `e`/`v`/`s`).
+
+    Determinismo (§ 6): seed por `(uf, metric)` derivado do MESMO padrão de
+    `local_seed` em `compute_uf_projections` (XOR do `seed_base` com os 8
+    primeiros hex de `sha256(f"{uf}:{metric}")`) — reprodutível, e
+    descorrelacionado entre UFs/métricas diferentes (evita que abstenção e
+    brancos/nulos da mesma UF, ou a mesma métrica em UFs diferentes,
+    reamostrem exatamente os mesmos índices).
+
+    Returns:
+        `(by_uf, nacional)`:
+          - `by_uf`: `{uf: {"abstencao": Estimate|None, "brancos_nulos":
+            Estimate|None}}`.
+          - `nacional`: `{"abstencao": Estimate|None, "brancos_nulos":
+            Estimate|None}` agregado via `aggregate_national_participacao`.
+    """
+    snaps_by_uf: dict[str, list[LatestSnapshot]] = {}
+    for s in snapshots:
+        snaps_by_uf.setdefault(s["uf"], []).append(s)
+
+    metrics: tuple[ParticipacaoMetric, ...] = ("abstencao", "brancos_nulos")
+    by_uf: dict[str, dict[str, ParticipacaoEstimate | None]] = {}
+
+    for uf, snaps in snaps_by_uf.items():
+        zonas: list[ZonaParticipacao] = []
+        pct_num = 0.0
+        pct_den = 0.0
+        for s in snaps:
+            w = eleitorado.get((uf, s["cod_zona"]), 0)
+            if w > 0:
+                pct_num += s["pct_apurado"] * w
+                pct_den += w
+            raw = _extract_zone_participacao(s["payload"])
+            if raw is None or w <= 0:
+                continue
+            zona: ZonaParticipacao = {**raw, "cod_zona": s["cod_zona"], "weight": w}  # type: ignore[typeddict-item]
+            zonas.append(zona)
+        pct_apurado_uf = pct_num / pct_den if pct_den > 0 else 0.0
+
+        uf_result: dict[str, ParticipacaoEstimate | None] = {}
+        for metric in metrics:
+            local_seed = (
+                seed_base
+                ^ int(
+                    hashlib.sha256(f"{uf}:{metric}".encode("utf-8")).hexdigest()[:8],
+                    16,
+                )
+            ) & 0xFFFFFFFF
+            uf_result[metric] = estimate_uf_participacao(
+                zonas, metric, pct_apurado_uf, local_seed
+            )
+        by_uf[uf] = uf_result
+
+    eleitorado_total_by_uf: dict[str, int] = {}
+    for (uf, _z), aptos in eleitorado.items():
+        eleitorado_total_by_uf[uf] = eleitorado_total_by_uf.get(uf, 0) + aptos
+
+    nacional: dict[str, ParticipacaoEstimate | None] = {}
+    for metric in metrics:
+        per_uf_estimates = {uf: r.get(metric) for uf, r in by_uf.items()}
+        nacional[metric] = aggregate_national_participacao(
+            per_uf_estimates, eleitorado_total_by_uf
+        )
+
+    return by_uf, nacional
+
+
+def _national_votos_por_candidato(
+    municipio_aggregates: dict[tuple[str, int], dict[str, Any]],
+) -> tuple[dict[int, int], int]:
+    """Soma `votos_por_candidato`/`total_votos` de TODOS os municípios
+    (todas as UFs) — usado para popular `pct_atual` nacional real
+    (Fase 1a §1a.2) a partir do MESMO dado já lido por
+    `fetch_municipio_aggregates` (sem query adicional).
+    """
+    votos: dict[int, int] = {}
+    total = 0
+    for _key, agg in municipio_aggregates.items():
+        total += int(agg.get("total_votos") or 0)
+        for cid, v in agg.get("votos_por_candidato", {}).items():
+            cid_int = int(cid)
+            votos[cid_int] = votos.get(cid_int, 0) + int(v)
+    return votos, total
+
+
 def compute_national(
     cargo: int,
     turno: int,
     estimates_by_uf: dict[str, dict[int, np.ndarray]],
     eleitorado_total_by_uf: dict[str, int],
-) -> tuple[list[dict[str, Any]], float, int | None, int | None]:
+) -> tuple[
+    list[dict[str, Any]],
+    float,
+    int | None,
+    int | None,
+    tuple[np.ndarray, int],
+]:
     """Agrega estimates UF → nacional ponderado pelo eleitorado da UF.
 
     Para cada candidato `c`:
@@ -1108,14 +1633,19 @@ def compute_national(
         - `p_vitoria_a`: P(líder > segundo). Se <2 candidatos → 1.0 ou 0.0.
         - `cand_a_id`: id do líder, ou None se 0 candidatos.
         - `cand_b_id`: id do segundo, ou None se ≤1 candidato.
+        - `outros`: `(estimates, n_candidatos)` de `compute_outros_estimates`
+          (D4 — "Outros" com IC real, soma de resamples de rank >= 4).
+          `n_candidatos == 0` se <4 candidatos na corrida.
     """
+    _empty_outros: tuple[np.ndarray, int] = (np.zeros(0, dtype=np.float64), 0)
+
     # Reúne candidatos vistos.
     all_candidates: set[int] = set()
     for cand_map in estimates_by_uf.values():
         all_candidates.update(cand_map.keys())
 
     if not all_candidates:
-        return [], 0.0, None, None
+        return [], 0.0, None, None, _empty_outros
 
     # Determina shape do array nacional pelo primeiro estimates não vazio.
     sample_arr: np.ndarray | None = None
@@ -1126,14 +1656,14 @@ def compute_national(
         if sample_arr is not None:
             break
     if sample_arr is None:
-        return [], 0.0, None, None
+        return [], 0.0, None, None, _empty_outros
 
     n_resamples = sample_arr.shape[0]
 
     national_estimates: dict[int, np.ndarray] = {}
     total_eleitorado = sum(eleitorado_total_by_uf.values())
     if total_eleitorado <= 0:
-        return [], 0.0, None, None
+        return [], 0.0, None, None, _empty_outros
 
     for cand in all_candidates:
         agg = np.zeros(n_resamples, dtype=np.float64)
@@ -1151,7 +1681,7 @@ def compute_national(
             national_estimates[cand] = agg / weight_sum
 
     if not national_estimates:
-        return [], 0.0, None, None
+        return [], 0.0, None, None, _empty_outros
 
     # Ordenação SEMÂNTICA: A = líder por pct_projetado (mean), B = segundo.
     # Tie-breaker estável: candidato_id ASCENDENTE (segundo elemento do tuple).
@@ -1181,6 +1711,11 @@ def compute_national(
     # `rank` semântico por (-point, id) — mesma ordenação do `ordered` acima.
     rank_by_cand: dict[int, int] = {cand: i + 1 for i, cand in enumerate(ordered)}
 
+    # D4 — "Outros" com IC real: soma de resamples de rank >= 4. Zero novo
+    # bootstrap, zero random (mesma filosofia de `p_passa_2t`/`p_fecha_1t`
+    # acima — pura função dos `national_estimates` já computados).
+    outros = compute_outros_estimates(national_estimates, rank_by_cand, min_rank=4)
+
     rows: list[dict[str, Any]] = []
     for cand, arr in national_estimates.items():
         point = point_by_cand[cand]
@@ -1197,6 +1732,12 @@ def compute_national(
             pv = float(np.mean(arr > others_max))
         else:
             pv = 1.0
+        # Escala (docs/architecture/data-model.md § "Escala de percentuais"):
+        # `point`/`ci_lower`/`ci_upper` vêm de `national_estimates` (fração
+        # [0,1], mesmo espaço de `estimates_by_uf`). `rows` — consumido por
+        # `insert_projections`, `build_uf_payloads`, `build_edge_payload` —
+        # espera 0–100. `p_vitoria` continua em [0,1] (é probabilidade, não
+        # percentual).
         rows.append(
             {
                 "cargo": cargo,
@@ -1204,9 +1745,9 @@ def compute_national(
                 "uf": None,  # NULL = nacional
                 "candidato_id": cand,
                 "votos_projetados": None,
-                "pct_projetado": point,
-                "pct_projetado_lower": ci_lower,
-                "pct_projetado_upper": ci_upper,
+                "pct_projetado": _frac_to_pct(point),
+                "pct_projetado_lower": _frac_to_pct(ci_lower),
+                "pct_projetado_upper": _frac_to_pct(ci_upper),
                 "p_vitoria": pv,
                 "pct_apurado": None,
                 # S05/F4c — métricas multi-candidato enriquecidas. Persistem
@@ -1219,7 +1760,7 @@ def compute_national(
             }
         )
 
-    return rows, p_a, cand_a, cand_b
+    return rows, p_a, cand_a, cand_b, outros
 
 
 # ---------------------------------------------------------------------------
@@ -1452,6 +1993,8 @@ def build_uf_payloads(
     municipio_aggregates: dict[tuple[str, int], dict[str, Any]],
     zona_municipio: dict[int, dict[str, Any]],
     series_by_uf: dict[str, list[dict[str, Any]]],
+    estimates_by_uf: dict[str, dict[int, np.ndarray]] | None = None,
+    participacao_by_uf: dict[str, dict[str, ParticipacaoEstimate | None]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Constrói payloads canônicos `EdgePayloadUf` por UF (S04/F2).
 
@@ -1462,6 +2005,18 @@ def build_uf_payloads(
         `lider {id, partido, votos, margem_pp}`, `votos_reportados`);
       - `series_temporais` (margem, p_vitoria, turnout) lidas de
         `projections` ordenadas por ts ASC.
+
+    Fase 1a (RF-020.1, D3/D4/D5/D6) acrescenta, quando os parâmetros
+    opcionais são passados:
+      - `estimates_by_uf`: `{uf: {cand_id: ndarray}}` (mesmo output de
+        `compute_uf_projections`) — usado para "Outros" com IC real
+        (`compute_outros_estimates`, rank LOCAL da UF — top-3 da corrida
+        estadual, não o rank nacional usado para cor).
+      - `participacao_by_uf`: `{uf: {"abstencao": Estimate|None,
+        "brancos_nulos": Estimate|None}}` (output de
+        `compute_participacao`) — regra de três por UF.
+    Ambos `None` (default, compat retroativa) → `uf_payload` não ganha a
+    chave `participacao` (mesmo comportamento anterior à Fase 1a).
 
     Retorna `{uf_sigla: EdgePayloadUf}`. Cada payload tem ~5–10 KB em
     UF típica, podendo chegar a 30–40 KB em SP (645 municípios + 480
@@ -1535,9 +2090,15 @@ def build_uf_payloads(
         # via candidato.pct_projetado).
 
         # Constrói candidatos: cada candidato da UF + voto absoluto rateado.
+        # `local_rank_by_cand` — rank LOCAL da corrida da UF (1 = líder
+        # estadual), distinto de `rank_by_cand` (rank NACIONAL usado só
+        # para cor). "Outros" da UF (Fase 1a) usa o rank local — top-3 da
+        # disputa estadual, não do ranking nacional.
         candidatos: list[dict[str, Any]] = []
-        for r in ordered:
+        local_rank_by_cand: dict[int, int] = {}
+        for idx, r in enumerate(ordered):
             cid = int(r["candidato_id"])
+            local_rank_by_cand[cid] = idx + 1
             pct_proj = float(r.get("pct_projetado") or 0.0)
             pct_proj_lower = float(r.get("pct_projetado_lower") or pct_proj)
             pct_proj_upper = float(r.get("pct_projetado_upper") or pct_proj)
@@ -1591,6 +2152,41 @@ def build_uf_payloads(
                     },
                 }
             )
+
+        # Fase 1a (RF-020.1, D3/D4/D5/D6) — bloco `participacao` da UF.
+        # "Outros" (D4): soma de resamples de rank LOCAL >= 4 via
+        # `estimates_by_uf[sigla]` (candidatos ainda não presentes em
+        # `estimates_by_uf` — fallback legado sem parâmetro — resultam em
+        # `outros_uf = None`, chave omitida, comportamento pré-Fase 1a).
+        outros_uf: dict[str, Any] | None = None
+        cand_map_uf = (estimates_by_uf or {}).get(sigla)
+        if cand_map_uf:
+            outros_estimates_uf, n_outros_uf = compute_outros_estimates(
+                cand_map_uf, local_rank_by_cand, min_rank=4
+            )
+            outros_uf = _outros_metric_payload(outros_estimates_uf, n_outros_uf)
+            if outros_uf is not None and total_votos_uf > 0:
+                # `pct_atual` real da cauda: soma dos `pct_atual` já
+                # calculados acima para os candidatos com rank local >= 4
+                # (mesmo dado de `municipio_aggregates`, sem recomputar).
+                # Guard `total_votos_uf > 0`: sem votos reportados, todo
+                # `pct_atual` individual já degradou para `0.0` (fallback
+                # de `candidatos`) — somar daria um FALSO `0.0` em vez de
+                # `None` (mesma semântica de `outros_nacional` em
+                # `build_edge_payload`: "sem dado real" != "zero real").
+                outros_uf["pct_atual"] = sum(
+                    c["pct_atual"]
+                    for c in candidatos
+                    if local_rank_by_cand.get(int(c["id"]), 0) >= 4
+                )
+
+        part_est_uf = (participacao_by_uf or {}).get(sigla, {})
+        participacao_uf_payload = build_participacao_payload(
+            part_est_uf.get("abstencao"),
+            part_est_uf.get("brancos_nulos"),
+            outros_uf,
+            pct_apurado_uf,
+        )
 
         # Constrói municípios — agregação determinística por cod_ibge.
         # `municipios_for_meso` é a lista enriquecida com mesorregiao_cod/uf
@@ -1706,6 +2302,10 @@ def build_uf_payloads(
         # (consumidor esconde o bloco UI) em vez de "zero mesorregiões".
         if mesorregioes_payload:
             uf_payload["mesorregioes"] = mesorregioes_payload
+        # Fase 1a (RF-020.1, D6) — `participacao?` só aparece quando pelo
+        # menos uma métrica pôde ser calculada (ver `build_participacao_payload`).
+        if participacao_uf_payload is not None:
+            uf_payload["participacao"] = participacao_uf_payload
 
         out[sigla] = uf_payload
 
@@ -1723,8 +2323,31 @@ def build_edge_payload(
     cand_b_id: int | None = None,
     p_segundo_turno_overall: float | None = None,
     cenarios_2t: list[dict[str, Any]] | None = None,
+    municipio_aggregates: dict[tuple[str, int], dict[str, Any]] | None = None,
+    participacao_nacional: dict[str, ParticipacaoEstimate | None] | None = None,
+    outros_nacional: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Monta o shape canônico `EdgePayload` (lib/edge-config/types.ts).
+
+    Fase 1a (RF-020.1, D3/D4/D5/D6) acrescenta 3 parâmetros opcionais,
+    todos com default `None` (compat retroativa — sem eles o payload sai
+    idêntico ao pré-Fase 1a):
+      - `municipio_aggregates`: mesmo dado de `fetch_municipio_aggregates`
+        (TODAS as UFs, sem filtro) — usado para popular `pct_atual` REAL
+        de cada candidato nacional (antes hardcoded `0.0`) e o `pct_atual`
+        de "outros" (soma da cauda rank >= 4).
+      - `participacao_nacional`: `{"abstencao": Estimate|None,
+        "brancos_nulos": Estimate|None}` (output de
+        `compute_participacao`, campo `nacional`).
+      - `outros_nacional`: dict já no shape `participacao.outros` (output
+        de `_outros_metric_payload` sobre o 5º elemento de
+        `compute_national`), com `pct_atual: None` — este método preenche
+        o `pct_atual` real usando `municipio_aggregates` antes de anexar.
+    `national.participacao` só aparece quando pelo menos uma das 3 chaves
+    (`abstencao`/`brancos_nulos`/`outros`) tem dado real
+    (`build_participacao_payload` decide).
+
+    v1 (S03):
 
     v1 (S03):
       - `national.candidatos[]` — usa `national_rows`; o líder semântico
@@ -1797,15 +2420,35 @@ def build_edge_payload(
 
     sorted_national = sorted(national_rows, key=_sort_key)
 
+    # Fase 1a (§1a.2) — `pct_atual` nacional REAL a partir de
+    # `municipio_aggregates` (TODAS as UFs, sem filtro), reusando o dado já
+    # lido por `fetch_municipio_aggregates` — sem query adicional. Sem o
+    # parâmetro (caller legado), degrada para `0.0` (comportamento anterior).
+    votos_por_cand_nat: dict[int, int] = {}
+    total_votos_nat = 0
+    if municipio_aggregates:
+        votos_por_cand_nat, total_votos_nat = _national_votos_por_candidato(
+            municipio_aggregates
+        )
+
     national_candidatos: list[dict[str, Any]] = []
+    pct_atual_outros_sum = 0.0
     for r in sorted_national:
         # S05/F4c (ADR-0013): paleta visual por RANK (`var(--color-cand-N)`),
         # não por partido. `rank` vem populado de `compute_national`; se
         # ausente (caller legado), coalesce para a posição+1 no array.
         rank = int(r.get("rank") or (len(national_candidatos) + 1))
+        cid = int(r["candidato_id"])
+        pct_atual_cand = (
+            100.0 * votos_por_cand_nat.get(cid, 0) / total_votos_nat
+            if total_votos_nat > 0
+            else 0.0
+        )
+        if rank >= 4:
+            pct_atual_outros_sum += pct_atual_cand
         national_candidatos.append(
             {
-                "id": int(r["candidato_id"]),
+                "id": cid,
                 "nome": f"Candidato {r['candidato_id']}",
                 "partido": "—",
                 # CSS var literal — consumida direto em `style={{ background: c.cor }}`
@@ -1815,7 +2458,7 @@ def build_edge_payload(
                 "cor": f"var(--color-cand-{rank})",
                 "votos_atuais": 0,
                 "votos_projetados": int(r.get("votos_projetados") or 0),
-                "pct_atual": 0.0,
+                "pct_atual": pct_atual_cand,
                 "pct_projetado": float(r.get("pct_projetado") or 0.0),
                 "pct_projetado_lower": float(r.get("pct_projetado_lower") or 0.0),
                 "pct_projetado_upper": float(r.get("pct_projetado_upper") or 0.0),
@@ -1826,6 +2469,13 @@ def build_edge_payload(
                 "p_fecha_1t": float(r.get("p_fecha_1t") or 0.0),
             }
         )
+
+    # Fase 1a — patch `pct_atual` de "outros" com o dado real recém
+    # computado (só quando `municipio_aggregates` foi fornecido; sem ele,
+    # `outros_nacional["pct_atual"]` permanece `None`, vindo de
+    # `_outros_metric_payload`).
+    if outros_nacional is not None and total_votos_nat > 0:
+        outros_nacional = {**outros_nacional, "pct_atual": pct_atual_outros_sum}
 
     # Needle nacional — usa p_vitoria do LÍDER (cand_a_id) mapeada para [-1, 1].
     # `position = 2 * p_a - 1`: p=0.5 → 0 (tossup), p=1 → +1.
@@ -1925,6 +2575,17 @@ def build_edge_payload(
         else:
             vai_a_2t_nacional = p_2t_overall >= 0.01
 
+    # Fase 1a (RF-020.1, D6) — `national.participacao?`. Omitido inteiro
+    # se nenhuma das 3 métricas (abstenção/brancos-nulos/outros) tem dado
+    # real (`build_participacao_payload` decide).
+    _participacao_src = participacao_nacional or {}
+    participacao_payload = build_participacao_payload(
+        _participacao_src.get("abstencao"),
+        _participacao_src.get("brancos_nulos"),
+        outros_nacional,
+        pct_apurado_total,
+    )
+
     return {
         "ts": ts_iso,
         "cargo": int(cargo),
@@ -1945,6 +2606,12 @@ def build_edge_payload(
             "cenarios_2t": cenarios_2t_payload,
             # S06/F4d Fase 5 — sinal binário explícito (paridade com EdgeUfRow.vai_a_2t).
             "vai_a_2t_nacional": vai_a_2t_nacional,
+            # Fase 1a (RF-020.1, D6) — só presente quando há dado real.
+            **(
+                {"participacao": participacao_payload}
+                if participacao_payload is not None
+                else {}
+            ),
         },
         "por_uf": por_uf,
         "insights": [],
@@ -2099,12 +2766,19 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 eleitorado=eleitorado,
             )
 
-            national_rows, national_p_a, cand_a_id, cand_b_id = compute_national(
+            (
+                national_rows,
+                national_p_a,
+                cand_a_id,
+                cand_b_id,
+                (outros_estimates_nat, n_outros_nat),
+            ) = compute_national(
                 cargo=req.cargo,
                 turno=req.turno,
                 estimates_by_uf=estimates_by_uf,
                 eleitorado_total_by_uf=eleitorado_total_by_uf,
             )
+            outros_nacional = _outros_metric_payload(outros_estimates_nat, n_outros_nat)
 
             # S05/F4c (ADR-0014) — métricas multi-candidato pré-computadas
             # uma vez aqui para serem reusadas pelo edge_payload abaixo.
@@ -2114,6 +2788,17 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 estimates_by_uf, eleitorado_total_by_uf
             )
             scenarios = compute_two_round_scenarios(national_estimates)
+
+            # Fase 1a (RF-020.1) — participação (abstenção, brancos/nulos)
+            # por regra de três (D5, `turnout.py`). Reusa os MESMOS
+            # `snapshots`/`eleitorado` já buscados acima — sem query nova.
+            participacao_by_uf, participacao_nacional = compute_participacao(
+                cargo=req.cargo,
+                turno=req.turno,
+                seed_base=seed_base,
+                snapshots=snapshots,
+                eleitorado=eleitorado,
+            )
 
             # Persistência append-only (constituição § 10).
             insert_projections(conn, uf_rows + national_rows)
@@ -2138,6 +2823,10 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 # S05/F4c (ADR-0014) — métricas multi-candidato.
                 p_segundo_turno_overall=scenarios.get("p_segundo_turno_overall"),
                 cenarios_2t=scenarios.get("cenarios_2t", []),
+                # Fase 1a (RF-020.1, D3/D4/D5/D6) — participação + outros.
+                municipio_aggregates=municipio_aggregates,
+                participacao_nacional=participacao_nacional,
+                outros_nacional=outros_nacional,
             )
             # S04/F2 — payloads UF ricos (candidatos com votos, municípios,
             # séries temporais). Envia junto do nacional; endpoint Node
@@ -2151,6 +2840,9 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 municipio_aggregates=municipio_aggregates,
                 zona_municipio=zona_municipio,
                 series_by_uf=series_by_uf,
+                # Fase 1a (RF-020.1, D3/D4/D5/D6) — participação + outros.
+                estimates_by_uf=estimates_by_uf,
+                participacao_by_uf=participacao_by_uf,
             )
             post_edge_write(edge_payload, payloads_uf=uf_payloads)
         except Exception as edge_exc:  # noqa: BLE001 — never block the response

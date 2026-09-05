@@ -388,9 +388,11 @@ describeIfReady("T18 — ciclo do modelo end-to-end (integration)", { timeout: 6
       const lower = Number(r.pct_projetado_lower);
       const upper = Number(r.pct_projetado_upper);
 
-      // Bounds plausíveis: pct em [0, 1].
+      // Bounds plausíveis: pct em [0, 100]. Escala 0–100 desde a correção do
+      // BUG-2 (fração interna no bootstrap, 0–100 em `rows`/`projections`/payload
+      // — ver docs/architecture/data-model.md § Escala de percentuais).
       expect(point).toBeGreaterThanOrEqual(0);
-      expect(point).toBeLessThanOrEqual(1);
+      expect(point).toBeLessThanOrEqual(100);
 
       // CI bracket: lower <= point <= upper (igualdades aceitas para casos
       // degenerados em que CI colapsa por edge_cases — RF-017).

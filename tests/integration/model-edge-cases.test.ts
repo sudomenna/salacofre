@@ -333,10 +333,10 @@ describe.skipIf(SKIP)("T19 — model edge cases (integration, real Neon + Python
   //   - 2 linhas em projections para UF=ZT.
   //   - pct_projetado ≈ pct_validos do candidato em 2022 (média ponderada
   //     pelo eleitorado das zonas — igual em todas, então = pct_validos).
-  //   - ci_upper - ci_lower ≈ 0.20 (±10pp em fração).
+  //   - ci_upper - ci_lower ≈ 20pp (±10pp, escala 0–100).
   // -------------------------------------------------------------------------
 
-  it("Cenário A (RF-017) — UF 0% apurada: projeção ≈ p_2022 e CI ≈ 0.20", {
+  it("Cenário A (RF-017) — UF 0% apurada: projeção ≈ p_2022 e CI ≈ 20pp", {
     timeout: 60_000,
   }, async () => {
     if (!PY_BIN) throw new Error(`unreachable (skip): ${SKIP_REASON}`);
@@ -387,17 +387,18 @@ describe.skipIf(SKIP)("T19 — model edge cases (integration, real Neon + Python
     expect(c101).toBeDefined();
     expect(c102).toBeDefined();
 
-    // pct_projetado ≈ p_2022 (tolerância 1pp para arredondamento numeric).
-    expect(c101!.pct_projetado).toBeCloseTo(0.6, 2);
-    expect(c102!.pct_projetado).toBeCloseTo(0.4, 2);
+    // pct_projetado ≈ p_2022, em 0–100 (tolerância 0.5pp para arredondamento
+    // numeric). Escala 0–100 desde a correção do BUG-2 — ver
+    // docs/architecture/data-model.md § Escala de percentuais.
+    expect(c101!.pct_projetado).toBeCloseTo(60, 0);
+    expect(c102!.pct_projetado).toBeCloseTo(40, 0);
 
-    // Largura do CI ≈ 0.20 (±10pp). Tolerância 2pp por causa do clipping
-    // em [0,1] que poderia trim a borda — mas 0.6±0.1 e 0.4±0.1 estão
-    // dentro do intervalo então clip não atua.
+    // Largura do CI ≈ 20pp (±10pp). O clipping em [0,100] poderia trim a
+    // borda — mas 60±10 e 40±10 estão dentro do intervalo, então não atua.
     const width101 = c101!.pct_projetado_upper - c101!.pct_projetado_lower;
     const width102 = c102!.pct_projetado_upper - c102!.pct_projetado_lower;
-    expect(width101).toBeCloseTo(0.2, 2);
-    expect(width102).toBeCloseTo(0.2, 2);
+    expect(width101).toBeCloseTo(20, 0);
+    expect(width102).toBeCloseTo(20, 0);
   });
 
   // -------------------------------------------------------------------------
