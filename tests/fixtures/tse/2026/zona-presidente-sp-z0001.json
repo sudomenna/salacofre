@@ -1,7 +1,8 @@
 {
+  "_nota": "Fixture derivada do dicionário oficial EA20 (tse-ea20-arquivo-de-resultado-unificado.txt, versão 2026-07-10) — não é uma captura real do CDN (o simulado oficial ainda não rodou nesta data). Valores plausíveis preenchidos manualmente a partir das placeholders `{tipo}` do documento. Ver docs/reference/tse-2026-leiautes.md.",
   "ele": "619",
   "t": "1",
-  "f": "o",
+  "f": "s",
   "sup": "n",
   "tpabr": "zona",
   "cdabr": "0001",
@@ -40,35 +41,16 @@
                   "e": "s",
                   "vap": "165",
                   "pvap": "63,46",
-                  "pvapn": "63,461538462"
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "n": "22",
-          "nm": "PL",
-          "tp": "i",
-          "tvtn": "95",
-          "tvan": "95",
-          "par": [
-            {
-              "n": "22",
-              "sg": "PL",
-              "nm": "Partido Liberal",
-              "tvtn": "95",
-              "tvan": "95",
-              "cand": [
-                {
-                  "n": "22",
-                  "sqcand": "220000000001",
-                  "nm": "JAIR MESSIAS BOLSONARO",
-                  "nmu": "JAIR BOLSONARO",
-                  "e": "n",
-                  "vap": "95",
-                  "pvap": "36,53",
-                  "pvapn": "36,538461538"
+                  "pvapn": "63,461538462",
+                  "vs": [
+                    {
+                      "tp": "v",
+                      "sqcand": "130000000002",
+                      "nm": "VICE FICTICIO",
+                      "nmu": "VICE",
+                      "sgp": "PT"
+                    }
+                  ]
                 }
               ]
             }

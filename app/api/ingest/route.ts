@@ -11,21 +11,31 @@
  * Covers: RF-001, RF-002, RF-003, RF-004, RNF-006, RNF-016, RNF-032.
  * Constituição § 1 (transparência — User-Agent identificável via client.ts).
  * Constituição § 10 (append-only — repository.ts, zero UPDATE/DELETE here).
- * ADR-0011 (cadência 60 s; maxDuration 60 s exported below).
+ * ADR-0011 (cadência 60 s do cron; maxDuration 180 s — ver comentário abaixo
+ * sobre por que o orçamento de execução não é mais igual ao intervalo).
  * ADR-0001 (Postgres somente no write path — read path usa Edge Config).
  */
 
 import type { NextRequest } from "next/server";
 import { after, NextResponse } from "next/server";
+import type { AcompanhamentoPrevious } from "@/lib/tse/acompanhamento";
+import { detectChangedUfs } from "@/lib/tse/acompanhamento";
 import { notifySlack } from "@/lib/tse/alerts";
-import { fetchEA20 } from "@/lib/tse/client";
+import { fetchEA20, getClientStats, resetClientStats } from "@/lib/tse/client";
 import { parseEA20Numeric } from "@/lib/tse/ea20-schema";
 import { serialiseCause } from "@/lib/tse/errors";
+import { isWithinIngestWindow, parseIngestWindow } from "@/lib/tse/ingest-window";
 import { logDebug, logError, logInfo, logWarn } from "@/lib/tse/log";
 import { calculateLagSeconds } from "@/lib/tse/metrics";
-import { getLastEtagAndHash, insertSnapshot, logIngestRun } from "@/lib/tse/repository";
+import { getTseRateLimiter } from "@/lib/tse/rate-limiter";
+import {
+  getLastEtagAndHash,
+  getLastIngestRun,
+  insertSnapshot,
+  logIngestRun,
+} from "@/lib/tse/repository";
 import { withRetry } from "@/lib/tse/retry";
-import { listIngestTargets } from "@/lib/tse/targets";
+import { getActiveCargos, listIngestTargets } from "@/lib/tse/targets";
 
 // ---------------------------------------------------------------------------
 // Vercel runtime config
@@ -34,41 +44,34 @@ import { listIngestTargets } from "@/lib/tse/targets";
 export const runtime = "nodejs";
 
 /**
- * maxDuration = 60 s — budget matches the Vercel Cron interval (ADR-0011).
- * Vercel Pro default is 60 s; Fluid Compute allows up to 800 s but we
- * deliberately match the interval so back-to-back invocations never overlap.
- * Budget breakdown: ~500 ms target-list DB query + N GETs in parallel
- * (CONCURRENCY=20) + ~200 ms logIngestRun. For preview (~500 targets / 20
- * slots = 25 waves × avg 800 ms/wave = ~20 s), there is comfortable margin.
+ * maxDuration = 180 s (2026-09-05, hardening pré-simulado).
+ *
+ * Era 60s, alinhado 1:1 com o cron de 60s (ADR-0011) sob a premissa de que
+ * back-to-back invocations nunca poderiam se sobrepor. Duas mudanças
+ * quebraram essa premissa: (1) o rate limiter de saída (`getTseRateLimiter`)
+ * agora pode fazer um target esperar até `RETRY_MAX_DELAY_MS` (15s) por
+ * tentativa em cenário de 429 sustentado; (2) o fan-out de produção ainda
+ * não tem EA15 gating (Fase 1b do plano de prontidão), então o número de
+ * GETs por ciclo pode ultrapassar o que 60s comporta com folga.
+ *
+ * 180s é um valor conservador de transição — o lock anti-overlap abaixo
+ * (`getLastIngestRun` + marcador `running`) garante que, mesmo que um ciclo
+ * estoure o intervalo do cron, o próximo ciclo não rode em paralelo (ele
+ * detecta `running: true` recente e responde `{ skipped: "overlap" }`).
+ * TODO(humano): recalibrar após medir o simulado (decisão humana pendente
+ * no plano — "orçamento de ciclo em produção").
  */
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 // ---------------------------------------------------------------------------
-// Helpers — window check
+// Estado de gating EA14 (acompanhamento) — módulo-level, reaproveitado entre
+// invocações pelo Fluid Compute (mesmo padrão do rate limiter singleton em
+// lib/tse/rate-limiter.ts). Guarda o ETag do último EA14 200 + o hash por UF
+// do ciclo anterior, para que `detectChangedUfs` possa enviar `If-None-Match`
+// e comparar hashes sem precisar de uma tabela nova no Postgres.
 // ---------------------------------------------------------------------------
 
-/**
- * isWithinIngestWindow — returns true when `now` falls within the apuration
- * window: 17h00–04h00 BRT on the day of counting.
- *
- * BRT = UTC-3. Brasil abolished daylight saving time in 2019, so BRT is
- * permanent year-round — no DST offset to handle.
- *
- * Conversions:
- *   17:00 BRT = 20:00 UTC  (window start)
- *   04:00 BRT = 07:00 UTC  (window end, next calendar day)
- *
- * Because the window crosses midnight UTC, we accept the hour if:
- *   utcHour >= 20  (20, 21, 22, 23)
- *   OR utcHour < 7 (0, 1, 2, 3, 4, 5, 6)
- *
- * Note: utcHour === 7 corresponds to exactly 04:00 BRT — outside the window
- * (RF-002 acceptance: "04:00:01, no new execution fires").
- */
-function isWithinIngestWindow(now: Date): boolean {
-  const utcHour = now.getUTCHours();
-  return utcHour >= 20 || utcHour < 7;
-}
+let acompanhamentoState: AcompanhamentoPrevious | null = null;
 
 // ---------------------------------------------------------------------------
 // Helpers — turno
@@ -98,29 +101,50 @@ function parseTurnoEnv(): 1 | 2 {
 /**
  * CONCURRENCY — maximum parallel in-flight EA20 GETs per invocation.
  *
- * Set to 20 as a conservative initial value for preview (~500 targets).
- * With 20 slots and an average round-trip of ~500 ms per file, 500 targets
- * complete in ~25 waves × 500 ms ≈ 12.5 s — well within the 60 s budget.
+ * 2026-09-05: agora lido de `INGEST_CONCURRENCY` (default 20, mesmo valor de
+ * antes) para permitir calibrar durante os simulados sem redeploy. Note que
+ * concorrência e taxa são controles ORTOGONAIS: este semáforo limita quantas
+ * requisições ficam simultaneamente em voo; `getTseRateLimiter()`
+ * (lib/tse/rate-limiter.ts) limita quantas SAEM por segundo (RF-001 — limite
+ * de 100 req/s/IP do TSE). Um CONCURRENCY alto com TSE_MAX_RPS baixo apenas
+ * faz mais requisições esperarem na fila do rate limiter — não estoura o
+ * limite do TSE.
  *
- * TODO(S03): tune based on production metrics. Production has ~73k targets
- * × 2 cargos = ~146k GETs/cycle. At 20 concurrency and 500 ms avg RTT,
- * that would be ~3650 s — far beyond maxDuration. Production will need
- * either higher concurrency, partitioned cron jobs, or Fluid Compute.
+ * Valor inválido (não-numérico, <= 0) cai no default 20 com um warn.
  */
-const CONCURRENCY = 20;
+function getIngestConcurrency(): number {
+  const DEFAULT_CONCURRENCY = 20;
+  const raw = process.env.INGEST_CONCURRENCY;
+  if (raw === undefined || raw.trim() === "") return DEFAULT_CONCURRENCY;
+
+  const parsed = Number(raw.trim());
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    console.warn(
+      `[ingest] INGEST_CONCURRENCY inválida: "${raw}" — usando default ${DEFAULT_CONCURRENCY}.`,
+    );
+    return DEFAULT_CONCURRENCY;
+  }
+  return Math.floor(parsed);
+}
+
+const CONCURRENCY = getIngestConcurrency();
 
 // ---------------------------------------------------------------------------
 // Model trigger (T16 — Fase 5)
 // ---------------------------------------------------------------------------
 
 /**
- * ACTIVE_CARGOS — cargos para os quais disparamos `/api/model/project` ao fim
- * do ciclo de ingestão (RF-019). S03 cobre presidente (1) e governador (3).
+ * Cargos para os quais disparamos `/api/model/project` ao fim do ciclo de
+ * ingestão (RF-019). Cada cargo gera UM fire-and-forget independente do
+ * outro. Falha em um não bloqueia o outro nem o response do `/api/ingest`.
  *
- * Cada cargo gera UM fire-and-forget independente do outro. Falha em um não
- * bloqueia o outro nem o response do `/api/ingest`.
+ * 2026-09-05: era um array hardcoded `[1, 3]` — agora vem de
+ * `getActiveCargos()` (lib/tse/targets.ts, env `TSE_CARGOS`), a mesma fonte
+ * usada por `buildProductionTargets` para materializar os targets. Chamado
+ * no ponto de uso (dentro do bloco `if (changed > 0)`), não como constante
+ * de módulo, para respeitar mudanças de env entre invocações do mesmo
+ * processo (Fluid Compute reutiliza instâncias).
  */
-const ACTIVE_CARGOS = [1, 3] as const;
 
 /**
  * resolveInternalBaseUrl — base URL pra `/api/model/project` no mesmo deploy.
@@ -272,10 +296,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ skipped: "cron_disabled" });
   }
 
+  // RF-002 hardening (2026-09-05): janela configurável via INGEST_WINDOW
+  // ("17-04" apuração real; "9-17" simulados TSE, 9h-17h BRT).
+  let ingestWindow: ReturnType<typeof parseIngestWindow>;
+  try {
+    ingestWindow = parseIngestWindow();
+  } catch (err) {
+    logError("INGEST_WINDOW inválida — abortando", { error: serialiseCause(err) });
+    return NextResponse.json({ error: "misconfigured", detail: String(err) }, { status: 500 });
+  }
+
   const override = process.env.INGEST_WINDOW_OVERRIDE === "true";
-  if (!override && !isWithinIngestWindow(new Date())) {
-    logDebug("ingest skipped — fora da janela 17h-04h BRT", {
+  if (!override && !isWithinIngestWindow(new Date(), ingestWindow)) {
+    logDebug("ingest skipped — fora da janela de ingestão configurada", {
       utcHour: new Date().getUTCHours(),
+      ingestWindow,
     });
     return NextResponse.json({ skipped: "out_of_window" });
   }
@@ -294,11 +329,70 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "misconfigured", detail: String(err) }, { status: 500 });
   }
 
+  const env = process.env.VERCEL_ENV === "production" ? "production" : "preview";
+
+  // --------------------------------------------------------------------------
+  // 3b. Lock anti-overlap simples (RF-002 hardening, 2026-09-05)
+  //
+  // maxDuration subiu para 180s (ver comentário acima) porque o rate
+  // limiter/429 podem alongar um ciclo além do intervalo do cron. Em vez de
+  // um lock de banco "de verdade" (SELECT ... FOR UPDATE, advisory lock),
+  // usamos a última linha de `ingest_log`: se ela marca `running: true` e é
+  // recente (<3min), um ciclo anterior ainda está em voo (ou travou) — pula
+  // este ciclo em vez de rodar em paralelo (duas escritas simultâneas em
+  // `snapshots` não violam o append-only, mas competem pelo mesmo rate
+  // limiter/DB pool sem necessidade). Falha ao ler o lock é fail-open: um
+  // lock ilegível não deve travar o pipeline inteiro.
+  // --------------------------------------------------------------------------
+
+  const OVERLAP_LOCK_WINDOW_MS = 3 * 60 * 1000;
+
+  try {
+    const lastRun = await getLastIngestRun();
+    if (lastRun?.notes?.running === true) {
+      const ageMs = Date.now() - lastRun.ts.getTime();
+      if (ageMs < OVERLAP_LOCK_WINDOW_MS) {
+        logInfo("ingest skipped — ciclo anterior ainda em voo (overlap lock)", {
+          ageMs,
+          env,
+          turno,
+        });
+        return NextResponse.json({ skipped: "overlap" });
+      }
+    }
+  } catch (err) {
+    logWarn("getLastIngestRun falhou — seguindo sem lock anti-overlap (fail-open)", {
+      error: serialiseCause(err),
+    });
+  }
+
+  // Marca o início do ciclo (append-only — a linha final com `running:false`
+  // + métricas vem no passo 6). Falha ao gravar o marcador não aborta o
+  // ciclo — só reduz a eficácia do lock no próximo invocation.
+  try {
+    await logIngestRun({
+      durationMs: 0,
+      filesFetched: 0,
+      filesChanged: 0,
+      errors: 0,
+      notes: JSON.stringify({ running: true, turno, env }),
+    });
+  } catch (err) {
+    logWarn("logIngestRun (marcador de início) falhou — seguindo sem lock gravado", {
+      error: serialiseCause(err),
+    });
+  }
+
+  // Zera os contadores de client stats (429/404/304) e captura o
+  // `waitedMs` acumulado do rate limiter ANTES do ciclo — o rate limiter é
+  // um singleton do processo (Fluid Compute reutiliza instâncias), então
+  // reportamos o DELTA deste ciclo, não o total acumulado desde o boot.
+  resetClientStats();
+  const waitedMsBefore = getTseRateLimiter().stats.waitedMs;
+
   // --------------------------------------------------------------------------
   // 4. Resolve targets
   // --------------------------------------------------------------------------
-
-  const env = process.env.VERCEL_ENV === "production" ? "production" : "preview";
 
   let targets: Awaited<ReturnType<typeof listIngestTargets>>;
   try {
@@ -317,6 +411,57 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     env,
     override,
   });
+
+  // --------------------------------------------------------------------------
+  // 4b. EA14 gating (acompanhamento) — opt-in via TSE_ACOMPANHAMENTO=on
+  // --------------------------------------------------------------------------
+  //
+  // Fase 1b do plano de prontidão pré-simulado (ver docs/reference/tse-2026-leiautes.md
+  // § fan-out). Quando ligado, filtra `targets` para só as UFs que o EA14
+  // (1 GET) sinalizou como mudadas desde o último ciclo — reduz drasticamente
+  // o número de GETs de EA20 em ciclos "parados" (madrugada, entre
+  // totalizações). Alvos de nível "br" nunca são filtrados por esta etapa —
+  // o próprio EA14 já É o resumo nacional, não há um segundo arquivo pra
+  // comparar contra.
+  if (process.env.TSE_ACOMPANHAMENTO === "on") {
+    const ufsNoCiclo = [...new Set(targets.filter((t) => t.nivel !== "br").map((t) => t.uf))];
+
+    if (ufsNoCiclo.length > 0) {
+      try {
+        const signals = await detectChangedUfs({
+          ufs: ufsNoCiclo,
+          previous: acompanhamentoState,
+        });
+
+        const changedUfs = new Set(signals.filter((s) => s.changed).map((s) => s.uf));
+        const etagDoCiclo =
+          signals.find((s) => s.etag !== null)?.etag ?? acompanhamentoState?.etag ?? null;
+        const hashes: Record<string, string> = { ...acompanhamentoState?.hashes };
+        for (const s of signals) {
+          if (s.hash !== null) hashes[s.uf] = s.hash;
+        }
+        acompanhamentoState = { etag: etagDoCiclo, hashes };
+
+        const targetsAntes = targets.length;
+        targets = targets.filter((t) => t.nivel === "br" || changedUfs.has(t.uf));
+
+        logInfo("EA14 gating aplicado", {
+          ufsAnalisadas: ufsNoCiclo.length,
+          ufsMudadas: changedUfs.size,
+          targetsAntes,
+          targetsDepois: targets.length,
+        });
+      } catch (err) {
+        // detectChangedUfs já é fail-open internamente (nunca deveria
+        // rejeitar), mas mantemos um fail-open de segunda camada aqui: se
+        // por algum motivo a chamada lançar, seguimos com `targets`
+        // inalterado (equivalente a "tudo mudou").
+        logWarn("EA14 gating falhou — seguindo sem filtro (fail-open)", {
+          error: serialiseCause(err),
+        });
+      }
+    }
+  }
 
   // --------------------------------------------------------------------------
   // 5. Per-target loop with bounded concurrency
@@ -398,54 +543,49 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }
 
       // -----------------------------------------------------------------------
-      // 5d. Extract pctApurado + votosTotal from abr[0]
+      // 5d. Extract pctApurado + votosTotal from the root `s`/`e` elements
       // -----------------------------------------------------------------------
-
-      const abr = result.data.abr[0];
-
-      if (abr === undefined) {
-        // abr is empty — zone exists in TSE but has no aggregated data yet.
-        // Not an error (it's a valid "pending" state); we skip without
-        // incrementing the error counter.
-        logWarn("EA20 abr vazio — zona sem dados apurados ainda", {
-          url: target.url,
-          uf: target.uf,
-          cargo: target.cargo,
-          codZona: target.codZona,
-        });
-        return;
-      }
-
-      // pctApurado: use `psa` (% seções apuradas — the field that signals
-      // how much of the zone has been counted, independent of vote type).
       //
-      // votosTotal: use `tc` (comparecimento = total voters who showed up).
-      // This captures all votes cast including blancos and nulos, making it
-      // a better "total votes processed" signal for the ingest metrics than
-      // `tvn` (nominais only) or `tvv` (válidos, excludes brancos+nulos).
-      // If downstream model needs narrower counts, it reads them from `payload`.
+      // 2026-09-05 — corrigido contra o dicionário oficial EA20 2026-07-10
+      // (docs/reference/tse-2026-leiautes.md). O EA20 real NÃO tem um array
+      // `abr[]` de abrangências dentro do arquivo — cada arquivo já É uma
+      // única abrangência (codificada em `tpabr`/`cdabr` e no nome do
+      // arquivo). Os totais vivem em objetos de raiz `s` (seções) e `e`
+      // (eleitores), exigidos pelo Zod schema (EA20Schema.s / .e são
+      // required), então não há mais um caso "abr vazio" — se o parse Zod
+      // passou, `s`/`e` existem.
+
+      // pctApurado: `s.psa` (% seções apuradas — sinaliza quanto da
+      // abrangência já foi contado, independente do tipo de voto).
+      //
+      // votosTotal: `e.c` (comparecimento = total de eleitores que
+      // compareceram). Captura todos os votos dados, incluindo brancos e
+      // nulos — melhor sinal de "total de votos processados" para as
+      // métricas de ingest do que `v.vnom` (só nominais) ou `v.vv` (válidos,
+      // exclui brancos+nulos). Se o modelo precisar de contagens mais
+      // estreitas, ele lê do `payload` bruto.
       let pctApurado: number;
       let votosTotal: number;
 
       try {
-        pctApurado = parseEA20Numeric(abr.psa);
+        pctApurado = parseEA20Numeric(result.data.s.psa);
       } catch {
         // Non-fatal: persist the snapshot with pctApurado=0 and log for
         // investigation. TSE has occasionally emitted malformed percent
         // strings (e.g. empty "psa" early in counting).
-        logWarn("parseEA20Numeric falhou em abr.psa — usando 0", {
+        logWarn("parseEA20Numeric falhou em s.psa — usando 0", {
           url: target.url,
-          raw: abr.psa,
+          raw: result.data.s.psa,
         });
         pctApurado = 0;
       }
 
       try {
-        votosTotal = parseEA20Numeric(abr.tc);
+        votosTotal = parseEA20Numeric(result.data.e.c);
       } catch {
-        logWarn("parseEA20Numeric falhou em abr.tc — usando 0", {
+        logWarn("parseEA20Numeric falhou em e.c — usando 0", {
           url: target.url,
-          raw: abr.tc,
+          raw: result.data.e.c,
         });
         votosTotal = 0;
       }
@@ -524,10 +664,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     } else {
       const baseUrl = resolveInternalBaseUrl();
       const triggerTs = new Date().toISOString();
-      for (const cargo of ACTIVE_CARGOS) {
+
+      // getActiveCargos() nunca deveria lançar (pior caso, cai no default
+      // [1,3] — ver lib/tse/targets.ts), mas isolamos com try/catch mesmo
+      // assim: um throw não capturado aqui pularia o marcador final
+      // `running:false` (passo 6 abaixo) e deixaria o lock anti-overlap
+      // preso por até 3min, bloqueando o próximo ciclo sem necessidade.
+      let activeCargos: Array<1 | 3> = [];
+      try {
+        activeCargos = getActiveCargos();
+      } catch (err) {
+        logWarn("getActiveCargos falhou — model-trigger pulado neste ciclo", {
+          error: serialiseCause(err),
+        });
+      }
+
+      for (const cargo of activeCargos) {
         triggerModel({ baseUrl, cargo, turno, triggerTs, modelSecret });
       }
-      modelTriggered = [...ACTIVE_CARGOS];
+      modelTriggered = [...activeCargos];
       logInfo("model-trigger dispatched", {
         cargos: modelTriggered,
         turno,
@@ -536,6 +691,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
+  // Snapshot dos contadores de client stats (429/404/304) e do delta de
+  // waitedMs do rate limiter — ver comentário no passo 3b sobre por que é
+  // um delta e não o total acumulado do processo.
+  const clientStatsSnapshot = getClientStats();
+  const waitedMs = getTseRateLimiter().stats.waitedMs - waitedMsBefore;
+
   try {
     await logIngestRun({
       durationMs,
@@ -543,10 +704,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       filesChanged: changed,
       errors: errorsCount,
       notes: JSON.stringify({
+        running: false,
         turno,
         env,
         unchanged,
         not_found: notFoundCount,
+        rateLimited: clientStatsSnapshot.rateLimited,
+        waitedMs,
         ...(modelTriggered.length > 0 ? { model_triggered: modelTriggered } : {}),
       }),
     });
@@ -568,6 +732,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     maxLagSeconds,
     turno,
     env,
+    rateLimited: clientStatsSnapshot.rateLimited,
+    waitedMs,
   });
 
   // ----------------------------------------------------------------------------
@@ -591,6 +757,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       ctx: { errors: errorsCount, filesFetched: targets.length, env, turno },
     });
   }
+  if (clientStatsSnapshot.rateLimited > 0) {
+    // 2026-09-05 — RF-002 hardening: 429 sustentado é o sinal mais direto de
+    // que TSE_MAX_RPS/INGEST_CONCURRENCY estão desalinhados com o limite
+    // real de 100 req/s/IP do TSE (ou outro processo compartilha o IP).
+    void notifySlack({
+      severity: "error",
+      msg: `${clientStatsSnapshot.rateLimited} respostas 429 (rate limited) neste ciclo`,
+      ctx: { rateLimited: clientStatsSnapshot.rateLimited, waitedMs, env, turno },
+    });
+  }
 
   return NextResponse.json({
     ok: true,
@@ -600,5 +776,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     unchanged,
     notFound: notFoundCount,
     errors: errorsCount,
+    rateLimited: clientStatsSnapshot.rateLimited,
+    waitedMs,
   });
 }

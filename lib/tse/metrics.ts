@@ -39,7 +39,16 @@ export interface IngestCycleMetrics {
 /**
  * calculateLagSeconds — compute lag between TSE generation time and `now`.
  *
- * @param ea20Dg - EA20 `dg` field: date formatted as ddMMyyyy (e.g. "04102026")
+ * @param ea20Dg - EA20 `dg` field: date. Aceita DOIS formatos:
+ *                 - `dd/mm/aaaa` (formato oficial confirmado no dicionário
+ *                   EA20 2026-07-10 — "Data da geração do arquivo - formato
+ *                   dd/mm/aaaa" — ver docs/reference/tse-2026-leiautes.md).
+ *                 - `ddMMyyyy` (formato legado, sem separador — herdado das
+ *                   fixtures sintéticas de 2022 nunca confirmadas contra
+ *                   documento oficial; mantido por compatibilidade retroativa
+ *                   até todas as fixtures serem migradas).
+ *                 Quando ambíguo entre os dois, `dd/mm/aaaa` (com barras) é
+ *                 tentado primeiro — é o formato real do TSE.
  * @param ea20Hg - EA20 `hg` field: time formatted as HH:mm:ss (e.g. "20:15:30")
  * @param now    - Reference instant; defaults to `new Date()`. Injection point
  *                 for deterministic unit testing.
@@ -56,8 +65,8 @@ export interface IngestCycleMetrics {
  * BRT = UTC-3. Brasil abolished daylight saving time in 2019, so BRT is
  * permanently UTC-3 with no DST offset to handle.
  *
- * Example:
- *   dg = "04102026", hg = "20:15:30"
+ * Example (formato oficial 2026):
+ *   dg = "04/10/2026", hg = "20:15:30"
  *   → tseTimestamp = new Date('2026-10-04T20:15:30-03:00')
  *                  = 2026-10-04T23:15:30Z
  *   If now = 2026-10-04T23:16:00Z → lag = 30s
@@ -67,14 +76,23 @@ export function calculateLagSeconds(
   ea20Hg: string,
   now: Date = new Date(),
 ): number {
-  // ----- Parse dg (ddMMyyyy) -------------------------------------------------
-  if (!/^\d{8}$/.test(ea20Dg)) {
-    throw new Error(`calculateLagSeconds: dg "${ea20Dg}" não segue formato ddMMyyyy esperado`);
-  }
+  // ----- Parse dg — aceita "dd/mm/aaaa" (oficial) ou "ddMMyyyy" (legado) -----
+  let dd: string;
+  let mm: string;
+  let yyyy: string;
 
-  const dd = ea20Dg.slice(0, 2);
-  const mm = ea20Dg.slice(2, 4);
-  const yyyy = ea20Dg.slice(4, 8);
+  const comBarras = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(ea20Dg);
+  const semBarras = /^(\d{2})(\d{2})(\d{4})$/.exec(ea20Dg);
+
+  if (comBarras) {
+    [, dd, mm, yyyy] = comBarras as unknown as [string, string, string, string];
+  } else if (semBarras) {
+    [, dd, mm, yyyy] = semBarras as unknown as [string, string, string, string];
+  } else {
+    throw new Error(
+      `calculateLagSeconds: dg "${ea20Dg}" não segue nenhum formato esperado (dd/mm/aaaa ou ddMMyyyy)`,
+    );
+  }
 
   // ----- Parse hg (HH:mm:ss) ------------------------------------------------
   if (!/^\d{2}:\d{2}:\d{2}$/.test(ea20Hg)) {

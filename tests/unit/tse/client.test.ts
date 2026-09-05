@@ -23,7 +23,8 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchEA20 } from "@/lib/tse/client";
 import { IngestError, TSEError } from "@/lib/tse/errors";
-import { withRetry } from "@/lib/tse/retry";
+import { resetTseRateLimiter } from "@/lib/tse/rate-limiter";
+import { RETRY_MAX_DELAY_MS, withRetry } from "@/lib/tse/retry";
 
 // ---------------------------------------------------------------------------
 // Fixture loading
@@ -96,6 +97,10 @@ function mockFetchOnce(response: {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  // Cada teste começa com o bucket cheio (burst) — evita que a ordem de
+  // execução dos ~20 fetchEA20() deste arquivo esbarre no rate limiter
+  // singleton e introduza espera/flakiness.
+  resetTseRateLimiter();
 });
 
 // ---------------------------------------------------------------------------
@@ -110,7 +115,8 @@ describe("fetchEA20 — 200 fresh", () => {
 
     expect(result.kind).toBe("fresh");
     if (result.kind !== "fresh") return; // narrow for TS
-    expect(result.data.cdabr).toBe("SP");
+    expect(result.data.tpabr).toBe("zona");
+    expect(result.data.cdabr).toBe("0001");
     expect(result.etag).toBeNull(); // no ETag header in mock
   });
 
@@ -356,7 +362,7 @@ describe("fetchEA20 — parse errors", () => {
   });
 });
 
-describe("fetchEA20 — User-Agent header", () => {
+describe("fetchEA20 — User-Agent + Accept headers", () => {
   it("always sends the required User-Agent on every request", async () => {
     const mockFn = mockFetchOnce({ status: 200, body: FIXTURE_SP_Z1_TEXT });
 
@@ -364,7 +370,63 @@ describe("fetchEA20 — User-Agent header", () => {
 
     const [, init] = mockFn.mock.calls[0] as [string, RequestInit];
     const headers = init?.headers as Record<string, string>;
-    expect(headers?.["User-Agent"]).toBe("SalaCofre/1.0 (interessado-divulgacao-cadastrado)");
+    // 2026-09-05 — User-Agent revisado: NÃO declara cadastro (não existe —
+    // Res. TSE 23.751/2026 não prevê cadastro prévio de "interessado").
+    expect(headers?.["User-Agent"]).toBe(
+      "SalaCofre/1.0 (+https://salacofre.com.br; contato: pendente)",
+    );
+  });
+
+  it("always sends Accept: application/json", async () => {
+    const mockFn = mockFetchOnce({ status: 200, body: FIXTURE_SP_Z1_TEXT });
+
+    await fetchEA20({ url: TEST_URL });
+
+    const [, init] = mockFn.mock.calls[0] as [string, RequestInit];
+    const headers = init?.headers as Record<string, string>;
+    expect(headers?.Accept).toBe("application/json");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchEA20 — 429 rate limited (Retry-After parsing)
+// ---------------------------------------------------------------------------
+
+describe("fetchEA20 — 429 rate limited", () => {
+  it("throws TSEError(429) with retryAfterMs computed from Retry-After: 2 (seconds)", async () => {
+    mockFetchOnce({ status: 429, body: "rate limited", headers: { "Retry-After": "2" } });
+
+    await expect(fetchEA20({ url: TEST_URL })).rejects.toSatisfy(
+      (err: unknown) => err instanceof TSEError && err.status === 429 && err.retryAfterMs === 2000,
+    );
+  });
+
+  it("TSEError(503) also computes retryAfterMs from Retry-After", async () => {
+    mockFetchOnce({ status: 503, body: "service unavailable", headers: { "Retry-After": "5" } });
+
+    await expect(fetchEA20({ url: TEST_URL })).rejects.toSatisfy(
+      (err: unknown) => err instanceof TSEError && err.status === 503 && err.retryAfterMs === 5000,
+    );
+  });
+
+  it("TSEError(500) does NOT compute retryAfterMs even if Retry-After is present", async () => {
+    // Retry-After só é honrado para 429/503 — um 500 com esse header (raro,
+    // mas o schema HTTP permite) não deve confundir o retry.
+    mockFetchOnce({ status: 500, body: "internal error", headers: { "Retry-After": "9" } });
+
+    await expect(fetchEA20({ url: TEST_URL })).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof TSEError && err.status === 500 && err.retryAfterMs === undefined,
+    );
+  });
+
+  it("retryAfterMs is undefined when Retry-After header is absent", async () => {
+    mockFetchOnce({ status: 429, body: "rate limited" });
+
+    await expect(fetchEA20({ url: TEST_URL })).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof TSEError && err.status === 429 && err.retryAfterMs === undefined,
+    );
   });
 });
 
@@ -463,5 +525,109 @@ describe("withRetry — non-retryable 4xx cancels immediately", () => {
     // baseMs is 1000ms; if withRetry slept we'd see ≥1s. Tight budget confirms
     // immediate propagation.
     expect(elapsed).toBeLessThan(100);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// withRetry — 429/503 honor Retry-After (fake timers)
+// ---------------------------------------------------------------------------
+
+describe("withRetry — 429 honors Retry-After", () => {
+  it("waits >= 2s (fake timers) for Retry-After: 2 before retrying, then succeeds", async () => {
+    vi.useFakeTimers();
+    try {
+      let callCount = 0;
+      const fn = async (): Promise<string> => {
+        callCount++;
+        if (callCount === 1) {
+          // baseMs:10 → backoff seria só 10ms; retryAfterMs=2000 deve dominar
+          // (max(backoff, retryAfterMs)).
+          throw new TSEError(429, TEST_URL, "rate limited", 2000);
+        }
+        return "ok";
+      };
+
+      const promise = withRetry(fn, { attempts: 3, baseMs: 10 });
+
+      // Antes dos 2s completos, a segunda tentativa ainda não rodou.
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(callCount).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(1);
+      const result = await promise;
+      expect(result).toBe("ok");
+      expect(callCount).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("503 with Retry-After also waits the honored delay before retrying", async () => {
+    vi.useFakeTimers();
+    try {
+      let callCount = 0;
+      const fn = async (): Promise<string> => {
+        callCount++;
+        if (callCount === 1) {
+          throw new TSEError(503, TEST_URL, "service unavailable", 3000);
+        }
+        return "recovered";
+      };
+
+      const promise = withRetry(fn, { attempts: 3, baseMs: 10 });
+
+      await vi.advanceTimersByTimeAsync(2999);
+      expect(callCount).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(1);
+      const result = await promise;
+      expect(result).toBe("recovered");
+      expect(callCount).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("caps the honored delay at RETRY_MAX_DELAY_MS even when Retry-After asks for more", async () => {
+    vi.useFakeTimers();
+    try {
+      let callCount = 0;
+      const fn = async (): Promise<string> => {
+        callCount++;
+        if (callCount === 1) {
+          throw new TSEError(429, TEST_URL, "rate limited", 60_000); // pede 60s
+        }
+        return "ok";
+      };
+
+      const promise = withRetry(fn, { attempts: 3, baseMs: 10 });
+
+      await vi.advanceTimersByTimeAsync(RETRY_MAX_DELAY_MS);
+      const result = await promise;
+      expect(result).toBe("ok");
+      expect(callCount).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("exhausts attempts and re-throws TSEError(429) when the server never recovers", async () => {
+    vi.useFakeTimers();
+    try {
+      let callCount = 0;
+      const fn = async (): Promise<never> => {
+        callCount++;
+        throw new TSEError(429, TEST_URL, "rate limited", 100);
+      };
+
+      const promise = withRetry(fn, { attempts: 3, baseMs: 10 });
+      const expectation = expect(promise).rejects.toBeInstanceOf(TSEError);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      await expectation;
+      expect(callCount).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -89,6 +89,20 @@ const config: VercelProjectConfig = {
       path: "/api/ingest",
       schedule: "* 20-23,0-7 * * *",
     },
+    // Cron do simulado (2026-09-05): 9h-17h BRT = 12h-20h UTC, todo minuto.
+    // Os simulados oficiais TSE rodam 15-17/09 e 22-24/09, 9h-17h BRT
+    // (ver docs/testing/tse-simulados.md). Este cron roda TODO DIA nessa
+    // janela — não só nos dias do simulado — porque o handler de
+    // `/api/ingest` já resolve isso via `INGEST_WINDOW` (default "17-04";
+    // setar `INGEST_WINDOW=9-17` no ambiente do simulado): fora da janela
+    // configurada, o handler responde `{ skipped: "out_of_window" }` sem
+    // custo real (sem query a targets, sem fetch ao TSE). Isso evita ter
+    // que fazer redeploy pra ligar/desligar este cron especificamente no
+    // dia 15 — só a env var `INGEST_WINDOW` muda entre ambientes.
+    {
+      path: "/api/ingest",
+      schedule: "* 12-20 * * *",
+    },
     {
       path: "/api/ingest",
       schedule: "0 12 * * *",

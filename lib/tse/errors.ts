@@ -48,6 +48,7 @@ export interface TSEErrorJSON {
   status: number;
   url: string;
   bodySample?: string;
+  retryAfterMs?: number;
 }
 
 export class TSEError extends Error {
@@ -57,8 +58,18 @@ export class TSEError extends Error {
   /** Truncated to BODY_SAMPLE_MAX_LEN chars. May be undefined if no body
    *  was captured (e.g. network abort before headers). */
   public readonly bodySample: string | undefined;
+  /**
+   * Parsed `Retry-After` header (429/503), in milliseconds. `undefined` when
+   * the response had no `Retry-After` header or it failed to parse.
+   *
+   * 2026-09-05 — a FAQ técnica do simulado TSE confirma rate limit de
+   * 100 req/s/IP → bloqueio de 10min. `retry.ts` usa este valor para honrar
+   * o tempo de espera pedido pelo servidor em vez do backoff exponencial
+   * fixo, que pode ser tempo demais ou de menos.
+   */
+  public readonly retryAfterMs: number | undefined;
 
-  constructor(status: number, url: string, bodySample?: string) {
+  constructor(status: number, url: string, bodySample?: string, retryAfterMs?: number) {
     super(`TSE fetch failed: ${status} ${url}`);
     this.status = status;
     this.url = url;
@@ -68,6 +79,7 @@ export class TSEError extends Error {
         : bodySample.length > BODY_SAMPLE_MAX_LEN
           ? `${bodySample.slice(0, BODY_SAMPLE_MAX_LEN)}…[truncated]`
           : bodySample;
+    this.retryAfterMs = retryAfterMs;
 
     // Restore prototype chain for `instanceof` to work when this class is
     // transpiled to ES5 by older toolchains. Harmless on modern targets.
@@ -83,6 +95,9 @@ export class TSEError extends Error {
     };
     if (this.bodySample !== undefined) {
       json.bodySample = this.bodySample;
+    }
+    if (this.retryAfterMs !== undefined) {
+      json.retryAfterMs = this.retryAfterMs;
     }
     return json;
   }

@@ -261,3 +261,72 @@ export async function logIngestRun(args: {
     throw ingestErr;
   }
 }
+
+// ---------------------------------------------------------------------------
+// getLastIngestRun
+// ---------------------------------------------------------------------------
+
+/** Shape do JSON armazenado em `ingest_log.notes` que o route handler
+ *  consegue interpretar. Campos além destes (turno, env, etc — ver
+ *  app/api/ingest/route.ts) são ignorados aqui; só `running` é usado pelo
+ *  lock anti-overlap. */
+export interface LastIngestRunNotes {
+  running?: boolean;
+  [key: string]: unknown;
+}
+
+export interface LastIngestRun {
+  ts: Date;
+  notes: LastIngestRunNotes | null;
+}
+
+/**
+ * getLastIngestRun — lê a última linha de `ingest_log` (por `ts` desc).
+ *
+ * Usado pelo lock anti-overlap simples do route handler (RF-002 hardening,
+ * 2026-09-05): antes de iniciar um ciclo, o handler grava uma linha marcador
+ * com `notes.running = true`; ao final, grava outra com `notes.running =
+ * false` junto das métricas do ciclo — append-only (constituição § 10), sem
+ * UPDATE. Se a última linha tem `running: true` e é recente (<3min), o
+ * handler entende que um ciclo anterior ainda está em voo (ou travou) e
+ * pula este ciclo em vez de rodar em paralelo.
+ *
+ * Retorna `null` quando `ingest_log` está vazia (primeiro ciclo do processo).
+ * `notes` malformado (JSON inválido) retorna `null` em vez de lançar — um
+ * lock que não pode ser lido é tratado como "sem lock" (fail-open: preferimos
+ * rodar um ciclo a mais do que travar o pipeline por um parse error).
+ *
+ * @throws IngestError('persist', ...) em erro de banco (não em notes malformado).
+ */
+export async function getLastIngestRun(): Promise<LastIngestRun | null> {
+  try {
+    const rows = await db
+      .select({ ts: schema.ingestLog.ts, notes: schema.ingestLog.notes })
+      .from(schema.ingestLog)
+      .orderBy(desc(schema.ingestLog.ts))
+      .limit(1);
+
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+
+    let notes: LastIngestRunNotes | null = null;
+    if (row.notes) {
+      try {
+        const parsed: unknown = JSON.parse(row.notes);
+        if (parsed && typeof parsed === "object") {
+          notes = parsed as LastIngestRunNotes;
+        }
+      } catch {
+        // notes malformado — fail-open, ver docstring acima.
+        notes = null;
+      }
+    }
+
+    return { ts: row.ts, notes };
+  } catch (err) {
+    if (err instanceof IngestError) throw err;
+    throw new IngestError("persist", "getLastIngestRun falhou ao consultar ingest_log", err);
+  }
+}

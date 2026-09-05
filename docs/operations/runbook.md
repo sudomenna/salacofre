@@ -150,6 +150,37 @@ Cron Vercel é 60 s (ADR-0011). Não cabe. Decisão **NÃO** tomada nesta sprint
 
 **Como reproduzir o gargalo**: rodar `data-pipeline/measure-fanout.ts` (não existe ainda — chore se quisermos validar com números reais antes de decidir) ou inspecionar `ingest_log.duration_ms` em preview com `TSE_TARGETS_WHITELIST` ampliado.
 
+## Variáveis de ambiente do pipeline TSE (hardening pré-simulado, 2026-09-05)
+
+Seção adicionada isoladamente antes da reescrita completa do runbook (Fase 3
+do plano de prontidão TSE 2026). Cobre só as env vars introduzidas/alteradas
+pelo hardening pré-simulado; o restante do runbook segue como está até lá.
+
+| Variável | Default | Onde é lida | Descrição |
+|---|---|---|---|
+| `TSE_BASE_URL` | `https://resultados.tse.jus.br/oficial` | `lib/tse/targets.ts` (`getTseBaseUrl`) | Host do CDN TSE. Aceita o default de produção, `https://resultados-sim.tse.jus.br/oficial` (ambiente de simulado) ou `http://localhost:<porta>`/`http://127.0.0.1:<porta>` (mock local, `scripts/tse-mock-server.ts`). Qualquer outro valor (`http://` em host não-local, URL malformada) lança erro — nunca faz downgrade silencioso de TLS. |
+| `TSE_MAX_RPS` | `30` (clamp 1..80) | `lib/tse/rate-limiter.ts` (`getTseRateLimiter`) | Taxa máxima de saída (req/s) para o CDN TSE. A FAQ técnica do simulado confirma limite de **100 req/s/IP → bloqueio de 10min**; o clamp em 80 deixa margem de segurança mesmo se alguém configurar um valor alto por engano. |
+| `INGEST_WINDOW` | `17-04` | `lib/tse/ingest-window.ts` (`parseIngestWindow`) | Janela de ingestão, formato `HH-HH` (BRT, 0-23). `17-04` = apuração real (cruza meia-noite); `9-17` = janela diurna dos simulados TSE (9h-17h BRT). `INGEST_WINDOW_OVERRIDE=true` ainda ignora a janela por completo (uso: testes, dry-run manual). |
+| `INGEST_CONCURRENCY` | `20` | `app/api/ingest/route.ts` (`getIngestConcurrency`) | Tamanho do semáforo de GETs simultâneos por invocação. Ortogonal a `TSE_MAX_RPS`: concorrência limita quantas requisições ficam em voo ao mesmo tempo; `TSE_MAX_RPS` limita quantas SAEM por segundo. Valor inválido cai no default com um warn. |
+| `TSE_CARGOS` | `1,3` | `lib/tse/targets.ts` (`getActiveCargos`) | Lista de cargos ativos (1=Presidente, 3=Governador), separada por vírgula. Usada tanto para materializar targets de produção quanto para decidir quais cargos disparam `/api/model/project` ao fim do ciclo. Tokens inválidos são ignorados com warn; se nenhum sobrar, cai no default. |
+
+Variáveis já existentes que interagem com as acima (sem mudança de contrato):
+
+- `TSE_COD_ELEICAO` — agora validado contra o formato `ele<AAAA>/<dígitos>` (regex) em `getCodEleicao()`; um valor malformado lança erro em vez de seguir para uma URL inválida (que pode disparar bloqueio de IP no TSE).
+- `TSE_TARGETS_WHITELIST` — inalterado (preview only).
+
+### Novidades observáveis no response/log de `/api/ingest`
+
+O JSON de resposta, `logIngestRun.notes` e o `logInfo` final de cada ciclo agora incluem:
+
+- `rateLimited` — quantas respostas 429 o TSE devolveu neste ciclo (via `getClientStats()`/`resetClientStats()` em `lib/tse/client.ts`, resetado no início de cada ciclo). Dispara alerta Slack `error` quando `> 0`.
+- `waitedMs` — delta (não total acumulado do processo) do tempo de espera do rate limiter neste ciclo (`getTseRateLimiter().stats.waitedMs`).
+- `notFound` — já existia; contorno de 404 (zona sem dados), agora logado em `debug` em vez de `warn` por target (contador agregado preserva a observabilidade).
+
+### Lock anti-overlap
+
+`/api/ingest` grava uma linha marcador (`notes: {running: true}`) em `ingest_log` no início do ciclo e outra (`notes: {running: false, ...métricas}`) no fim — append-only (constituição § 10, nunca `UPDATE`). Se a última linha tem `running: true` com menos de 3 minutos, o handler responde `{ skipped: "overlap" }` em vez de rodar em paralelo. Falha ao ler/escrever o lock é fail-open (loga e segue) — um lock ilegível nunca deve travar o pipeline inteiro.
+
 ## Cross-refs
 
 - Alertas Slack: [./alerts.md](./alerts.md)

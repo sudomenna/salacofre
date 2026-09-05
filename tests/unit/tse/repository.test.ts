@@ -33,6 +33,7 @@ function loadFixture(name: string): EA20 {
 const target: Target = {
   uf: TEST_UF,
   cargo: TEST_CARGO,
+  nivel: "zona",
   codMunicipioTse: TEST_COD_MUNICIPIO_TSE,
   codZona: TEST_COD_ZONA,
   url: "https://test.invalid/sentinel.json",

@@ -40,9 +40,18 @@ import type { Target } from "@/lib/tse/targets";
 // O factory é definido vazio aqui; os Targets reais são injetados em cada
 // describe via mockResolvedValue(). Targets apontam para URLs únicas mapeadas
 // pelo mockFetch.
-vi.mock("@/lib/tse/targets", () => ({
-  listIngestTargets: vi.fn(),
-}));
+// 2026-09-05 — route.ts também importa getActiveCargos de lib/tse/targets
+// (hardening pré-simulado). Usamos importOriginal para herdar o resto do
+// módulo real e só sobrescrever listIngestTargets — evita quebrar o
+// model-trigger (bloco `if (changed > 0)`) caso MODEL_SECRET esteja setada
+// no ambiente de teste.
+vi.mock("@/lib/tse/targets", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/tse/targets")>();
+  return {
+    ...actual,
+    listIngestTargets: vi.fn(),
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Import post-mock
@@ -94,6 +103,7 @@ function buildSyntheticTargets(): Target[] {
   return TEST_ZONES.map((codZona, i) => ({
     uf: TEST_UF,
     cargo: 1 as const,
+    nivel: "zona" as const,
     codMunicipioTse: TEST_COD_MUNICIPIO_TSE,
     codZona,
     url: SYNTHETIC_URLS[i] as string,

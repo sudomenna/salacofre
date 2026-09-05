@@ -37,9 +37,20 @@ import type { Target } from "@/lib/tse/targets";
 // vi.mock hoisting
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/tse/targets", () => ({
-  listIngestTargets: vi.fn(),
-}));
+// 2026-09-05 — route.ts agora também importa getActiveCargos de
+// lib/tse/targets (hardening pré-simulado: TSE_CARGOS substitui o array
+// hardcoded ACTIVE_CARGOS). O mock precisa fornecer as duas exports, senão
+// route.ts recebe `undefined` e quebra ao chamar getActiveCargos() dentro
+// do bloco de model-trigger — usamos importOriginal para herdar o resto do
+// módulo real (buildEA20Url, getTseBaseUrl, etc.) e só sobrescrever
+// listIngestTargets.
+vi.mock("@/lib/tse/targets", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/tse/targets")>();
+  return {
+    ...actual,
+    listIngestTargets: vi.fn(),
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Post-mock imports
@@ -81,6 +92,7 @@ function buildSyntheticTargets(): Target[] {
   return TEST_ZONES.map((codZona, i) => ({
     uf: TEST_UF,
     cargo: 1 as const,
+    nivel: "zona" as const,
     codMunicipioTse: TEST_COD_MUNICIPIO_TSE,
     codZona,
     url: SYNTHETIC_URLS[i] as string,

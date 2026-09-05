@@ -1,0 +1,59 @@
+{
+  "dg": "05/09/2026",
+  "hg": "10:00:00",
+  "f": "o",
+  "c": "ele2022",
+  "arq": [
+    { "tp": "a", "dir": "<base>/<ambiente>/<ciclo>/<cd_eleicao>/config" },
+    { "tp": "e", "dir": "<base>/<ambiente>/<ciclo>/<cd_eleicao>/dados/<uf>" }
+  ],
+  "pl": [
+    {
+      "cd": "440",
+      "cdpr": "",
+      "dt": "02/10/2022",
+      "dtlim": "02/10/2024",
+      "e": [
+        {
+          "cd": "544",
+          "cdt2": "545",
+          "sqele": "2044402022",
+          "nm": "Eleição Geral 2022 1&#186; Turno",
+          "t": "1",
+          "tp": "2",
+          "abr": [
+            {
+              "cd": "br",
+              "cp": [
+                { "cd": "1", "ds": "Presidente", "tp": "1" },
+                { "cd": "3", "ds": "Governador", "tp": "1" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "cd": "441",
+      "cdpr": "440",
+      "dt": "30/10/2022",
+      "dtlim": "30/10/2024",
+      "e": [
+        {
+          "cd": "545",
+          "cdt2": "",
+          "sqele": "2044502022",
+          "nm": "Eleição Geral 2022 2&#186; Turno",
+          "t": "2",
+          "tp": "2",
+          "abr": [
+            {
+              "cd": "br",
+              "cp": [{ "cd": "1", "ds": "Presidente", "tp": "1" }]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

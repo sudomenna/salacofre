@@ -1,59 +1,113 @@
 {
-  "dg": "30102022",
-  "hg": "20:16:10",
+  "ele": "619",
+  "t": "1",
   "f": "o",
-  "cdabr": "RJ",
-  "abr": [
+  "sup": "n",
+  "tpabr": "zona",
+  "cdabr": "0001",
+  "dg": "04/10/2026",
+  "hg": "20:20:00",
+  "idg": "3",
+  "dv": "s",
+  "and": "p",
+  "carg": [
     {
-      "cd": "RJ",
-      "cdmu": "60011",
-      "cdze": "0001",
-      "s": [{ "ns": "0001" }, { "ns": "0002" }, { "ns": "0003" }],
-      "psa": "50,00",
-      "pst": "100,00",
-      "tap": "420",
-      "tc": "320",
-      "pc": "76,19",
-      "ta": "100",
-      "pa": "23,80",
-      "tvn": "300",
-      "pvn": "93,75",
-      "tvl": "0",
-      "tvb": "12",
-      "pvb": "3,75",
-      "tvnu": "8",
-      "pvnu": "2,50",
-      "tvv": "300",
-      "cand": [
+      "cd": "1",
+      "nmn": "Presidente",
+      "nmm": "Presidente",
+      "nmf": "Presidenta",
+      "nv": "1",
+      "agr": [
         {
-          "seq": "1",
           "n": "13",
-          "nm": "LUIZ INACIO LULA DA SILVA",
-          "nmu": "LULA",
-          "cc": "PT",
-          "pn": "13",
-          "pnm": "PT",
-          "sg": "PT",
-          "st": "1",
-          "vap": "120",
-          "pvap": "40,00",
-          "e": "0"
+          "nm": "PT",
+          "tp": "i",
+          "tvtn": "80",
+          "tvan": "80",
+          "par": [
+            {
+              "n": "13",
+              "sg": "PT",
+              "nm": "Partido dos Trabalhadores",
+              "tvtn": "80",
+              "tvan": "80",
+              "cand": [
+                {
+                  "n": "13",
+                  "sqcand": "130000000001",
+                  "nm": "LUIZ INACIO LULA DA SILVA",
+                  "nmu": "LULA",
+                  "e": "s",
+                  "vap": "80",
+                  "pvap": "40,00",
+                  "pvapn": "40,000000000"
+                }
+              ]
+            }
+          ]
         },
         {
-          "seq": "2",
           "n": "22",
-          "nm": "JAIR MESSIAS BOLSONARO",
-          "nmu": "JAIR BOLSONARO",
-          "cc": "PL",
-          "pn": "22",
-          "pnm": "PL",
-          "sg": "PL",
-          "st": "1",
-          "vap": "180",
-          "pvap": "60,00",
-          "e": "1"
+          "nm": "PL",
+          "tp": "i",
+          "tvtn": "120",
+          "tvan": "120",
+          "par": [
+            {
+              "n": "22",
+              "sg": "PL",
+              "nm": "Partido Liberal",
+              "tvtn": "120",
+              "tvan": "120",
+              "cand": [
+                {
+                  "n": "22",
+                  "sqcand": "220000000001",
+                  "nm": "JAIR MESSIAS BOLSONARO",
+                  "nmu": "JAIR BOLSONARO",
+                  "e": "n",
+                  "vap": "120",
+                  "pvap": "60,00",
+                  "pvapn": "60,000000000"
+                }
+              ]
+            }
+          ]
         }
       ]
     }
-  ]
+  ],
+  "s": {
+    "ts": "1",
+    "st": "1",
+    "pst": "100,00",
+    "si": "1",
+    "psi": "100,00",
+    "sa": "1",
+    "psa": "100,00"
+  },
+  "e": {
+    "te": "400",
+    "est": "400",
+    "esi": "400",
+    "esa": "400",
+    "c": "220",
+    "pc": "55,00",
+    "a": "180",
+    "pa": "45,00"
+  },
+  "v": {
+    "tv": "220",
+    "vvc": "210",
+    "vv": "200",
+    "pvv": "95,23",
+    "vnom": "200",
+    "vl": "0",
+    "vb": "10",
+    "pvb": "4,54",
+    "tvn": "10",
+    "vn": "10",
+    "pvn": "100,00",
+    "vnt": "0"
+  }
 }

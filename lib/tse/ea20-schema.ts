@@ -3,77 +3,292 @@
  *
  * Zod schema for the TSE EA20 result file format.
  *
- * Design ref: docs/specs/001-ingestao-tse/design.md § "Schema EA20 (parcial relevante)"
- * Covers: RF-001 (fail-fast validation pre-acceptance), ADR-0002 (CDN polling).
+ * Design ref: docs/reference/tse-2026-leiautes.md (fonte de verdade — deriva
+ * do PDF oficial `TSE-EA20-Arquivo-de-resultado-unificado.md`, versão
+ * 2026-07-10, extraído em tse_docs/txt/tse-ea20-arquivo-de-resultado-unificado.txt).
+ * Cobre: RF-001 (fail-fast validation pre-acceptance), ADR-0002 (CDN polling).
  *
- * Key invariant: ALL numeric values from TSE arrive as strings with BR decimal
- * notation (comma as decimal separator, optional dot as thousands separator).
- * The schema preserves them as strings. Callers that need numeric values use
- * parseEA20Numeric() explicitly — this keeps the raw payload intact for audit.
+ * ---------------------------------------------------------------------------
+ * REESCRITA COMPLETA — 2026-09-05 (hardening pré-simulado, PDFs oficiais TSE)
+ * ---------------------------------------------------------------------------
  *
- * Top-level uses .strict() to detect any schema drift when TSE changes EA20
- * without notice. A parse failure surfaces immediately via ZodError (fail-fast),
- * allowing the ingest pipeline to alert rather than silently accept garbage.
+ * O schema anterior (herdado de uma premissa de 2022 nunca confirmada contra
+ * documento oficial) assumia um envelope com um array `abr[]` de abrangências
+ * dentro de um único arquivo, e candidatos com campos `cc/pn/pnm/sg` direto
+ * no elemento `cand`. NENHUMA dessas duas premissas se confirma no documento
+ * oficial (grep por `"abr"` como array de abrangências no EA20 real: 0
+ * ocorrências — o único uso de "abr" no texto é como sufixo de `cdabr`/`tpabr`).
+ *
+ * O leiaute real (confirmado em tse-ea20-arquivo-de-resultado-unificado.txt):
+ *   - Cada arquivo JSON representa UMA ÚNICA abrangência (BR, UF, Município
+ *     ou Zona) — a abrangência já está codificada no NOME do arquivo e nos
+ *     campos de raiz `tpabr`/`cdabr`. Não há array de abrangências dentro do
+ *     arquivo (isso é papel do EA14/EA15 — arquivos de acompanhamento — que
+ *     SIM têm `abr[]`, um item por UF ou por município).
+ *   - Os totais de seções/eleitorado/votos vivem em três objetos de raiz:
+ *     `s` (seções), `e` (eleitores) e `v` (votos) — não em `abr[].psa` etc.
+ *   - Os candidatos vivem numa hierarquia `carg[] → (fed[] | agr[].par[]) →
+ *     agr[].par[].cand[]` — partido/coligação/federação são um nível ACIMA
+ *     do candidato, não campos dentro dele.
+ *
+ * Key invariant (mantida): TODOS os valores numéricos do TSE chegam como
+ * strings com notação decimal BR (vírgula como separador decimal, ponto
+ * opcional como separador de milhar). O schema preserva como string; quem
+ * precisa do valor numérico chama `parseEA20Numeric()` explicitamente — isso
+ * mantém o payload bruto intacto para auditoria.
+ *
+ * `.passthrough()` em TODOS os níveis (envelope e cada elemento aninhado) —
+ * o TSE historicamente adiciona campos sem aviso prévio (confirmado no
+ * simulado de set/2026 com o campo `f` assumindo valores além de "o"). Um
+ * campo desconhecido em qualquer nível NUNCA deve derrubar o parse inteiro;
+ * só a ausência/tipo errado dos campos que o pipeline efetivamente consome
+ * (`dg`, `hg`, `f`, `cdabr`, `tpabr`, `ele`, `t`, `s`, `e`, `v`) deve falhar
+ * fail-fast.
  */
 
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
-// Leaf schemas
+// Elemento: vs (vice / suplente) e subs (substituído)
 // ---------------------------------------------------------------------------
 
-/** Single seção record. TSE may add fields — keep .passthrough() at leaf level
- *  to avoid false alarms on harmless additions inside deeply nested arrays. */
-const SecaoSchema = z
+const ViceSuplenteSchema = z
   .object({
-    ns: z.string(), // número da seção
+    tp: z.string(), // 'v' (vice) | 's1' | 's2' (suplentes — só Senador)
+    sqcand: z.string(),
+    nm: z.string(),
+    nmu: z.string(),
+    sgp: z.string(),
   })
   .passthrough();
 
-/** Per-candidate record inside an abr entry. */
+const SubstituidoSchema = z
+  .object({
+    nm: z.string(),
+    nmu: z.string(),
+    sgp: z.string(),
+  })
+  .passthrough();
+
+// ---------------------------------------------------------------------------
+// Elemento: cand (candidato) — dentro de par[]
+// ---------------------------------------------------------------------------
+
 const CandidatoSchema = z
   .object({
-    seq: z.string(), // sequência do candidato
-    n: z.string(), // número na urna
+    n: z.string(), // número do candidato na urna
+    sqcand: z.string(), // sequencial único (usado para foto — ver instruções download)
     nm: z.string(), // nome completo
     nmu: z.string(), // nome na urna
-    cc: z.string(), // código do cargo
-    pn: z.string(), // partido número
-    pnm: z.string(), // partido nome
-    sg: z.string(), // sigla do partido
-    st: z.string(), // situação (eleito, não eleito, etc.)
-    vap: z.string(), // votos apurados (integer BR-string)
-    pvap: z.string(), // % votos sobre válidos (BR decimal)
-    e: z.string(), // eleito flag
+    dt: z.string().optional(), // data de nascimento
+    dvt: z.string().optional(), // destinação do voto (só após 1ª totalização parcial)
+    seq: z.string().optional(), // sequencial de ordem na eleição
+    e: z.string(), // eleito ou disputa 2º turno: 's'|'n'
+    st: z.string().optional(), // situação (só após totalização final)
+    vap: z.string(), // votos computados
+    pvap: z.string(), // % (2 casas)
+    pvapn: z.string().optional(), // % (9 casas)
+    vs: z.array(ViceSuplenteSchema).optional(), // vice (maioritário) / suplente(s) (senador)
+    subs: z.array(SubstituidoSchema).optional(),
   })
   .passthrough();
 
-/** Per-zone (abr) aggregation record. */
-const AbrSchema = z
+// ---------------------------------------------------------------------------
+// Elemento: par (partido) — dentro de agr[]
+// ---------------------------------------------------------------------------
+
+const PartidoSchema = z
   .object({
-    cd: z.string(), // sigla UF
-    cdmu: z.string(), // código do município TSE
-    cdze: z.string(), // código da zona eleitoral
-    s: z.array(SecaoSchema), // seções da zona
+    n: z.string(), // número do partido
+    sg: z.string(), // sigla (partidos inaptos vêm com ** à direita)
+    nm: z.string(), // nome do partido
+    nfed: z.string().optional(), // nº da federação, se federado
+    dvt: z.string().optional(), // destinação do voto do partido (legenda)
+    tvtn: z.string().optional(), // votos válidos nominais do partido
+    tvtl: z.string().optional(), // votos válidos de legenda (só proporcional)
+    tvan: z.string().optional(), // votos computados nominais
+    tval: z.string().optional(), // votos computados de legenda (só proporcional)
+    cand: z.array(CandidatoSchema).optional(), // pode ser omitido se o partido não lançou candidato
+  })
+  .passthrough();
 
-    // Percentages and totals — all BR numeric strings
-    psa: z.string(), // % seções apuradas  (ex: "100,00")
-    pst: z.string(), // % seções totalizadas
-    tap: z.string(), // total aptos
-    tc: z.string(), // total comparecimento
-    pc: z.string(), // % comparecimento
-    ta: z.string(), // total abstenção
-    pa: z.string(), // % abstenção
-    tvn: z.string(), // votos nominais
-    pvn: z.string(), // % votos nominais
-    tvl: z.string(), // votos legenda
-    tvb: z.string(), // votos brancos
-    pvb: z.string(), // % brancos
-    tvnu: z.string(), // votos nulos
-    pvnu: z.string(), // % nulos
-    tvv: z.string(), // votos válidos
+// ---------------------------------------------------------------------------
+// Elemento: agr (agremiação: coligação | federação | partido isolado)
+// ---------------------------------------------------------------------------
 
-    cand: z.array(CandidatoSchema),
+const AgremiacaoSchema = z
+  .object({
+    n: z.string(), // número (coligação, partido isolado ou federação)
+    nm: z.string(), // nome
+    tp: z.string(), // 'c' coligação (só majoritário) | 'i' isolado | 'f' federação
+    com: z.string().optional(), // composição — só se tp !== 'i'
+    tvtn: z.string().optional(),
+    tvtl: z.string().optional(), // só proporcional
+    tvan: z.string().optional(),
+    tval: z.string().optional(), // só proporcional
+    vag: z.string().optional(), // vagas — só proporcional, partido isolado/federação
+    par: z.array(PartidoSchema),
+  })
+  .passthrough();
+
+// ---------------------------------------------------------------------------
+// Elemento: fed (federação) — dentro de carg[]
+// ---------------------------------------------------------------------------
+
+const FederacaoSchema = z
+  .object({
+    n: z.string(),
+    nm: z.string(),
+    sg: z.string(),
+    com: z.string(), // sigla dos partidos que compõem, separados por '/'
+    npar: z.array(z.string()), // lista de números de partido
+  })
+  .passthrough();
+
+// ---------------------------------------------------------------------------
+// Elemento: carg (cargo)
+// ---------------------------------------------------------------------------
+
+const CargoSchema = z
+  .object({
+    cd: z.string(), // código do cargo (1=Presidente, 3=Governador, ...)
+    nmn: z.string().optional(),
+    nmm: z.string().optional(),
+    nmf: z.string().optional(),
+    nv: z.string().optional(), // vagas disponíveis na abrangência
+    qe: z.string().optional(), // quociente eleitoral — só cargo proporcional
+    fed: z.array(FederacaoSchema).optional(),
+    agr: z.array(AgremiacaoSchema).optional(),
+  })
+  .passthrough();
+
+// ---------------------------------------------------------------------------
+// Elemento: perg / resp (consulta popular) — fora de escopo Presidente/Governador
+// mas mantido tipado com passthrough para não quebrar caso apareça.
+// ---------------------------------------------------------------------------
+
+const RespostaSchema = z
+  .object({
+    n: z.string(),
+    ds: z.string(),
+    seq: z.string().optional(),
+    e: z.string().optional(),
+    st: z.string().optional(),
+    vap: z.string().optional(),
+    pvap: z.string().optional(),
+    pvapn: z.string().optional(),
+  })
+  .passthrough();
+
+const PerguntaSchema = z
+  .object({
+    cd: z.string(),
+    ds: z.string(),
+    resp: z.array(RespostaSchema),
+  })
+  .passthrough();
+
+// ---------------------------------------------------------------------------
+// Elemento: s (seções) — totais de raiz, atualizados a cada totalização
+// ---------------------------------------------------------------------------
+
+const SecoesSchema = z
+  .object({
+    ts: z.string(), // total de seções
+    st: z.string(), // totalizadas
+    pst: z.string(), // % totalizadas
+    pstn: z.string().optional(),
+    snt: z.string().optional(), // não totalizadas
+    psnt: z.string().optional(),
+    psntn: z.string().optional(),
+    si: z.string().optional(), // instaladas
+    psi: z.string().optional(),
+    psin: z.string().optional(),
+    sni: z.string().optional(), // não instaladas
+    psni: z.string().optional(),
+    psnin: z.string().optional(),
+    sa: z.string().optional(), // apuradas
+    psa: z.string(), // % apuradas (RF-001 — usado no ingest para pctApurado)
+    psan: z.string().optional(),
+    sna: z.string().optional(), // marcadas como não apuradas
+    psna: z.string().optional(),
+    psnan: z.string().optional(),
+  })
+  .passthrough();
+
+// ---------------------------------------------------------------------------
+// Elemento: e (eleitores) — totais de raiz
+// ---------------------------------------------------------------------------
+
+const EleitoresSchema = z
+  .object({
+    te: z.string(), // eleitorado total (aptos)
+    est: z.string().optional(),
+    pest: z.string().optional(),
+    pestn: z.string().optional(),
+    esnt: z.string().optional(),
+    pesnt: z.string().optional(),
+    pesntn: z.string().optional(),
+    esi: z.string().optional(),
+    pesi: z.string().optional(),
+    pesin: z.string().optional(),
+    esni: z.string().optional(),
+    pesni: z.string().optional(),
+    pesnin: z.string().optional(),
+    esa: z.string().optional(),
+    pesa: z.string().optional(),
+    pesan: z.string().optional(),
+    esna: z.string().optional(),
+    pesna: z.string().optional(),
+    pesnan: z.string().optional(),
+    c: z.string(), // comparecimento (RF-001 — usado no ingest para votosTotal)
+    pc: z.string().optional(), // % comparecimento
+    pcn: z.string().optional(),
+    a: z.string().optional(), // abstenção
+    pa: z.string().optional(), // % abstenção
+    pan: z.string().optional(),
+  })
+  .passthrough();
+
+// ---------------------------------------------------------------------------
+// Elemento: v (votos) — totais de raiz
+// ---------------------------------------------------------------------------
+
+const VotosSchema = z
+  .object({
+    tv: z.string(), // total de votos (vb+vn+vnt+van+vansj+vv)
+    vvc: z.string().optional(), // votos a votáveis concorrentes
+    pvvc: z.string().optional(),
+    pvvcn: z.string().optional(),
+    vv: z.string().optional(), // votos válidos (nominais + legenda) — ausente em consulta popular
+    pvv: z.string().optional(),
+    pvvn: z.string().optional(),
+    vnom: z.string().optional(), // votos nominais
+    pvnom: z.string().optional(),
+    pvnomn: z.string().optional(),
+    vl: z.string().optional(), // votos de legenda — só proporcional
+    pvl: z.string().optional(),
+    pvln: z.string().optional(),
+    van: z.string().optional(), // anulados
+    pvan: z.string().optional(),
+    pvann: z.string().optional(),
+    vansj: z.string().optional(), // anulados sub judice
+    pvansj: z.string().optional(),
+    pvansjn: z.string().optional(),
+    vb: z.string().optional(), // brancos
+    pvb: z.string().optional(),
+    pvbn: z.string().optional(),
+    tvn: z.string().optional(), // total de votos nulos (vn + vnt)
+    ptvn: z.string().optional(),
+    ptvnn: z.string().optional(),
+    vn: z.string().optional(), // nulos
+    pvn: z.string().optional(),
+    pvnn: z.string().optional(),
+    vnt: z.string().optional(), // nulos técnicos
+    pvnt: z.string().optional(),
+    pvntn: z.string().optional(),
+    vscv: z.string().optional(), // votos sem candidato para votar
+    vsan: z.string().optional(), // votos de seções anuladas
   })
   .passthrough();
 
@@ -82,29 +297,72 @@ const AbrSchema = z
 // ---------------------------------------------------------------------------
 
 /**
- * EA20Schema — strict at the top level to catch TSE schema drift early.
+ * Ambientes conhecidos do campo `f` (fase de geração do EA20).
+ * "o" = oficial (apuração real); "s" = simulado. Confirmado no dicionário
+ * oficial (`f — s: se o arquivo foi gerado durante o simulado. o: oficial`).
+ * Qualquer outro valor é aceito pelo schema (RF-001 não pode rejeitar o
+ * pipeline inteiro por causa de um único campo de metadado), mas
+ * lib/tse/client.ts emite um logWarn (uma vez por processo) quando `f` não
+ * está nesta lista.
+ */
+export const KNOWN_EA20_AMBIENTES = ["o", "s"] as const;
+export type KnownEA20Ambiente = (typeof KNOWN_EA20_AMBIENTES)[number];
+
+/** Tipos de abrangência confirmados no dicionário oficial do EA20. */
+export const KNOWN_EA20_TPABR = ["br", "uf", "mu", "zona"] as const;
+export type KnownEA20Tpabr = (typeof KNOWN_EA20_TPABR)[number];
+
+/**
+ * EA20Schema — passthrough no envelope e em todos os elementos aninhados
+ * (ver nota de reescrita no cabeçalho do arquivo).
  *
- * Why .strict() here but .passthrough() inside AbrSchema/CandidatoSchema:
- * The top-level envelope is the most stable part of the format. Unknown fields
- * at the root almost certainly mean a breaking format change that needs a human
- * decision. Inner record shapes evolve more frequently (new candidate flags,
- * extra seção metadata) and unknown fields there are usually harmless.
+ * Campos obrigatórios (`ele`, `t`, `f`, `tpabr`, `cdabr`, `dg`, `hg`, `s`,
+ * `e`, `v`) são os que o pipeline de fato consome (lag, abrangência, seções
+ * apuradas, comparecimento). `carg`/`perg` são opcionais porque um dos dois
+ * está ausente dependendo do tipo de eleição (majoritário/proporcional vs.
+ * consulta popular) — Presidente e Governador sempre trazem `carg`, nunca
+ * `perg`. Demais campos do envelope (`sup`, `idg`, `dv`, `dt`, `ht`, `tf`,
+ * `and`, `md`, `esae`, `mnae`) são condicionais por regra de negócio (ver
+ * dicionário oficial) — marcados opcionais para não quebrar o parse quando
+ * ausentes.
  */
 export const EA20Schema = z
   .object({
-    dg: z.string(), // data de geração ddMMyyyy
-    hg: z.string(), // hora HH:mm:ss
-    f: z.literal("o"), // ambiente: 'o' = oficial
-    cdabr: z.string(), // sigla da UF raiz
-    abr: z.array(AbrSchema),
+    ele: z.string(), // código da eleição
+    t: z.string(), // turno: '1' | '2'
+    f: z.string().min(1), // fase: 'o' oficial | 's' simulado
+    sup: z.string().optional(), // suplementar: 's'|'n'
+    tpabr: z.string(), // 'br' | 'uf' | 'mu' | 'zona'
+    cdabr: z.string(), // código da abrangência (br | sigla UF | município | zona)
+    dg: z.string(), // data de geração — formato dd/mm/aaaa (EA20 dicionário)
+    hg: z.string(), // hora de geração — formato hh:mm:ss
+    idg: z.string().optional(), // id de geração
+    dv: z.string().optional(), // divulga votação: 's'|'n' (só aplicável a Presidente)
+    dt: z.string().optional(), // data da totalização
+    ht: z.string().optional(), // hora da totalização
+    tf: z.string().optional(), // totalização final: 's'|'n'
+    and: z.string().optional(), // andamento: 'n'|'p'|'f'
+    md: z.string().optional(), // matematicamente definido: 'e'|'s'|'n'
+    esae: z.string().optional(), // sem atribuição de eleito: 's'|'n'
+    mnae: z.array(z.string()).optional(), // motivos de não atribuição de eleito
+    carg: z.array(CargoSchema).optional(), // ausente em consulta popular
+    perg: z.array(PerguntaSchema).optional(), // presente só em consulta popular
+    s: SecoesSchema,
+    e: EleitoresSchema,
+    v: VotosSchema,
   })
-  .strict();
+  .passthrough();
 
 export type EA20 = z.infer<typeof EA20Schema>;
 
 // Re-export inner types for consumers that need to reference sub-shapes
-export type EA20Abr = z.infer<typeof AbrSchema>;
+export type EA20Cargo = z.infer<typeof CargoSchema>;
+export type EA20Agremiacao = z.infer<typeof AgremiacaoSchema>;
+export type EA20Partido = z.infer<typeof PartidoSchema>;
 export type EA20Candidato = z.infer<typeof CandidatoSchema>;
+export type EA20Secoes = z.infer<typeof SecoesSchema>;
+export type EA20Eleitores = z.infer<typeof EleitoresSchema>;
+export type EA20Votos = z.infer<typeof VotosSchema>;
 
 // ---------------------------------------------------------------------------
 // Numeric helper

@@ -1,0 +1,41 @@
+{
+  "_comment": "URLs oficiais da página técnica do TSE, verificadas em 2026-09-05 (ver docs/testing/tse-simulados.md). Prefixo comum: https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/. Host responde 403 a clientes não-navegador — tse-watch.ts trata isso como 'inacessivel', não como mudança.",
+  "leiautes": [
+    {
+      "id": "instrucoes",
+      "url": "https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/tse-instrucoes-para-download-dos-arquivos-da-divulgacao-2026"
+    },
+    {
+      "id": "ea10",
+      "url": "https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/tse-ea10-arquivo-de-resultado-de-eleitos"
+    },
+    {
+      "id": "ea11",
+      "url": "https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/tse-ea11-arquivo-de-configuracao-de-eleicoes"
+    },
+    {
+      "id": "ea12",
+      "url": "https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/tse-ea12-arquivo-de-configuracao-de-municipios"
+    },
+    {
+      "id": "ea14",
+      "url": "https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/tse-ea14-arquivo-de-acompanhamento-brasil"
+    },
+    {
+      "id": "ea15",
+      "url": "https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/tse-ea15-arquivo-de-acompanhamento-uf"
+    },
+    {
+      "id": "ea16",
+      "url": "https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/tse-ea16-arquivo-de-configuracao-de-secoes-eleitorais"
+    },
+    {
+      "id": "ea18",
+      "url": "https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/tse-ea18-arquivo-auxiliar-de-secao"
+    },
+    {
+      "id": "ea20",
+      "url": "https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/tse-ea20-arquivo-de-resultado-unificado"
+    }
+  ]
+}
