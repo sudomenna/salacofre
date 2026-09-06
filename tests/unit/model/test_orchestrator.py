@@ -34,24 +34,6 @@ import pytest
 # ---------------------------------------------------------------------------
 
 
-def _synthetic_payload(
-    cand_pcts: dict[int, float],
-) -> dict[str, Any]:
-    """Constrói payload EA20 ACHATADO `{cand: [...]}` (sem envelope).
-
-    Mantido por compat com o restante deste arquivo e com o dataset de
-    replay 2022 (`tests/fixtures/replay-2022/snapshots.json`, T21) — NÃO
-    é o formato real gravado pelo ingest (`app/api/ingest/route.ts:483`).
-    Para o payload EA20 real (envelope completo), veja `_synthetic_envelope`.
-    """
-    return {
-        "cand": [
-            {"n": str(cod), "pvap": f"{pct:.2f}".replace(".", ",")}
-            for cod, pct in cand_pcts.items()
-        ]
-    }
-
-
 def _synthetic_envelope(cand_pcts: dict[int, float]) -> dict[str, Any]:
     """Constrói payload EA20 ENVELOPE COMPLETO — formato REAL 2026 gravado
     por `app/api/ingest/route.ts` e validado por `lib/tse/ea20-schema.ts`
@@ -61,17 +43,30 @@ def _synthetic_envelope(cand_pcts: dict[int, float]) -> dict[str, Any]:
     candidatos em `carg[].agr[].par[].cand[]`, participação em `e`/`v`/`s`
     de raiz.
 
+    `vap` (votos absolutos) é DERIVADO de `pct_pvap` e `v.vvc` (fixo em
+    780) — `vap = round(pct/100 * vvc)` — em vez do `"0"` hardcoded
+    original. Necessário desde a Fase 1 do plano `tem-um-erro-eu-
+    velvety-sprout.md` (regra de três/extrapolação por zona): a projeção
+    de candidatos lê `cand[].vap` (contagem absoluta via
+    `_extract_zone_candidatos`), não mais `pvap` (percentual, pipeline de
+    swing aposentado). `v.vv` também deixa de ser fixo em `"780"` —  vira
+    a soma dos `vap` derivados (Σvap_c), preservando a identidade
+    `Σvap_c == vv` que vários testes de `extrapolation.py` exploram.
+
     Fixture análoga a `tests/fixtures/tse/2026/zona-presidente-sp-z0001.json`,
-    parametrizada pelos mesmos `{cod_candidato: pct_pvap}` de
-    `_synthetic_payload` — usada para provar que o orchestrator lê o
-    payload real (BUG 1 original — `_extract_zone_candidate_pcts` fazia
-    `payload.get("cand")` no topo e retornava `{}`; o schema do envelope em
-    si também estava errado até a correção de 2026-09-05).
+    parametrizada por `{cod_candidato: pct_pvap}` — usada para provar que
+    o orchestrator lê o payload real (BUG 1 original — `_extract_zone_
+    candidate_pcts` fazia `payload.get("cand")` no topo e retornava `{}`;
+    o schema do envelope em si também estava errado até a correção de
+    2026-09-05).
 
     Cada candidato ganha sua própria `agr`/`par` (partido isolado `tp: "i"`)
     — suficiente para os testes deste arquivo, que não verificam
     coligação/federação.
     """
+    vvc = 780
+    vaps = {cod: int(round(pct / 100.0 * vvc)) for cod, pct in cand_pcts.items()}
+    vv = sum(vaps.values())
     return {
         "ele": "999999",
         "t": "1",
@@ -101,7 +96,7 @@ def _synthetic_envelope(cand_pcts: dict[int, float]) -> dict[str, Any]:
                                         "nm": f"CANDIDATO {cod}",
                                         "nmu": f"CANDIDATO {cod}",
                                         "e": "n",
-                                        "vap": "0",
+                                        "vap": str(vaps[cod]),
                                         "pvap": f"{pct:.2f}".replace(".", ","),
                                     }
                                 ],
@@ -118,10 +113,28 @@ def _synthetic_envelope(cand_pcts: dict[int, float]) -> dict[str, Any]:
         },
         "e": {"te": "1000", "esi": "1000", "c": "800", "a": "200"},
         "v": {
-            "tv": "800", "vvc": "780", "vv": "780", "vnom": "780",
+            "tv": "800", "vvc": str(vvc), "vv": str(vv), "vnom": str(vv),
             "vb": "10", "tvn": "10", "vn": "10", "vnt": "0",
         },
     }
+
+
+def _synthetic_payload(
+    cand_pcts: dict[int, float],
+) -> dict[str, Any]:
+    """Constrói payload EA20 usado como snapshot sintético neste arquivo.
+
+    Espelha (é literalmente um alias de) `_synthetic_envelope` — desde a
+    Fase 1 do plano `tem-um-erro-eu-velvety-sprout.md`, a projeção de
+    candidatos (`_extract_zone_candidatos`) exige `e`/`v`/`s` de raiz +
+    `cand[].vap` (contagem absoluta) para escalar por `k = te/esi`; o
+    payload achatado `{cand: [...]}` (só `pvap`, sem participação) não
+    carrega o suficiente — mesma limitação documentada para o dataset de
+    replay 2022 (`tests/fixtures/replay-2022/`, Fase 5 pendente, fora do
+    escopo desta tarefa). Nome mantido (não renomeado em todos os
+    call-sites deste arquivo) para minimizar o diff.
+    """
+    return _synthetic_envelope(cand_pcts)
 
 
 class FakeCursor:
@@ -770,11 +783,21 @@ def test_build_uf_payloads_with_municipios() -> None:
             "total_votos": 680_000,
         },
     }
-    # zona_municipio mapeia cod_zona → meta. Para o teste, qualquer cod_zona
-    # serve, contanto que produza meta para os (uf, cod_municipio_tse) acima.
+    # zona_municipio é chaveado por (uf, cod_zona) — a PK de `zonas` é composta
+    # e o número da zona repete entre UFs (ver docstring de fetch_zona_municipio).
     zona_municipio = {
-        1: {"uf": "SP", "cod_municipio_tse": 71072, "cod_ibge": "3550308", "nome": "São Paulo"},
-        2: {"uf": "SP", "cod_municipio_tse": 67016, "cod_ibge": "3509502", "nome": "Campinas"},
+        ("SP", 1): {
+            "uf": "SP",
+            "cod_municipio_tse": 71072,
+            "cod_ibge": "3550308",
+            "nome": "São Paulo",
+        },
+        ("SP", 2): {
+            "uf": "SP",
+            "cod_municipio_tse": 67016,
+            "cod_ibge": "3509502",
+            "nome": "Campinas",
+        },
     }
 
     out = build_uf_payloads(
@@ -1360,7 +1383,138 @@ def test_participacao_end_to_end_com_envelope_real(
         assert participacao["brancos_nulos"]["pct_projetado"] == pytest.approx(2.5, abs=0.1)
         # outros: só o candidato 400 (rank 4, 10%) — n_candidatos == 1.
         assert participacao["outros"]["n_candidatos"] == 1
-        # `pct_atual` de "outros" fica None quando não há
-        # `municipio_aggregates` real por trás (fixture minimal não popula
-        # `cod_municipio_tse` — ver FakeCursor) — nunca um falso `0.0`.
-        assert participacao["outros"]["pct_atual"] is None
+        # Plano § B: `pct_atual` de "outros" agora vem DIRETO do `row`
+        # (`compute_uf_projections`/`extrapolation.estimate_uf_
+        # candidatos`, regra de três) — não mais de `municipio_aggregates`
+        # (que este fixture minimal nem popula, `cod_municipio_tse` fica
+        # `None` — ver `FakeCursor`). Candidato 400 é o único da cauda
+        # (rank 4, único zona 100% apurada) — `pct_atual` real == 10.0.
+        assert participacao["outros"]["pct_atual"] == pytest.approx(10.0, abs=0.5)
+
+
+# ---------------------------------------------------------------------------
+# Plano `tem-um-erro-eu-velvety-sprout.md` (2026-09-05) — decisão E1: 2022
+# SAI da projeção de candidatos. Este é "o teste que prova o pedido"
+# (plano § F): resultado end-to-end IDÊNTICO com `historical_results` vazio
+# e cheio.
+# ---------------------------------------------------------------------------
+
+
+def test_do_project_e_invariante_a_historical(
+    fake_db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`_do_project` produz o MESMO resultado (bit a bit, exceto
+    `computed_duration_ms`) com `historical_results` vazio OU cheio —
+    prova que 2022 não entra mais em nenhum lugar do cálculo de
+    candidatos (decisão E1). `historical` continua sendo BUSCADO (não
+    fatal — Fase 5 usará para o descritivo "mudou X pontos desde 2022"),
+    mas `compute_uf_projections` não tem mais o parâmetro `historical` —
+    esta é a prova end-to-end de que o dado, mesmo presente no banco, é
+    inerte para a projeção.
+    """
+    from api.model.project import _do_project
+
+    snapshots = [
+        {
+            "cargo": 1,
+            "turno": 1,
+            "uf": "SP",
+            "cod_zona": 1,
+            "pct_apurado": 100.0,
+            "payload": _synthetic_envelope({100: 55.0, 200: 45.0}),
+        },
+        {
+            "cargo": 1,
+            "turno": 1,
+            "uf": "RJ",
+            "cod_zona": 10,
+            "pct_apurado": 100.0,
+            "payload": _synthetic_envelope({100: 48.0, 200: 52.0}),
+        },
+    ]
+    eleitorado = [
+        {"ano": 2026, "uf": "SP", "cod_zona": 1, "eleitores_aptos": 100_000},
+        {"ano": 2026, "uf": "RJ", "cod_zona": 10, "eleitores_aptos": 50_000},
+    ]
+    # `historical` DIFERENTE em cada chamada — se algum ponto do pipeline
+    # ainda dependesse dele, os dois resultados divergiriam.
+    historical_vazio: list[dict] = []
+    historical_cheio = [
+        {
+            "cargo": 1, "turno": 1, "uf": "SP", "cod_zona": 1,
+            "cod_candidato": 100, "pct_validos": 0.10, "partido": "PT",
+        },
+        {
+            "cargo": 1, "turno": 1, "uf": "RJ", "cod_zona": 10,
+            "cod_candidato": 200, "pct_validos": 0.90, "partido": "PL",
+        },
+    ]
+
+    body = json.dumps(
+        {"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}
+    ).encode("utf-8")
+
+    fake_db(snapshots, historical_vazio, eleitorado)
+    status1, resp1 = _do_project(body)
+
+    fake_db(snapshots, historical_cheio, eleitorado)
+    status2, resp2 = _do_project(body)
+
+    assert status1 == 200 and status2 == 200
+    assert resp1["computed"] is True and resp2["computed"] is True
+    assert resp1["uf_count"] == resp2["uf_count"]
+    assert resp1["national_p_vitoria_a"] == resp2["national_p_vitoria_a"]
+    assert resp1["candidato_a_id"] == resp2["candidato_a_id"]
+    assert resp1["candidato_b_id"] == resp2["candidato_b_id"]
+
+
+# ---------------------------------------------------------------------------
+# Achado urgente do plano — sentinela `cod_zona = 0` (modo `uf` quebrado)
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_snapshots_descarta_sentinela_zona_zero_com_zona_real(
+    fake_db,
+) -> None:
+    """`fetch_snapshots` descarta a linha `cod_zona = 0` de uma UF quando
+    a MESMA UF já tem zonas reais (`cod_zona > 0`) — evita dupla contagem
+    quando um ciclo anterior rodou em modo `uf` e o atual roda em modo
+    `zona` (achado urgente do plano `tem-um-erro-eu-velvety-sprout.md`)."""
+    from api.model.project import fetch_snapshots
+
+    snapshots = [
+        {
+            "cargo": 1, "turno": 1, "uf": "SP", "cod_zona": 0,
+            "pct_apurado": 40.0, "payload": _synthetic_envelope({100: 50.0}),
+        },
+        {
+            "cargo": 1, "turno": 1, "uf": "SP", "cod_zona": 1,
+            "pct_apurado": 60.0, "payload": _synthetic_envelope({100: 55.0}),
+        },
+    ]
+    conn = fake_db(snapshots, [], [])
+
+    out = fetch_snapshots(conn, cargo=1, turno=1)
+
+    assert len(out) == 1
+    assert out[0]["cod_zona"] == 1
+
+
+def test_fetch_snapshots_mantem_sentinela_zona_zero_sozinha(fake_db) -> None:
+    """Sem NENHUMA zona real na UF, a linha `cod_zona = 0` (modo `uf`,
+    ainda sem migração pra `zona`) é MANTIDA — é o único dado disponível
+    daquela UF."""
+    from api.model.project import fetch_snapshots
+
+    snapshots = [
+        {
+            "cargo": 1, "turno": 1, "uf": "SP", "cod_zona": 0,
+            "pct_apurado": 40.0, "payload": _synthetic_envelope({100: 50.0}),
+        },
+    ]
+    conn = fake_db(snapshots, [], [])
+
+    out = fetch_snapshots(conn, cargo=1, turno=1)
+
+    assert len(out) == 1
+    assert out[0]["cod_zona"] == 0

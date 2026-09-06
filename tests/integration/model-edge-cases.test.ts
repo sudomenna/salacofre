@@ -1,34 +1,60 @@
 /**
  * tests/integration/model-edge-cases.test.ts
  *
- * T19 — Integration test: casos de borda RF-017, RF-018 e K-1 do modelo
- * estatístico (spec 002, Fase 6).
+ * T19 — Integration test: casos de borda do modelo estatístico (spec 002)
+ * contra o pipeline de EXTRAPOLAÇÃO POR ZONA (plano `tem-um-erro-eu-
+ * velvety-sprout.md`, decisões E1-E4 fechadas com o usuário em 2026-09-05
+ * — 2022 SAIU da projeção de candidatos; `historical_results` não é mais
+ * lido pelo caminho de cálculo).
  *
  * Cobre:
- *   - RF-017: UF com 0% apurado → projeção = resultado_2022, CI ±10pp.
- *   - RF-018: UF com <5% apurado → CI ≥ 1.5× a largura de uma UF controle.
- *   - K-1   : candidato sem mapeamento 2022 → modelo desabilitado para ele
- *             (nenhuma linha em `projections` para esse candidato).
+ *   - Cenário A — RF-017 (E3, 2º nível hierárquico): UF SEM NENHUMA zona
+ *     apurada usa a proporção NACIONAL (não mais `p_2022`), CI ±10pp,
+ *     `metodo.tipo = "imputado_nacional"`. Substitui o antigo teste
+ *     "projeção ≈ p_2022" — a âncora agora é o nacional calculado a
+ *     partir de outras UFs com dado, não 2022.
+ *   - Cenário B — RF-018: UF com <5% apurado → CI ≥ 1.5× a largura de
+ *     uma UF controle. Semântica INALTERADA pela extrapolação (só a
+ *     fonte do share mudou de swing-vs-2022 para razão de somas
+ *     zona-a-zona); reescrito só para semear o envelope EA20 real que
+ *     `_extract_zone_candidatos` agora exige.
+ *   - Cenário C — candidato SEM histórico 2022 (antigo "K-1") recebe
+ *     projeção NORMALMENTE. K-1 foi REMOVIDO (ADR-0015 obsoleto — 2022
+ *     não é mais insumo, não existe "candidato sem bloco 2022 mapeável").
+ *     A corrida é de quem aparece no snapshot 2026, ponto.
+ *
+ * Por que os 3 cenários exigem envelope EA20 REAL (`e`/`v`/`s` de raiz +
+ * `carg[].agr[].par[].cand[].vap`), não mais o payload achatado
+ * `{cand:[{n,pvap}]}`:
+ *   `_extract_zone_candidatos` (api/model/project.py) delega a
+ *   `_extract_zone_participacao`, que exige o campo FATAL `e.te` — sem
+ *   `e`/`v`/`s` de raiz a zona inteira é excluída (`None`), nunca entra
+ *   em `estimate_uf_candidatos` (api/model/extrapolation.py). O payload
+ *   achatado antigo não carrega esses campos — era suficiente para o
+ *   pipeline de swing (só precisava de `pvap`), não é mais suficiente
+ *   para a regra de três (precisa de contagens ABSOLUTAS para escalar
+ *   por `k = te/esi`).
  *
  * Estratégia
  * ----------
- *   - Seeda `historical_results`, `eleitorado` e `snapshots` no Neon real
- *     via Drizzle (sentinels uf='ZT' + cod_zona ∈ 99041..99050 — distintos
- *     dos T18: 99030..99040 — para evitar colisão em runs paralelos).
- *   - Invoca a função pura `_do_project(body_bytes)` do orquestrador Python
- *     via `child_process.execFileSync('python3.14', ['-c', '...'])`, usando
- *     o interpretador do `.venv-model/` (psycopg + numpy + pydantic já
- *     instalados). O script Python imprime `{status, payload}` em JSON na
- *     última linha do stdout; o teste parseia.
- *   - DATABASE_URL é repassada para o subprocess via `env` (o orquestrador
- *     abre conexão psycopg direto contra Neon — mesma string que Drizzle
- *     usa para o seed).
- *   - Após cada cenário, lê `projections` filtrando pela UF sentinela
- *     daquele cenário (cada cenário usa um cargo distinto: 91/92/93 — fora
- *     da faixa real 1=Pres, 3=Gov — para isolamento total entre cenários
- *     concorrentes na mesma table).
- *   - Cleanup: DELETE só do que o teste inseriu (UF + faixa de cod_zona +
- *     faixa de cargo sintética). Production code permanece append-only.
+ *   - Seeda `eleitorado` e `snapshots` no Neon real via Drizzle
+ *     (sentinels uf='ZT'/'ZQ'/'ZC'/'ZL'/'ZK' + cod_zona ∈ 99041..99050 —
+ *     distintos dos de T18: 99030..99039).
+ *   - Invoca a função pura `_do_project(body_bytes)` do orquestrador
+ *     Python via `child_process.execFileSync`, usando o interpretador
+ *     do `.venv-model/` (psycopg + numpy + pydantic já instalados). O
+ *     script Python intercepta `api.model.project.insert_projections`
+ *     (chama a implementação REAL — grava no Neon de verdade — mas
+ *     também guarda os `rows` recebidos) para expor campos que não são
+ *     persistidos em `projections` (`metodo`, `comparecimento`,
+ *     `votos_atuais`) sem precisar mockar nada em `api/model/**`.
+ *   - Cada cenário usa um cargo sintético (CARGO_B=92, CARGO_C=93) OU o
+ *     cargo real 1 (CARGO_A — RF-017 2º nível só existe para cargo=1,
+ *     "presidente", que tem noção de "nacional"; cargo 3/governador não
+ *     tem — a UF fica omitida, não há o que testar aqui).
+ *   - Cleanup: DELETE só do que o teste inseriu (UF + faixa de cod_zona
+ *     + faixa de cargo sintética/1). Production code permanece
+ *     append-only.
  *
  * Skip condicional
  * ----------------
@@ -37,8 +63,9 @@
  *     - Binário Python 3.14 não encontrado em `.venv-model/bin/python3.14`
  *       nem em PATH.
  *
- * Padrão herdado de T18 (cf. comentários no top): mesma estrutura de
- * beforeAll/afterAll com cleanup explícito, sem mocks em produção.
+ * Padrão herdado de T18 (cf. comentários no top de model-cycle.test.ts):
+ * mesma estrutura de beforeAll/afterAll com cleanup explícito, sem mocks
+ * em produção.
  */
 
 import { execFileSync } from "node:child_process";
@@ -52,17 +79,34 @@ import { db } from "@/lib/db";
 // Sentinels — isolamento entre cenários e contra T18 (99030..99040)
 // ---------------------------------------------------------------------------
 
-/** Cargo sintético do cenário A (RF-017). Fora da faixa real {1, 3}. */
-const CARGO_A = 91;
+/**
+ * Cargo do cenário A (RF-017, E3 2º nível). PRECISA ser 1 (presidente) —
+ * `compute_uf_projections` só tenta `impute_uf_from_national` quando
+ * `int(cargo) == 1` (cargo 3/governador não tem "nacional", a UF fica
+ * omitida — nada a testar). Consequência medida: cargo=1 já tem dados
+ * NACIONAIS reais neste Neon de dev (S07 — pipeline TSE simulado-ready,
+ * ~2600 zonas em 27 UFs) — `_do_project` sempre busca esse universo
+ * inteiro, não só as nossas 2 UFs sintéticas (ver timeout de
+ * `callDoProject` abaixo).
+ */
+const CARGO_A = 1;
 /** Cargo sintético do cenário B (RF-018) — duas UFs no mesmo run. */
 const CARGO_B = 92;
-/** Cargo sintético do cenário C (K-1). */
+/** Cargo sintético do cenário C (candidato sem histórico 2022). */
 const CARGO_C = 93;
 
 const TURNO = 1;
 
-/** UF sentinela do cenário A. */
+/** UF sentinela do cenário A — 0 zonas apuradas. */
 const UF_A = "ZT";
+/**
+ * UF que ANCORA a proporção nacional para o cenário A — a única UF com
+ * os candidatos 101/102 apurados neste run. Só 1 zona ⇒ bootstrap com
+ * `k_a=1` ⇒ zero variância de amostragem ⇒ share exato (65%/35%,
+ * `vap/vvc`) reproduzido bit-a-bit no nacional — determinístico o
+ * bastante para `toBeCloseTo` com tolerância apertada.
+ */
+const UF_A_NAT = "ZQ";
 /** UF controle do cenário B (50% apurado). */
 const UF_B_CTRL = "ZC";
 /** UF low-apurado do cenário B (4% apurado). */
@@ -74,8 +118,14 @@ const ZONE_BASE = 99041;
 const ZONE_MAX = 99050;
 const COD_MUNICIPIO_TSE = 99997;
 
-/** Faixa de cargos sintéticos usada por este teste — alvo do cleanup. */
+/** Faixa de cargos usada por este teste — alvo do cleanup. */
 const TEST_CARGOS = [CARGO_A, CARGO_B, CARGO_C] as const;
+/** Faixa de UFs sentinela usada por este teste — alvo do cleanup. */
+const TEST_UFS = [UF_A, UF_A_NAT, UF_B_CTRL, UF_B_LOW, UF_C] as const;
+const TEST_UF_LIST = sql.join(
+  TEST_UFS.map((uf) => sql`${uf}`),
+  sql`, `,
+);
 
 // ---------------------------------------------------------------------------
 // Python runner
@@ -94,6 +144,37 @@ function pythonBinary(): string | null {
   }
 }
 
+/** Linha capturada de `insert_projections` — espelha `_uf_projection_row`
+ * (api/model/project.py) e as linhas nacionais de `compute_national`.
+ * Campos como `metodo`/`comparecimento`/`votos_atuais` NÃO são
+ * persistidos em `projections` (colunas não existem) — só chegam até
+ * aqui via a interceptação feita pelo script inline abaixo. */
+interface CapturedRow {
+  cargo: number;
+  turno: number;
+  uf: string | null;
+  candidato_id: number;
+  votos_projetados: number;
+  votos_atuais?: number;
+  pct_atual: number | null;
+  pct_projetado: number;
+  pct_projetado_lower: number;
+  pct_projetado_upper: number;
+  p_vitoria: number | null;
+  pct_apurado: number;
+  comparecimento?: {
+    pct_atual: number | null;
+    pct_projetado: number;
+    lower: number;
+    upper: number;
+  };
+  metodo?: {
+    tipo: string;
+    n_zonas: number;
+    n_zonas_imputadas: number;
+  };
+}
+
 /**
  * Invoca `api.model.project._do_project` num subprocess Python 3.14.
  *
@@ -104,23 +185,37 @@ function pythonBinary(): string | null {
  *   - O subprocess espelha exatamente o que o Vercel runtime faz: import
  *     do módulo + chamada com bytes de body, sem mocks no caminho real.
  *
- * Retorna o JSON `{status, payload}` que `_do_project` produz.
+ * `insert_projections` é interceptado DENTRO deste subprocess efêmero
+ * (não em `api/model/**`) só para CAPTURAR os `rows` que ele recebe —
+ * a implementação real ainda roda por baixo (grava no Neon de verdade,
+ * mesmo caminho de produção). Isso expõe `metodo`/`comparecimento`/
+ * `votos_atuais`, que `projections` não persiste, sem precisar mockar
+ * nada em código de produção.
+ *
+ * Retorna `{status, payload, rows}` — `payload` é o JSON de resposta do
+ * endpoint; `rows` é `uf_rows + national_rows` (uf=null nas nacionais).
  */
 function callDoProject(
   py: string,
   body: { cargo: number; turno: number; trigger_ts: string },
-): { status: number; payload: Record<string, unknown> } {
+  timeoutMs = 60_000,
+): { status: number; payload: Record<string, unknown>; rows: CapturedRow[] } {
   const bodyJson = JSON.stringify(body);
-  // Script auto-contido: ajusta sys.path para a raiz do repo, importa o
-  // orquestrador e imprime o resultado em uma única linha JSON na STDOUT
-  // final. Qualquer log estruturado do `_log` vem em linhas anteriores.
   const script = `
 import json, sys, os
 sys.path.insert(0, os.environ['REPO_ROOT'])
-from api.model.project import _do_project
-status, payload = _do_project(os.environ['BODY_JSON'].encode('utf-8'))
+import api.model.project as _proj
+
+_captured = []
+_orig_insert = _proj.insert_projections
+def _capture_insert(conn, rows):
+    _captured.extend(rows)
+    return _orig_insert(conn, rows)
+_proj.insert_projections = _capture_insert
+
+status, payload = _proj._do_project(os.environ['BODY_JSON'].encode('utf-8'))
 sys.stdout.write('---RESULT---\\n')
-sys.stdout.write(json.dumps({'status': status, 'payload': payload}, default=str))
+sys.stdout.write(json.dumps({'status': status, 'payload': payload, 'rows': _captured}, default=str))
 sys.stdout.write('\\n')
 `;
   const stdout = execFileSync(py, ["-c", script], {
@@ -128,10 +223,11 @@ sys.stdout.write('\\n')
       ...process.env,
       REPO_ROOT: process.cwd(),
       BODY_JSON: bodyJson,
+      // Sentinela negativa — não queremos edge-write nesta integração.
+      MODEL_SECRET: "",
     },
     encoding: "utf8",
-    // 30s deve sobrar — bootstrap rodando em 1 UF leva ~1-2s.
-    timeout: 30_000,
+    timeout: timeoutMs,
   });
 
   // Extrai a última linha após `---RESULT---` para evitar conflito com logs
@@ -141,36 +237,16 @@ sys.stdout.write('\\n')
     throw new Error(`Subprocess não emitiu marcador ---RESULT---. STDOUT:\n${stdout}`);
   }
   const tail = stdout.slice(marker + "---RESULT---".length).trim();
-  return JSON.parse(tail) as { status: number; payload: Record<string, unknown> };
+  return JSON.parse(tail) as {
+    status: number;
+    payload: Record<string, unknown>;
+    rows: CapturedRow[];
+  };
 }
 
 // ---------------------------------------------------------------------------
 // Seed helpers — INSERT direto via Drizzle raw sql
 // ---------------------------------------------------------------------------
-
-/**
- * Insere uma linha em `historical_results 2022`.
- * `pctValidos` em fração [0,1] (ex.: 0.40 = 40%).
- */
-async function seedHistorical(args: {
-  cargo: number;
-  uf: string;
-  codZona: number;
-  codCandidato: number;
-  pctValidos: number;
-  partido: string;
-}): Promise<void> {
-  await db.execute(sql`
-    INSERT INTO historical_results
-      (ano, turno, cargo, uf, cod_municipio_tse, cod_zona, cod_candidato,
-       nome_candidato, partido, votos, pct_validos, pct_total)
-    VALUES
-      (2022, ${TURNO}, ${args.cargo}, ${args.uf}, ${COD_MUNICIPIO_TSE},
-       ${args.codZona}, ${args.codCandidato},
-       ${`cand-${args.codCandidato}`}, ${args.partido},
-       1000, ${args.pctValidos.toString()}, ${args.pctValidos.toString()})
-  `);
-}
 
 /**
  * Insere em `eleitorado 2026`. `aptos` é absoluto (não fração).
@@ -189,21 +265,69 @@ async function seedEleitorado(args: { uf: string; codZona: number; aptos: number
 }
 
 /**
- * Insere um snapshot. `pctApurado` em escala 0..100 (consistente com a
- * coluna real do TSE). `payloadCands` mapeia cod_candidato → pvap em %.
+ * Constrói o envelope EA20 REAL (`e`/`v`/`s` de raiz +
+ * `carg[].agr[].par[].cand[].vap`) exigido por `_extract_zone_candidatos`
+ * (api/model/project.py) desde a Fase 1 do plano `tem-um-erro-eu-
+ * velvety-sprout.md`. Substitui o payload achatado `{cand:[{n,pvap}]}`
+ * usado antes desta tarefa — insuficiente porque não carrega `e.te`
+ * (campo fatal) nem contagens absolutas (`vap`) para escalar por
+ * `k = te/esi`.
+ *
+ * Zona "apurada" ⇔ `esi > 0 ∧ vvc > 0 ∧ weight(eleitorado) > 0`
+ * (`extrapolation._is_apurada`) — para forçar uma zona "instalada mas
+ * sem apuração ainda" (Cenário A), chame com `esi: 0, vvc: 0`.
+ */
+function buildEa20Envelope(args: {
+  te: number;
+  esi: number;
+  c: number;
+  a: number;
+  vvc: number;
+  vaps: Record<number, number>;
+}): Record<string, unknown> {
+  const vv = Object.values(args.vaps).reduce((sum, v) => sum + v, 0);
+  return {
+    e: { te: args.te, esi: args.esi, c: args.c, a: args.a },
+    v: { vvc: args.vvc, vv, vb: 0, tvn: 0, van: 0, vansj: 0 },
+    s: { psa: args.te > 0 ? Number(((args.esi / args.te) * 100).toFixed(2)) : 0 },
+    carg: [
+      {
+        cd: "1",
+        agr: [
+          {
+            par: [
+              {
+                cand: Object.entries(args.vaps).map(([n, vap]) => ({ n, vap })),
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * Insere um snapshot com envelope EA20 real. `pctApurado` em escala
+ * 0..100 (coluna `snapshots.pct_apurado`, alimenta `uf_pct_apurado` —
+ * INDEPENDENTE de `esi`/`te` do envelope, que decidem só se a ZONA
+ * individual está "apurada" — RF-018 opera sobre a média ponderada da
+ * coluna, não sobre `esi/te`).
  */
 async function seedSnapshot(args: {
   cargo: number;
   uf: string;
   codZona: number;
   pctApurado: number;
-  payloadCands: Record<number, number>; // cod -> pvap (em %)
+  te: number;
+  esi: number;
+  c: number;
+  a: number;
+  vvc: number;
+  vaps: Record<number, number>;
 }): Promise<void> {
-  const cand = Object.entries(args.payloadCands).map(([cod, pct]) => ({
-    n: cod,
-    pvap: pct.toFixed(2).replace(".", ","),
-  }));
-  const payload = JSON.stringify({ cand });
+  const payload = buildEa20Envelope(args);
+  const payloadStr = JSON.stringify(payload);
   // hash_payload é NOT NULL char(64) — SHA-256 do payload é a convenção real,
   // mas para o teste qualquer hex de 64 chars determinístico serve.
   const hash = `t19-${args.uf}-${args.codZona}-${args.cargo}`.padEnd(64, "0").slice(0, 64);
@@ -213,8 +337,8 @@ async function seedSnapshot(args: {
        payload, hash_payload)
     VALUES
       (${args.cargo}, ${TURNO}, ${args.uf}, ${args.codZona},
-       ${`etag-${hash.slice(0, 8)}`}, ${args.pctApurado.toString()}, 1000,
-       ${payload}::jsonb, ${hash})
+       ${`etag-${hash.slice(0, 8)}`}, ${args.pctApurado.toString()}, ${args.vvc},
+       ${payloadStr}::jsonb, ${hash})
   `);
 }
 
@@ -265,30 +389,35 @@ async function cleanupAll(): Promise<void> {
       DELETE FROM projections
       WHERE cargo = ${cargo}
         AND turno = ${TURNO}
-        AND uf IN (${UF_A}, ${UF_B_CTRL}, ${UF_B_LOW}, ${UF_C})
+        AND uf IN (${TEST_UF_LIST})
     `);
     await db.execute(sql`
       DELETE FROM snapshots
       WHERE cargo = ${cargo}
         AND turno = ${TURNO}
-        AND uf IN (${UF_A}, ${UF_B_CTRL}, ${UF_B_LOW}, ${UF_C})
-        AND cod_zona BETWEEN ${ZONE_BASE} AND ${ZONE_MAX}
-    `);
-    await db.execute(sql`
-      DELETE FROM historical_results
-      WHERE cargo = ${cargo}
-        AND turno = ${TURNO}
-        AND ano = 2022
-        AND uf IN (${UF_A}, ${UF_B_CTRL}, ${UF_B_LOW}, ${UF_C})
+        AND uf IN (${TEST_UF_LIST})
         AND cod_zona BETWEEN ${ZONE_BASE} AND ${ZONE_MAX}
     `);
   }
   await db.execute(sql`
     DELETE FROM eleitorado
     WHERE ano = 2026
-      AND uf IN (${UF_A}, ${UF_B_CTRL}, ${UF_B_LOW}, ${UF_C})
+      AND uf IN (${TEST_UF_LIST})
       AND cod_zona BETWEEN ${ZONE_BASE} AND ${ZONE_MAX}
   `);
+  // Nenhum cenário desta suíte semeia `historical_results` mais (E1 — 2022
+  // saiu da projeção de candidatos); DELETE mantido apenas como rede de
+  // segurança contra resíduo de versões anteriores deste arquivo.
+  for (const cargo of TEST_CARGOS) {
+    await db.execute(sql`
+      DELETE FROM historical_results
+      WHERE cargo = ${cargo}
+        AND turno = ${TURNO}
+        AND ano = 2022
+        AND uf IN (${TEST_UF_LIST})
+        AND cod_zona BETWEEN ${ZONE_BASE} AND ${ZONE_MAX}
+    `);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -318,87 +447,124 @@ describe.skipIf(SKIP)("T19 — model edge cases (integration, real Neon + Python
   }, 30_000);
 
   // -------------------------------------------------------------------------
-  // CENÁRIO A — RF-017: UF com 0 zonas efetivamente apuradas
+  // CENÁRIO A — RF-017 (E3, 2º nível hierárquico): UF sem NENHUMA zona
+  // apurada usa a proporção NACIONAL calculada a partir de outras UFs.
   // -------------------------------------------------------------------------
   //
   // Setup:
-  //   - UF=ZT, 5 zonas históricas com 2 candidatos (p_2022 = 60% e 40%).
-  //   - eleitorado seedado.
-  //   - 1 snapshot com pct_apurado=0 e payload `cand=[]` (nenhum candidato
-  //     no JSON), forçando `per_cand_zones[cand] = []` para todo candidato
-  //     histórico → `zones_with_swing` vazio → branch `inflate_ci_zero_apurado`
-  //     (api/model/project.py linhas 451-459).
+  //   - UF_A=ZT: eleitorado seedado + 1 snapshot com `e.esi=0, v.vvc=0`
+  //     ("seção instalada mas sem totalização ainda", EA20 real) — a
+  //     zona entra no balde "não apurada" (`extrapolation._is_apurada`);
+  //     como é a ÚNICA zona da UF, `estimate_uf_candidatos` devolve
+  //     `None` → RF-017 2º nível (só `cargo == 1`).
+  //   - UF_A_NAT=ZQ: 1 zona TOTALMENTE apurada com candidatos 101 (65%)
+  //     e 102 (35%) — a ÚNICA UF que reporta esses candidatos, então
+  //     ela sozinha define a "proporção nacional" que ZT vai herdar.
   //
   // Esperado:
-  //   - 2 linhas em projections para UF=ZT.
-  //   - pct_projetado ≈ pct_validos do candidato em 2022 (média ponderada
-  //     pelo eleitorado das zonas — igual em todas, então = pct_validos).
-  //   - ci_upper - ci_lower ≈ 20pp (±10pp, escala 0–100).
+  //   - Linhas para 101 e 102 em UF=ZT (`impute_uf_from_national` imputa
+  //     TODOS os candidatos vistos no `national_point` — que, neste Neon
+  //     de dev, também inclui os candidatos NACIONAIS reais de cargo=1
+  //     (S07 — dados do pipeline TSE simulado-ready). ZT acaba com uma
+  //     linha por candidato nacional, não só 101/102 — por isso os reads
+  //     abaixo FILTRAM por `candidato_id`, em vez de contar `.length` cru).
+  //   - `metodo.tipo === "imputado_nacional"` (RF-017 2º nível) nas linhas
+  //     de 101/102.
+  //   - `pct_projetado` ≈ share nacional (65%/35%, exato — 1 zona só na
+  //     UF ancoradora ⇒ bootstrap sem variância de amostragem).
+  //   - CI ±10pp ⇒ largura ≈ 20pp (RF-017), sem clipping (55–75/25–45).
+  //   - Persistência real em `projections` confirmada via `readProjections`.
   // -------------------------------------------------------------------------
 
-  it("Cenário A (RF-017) — UF 0% apurada: projeção ≈ p_2022 e CI ≈ 20pp", {
-    timeout: 60_000,
+  it("Cenário A (RF-017/E3) — UF sem zona apurada usa a proporção nacional (imputado_nacional)", {
+    timeout: 100_000,
   }, async () => {
     if (!PY_BIN) throw new Error(`unreachable (skip): ${SKIP_REASON}`);
-    // Seed: 5 zonas × 2 candidatos. Pesos iguais → p_2022_uf = pct_validos.
-    const zones = [99041, 99042, 99043, 99044, 99045];
-    for (const z of zones) {
-      await seedEleitorado({ uf: UF_A, codZona: z, aptos: 10_000 });
-      await seedHistorical({
-        cargo: CARGO_A,
-        uf: UF_A,
-        codZona: z,
-        codCandidato: 101,
-        pctValidos: 0.6,
-        partido: "ZA",
-      });
-      await seedHistorical({
-        cargo: CARGO_A,
-        uf: UF_A,
-        codZona: z,
-        codCandidato: 102,
-        pctValidos: 0.4,
-        partido: "ZB",
-      });
-    }
-    // Snapshot necessário para o loop de compute rodar para essa UF, mas
-    // sem candidatos no payload — força o branch RF-017.
+
+    const zoneA = 99041;
+    const zoneNat = 99042;
+
+    await seedEleitorado({ uf: UF_A, codZona: zoneA, aptos: 10_000 });
     await seedSnapshot({
       cargo: CARGO_A,
       uf: UF_A,
-      codZona: zones[0] as number,
+      codZona: zoneA,
       pctApurado: 0,
-      payloadCands: {}, // payload vazio
+      te: 10_000,
+      esi: 0,
+      c: 0,
+      a: 0,
+      vvc: 0,
+      vaps: {},
     });
 
-    const result = callDoProject(PY_BIN, {
+    await seedEleitorado({ uf: UF_A_NAT, codZona: zoneNat, aptos: 10_000 });
+    await seedSnapshot({
       cargo: CARGO_A,
-      turno: TURNO,
-      trigger_ts: "2026-10-04T20:00:00Z",
+      uf: UF_A_NAT,
+      codZona: zoneNat,
+      pctApurado: 100,
+      te: 10_000,
+      esi: 10_000,
+      c: 10_000,
+      a: 0,
+      vvc: 10_000,
+      vaps: { 101: 6_500, 102: 3_500 },
     });
+
+    // Timeout generoso (90s) — ver justificativa medida em
+    // `tests/integration/model-cycle.test.ts` (mesmo `cargo=1`, mesmo
+    // universo nacional real neste Neon de dev — `_do_project` não
+    // filtra por UF na leitura, então esta chamada paga o mesmo custo
+    // de rede que T18, ~42s numa execução limpa).
+    const result = callDoProject(
+      PY_BIN,
+      { cargo: CARGO_A, turno: TURNO, trigger_ts: "2026-10-04T20:00:00Z" },
+      90_000,
+    );
     expect(result.status).toBe(200);
     expect(result.payload.computed).toBe(true);
 
-    const rows = await readProjections({ cargo: CARGO_A, uf: UF_A });
-    expect(rows.length).toBe(2);
+    const ztRows = result.rows.filter(
+      (r) => r.uf === UF_A && (r.candidato_id === 101 || r.candidato_id === 102),
+    );
+    expect(ztRows.length).toBe(2);
 
-    const c101 = rows.find((r) => r.candidato_id === 101);
-    const c102 = rows.find((r) => r.candidato_id === 102);
+    const c101 = ztRows.find((r) => r.candidato_id === 101);
+    const c102 = ztRows.find((r) => r.candidato_id === 102);
     expect(c101).toBeDefined();
     expect(c102).toBeDefined();
 
-    // pct_projetado ≈ p_2022, em 0–100 (tolerância 0.5pp para arredondamento
-    // numeric). Escala 0–100 desde a correção do BUG-2 — ver
-    // docs/architecture/data-model.md § Escala de percentuais.
-    expect(c101!.pct_projetado).toBeCloseTo(60, 0);
-    expect(c102!.pct_projetado).toBeCloseTo(40, 0);
+    // Marcador do método — RF-017 2º nível (E3 hierárquico).
+    expect(c101!.metodo?.tipo).toBe("imputado_nacional");
+    expect(c102!.metodo?.tipo).toBe("imputado_nacional");
 
-    // Largura do CI ≈ 20pp (±10pp). O clipping em [0,100] poderia trim a
-    // borda — mas 60±10 e 40±10 estão dentro do intervalo, então não atua.
+    // `_uf_projection_row` recebe `pct_apurado_uf=0.0` explicitamente no
+    // branch de imputação (api/model/project.py) — não é a média
+    // ponderada da UF (que nem tem zona apurada para calcular).
+    expect(c101!.pct_apurado).toBe(0);
+    expect(c102!.pct_apurado).toBe(0);
+
+    // point ≈ share nacional (única UF com 101/102 é ZQ: 65%/35% exatos
+    // — 1 zona, bootstrap sem variância de amostragem).
+    expect(c101!.pct_projetado).toBeCloseTo(65, 1);
+    expect(c102!.pct_projetado).toBeCloseTo(35, 1);
+
+    // Largura do CI ≈ 20pp (±10pp, RF-017). Nem 55–75 nem 25–45 tocam
+    // as bordas [0,100] — clipping não atua.
     const width101 = c101!.pct_projetado_upper - c101!.pct_projetado_lower;
     const width102 = c102!.pct_projetado_upper - c102!.pct_projetado_lower;
-    expect(width101).toBeCloseTo(20, 0);
-    expect(width102).toBeCloseTo(20, 0);
+    expect(width101).toBeCloseTo(20, 1);
+    expect(width102).toBeCloseTo(20, 1);
+
+    // Persistência real em `projections` (não só o array capturado).
+    // ZT também recebe uma linha imputada por candidato NACIONAL real
+    // (ver comentário "Esperado" acima) — filtramos por 101/102 em vez
+    // de contar `.length` cru, que inclui os demais candidatos da
+    // corrida nacional deste Neon de dev.
+    const dbRows = await readProjections({ cargo: CARGO_A, uf: UF_A });
+    const dbRows101e102 = dbRows.filter((r) => r.candidato_id === 101 || r.candidato_id === 102);
+    expect(dbRows101e102.length).toBe(2);
   });
 
   // -------------------------------------------------------------------------
@@ -406,23 +572,18 @@ describe.skipIf(SKIP)("T19 — model edge cases (integration, real Neon + Python
   // -------------------------------------------------------------------------
   //
   // Setup (mesmo run de _do_project):
-  //   - UF_B_CTRL=ZC: 10 zonas históricas + 10 snapshots com pct_apurado=50
-  //     e payload trazendo os 2 candidatos com pvap próximos do histórico
-  //     (swing pequeno → CI estreito).
-  //   - UF_B_LOW =ZL: mesmas 10 zonas históricas + apenas 1 snapshot com
-  //     pct_apurado=4 (4 zonas seria <5% mas o cálculo de uf_pct_apurado
-  //     é a MÉDIA PONDERADA dos snapshots, então 1 snapshot com pct=4 e
-  //     pesos iguais dá uf_pct_apurado = 4 → branch RF-018 ativa).
+  //   - UF_B_CTRL=ZC: 10 zonas com envelope EA20 real (vvc=10000, `k=1`)
+  //     e pct_apurado=50, `vap` variando por zona (50%→62% para o
+  //     candidato A) para gerar variância de amostragem no bootstrap de
+  //     zonas.
+  //   - UF_B_LOW=ZL: MESMAS 10 zonas (mesma distribuição de `vap`), só
+  //     `pct_apurado=4` muda — RF-018 ativa (`uf_pct_apurado` é a média
+  //     ponderada da coluna `snapshots.pct_apurado`, independente do
+  //     `esi/te` do envelope, que continua "totalmente apurado" nas duas
+  //     UFs — RF-018 e "zona apurada" são conceitos independentes).
   //
   // Esperado:
-  //   - width(ZL) ≥ 1.5 × width(ZC) para o candidato A.
-  //
-  // Por que isso é razoável?
-  //   `inflate_ci_low_apurado` multiplica a largura por 1.5 quando
-  //   pct_apurado < 5. Como o bootstrap subjacente é o mesmo (mesma p_2022_uf,
-  //   distribuições parecidas), a largura PRE-inflate é similar; o teste pega
-  //   a razão pós-inflate. Tolerância: 1.5× exato como threshold mínimo, com
-  //   margem para flutuação bootstrap residual.
+  //   - width(ZL) ≥ 1.5 × width(ZC) para o candidato A (201).
   // -------------------------------------------------------------------------
 
   it("Cenário B (RF-018) — UF <5% apurada: largura CI ≥ 1.5× UF controle", {
@@ -433,65 +594,44 @@ describe.skipIf(SKIP)("T19 — model edge cases (integration, real Neon + Python
     // Estratégia: dois `_do_project` independentes (cargos sintéticos
     // distintos), USANDO A MESMA UF e zonas idênticas. A única diferença
     // é o `pct_apurado` dos snapshots (50 vs 4). Como o seed do bootstrap
-    // é `seed_base XOR hash("uf:cand")`, e seed_base depende de
+    // é `seed_base XOR hash("uf:candidatos")`, e seed_base depende de
     // (cargo, turno, trigger_ts)…
     //
     // PROBLEMA: cargos diferentes ⇒ seed_base diferente ⇒ bootstrap
     // diferente. Solução: usar o MESMO cargo e trigger_ts em ambas as
     // chamadas, e isolar via UF distinta (ZC vs ZL). O bootstrap fica
-    // semeado com `hash(ZC:cand)` ≠ `hash(ZL:cand)`, mas como os
-    // resamples de 1000 são amostras grandes do mesmo distribuição
-    // empírica (mesmos swings por zona), as larguras pre-inflate são
-    // muito próximas — diferença <5% segundo runs locais. A regra
-    // 1.5× ainda passa com folga.
+    // semeado com `hash(ZC:candidatos)` ≠ `hash(ZL:candidatos)`, mas
+    // como os resamples de 1000 são amostras grandes da MESMA
+    // distribuição empírica (mesmas 10 zonas), as larguras pré-inflate
+    // são muito próximas — diferença pequena segundo runs locais. A
+    // regra 1.5× ainda passa com folga.
     //
-    // pvap variável por zona é obrigatório: zonas idênticas → swings
-    // idênticos → bootstrap variance=0 → CI degenera para 0. Aqui
-    // distribuímos pvap em ±6pp do mean histórico para gerar swing
-    // não-trivial e CI mensurável.
+    // `vap` variável por zona é obrigatório: zonas idênticas → razão
+    // idêntica em toda zona → bootstrap variance=0 → CI degenera para 0.
+    // Aqui distribuímos o share do candidato A em 50pp-62pp por zona
+    // para gerar variância mensurável.
     const zones = [99041, 99042, 99043, 99044, 99045, 99046, 99047, 99048, 99049, 99050];
-    const pvapByZone: Array<{ a: number; b: number }> = [
-      { a: 50, b: 50 },
-      { a: 52, b: 48 },
-      { a: 54, b: 46 },
-      { a: 56, b: 44 },
-      { a: 58, b: 42 },
-      { a: 54, b: 46 },
-      { a: 56, b: 44 },
-      { a: 58, b: 42 },
-      { a: 60, b: 40 },
-      { a: 62, b: 38 },
-    ];
+    const pctByZone: number[] = [50, 52, 54, 56, 58, 54, 56, 58, 60, 62];
+    const VVC = 10_000;
 
-    // Seed CONTROL (UF=ZC) e LOW (UF=ZL) — ambos no mesmo cargo CARGO_B,
-    // mesmo turno, mas pct_apurado distintos (50 vs 4).
     const seedUf = async (uf: string, pctApurado: number) => {
       for (let i = 0; i < zones.length; i++) {
         const z = zones[i] as number;
-        await seedEleitorado({ uf, codZona: z, aptos: 10_000 });
-        await seedHistorical({
-          cargo: CARGO_B,
-          uf,
-          codZona: z,
-          codCandidato: 201,
-          pctValidos: 0.55,
-          partido: "ZA",
-        });
-        await seedHistorical({
-          cargo: CARGO_B,
-          uf,
-          codZona: z,
-          codCandidato: 202,
-          pctValidos: 0.45,
-          partido: "ZB",
-        });
-        const pv = pvapByZone[i] as { a: number; b: number };
+        const pctA = pctByZone[i] as number;
+        const vapA = Math.round((pctA / 100) * VVC);
+        const vapB = VVC - vapA;
+        await seedEleitorado({ uf, codZona: z, aptos: VVC });
         await seedSnapshot({
           cargo: CARGO_B,
           uf,
           codZona: z,
           pctApurado,
-          payloadCands: { 201: pv.a, 202: pv.b },
+          te: VVC,
+          esi: VVC,
+          c: VVC,
+          a: 0,
+          vvc: VVC,
+          vaps: { 201: vapA, 202: vapB },
         });
       }
     };
@@ -525,59 +665,64 @@ describe.skipIf(SKIP)("T19 — model edge cases (integration, real Neon + Python
     expect(widthCtrl).toBeGreaterThan(0);
     expect(widthLow).toBeGreaterThan(0);
 
-    // Threshold do tasks.md: widthLow ≥ 1.5× widthCtrl. Aplicamos uma
-    // tolerância pequena (5%) para absorver flutuação de seeds distintos
-    // entre as duas UFs (bootstraps independentes). O inflate de 1.5×
-    // domina largamente essa flutuação. Run local mediu ratio≈1.43×
-    // (widthCtrl=0.0440, widthLow=0.0631) — bem acima do mínimo 1.425×.
+    // Threshold do RF-018: widthLow ≥ 1.5× widthCtrl. Tolerância pequena
+    // (5%) absorve flutuação de seeds distintos entre as duas UFs
+    // (bootstraps independentes, mesma distribuição empírica).
     const ratio = widthLow / widthCtrl;
     expect(ratio).toBeGreaterThanOrEqual(1.5 * 0.95);
   });
 
   // -------------------------------------------------------------------------
-  // CENÁRIO C — K-1: candidato 2026 sem mapeamento 2022
+  // CENÁRIO C — candidato SEM histórico 2022 recebe projeção NORMALMENTE
   // -------------------------------------------------------------------------
+  //
+  // Antigo "K-1" (ADR-0015): REMOVIDO. 2022 saiu inteiramente da projeção
+  // de candidatos (decisão E1) — não existe mais "candidato sem bloco
+  // 2022 mapeável" porque 2022 não é insumo do cálculo. A corrida de
+  // `estimate_uf_candidatos` é a união dos candidatos VISTOS nas zonas
+  // apuradas 2026 (`extrapolation.py`, docstring) — quem aparece no
+  // snapshot recebe projeção, ponto. Candidato 9999 (inexistente em
+  // qualquer 2022 fictício) é usado só para deixar claro que o número do
+  // candidato é irrelevante para o pipeline.
   //
   // Setup:
-  //   - UF_C=ZK, 5 zonas com candidato 301 no histórico 2022.
-  //   - Snapshot trazendo dois candidatos no payload: 301 (mapeado) e
-  //     9999 (sem histórico).
+  //   - UF_C=ZK, 5 zonas IDÊNTICAS (mesmo `vap`/`vvc` em toda zona) com
+  //     candidato 301 (72%) e 9999 (28%) — zonas idênticas ⇒ bootstrap
+  //     sem variância de amostragem ⇒ share exato, reproduzindo o
+  //     percentual de entrada bit-a-bit.
   //
   // Esperado:
-  //   - No orquestrador, `p_2022_uf.get((uf, 9999))` retorna None → branch
-  //     `continue` (api/model/project.py linha 433-435) → nenhuma linha
-  //     inserida em projections para candidato 9999.
-  //   - Cand 301 segue normalmente (controle de sanidade).
-  //   - `_do_project` retorna `computed=true` (a UF foi computada — só o
-  //     candidato sem mapeamento foi pulado, não a UF inteira). O contrato
-  //     "computed=false" vale para o caso de ZERO snapshots na request inteira,
-  //     não para K-1 candidato-por-candidato — limitação observada de T11/T12.
-  //     Documentamos como gap no relatório final.
+  //   - Ambos os candidatos (301 E 9999) recebem linha em `projections`.
+  //   - `pct_projetado` coerente com o `vap` semeado (72%/28% exatos).
+  //   - `votos_atuais`/`votos_projetados` coerentes com Σvap das 5 zonas
+  //     (sem zona não-apurada para escalar — `scale == 1`).
+  //   - `metodo.tipo === "extrapolacao_apurado"` (caminho normal, não
+  //     imputado).
   // -------------------------------------------------------------------------
 
-  it("Cenário C (K-1) — candidato sem mapeamento 2022 NÃO recebe projeção", {
+  it("Cenário C — candidato sem histórico 2022 recebe projeção normalmente", {
     timeout: 60_000,
   }, async () => {
     if (!PY_BIN) throw new Error(`unreachable (skip): ${SKIP_REASON}`);
 
     const zones = [99041, 99042, 99043, 99044, 99045];
+    const VVC = 100;
+    const VAP_301 = 72;
+    const VAP_9999 = 28;
+
     for (const z of zones) {
       await seedEleitorado({ uf: UF_C, codZona: z, aptos: 10_000 });
-      await seedHistorical({
-        cargo: CARGO_C,
-        uf: UF_C,
-        codZona: z,
-        codCandidato: 301,
-        pctValidos: 0.7,
-        partido: "ZA",
-      });
-      // NÃO seedamos histórico para candidato 9999 — é o cenário K-1.
       await seedSnapshot({
         cargo: CARGO_C,
         uf: UF_C,
         codZona: z,
         pctApurado: 50,
-        payloadCands: { 301: 72, 9999: 28 },
+        te: VVC,
+        esi: VVC,
+        c: VVC,
+        a: 0,
+        vvc: VVC,
+        vaps: { 301: VAP_301, 9999: VAP_9999 },
       });
     }
 
@@ -587,18 +732,35 @@ describe.skipIf(SKIP)("T19 — model edge cases (integration, real Neon + Python
       trigger_ts: "2026-10-04T21:00:00Z",
     });
     expect(result.status).toBe(200);
-    // Computed TRUE: a UF tem snapshot e candidato 301 é projetado; só o
-    // candidato 9999 é descartado. Ver bloco-comentário acima.
     expect(result.payload.computed).toBe(true);
 
-    const rows = await readProjections({ cargo: CARGO_C, uf: UF_C });
-
-    // Candidato 301 (mapeado) deve ter linha; candidato 9999 (não mapeado)
-    // não deve aparecer — é o invariante crítico do K-1.
+    const rows = result.rows.filter((r) => r.uf === UF_C);
     const c301 = rows.find((r) => r.candidato_id === 301);
     const c9999 = rows.find((r) => r.candidato_id === 9999);
+
+    // Ambos recebem projeção — nenhum "K-1" a excluir candidatos.
     expect(c301).toBeDefined();
-    expect(c9999).toBeUndefined();
+    expect(c9999).toBeDefined();
+
+    // Share exato — 5 zonas idênticas, sem variância de amostragem.
+    expect(c301!.pct_projetado).toBeCloseTo(72, 1);
+    expect(c9999!.pct_projetado).toBeCloseTo(28, 1);
+
+    // Caminho normal (não RF-017) — método é extrapolação do apurado.
+    expect(c301!.metodo?.tipo).toBe("extrapolacao_apurado");
+    expect(c9999!.metodo?.tipo).toBe("extrapolacao_apurado");
+
+    // Votos coerentes: 5 zonas × vap, sem zona não-apurada a escalar
+    // (`n_zonas_imputadas === 0` ⇒ `scale === 1` em `extrapolation.py`).
+    expect(c301!.metodo?.n_zonas_imputadas).toBe(0);
+    expect(c301!.votos_atuais).toBe(zones.length * VAP_301);
+    expect(c301!.votos_projetados).toBe(zones.length * VAP_301);
+    expect(c9999!.votos_atuais).toBe(zones.length * VAP_9999);
+    expect(c9999!.votos_projetados).toBe(zones.length * VAP_9999);
+
+    // Persistência real em `projections`.
+    const dbRows = await readProjections({ cargo: CARGO_C, uf: UF_C });
+    expect(dbRows.length).toBe(2);
   });
 });
 

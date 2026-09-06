@@ -1,8 +1,8 @@
 """Tornar `api/model/*.py` importável nos testes.
 
 Os módulos vivem em `api/model/` (raiz Vercel Python). Para os testes
-importarem via `from api.model import swing`, garantimos que a raiz do
-repo está no `sys.path`.
+importarem via `from api.model import extrapolation`, garantimos que a
+raiz do repo está no `sys.path`.
 """
 
 from __future__ import annotations

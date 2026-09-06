@@ -40,11 +40,19 @@ def _minimal_payload() -> dict:
                         "uf": "SP",
                         "cod_zona": 1,
                         "pct_apurado": 100,
+                        # Plano `tem-um-erro-eu-velvety-sprout.md` (Fase 1):
+                        # a projeção de candidatos lê `e`/`v`/`s` de raiz +
+                        # `cand[].vap` (contagem absoluta), não mais
+                        # `pvap` (percentual, pipeline de swing aposentado).
+                        # `vap` 52/48 sobre `vvc=100` reproduz os mesmos
+                        # 52%/48% do `pvap` anterior.
                         "payload": {
+                            "e": {"te": "5000", "esi": "5000", "c": "100", "a": "4900"},
+                            "v": {"vvc": "100", "vv": "100", "vb": "0", "tvn": "0"},
                             "cand": [
-                                {"n": 13, "pvap": "52,00"},
-                                {"n": 22, "pvap": "48,00"},
-                            ]
+                                {"n": 13, "vap": "52"},
+                                {"n": 22, "vap": "48"},
+                            ],
                         },
                     }
                 ],

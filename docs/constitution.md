@@ -2,7 +2,8 @@
 title: SalaCofre — Constituição do Produto
 description: Princípios não-negociáveis que governam toda decisão de produto, design e engenharia
 status: stable
-last_updated: 2026-05-17
+version: 1.2
+last_updated: 2026-09-05
 ---
 
 # Constituição do SalaCofre
@@ -13,11 +14,17 @@ Estes princípios são **invariantes**. Toda spec, ADR, PR ou decisão de produt
 
 ## 1. Conformidade regulatória (TSE)
 
-- O sistema **deve** operar como "interessado na divulgação" cadastrado conforme a **resolução TSE vigente para o pleito 2026** (a ser publicada pelo TSE, geralmente entre dez/2025 e mar/2026). Até a publicação, usar a Resolução TSE 23.736/2024 (Eleição Municipal 2024) apenas como **referência de práticas**, sem assumir reuso literal de regras técnicas.
-- A publicação da resolução 2026 dispara revisão imediata: cadenciamento de polling (RF-002), User-Agent (RF-010), footers obrigatórios, schema EA20 (RF-001/003), e quaisquer novos requisitos de identificação visual ou rate-limit do TSE.
+A norma vigente é a **Resolução TSE nº 23.751/2026**, que trata da divulgação de resultados por terceiros no **Título III, Capítulo VI, artigos 264 a 269**. Ela está **publicada**. A Res. 23.736/2024 não rege este pleito e não é mais referência normativa.
+
+- **Não existe cadastro prévio.** A Res. 23.751/2026 não institui inscrição, credenciamento nem homologação de "interessado na divulgação"; o termo é descritivo, não um status administrativo. O SalaCofre opera sem cadastro, e **nenhuma superfície do produto — a começar pelo `User-Agent` enviado ao TSE — pode declarar um cadastro, credenciamento ou autorização que não existe.** Identificação honesta (nome do projeto, URL pública, contato verificável) é obrigatória; afirmação de status inexistente é proibida.
+- **O dado oficial é intocável.** O art. 267 §4º veda às entidades que divulgam resultados promover qualquer alteração de conteúdo dos dados distribuídos pela Justiça Eleitoral. Em consequência, o snapshot bruto recebido do TSE é persistido **cru e inalterado**, e nenhuma transformação do produto pode ser gravada sobre o registro do dado oficial.
+- **A projeção é conteúdo derivado e precisa ser inconfundível com o oficial.** Projeção estatística, intervalo de confiança e probabilidades não são resultado do TSE; toda superfície onde aparecem deve rotulá-las como não oficiais, de forma que nenhum leitor razoável as confunda com apuração. Esta é uma obrigação regulatória (art. 267 §4º), não apenas editorial.
+- **Os limites técnicos do CDN do TSE são invariantes de engenharia, não recomendações.** O TSE documenta máximo de 100 requisições por IP por segundo, com bloqueio de 10 minutos renovável; adverte que requisição malformada (404) também pode gerar bloqueio; e declara que **não é possível listar os arquivos**. Daí decorrem três invariantes: (a) **rate limiter de saída obrigatório**, com teto configurado bem abaixo do limite documentado; (b) **proibição absoluta de sondar URL adivinhada** contra `resultados.tse.jus.br` ou `resultados-sim.tse.jus.br` — toda URL requisitada deve derivar da padronização documentada ou de arquivo de acompanhamento; (c) **schema tolerante a campos desconhecidos** (`.passthrough()`, nunca `.strict()`), porque o TSE não anunciou freeze de leiaute.
 - Toda página **deve** exibir, no footer, "Não oficial. Fonte: TSE." e link para `resultados.tse.jus.br`.
 - Tooltips e legendas **devem** atribuir corretamente cada dado à sua fonte (TSE, IBGE).
-- Qualquer mudança na regulamentação dispara revisão imediata desta constituição.
+- Qualquer mudança na regulamentação dispara revisão imediata desta constituição — e, por força do preâmbulo, um ADR que a justifique.
+
+> **Mudança 1.0 → 1.1 (2026-09-05).** A versão 1.0 exigia operar "como interessado na divulgação **cadastrado**" e tratava a resolução de 2026 como "a ser publicada", usando a Res. 23.736/2024 como referência. Pesquisa em fonte primária feita em 2026-09-05 derrubou as duas premissas: a norma está publicada (Res. 23.751/2026, arts. 264–269) e **não há cadastro** — o requisito antigo era inverificável, e o `User-Agent` que o declarava era uma afirmação falsa perante o TSE. A 1.1 substitui o cadastro pelas obrigações efetivamente confirmadas (dado cru inalterado, projeção rotulada, limites de consumo do CDN). Justificativa completa em [ADR-0020](./architecture/adrs/0020-conformidade-res-23751-2026.md). Nenhum outro princípio (§§ 2–10) foi alterado.
 
 ## 2. Neutralidade política
 
@@ -64,9 +71,11 @@ Estes princípios são **invariantes**. Toda spec, ADR, PR ou decisão de produt
 
 ## 8. Transparência metodológica
 
-- Página `/sobre-o-modelo` é **obrigatória** e detalha: como o swing é calculado, como o CI é construído, como interpretar a agulha, limitações conhecidas.
+- Página `/sobre-o-modelo` é **obrigatória** e detalha: como a projeção é extrapolada do apurado, como o intervalo de confiança é construído, e o que a comparação com 2022 significa na tela (fato observado, não insumo da projeção), como interpretar a agulha, limitações conhecidas.
 - Bloco "O que está movendo o forecast" presente em toda página com projeção.
 - Disclaimer explícito quando atribuição partidária é incerta.
+
+> **Mudança 1.1 → 1.2 (2026-09-05).** A versão 1.1 (e todas as anteriores) descreviam a projeção de candidatos como baseada em "swing" — variação em relação ao resultado de 2022, usado como âncora do modelo. Essa âncora exigia um mapeamento de coligação 2026→2022 (K-1, ADR-0015) que nunca ficou operacional, dependia de um campo (`historical_results.pct_validos`) nunca populado, e era "validada" por um gate de replay tautológico (dataset construído a partir do próprio 2022, ver `docs/reference/risks.md:27`). A 1.2 substitui o swing por **extrapolação do apurado por zona eleitoral** — regra de três sobre o que cada zona já apurou, sem depender de histórico — com 2022 relegado a comparação descritiva na tela. Justificativa completa em [ADR-0021](./architecture/adrs/0021-extrapolacao-do-apurado-sem-2022.md), que também supersede o ADR-0015. Nenhum outro parágrafo do § 8, nem qualquer outro princípio (§§ 1–7, 9–10), foi alterado.
 
 ## 9. Stack 100% Vercel
 

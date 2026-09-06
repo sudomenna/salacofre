@@ -1,15 +1,18 @@
 ---
 id: ADR-0015
 title: Fallback de modelo em 3 tiers para candidatos sem mapeamento histórico K-1
-status: accepted
+status: superseded
 date: 2026-05-17
+superseded_by: ADR-0021
 ---
 
 # ADR-0015 — Fallback de modelo em 3 tiers para candidatos sem mapeamento histórico K-1
 
+> **Revisão 2026-09-05** — Superado pelo [ADR-0021](0021-extrapolacao-do-apurado-sem-2022.md); o problema que este ADR resolvia (candidato sem bloco político mapeável em 2022) deixa de existir porque a projeção não usa mais 2022.
+
 ## Status
 
-Aceito.
+Superseded por [ADR-0021](0021-extrapolacao-do-apurado-sem-2022.md).
 
 ## Contexto
 

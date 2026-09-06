@@ -143,21 +143,31 @@ def _run_one_timestep(
     historical: list[dict[str, Any]],
     eleitorado: dict[tuple[str, int], int],
 ) -> dict[str, Any]:
-    """Roda swing → bootstrap → p_vitoria para UM (cargo, turno, ts).
+    """Roda a extrapolação por regra de três + bootstrap + p_vitoria para
+    UM (cargo, turno, ts).
 
     Espelha `_do_project` (sem o I/O de DB / edge-write). Mesmo seed
     determinístico — mesmo `(cargo, turno, trigger_ts)` produz o mesmo
     resultado bit-a-bit em produção e no replay (validação OT-4 vale).
+
+    `historical` (plano `tem-um-erro-eu-velvety-sprout.md` § A/B, decisão
+    E1, 2026-09-05): RECEBIDO PELO CONTRATO STDIN deste módulo mas
+    IGNORADO — `compute_uf_projections` não tem mais parâmetro
+    `historical` (2022 saiu da projeção de candidatos). Mantido no
+    parâmetro/contrato TS (`scripts/replay-2022.ts` continua enviando
+    `historical` no JSON de stdin) para não quebrar o pipe; será
+    consumido pela Fase 5 (`compute_swing_descritivo`, comparação visual,
+    fora do escopo desta tarefa).
     """
+    del historical  # noqa: ARG001 — ignorado nesta fase, ver docstring acima.
     seed_base = derive_seed(cargo, turno, trigger_ts)
     eleitorado_total = _total_eleitorado_by_uf(eleitorado)
 
-    uf_rows, estimates_by_uf = compute_uf_projections(
+    uf_rows, estimates_by_uf, _estimates_c_by_uf, _cand_by_uf = compute_uf_projections(
         cargo=cargo,
         turno=turno,
         seed_base=seed_base,
         snapshots=snapshots,
-        historical=historical,
         eleitorado=eleitorado,
     )
 

@@ -76,6 +76,7 @@ class ZonaParticipacaoRaw(TypedDict):
     brancos: int
     nulos: int
     validos: int
+    votaveis: int
     anulados: int
     sub_judice: int
     psa: float

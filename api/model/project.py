@@ -5,9 +5,11 @@ POST /api/model/project — endpoint Python do modelo estatístico (spec 002).
 
 Roda em Vercel Fluid Compute com runtime Python 3.14. Acionado pelo handler
 TypeScript `/api/ingest` ao final de cada ciclo de ingestão (T16 da spec
-002, Fase 5). Esta é a Fase 3 (T12) — orquestrador completo cola swing
-(T06), weighted_average (T07), projection (T08), bootstrap (T09), p_vitoria
-(T10) e edge_cases (T11) atrás de um único POST com persistência no Postgres.
+002, Fase 5). Orquestrador completo cola `extrapolation.py` (regra de
+três por zona, RF-011/012/013 — plano `tem-um-erro-eu-velvety-sprout.md`,
+2026-09-05, substituiu o pipeline de swing vs. 2022 original de T06-T09),
+`turnout.py` (participação, RF-020.1), `p_vitoria` (T10) e `edge_cases`
+(T11, RF-017/018) atrás de um único POST com persistência no Postgres.
 
 Por que NÃO está em `app/api/model/project/...`?
   O Next.js App Router só aceita route handlers TS/JS dentro de `app/`.
@@ -17,13 +19,13 @@ Por que NÃO está em `app/api/model/project/...`?
   prefix.
 
 Imports (decisão T12):
-  Usamos imports ABSOLUTOS desde a raiz: `from api.model.swing import ...`.
-  Em Vercel, a raiz do projeto é mantida no `sys.path` quando a function
-  é importada via `api/model/project.py`, então `api.model.X` resolve.
-  Imports relativos (`from .swing import ...`) também funcionariam, mas
-  os testes locais já usam absolutos (via conftest que injeta a raiz no
-  sys.path) e essa consistência ajuda a debug: o mesmo import string vale
-  em test/prod.
+  Usamos imports ABSOLUTOS desde a raiz: `from api.model.extrapolation
+  import ...`. Em Vercel, a raiz do projeto é mantida no `sys.path`
+  quando a function é importada via `api/model/project.py`, então
+  `api.model.X` resolve. Imports relativos (`from .extrapolation import
+  ...`) também funcionariam, mas os testes locais já usam absolutos (via
+  conftest que injeta a raiz no sys.path) e essa consistência ajuda a
+  debug: o mesmo import string vale em test/prod.
   Fallback: se Vercel quebrar com absolutos no Python runtime real,
   trocar para relativos é uma mudança de 6 linhas neste arquivo.
 
@@ -70,11 +72,15 @@ from typing import Any, TypedDict
 import numpy as np
 from pydantic import BaseModel, Field, ValidationError
 
-from api.model.bootstrap import bootstrap_uf
-from api.model.edge_cases import inflate_ci_low_apurado, inflate_ci_zero_apurado
+from api.model.extrapolation import (
+    CandidatoEstimate,
+    UfCandidatosEstimate,
+    ZonaCandidatos,
+    aggregate_national_votos,
+    estimate_uf_candidatos,
+    impute_uf_from_national,
+)
 from api.model.p_vitoria import p_vitoria
-from api.model.projection import project_uf
-from api.model.swing import swing_zone
 from api.model.turnout import (
     Metric as ParticipacaoMetric,
     ParticipacaoEstimate,
@@ -82,7 +88,6 @@ from api.model.turnout import (
     aggregate_national_participacao,
     estimate_uf_participacao,
 )
-from api.model.weighted_average import swing_uf
 
 # ---------------------------------------------------------------------------
 # Logging — JSON-line para alinhar com lib/tse/log.ts (RNF-032)
@@ -194,12 +199,48 @@ def _open_conn():
     return psycopg.connect(dsn, autocommit=False)
 
 
+def _discard_zero_zona_sentinel_when_real_zonas_exist(
+    snapshots: list[LatestSnapshot],
+) -> list[LatestSnapshot]:
+    """Descarta a linha sentinela `cod_zona = 0` de uma UF quando a MESMA
+    UF já tem zonas reais (`cod_zona > 0`) — achado urgente do plano
+    `tem-um-erro-eu-velvety-sprout.md`: `lib/tse/targets.ts:410` grava a
+    linha de ingestão em nível `uf` com `cod_zona = 0`; se um ciclo
+    anterior rodou em modo `uf` e o ciclo atual roda em modo `zona`, os
+    dois tipos de linha coexistem em `snapshots` (append-only, nunca
+    apagadas) — sem este filtro, a zona-sentinela SOMARIA em cima das
+    zonas reais (dupla contagem).
+
+    Quando uma UF só tem a zona-sentinela (nenhuma zona real ainda
+    ingerida), ela é MANTIDA — é o único dado disponível daquela UF.
+    """
+    has_real_zona_by_uf: dict[str, bool] = {}
+    for s in snapshots:
+        if s["cod_zona"] > 0:
+            has_real_zona_by_uf[s["uf"]] = True
+    return [
+        s
+        for s in snapshots
+        if not (s["cod_zona"] == 0 and has_real_zona_by_uf.get(s["uf"], False))
+    ]
+
+
 def fetch_snapshots(conn, cargo: int, turno: int) -> list[LatestSnapshot]:
     """Snapshot mais recente por (uf, cod_zona) para (cargo, turno).
 
     CTE espelha `getLatestSnapshotsByZone` em lib/model/repository.ts:193.
     Mesmo índice usado (`ix_snap_lookup`); plan deve ser index-only.
     `pct_apurado` volta como Decimal/None → convertemos para float.
+
+    Achado urgente (plano `tem-um-erro-eu-velvety-sprout.md`): descarta a
+    zona-sentinela `cod_zona = 0` quando a UF já tem zonas reais (ver
+    `_discard_zero_zona_sentinel_when_real_zonas_exist`) — sem isso, o
+    modo `uf` (`TSE_GRANULARIDADE=uf`, default de produção antes desta
+    tarefa) conviveria com dupla contagem assim que o modo `zona` fosse
+    ativado. O outro lado do fix (usar `eleitorado_total_by_uf[uf]` como
+    peso quando só resta a zona-sentinela) vive em `_resolve_zone_weight`
+    — quem CHAMA `fetch_snapshots` (`compute_uf_projections`/
+    `compute_participacao`) já tem `eleitorado_total_by_uf` disponível.
     """
     sql = """
         WITH ranked AS (
@@ -222,7 +263,7 @@ def fetch_snapshots(conn, cargo: int, turno: int) -> list[LatestSnapshot]:
     with conn.cursor() as cur:
         cur.execute(sql, (cargo, turno))
         rows = cur.fetchall()
-    return [
+    raw: list[LatestSnapshot] = [
         {
             "uf": r[0],
             "cod_zona": r[1],
@@ -231,6 +272,7 @@ def fetch_snapshots(conn, cargo: int, turno: int) -> list[LatestSnapshot]:
         }
         for r in rows
     ]
+    return _discard_zero_zona_sentinel_when_real_zonas_exist(raw)
 
 
 def fetch_historical_2022(conn, cargo: int, turno: int) -> list[HistoricalRow]:
@@ -268,9 +310,18 @@ def fetch_eleitorado(conn, ano: int = 2026) -> dict[tuple[str, int], int]:
     return {(r[0], r[1]): int(r[2]) for r in rows}
 
 
-def fetch_zona_municipio(conn) -> dict[int, dict[str, Any]]:
-    """Mapa `cod_zona -> {cod_ibge, cod_municipio_tse, nome, uf,
+def fetch_zona_municipio(conn) -> dict[tuple[str, int], dict[str, Any]]:
+    """Mapa `(uf, cod_zona) -> {cod_ibge, cod_municipio_tse, nome, uf,
     mesorregiao_cod, mesorregiao_nome}`.
+
+    ⚠️ A chave é a TUPLA `(uf, cod_zona)`, nunca `cod_zona` sozinho. A PK de
+    `zonas` é composta e o número da zona **repete entre UFs**: em 2026-09-05
+    o banco tinha 2.651 linhas para apenas 422 `cod_zona` distintos, 320 deles
+    presentes em mais de uma UF. Chavear só por `cod_zona` sobrescrevia 2.229
+    das 2.651 entradas (84%) com a última UF iterada — corrupção silenciosa de
+    qual município cada zona resolve, propagada a `EdgeUfMunicipio`. Bug irmão
+    do JOIN sem `AND z.uf = r.uf` em `fetch_municipio_aggregates` (corrigido na
+    mesma rodada).
 
     Junta `zonas` (que tem `cod_municipio_tse`) com `municipios` (que tem
     `cod_ibge`, `nome` e — desde S06/F4d migration 0005 — `mesorregiao_cod`)
@@ -328,7 +379,7 @@ def fetch_zona_municipio(conn) -> dict[int, dict[str, Any]]:
             _log("warn", "fetch_zona_municipio fallback failed", error=str(exc2))
             return {}
 
-    out: dict[int, dict[str, Any]] = {}
+    out: dict[tuple[str, int], dict[str, Any]] = {}
     for r in rows:
         entry: dict[str, Any] = {
             "cod_ibge": str(r[1]),
@@ -344,7 +395,8 @@ def fetch_zona_municipio(conn) -> dict[int, dict[str, Any]]:
         else:
             entry["mesorregiao_cod"] = None
             entry["mesorregiao_nome"] = None
-        out[int(r[0])] = entry
+        # r[0] = cod_zona, r[4] = uf — chave composta (ver docstring).
+        out[(str(r[4]), int(r[0]))] = entry
     return out
 
 
@@ -485,6 +537,24 @@ def fetch_municipio_aggregates(
 
     Tolerante: payload sem `vap` (formato antigo) → votos = 0 (chart fica
     sem dados mas não quebra).
+
+    BUG MEDIDO E CORRIGIDO (T18, 2026-09-05 — timeout do subprocess Python
+    em `tests/integration/model-cycle.test.ts`): `zonas` tem PK COMPOSTA
+    `(uf, cod_zona)` — `cod_zona` sozinho REPETE entre UFs (zona "8" existe
+    em AP, BA, CE, DF, ES, ... — confirmado via `pg_constraint`/consulta
+    direta: 2651 linhas em `zonas`, só 422 `cod_zona` distintos). O JOIN
+    anterior (`ON z.cod_zona = r.cod_zona`, sem `uf`) casava cada snapshot
+    com TODAS as UFs que compartilham aquele número de zona — fan-out
+    medido de 2651 linhas reais para 35757 linhas retornadas (13,5x) num
+    dataset nacional real (S07, ~2600 zonas). Consequência dupla: (1)
+    performance — a query sozinha levou 226s (`cur.execute`, antes do
+    `fetchall`) via psycopg contra Neon, o grosso do timeout ETIMEDOUT de
+    30s do teste de integração; (2) CORRETUDE — `cod_municipio_tse`
+    resolvido por uma UF ERRADA sempre que duas UFs compartilham o número
+    de zona (quase sempre), corrompendo silenciosamente `EdgeUfMunicipio`
+    (município errado recebendo os votos da zona). Fix: casar também por
+    `uf` — o JOIN vira 1:1 com `ranked` (mesma cardinalidade de
+    `fetch_snapshots`, ~2651 linhas, sem fan-out).
     """
     sql = """
         WITH ranked AS (
@@ -504,7 +574,7 @@ def fetch_municipio_aggregates(
         SELECT r.uf, r.cod_zona, r.pct_apurado, r.votos_total, r.payload,
                z.cod_municipio_tse
         FROM ranked r
-        LEFT JOIN zonas z ON z.cod_zona = r.cod_zona
+        LEFT JOIN zonas z ON z.cod_zona = r.cod_zona AND z.uf = r.uf
         WHERE r.rn = 1
     """
     try:
@@ -687,11 +757,13 @@ def _iter_cands(payload: Any, cargo: int | None = None) -> list[dict[str, Any]]:
 
     Envelope real: percorre `carg[] → agr[] → par[] → cand[]`. Cada dict de
     candidato devolvido ganha duas chaves extras (não presentes no EA20
-    original): `partido_sg` (`par.sg`) e `partido_n` (`par.n`) — usadas por
-    `api/model/party_mapping.py` / K-1 3-tier (ADR-0015) para mapear
-    candidato → bloco político por partido sem precisar re-navegar a
-    hierarquia. Payload achatado legado não tem essa hierarquia — as duas
-    chaves saem como `None`.
+    original): `partido_sg` (`par.sg`) e `partido_n` (`par.n`) — usadas pelo
+    payload (`build_uf_payloads`/`build_edge_payload`, campo `partido`) sem
+    precisar re-navegar a hierarquia. `api/model/party_mapping.py`/K-1
+    3-tier (ADR-0015) — que também consumia estas chaves — foi removido
+    nesta tarefa (plano `tem-um-erro-eu-velvety-sprout.md`: 2022 sai da
+    projeção, K-1 deixa de existir). Payload achatado legado não tem essa
+    hierarquia — as duas chaves saem como `None`.
 
     `cargo`: se informado, filtra `carg[]` pelo campo `cd` (comparação
     numérica tolerante a string/int). Hoje um snapshot é sempre de um único
@@ -780,6 +852,7 @@ class ZonaParticipacaoRaw(TypedDict):
     brancos: int
     nulos: int
     validos: int
+    votaveis: int
     anulados: int
     sub_judice: int
     psa: float
@@ -805,6 +878,10 @@ def _extract_zone_participacao(payload: Any) -> ZonaParticipacaoRaw | None:
       - `nulos`           ← `v.tvn` (TOTAL de nulos = `v.vn` + `v.vnt` —
          não confundir com `v.vn`, que é só "nulos" stricto sensu).
       - `validos`         ← `v.vv`.
+      - `votaveis`        ← `v.vvc` (votos a votáveis concorrentes — base
+         "votáveis" da extrapolação de candidatos, `api/model/
+         extrapolation.py`. NUNCA rotular de "válidos": `vvc` != `vv`,
+         ver ADR-0018).
       - `anulados`        ← `v.van` — sem uso imediato, mas capturado porque
          o art. 265 §2º da Res. TSE 23.751/2026 exige que painéis informem
          votos válidos, sub judice e anulados.
@@ -817,8 +894,8 @@ def _extract_zone_participacao(payload: Any) -> ZonaParticipacaoRaw | None:
     (não-opcional) do elemento `e` no schema EA20 (`EleitoresSchema.te`),
     presente mesmo em zonas com 0% apurado. Ausente/inválido/`<= 0` → `None`
     (payload corrompido ou zona sem eleitorado — dado de participação
-    não-confiável; caller deve excluir a zona, análogo ao contrato de
-    `swing_zone`).
+    não-confiável; caller deve excluir a zona — mesmo contrato usado por
+    `_extract_zone_candidatos`/`extrapolation.estimate_uf_candidatos`).
 
     Demais campos (`eleitores_instalados`, `comparecimento`, `abstencao`,
     `brancos`, `nulos`, `validos`, `anulados`, `sub_judice`, `psa`) degradam
@@ -847,6 +924,7 @@ def _extract_zone_participacao(payload: Any) -> ZonaParticipacaoRaw | None:
     brancos = _parse_br_number(v.get("vb")) or 0.0
     nulos = _parse_br_number(v.get("tvn")) or 0.0
     validos = _parse_br_number(v.get("vv")) or 0.0
+    votaveis = _parse_br_number(v.get("vvc")) or 0.0
     anulados = _parse_br_number(v.get("van")) or 0.0
     sub_judice = _parse_br_number(v.get("vansj")) or 0.0
     psa = _parse_br_number(s.get("psa")) or 0.0
@@ -859,41 +937,92 @@ def _extract_zone_participacao(payload: Any) -> ZonaParticipacaoRaw | None:
         "brancos": int(round(brancos)),
         "nulos": int(round(nulos)),
         "validos": int(round(validos)),
+        "votaveis": int(round(votaveis)),
         "anulados": int(round(anulados)),
         "sub_judice": int(round(sub_judice)),
         "psa": psa,
     }
 
 
+class ZonaCandidatosRaw(ZonaParticipacaoRaw):
+    """`ZonaParticipacaoRaw` + votos absolutos por candidato — insumo de
+    `api.model.extrapolation.estimate_uf_candidatos` (regra de três,
+    plano `tem-um-erro-eu-velvety-sprout.md` § A). Substitui o antigo
+    `_extract_zone_candidate_pcts` (que lia `pvap`, um percentual —
+    a nova projeção precisa de CONTAGENS ABSOLUTAS para escalar por
+    `k = te/esi`, não de um percentual já pronto)."""
+
+    votos: dict[int, int]
+
+
+def _extract_zone_candidatos(
+    payload: Any, cargo: int | None = None
+) -> ZonaCandidatosRaw | None:
+    """Extrai participação (`_extract_zone_participacao`) + votos absolutos
+    por candidato (`cand[].vap`) do payload EA20 de uma zona.
+
+    `vap` — "quantidade de votos computados para o candidato" (dicionário
+    oficial) — é a contagem ABSOLUTA, ao contrário de `pvap` (percentual
+    sobre `vvc`, usado pelo pipeline de swing pré-Fase-1 e agora
+    aposentado). A nova projeção (regra de três, `api/model/
+    extrapolation.py`) precisa da contagem bruta para poder escalar por
+    `k(z) = te/esi` — um percentual já pronto não pode ser "re-escalado".
+
+    Zona sem participação válida (`_extract_zone_participacao` retornou
+    `None` — tipicamente `eleitores_aptos <= 0`, campo fatal do EA20)
+    também não tem candidatos: retorna `None` (mesmo contrato de
+    `_extract_zone_participacao` — fail-safe, zona inteira é excluída
+    pelo caller).
+
+    Payload achatado legado `{cand: [...]}` (replay 2022 / fixtures
+    sintéticas antigas) é aceito por `_iter_cands`, mas SEM `e`/`v`/`s`
+    de raiz não tem participação — `_extract_zone_participacao` devolve
+    `None` e esta função também devolve `None`. Isso é uma mudança de
+    comportamento deliberada vs. o pipeline de swing anterior (que só
+    precisava de `pvap`): o formato achatado não carrega o suficiente
+    para a regra de três (ver plano § "Replay", Fase 5 pendente).
+    """
+    participacao = _extract_zone_participacao(payload)
+    if participacao is None:
+        return None
+
+    votos: dict[int, int] = {}
+    for c in _iter_cands(payload, cargo=cargo):
+        try:
+            cod = int(c.get("n"))
+        except (TypeError, ValueError):
+            continue
+        vap = _parse_br_number(c.get("vap"))
+        if vap is None:
+            continue
+        votos[cod] = int(round(vap))
+
+    return {**participacao, "votos": votos}  # type: ignore[typeddict-item]
+
+
 def _extract_zone_candidate_pcts(
     payload: Any, cargo: int | None = None
 ) -> dict[int, float]:
-    """Extrai `{cod_candidato: pct_vvc}` do payload EA20 de uma zona.
+    """Extrai `{cod_candidato: pct_vvc}` (fração) do payload EA20 de uma
+    zona via `cand[].pvap`.
 
-    Usa `cand[].pvap` — que o dicionário oficial define como "percentual de
-    votos computados atribuídos ao candidato em relação aos **votos a
-    votáveis concorrentes**" (`v.vvc` = válidos + anulados + anulados sub
-    judice), **não** em relação a `v.vv` (só válidos) como um comentário
-    anterior presumia sem checar o documento. Na prática os dois
-    denominadores quase sempre coincidem (anulados/sub judice tendem a ~0
-    em cargos majoritários — ver `tests/fixtures/tse/2022/presidente-sp-
-    z0001.json`, onde `vvc=270` e `vv=260` diferem só pelos 10 votos de
-    `tvn`, que não entram em nenhum dos dois), mas a semântica exata importa
-    para RF-011 (swing zona-a-zona): o EA20 não expõe um campo "% sobre
-    válidos" isolado — `pvap` é o único percentual por candidato que o TSE
-    de fato publica, então é o que este pipeline usa, com a ressalva acima
-    registrada.
+    MANTIDO (decisão desta tarefa — plano `tem-um-erro-eu-velvety-
+    sprout.md` § B pedia a remoção total, mas `tests/unit/model/
+    test_payload_envelope.py`, na lista de testes que devem passar SEM
+    alteração, importa e fixa o contrato desta função diretamente).
+    NENHUM caller do pipeline de projeção usa mais este helper — a
+    extrapolação por regra de três (`api/model/extrapolation.py`) lê
+    `cand[].vap` (contagem absoluta) via `_extract_zone_candidatos`, não
+    `pvap` (percentual). Este helper fica como utilitário standalone,
+    sem uso na projeção de candidatos.
 
-    `pvapn` (mesma métrica, precisão de 9 casas em vez de 2) também existe
-    mas é `optional` no schema (`CandidatoSchema.pvapn`) — usamos `pvap`
-    (sempre presente, `required`) por garantir que nunca faltamos o dado;
-    ambos chegam como string BR-decimal (vírgula), mesmo parser
-    (`_parse_br_number`).
+    `pvap` — "percentual de votos computados atribuídos ao candidato em
+    relação aos votos a votáveis concorrentes" (`v.vvc`), vem como string
+    BR-decimal (vírgula) — convertida para fração [0,1].
 
     Payload achatado legado `{cand: [...]}` (replay 2022 / fixtures
-    sintéticas) também é aceito via `_iter_cands`. Tolerante: se o payload
-    vier em outro formato inesperado, retorna `{}` — a zona será excluída
-    do swing.
+    sintéticas) também é aceito via `_iter_cands`. Tolerante: se o
+    payload vier em outro formato inesperado, retorna `{}`.
     """
     out: dict[int, float] = {}
     for c in _iter_cands(payload, cargo=cargo):
@@ -904,7 +1033,6 @@ def _extract_zone_candidate_pcts(
         pct = _parse_br_number(c.get("pvap"))
         if pct is None:
             continue
-        # pvap vem em escala 0-100 — converter para fração [0,1] como T06 espera.
         out[cod] = pct / 100.0
     return out
 
@@ -921,22 +1049,85 @@ def _frac_to_pct(x: float) -> float:
     return round(100.0 * x, 5)
 
 
-def build_candidate_to_partido_2022(
-    historical: list[HistoricalRow],
-) -> dict[int, str | None]:
-    """Mapping `cod_candidato_2022 -> partido_2022`.
+def _uf_projection_row(
+    cargo: int,
+    turno: int,
+    uf: str,
+    cand: int,
+    cand_est: CandidatoEstimate,
+    pct_apurado_uf: float,
+    est: UfCandidatosEstimate,
+    metodo_tipo: str = "extrapolacao_apurado",
+) -> dict[str, Any]:
+    """Monta a linha `(uf, candidato)` a partir de `CandidatoEstimate`
+    (regra de três, `api/model/extrapolation.py`) — usada tanto pelo
+    caminho normal (`estimate_uf_candidatos`) quanto pela imputação
+    nacional (`impute_uf_from_national`, RF-017 2o nível).
 
-    Usado para `is_candidate_unmappable` (K-1) — quem não tem partido mapeado
-    no histórico recebe modelo desabilitado. Em produção real, o caller
-    fornece um mapping CANDIDATO_2026 -> bloco_2022. Aqui usamos o histórico
-    direto como aproximação até o mapping cross-edição existir.
+    `pct_projetado*`/`pct_atual` já chegam em PERCENTUAL 0-100
+    (`CandidatoEstimate` segue a convenção de `_frac_to_pct`) — mesma
+    fronteira de escala de `insert_projections`/`build_uf_payloads`/
+    `build_edge_payload`.
     """
-    out: dict[int, str | None] = {}
-    for h in historical:
-        cod = int(h["cod_candidato"])
-        if cod not in out:
-            out[cod] = h.get("partido")
+    return {
+        "cargo": cargo,
+        "turno": turno,
+        "uf": uf,
+        "candidato_id": cand,
+        "votos_projetados": int(cand_est["votos_projetados"]),
+        "votos_atuais": int(cand_est["votos_atuais"]),
+        "pct_atual": cand_est["pct_atual_votaveis"],
+        "pct_projetado": cand_est["pct_projetado_votaveis"],
+        "pct_projetado_lower": cand_est["lower_votaveis"],
+        "pct_projetado_upper": cand_est["upper_votaveis"],
+        "p_vitoria": None,
+        "pct_apurado": float(pct_apurado_uf),
+        "comparecimento": {
+            "pct_atual": cand_est["pct_atual_comparecimento"],
+            "pct_projetado": cand_est["pct_projetado_comparecimento"],
+            "lower": cand_est["lower_comparecimento"],
+            "upper": cand_est["upper_comparecimento"],
+        },
+        "metodo": {
+            "tipo": metodo_tipo,
+            "n_zonas": est["n_zonas"],
+            "n_zonas_imputadas": est["n_zonas_imputadas"],
+        },
+    }
+
+
+def _eleitorado_total_by_uf(
+    eleitorado: dict[tuple[str, int], int],
+) -> dict[str, int]:
+    """Σ eleitores aptos por UF a partir do dict `(uf, cod_zona) -> aptos`
+    (`fetch_eleitorado`). Reusado por `compute_uf_projections`/
+    `compute_participacao`/`_resolve_zone_weight` — um único lugar que
+    faz essa soma (evita 3 implementações levemente diferentes)."""
+    out: dict[str, int] = {}
+    for (uf, _z), aptos in eleitorado.items():
+        out[uf] = out.get(uf, 0) + aptos
     return out
+
+
+def _resolve_zone_weight(
+    uf: str,
+    cod_zona: int,
+    eleitorado: dict[tuple[str, int], int],
+    eleitorado_total_by_uf: dict[str, int],
+) -> int:
+    """Peso (eleitores aptos 2026, RF-008) de uma zona para agregação.
+
+    `cod_zona == 0` é o SENTINELA de ingestão em nível `uf`
+    (`lib/tse/targets.ts:410`); a tabela `eleitorado` só tem linhas por
+    zona REAL, nunca `(uf, 0)` — sem este fallback, a zona-sentinela
+    pesaria sempre 0 e seria descartada em silêncio, quebrando o modo
+    `uf` em produção (achado urgente do plano `tem-um-erro-eu-velvety-
+    sprout.md`). Quando `cod_zona == 0`, usa o eleitorado TOTAL da UF em
+    vez do lookup por zona.
+    """
+    if cod_zona == 0:
+        return eleitorado_total_by_uf.get(uf, 0)
+    return eleitorado.get((uf, cod_zona), 0)
 
 
 def compute_uf_projections(
@@ -944,196 +1135,154 @@ def compute_uf_projections(
     turno: int,
     seed_base: int,
     snapshots: list[LatestSnapshot],
-    historical: list[HistoricalRow],
     eleitorado: dict[tuple[str, int], int],
-) -> tuple[list[dict[str, Any]], dict[str, dict[int, np.ndarray]]]:
-    """Roda swing → projeção → bootstrap por (UF, candidato).
+) -> tuple[
+    list[dict[str, Any]],
+    dict[str, dict[int, np.ndarray]],
+    dict[str, dict[int, np.ndarray]],
+    dict[str, UfCandidatosEstimate],
+]:
+    """Projeta candidatos por UF via regra de três + bootstrap de zonas
+    (`api.model.extrapolation`) — RF-011/012/013. SEM 2022 (decisão E1 do
+    plano `tem-um-erro-eu-velvety-sprout.md`): a assinatura não recebe
+    `historical` — a projeção nasce inteiramente do que a própria zona já
+    apurou no ciclo 2026.
 
     Retorna tupla:
-        - `rows`: lista pronta para insert_projections (uma linha por
-                  uf × candidato com point/CI).
-        - `estimates_by_uf`: `{uf: {cod_candidato: ndarray}}` reusado pelo
-                              cálculo nacional (evita rebootstrap).
+        - `rows`: lista pronta para `insert_projections` (uma linha por
+          uf x candidato com votos/pct/CI/metodo).
+        - `estimates_by_uf`: `{uf: {cod_candidato: ndarray}}` BASE
+          VOTÁVEIS (fração [0,1], pareado) — contrato estável consumido
+          por `compute_national`/`p_vitoria`/`compute_p_passa_2t`/
+          `compute_p_fecha_1t`/`compute_two_round_scenarios`/
+          `compute_outros_estimates` (NENHUMA dessas funções muda).
+        - `estimates_c_by_uf`: idem, BASE COMPARECIMENTO — só alimenta o
+          payload (E2/E2b), não entra no cálculo de `p_vitoria`.
+        - `cand_by_uf`: `{uf: UfCandidatosEstimate}` — resultado bruto
+          por UF (inclui `n_zonas`/`n_zonas_imputadas`/bases projetadas),
+          reusado por `build_uf_payloads` para "Outros" na 2a base.
 
-    Estratégia de seed (constituição § 6):
-      Cada combinação (uf, candidato) recebe seed = seed_base XOR hash(uf,cand)
-      para reprodutibilidade dentro do ciclo SEM correlacionar bootstraps de
-      candidatos diferentes (que comparariam idênticos se compartilhassem seed).
+    Estratégia de seed (constituição § 6): UM bootstrap por UF (não mais
+    um por candidato — ver `extrapolation.estimate_uf_candidatos`), seed
+    `seed_base XOR hash(f"{uf}:candidatos")`.
+
+    E3 hierárquico (RF-013/017): UF sem NENHUMA zona apurada —
+      - cargo 1 (presidente): 2a passada abaixo usa
+        `impute_uf_from_national` (a UF assume a proporção nacional já
+        calculada a partir das UFs com dado, CI +-10pp).
+      - cargo 3 (governador): não existe "nacional" por corrida estadual
+        — a UF fica OMITIDA de `rows`/`estimates_by_uf` ("aguardando
+        projeção" na UI).
     """
-    # Index histórico por (uf, cod_zona, cod_candidato) → pct_validos
-    hist_idx: dict[tuple[str, int, int], float] = {}
-    for h in historical:
-        if h["pct_validos"] is None:
-            continue
-        hist_idx[(h["uf"], h["cod_zona"], h["cod_candidato"])] = h["pct_validos"]
-
-    # Index histórico nacional UF → cod_candidato → pct (média ponderada 2022)
-    # Para project_uf precisamos de p_2022(UF) por candidato. Computamos como
-    # média ponderada pelos eleitores aptos das zonas com pct_validos != null.
-    uf_2022: dict[tuple[str, int], float] = {}  # (uf, cand) -> p_2022_uf
-    weight_idx: dict[tuple[str, int], float] = {}  # (uf, cand) -> peso total
-
-    for h in historical:
-        if h["pct_validos"] is None:
-            continue
-        key = (h["uf"], h["cod_candidato"])
-        w = eleitorado.get((h["uf"], h["cod_zona"]), 0)
-        if w <= 0:
-            continue
-        uf_2022[key] = uf_2022.get(key, 0.0) + h["pct_validos"] * w
-        weight_idx[key] = weight_idx.get(key, 0.0) + w
-
-    p_2022_uf: dict[tuple[str, int], float] = {
-        k: v / weight_idx[k] for k, v in uf_2022.items() if weight_idx[k] > 0
-    }
-
-    # Agrupa snapshots por UF.
     snaps_by_uf: dict[str, list[LatestSnapshot]] = {}
     for s in snapshots:
         snaps_by_uf.setdefault(s["uf"], []).append(s)
 
-    # Conjunto de candidatos por UF: união dos cod_candidato vistos em
-    # snapshots + histórico.
+    eleitorado_total_by_uf = _eleitorado_total_by_uf(eleitorado)
+
     rows: list[dict[str, Any]] = []
     estimates_by_uf: dict[str, dict[int, np.ndarray]] = {}
+    estimates_c_by_uf: dict[str, dict[int, np.ndarray]] = {}
+    cand_by_uf: dict[str, UfCandidatosEstimate] = {}
+    pending_national_fallback: list[str] = []
 
     for uf, snaps in snaps_by_uf.items():
-        # Candidatos com presença no payload TSE atual desta UF.
-        candidates_now: set[int] = set()
-        # Por candidato: lista de (cod_zona, p_now)
-        per_cand_zones: dict[int, list[tuple[int, float]]] = {}
-        # pct_apurado médio ponderado da UF (para RF-018 inflate <5%).
-        uf_pct_apurado_num = 0.0
-        uf_pct_apurado_den = 0.0
+        zonas: list[ZonaCandidatos] = []
+        pct_num = 0.0
+        pct_den = 0.0
         for s in snaps:
-            zone_pcts = _extract_zone_candidate_pcts(s["payload"])
-            w = eleitorado.get((uf, s["cod_zona"]), 0)
+            cod_zona = s["cod_zona"]
+            w = _resolve_zone_weight(uf, cod_zona, eleitorado, eleitorado_total_by_uf)
             if w > 0:
-                uf_pct_apurado_num += s["pct_apurado"] * w
-                uf_pct_apurado_den += w
-            for cand, pct_now in zone_pcts.items():
-                candidates_now.add(cand)
-                per_cand_zones.setdefault(cand, []).append((s["cod_zona"], pct_now))
-
-        uf_pct_apurado = (
-            uf_pct_apurado_num / uf_pct_apurado_den if uf_pct_apurado_den > 0 else 0.0
-        )
-
-        # Candidatos do histórico nesta UF também devem entrar — se não
-        # apareceram no snapshot, ainda projetamos via p_2022 (UF 0% apurada
-        # do ponto de vista desse candidato).
-        candidates_hist: set[int] = {
-            h["cod_candidato"] for h in historical if h["uf"] == uf
-        }
-        all_candidates = candidates_now | candidates_hist
-
-        estimates_by_uf[uf] = {}
-
-        for cand in sorted(all_candidates):
-            p_2022 = p_2022_uf.get((uf, cand))
-            if p_2022 is None:
-                # K-1: candidato sem histórico mapeável nessa UF.
+                pct_num += s["pct_apurado"] * w
+                pct_den += w
+            raw = _extract_zone_candidatos(s["payload"])
+            if raw is None:
                 continue
+            zona: ZonaCandidatos = {**raw, "cod_zona": cod_zona, "weight": w}  # type: ignore[typeddict-item]
+            zonas.append(zona)
+        uf_pct_apurado = pct_num / pct_den if pct_den > 0 else 0.0
 
-            # Swing por zona para este candidato.
-            zones_with_swing: list[dict[str, Any]] = []
-            for cod_zona, p_now in per_cand_zones.get(cand, []):
-                p_2022_zone = hist_idx.get((uf, cod_zona, cand))
-                sw = swing_zone(p_now, p_2022_zone)
-                if sw is None:
-                    continue
-                w = eleitorado.get((uf, cod_zona), 0)
-                if w <= 0:
-                    continue
-                zones_with_swing.append(
-                    {"cod_zona": cod_zona, "swing": sw, "weight": w}
-                )
+        local_seed = (
+            seed_base
+            ^ int(
+                hashlib.sha256(f"{uf}:candidatos".encode("utf-8")).hexdigest()[:8],
+                16,
+            )
+        ) & 0xFFFFFFFF
 
-            if not zones_with_swing:
-                # RF-017: UF 0% apurada para esse candidato → CI ±10pp em torno de p_2022.
-                inflated = inflate_ci_zero_apurado(p_2022)
-                point = inflated["point"]
-                ci_lower = inflated["ci_lower"]
-                ci_upper = inflated["ci_upper"]
-                # Sem estimates — usamos amostra degenerada constante para
-                # comparações pareadas no cálculo nacional.
-                estimates_by_uf[uf][cand] = np.full(1000, point, dtype=np.float64)
-            else:
-                # Seed específico por (uf, candidato) para descorrelacionar
-                # bootstraps entre candidatos preservando reprodutibilidade.
-                local_seed = (
-                    seed_base
-                    ^ int(
-                        hashlib.sha256(f"{uf}:{cand}".encode("utf-8")).hexdigest()[:8],
-                        16,
-                    )
-                ) & 0xFFFFFFFF
+        est = estimate_uf_candidatos(zonas, uf_pct_apurado, local_seed)
+        if est is None:
+            if int(cargo) == 1:
+                # RF-017 2o nível — resolvido na 2a passada abaixo, depois
+                # que o nacional das UFs COM dado estiver disponível.
+                pending_national_fallback.append(uf)
+            # Cargo 3 (governador): sem "nacional" para ancorar — a UF
+            # fica de fora ("aguardando projeção").
+            continue
 
-                # T07: swing agregado da UF (média ponderada das zonas).
-                swing_value = swing_uf(
-                    [{"cod_zona": z["cod_zona"], "swing": z["swing"]} for z in zones_with_swing],
-                    {(uf, z["cod_zona"])[1]: z["weight"] for z in zones_with_swing},
-                )
-                if swing_value is None:
-                    inflated = inflate_ci_zero_apurado(p_2022)
-                    point = inflated["point"]
-                    ci_lower = inflated["ci_lower"]
-                    ci_upper = inflated["ci_upper"]
-                    estimates_by_uf[uf][cand] = np.full(1000, point, dtype=np.float64)
-                else:
-                    # T08: projeção pontual.
-                    point_proj = project_uf(p_2022, swing_value)
-
-                    # T09: bootstrap para CI95.
-                    boot = bootstrap_uf(
-                        zones_with_swing, p_2022_uf=p_2022, seed=local_seed
-                    )
-                    point = boot["point"]
-                    ci_lower = boot["ci_lower"]
-                    ci_upper = boot["ci_upper"]
-                    estimates_by_uf[uf][cand] = boot["estimates"]
-
-                    # T08 dá o point "oficial" via swing aggregado; bootstrap
-                    # devolve mean(estimates) que coincide modulo flutuação.
-                    # Preferimos point_proj (determinístico) para a coluna
-                    # `pct_projetado` e mantemos boot["point"] como centro de CI.
-                    point = point_proj
-
-                    # T11: RF-018 — se pct_apurado < 5%, inflar CI 1.5x.
-                    inflated = inflate_ci_low_apurado(
-                        {"point": point, "ci_lower": ci_lower, "ci_upper": ci_upper},
-                        uf_pct_apurado,
-                    )
-                    point = inflated["point"]
-                    ci_lower = inflated["ci_lower"]
-                    ci_upper = inflated["ci_upper"]
-
-            # p_vitoria por UF não faz sentido (é métrica nacional); deixamos
-            # None na linha UF e o caller agrega no nacional.
-            #
-            # Escala (docs/architecture/data-model.md § "Escala de
-            # percentuais"): `point`/`ci_lower`/`ci_upper` chegam aqui em
-            # fração [0,1] (espaço do bootstrap/edge_cases). `rows` — e
-            # tudo que consome `rows` a partir daqui (insert_projections,
-            # build_uf_payloads, build_edge_payload) — espera 0–100.
-            # `estimates_by_uf` continua em fração (usado por
-            # aggregate_national_estimates/compute_national/p_vitoria).
+        cand_by_uf[uf] = est
+        estimates_by_uf[uf] = {
+            cod: c["estimates_votaveis"] for cod, c in est["por_candidato"].items()
+        }
+        estimates_c_by_uf[uf] = {
+            cod: c["estimates_comparecimento"]
+            for cod, c in est["por_candidato"].items()
+        }
+        for cod, cand_est in est["por_candidato"].items():
             rows.append(
-                {
-                    "cargo": cargo,
-                    "turno": turno,
-                    "uf": uf,
-                    "candidato_id": cand,
-                    "votos_projetados": None,
-                    "pct_projetado": _frac_to_pct(point),
-                    "pct_projetado_lower": _frac_to_pct(ci_lower),
-                    "pct_projetado_upper": _frac_to_pct(ci_upper),
-                    "p_vitoria": None,
-                    "pct_apurado": float(uf_pct_apurado),
-                }
+                _uf_projection_row(cargo, turno, uf, cod, cand_est, uf_pct_apurado, est)
             )
 
-    return rows, estimates_by_uf
+    if pending_national_fallback and int(cargo) == 1 and estimates_by_uf:
+        national_estimates = aggregate_national_estimates(
+            estimates_by_uf, eleitorado_total_by_uf
+        )
+        national_point = {
+            cod: float(np.mean(arr)) for cod, arr in national_estimates.items()
+        }
+
+        total_base_votaveis_br = sum(
+            e["base_votaveis_projetada"] for e in cand_by_uf.values()
+        )
+        total_eleitorado_computed = sum(
+            eleitorado_total_by_uf.get(u, 0) for u in cand_by_uf
+        )
+        r_v_br = (
+            total_base_votaveis_br / total_eleitorado_computed
+            if total_eleitorado_computed > 0
+            else 0.0
+        )
+
+        for uf in pending_national_fallback:
+            w_uf = eleitorado_total_by_uf.get(uf, 0)
+            est = impute_uf_from_national(
+                national_estimates, national_point, w_uf, r_v_br
+            )
+            cand_by_uf[uf] = est
+            estimates_by_uf[uf] = {
+                cod: c["estimates_votaveis"]
+                for cod, c in est["por_candidato"].items()
+            }
+            estimates_c_by_uf[uf] = {
+                cod: c["estimates_comparecimento"]
+                for cod, c in est["por_candidato"].items()
+            }
+            for cod, cand_est in est["por_candidato"].items():
+                rows.append(
+                    _uf_projection_row(
+                        cargo,
+                        turno,
+                        uf,
+                        cod,
+                        cand_est,
+                        0.0,
+                        est,
+                        metodo_tipo="imputado_nacional",
+                    )
+                )
+
+    return rows, estimates_by_uf, estimates_c_by_uf, cand_by_uf
 
 
 def compute_p_passa_2t(
@@ -1452,6 +1601,8 @@ def build_participacao_payload(
     brancos_nulos: ParticipacaoEstimate | None,
     outros: dict[str, Any] | None,
     pct_apurado: float,
+    metodo_tipo: str = "extrapolacao_apurado",
+    n_zonas_imputadas: int = 0,
 ) -> dict[str, Any] | None:
     """Monta o bloco `participacao` do payload Edge Config (Fase 1a —
     D3 denominador misto rotulado, D4 outros com IC real, D5 regra de
@@ -1469,6 +1620,14 @@ def build_participacao_payload(
     ligeiramente diferentes — zona com `comparecimento == 0` mas
     `eleitores_instalados > 0`, por exemplo — o maior é o mais
     representativo do "quanto já apuramos" para efeito de rótulo).
+
+    `metodo_tipo`/`n_zonas_imputadas` (plano § B, RF-017 2o nível):
+    propagados pelo CALLER a partir do `metodo` já calculado por
+    `compute_uf_projections`/`_uf_projection_row` para os CANDIDATOS
+    desta mesma UF/nacional — `"imputado_nacional"` quando a UF inteira
+    caiu no fallback de `impute_uf_from_national` (nenhuma zona própria
+    apurada). Participação (turnout.py) continua com seu próprio cálculo
+    zona-a-zona independente; este campo só rotula a UI (RF-062).
     """
     out: dict[str, Any] = {}
     n_zonas = 0
@@ -1487,9 +1646,10 @@ def build_participacao_payload(
     if not out:
         return None
     out["metodo"] = {
-        "tipo": "extrapolacao_apurado",
+        "tipo": metodo_tipo,
         "n_zonas": n_zonas,
         "pct_apurado": pct_apurado,
+        "n_zonas_imputadas": n_zonas_imputadas,
     }
     return out
 
@@ -1531,6 +1691,8 @@ def compute_participacao(
     for s in snapshots:
         snaps_by_uf.setdefault(s["uf"], []).append(s)
 
+    eleitorado_total_by_uf = _eleitorado_total_by_uf(eleitorado)
+
     metrics: tuple[ParticipacaoMetric, ...] = ("abstencao", "brancos_nulos")
     by_uf: dict[str, dict[str, ParticipacaoEstimate | None]] = {}
 
@@ -1539,7 +1701,9 @@ def compute_participacao(
         pct_num = 0.0
         pct_den = 0.0
         for s in snaps:
-            w = eleitorado.get((uf, s["cod_zona"]), 0)
+            w = _resolve_zone_weight(
+                uf, s["cod_zona"], eleitorado, eleitorado_total_by_uf
+            )
             if w > 0:
                 pct_num += s["pct_apurado"] * w
                 pct_den += w
@@ -1563,10 +1727,6 @@ def compute_participacao(
                 zonas, metric, pct_apurado_uf, local_seed
             )
         by_uf[uf] = uf_result
-
-    eleitorado_total_by_uf: dict[str, int] = {}
-    for (uf, _z), aptos in eleitorado.items():
-        eleitorado_total_by_uf[uf] = eleitorado_total_by_uf.get(uf, 0) + aptos
 
     nacional: dict[str, ParticipacaoEstimate | None] = {}
     for metric in metrics:
@@ -1601,6 +1761,7 @@ def compute_national(
     turno: int,
     estimates_by_uf: dict[str, dict[int, np.ndarray]],
     eleitorado_total_by_uf: dict[str, int],
+    votos_by_uf: dict[int, int] | None = None,
 ) -> tuple[
     list[dict[str, Any]],
     float,
@@ -1636,6 +1797,12 @@ def compute_national(
         - `outros`: `(estimates, n_candidatos)` de `compute_outros_estimates`
           (D4 — "Outros" com IC real, soma de resamples de rank >= 4).
           `n_candidatos == 0` se <4 candidatos na corrida.
+
+    `votos_by_uf` (RF-014, plano § B): `{cod_candidato: total_votos}` já
+    somado UF -> Brasil por `extrapolation.aggregate_national_votos` —
+    quando fornecido, popula `rows[*]["votos_projetados"]` com o total
+    REAL (em vez de `None`). Assinatura estável para callers legados
+    (`replay_batch.py`) que não têm esse dado.
     """
     _empty_outros: tuple[np.ndarray, int] = (np.zeros(0, dtype=np.float64), 0)
 
@@ -1744,7 +1911,9 @@ def compute_national(
                 "turno": turno,
                 "uf": None,  # NULL = nacional
                 "candidato_id": cand,
-                "votos_projetados": None,
+                "votos_projetados": (
+                    int(votos_by_uf.get(cand, 0)) if votos_by_uf is not None else None
+                ),
                 "pct_projetado": _frac_to_pct(point),
                 "pct_projetado_lower": _frac_to_pct(ci_lower),
                 "pct_projetado_upper": _frac_to_pct(ci_upper),
@@ -1991,10 +2160,11 @@ def build_uf_payloads(
     uf_rows: list[dict[str, Any]],
     national_rows: list[dict[str, Any]],
     municipio_aggregates: dict[tuple[str, int], dict[str, Any]],
-    zona_municipio: dict[int, dict[str, Any]],
+    zona_municipio: dict[tuple[str, int], dict[str, Any]],
     series_by_uf: dict[str, list[dict[str, Any]]],
     estimates_by_uf: dict[str, dict[int, np.ndarray]] | None = None,
     participacao_by_uf: dict[str, dict[str, ParticipacaoEstimate | None]] | None = None,
+    estimates_c_by_uf: dict[str, dict[int, np.ndarray]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Constrói payloads canônicos `EdgePayloadUf` por UF (S04/F2).
 
@@ -2056,7 +2226,7 @@ def build_uf_payloads(
     # Precisamos só mapear (uf, cod_municipio_tse) → cod_ibge + nome
     # (+ mesorregiao_cod/_nome quando disponíveis — S06/F4d).
     munic_meta: dict[tuple[str, int], dict[str, Any]] = {}
-    for _zona, z_meta in zona_municipio.items():
+    for _chave, z_meta in zona_municipio.items():
         key = (z_meta["uf"], z_meta["cod_municipio_tse"])
         if key not in munic_meta:
             munic_meta[key] = {
@@ -2071,13 +2241,6 @@ def build_uf_payloads(
         rows = uf_by_sigla[sigla]
         # pct_apurado é o mesmo em todas as rows da UF.
         pct_apurado_uf = float(rows[0].get("pct_apurado") or 0.0)
-
-        # Total de votos REPORTADOS na UF: soma dos `total_votos` de cada município.
-        total_votos_uf = sum(
-            agg["total_votos"]
-            for (uf, _cod), agg in municipio_aggregates.items()
-            if uf == sigla
-        )
 
         # Top-2 por pct_projetado para identificar líder e segundo (estável).
         ordered = sorted(
@@ -2096,62 +2259,62 @@ def build_uf_payloads(
         # disputa estadual, não do ranking nacional.
         candidatos: list[dict[str, Any]] = []
         local_rank_by_cand: dict[int, int] = {}
+        comparecimento_by_cid: dict[int, dict[str, Any] | None] = {}
         for idx, r in enumerate(ordered):
             cid = int(r["candidato_id"])
             local_rank_by_cand[cid] = idx + 1
             pct_proj = float(r.get("pct_projetado") or 0.0)
             pct_proj_lower = float(r.get("pct_projetado_lower") or pct_proj)
             pct_proj_upper = float(r.get("pct_projetado_upper") or pct_proj)
-            # `pct_atual` v1: até spec 008 popular pct_atual real, usamos
-            # pct_projetado como aproximação (consistent com o pre-S04/F2
-            # behavior). Refinamento: somar votos_reportados[cid] /
-            # total_votos_uf para o pct_atual real.
-            votos_cand = 0
-            for (uf, _cod), agg in municipio_aggregates.items():
-                if uf != sigla:
-                    continue
-                votos_cand += int(agg["votos_por_candidato"].get(cid, 0))
-            pct_atual = (
-                100.0 * votos_cand / total_votos_uf if total_votos_uf > 0 else 0.0
-            )
 
-            # Votos projetados: rateio do eleitorado total UF projetado pelo
-            # comparecimento médio histórico. v1: aproximação simples
-            # `pct_projetado * total_votos_uf_extrapolated`. Sem dado pré-eleição,
-            # usa total_votos_uf como floor (vai aumentando com a apuração).
-            # Para a v1, `votos_projetados = pct_projetado/100 * max(total_votos_uf
-            # / max(pct_apurado/100, 0.01), total_votos_uf)`. Em UF totalmente
-            # apurada o termo de extrapolação == total_votos_uf.
-            if pct_apurado_uf > 0:
-                # Estima total final pela apuração corrente.
-                estimated_total = total_votos_uf / (pct_apurado_uf / 100.0)
-            else:
-                estimated_total = total_votos_uf
-            votos_proj = int(round((pct_proj / 100.0) * estimated_total))
+            # Fase 1 (plano § A/B): `pct_atual`/`votos_atuais`/
+            # `votos_projetados` vêm DIRETO do `row` — resultado real de
+            # `compute_uf_projections`/`extrapolation.estimate_uf_
+            # candidatos` (regra de três), não mais um rateio aproximado
+            # de `municipio_aggregates`. `pct_atual` pode ser `None`
+            # (UF/candidato imputado via `impute_uf_from_national`) — o
+            # payload degrada para `0.0` (nunca `None` — contrato TS
+            # espera `number`).
+            pct_atual_raw = r.get("pct_atual")
+            pct_atual = float(pct_atual_raw) if pct_atual_raw is not None else 0.0
+            votos_cand = int(r.get("votos_atuais") or 0)
+            votos_proj = int(r.get("votos_projetados") or 0)
+            comparecimento_by_cid[cid] = r.get("comparecimento")
 
             nat = national_by_id.get(cid, {})
             # S05/F4c (ADR-0013) — paleta visual por rank semântico.
             rank_cand = rank_by_cand.get(cid, len(candidatos) + 1)
-            candidatos.append(
-                {
-                    "id": cid,
-                    "nome": f"Candidato {cid}",
-                    "partido": str(nat.get("partido", "—")),
-                    # CSS var literal — consumida direto em `style={{ background: c.cor }}`
-                    # no front-end. Sem `var(...)` o browser ignora silenciosamente.
-                    # Tokens canônicos definidos em app/globals.css (constituição § 2).
-                    # ADR-0013: paleta dinâmica `--color-cand-{1..11}`.
-                    "cor": f"var(--color-cand-{rank_cand})",
-                    "votos_atuais": votos_cand,
-                    "votos_projetados": votos_proj,
-                    "pct_atual": pct_atual,
-                    "pct_projetado": pct_proj,
-                    "ci95": {
-                        "lower": pct_proj_lower,
-                        "upper": pct_proj_upper,
-                    },
+            candidato_payload: dict[str, Any] = {
+                "id": cid,
+                "nome": f"Candidato {cid}",
+                "partido": str(nat.get("partido", "—")),
+                # CSS var literal — consumida direto em `style={{ background: c.cor }}`
+                # no front-end. Sem `var(...)` o browser ignora silenciosamente.
+                # Tokens canônicos definidos em app/globals.css (constituição § 2).
+                # ADR-0013: paleta dinâmica `--color-cand-{1..11}`.
+                "cor": f"var(--color-cand-{rank_cand})",
+                "votos_atuais": votos_cand,
+                "votos_projetados": votos_proj,
+                "pct_atual": pct_atual,
+                "pct_projetado": pct_proj,
+                "ci95": {
+                    "lower": pct_proj_lower,
+                    "upper": pct_proj_upper,
+                },
+            }
+            # E2/E2b (plano § A/C) — base "comparecimento" alternativa,
+            # só presente quando `_uf_projection_row` a calculou (sempre
+            # o caso na Fase 1, exceto callers legados de teste que não
+            # passam por `compute_uf_projections`).
+            comp = comparecimento_by_cid[cid]
+            if comp is not None:
+                candidato_payload["comparecimento"] = {
+                    "pct_atual": comp.get("pct_atual"),
+                    "pct_projetado": comp.get("pct_projetado"),
+                    "lower": comp.get("lower"),
+                    "upper": comp.get("upper"),
                 }
-            )
+            candidatos.append(candidato_payload)
 
         # Fase 1a (RF-020.1, D3/D4/D5/D6) — bloco `participacao` da UF.
         # "Outros" (D4): soma de resamples de rank LOCAL >= 4 via
@@ -2165,27 +2328,65 @@ def build_uf_payloads(
                 cand_map_uf, local_rank_by_cand, min_rank=4
             )
             outros_uf = _outros_metric_payload(outros_estimates_uf, n_outros_uf)
-            if outros_uf is not None and total_votos_uf > 0:
-                # `pct_atual` real da cauda: soma dos `pct_atual` já
-                # calculados acima para os candidatos com rank local >= 4
-                # (mesmo dado de `municipio_aggregates`, sem recomputar).
-                # Guard `total_votos_uf > 0`: sem votos reportados, todo
-                # `pct_atual` individual já degradou para `0.0` (fallback
-                # de `candidatos`) — somar daria um FALSO `0.0` em vez de
-                # `None` (mesma semântica de `outros_nacional` em
-                # `build_edge_payload`: "sem dado real" != "zero real").
-                outros_uf["pct_atual"] = sum(
-                    c["pct_atual"]
-                    for c in candidatos
-                    if local_rank_by_cand.get(int(c["id"]), 0) >= 4
-                )
+            if outros_uf is not None:
+                # `pct_atual` real da cauda: soma dos `pct_atual` (base
+                # votáveis, LITERAL) dos candidatos com rank local >= 4 —
+                # sourced direto do `row` (plano § B), não mais de
+                # `municipio_aggregates`. `None` para algum candidato da
+                # cauda (UF/candidato imputado) => "sem dado real" fica
+                # `None` (nunca um `0.0` falso — mesma semântica de
+                # `outros_nacional` em `build_edge_payload`).
+                tail_ids = [
+                    int(r2["candidato_id"])
+                    for r2 in ordered
+                    if local_rank_by_cand.get(int(r2["candidato_id"]), 0) >= 4
+                ]
+                tail_pct_atual = [
+                    r2.get("pct_atual")
+                    for r2 in ordered
+                    if int(r2["candidato_id"]) in tail_ids
+                ]
+                if tail_pct_atual and all(v is not None for v in tail_pct_atual):
+                    outros_uf["pct_atual"] = sum(float(v) for v in tail_pct_atual)
+
+                # Plano § B — "outros" na 2a base (comparecimento), campo
+                # aninhado `outros.comparecimento` (`EdgeBaseComparecimento`
+                # via `types.ts`), mesma filosofia de `candidato.comparecimento?`.
+                cand_map_uf_c = (estimates_c_by_uf or {}).get(sigla)
+                if cand_map_uf_c:
+                    outros_est_c, n_outros_c = compute_outros_estimates(
+                        cand_map_uf_c, local_rank_by_cand, min_rank=4
+                    )
+                    if n_outros_c > 0:
+                        tail_pct_atual_c = [
+                            (comparecimento_by_cid.get(cid) or {}).get("pct_atual")
+                            for cid in tail_ids
+                        ]
+                        pct_atual_c = (
+                            sum(float(v) for v in tail_pct_atual_c)
+                            if tail_pct_atual_c and all(v is not None for v in tail_pct_atual_c)
+                            else None
+                        )
+                        outros_uf["comparecimento"] = {
+                            "pct_atual": pct_atual_c,
+                            "pct_projetado": _frac_to_pct(float(np.mean(outros_est_c))),
+                            "lower": _frac_to_pct(
+                                float(np.percentile(outros_est_c, 2.5))
+                            ),
+                            "upper": _frac_to_pct(
+                                float(np.percentile(outros_est_c, 97.5))
+                            ),
+                        }
 
         part_est_uf = (participacao_by_uf or {}).get(sigla, {})
+        metodo_row = rows[0].get("metodo") if rows else None
         participacao_uf_payload = build_participacao_payload(
             part_est_uf.get("abstencao"),
             part_est_uf.get("brancos_nulos"),
             outros_uf,
             pct_apurado_uf,
+            metodo_tipo=(metodo_row or {}).get("tipo", "extrapolacao_apurado"),
+            n_zonas_imputadas=(metodo_row or {}).get("n_zonas_imputadas", 0),
         )
 
         # Constrói municípios — agregação determinística por cod_ibge.
@@ -2326,6 +2527,7 @@ def build_edge_payload(
     municipio_aggregates: dict[tuple[str, int], dict[str, Any]] | None = None,
     participacao_nacional: dict[str, ParticipacaoEstimate | None] | None = None,
     outros_nacional: dict[str, Any] | None = None,
+    national_estimates_comparecimento: dict[int, np.ndarray] | None = None,
 ) -> dict[str, Any]:
     """Monta o shape canônico `EdgePayload` (lib/edge-config/types.ts).
 
@@ -2346,6 +2548,25 @@ def build_edge_payload(
     `national.participacao` só aparece quando pelo menos uma das 3 chaves
     (`abstencao`/`brancos_nulos`/`outros`) tem dado real
     (`build_participacao_payload` decide).
+
+    Plano § B (regra de três, sem 2022) acrescenta:
+      - `pct_atual`/`votos_atuais` por candidato nacional agora vêm de
+        `uf_rows` (razão de somas dos `votos_atuais` reais de
+        `compute_uf_projections`/`extrapolation.estimate_uf_candidatos`),
+        não mais de `municipio_aggregates` — que fica como FALLBACK
+        (útil quando `uf_rows` vem de um caller legado sem os campos
+        novos, ex.: testes antigos).
+      - `votos_projetados` real vem de `national_rows[*]["votos_projetados"]`
+        (populado por `compute_national(..., votos_by_uf=...)`,
+        `aggregate_national_votos`).
+      - `comparecimento?` por candidato nacional — bootstrap agregado de
+        `national_estimates_comparecimento` (mesmo formato de
+        `aggregate_national_estimates`, mas sobre `estimates_c_by_uf`).
+        `pct_atual` desta base fica `None` na Fase 1 (não há um total
+        nacional de comparecimento agregado ainda — simplificação
+        documentada, ver relatório da tarefa).
+      - `participacao.outros.comparecimento?` — mesma filosofia, soma de
+        resamples de rank >= 4 sobre `national_estimates_comparecimento`.
 
     v1 (S03):
 
@@ -2420,13 +2641,26 @@ def build_edge_payload(
 
     sorted_national = sorted(national_rows, key=_sort_key)
 
-    # Fase 1a (§1a.2) — `pct_atual` nacional REAL a partir de
-    # `municipio_aggregates` (TODAS as UFs, sem filtro), reusando o dado já
-    # lido por `fetch_municipio_aggregates` — sem query adicional. Sem o
-    # parâmetro (caller legado), degrada para `0.0` (comportamento anterior).
+    # Plano § B — `votos_atuais`/`pct_atual` nacional REAIS: razão de
+    # somas a partir dos `votos_atuais` já calculados por UF (`uf_rows`,
+    # `compute_uf_projections`/`extrapolation.estimate_uf_candidatos`).
+    # PRIMÁRIO. `municipio_aggregates` fica como FALLBACK para callers
+    # legados (testes antigos) que passam `uf_rows` sem os campos novos.
+    votos_atuais_nat: dict[int, int] = {}
+    total_votos_atuais_nat = 0
+    for r in uf_rows:
+        if r.get("uf") is None or r.get("votos_atuais") is None:
+            continue
+        cid_r = int(r["candidato_id"])
+        va = int(r["votos_atuais"])
+        votos_atuais_nat[cid_r] = votos_atuais_nat.get(cid_r, 0) + va
+        total_votos_atuais_nat += va
+
     votos_por_cand_nat: dict[int, int] = {}
     total_votos_nat = 0
-    if municipio_aggregates:
+    if total_votos_atuais_nat > 0:
+        votos_por_cand_nat, total_votos_nat = votos_atuais_nat, total_votos_atuais_nat
+    elif municipio_aggregates:
         votos_por_cand_nat, total_votos_nat = _national_votos_por_candidato(
             municipio_aggregates
         )
@@ -2446,36 +2680,69 @@ def build_edge_payload(
         )
         if rank >= 4:
             pct_atual_outros_sum += pct_atual_cand
-        national_candidatos.append(
-            {
-                "id": cid,
-                "nome": f"Candidato {r['candidato_id']}",
-                "partido": "—",
-                # CSS var literal — consumida direto em `style={{ background: c.cor }}`
-                # no front-end (sem resolução intermediária). Constituição § 2:
-                # nunca hex partidário, sempre token canônico de app/globals.css.
-                # ADR-0013: paleta DINÂMICA por rank, --color-cand-{1..11}.
-                "cor": f"var(--color-cand-{rank})",
-                "votos_atuais": 0,
-                "votos_projetados": int(r.get("votos_projetados") or 0),
-                "pct_atual": pct_atual_cand,
-                "pct_projetado": float(r.get("pct_projetado") or 0.0),
-                "pct_projetado_lower": float(r.get("pct_projetado_lower") or 0.0),
-                "pct_projetado_upper": float(r.get("pct_projetado_upper") or 0.0),
-                "p_vitoria": float(r.get("p_vitoria") or 0.0),
-                # S05/F4c (ADR-0014) — métricas multi-candidato.
-                "rank": rank,
-                "p_passa_2t": float(r.get("p_passa_2t") or 0.0),
-                "p_fecha_1t": float(r.get("p_fecha_1t") or 0.0),
-            }
-        )
+        candidato_nat: dict[str, Any] = {
+            "id": cid,
+            "nome": f"Candidato {r['candidato_id']}",
+            "partido": "—",
+            # CSS var literal — consumida direto em `style={{ background: c.cor }}`
+            # no front-end (sem resolução intermediária). Constituição § 2:
+            # nunca hex partidário, sempre token canônico de app/globals.css.
+            # ADR-0013: paleta DINÂMICA por rank, --color-cand-{1..11}.
+            "cor": f"var(--color-cand-{rank})",
+            "votos_atuais": votos_por_cand_nat.get(cid, 0),
+            "votos_projetados": int(r.get("votos_projetados") or 0),
+            "pct_atual": pct_atual_cand,
+            "pct_projetado": float(r.get("pct_projetado") or 0.0),
+            "pct_projetado_lower": float(r.get("pct_projetado_lower") or 0.0),
+            "pct_projetado_upper": float(r.get("pct_projetado_upper") or 0.0),
+            "p_vitoria": float(r.get("p_vitoria") or 0.0),
+            # S05/F4c (ADR-0014) — métricas multi-candidato.
+            "rank": rank,
+            "p_passa_2t": float(r.get("p_passa_2t") or 0.0),
+            "p_fecha_1t": float(r.get("p_fecha_1t") or 0.0),
+        }
+        # Plano § B (E2/E2b) — base "comparecimento" nacional, agregada de
+        # `national_estimates_comparecimento` (mesmo bootstrap agregado de
+        # `estimates_c_by_uf`, ver `_do_project`). `pct_atual` fica `None`
+        # nesta base na Fase 1 (sem total nacional de comparecimento
+        # agregado ainda — simplificação documentada).
+        if national_estimates_comparecimento is not None:
+            arr_c = national_estimates_comparecimento.get(cid)
+            if arr_c is not None:
+                candidato_nat["comparecimento"] = {
+                    "pct_atual": None,
+                    "pct_projetado": _frac_to_pct(float(np.mean(arr_c))),
+                    "lower": _frac_to_pct(float(np.percentile(arr_c, 2.5))),
+                    "upper": _frac_to_pct(float(np.percentile(arr_c, 97.5))),
+                }
+        national_candidatos.append(candidato_nat)
 
     # Fase 1a — patch `pct_atual` de "outros" com o dado real recém
-    # computado (só quando `municipio_aggregates` foi fornecido; sem ele,
+    # computado (só quando houve alguma fonte de votos reais; sem ela,
     # `outros_nacional["pct_atual"]` permanece `None`, vindo de
     # `_outros_metric_payload`).
     if outros_nacional is not None and total_votos_nat > 0:
         outros_nacional = {**outros_nacional, "pct_atual": pct_atual_outros_sum}
+
+    # Plano § B — "outros" nacional na 2a base (comparecimento), campo
+    # aninhado `outros.comparecimento`, mesma filosofia da UF.
+    if outros_nacional is not None and national_estimates_comparecimento:
+        rank_by_cand_nat = {
+            int(r["candidato_id"]): int(r.get("rank") or 0) for r in national_rows
+        }
+        outros_est_c, n_outros_c = compute_outros_estimates(
+            national_estimates_comparecimento, rank_by_cand_nat, min_rank=4
+        )
+        if n_outros_c > 0:
+            outros_nacional = {
+                **outros_nacional,
+                "comparecimento": {
+                    "pct_atual": None,
+                    "pct_projetado": _frac_to_pct(float(np.mean(outros_est_c))),
+                    "lower": _frac_to_pct(float(np.percentile(outros_est_c, 2.5))),
+                    "upper": _frac_to_pct(float(np.percentile(outros_est_c, 97.5))),
+                },
+            }
 
     # Needle nacional — usa p_vitoria do LÍDER (cand_a_id) mapeada para [-1, 1].
     # `position = 2 * p_a - 1`: p=0.5 → 0 (tossup), p=1 → +1.
@@ -2542,7 +2809,16 @@ def build_edge_payload(
                 "margem_projetada_ci": [float(ci_lower), float(ci_upper)],
                 # Placeholder v1: regra simples até spec de "chamada" definitiva.
                 "chamada": chamada,
-                "swing_vs_2022": 0.0,
+                # `None`, nunca 0.0. Sob a constituição 1.2 (§ 8) a comparação
+                # com 2022 é um FATO OBSERVADO exibido ao leitor, não mais um
+                # insumo interno do modelo — e `0.0` em toda UF afirmaria na
+                # tela que "nenhuma UF mudou desde 2022", que é falso. O tipo
+                # `EdgeUfRow.swing_vs_2022` já é `number | null` e a UI já
+                # renderiza "—" para null. O valor real passa a ser calculado
+                # por `compute_swing_descritivo` na Fase 5 (ADR-0021), a partir
+                # de `historical_results.votos`. Achado HIGH do
+                # `constitution-guard` em 2026-09-05.
+                "swing_vs_2022": None,
                 # S05/F4c — multi-candidato (ADR-0017).
                 "top_candidatos": top_candidatos,
                 "vai_a_2t": vai_a_2t,
@@ -2722,7 +2998,25 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
     try:
         with _open_conn() as conn:
             snapshots = fetch_snapshots(conn, req.cargo, req.turno)
-            historical = fetch_historical_2022(conn, req.cargo, req.turno)
+            # Plano § B — 2022 SAI da projeção de candidatos (decisão E1);
+            # `historical` fica NÃO-FATAL e sem uso no cálculo — só existe
+            # aqui para alimentar `compute_swing_descritivo` (Fase 5,
+            # comparação visual "mudou X pontos desde 2022", fora do
+            # escopo desta tarefa). Falha na query nunca deve derrubar a
+            # projeção do ciclo.
+            try:
+                historical = fetch_historical_2022(conn, req.cargo, req.turno)
+            except Exception as hist_exc:  # noqa: BLE001 — não-fatal, Fase 5
+                _log(
+                    "warn",
+                    "fetch_historical_2022 failed (non-fatal — Fase 5 descritivo)",
+                    error=str(hist_exc),
+                )
+                historical = []
+                try:
+                    conn.rollback()
+                except Exception:  # noqa: BLE001 — autocommit ou sem tx
+                    pass
             eleitorado = fetch_eleitorado(conn, ano=2026)
             # S04/F2 — dados para enriquecer EdgePayloadUf. Cada um tolera
             # falha (DB sem seed geográfico, projections vazia) com dict
@@ -2753,18 +3047,24 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 ).model_dump()
 
             # Eleitorado total por UF (para a agregação nacional).
-            eleitorado_total_by_uf: dict[str, int] = {}
-            for (uf, _z), aptos in eleitorado.items():
-                eleitorado_total_by_uf[uf] = eleitorado_total_by_uf.get(uf, 0) + aptos
+            eleitorado_total_by_uf = _eleitorado_total_by_uf(eleitorado)
 
-            uf_rows, estimates_by_uf = compute_uf_projections(
-                cargo=req.cargo,
-                turno=req.turno,
-                seed_base=seed_base,
-                snapshots=snapshots,
-                historical=historical,
-                eleitorado=eleitorado,
+            uf_rows, estimates_by_uf, estimates_c_by_uf, cand_by_uf = (
+                compute_uf_projections(
+                    cargo=req.cargo,
+                    turno=req.turno,
+                    seed_base=seed_base,
+                    snapshots=snapshots,
+                    eleitorado=eleitorado,
+                )
             )
+
+            # RF-014 — votos absolutos projetados, UF -> Brasil (regra de
+            # três, `extrapolation.aggregate_national_votos`). Alimenta
+            # `compute_national(..., votos_by_uf=...)` abaixo — sem isso
+            # `votos_projetados` nacional voltaria a `None` (comportamento
+            # legado pré-Fase-1).
+            votos_by_uf, _votos_total_br = aggregate_national_votos(cand_by_uf)
 
             (
                 national_rows,
@@ -2777,6 +3077,7 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 turno=req.turno,
                 estimates_by_uf=estimates_by_uf,
                 eleitorado_total_by_uf=eleitorado_total_by_uf,
+                votos_by_uf=votos_by_uf,
             )
             outros_nacional = _outros_metric_payload(outros_estimates_nat, n_outros_nat)
 
@@ -2788,6 +3089,15 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 estimates_by_uf, eleitorado_total_by_uf
             )
             scenarios = compute_two_round_scenarios(national_estimates)
+
+            # Plano § B (E2/E2b) — agregado nacional da BASE COMPARECIMENTO
+            # (mesma lógica de `aggregate_national_estimates`, mas sobre
+            # `estimates_c_by_uf`). Só alimenta o payload — nunca
+            # `p_vitoria`/`compute_two_round_scenarios` (contrato de
+            # `estimates_by_uf` permanece votáveis-only).
+            national_estimates_comparecimento = aggregate_national_estimates(
+                estimates_c_by_uf, eleitorado_total_by_uf
+            )
 
             # Fase 1a (RF-020.1) — participação (abstenção, brancos/nulos)
             # por regra de três (D5, `turnout.py`). Reusa os MESMOS
@@ -2827,6 +3137,8 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 municipio_aggregates=municipio_aggregates,
                 participacao_nacional=participacao_nacional,
                 outros_nacional=outros_nacional,
+                # Plano § B (E2/E2b) — base comparecimento nacional.
+                national_estimates_comparecimento=national_estimates_comparecimento,
             )
             # S04/F2 — payloads UF ricos (candidatos com votos, municípios,
             # séries temporais). Envia junto do nacional; endpoint Node
@@ -2843,6 +3155,8 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 # Fase 1a (RF-020.1, D3/D4/D5/D6) — participação + outros.
                 estimates_by_uf=estimates_by_uf,
                 participacao_by_uf=participacao_by_uf,
+                # Plano § B (E2/E2b) — base comparecimento por UF.
+                estimates_c_by_uf=estimates_c_by_uf,
             )
             post_edge_write(edge_payload, payloads_uf=uf_payloads)
         except Exception as edge_exc:  # noqa: BLE001 — never block the response

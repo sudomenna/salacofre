@@ -135,7 +135,43 @@ sys.stdout.write(json.dumps(payload, default=str))
       MODEL_SECRET: "",
     },
     encoding: "utf8",
-    timeout: 30000,
+    // 30s ETIMEDOUT medido em 2026-09-05 — DIAGNÓSTICO (não é Fase 1 nem a
+    // seed deste teste, que são 10 zonas e concluem em milissegundos):
+    // `cargo=1, turno=1` neste Neon de dev/preview JÁ TEM dados nacionais
+    // reais (S07 — pipeline TSE simulado-ready): 2651 zonas apuradas em
+    // todas as 27 UFs, ~62k linhas em `historical_results`. `_do_project`
+    // busca esses dados INTEIROS a cada chamada (sem filtro por UF), então
+    // este teste sempre paga o custo nacional completo, não só o das suas
+    // 10 zonas sintéticas.
+    //   1) BUG REAL encontrado e corrigido nesta tarefa —
+    //      `api/model/project.py::fetch_municipio_aggregates` fazia
+    //      `LEFT JOIN zonas z ON z.cod_zona = r.cod_zona` SEM `AND z.uf =
+    //      r.uf`. `zonas` tem PK composta `(uf, cod_zona)` — o número da
+    //      zona REPETE entre UFs (zona "8" existe em AP/BA/CE/DF/ES/...).
+    //      Sem o `uf` no JOIN, cada snapshot casava com todas as UFs que
+    //      compartilham aquele número — fan-out medido de 2651 → 35757
+    //      linhas, e a query sozinha (`cur.execute`, antes do `fetchall`)
+    //      levou 226s. Era também um bug de CORRETUDE (município errado
+    //      por zona sempre que duas UFs coincidem no número — quase
+    //      sempre) em `EdgeUfMunicipio`, não só de performance. Corrigido
+    //      adicionando `AND z.uf = r.uf`: a mesma query caiu para 16s.
+    //   2) Custo restante (NEON, não código) — medido isoladamente com
+    //      `.venv-model/bin/python3.14` fora do vitest, mesmo `DATABASE_URL`:
+    //      import+connect ~1,3s, `fetch_snapshots` ~14s, `fetch_
+    //      historical_2022` ~6s, `fetch_municipio_aggregates` (pós-fix)
+    //      ~17s, resto <1s cada — soma ~40s só na fase de fetch. `_do_
+    //      project` completo (fetch+compute+insert, cargo=1/turno=1, 27 UFs
+    //      reais + candidatos sintéticos 1001/1002 desta seed) mediu
+    //      42,2s (`computed_duration_ms: 42170` no log estruturado). Este é
+    //      tráfego de rede real (múltiplos MBs de payload por fetch) contra
+    //      um Neon compute pequeno — nada aqui é O(n²) nem redundante após
+    //      o fix acima (confirmado via EXPLAIN + medição direta).
+    // 90s dá ~2,1x de margem sobre os 42,2s medidos — RNF-006 (p95 <2s em
+    // produção) segue como meta do endpoint Vercel-a-Neon (rede interna,
+    // sem o link deste ambiente de dev); ESTE teste mede
+    // corretude/persistência contra Neon real, não RNF-006 — não é gate de
+    // performance.
+    timeout: 90_000,
   });
 
   const newlineIdx = stdout.indexOf("\n");
@@ -171,17 +207,52 @@ function sha256Hex(s: string): string {
 }
 
 /**
- * Constrói payload EA20-like esperado por `_extract_zone_candidate_pcts`:
- * `{ cand: [{ n: <cod>, pvap: "<pct_em_string_BR>" }, ...] }`.
+ * Constrói envelope EA20 REAL (`e`/`v`/`s` de raiz + `carg[].agr[].par[].cand[]`)
+ * — formato exigido por `_extract_zone_candidatos` desde a Fase 1 do plano
+ * `tem-um-erro-eu-velvety-sprout.md` (regra de três/extrapolação por zona).
  *
- * pvap está em escala 0-100 (string format BR — `_extract_zone_candidate_pcts`
- * lida com vírgula ou ponto). Aqui mandamos ponto pra ficar trivial de parse.
+ * ATUALIZADO 2026-09-05 (T18 vermelho após a Fase 1): o payload achatado
+ * anterior (`{cand:[{n,pvap}]}`) NÃO tem `e`/`v`/`s` de raiz —
+ * `_extract_zone_participacao` degrada para `None` nesse formato
+ * (campo fatal `e.te` ausente), e `_extract_zone_candidatos` idem — TODAS
+ * as 10 zonas de UF=ZT ficavam fora de `estimate_uf_candidatos` (nenhuma
+ * "apurada"), a UF caía inteira no branch de imputação nacional (RF-017
+ * 2o nível, `cargo==1`) e era projetada com os candidatos NACIONAIS reais
+ * (10/20 — ver `derive`), nunca 1001/1002. O teste filtra
+ * `candidato_id IN (1001, 1002)` — zero linhas, silenciosamente mascarado
+ * pelo timeout (ver comentário em `invokePython`).
+ *
+ * `k = te/esi` fixo em 1 (esi=te, "seção totalmente instalada") — não é
+ * o que a Fase 1 testa (isso é `test_extrapolation.py`); aqui só
+ * precisamos de contagens absolutas coerentes o bastante para produzir
+ * `pct_atual_votaveis == pctA` exatamente (vap/vvc), sem ruído de escala.
+ * `vvc` é o `aptos` real da zona (`eleitoradoRows[i].eleitoresAptos`) —
+ * mantém `vap <= vvc <= te` (nunca mais votos que eleitores).
  */
-function buildEa20Payload(pctA: number, pctB: number) {
+function buildEa20Envelope(pctA: number, pctB: number, aptos: number) {
+  const vvc = Math.max(1, Math.floor(aptos * 0.7)); // turnout sintético ~70%
+  const vapA = Math.round(pctA * vvc);
+  const vapB = vvc - vapA; // soma exata a vvc — sem sobra de arredondamento
   return {
-    cand: [
-      { n: CAND_A, pvap: (pctA * 100).toFixed(4) },
-      { n: CAND_B, pvap: (pctB * 100).toFixed(4) },
+    e: { te: aptos, esi: aptos, c: vvc, a: aptos - vvc },
+    v: { vvc, vv: vvc, vb: 0, tvn: 0, van: 0, vansj: 0 },
+    s: { psa: 100 },
+    carg: [
+      {
+        cd: String(CARGO),
+        agr: [
+          {
+            par: [
+              {
+                cand: [
+                  { n: CAND_A, vap: vapA },
+                  { n: CAND_B, vap: vapB },
+                ],
+              },
+            ],
+          },
+        ],
+      },
     ],
   };
 }
@@ -235,7 +306,9 @@ const describeIfReady = databaseUrlSet && python ? describe : describe.skip;
 // Garantido pelo describeIfReady acima — separação local para evitar `python!`.
 const PYTHON_BIN = python ?? "python3.14";
 
-describeIfReady("T18 — ciclo do modelo end-to-end (integration)", { timeout: 60000 }, () => {
+// 100s — cobre os 90s de `execFileSync` (ver justificativa no invocador
+// Python) + margem para seed/cleanup via Drizzle.
+describeIfReady("T18 — ciclo do modelo end-to-end (integration)", { timeout: 100_000 }, () => {
   beforeAll(async () => {
     await cleanupAll();
 
@@ -320,7 +393,8 @@ describeIfReady("T18 — ciclo do modelo end-to-end (integration)", { timeout: 6
       const pctA = Math.max(0.05, Math.min(0.95, baseA + noise));
       const pctB = 1 - pctA;
 
-      const payload = buildEa20Payload(pctA, pctB);
+      const aptos = eleitoradoRows[histIdx]?.eleitoresAptos ?? 200_000;
+      const payload = buildEa20Envelope(pctA, pctB, aptos);
       const payloadStr = JSON.stringify(payload);
       const hash = sha256Hex(payloadStr);
 

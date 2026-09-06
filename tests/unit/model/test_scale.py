@@ -22,8 +22,12 @@ import pytest
 
 def test_compute_uf_projections_emits_pct_in_0_100_scale() -> None:
     """`compute_uf_projections` deve devolver `pct_projetado*` em 0–100,
-    NÃO em fração [0,1] — mesmo quando a UF cai no fallback RF-017 (zero
-    apurado) ou RF-018 (baixo apurado)."""
+    NÃO em fração [0,1].
+
+    Reescrito nesta tarefa (plano `tem-um-erro-eu-velvety-sprout.md`):
+    `compute_uf_projections` não recebe mais `historical` (2022 saiu da
+    projeção de candidatos, decisão E1) e lê `e`/`v`/`s` de raiz +
+    `cand[].vap` (contagem absoluta) em vez de `pvap` (percentual)."""
     from api.model.project import compute_uf_projections
 
     snapshots = [
@@ -33,18 +37,18 @@ def test_compute_uf_projections_emits_pct_in_0_100_scale() -> None:
             "uf": "SP",
             "cod_zona": 1,
             "pct_apurado": 100.0,
-            "payload": {"cand": [{"n": "100", "pvap": "45,00"}, {"n": "200", "pvap": "55,00"}]},
+            "payload": {
+                "e": {"te": "1000", "esi": "1000", "c": "800", "a": "200"},
+                "v": {"vvc": "1000", "vv": "1000", "vb": "0", "tvn": "0"},
+                "cand": [{"n": "100", "vap": "450"}, {"n": "200", "vap": "550"}],
+            },
         },
-    ]
-    historical = [
-        {"cargo": 1, "turno": 1, "uf": "SP", "cod_zona": 1, "cod_candidato": 100, "pct_validos": 0.45, "partido": "PT"},
-        {"cargo": 1, "turno": 1, "uf": "SP", "cod_zona": 1, "cod_candidato": 200, "pct_validos": 0.55, "partido": "PL"},
     ]
     eleitorado = {("SP", 1): 100_000}
 
-    rows, estimates_by_uf = compute_uf_projections(
+    rows, estimates_by_uf, _estimates_c_by_uf, _cand_by_uf = compute_uf_projections(
         cargo=1, turno=1, seed_base=42,
-        snapshots=snapshots, historical=historical, eleitorado=eleitorado,
+        snapshots=snapshots, eleitorado=eleitorado,
     )
 
     assert len(rows) == 2
@@ -63,34 +67,45 @@ def test_compute_uf_projections_emits_pct_in_0_100_scale() -> None:
     assert estimates_by_uf["SP"][100].mean() == pytest.approx(0.45, abs=0.05)
 
 
-def test_compute_uf_projections_rf017_zero_apurado_emits_pct_in_0_100() -> None:
-    """RF-017 (0% apurado): candidato só no histórico (sem snapshot) —
-    `inflate_ci_zero_apurado` trabalha em fração; a linha ainda deve sair
-    em 0–100."""
+def test_compute_uf_projections_rf017_imputado_nacional_emits_pct_in_0_100() -> None:
+    """RF-017, 2o nível hierárquico (plano § A): UF SEM NENHUMA zona
+    apurada usa a proporção NACIONAL calculada a partir de OUTRAS UFs com
+    dado, +-10pp — não mais `p_2022` (2022 saiu inteiramente da projeção
+    de candidatos, decisão E1). Escala da linha ainda deve sair em
+    0–100."""
     from api.model.project import compute_uf_projections
 
-    snapshots: list = []  # nenhuma zona apurada
-    historical = [
-        {"cargo": 1, "turno": 1, "uf": "SP", "cod_zona": 1, "cod_candidato": 300, "pct_validos": 0.30, "partido": "PT"},
+    sp_payload = {
+        "e": {"te": "1000", "esi": "1000", "c": "800", "a": "200"},
+        "v": {"vvc": "1000", "vv": "1000", "vb": "0", "tvn": "0"},
+        "cand": [{"n": "300", "vap": "600"}, {"n": "400", "vap": "400"}],
+    }
+    snapshots = [
+        {
+            "cargo": 1, "turno": 1, "uf": "SP", "cod_zona": 1,
+            "pct_apurado": 100.0, "payload": sp_payload,
+        },
+        {
+            "cargo": 1, "turno": 1, "uf": "RJ", "cod_zona": 1,
+            "pct_apurado": 0.0, "payload": {"cand": []},  # sem e/v/s -> zona inutilizável
+        },
     ]
-    eleitorado = {("SP", 1): 100_000}
+    eleitorado = {("SP", 1): 100_000, ("RJ", 1): 50_000}
 
-    rows, _ = compute_uf_projections(
+    rows, _estimates_by_uf, _estimates_c_by_uf, _cand_by_uf = compute_uf_projections(
         cargo=1, turno=1, seed_base=1,
-        snapshots=[
-            {
-                "cargo": 1, "turno": 1, "uf": "SP", "cod_zona": 1,
-                "pct_apurado": 0.0, "payload": {"cand": []},
-            }
-        ],
-        historical=historical, eleitorado=eleitorado,
+        snapshots=snapshots, eleitorado=eleitorado,
     )
-    assert len(rows) == 1
-    row = rows[0]
-    # p_2022 = 0.30 → CI ±10pp em fração (0.20..0.40) → 20.0..40.0 em pct.
-    assert row["pct_projetado"] == pytest.approx(30.0, abs=0.01)
-    assert row["pct_projetado_lower"] == pytest.approx(20.0, abs=0.01)
-    assert row["pct_projetado_upper"] == pytest.approx(40.0, abs=0.01)
+
+    rj_rows = {r["candidato_id"]: r for r in rows if r["uf"] == "RJ"}
+    assert set(rj_rows.keys()) == {300, 400}
+    assert rj_rows[300]["metodo"]["tipo"] == "imputado_nacional"
+    # SP é a ÚNICA UF com dado -> "nacional" == SP -> 60%/40%. RJ herda
+    # esse ponto +-10pp (RF-017), em 0–100 (não fração).
+    assert rj_rows[300]["pct_projetado"] == pytest.approx(60.0, abs=0.5)
+    assert rj_rows[300]["pct_projetado_lower"] == pytest.approx(50.0, abs=0.5)
+    assert rj_rows[300]["pct_projetado_upper"] == pytest.approx(70.0, abs=0.5)
+    assert rj_rows[400]["pct_projetado"] == pytest.approx(40.0, abs=0.5)
 
 
 def test_compute_national_emits_pct_in_0_100_scale() -> None:
@@ -242,43 +257,45 @@ def test_build_edge_payload_chamada_when_margem_above_10pp() -> None:
 
 
 def test_build_uf_payloads_votos_projetados_uses_pct_over_100() -> None:
-    """`votos_projetados = (pct_projetado/100) * estimated_total`. Com
-    `pct_apurado_uf == 100`, `estimated_total == total_votos_uf` — o
-    candidato com 55% de 1.000.000 votos reportados projeta ~550.000
-    (não 5.500 — o resultado de uma dupla-divisão por 100 se `pct_proj`
-    ainda estivesse em fração)."""
+    """`votos_projetados`/`votos_atuais`/`pct_atual` em `EdgeCandidate`
+    vêm DIRETO do `row` (plano `tem-um-erro-eu-velvety-sprout.md` § B —
+    resultado real de `compute_uf_projections`/`extrapolation.
+    estimate_uf_candidatos`, regra de três), não mais de um rateio de
+    `municipio_aggregates` por `pct_projetado/pct_apurado`. `build_uf_
+    payloads` deve repassar os valores do `row` sem reprocessar."""
     from api.model.project import build_uf_payloads
 
     uf_rows = [
-        {"cargo": 1, "turno": 1, "uf": "SP", "candidato_id": 100, "pct_projetado": 55.0, "pct_projetado_lower": 53.0, "pct_projetado_upper": 57.0, "pct_apurado": 100.0},
-        {"cargo": 1, "turno": 1, "uf": "SP", "candidato_id": 200, "pct_projetado": 45.0, "pct_projetado_lower": 43.0, "pct_projetado_upper": 47.0, "pct_apurado": 100.0},
+        {
+            "cargo": 1, "turno": 1, "uf": "SP", "candidato_id": 100,
+            "pct_projetado": 55.0, "pct_projetado_lower": 53.0, "pct_projetado_upper": 57.0,
+            "pct_apurado": 100.0, "pct_atual": 55.0,
+            "votos_atuais": 550_000, "votos_projetados": 550_000,
+        },
+        {
+            "cargo": 1, "turno": 1, "uf": "SP", "candidato_id": 200,
+            "pct_projetado": 45.0, "pct_projetado_lower": 43.0, "pct_projetado_upper": 47.0,
+            "pct_apurado": 100.0, "pct_atual": 45.0,
+            "votos_atuais": 450_000, "votos_projetados": 450_000,
+        },
     ]
     national_rows = [
         {"candidato_id": 100, "partido": "PT", "pct_projetado": 55.0},
         {"candidato_id": 200, "partido": "PL", "pct_projetado": 45.0},
     ]
-    municipio_aggregates = {
-        ("SP", 71072): {
-            "pct_apurado": 100.0,
-            "votos_por_candidato": {100: 550_000, 200: 450_000},
-            "total_votos": 1_000_000,
-        },
-    }
-    zona_municipio = {
-        1: {"uf": "SP", "cod_municipio_tse": 71072, "cod_ibge": "3550308", "nome": "São Paulo"},
-    }
 
     out = build_uf_payloads(
         cargo=1, turno=1, ts_iso="2026-10-04T18:23:15Z",
         uf_rows=uf_rows, national_rows=national_rows,
-        municipio_aggregates=municipio_aggregates,
-        zona_municipio=zona_municipio,
+        municipio_aggregates={},
+        zona_municipio={},
         series_by_uf={},
     )
 
     candidatos = {c["id"]: c for c in out["SP"]["candidatos"]}
-    # estimated_total == total_votos_uf (pct_apurado 100%) == 1_000_000.
     assert candidatos[100]["votos_projetados"] == pytest.approx(550_000, abs=1)
     assert candidatos[200]["votos_projetados"] == pytest.approx(450_000, abs=1)
+    assert candidatos[100]["votos_atuais"] == pytest.approx(550_000, abs=1)
+    assert candidatos[100]["pct_atual"] == pytest.approx(55.0, abs=1e-6)
     # NÃO deve ser ~5_500 (dupla divisão por 100 caso pct estivesse em fração).
     assert candidatos[100]["votos_projetados"] > 100_000

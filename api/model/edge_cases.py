@@ -1,18 +1,27 @@
-"""Casos de borda do modelo (RF-017, RF-018, K-1).
+"""Casos de borda do modelo (RF-017, RF-018).
 
-RF-017 — UF 0% apurada:
-  point = p_2022_uf
-  ci_lower = clip(p_2022 - 0.10, 0, 1)
-  ci_upper = clip(p_2022 + 0.10, 0, 1)
-  Sem `estimates` — bootstrap não roda.
+RF-017 — UF SEM NENHUMA zona apurada (E3, 2o nível hierárquico — plano
+`tem-um-erro-eu-velvety-sprout.md` § A, decisão E1/E3 do usuário,
+2026-09-05): a projeção da UF assume a proporção NACIONAL já calculada a
+partir das UFs com dado (não mais `p_2022_uf` — 2022 saiu inteiramente da
+projeção de candidatos):
+  point = share nacional do candidato (`extrapolation.impute_uf_from_
+          national`, argumento `national_point`)
+  ci_lower = clip(point - 0.10, 0, 1)
+  ci_upper = clip(point + 0.10, 0, 1)
+  `estimates` reusa o array nacional pareado (não gera amostra
+  degenerada constante) — ver `extrapolation.impute_uf_from_national`.
 
 RF-018 — UF <5% apurada:
   Mantém `point`, multiplica largura (ci_upper - ci_lower) por 1.5 ao redor
-  do `point`. Clipado em [0, 1].
+  do `point`. Clipado em [0, 1]. Aplicado nas DUAS bases (votáveis e
+  comparecimento) por `extrapolation.estimate_uf_candidatos`.
 
-K-1 — Candidato sem bloco político mapeável em 2022:
-  Modelo desabilitado para a corrida do candidato. Helper que diz se o
-  candidato está nessa situação (caller decide o fallback).
+K-1 (candidato sem bloco político mapeável em 2022) foi REMOVIDO desta
+tarefa — o pipeline de candidatos não usa mais 2022 como âncora, então a
+noção de "candidato sem bloco 2022 mapeável" deixou de existir. ADR-0015
+(K-1) fica desatualizado por este código; a formalização do ADR de
+substituição é trabalho de `adr-author` (fora do escopo desta tarefa).
 """
 
 from __future__ import annotations
@@ -72,21 +81,3 @@ def inflate_ci_low_apurado(
         "ci_lower": _clip(point - new_half),
         "ci_upper": _clip(point + new_half),
     }
-
-
-def is_candidate_unmappable(
-    candidato_id: int,
-    mapping_2022: dict[int, str | None],
-) -> bool:
-    """K-1: candidato 2026 sem bloco político mapeável em 2022.
-
-    Args:
-        candidato_id: id do candidato 2026.
-        mapping_2022: dict `candidato_id → bloco_2022` (string com sigla/coligação)
-            ou None se não mapeável. Candidato AUSENTE do dict também conta
-            como não mapeável (fail-safe).
-
-    Returns:
-        True se o modelo deve ser desabilitado para esse candidato.
-    """
-    return mapping_2022.get(candidato_id) is None

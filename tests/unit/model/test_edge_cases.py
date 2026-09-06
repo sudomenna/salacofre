@@ -1,4 +1,4 @@
-"""T11 / RF-017, RF-018, K-1 — edge_cases."""
+"""T11 / RF-017, RF-018 — edge_cases."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import math
 from api.model.edge_cases import (
     inflate_ci_low_apurado,
     inflate_ci_zero_apurado,
-    is_candidate_unmappable,
 )
 
 
@@ -68,19 +67,3 @@ def test_rf018_clipped_to_unit() -> None:
     # ci_lower = clip(0.95 - 0.075) = 0.875
     assert r["ci_upper"] == 1.0
     assert math.isclose(r["ci_lower"], 0.875, rel_tol=1e-9)
-
-
-# K-1 — Candidato sem mapeamento 2022
-
-
-def test_k1_unmappable_candidate_when_value_is_none() -> None:
-    mapping = {101: "PT", 102: None, 103: "PSDB"}
-    assert is_candidate_unmappable(102, mapping) is True
-    assert is_candidate_unmappable(101, mapping) is False
-    assert is_candidate_unmappable(103, mapping) is False
-
-
-def test_k1_unmappable_when_candidate_absent() -> None:
-    """Fail-safe: candidato ausente do mapping é unmappable."""
-    mapping = {101: "PT"}
-    assert is_candidate_unmappable(999, mapping) is True
