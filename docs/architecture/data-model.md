@@ -184,6 +184,93 @@ type EdgePayload = {
 
 Payload `por_uf` para drill-down (chave `projection:uf:[sigla]`): inclui municípios e zonas. ~5–10KB por UF.
 
+O bloco acima é o esqueleto histórico (S04). O shape completo e vigente — com
+`rank`, `p_passa_2t`, `p_fecha_1t`, `participacao`, `mesorregioes` e o bloco de
+segunda base descrito abaixo — vive em `lib/edge-config/types.ts`, que **deriva
+deste markdown**: alterou o shape, atualize aqui primeiro.
+
+### Duas bases por candidato (S07/Fase 2 — extrapolação do apurado)
+
+A projeção de candidatos passa a ser **extrapolação do apurado por zona**
+(regra de três: `k(z) = te/esi`, `V_c(z) = vap_c · k`), não mais swing vs. 2022.
+Como a mesma contagem projetada de votos pode ser lida sobre dois
+denominadores diferentes, o payload publica **as duas bases** e a UI escolhe
+qual exibir — o numerador é idêntico, só o denominador muda.
+
+| Base | Denominador (EA20) | Rótulo na UI | Onde |
+|---|---|---|---|
+| `votaveis` (default) | `v.vvc` — votos a **votáveis** concorrentes (válidos + anulados + sub judice; é o denominador do `pvap` do TSE) | "% dos votos a votáveis" | campos `pct_atual` / `pct_projetado` / `pct_projetado_lower` / `pct_projetado_upper` (nacional) e `ci95` (UF) |
+| `comparecimento` | `e.c` — quem compareceu | "% do comparecimento" | bloco opcional `comparecimento` |
+
+**Nunca chamar `vvc` de "válidos"** — o dicionário oficial de leiautes
+(`docs/reference/tse-2026-leiautes.md`) reserva "válidos" para `v.vv`. O rótulo
+canônico é "votáveis".
+
+```ts
+/** Segunda base de uma métrica de candidato: % sobre quem compareceu (e.c). */
+type EdgeBaseComparecimento = {
+  pct_atual: number | null;   // 0–100; null = ainda sem zona apurada
+  pct_projetado: number;      // 0–100
+  lower: number;              // CI95 inferior, 0–100
+  upper: number;              // CI95 superior, 0–100
+};
+
+// EdgeCandidate      (nacional)                → comparecimento?: EdgeBaseComparecimento
+// EdgeUfCandidate    (drill-down de UF)        → comparecimento?: EdgeBaseComparecimento
+// EdgeParticipacao.outros                      → comparecimento?: EdgeBaseComparecimento
+```
+
+O campo é **opcional em todos os três pontos**: payloads pré-S07/Fase 2 e os
+três fixtures de `tests/fixtures/edge-config/` continuam válidos. Quando a UI
+está na base `comparecimento` e o campo não veio, o termômetro correspondente
+renderiza em **"aguardando projeção"** (ADR-0017 — permanece no DOM) e **nunca**
+cai de volta na base `votaveis`: exibir um número de outro denominador sob o
+rótulo errado seria pior do que não exibir número nenhum.
+
+**Identidade da base `comparecimento`.** O EA20 fecha
+`Σvap + vb + tvn + van + vansj + vscv = c`, logo:
+
+> candidatos + Outros + brancos + nulos = 100% de quem compareceu **menos**
+> anulados e sub judice.
+
+O resíduo (`van`, `vansj`, `vscv`) é pequeno mas não é zero — a legenda da UI
+declara isso explicitamente em vez de arredondar para "somam 100". A abstenção
+**não** entra nessa soma: ela tem base própria (`eleitores_instalados`).
+
+### `participacao.metodo` — origem do número (RF-062)
+
+```ts
+metodo?: {
+  tipo: "extrapolacao_apurado" | "imputado_nacional";
+  n_zonas: number;              // zonas que entraram no estimador
+  pct_apurado: number;          // 0–100
+  n_zonas_imputadas?: number;   // zonas sem urna, imputadas pela proporção da UF
+};
+```
+
+- `"extrapolacao_apurado"` — caminho normal: há pelo menos uma zona apurada na
+  UF (ou no país) e a projeção é extrapolada do que já foi apurado.
+- `"imputado_nacional"` — **nenhuma** zona da UF apurou ainda; a projeção usa a
+  proporção nacional como âncora provisória, com IC alargado (RF-017). Só existe
+  para cargo 1 (presidente): governador não tem agregado nacional equivalente,
+  então a UF fica em "aguardando projeção".
+
+`tipo` era `string` livre até S07/Fase 2 — passa a união fechada porque a UI
+ramifica o rótulo por valor. `n_zonas_imputadas` é opcional: ausente ≡ 0.
+
+### Campos em transição
+
+- **`EdgeUfRow.swing_vs_2022: number | null`** — o tipo aceita `null` desde
+  S07/Fase 2 (consumidores devem exibir "—"), mas o orchestrator ainda emite
+  `0.0` fixo. Vira o **swing descritivo** (E1: apurado de agora − 2022, um fato
+  observado, não insumo da projeção) na Fase 5, quando passa a ser `null` para
+  UF/candidato sem número em 2022.
+- **`EdgePayloadUf.model_fallback_tier`** — `@deprecated`. O K-1 3-tier
+  (ADR-0015) dependia de 2022 como âncora e sai junto com o swing; a coluna
+  `projections.model_fallback_tier` permanece no schema (sem migration) e o
+  campo segue no tipo apenas para não quebrar payloads gravados. Novos
+  consumidores não devem lê-lo.
+
 ## Princípios
 
 - **Snapshots são append-only** (princípio § 10 da constituição) — habilita replay e auditoria.

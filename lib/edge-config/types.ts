@@ -87,6 +87,44 @@ export type NeedleBand =
 export type ParticipacaoBase = "votaveis" | "comparecimento" | "eleitores_instalados";
 
 /**
+ * Segunda base de uma métrica de candidato — % sobre **quem compareceu**
+ * (`e.c` do EA20), em contraste com a base default `votaveis` (`v.vvc`).
+ *
+ * Por que existe (S07/Fase 2 — decisão E2 do plano de extrapolação):
+ *   O numerador é o MESMO nos dois casos (votos projetados do candidato);
+ *   só o denominador muda. Publicar as duas bases custa uma divisão no
+ *   estimador (mesmo `idx` de bootstrap → arrays pareados de verdade) e
+ *   evita que o front-end tente derivar uma da outra, o que exigiria
+ *   conhecer `vvc/c` e produziria um IC inventado.
+ *
+ * Identidade da base (EA20: `Σvap + vb + tvn + van + vansj + vscv = c`):
+ *   candidatos + Outros + brancos + nulos = 100% de quem compareceu
+ *   **menos** anulados e sub judice. O resíduo é pequeno e a legenda da UI
+ *   o declara — não arredondamos para "somam 100". A abstenção fica FORA
+ *   dessa soma (base própria `eleitores_instalados`).
+ *
+ * Percentuais em 0–100, como o resto do payload. `pct_atual` é `null`
+ * quando ainda não há razão literal (nenhuma zona apurada).
+ *
+ * **Sempre opcional** onde aparece: payloads pré-S07/Fase 2 (e os três
+ * fixtures de `tests/fixtures/edge-config/`) não têm a chave. Consumidor na
+ * base `comparecimento` que não encontra o campo deve renderizar
+ * "aguardando projeção" (ADR-0017 — permanece no DOM) e **nunca** cair de
+ * volta no número de `votaveis`: seria exibir um valor sob o rótulo de
+ * outro denominador.
+ */
+export interface EdgeBaseComparecimento {
+  /** % observado agora sobre o comparecimento (0–100), ou null. */
+  pct_atual: number | null;
+  /** % projetado sobre o comparecimento (0–100). */
+  pct_projetado: number;
+  /** CI95 inferior (0–100). */
+  lower: number;
+  /** CI95 superior (0–100). */
+  upper: number;
+}
+
+/**
  * Uma métrica de participação projetada pelo modelo (regra de três sobre
  * as zonas apuradas + bootstrap para o IC95 — spec 002 / api/model/turnout.py).
  *
@@ -131,13 +169,43 @@ export interface EdgeParticipacao {
    * a UI cai em `100 − Σtop3` **sem faixa de incerteza** e com nota
    * "IC indisponível".
    */
-  outros?: EdgeParticipacaoMetric & { base: "votaveis"; n_candidatos: number };
+  outros?: EdgeParticipacaoMetric & {
+    base: "votaveis";
+    n_candidatos: number;
+    /**
+     * Mesmo agregado na base `comparecimento` (S07/Fase 2). Opcional pelas
+     * mesmas razões de `EdgeCandidate.comparecimento` — ausente ⇒ o
+     * termômetro de "Outros" fica em "aguardando" quando a UI está nessa
+     * base (nunca reaproveita o número de `votaveis`).
+     */
+    comparecimento?: EdgeBaseComparecimento;
+  };
   /**
    * Metadados do cálculo — alimentam a transparência metodológica
-   * (constituição § 8). `tipo` é o identificador do estimador
-   * (ex. "extrapolacao_apurado").
+   * (constituição § 8) e o rótulo de origem exigido por RF-062
+   * ("projeção a partir do apurado", nunca "valor oficial" nem
+   * "baseado em 2022").
+   *
+   * `tipo` era `string` livre até S07/Fase 2; virou união fechada porque a
+   * UI ramifica o rótulo por valor:
+   *   - `"extrapolacao_apurado"` — há zona apurada; a projeção é
+   *     extrapolada do que já foi apurado (`k = te/esi`, regra de três).
+   *   - `"imputado_nacional"` — NENHUMA zona desta UF apurou ainda; a
+   *     projeção usa a proporção nacional como âncora provisória, com IC
+   *     alargado (RF-017). Só existe para cargo 1: governador não tem
+   *     agregado nacional equivalente e fica em "aguardando projeção".
    */
-  metodo?: { tipo: string; n_zonas: number; pct_apurado: number };
+  metodo?: {
+    tipo: "extrapolacao_apurado" | "imputado_nacional";
+    n_zonas: number;
+    pct_apurado: number;
+    /**
+     * Zonas sem urna apurada que entraram por imputação (proporção da UF,
+     * decisão E3). Ausente ≡ 0. Só informativo — o share da UF não muda
+     * com a imputação, apenas os votos absolutos.
+     */
+    n_zonas_imputadas?: number;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -215,6 +283,13 @@ export interface EdgeCandidate {
    * consumidor coalesce para 0.
    */
   p_fecha_1t: number;
+  /**
+   * Mesmo candidato na segunda base — % sobre quem compareceu (S07/Fase 2,
+   * decisão E2). Os campos `pct_*` acima seguem sendo a base `votaveis`
+   * (default da UI). Ver `EdgeBaseComparecimento` para a identidade da soma
+   * e a regra de degradação quando o campo está ausente.
+   */
+  comparecimento?: EdgeBaseComparecimento;
 }
 
 export interface EdgeNational {
@@ -350,8 +425,21 @@ export interface EdgeUfRow {
   margem_projetada_ci: [number, number];
   /** UF "chamada" para o líder? (design.md § "Chamada de UF") */
   chamada: boolean;
-  /** Swing em pp vs. 2022 (positivo = em favor do líder). */
-  swing_vs_2022: number;
+  /**
+   * Swing em pp vs. 2022 (positivo = em favor do líder).
+   *
+   * S07/Fase 2 — o tipo passa a aceitar `null`: com a projeção extrapolada
+   * do apurado (não mais swing vs. 2022), este campo deixa de ser insumo do
+   * modelo e vira **comparação descritiva** (decisão E1: apurado de agora −
+   * 2022, um fato observado). Fica `null` quando o número de 2022 não
+   * existe para aquele par (UF, candidato) — consumidores devem exibir "—",
+   * nunca 0, que leria como "não mudou nada".
+   *
+   * Na Fase 2 o orchestrator ainda emite `0.0` fixo (`api/model/project.py`);
+   * o valor real chega na Fase 5 junto com `compute_swing_descritivo`.
+   * Ampliar o tipo agora evita ter que mexer nos consumidores duas vezes.
+   */
+  swing_vs_2022: number | null;
   /**
    * Top-3 candidatos da UF por `pct_projetado` desc. Adicionado em S05/F4c
    * (ADR-0017 — transparência total): a página de UF mostra TODOS os
@@ -403,7 +491,8 @@ export interface EdgeUfRow {
  *
  * Antes de qualquer apuração: `pre_election` ≈ 1.
  * Durante a apuração: `actual_results` cresce até ≈ 1 no fim.
- * `model` é a contribuição da extrapolação por swing.
+ * `model` é a contribuição da extrapolação do apurado (S07/Fase 2 — antes
+ * era a extrapolação por swing vs. 2022).
  */
 export interface EdgeComposition {
   pre_election: number; // [0, 1]
@@ -471,6 +560,12 @@ export interface EdgeUfCandidate {
   pct_atual: number;
   pct_projetado: number;
   ci95: EdgeCi95;
+  /**
+   * Mesmo candidato na segunda base — % sobre quem compareceu NESTA UF
+   * (S07/Fase 2, decisão E2). `pct_atual`/`pct_projetado`/`ci95` acima
+   * seguem na base `votaveis`. Ver `EdgeBaseComparecimento`.
+   */
+  comparecimento?: EdgeBaseComparecimento;
 }
 
 /**
@@ -643,6 +738,16 @@ export interface EdgePayloadUf {
    */
   mesorregioes?: EdgeMesorregiao[];
   /**
+   * @deprecated S07/Fase 2 — o K-1 3-tier (ADR-0015) existia porque a
+   * projeção usava 2022 como âncora e precisava de um plano B quando o
+   * histórico da zona faltava. Com a projeção extrapolada do apurado
+   * (regra de três por zona), o fallback deixa de ter função: UF sem urna
+   * usa a proporção nacional e se declara via
+   * `participacao.metodo.tipo === "imputado_nacional"`. A coluna
+   * `projections.model_fallback_tier` permanece no schema (sem migration) e
+   * o campo segue aqui só para não quebrar payloads já gravados — novos
+   * consumidores não devem lê-lo. ADR-0021 (em elaboração) formaliza.
+   *
    * K-1 3-tier fallback (ADR-0015 / spec 002 K-1) — qual tier do bootstrap
    * histórico foi efetivamente usado para esta UF nesta rodada do modelo:
    *
