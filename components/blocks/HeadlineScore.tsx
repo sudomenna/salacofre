@@ -92,7 +92,11 @@ export interface HeadlineScoreProps {
 export function HeadlineScore({
   candidatos,
   titulo = "Apuração Presidencial 2026",
-  subtitulo = "Projeção em tempo real com base em apuração real do TSE e comparação com 2022.",
+  // S07/Fase 2: a projeção deixou de ser swing vs. 2022 e passou a ser
+  // extrapolação do que cada zona já apurou (regra de três). 2022 continua
+  // na tela como comparação descritiva (decisão E1), nunca como insumo —
+  // o subtítulo não pode mais sugerir o contrário.
+  subtitulo = "Projeção em tempo real por extrapolação da apuração real do TSE.",
   mode,
   turno = 1,
   mostrarRanks = [1, 2],

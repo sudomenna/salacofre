@@ -7,7 +7,7 @@
  *
  * Renderiza, de forma puramente presentacional, a composição do forecast em
  * dois eixos:
- *   - Modelo:    contribuição do swing histórico / bootstrap (= 100 - pctApurado)
+ *   - Modelo:    contribuição da extrapolação do apurado / bootstrap (= 100 - pctApurado)
  *   - Apuração:  contribuição dos dados reais do TSE no momento (= pctApurado)
  *
  * Antes de qualquer apuração: barra Modelo cheia (100%) e Apuração zerada.

@@ -95,8 +95,15 @@ export function generateInsights(ctx: InsightContext): string[] {
   }
 
   // Maior swing absoluto
+  // `swing_vs_2022` aceita null desde S07/Fase 2 (UF sem número de 2022 para
+  // comparar). Uma UF sem comparação não pode gerar a frase "movimento
+  // expressivo" — sai do ranking em vez de virar 0 e competir como se
+  // tivesse ficado estável.
   if (por_uf.length > 0 && lines.length < 3) {
-    const ufMaxSwing = [...por_uf].sort(
+    const comSwing = por_uf.filter(
+      (u): u is (typeof por_uf)[number] & { swing_vs_2022: number } => u.swing_vs_2022 !== null,
+    );
+    const ufMaxSwing = [...comSwing].sort(
       (x, y) => Math.abs(y.swing_vs_2022) - Math.abs(x.swing_vs_2022),
     )[0];
     if (ufMaxSwing && Math.abs(ufMaxSwing.swing_vs_2022) >= 4) {

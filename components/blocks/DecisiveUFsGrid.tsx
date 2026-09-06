@@ -163,7 +163,10 @@ export function DecisiveUFsGrid({
                   className="mt-2 text-xs tabular-nums"
                   style={{ color: "var(--color-text-muted)" }}
                 >
-                  Swing vs 2022: {formatPp(row.swing_vs_2022)}
+                  {/* null desde S07/Fase 2 = não houve número em 2022 para
+                      comparar. "—" é o único texto honesto: 0 leria como
+                      "não mudou nada". */}
+                  Swing vs 2022: {row.swing_vs_2022 === null ? "—" : formatPp(row.swing_vs_2022)}
                 </div>
               </a>
             </li>

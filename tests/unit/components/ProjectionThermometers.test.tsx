@@ -6,6 +6,12 @@
  * termômetros do 1º turno (S07/Fase 2). Cobre ordem canônica, denominador
  * misto, fallback de "Outros" e a regra ADR-0017 (camadas nunca somem do
  * DOM, viram "aguardando projeção").
+ *
+ * S07/Fase 2 (extrapolação do apurado) acrescenta:
+ *   - `base="comparecimento"` — segunda base (E2). Sem o bloco
+ *     `comparecimento` no payload o termômetro fica em "aguardando"; nunca
+ *     reexibe o número de `votaveis` sob o rótulo do comparecimento.
+ *   - rótulo de origem RF-062 lido de `participacao.metodo`.
  */
 
 import { renderToStaticMarkup } from "react-dom/server";
@@ -80,6 +86,28 @@ const participacaoCompleta: EdgeParticipacao = {
     n_candidatos: 8,
   },
   metodo: { tipo: "extrapolacao_apurado", n_zonas: 1234, pct_apurado: 23.4 },
+};
+
+/**
+ * Mesmos 11 candidatos, mas com a segunda base (`comparecimento`) nos três
+ * primeiros — como o orchestrator passa a emitir na S07/Fase 2. Os números
+ * são menores porque o denominador (`e.c`) é maior que `v.vvc`.
+ */
+function onzeCandidatosComComparecimento(): EdgeCandidate[] {
+  const comp = [
+    { pct_atual: 32.4, pct_projetado: 33.0, lower: 31.8, upper: 34.2 },
+    { pct_atual: 28.6, pct_projetado: 29.0, lower: 27.9, upper: 30.1 },
+    { pct_atual: 3.3, pct_projetado: 3.4, lower: 2.9, upper: 3.9 },
+  ];
+  return onzeCandidatos().map((c, i) => (i < comp.length ? { ...c, comparecimento: comp[i] } : c));
+}
+
+const participacaoComComparecimento: EdgeParticipacao = {
+  ...participacaoCompleta,
+  outros: {
+    ...(participacaoCompleta.outros as NonNullable<EdgeParticipacao["outros"]>),
+    comparecimento: { pct_atual: 7.0, pct_projetado: 7.1, lower: 6.4, upper: 7.9 },
+  },
 };
 
 function titulos(doc: Document): string[] {
@@ -213,5 +241,153 @@ describe("<ProjectionThermometers />", () => {
     const headingId = section?.getAttribute("aria-labelledby") ?? "";
     expect(headingId).not.toBe("");
     expect(doc.getElementById(headingId)?.textContent).toBe("Projeção do 1º turno");
+  });
+
+  // --- S07/Fase 2 — segunda base (E2) --------------------------------------
+
+  it("(g) base='comparecimento' com o campo no payload troca os 4 primeiros meters e a legenda", () => {
+    const doc = parse(
+      <ProjectionThermometers
+        candidatos={onzeCandidatosComComparecimento()}
+        participacao={participacaoComComparecimento}
+        base="comparecimento"
+      />,
+    );
+
+    // Os 6 meters continuam; nenhum dos 4 primeiros em "aguardando".
+    expect(doc.querySelectorAll('[role="meter"]').length).toBe(6);
+    expect(doc.querySelectorAll('[data-estado="aguardando"]').length).toBe(0);
+
+    // Números da 2ª base, não da 1ª.
+    const lider = doc.querySelector("#termometro-cand-1001");
+    expect(lider?.getAttribute("data-base")).toBe("comparecimento");
+    expect(lider?.textContent ?? "").toContain("33,0%");
+    expect(lider?.textContent ?? "").not.toContain("43,2%");
+    expect(lider?.textContent ?? "").toContain("IC95 [31,8; 34,2]");
+    expect(lider?.textContent ?? "").toContain("apurado 32,4%");
+    expect(lider?.textContent ?? "").toContain("% do comparecimento");
+
+    // "Outros" também vem da 2ª base.
+    const outros = doc.querySelector("#termometro-outros");
+    expect(outros?.getAttribute("data-base")).toBe("comparecimento");
+    expect(outros?.textContent ?? "").toContain("7,1%");
+
+    // Escala comum recalculada sobre a base ativa: ceil((34,2 + 5)/10)*10 = 40
+    // (contra 50 na base votáveis do mesmo payload).
+    const valuemax = Array.from(doc.querySelectorAll('[role="meter"]')).map((m) =>
+      m.getAttribute("aria-valuemax"),
+    );
+    expect(valuemax).toEqual(["40", "40", "40", "40", "100", "100"]);
+
+    // Legenda da 2ª base: soma fecha, com o resíduo declarado.
+    const texto = doc.body.textContent ?? "";
+    expect(texto).toContain("somam 100% de quem compareceu");
+    expect(texto).toContain("resíduo: anulados e sub judice");
+    expect(texto).not.toContain("não somam 100");
+
+    // Brancos/nulos e abstenção mantêm base própria.
+    expect(doc.querySelector("#termometro-brancos-nulos")?.getAttribute("data-base")).toBe(
+      "comparecimento",
+    );
+    expect(doc.querySelector("#termometro-abstencao")?.getAttribute("data-base")).toBe(
+      "eleitores_instalados",
+    );
+  });
+
+  it("(h) base='comparecimento' SEM o campo → 4 primeiros em 'aguardando', nunca a base errada", () => {
+    const doc = parse(
+      <ProjectionThermometers
+        candidatos={onzeCandidatos()}
+        participacao={participacaoCompleta}
+        base="comparecimento"
+      />,
+    );
+
+    // ADR-0017: nada some do DOM.
+    expect(doc.querySelectorAll('[role="meter"]').length).toBe(6);
+
+    const aguardando = doc.querySelectorAll('[data-estado="aguardando"]');
+    expect(aguardando.length).toBe(4);
+    for (const id of [
+      "#termometro-cand-1001",
+      "#termometro-cand-1002",
+      "#termometro-cand-1003",
+      "#termometro-outros",
+    ]) {
+      expect(doc.querySelector(id)?.getAttribute("data-estado")).toBe("aguardando");
+    }
+
+    // O número da base `votaveis` NÃO pode vazar sob o rótulo do comparecimento.
+    const texto = doc.body.textContent ?? "";
+    expect(texto).not.toContain("43,2%");
+    expect(texto).not.toContain("9,3%");
+    expect(doc.querySelector("#termometro-cand-1001")?.textContent ?? "").toContain(
+      "aguardando projeção",
+    );
+
+    // Participação (base própria) segue projetada.
+    expect(doc.querySelector("#termometro-brancos-nulos")?.getAttribute("data-estado")).toBe(
+      "projetado",
+    );
+    expect(doc.querySelector("#termometro-abstencao")?.getAttribute("data-estado")).toBe(
+      "projetado",
+    );
+  });
+
+  it("(i) base default continua 'votaveis' (a tela abre na 1ª base — E2b)", () => {
+    const doc = parse(
+      <ProjectionThermometers
+        candidatos={onzeCandidatosComComparecimento()}
+        participacao={participacaoComComparecimento}
+      />,
+    );
+    const lider = doc.querySelector("#termometro-cand-1001");
+    expect(lider?.getAttribute("data-base")).toBe("votaveis");
+    expect(lider?.textContent ?? "").toContain("43,2%");
+    expect(doc.body.textContent ?? "").toContain("não somam 100");
+  });
+
+  // --- S07/Fase 2 — rótulo de origem (RF-062) ------------------------------
+
+  it("(j) RF-062: metodo 'extrapolacao_apurado' → origem com zonas e % apurado", () => {
+    const doc = parse(
+      <ProjectionThermometers candidatos={onzeCandidatos()} participacao={participacaoCompleta} />,
+    );
+    const origem = doc.querySelector('[data-testid="projecao-origem"]');
+    expect(origem?.getAttribute("data-metodo")).toBe("extrapolacao_apurado");
+    expect(origem?.textContent).toBe("Projeção a partir do apurado · 1.234 zonas · 23,4% apurado");
+  });
+
+  it("(k) RF-062: metodo 'imputado_nacional' → aviso de projeção provisória", () => {
+    const participacao: EdgeParticipacao = {
+      ...participacaoCompleta,
+      metodo: { tipo: "imputado_nacional", n_zonas: 0, pct_apurado: 0, n_zonas_imputadas: 42 },
+    };
+    const doc = parse(
+      <ProjectionThermometers candidatos={onzeCandidatos()} participacao={participacao} />,
+    );
+    const origem = doc.querySelector('[data-testid="projecao-origem"]');
+    expect(origem?.getAttribute("data-metodo")).toBe("imputado_nacional");
+    expect(origem?.textContent).toContain("proporção nacional");
+    expect(origem?.textContent).toContain("sem urna desta UF ainda");
+  });
+
+  it("(l) RF-062: sem `metodo` → 'Aguardando primeira apuração' (inclusive participacao-only)", () => {
+    const semMetodo = parse(<ProjectionThermometers candidatos={onzeCandidatos()} />);
+    const origem = semMetodo.querySelector('[data-testid="projecao-origem"]');
+    expect(origem?.getAttribute("data-metodo")).toBe("aguardando");
+    expect(origem?.textContent).toBe("Aguardando primeira apuração");
+
+    // O rótulo vale para os dois variants (4 rotas).
+    const soParticipacao = parse(
+      <ProjectionThermometers
+        candidatos={onzeCandidatos()}
+        participacao={participacaoCompleta}
+        variant="participacao-only"
+      />,
+    );
+    expect(soParticipacao.querySelector('[data-testid="projecao-origem"]')?.textContent).toBe(
+      "Projeção a partir do apurado · 1.234 zonas · 23,4% apurado",
+    );
   });
 });

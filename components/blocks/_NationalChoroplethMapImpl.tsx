@@ -111,7 +111,10 @@ function resolveColor(
     case "margin":
       return marginToColor(row.margem_projetada, rank);
     case "swing":
-      return swingToColor(row.swing_vs_2022);
+      // `swing_vs_2022` aceita null desde S07/Fase 2 (UF/candidato sem
+      // número em 2022). Sem comparação, a UF fica na cor neutra do meio da
+      // rampa — que é exatamente `swingToColor(0)`.
+      return swingToColor(row.swing_vs_2022 ?? 0);
     case "turnout":
       return turnoutToColor(row.pct_apurado, rank);
   }
@@ -361,11 +364,15 @@ export function NationalChoroplethMapImpl({
             {tooltip.row.margem_projetada.toFixed(1)}pp
           </div>
           <div>
-            Swing 2022: {tooltip.row.swing_vs_2022 >= 0 ? "+" : ""}
-            {tooltip.row.swing_vs_2022.toFixed(1)}pp
+            Swing 2022:{" "}
+            {tooltip.row.swing_vs_2022 === null
+              ? " —"
+              : `${tooltip.row.swing_vs_2022 >= 0 ? "+" : ""}${tooltip.row.swing_vs_2022.toFixed(1)}pp`}
           </div>
           {tooltip.row.chamada && (
-            <div style={{ color: "var(--color-success)", marginTop: 4, fontWeight: 500 }}>
+            // -strong: cor de texto exige 4.5:1 — --color-success falha
+            // (4.14:1 sobre --color-bg). Achado a11y-perf-auditor 2026-09-05.
+            <div style={{ color: "var(--color-success-strong)", marginTop: 4, fontWeight: 500 }}>
               Chamada
             </div>
           )}

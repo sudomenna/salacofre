@@ -21,6 +21,24 @@
  * `docs/reference/tse-2026-leiautes.md` — `pvap` é % sobre votos a
  * **votáveis concorrentes**, não sobre válidos puros).
  *
+ * Duas bases (S07/Fase 2, decisão E2)
+ *   `base="votaveis"` (default) lê `pct_projetado`/`ci95` do candidato;
+ *   `base="comparecimento"` lê o bloco opcional `candidato.comparecimento`
+ *   (e `participacao.outros.comparecimento`). O numerador é o mesmo nos dois
+ *   casos — só o denominador muda. Quando o payload não traz o bloco da
+ *   segunda base, o termômetro entra em **"aguardando projeção"**: exibir o
+ *   número de `votaveis` sob o rótulo "% do comparecimento" seria mostrar um
+ *   valor de outro universo com o rótulo errado, pior que não mostrar nada.
+ *   O botão que alterna a base (`?base=`) chega na Fase 5 — até lá todos os
+ *   callers usam o default e nada muda na tela.
+ *
+ * Rótulo de origem (RF-062)
+ *   Linha única sob o `<h2>`, lida de `participacao.metodo`: diz que o número
+ *   é **projeção a partir do apurado** (nunca resultado oficial, nunca
+ *   "baseado em 2022"), com quantas zonas entraram e quanto já apurou. Quando
+ *   a UF ainda não tem urna nenhuma, o texto avisa que a projeção é
+ *   provisória e vem da proporção nacional (`metodo.tipo`).
+ *
  * Transparência (ADR-0017): brancos/nulos e abstenção ficam SEMPRE no DOM.
  * Quando o modelo ainda não emitiu a métrica, o termômetro aparece em
  * estado "aguardando projeção" — nunca é escondido.
@@ -43,22 +61,47 @@ import type {
   EdgeUfCandidate,
 } from "@/lib/edge-config/types";
 import { bandForRank, colorForRank } from "@/lib/utils/cand-color";
+import { formatPercent } from "@/lib/utils/format";
 import { denominadorLabel, outrosCount, outrosFallback } from "@/lib/utils/participacao";
 
 const HEADING_ID = "projecao-termometros-heading";
+const ORIGEM_ID = "projecao-termometros-origem";
 
 /** Candidato nacional (`pct_projetado_lower/upper`) ou de UF (`ci95`). */
 type AnyCand = EdgeCandidate | EdgeUfCandidate;
+
+/**
+ * Base exibível pelo bloco. Subconjunto de `ParticipacaoBase`:
+ * `eleitores_instalados` é base exclusiva da abstenção, nunca de candidato.
+ */
+export type ProjectionBase = "votaveis" | "comparecimento";
 
 export interface ProjectionThermometersProps {
   /** Candidatos já ordenados por `pct_projetado` desc (rank 1 primeiro). */
   candidatos: EdgeCandidate[] | EdgeUfCandidate[];
   /** Bloco `participacao` do payload — opcional; ausência degrada, não quebra. */
   participacao?: EdgeParticipacao | null;
+  /**
+   * Denominador dos 4 primeiros termômetros (candidatos + Outros).
+   * Default `"votaveis"` — a tela abre nessa base (decisão E2b). Brancos/
+   * nulos e abstenção têm base fixa e não são afetados.
+   */
+  base?: ProjectionBase;
   variant?: "full" | "participacao-only";
   heading?: string;
   className?: string;
 }
+
+/**
+ * Métrica já resolvida na base ativa. `null` significa "o payload não trouxe
+ * esta base para este item" → termômetro em "aguardando projeção".
+ */
+type BaseMetric = {
+  pct: number;
+  lower: number;
+  upper: number;
+  atual: number | null;
+} | null;
 
 /**
  * Resolve o IC95 dos dois shapes de candidato do payload:
@@ -71,44 +114,139 @@ function ciOf(c: AnyCand): { lower: number; upper: number } {
   return { lower: c.pct_projetado_lower, upper: c.pct_projetado_upper };
 }
 
+/**
+ * Métrica do candidato na base pedida. Em `comparecimento` NÃO há fallback
+ * para `votaveis`: sem o bloco `comparecimento` no payload devolvemos `null`
+ * e o chamador renderiza "aguardando" (ver cabeçalho do arquivo).
+ */
+function metricOf(c: AnyCand, base: ProjectionBase): BaseMetric {
+  if (base === "comparecimento") {
+    const m = c.comparecimento;
+    if (!m) return null;
+    return {
+      pct: m.pct_projetado,
+      lower: m.lower,
+      upper: m.upper,
+      atual: m.pct_atual !== null && Number.isFinite(m.pct_atual) ? m.pct_atual : null,
+    };
+  }
+  const ci = ciOf(c);
+  return {
+    pct: c.pct_projetado,
+    lower: ci.lower,
+    upper: ci.upper,
+    atual: Number.isFinite(c.pct_atual) ? c.pct_atual : null,
+  };
+}
+
 /** Rank do payload; fallback para a posição no array (já ordenado). */
 function rankOf(c: AnyCand, index: number): number {
   return "rank" in c && Number.isFinite(c.rank) ? c.rank : index + 1;
 }
 
+/**
+ * Rótulo de origem do número (RF-062) — sempre presente, nas 4 rotas e nos
+ * dois variants. Determinístico: só depende de `participacao.metodo`.
+ */
+function origemLabel(metodo: EdgeParticipacao["metodo"]): string {
+  if (!metodo) return "Aguardando primeira apuração";
+  if (metodo.tipo === "imputado_nacional") {
+    return "Projeção provisória a partir da proporção nacional — sem urna desta UF ainda";
+  }
+  const zonas = Number.isFinite(metodo.n_zonas) ? metodo.n_zonas.toLocaleString("pt-BR") : "—";
+  const apurado = Number.isFinite(metodo.pct_apurado) ? formatPercent(metodo.pct_apurado, 1) : "—";
+  return `Projeção a partir do apurado · ${zonas} zonas · ${apurado} apurado`;
+}
+
 export function ProjectionThermometers({
   candidatos,
   participacao,
+  base = "votaveis",
   variant = "full",
   heading = "Projeção do 1º turno",
   className,
 }: ProjectionThermometersProps) {
   const soCandidatos = variant !== "participacao-only";
   const top3: AnyCand[] = soCandidatos ? candidatos.slice(0, 3) : [];
+  const top3Metrics = top3.map((c) => metricOf(c, base));
 
   // "Outros": preferimos o agregado do modelo (tem IC derivado do mesmo
   // bootstrap dos candidatos). Sem ele, resto aritmético 100 − Σtop3, sem
   // faixa e com nota — mesmo padrão de `<GovernorCard />`.
+  //
+  // O resto aritmético só existe na base `votaveis`: em `comparecimento`
+  // não dá para derivar "Outros" de 100 − Σtop3 (a soma dessa base fecha em
+  // 100 menos brancos, nulos e o resíduo de anulados/sub judice), então sem
+  // o campo no payload o termômetro fica em "aguardando".
   const outrosMetric = participacao?.outros;
-  const outrosPct = outrosMetric?.pct_projetado ?? outrosFallback(candidatos);
-  const outrosLower = outrosMetric?.lower ?? outrosPct;
-  const outrosUpper = outrosMetric?.upper ?? outrosPct;
   const outrosN = outrosMetric?.n_candidatos ?? outrosCount(candidatos);
+  const outros: BaseMetric =
+    base === "comparecimento"
+      ? outrosMetric?.comparecimento
+        ? {
+            pct: outrosMetric.comparecimento.pct_projetado,
+            lower: outrosMetric.comparecimento.lower,
+            upper: outrosMetric.comparecimento.upper,
+            atual: outrosMetric.comparecimento.pct_atual,
+          }
+        : null
+      : (() => {
+          const pct = outrosMetric?.pct_projetado ?? outrosFallback(candidatos);
+          return {
+            pct,
+            lower: outrosMetric?.lower ?? pct,
+            upper: outrosMetric?.upper ?? pct,
+            atual: outrosMetric?.pct_atual ?? null,
+          };
+        })();
+  const outrosPct = outros?.pct ?? 0;
+  // Copy contraditória (achado a11y-perf-auditor 2026-09-05): em
+  // `/uf/SP/governador`, `candidatos` trazia só os 3 do payload (nenhum
+  // "outro" listado, `outrosN = candidatos.length − 3 = 0`) mas o resto
+  // aritmético `100 − Σtop3` ainda dava 10,3% — porque `votaveis` (pvap do
+  // TSE) inclui anulados + sub judice, que ficam no denominador sem
+  // pertencer a candidato nenhum. "Outros · 0 candidatos" ao lado de
+  // "10,3%" lia como contradição. Quando o resto é não-trivial mas não há
+  // nenhum candidato adicional conhecido, a nota correta é "resíduo" —
+  // nunca afirmar "0 candidatos" ao lado de um número positivo.
+  const outrosResiduoSemCandidato = outrosN === 0 && outrosPct > 0.05;
   const outrosSubtitulo = outrosMetric
     ? `${outrosN} candidatos`
-    : `${outrosN} candidatos · IC indisponível`;
+    : outros === null
+      ? undefined
+      : outrosResiduoSemCandidato
+        ? "resíduo do total (anulados/sub judice) · IC indisponível"
+        : `${outrosN} candidatos · IC indisponível`;
 
   // Escala comum aos 4 primeiros termômetros: barras de 5% ficariam
   // invisíveis ao lado de barras de 40% numa escala fixa de 0–100.
+  // Calculada sobre a base ATIVA — em `comparecimento` os percentuais são
+  // menores (denominador maior) e uma escala herdada de `votaveis` deixaria
+  // todas as barras encolhidas. Termômetros em "aguardando" não contribuem.
   const uppers = soCandidatos
-    ? [...top3.map((c) => ciOf(c).upper), outrosUpper].filter((v) => Number.isFinite(v))
+    ? [...top3Metrics, outros]
+        .map((m) => m?.upper)
+        .filter((v): v is number => typeof v === "number" && Number.isFinite(v))
     : [];
-  const maxUpper = uppers.length > 0 ? Math.max(...uppers) : 0;
-  const scaleMax = Math.min(100, Math.ceil((maxUpper + 5) / 10) * 10);
+  const scaleMax =
+    uppers.length > 0 ? Math.min(100, Math.ceil((Math.max(...uppers) + 5) / 10) * 10) : 100;
+
+  const origem = origemLabel(participacao?.metodo);
+
+  // `participacao-only` só renderiza 2 termômetros (brancos/nulos +
+  // abstenção): numa grid de 3 colunas sobrava uma coluna vazia em
+  // `/governador` (achado a11y-perf-auditor 2026-09-05). 2 colunas no
+  // desktop preenche a linha sem deixar buraco; `full` mantém 3 (6 itens =
+  // 2 linhas cheias).
+  const gridColsClass = soCandidatos ? "md:grid-cols-3" : "md:grid-cols-2";
 
   return (
     <section
       aria-labelledby={HEADING_ID}
+      // A origem do número faz parte do que o bloco significa (RF-062 /
+      // constituição § 8): quem navega por landmarks tem que ouvir "projeção
+      // a partir do apurado" junto com o título, não só quem lê a linha.
+      aria-describedby={ORIGEM_ID}
       data-variant={variant}
       className={["flex flex-col gap-4", className].filter(Boolean).join(" ")}
     >
@@ -120,26 +258,40 @@ export function ProjectionThermometers({
         {heading}
       </h2>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+      {/* Origem do número (RF-062): a projeção é extrapolada do que já foi
+          apurado — nunca resultado oficial, nunca "baseado em 2022". Linha
+          única, presente nas 4 rotas e nos dois variants. */}
+      <p
+        id={ORIGEM_ID}
+        data-testid="projecao-origem"
+        data-metodo={participacao?.metodo?.tipo ?? "aguardando"}
+        className="text-xs"
+        style={{ color: "var(--color-text-muted)" }}
+      >
+        {origem}
+      </p>
+
+      <div className={`grid grid-cols-1 gap-6 ${gridColsClass}`}>
         {top3.map((c, i) => {
           const rank = rankOf(c, i);
-          const ci = ciOf(c);
+          const m = top3Metrics[i] ?? null;
           return (
             <ProjectionThermometer
               key={c.id}
               id={`termometro-cand-${c.id}`}
               titulo={c.nome}
               subtitulo={c.partido}
-              base="votaveis"
+              base={base}
               cor={c.cor ?? colorForRank(rank)}
               corBand={bandForRank(rank)}
               rank={rank}
-              pctProjetado={c.pct_projetado}
-              pctLower={ci.lower}
-              pctUpper={ci.upper}
-              pctAtual={Number.isFinite(c.pct_atual) ? c.pct_atual : null}
+              pctProjetado={m?.pct ?? 0}
+              pctLower={m?.lower ?? 0}
+              pctUpper={m?.upper ?? 0}
+              pctAtual={m?.atual ?? null}
               scaleMax={scaleMax}
               size={rank === 1 ? "hero" : "compact"}
+              aguardando={m === null}
             />
           );
         })}
@@ -149,14 +301,15 @@ export function ProjectionThermometers({
             id="termometro-outros"
             titulo="Outros candidatos"
             subtitulo={outrosSubtitulo}
-            base="votaveis"
+            base={base}
             cor="var(--color-cand-other)"
             corBand="var(--color-cand-band-other)"
-            pctProjetado={outrosPct}
-            pctLower={outrosLower}
-            pctUpper={outrosUpper}
-            pctAtual={outrosMetric?.pct_atual ?? null}
+            pctProjetado={outros?.pct ?? 0}
+            pctLower={outros?.lower ?? 0}
+            pctUpper={outros?.upper ?? 0}
+            pctAtual={outros?.atual ?? null}
             scaleMax={scaleMax}
+            aguardando={outros === null}
           />
         )}
 
@@ -179,12 +332,35 @@ export function ProjectionThermometers({
         />
       </div>
 
-      <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-        Denominadores diferentes — os seis números não somam 100. {denominadorLabel("votaveis")}{" "}
-        (candidatos e Outros: válidos + anulados + sub judice, conforme o TSE) ·{" "}
-        {denominadorLabel("comparecimento")} (brancos e nulos) ·{" "}
-        {denominadorLabel("eleitores_instalados")} (abstenção).
-      </p>
+      {/* Legenda do denominador — condicional ao variant. Antes desta
+          correção (achado a11y-perf-auditor 2026-09-05), `/governador`
+          (variant="participacao-only") herdava a legenda de `full` inteira,
+          citando "votos a votáveis" e "candidatos e Outros" numa tela que
+          não tem nenhum candidato nem termômetro de Outros — categoria
+          inexistente na tela confundia o leitor. */}
+      {soCandidatos && base === "comparecimento" ? (
+        // Na base do comparecimento a soma FECHA (é o mesmo universo), mas
+        // não em 100 exatos: o EA20 põe anulados e sub judice dentro de `c`
+        // sem que pertençam a candidato, branco ou nulo. Declaramos o
+        // resíduo em vez de arredondar a identidade para "somam 100".
+        <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+          Candidatos, Outros, brancos e nulos somam 100% de quem compareceu (resíduo: anulados e sub
+          judice). Abstenção tem base própria — {denominadorLabel("eleitores_instalados")}.
+        </p>
+      ) : soCandidatos ? (
+        <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+          Denominadores diferentes — os seis números não somam 100. {denominadorLabel("votaveis")}{" "}
+          (candidatos e Outros: válidos + anulados + sub judice, conforme o TSE) ·{" "}
+          {denominadorLabel("comparecimento")} (brancos e nulos) ·{" "}
+          {denominadorLabel("eleitores_instalados")} (abstenção).
+        </p>
+      ) : (
+        <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+          Denominadores diferentes — os dois números abaixo não são comparáveis entre si.{" "}
+          {denominadorLabel("comparecimento")} (brancos e nulos) ·{" "}
+          {denominadorLabel("eleitores_instalados")} (abstenção).
+        </p>
+      )}
     </section>
   );
 }

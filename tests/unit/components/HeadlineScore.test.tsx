@@ -181,4 +181,25 @@ describe("<HeadlineScore />", () => {
     expect(doc.body.textContent).toContain("Apuração Presidencial");
     expect(doc.body.textContent).toContain("50%+1");
   });
+
+  it("(n) `votos_projetados` > 0 aparece formatado em pt-BR nos dois modos", () => {
+    // Até S07/Fase 2 o payload nacional chegava com `votos_projetados: 0`
+    // hardcoded — a barra imprimia "0 votos". Com a extrapolação do apurado
+    // o número passa a ser real (Σ zona → UF → BR); o componente já
+    // formatava, então o teste trava o contrato de exibição.
+    const binary = parse(<HeadlineScore candidatos={[lula, bolso]} mode="binary" />);
+    expect(binary.body.textContent).toContain("79.812.408 votos");
+    expect(binary.body.textContent).toContain("70.140.992 votos");
+
+    const multi = parse(<HeadlineScore candidatos={[lula, bolso]} mode="multi-1t" turno={1} />);
+    expect(multi.body.textContent).toContain("79.812.408 votos");
+  });
+
+  it("(o) subtítulo default descreve extrapolação do apurado, não comparação com 2022", () => {
+    // S07/Fase 2: 2022 saiu da projeção (vira comparação descritiva — E1).
+    const doc = parse(<HeadlineScore candidatos={[lula, bolso]} />);
+    const texto = doc.body.textContent ?? "";
+    expect(texto).toContain("extrapolação da apuração real do TSE");
+    expect(texto).not.toContain("comparação com 2022");
+  });
 });

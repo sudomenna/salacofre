@@ -3,8 +3,10 @@
  *
  * Termômetro de projeção — um trilho horizontal com:
  *   - faixa (IC95) `lower → upper` em cor clara (`corBand`);
- *   - tick fino no ponto projetado (`cor`);
- *   - marcador losango do "apurado agora" (glyph distinto da faixa);
+ *   - tick fino no ponto projetado (`cor`), com halo claro para não se
+ *     fundir visualmente com a faixa quando as duas cores são análogas;
+ *   - marcador losango do "apurado agora" (glyph distinto da faixa) numa
+ *     **faixa própria abaixo do trilho** (nunca dentro dele);
  *   - cabeçalho (título serif + número grande) e rodapé com IC95, apurado
  *     e o **denominador rotulado**.
  *
@@ -12,6 +14,26 @@
  * (votos a votáveis, comparecimento, eleitores das seções instaladas) na
  * mesma tela. Sem rótulo por termômetro, o leitor somaria percentuais de
  * universos diferentes. Ver `lib/utils/participacao.ts`.
+ *
+ * Colisão faixa+tick+marcador em ~375px (achado a11y-perf-auditor 2026-09-05)
+ *   Quando projetado e apurado diferem por <1pp, faixa (band), tick e o
+ *   losango do apurado desenhavam TODOS dentro do mesmo trilho de ~14px de
+ *   altura, centrados na mesma posição — medido em produção local: banda
+ *   ~18,6px, tick 2px, losango (bounding box rotacionado) ~11,3px, tudo
+ *   dentro de uma janela de ~19px de largura total. O resultado era um
+ *   blob indistinguível, e a diferença cor-tick-vs-cor-banda mede ~3,19:1
+ *   (limite de WCAG 1.4.11 não-texto), frágil demais para carregar sozinha
+ *   a distinção visual.
+ *
+ *   Correção: o losango do apurado sai do trilho e passa a viver numa
+ *   segunda faixa (linha) abaixo dele — nunca compete pelo mesmo espaço
+ *   vertical que a faixa/tick, então mesmo quando os valores X coincidem,
+ *   as duas marcas continuam-se lendo como formas distintas em posições
+ *   distintas (não dependente só de cor, WCAG 1.4.1). O tick ganha um halo
+ *   (`box-shadow` na cor de fundo) para não se perder dentro da faixa.
+ *   Faixas patologicamente estreitas (IC < ~2% da escala) recebem uma
+ *   largura mínima em px via `calc()`, recentrada no ponto médio real do
+ *   IC — só ativa abaixo do limiar, então não altera o layout comum.
  *
  * Server Component puro — sem `"use client"`, sem state, sem hooks e sem
  * `framer-motion` (RNF-007a: este bloco é above-the-fold). Qualquer
@@ -129,8 +151,20 @@ export function ProjectionThermometer({
 
   const bandLeft = pos(loRaw, escala);
   const bandWidth = Math.max(0, pos(hiRaw, escala) - bandLeft);
+  const bandCenter = pos((loRaw + hiRaw) / 2, escala);
   const tickLeft = pos(projetado, escala);
   const atualLeft = atual === null ? 0 : pos(atual, escala);
+
+  // Largura mínima defensiva para faixas patologicamente estreitas (IC muito
+  // apertado). Só ativa abaixo do limiar — o caso comum (band ≥ 2% da
+  // escala) preserva o `left`/`width` exatos de sempre. Recentra em
+  // `bandCenter` para não puxar a faixa visualmente para um dos lados.
+  const MIN_BAND_PCT = 2;
+  const bandNeedsMinWidth = bandWidth > 0 && bandWidth < MIN_BAND_PCT;
+  const bandLeftCss = bandNeedsMinWidth
+    ? `calc(${bandCenter}% - max(${(bandWidth / 2).toFixed(4)}%, 3px))`
+    : `${bandLeft}%`;
+  const bandWidthCss = bandNeedsMinWidth ? `max(${bandWidth}%, 6px)` : `${bandWidth}%`;
 
   const frase = denominadorFrase(base);
   const label = denominadorLabel(base);
@@ -205,36 +239,55 @@ export function ProjectionThermometer({
                 aria-hidden="true"
                 className="absolute inset-y-0 block"
                 style={{
-                  left: `${bandLeft}%`,
-                  width: `${bandWidth}%`,
+                  left: bandLeftCss,
+                  width: bandWidthCss,
                   backgroundColor: corBandResolvida,
                 }}
                 data-testid="thermometer-band"
               />
             )}
-            {/* Tick do ponto projetado */}
+            {/* Tick do ponto projetado. Halo na cor de fundo evita que o tick
+                se funda com a faixa quando as duas cores são análogas (banda
+                clara + tick forte do mesmo matiz medem ~3,19:1 — perto do
+                piso de WCAG 1.4.11 para objetos gráficos). */}
             <span
               aria-hidden="true"
               className="absolute inset-y-0 block w-0.5 -translate-x-1/2"
-              style={{ left: `${tickLeft}%`, backgroundColor: corResolvida }}
+              style={{
+                left: `${tickLeft}%`,
+                backgroundColor: corResolvida,
+                boxShadow: "0 0 0 1px var(--color-bg)",
+              }}
               data-testid="thermometer-tick"
             />
-            {/* Marcador do apurado — losango com borda, distinto da faixa */}
-            {atual !== null && (
-              <span
-                aria-hidden="true"
-                className="absolute top-1/2 block h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 border"
-                style={{
-                  left: `${atualLeft}%`,
-                  backgroundColor: "var(--color-bg)",
-                  borderColor: "var(--color-text)",
-                }}
-                data-testid="thermometer-apurado"
-              />
-            )}
           </>
         )}
       </div>
+
+      {/* Marcador do apurado — losango numa faixa própria ABAIXO do trilho
+          (nunca dentro dele). Antes competia pelo mesmo espaço vertical que
+          a faixa/tick: quando projetado e apurado diferiam por <1pp, os três
+          elementos colapsavam num blob de ~19px em telas de 375px (medido).
+          Separar verticalmente garante que o losango continue sendo uma
+          forma distinta mesmo quando sua posição X coincide com o tick —
+          a distinção passa a vir de forma + posição, não só de cor. */}
+      {!aguardando && atual !== null && (
+        <div
+          aria-hidden="true"
+          className="relative h-2.5 w-full"
+          data-testid="thermometer-apurado-track"
+        >
+          <span
+            className="absolute top-0 block h-2 w-2 -translate-x-1/2 rotate-45 border"
+            style={{
+              left: `${atualLeft}%`,
+              backgroundColor: "var(--color-bg)",
+              borderColor: "var(--color-text)",
+            }}
+            data-testid="thermometer-apurado"
+          />
+        </div>
+      )}
 
       <p className="text-xs tabular-nums" style={{ color: "var(--color-text-muted)" }}>
         {aguardando ? (
