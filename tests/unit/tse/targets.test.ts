@@ -18,11 +18,11 @@
  * nunca toque o Neon real quando a granularidade é "zona" — o ponto do teste
  * é o cache/URL/env parsing, não o conteúdo da tabela `zonas`. O mock devolve
  * sempre `[]` (zero zonas); o que importa é QUANTAS VEZES `db.select` foi
- * chamado, não o resultado. Em granularidade "uf" (default), `listIngestTargets`
+ * chamado, não o resultado. Em granularidade "uf" (opt-in), `listIngestTargets`
  * NÃO toca o DB — as 27 UFs são uma lista estática.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/db", () => {
   const chain = {
@@ -268,8 +268,17 @@ describe("getActiveCargos", () => {
 // ---------------------------------------------------------------------------
 
 describe("getGranularidade", () => {
-  it('default "uf" quando TSE_GRANULARIDADE está ausente', () => {
+  // Default `zona` desde 2026-09-05 (E4): o modelo precisa de dado por zona e o
+  // modo `uf` está quebrado no modelo (peso 0 para `cod_zona = 0`). Se este teste
+  // voltar a esperar "uf", produção passa a cair num modo quebrado quando a env
+  // faltar — a mudança é deliberada, não regressão.
+  it('default "zona" quando TSE_GRANULARIDADE está ausente', () => {
     vi.stubEnv("TSE_GRANULARIDADE", "");
+    expect(getGranularidade()).toBe("zona");
+  });
+
+  it('"uf" continua aceito como opt-in explícito', () => {
+    vi.stubEnv("TSE_GRANULARIDADE", "uf");
     expect(getGranularidade()).toBe("uf");
   });
 
@@ -283,9 +292,9 @@ describe("getGranularidade", () => {
     expect(getGranularidade()).toBe("uf");
   });
 
-  it('cai no default "uf" para valor inválido', () => {
+  it('cai no default "zona" para valor inválido', () => {
     vi.stubEnv("TSE_GRANULARIDADE", "municipio");
-    expect(getGranularidade()).toBe("uf");
+    expect(getGranularidade()).toBe("zona");
   });
 });
 
@@ -293,7 +302,13 @@ describe("getGranularidade", () => {
 // listIngestTargets — granularidade "uf" (default) — NÃO toca o DB
 // ---------------------------------------------------------------------------
 
-describe("listIngestTargets — granularidade uf (default)", () => {
+describe("listIngestTargets — granularidade uf (opt-in explícito)", () => {
+  // Desde 2026-09-05 o default é "zona" (E4). Estes testes exercitam o caminho
+  // `uf` — que continua existindo como opt-in — e por isso o pedem explicitamente.
+  beforeEach(() => {
+    vi.stubEnv("TSE_GRANULARIDADE", "uf");
+  });
+
   it("produção: 27 UFs × cargos ativos + 1 BR (só cargo 1) — zero chamadas ao DB", async () => {
     vi.stubEnv("TSE_COD_ELEICAO", "ele2026/619");
     vi.stubEnv("TSE_CARGOS", "1,3");

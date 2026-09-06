@@ -57,6 +57,32 @@
 //                          estável da URL — não é aleatório por request, pra
 //                          não quebrar o teste de ETag/304 na mesma zona).
 //   --latency-ms N        (default 0). Atraso artificial antes de responder.
+//   --zonas N             (default: desligado — modo arquivo/fixture, como
+//                          antes). LIGA o modo SINTÉTICO de nível ZONA
+//                          (Fase 3, ensaio de escala pré-simulado 2026-09-05
+//                          — ver docs/operations/runbook.md § "dimensionamento
+//                          do fan-out"): qualquer (uf, zona, cargo) casado
+//                          pela regex de URL com `zona <= N` responde 200 com
+//                          um envelope EA20 REAL gerado a partir de um
+//                          template determinístico (seed = sha256(uf:zona:cargo)),
+//                          SEM precisar de um arquivo de fixture por zona —
+//                          cobre exatamente o universo (~2.600 zonas × 2
+//                          cargos) que `lib/tse/targets.ts:buildProductionTargetsZona`
+//                          materializa a partir da tabela `zonas` real do
+//                          Neon, qualquer que seja o código exato de zona.
+//                          `zona > N` → 404 (zona "não publicada"). Município
+//                          é ignorado no match (não afeta o conteúdo
+//                          sintético). Combina com --not-found-ratio e
+//                          --rate-limit-after normalmente. O conteúdo é
+//                          estável entre requisições (seed determinística +
+//                          `dg`/`hg` fixados no boot do processo) — uma 2ª
+//                          chamada idêntica cai em 304 via ETag, como no TSE
+//                          real.
+//   --cargos "1,3"        (default "1,3"; só tem efeito com --zonas). Lista
+//                          de cargos (números crus, sem zero-padding) que
+//                          recebem conteúdo sintético 200; cargos fora da
+//                          lista respondem 404 (simula rollout parcial por
+//                          cargo).
 //
 // Uso:
 //   pnpm tsx scripts/tse-mock-server.ts --port 8787
@@ -64,6 +90,7 @@
 //   curl http://localhost:8787/oficial/ele2022/544/dados/sp/sp71072-z0001-c0001-e000544-u.json
 //   curl http://localhost:8787/oficial/ele2022/544/dados/sp/sp-c0001-e000544-u.json
 //   curl http://localhost:8787/oficial/ele2022/544/dados/br/br-c0001-e000544-u.json
+//   pnpm tsx scripts/tse-mock-server.ts --port 8787 --zonas 2600 --cargos 1,3   # ensaio de escala
 //
 // Encerra com SIGINT (Ctrl+C) — imprime contagem de requisições por status.
 
@@ -93,6 +120,9 @@ const FIXTURES_2026_DIR = resolve(REPO_ROOT, "tests/fixtures/tse/2026");
 // CLI args
 // ---------------------------------------------------------------------------
 
+/** Default de `--cargos` quando `--zonas` liga o modo sintético. */
+const DEFAULT_SYNTHETIC_CARGOS = new Set([1, 3]);
+
 export interface MockServerOptions {
   port: number;
   fixturesDir: string;
@@ -102,6 +132,29 @@ export interface MockServerOptions {
   latencyMs: number;
   /** Silencia o log por-requisição (usado pelos testes). */
   quiet?: boolean;
+  /** `undefined` = modo arquivo/fixture (comportamento pré-2026-09-05, usado
+   *  pelos testes existentes). Número = modo sintético LIGADO, teto de
+   *  `codZona` aceito (zonas acima disso 404). Ver comentário `--zonas` no
+   *  cabeçalho do arquivo. */
+  syntheticZonasMax?: number;
+  /** Cargos (números crus) que recebem 200 sintético quando o modo sintético
+   *  está ligado. Ignorado em modo arquivo. */
+  syntheticCargos: Set<number>;
+}
+
+function parseCargosList(raw: string): Set<number> {
+  const result = new Set<number>();
+  for (const token of raw.split(",")) {
+    const n = Number(token.trim());
+    if (Number.isFinite(n) && n > 0) result.add(n);
+  }
+  if (result.size === 0) {
+    console.warn(
+      `[tse-mock-server] --cargos "${raw}" não produziu nenhum cargo válido — usando default 1,3.`,
+    );
+    return new Set(DEFAULT_SYNTHETIC_CARGOS);
+  }
+  return result;
 }
 
 function parseArgs(argv: string[]): MockServerOptions {
@@ -112,6 +165,8 @@ function parseArgs(argv: string[]): MockServerOptions {
     rateLimitAfter: Number.POSITIVE_INFINITY,
     notFoundRatio: 0,
     latencyMs: 0,
+    syntheticZonasMax: undefined,
+    syntheticCargos: new Set(DEFAULT_SYNTHETIC_CARGOS),
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -134,6 +189,12 @@ function parseArgs(argv: string[]): MockServerOptions {
         break;
       case "--latency-ms":
         opts.latencyMs = Number(argv[++i]);
+        break;
+      case "--zonas":
+        opts.syntheticZonasMax = Number(argv[++i]);
+        break;
+      case "--cargos":
+        opts.syntheticCargos = parseCargosList(String(argv[++i]));
         break;
       default:
         console.warn(`[tse-mock-server] flag desconhecida ignorada: ${arg}`);
@@ -232,6 +293,209 @@ function stableUnitHash(input: string): number {
   // Usa os 4 primeiros bytes como inteiro sem sinal / 2^32.
   const n = digest.readUInt32BE(0);
   return n / 0xffffffff;
+}
+
+// ---------------------------------------------------------------------------
+// Gerador sintético de envelope EA20 nível ZONA (Fase 3, ensaio de escala)
+// ---------------------------------------------------------------------------
+//
+// Template único, parametrizado por (uf, zona, cargo), com valores
+// determinísticos derivados de uma seed sha256 — a mesma URL sempre produz o
+// mesmo corpo (ETag estável entre requisições, 304 exercitável). Cobre os
+// campos que o pipeline de fato lê (client.ts/route.ts/repository.ts):
+// `dg`,`hg` (lag), `s.psa` (pctApurado), `e.c` (votosTotal), e os campos que
+// o EA20Schema exige (`s.ts/st/pst/psa`, `e.te/c`, `v.tv`) — mais
+// `carg[].agr[].par[].cand[].vap/pvap` para exercitar o parser de candidatos
+// downstream (model-validator, fora do escopo desta tarefa).
+
+/** sha256(key) → uint32, usado como seed de um PRNG determinístico. */
+function seedFromKey(key: string): number {
+  return createHash("sha256").update(key).digest().readUInt32BE(0);
+}
+
+/** mulberry32 — PRNG determinístico rápido, suficiente para dados sintéticos
+ *  (não é criptográfico; não precisa ser). */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Formata um número como percentual EA20 (vírgula decimal, 2 casas). */
+function formatPctBr(value: number): string {
+  return value.toFixed(2).replace(".", ",");
+}
+
+/** Roster fixo de candidatos por cargo (números/nomes fictícios — não usar
+ *  nomes reais de 2026 num ambiente sintético). Pesos-base para a
+ *  distribuição de votos; o PRNG perturba em torno deles por zona. */
+const SYNTHETIC_ROSTER: Record<number, Array<{ n: string; nm: string; baseWeight: number }>> = {
+  1: [
+    { n: "10", nm: "CANDIDATA SINTETICA A", baseWeight: 0.42 },
+    { n: "20", nm: "CANDIDATO SINTETICO B", baseWeight: 0.38 },
+    { n: "30", nm: "CANDIDATO SINTETICO C", baseWeight: 0.2 },
+  ],
+  3: [
+    { n: "11", nm: "CANDIDATA SINTETICA GOV A", baseWeight: 0.55 },
+    { n: "21", nm: "CANDIDATO SINTETICO GOV B", baseWeight: 0.45 },
+  ],
+};
+
+/** `dg`/`hg` fixados uma vez no boot do processo — mantém o corpo sintético
+ *  estável entre requisições (ETag estável → 304 exercitável) e ainda dá um
+ *  `tse.lag_seconds` pequeno e realista (tempo desde o boot do mock até a
+ *  chamada de ingest). Formato oficial `dd/mm/aaaa` + `HH:mm:ss`, BRT
+ *  (UTC-3, sem horário de verão — mesma premissa de `lib/tse/metrics.ts`). */
+function computeBootBrtTimestamp(): { dg: string; hg: string } {
+  const brt = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  const dd = String(brt.getUTCDate()).padStart(2, "0");
+  const mm = String(brt.getUTCMonth() + 1).padStart(2, "0");
+  const yyyy = brt.getUTCFullYear();
+  const hh = String(brt.getUTCHours()).padStart(2, "0");
+  const mi = String(brt.getUTCMinutes()).padStart(2, "0");
+  const ss = String(brt.getUTCSeconds()).padStart(2, "0");
+  return { dg: `${dd}/${mm}/${yyyy}`, hg: `${hh}:${mi}:${ss}` };
+}
+
+const BOOT_TIMESTAMP = computeBootBrtTimestamp();
+
+/**
+ * generateSyntheticZonaEnvelope — corpo EA20 determinístico para uma zona.
+ *
+ * Determinístico em (uf, zona, cargo, eleicaoSuffix): a mesma combinação
+ * sempre produz o mesmo objeto (mod `dg`/`hg`, fixados no boot do processo —
+ * ver `BOOT_TIMESTAMP`).
+ */
+function generateSyntheticZonaEnvelope(args: {
+  uf: string;
+  zona: string; // já formatado 4 dígitos, vindo da URL
+  cargo: number; // cru, sem zero-padding
+  eleicaoSuffix: string; // 6 dígitos, vindo da URL
+}): Record<string, unknown> {
+  const { uf, zona, cargo, eleicaoSuffix } = args;
+  const seedKey = `${uf}:${zona}:${cargo}`;
+  const rand = mulberry32(seedFromKey(seedKey));
+
+  // Tamanho do eleitorado da zona: 150..3.150 (faixa plausível de zona
+  // eleitoral urbana/rural — não precisa bater com `eleitorado` real do
+  // Neon para o propósito do ensaio de escala/vazão).
+  const te = 150 + Math.floor(rand() * 3000);
+  const esi = te;
+
+  // ~1 zona em cada 15 começa o ciclo com 0% apurado (exercita o caminho de
+  // apuração zero — RF-017 a jusante). Demais: 5..99%.
+  const zeroApurado = Math.floor(rand() * 15) === 0;
+  const pctApurado = zeroApurado ? 0 : 5 + rand() * 94;
+
+  const esiApurada = Math.round(esi * (pctApurado / 100));
+  const turnoutRate = 0.75 + rand() * 0.15; // 75..90% de comparecimento
+  const c = Math.round(esiApurada * turnoutRate);
+  const a = Math.max(0, esiApurada - c);
+
+  const vb = Math.round(c * 0.02); // brancos ~2%
+  const tvn = Math.round(c * 0.03); // nulos ~3%
+  const vv = Math.max(0, c - vb - tvn); // válidos (nominais — sem legenda em majoritário)
+
+  const roster = SYNTHETIC_ROSTER[cargo] ?? SYNTHETIC_ROSTER[1] ?? [];
+  const weights = roster.map((r) => Math.max(0.01, r.baseWeight + (rand() - 0.5) * 0.1));
+  const weightSum = weights.reduce((s, w) => s + w, 0) || 1;
+
+  let allocated = 0;
+  const candVotes = weights.map((w, idx) => {
+    if (idx === weights.length - 1) return Math.max(0, vv - allocated); // resíduo no último — soma exata
+    const vote = Math.round(vv * (w / weightSum));
+    allocated += vote;
+    return vote;
+  });
+
+  const cand = roster.map((r, idx) => {
+    const vapNum = candVotes[idx] ?? 0;
+    const pvapNum = vv > 0 ? (vapNum / vv) * 100 : 0;
+    return {
+      n: r.n,
+      sqcand: `${r.n}0000000${zona}`,
+      nm: r.nm,
+      nmu: r.nm,
+      e: "n",
+      vap: String(vapNum),
+      pvap: formatPctBr(pvapNum),
+      pvapn: pvapNum.toFixed(9).replace(".", ","),
+    };
+  });
+
+  const cargoLabel = cargo === 3 ? "Governador" : "Presidente";
+
+  return {
+    ele: eleicaoSuffix.replace(/^0+(?=\d)/, ""),
+    t: "1",
+    f: "s", // simulado/sintético — nunca "o" (oficial), ver KNOWN_EA20_AMBIENTES
+    sup: "n",
+    tpabr: "zona",
+    cdabr: zona,
+    dg: BOOT_TIMESTAMP.dg,
+    hg: BOOT_TIMESTAMP.hg,
+    idg: "1",
+    dv: "s",
+    and: zeroApurado ? "n" : "p",
+    carg: [
+      {
+        cd: String(cargo),
+        nmn: cargoLabel,
+        nmm: cargoLabel,
+        nmf: cargoLabel,
+        nv: "1",
+        agr: [
+          {
+            n: "99",
+            nm: "COLIGACAO SINTETICA",
+            tp: "c",
+            com: roster.map((r) => r.n).join("/"),
+            tvtn: String(vv),
+            tvan: String(vv),
+            par: roster.map((r, idx) => ({
+              n: r.n,
+              sg: `S${r.n}`,
+              nm: r.nm,
+              tvtn: String(candVotes[idx] ?? 0),
+              tvan: String(candVotes[idx] ?? 0),
+              cand: [cand[idx]],
+            })),
+          },
+        ],
+      },
+    ],
+    s: {
+      ts: "1",
+      st: zeroApurado ? "0" : "1",
+      pst: formatPctBr(pctApurado),
+      si: "1",
+      psi: "100,00",
+      sa: zeroApurado ? "0" : "1",
+      psa: formatPctBr(pctApurado),
+    },
+    e: {
+      te: String(te),
+      est: String(te),
+      esi: String(esi),
+      c: String(c),
+      pc: esiApurada > 0 ? formatPctBr((c / esiApurada) * 100) : "0,00",
+      a: String(a),
+      pa: esiApurada > 0 ? formatPctBr((a / esiApurada) * 100) : "0,00",
+    },
+    v: {
+      tv: String(c),
+      vvc: String(vv),
+      vv: String(vv),
+      vb: String(vb),
+      tvn: String(tvn),
+      van: "0",
+      vansj: "0",
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -368,15 +632,59 @@ function buildRequestHandler(opts: MockServerOptions, counters: Counters) {
       serveWithEtag(req, res, text, opts, counters, method, pathname);
     }
 
+    // Modo SINTÉTICO de nível zona (--zonas N) — ver comentário `--zonas` no
+    // cabeçalho do arquivo. Gera o corpo on-the-fly (sem tocar disco),
+    // cobrindo QUALQUER (uf, zona, cargo) casado pela regex, até o teto de
+    // `codZona` configurado. Aplica --not-found-ratio do mesmo jeito que
+    // `serveFixtureOr404`, para manter os dois modos comparáveis.
+    function serveSyntheticZonaOr404(match: Ea20ZonaMatch): void {
+      const zonaNum = Number(match.zona);
+      const cargoNum = Number(match.cargo);
+
+      if (!opts.syntheticCargos.has(cargoNum)) {
+        recordStatus(counters, 404);
+        sendJson(res, 404, { error: "not_found" });
+        logLine(opts, method, pathname, 404);
+        return;
+      }
+
+      if (opts.syntheticZonasMax === undefined || zonaNum > opts.syntheticZonasMax) {
+        recordStatus(counters, 404);
+        sendJson(res, 404, { error: "not_found" });
+        logLine(opts, method, pathname, 404);
+        return;
+      }
+
+      if (opts.notFoundRatio > 0 && stableUnitHash(pathname) < opts.notFoundRatio) {
+        recordStatus(counters, 404);
+        sendJson(res, 404, { error: "not_found" });
+        logLine(opts, method, pathname, 404);
+        return;
+      }
+
+      const envelope = generateSyntheticZonaEnvelope({
+        uf: match.uf,
+        zona: match.zona,
+        cargo: cargoNum,
+        eleicaoSuffix: match.eleicao,
+      });
+      const text = JSON.stringify(envelope);
+      serveWithEtag(req, res, text, opts, counters, method, pathname);
+    }
+
     if (method === "GET") {
       // ------------------------------------------------------------------
       // GET EA20 zona — /oficial/<cod>/dados/<uf>/<uf><munic5>-z<zona4>-c<cargo4>-e<eleicao6>-u.json
       // ------------------------------------------------------------------
       const zonaMatch = matchEa20ZonaPath(pathname);
       if (zonaMatch) {
-        serveFixtureOr404(
-          resolve(opts.fixturesDir, `presidente-${zonaMatch.uf}-z${zonaMatch.zona}.json`),
-        );
+        if (opts.syntheticZonasMax !== undefined) {
+          serveSyntheticZonaOr404(zonaMatch);
+        } else {
+          serveFixtureOr404(
+            resolve(opts.fixturesDir, `presidente-${zonaMatch.uf}-z${zonaMatch.zona}.json`),
+          );
+        }
         return;
       }
 
@@ -494,6 +802,8 @@ export async function startMockServer(
     notFoundRatio: 0,
     latencyMs: 0,
     quiet: true,
+    syntheticZonasMax: undefined,
+    syntheticCargos: new Set(DEFAULT_SYNTHETIC_CARGOS),
     ...partialOpts,
   };
 
@@ -545,7 +855,9 @@ async function main(): Promise<void> {
     `[tse-mock-server] ouvindo em http://127.0.0.1:${started.port} ` +
       `(fixtures: ${opts.fixturesDir}, codEleicao: ${opts.codEleicao}, ` +
       `rate-limit-after: ${opts.rateLimitAfter}, not-found-ratio: ${opts.notFoundRatio}, ` +
-      `latency-ms: ${opts.latencyMs})`,
+      `latency-ms: ${opts.latencyMs}, ` +
+      `zonas: ${opts.syntheticZonasMax ?? "off (modo fixture)"}, ` +
+      `cargos: ${opts.syntheticZonasMax !== undefined ? [...opts.syntheticCargos].join(",") : "n/a"})`,
   );
   console.log("[tse-mock-server] Ctrl+C para encerrar.");
 

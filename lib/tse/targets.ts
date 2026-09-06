@@ -368,7 +368,7 @@ const VALID_GRANULARIDADES = ["uf", "zona"] as const;
 export type TseGranularidade = (typeof VALID_GRANULARIDADES)[number];
 
 /**
- * getGranularidade — lê `TSE_GRANULARIDADE` do ambiente (default: "uf").
+ * getGranularidade — lê `TSE_GRANULARIDADE` do ambiente (default: "zona" desde 2026-09-05, E4).
  *
  * Decisão (2026-09-05, hardening pré-simulado): agora que se confirma a
  * existência de arquivos agregados de UF e Brasil (Divergência 3 do
@@ -377,7 +377,7 @@ export type TseGranularidade = (typeof VALID_GRANULARIDADES)[number];
  * ciclo para ter visão nacional/UF — 27 UFs × cargo (+ 1 BR para Presidente)
  * cobrem o mesmo dado agregado com ~28 GETs por cargo.
  *
- *   - "uf" (default): 27 UFs × cargos ativos + 1 BR (só cargo 1). Cabe
+ *   - "uf" (opt-in): 27 UFs × cargos ativos + 1 BR (só cargo 1). Cabe
  *     folgadamente no maxDuration/rate-limit. É o suficiente para as telas
  *     nacional/UF (specs 003/004).
  *   - "zona": granularidade completa (~2.600 zonas × cargos ativos). Ainda
@@ -396,14 +396,18 @@ export type TseGranularidade = (typeof VALID_GRANULARIDADES)[number];
  * formal (coluna `nivel` dedicada) no hardening pós-simulado; ver relatório.
  */
 export function getGranularidade(): TseGranularidade {
-  const raw = (process.env.TSE_GRANULARIDADE ?? "uf").trim().toLowerCase();
+  // Default `zona` desde 2026-09-05 (decisão E4 do plano de projeção por regra
+  // de três): o modelo precisa de dado por zona, e o modo `uf` está quebrado no
+  // modelo (`eleitorado` não tem linha `(uf, 0)` → peso 0). `uf` segue aceito
+  // como opt-in explícito para ciclos leves de diagnóstico.
+  const raw = (process.env.TSE_GRANULARIDADE ?? "zona").trim().toLowerCase();
   if ((VALID_GRANULARIDADES as readonly string[]).includes(raw)) {
     return raw as TseGranularidade;
   }
   console.warn(
-    `[targets] TSE_GRANULARIDADE inválida: "${raw}" — valores aceitos: "uf" | "zona". Usando default "uf".`,
+    `[targets] TSE_GRANULARIDADE inválida: "${raw}" — valores aceitos: "uf" | "zona". Usando default "zona".`,
   );
-  return "uf";
+  return "zona";
 }
 
 /** Sentinel de zona/município para targets de nível "uf"/"br" — ver nota em `getGranularidade`. */
@@ -581,7 +585,7 @@ export async function listIngestTargets(env: "preview" | "production"): Promise<
 }
 
 // ---------------------------------------------------------------------------
-// Targets — granularidade "uf" (default)
+// Targets — granularidade "uf" (opt-in; default é "zona")
 // ---------------------------------------------------------------------------
 
 function buildUfTarget(uf: string, cargo: 1 | 3, codEleicao: string, baseUrl: string): Target {
@@ -618,7 +622,7 @@ function buildPreviewTargetsUf(codEleicao: string, baseUrl: string): Target[] {
 }
 
 /**
- * Produção, granularidade "uf" (default): 27 UFs × cargos ativos + 1 BR (só
+ * Produção, granularidade "uf" (opt-in): 27 UFs × cargos ativos + 1 BR (só
  * cargo 1 — Presidente é o único cargo com arquivo de abrangência Brasil,
  * EA20 § 2 tabela de cargos).
  */
