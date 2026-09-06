@@ -32,7 +32,7 @@ O TSE expõe **dados públicos extraordinários** em near-real-time via CDN:
 - Granularidade até seção eleitoral
 - Histórico completo de 2018, 2022, 2024
 - Atualizações a cada poucos segundos
-- Sem rate limit prático para "interessados na divulgação" cadastrados (regime análogo ao da Resolução TSE 23.736/2024 — pleito 2026 será regido por resolução própria, ver [reference/regulatory.md](../reference/regulatory.md))
+- Acesso aberto, sem cadastro prévio: o pleito 2026 é regido pela **Resolução TSE 23.751/2026, arts. 264–269**, que não prevê figura de "interessado na divulgação" cadastrado. Há, porém, limites técnicos reais — 100 req/s por IP sob pena de bloqueio de 10 minutos (ver [reference/regulatory.md](../reference/regulatory.md) e [reference/tse-2026-leiautes.md](../reference/tse-2026-leiautes.md))
 
 A infraestrutura brasileira é **mais favorável** que a americana para construir um needle: tudo eletrônico, sem voto antecipado, sem voto por correio, totalização centralizada. O NYT precisa modelar viés temporal por estado — nós não.
 

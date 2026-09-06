@@ -28,13 +28,19 @@ Camada temporal entre o [roadmap macro](../product/roadmap.md) (fases F1–F8) e
 | [S03](./2026-S03-f3-modelo.md) | F3 | 22/jun → 05/jul (2 sem) | done | Modelo estatístico (Caminho C) — `implementing` até simulado oficial |
 | [S04](./2026-S04-f4a-home-uf.md) | F4a | 06/jul → 19/jul (2 sem) | done | Home + UF + Sobre-o-modelo (T-01, T-03, T-06) |
 | [S05](./2026-S05-f4c-multi-candidato.md) | F4c | 20/jul → 02/ago (2 sem) | done | Foundation multi-candidato 1T presidencial |
-| [S06](./2026-S06-f4d-2t-governadores.md) | F4d | 03/ago → 16/ago (2 sem) | active | 2º turno presidencial + Governadores 27 corridas |
-| [S07](./2026-S07-f6-hardening.md) | F6 | 17/ago → 30/ago (2 sem) | planned | Operação, share, manutenção + load test + simulado TSE |
-| [S08](./2026-S08-f7-estabilizacao.md) | F7 | 31/ago → 06/set (1 sem) | planned | Bug bash + checklist pré-prod 100% |
+| [S06](./2026-S06-f4d-2t-governadores.md) | F4d | 03/ago → 16/ago (2 sem) | done | 2º turno presidencial + Governadores 27 corridas |
+| [S07](./2026-S07-f6-simulado-hero-1t.md) | F6 | 06/set → 24/set (2.5 sem) | **active** | Simulado-ready + Hero 1T (simulados TSE 15–17/09 e 22–24/09) |
+| [S08](./2026-S08-f7-estabilizacao.md) | F7 | 25/set → 03/out (1.5 sem) | planned | Estabilização + D-1: checklist pré-prod 100% + specs 009/010/013 |
 | **[D1](./_D1-04out2026.md)** | — | **04/out** | — | **Produção 1º turno** |
 | [S09](./2026-S09-f8a-retro1t.md) | F8a | 05/out → 14/out (1.5 sem) | planned | Análise pós-1T + recalibração modelo |
 | [S10](./2026-S10-f8b-prep2t.md) | F8b | 15/out → 24/out (1.5 sem) | planned | Ajustes + bug bash 2T |
 | **[D2](./_D2-25out2026.md)** | — | **25/out** | — | **Produção 2º turno** |
+
+> **Hiato 17/ago → 05/set.** O planejamento ficou parado entre o fechamento da S06 e o
+> re-baseline de 05/09. As janelas originais da S07 (17–30/ago) e da S08 (31/ago–06/set)
+> venceram sem execução e foram re-baselinadas pela decisão D9 do
+> [plano de 05/09](../_meta/plano-s07-2026-09-05.md). A S07 e a S08 agora encostam
+> continuamente no D1: 06/set → 24/set → 03/out → **04/out**.
 
 ## Template de uma sprint
 

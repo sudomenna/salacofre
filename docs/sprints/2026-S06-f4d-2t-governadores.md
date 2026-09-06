@@ -231,7 +231,7 @@ Specs **005-pagina-uf-governador** e **006-grid-governadores** promovidas a `shi
 ## Cross-refs
 
 - Sprint anterior: [2026-S05-f4c-multi-candidato.md](./2026-S05-f4c-multi-candidato.md)
-- Próxima sprint: [2026-S07-f6-hardening.md](./2026-S07-f6-hardening.md)
+- Próxima sprint: [2026-S07-f6-simulado-hero-1t.md](./2026-S07-f6-simulado-hero-1t.md)
 - Plan aprovado: memória `s06_kickoff_plan.md` (originSessionId 468caab1-9b08-46a8-b2a5-d866b933b0d6)
 - Specs ativas: [005](../specs/005-pagina-uf-governador/), [006](../specs/006-grid-governadores/)
 - Specs stub criados: [014](../specs/014-boca-de-urna/), [015](../specs/015-drill-down-municipio/)

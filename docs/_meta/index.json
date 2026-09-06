@@ -110,8 +110,9 @@
     {
       "id": "0015",
       "title": "Fallback de modelo em 3 tiers para candidatos sem mapeamento histórico K-1",
-      "status": "accepted",
-      "path": "docs/architecture/adrs/0015-k1-fallback-3-tier.md"
+      "status": "superseded",
+      "path": "docs/architecture/adrs/0015-k1-fallback-3-tier.md",
+      "superseded_by": "ADR-0021"
     },
     {
       "id": "0016",
@@ -138,6 +139,21 @@
       "title": "Identidade visual por trilha (presidencial vs. governador), não paleta única",
       "status": "accepted",
       "path": "docs/architecture/adrs/0019-identidade-visual-por-trilha.md"
+    },
+    {
+      "id": "0020",
+      "title": "Conformidade com a Res. TSE 23.751/2026 sem cadastro prévio, não o regime de 'interessado cadastrado' de 2024",
+      "status": "accepted",
+      "date": "2026-09-05",
+      "path": "docs/architecture/adrs/0020-conformidade-res-23751-2026.md"
+    },
+    {
+      "id": "0021",
+      "title": "Extrapolação do apurado por zona, não swing vs. 2022",
+      "status": "accepted",
+      "date": "2026-09-05",
+      "supersedes": "0015",
+      "path": "docs/architecture/adrs/0021-extrapolacao-do-apurado-sem-2022.md"
     }
   ],
   "nfr": {
@@ -271,25 +287,33 @@
       },
       {
         "id": "2026-S07",
+        "title": "Sprint 07 — Simulado-ready + Hero 1T",
         "phase": "F6",
-        "status": "planned",
-        "start": "2026-08-17",
-        "end": "2026-08-30",
-        "specs_in_flight": [
-          "009-compartilhamento-meta",
-          "010-operacao-monitoramento",
-          "012-dashboard-status",
-          "013-pagina-manutencao"
+        "status": "active",
+        "start": "2026-09-06",
+        "end": "2026-09-24",
+        "specs_in_flight": ["002-modelo-estatistico"],
+        "specs_evolving": [
+          "001-ingestao-tse",
+          "003-home-nacional",
+          "004-pagina-uf-presidencial",
+          "005-pagina-uf-governador",
+          "006-grid-governadores"
         ],
-        "path": "docs/sprints/2026-S07-f6-hardening.md"
+        "specs_superseded": ["001.1-tse-json-refactor"],
+        "path": "docs/sprints/2026-S07-f6-simulado-hero-1t.md"
       },
       {
         "id": "2026-S08",
         "phase": "F7",
         "status": "planned",
-        "start": "2026-08-31",
-        "end": "2026-09-06",
-        "specs_in_flight": [],
+        "start": "2026-09-25",
+        "end": "2026-10-03",
+        "specs_in_flight": [
+          "009-compartilhamento-meta",
+          "010-operacao-monitoramento",
+          "013-pagina-manutencao"
+        ],
         "path": "docs/sprints/2026-S08-f7-estabilizacao.md"
       },
       {
@@ -367,7 +391,7 @@
     },
     {
       "id": "002-modelo-estatistico",
-      "title": "Modelo estatístico (swing, bootstrap, projeção)",
+      "title": "Modelo estatístico (extrapolação por zona, bootstrap, projeção)",
       "status": "implementing",
       "priority": "M",
       "personas": [],
@@ -382,11 +406,12 @@
         "RF-017",
         "RF-018",
         "RF-019",
-        "RF-020"
+        "RF-020",
+        "RF-020.1"
       ],
       "depends_on": ["001-ingestao-tse"],
       "apis": ["POST /api/model/project"],
-      "adrs": ["0006", "0007"],
+      "adrs": ["0006", "0007", "0012", "0014", "0015", "0018", "0021"],
       "path": "docs/specs/002-modelo-estatistico/"
     },
     {

@@ -5,12 +5,12 @@ status: shipped
 priority: M
 personas: [P1, P2, P3, P4]
 screens: [T-03]
-requirements: [RF-031, RF-032, RF-033, RF-034, RF-035, RF-036, RF-037, RF-038, RF-039, RF-040, RF-041, RF-042, RF-043, RF-044]
+requirements: [RF-031, RF-032, RF-033, RF-034, RF-035, RF-036, RF-037, RF-038, RF-039, RF-040, RF-041, RF-042, RF-043, RF-044, RF-061, RF-062, RF-063]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 008-interatividade-brushing, 003-home-nacional]
 apis: [GET /api/projection?uf=<sigla>]
-components: [WinnerBanner, CandidateRow, NewsClippingPlaceholder, ChoroplethMapUF, BubbleMap, SwingArrowMap, MunicipioTable, UFMapDuo, UfMapsLazy, Needle, TimeSeriesChart, ProbabilityOverTime, TurnoutAreaChart, ForecastTransparency, InsightCard, UFBreadcrumb, Footer]
+components: [WinnerBanner, CandidateRow, NewsClippingPlaceholder, ChoroplethMapUF, BubbleMap, SwingArrowMap, MunicipioTable, UFMapDuo, UfMapsLazy, Needle, TimeSeriesChart, ProbabilityOverTime, TurnoutAreaChart, ForecastTransparency, InsightCard, UFBreadcrumb, Footer, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-008, RNF-022, RNF-023, RNF-024, RNF-025, RNF-027]
-adrs: [0001, 0003, 0004, 0007, 0010, 0013, 0014, 0015, 0017]
+adrs: [0001, 0003, 0004, 0007, 0010, 0013, 0014, 0015, 0017, 0018, 0019]
 shipped_with_carry_overs:
   - NewsClippingPlaceholder-sem-RF-formal-clipping-midias-BR-virara-spec-em-F4b-F5
   - chunk-MapLibre-287KB-acima-RNF-007b-pendente-ADR-aumentar-meta-300KB
@@ -55,7 +55,7 @@ Espelhar a profundidade da página estadual do NYT, adaptada ao contexto brasile
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ ‹ Voltar ao nacional                                             │
+│ PRESIDÊNCIA · Brasil › SP        (Brasil › SP)                   │
 │ São Paulo — Apuração Presidencial 2026                           │
 ├──────────────────────────────────────────────────────────────────┤
 │ ┌──────────────────────────────┐ ┌───────────────────────────┐   │
@@ -96,9 +96,14 @@ Espelhar a profundidade da página estadual do NYT, adaptada ao contexto brasile
 
 ## Requisitos Funcionais (EARS)
 
-**RF-031 — Breadcrumb voltar ao nacional**
+**RF-031 — Breadcrumb com a profundidade da trilha**
 
-WHEN a página de UF renderiza, the system SHALL exibir breadcrumb `‹ Voltar ao nacional` linkando para `/`.
+WHEN a página de UF renderiza, the system SHALL exibir um `<nav aria-label="Breadcrumb">` com a profundidade real da trilha presidencial — `Brasil › <SIGLA>` —, sendo "Brasil" um link para `/` e a sigla o nó atual com `aria-current="page"`.
+
+> **Texto atualizado em S07** ([ADR-0019](../../architecture/adrs/0019-identidade-visual-por-trilha.md)). Até S06 o breadcrumb era o link único `‹ Voltar ao nacional`; esse texto continua sendo o **default do modo legado** de `<UFBreadcrumb />` (retrocompatibilidade), mas **nenhuma rota em produção o usa** — as duas páginas de UF passam `items`. Na trilha governador ([spec 005](../005-pagina-uf-governador/spec.md)) o breadcrumb é `Governadores › <SIGLA>`, sem nó nacional.
+
+**Aceitação**:
+- Given `/uf/SP`, when a página renderiza, then o breadcrumb tem dois nós — "Brasil" (link para `/`) e "SP" (`aria-current="page"`) — separados por `›` decorativo (`aria-hidden`).
 
 **RF-032 — Winner banner quando P(vitória) > 95%**
 
@@ -152,6 +157,16 @@ WHEN a página renderiza, the system SHALL exibir bloco `<ForecastTransparency /
 
 WHEN a página renderiza, the system SHALL exibir 1–3 frases analíticas geradas pelo engine de templates ([insights-templates](../../design-system/insights-templates.md)).
 
+## Requisitos herdados da spec 003 (S07)
+
+Esta rota está no escopo do hero de 1º turno (decisão D7 de 2026-09-05). Os requisitos são definidos em [spec 003](../003-home-nacional/spec.md) e apenas **referenciados** aqui:
+
+| RF | Aplicação em `/uf/[sigla]` |
+|---|---|
+| **RF-061** — hero de seis termômetros | Renderizado em modo `multi-1t`, acima da tabela de `<CandidateRow />`, com heading "Projeção do 1º turno em \<SIGLA\>". O IC dos candidatos vem de `ci95` (shape de UF), não de `pct_projetado_lower/upper`. Em modo `binary` o layout de S04/S06 é preservado. |
+| **RF-062** — participação e "Outros" | Alimentado por `payload.participacao` (bloco por UF de RF-020.1, [spec 002](../002-modelo-estatistico/spec.md)). Ausência degrada para "aguardando projeção", sempre no DOM. |
+| **RF-063** — identidade de trilha | `<main data-trilha="pres">`, `<RaceHeader />` com kicker "PRESIDÊNCIA · Brasil › \<SIGLA\>" e breadcrumb de RF-031. |
+
 ## Requisitos Não-Funcionais aplicáveis
 
 - URL canônica `/uf/[sigla]` — [RNF-027](../../nfr/seo.md).
@@ -172,7 +187,7 @@ Extensão da v1 (2 candidatos em foco) para visualização completa de todos os 
 - **Métricas de 2º turno**: novos campos `p_passa_2t` e `p_fecha_1t` por candidato ([ADR-0015](../../architecture/adrs/0015-k1-fallback-3-tier.md)).
 - **Tokens de rank**: cores/ícones por posição (ADR-0013), não por partido.
 - **Needle**: variante que exibe margem ou P(2º turno) conforme turno ativo.
-- **Breadcrumb**: "Voltar ao nacional (1T)" ou "...ao nacional (2T)" — dinâmico por turno.
+- **Breadcrumb**: superado em S07 por RF-031 reescrito — `Brasil › <SIGLA>` com kicker de trilha acima (ADR-0019). O turno passou a ser comunicado pelo `<TurnoBadge />` do `<RaceHeader />`, não pelo texto do breadcrumb.
 
 **Componentes novos**:
 - `<RaceTypeIndicator />` — "Disputa entre N candidatos" no header.

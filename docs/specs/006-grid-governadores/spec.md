@@ -6,12 +6,12 @@ shipped_date: 2026-05-18
 priority: M
 personas: [P1, P2, P3]
 screens: [T-02]
-requirements: [RF-021, RF-022, RF-025, RF-027, RF-029, RF-006.1, RF-006.2, RF-006.3, RF-006.4, RF-006.5]
+requirements: [RF-021, RF-022, RF-025, RF-027, RF-029, RF-006.1, RF-006.2, RF-006.3, RF-006.4, RF-006.5, RF-062, RF-063]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 005-pagina-uf-governador]
 apis: [GET /api/projection?cargo=governador]
-components: [GovernorCard, HexCartogramBrasil, RaceStatsCards, BreakingNewsTicker, LiveBadge, Tabs]
+components: [GovernorCard, HexCartogramBrasil, RaceStatsCards, BreakingNewsTicker, LiveBadge, Tabs, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-022, RNF-023, RNF-024]
-adrs: [0001, 0002, 0010, 0011, 0012, 0013, 0017]
+adrs: [0001, 0002, 0010, 0011, 0012, 0013, 0017, 0018, 0019]
 ---
 
 # Spec 006 — Grid Nacional Governadores
@@ -103,6 +103,16 @@ WHEN renderizar tabs, the system SHALL incluir Senado / Congresso / Assembleias 
 > Mobile: grid 1-col em portrait, 2-col em landscape?
 
 **Decisão**: 1 col `< 640px`, 2 cols `sm`, 3 cols `lg`, 4 cols `xl`. `<GovernorCard mode="compact">` degrada pra single-line `< 640px` (sigla + líder + chip). Sem dependência de orientation media query.
+
+## Requisitos herdados da spec 003 (S07)
+
+Decisão D7 (2026-09-05): `/governador` recebe **apenas a participação** do hero de 1º turno — **não** os seis termômetros. Aqui não existe uma corrida nacional de governador (existem 27 corridas estaduais), então um "top 3 nacional" não teria significado. RF-061 **não se aplica** a esta rota.
+
+| RF | Aplicação em `/governador` |
+|---|---|
+| **RF-062** — participação e "Outros" | `<ProjectionThermometers variant="participacao-only" />` acima de `<RaceStatsCards />`, com heading "Participação do eleitorado" — 2 termômetros (brancos/nulos, abstenção). **Exceção a ADR-0017**: quando `national.participacao` está ausente o bloco é omitido inteiro, em vez de renderizar "aguardando" — um bloco vazio anunciaria uma projeção nacional que não existe nesta trilha. |
+| **RF-063** — identidade de trilha | `<main data-trilha="gov">`, `<RaceHeader />` com kicker "GOVERNADOR · Brasil (27 UFs)" e aba `Governador` ativa em `--trilha-accent`. |
+| **RF-061** — hero de seis termômetros | **Fora de escopo** nesta rota (ver acima). |
 
 ## Requisitos Não-Funcionais
 

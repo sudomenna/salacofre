@@ -41,9 +41,21 @@ Lista append-only de itens que **vão precisar acontecer** mas ainda não foram 
 
 ## Conformidade
 
-- [ ] Acompanhar publicação da resolução TSE 2026 (watch ativo — ver [regulatory.md](../reference/regulatory.md))
-- [ ] Cadastro como interessado na divulgação (RF-010) — janela típica jun–set 2026
-- [ ] Advogado em standby pra revisar resolução 2026 assim que sair (constituição § 1)
+- [x] ~~Acompanhar publicação da resolução TSE 2026~~ — **publicada**: Res. TSE 23.751/2026,
+  arts. 264–269. Diff técnico campo-a-campo já feito em
+  [tse-2026-leiautes.md](../reference/tse-2026-leiautes.md). Ver [regulatory.md](../reference/regulatory.md).
+- [x] ~~Cadastro como interessado na divulgação (RF-010)~~ — **não existe cadastro** no pleito 2026.
+  O acesso ao CDN de divulgação é aberto, sujeito a limites técnicos (100 req/s por IP → bloqueio
+  de 10 min). RF-010 reescrito em torno dos arts. 264–269.
+- [ ] Advogado revisar a Res. TSE 23.751/2026 arts. 264–269 (constituição § 1) — em especial
+  267 §4º (vedado alterar o conteúdo dos dados). **Pedir também o texto integral da resolução**:
+  a fonte que temos é um slide oficial do TSE, não a publicação em Diário, e nele o art. 265 tem
+  apenas §1º (liberação do resultado presidencial às 17h). A obrigação de tratar válidos /
+  anulados / sub judice está confirmada apenas como requisito de **schema** do EA20
+  (`v.vvc = v.vv + v.van + v.vansj`) — ver [ADR-0020](../architecture/adrs/0020-conformidade-res-23751-2026.md).
+  Não citar "art. 265 §2º": esse parágrafo não foi confirmado em nenhuma fonte.
+- [ ] Monitorar mudança de leiaute até o dia D — não há freeze; `pnpm tse:watch --once` diário
+  a partir de agendador externo (ver [S08](./2026-S08-f7-estabilizacao.md))
 
 ## Observabilidade
 

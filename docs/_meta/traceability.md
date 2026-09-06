@@ -34,17 +34,24 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-007 | Histórico 2018 zona | S | [001](../specs/001-ingestao-tse/) | — | unit |
 | RF-008 | Mapeamento IBGE/TSE | M | [001](../specs/001-ingestao-tse/) | — | unit |
 | RF-009 | Eleitorado por zona/seção | M | [001](../specs/001-ingestao-tse/) | — | unit |
-| RF-010 | Cadastro como "interessado na divulgação" (res. TSE vigente p/ pleito 2026) | M | [001](../specs/001-ingestao-tse/) | — | manual |
-| RF-011 | Swing zona-a-zona | M | [002](../specs/002-modelo-estatistico/) | — | unit |
-| RF-012 | Agregação UF | M | [002](../specs/002-modelo-estatistico/) | — | unit |
-| RF-013 | Projeção UF | M | [002](../specs/002-modelo-estatistico/) | — | unit, replay |
+| RF-010 | Conformidade com Res. TSE 23.751/2026 (arts. 264–269) | M | [001](../specs/001-ingestao-tse/) | — | — |
+| RF-010.1 | Integridade dado oficial (append-only, sem alteração) | M | [001](../specs/001-ingestao-tse/) | — | unit |
+| RF-010.2 | Projeção rotulada como conteúdo derivado | M | [001](../specs/001-ingestao-tse/) | — | unit |
+| RF-010.3 | Rate limiter saída ≤50 req/s | M | [001](../specs/001-ingestao-tse/) | — | unit |
+| RF-010.4 | Requisição condicional (304 conta para cota) | M | [001](../specs/001-ingestao-tse/) | — | unit (`client.test.ts` — `If-None-Match`, 304, e assert de que o 304 consome token do rate limiter) |
+| RF-010.5 | Proibição sondar URL adivinhada | M | [001](../specs/001-ingestao-tse/) | — | unit (`no-url-probing.test.ts` — varredura de fonte: o host do TSE só pode aparecer nas 2 constantes de base URL) + `targets.test.ts` (builders) |
+| RF-010.6 | Identificação honesta no User-Agent | M | [001](../specs/001-ingestao-tse/) | — | unit |
+| RF-011 | Extrapolação do apurado por zona: k=te/esi, V_c=vap_c·k (ADR-0021; **texto em revisão**) | M | [002](../specs/002-modelo-estatistico/) | — | unit (`test_extrapolation.py::test_zona_scale_factor_k`), replay |
+| RF-012 | Agregação por UF: razão de somas (ADR-0021; **texto em revisão**) | M | [002](../specs/002-modelo-estatistico/) | — | unit (`test_extrapolation.py::test_uf_aggregation_sum_ratio`), replay |
+| RF-013 | Projeção por UF com E3 hierárquico: zona apurada ou imputada (ADR-0021; **texto em revisão**) | M | [002](../specs/002-modelo-estatistico/) | — | unit (`test_extrapolation.py::test_e3_hierarchical_imputation`), replay |
 | RF-014 | Projeção nacional | M | [002](../specs/002-modelo-estatistico/) | — | unit, replay |
 | RF-015 | CI95 bootstrap | M | [002](../specs/002-modelo-estatistico/) | — | unit |
 | RF-016 | P(vitória) | M | [002](../specs/002-modelo-estatistico/) | — | unit |
-| RF-017 | UF 0% apurado | M | [002](../specs/002-modelo-estatistico/) | — | unit |
-| RF-018 | UF <5% apurado | S | [002](../specs/002-modelo-estatistico/) | — | unit |
+| RF-017 | Imputação nacional: UF sem zona apurada usa proporção nacional, IC ±10pp (ADR-0021; **texto em revisão**) | M | [002](../specs/002-modelo-estatistico/) | — | unit (`test_extrapolation.py::test_national_imputation_ci_inflation`), replay |
+| RF-018 | UF <5% apurado (penalização IC ×1.5, clip para ±10pp) | S | [002](../specs/002-modelo-estatistico/) | — | unit (`test_extrapolation.py::test_ci_inflation_low_apurado`) |
 | RF-019 | Recálculo por snapshot | M | [002](../specs/002-modelo-estatistico/) | — | integration |
 | RF-020 | Persistir cada cálculo | M | [002](../specs/002-modelo-estatistico/) | — | integration |
+| RF-020.1 | Projeção de participação e agregado "Outros" com IC | M | [002](../specs/002-modelo-estatistico/) | — | pytest (`test_extrapolation.py::test_candidatos_bootstrap`, `test_turnout.py`, `test_outros.py`, `test_orchestrator.py::test_do_project_e_invariante_a_historical`) — requisito **do modelo**; a contraparte de UI é RF-062 |
 | RF-021 | Agulha hero | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<Needle />`, `<NationalNeedle />` | unit |
 | RF-022 | Votos absolutos projetados | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<HeadlineScore />`, `<NationalNeedle />` | unit |
 | RF-023 | % projetado com CI | M | [003](../specs/003-home-nacional/) | `<HeadlineScore />`, `<ConfidenceBar />`, `<NationalNeedle />` | unit |
@@ -70,14 +77,20 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-030.4 | Hachura UFs que viraram | S | [003](../specs/003-home-nacional/) | `<NationalChoroplethMap />` | deferred S05 |
 | RF-030.5 | Scoreboard com gatilho 50%+1 | M | [003](../specs/003-home-nacional/) | `<HeadlineScore />` | unit |
 | RF-030.6 | Tabela agrupada por margem | M | [003](../specs/003-home-nacional/) | `<StateGroupedTable />` | unit |
+| RF-030.7 | Indicador P(2º turno) | M | [003](../specs/003-home-nacional/) | `<TwoRoundIndicator />` | unit |
+| RF-030.8 | Transparência total (sem collapsible) | M | [003](../specs/003-home-nacional/) | `<MinorCandidatesList />`, `<RaceTypeIndicator />` | unit |
+| RF-030.9 | Cenários 2º turno | S | [003](../specs/003-home-nacional/) | `<RunoffScenarios />` | unit |
+| RF-061 | Hero de seis termômetros no 1º turno | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ProjectionThermometer />`, `<ProjectionThermometers />` | unit (`ProjectionThermometer.test.tsx`, `ProjectionThermometers.test.tsx`) + integration (`home-page.test.tsx`, `UFPage.test.tsx`, `uf-governador-page.test.tsx`) |
+| RF-062 | Participação e "Outros" na interface; rótulo "Projeção a partir do apurado · N zonas · X% apurado" (ADR-0021) | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [006](../specs/006-grid-governadores/) | `<ProjectionThermometers />`, `<BaseToggle />` (Fase 5) | unit (`participacao.test.ts`, `ProjectionThermometers.test.tsx`, `payload-contract.test.ts`) + integration (`governador-page.test.tsx`) |
+| RF-063 | Identidade visual por trilha | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [006](../specs/006-grid-governadores/) | `<TrilhaKicker />`, `<RaceHeader />`, `<UFBreadcrumb />` | unit (`TrilhaKicker.test.tsx`, `RaceHeader.test.tsx`, `UFBreadcrumb.test.tsx`) + integration (4 smokes SSR) |
 | RF-031 | Breadcrumb voltar nacional | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<UFBreadcrumb />` | unit |
 | RF-032 | Winner banner P>95% | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<WinnerBanner />` | unit |
 | RF-033 | Tabela de candidatos | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<CandidateRow />` | unit |
-| RF-034 | Mapa estado choropleth (município) | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ChoroplethMap />` | unit (mock MapLibre) + e2e (deferred S05) |
-| RF-035 | Mapa votos reportados (bubbles) | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<BubbleMap />`, `<UFMapDuo />` | unit (mock MapLibre) + e2e (deferred S05) |
-| RF-036 | Mapa estimativa do que falta | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ChoroplethMap />`, `<UFMapDuo />` | unit (mock MapLibre) + e2e (deferred S05) |
+| RF-034 | Mapa estado choropleth (município) | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ChoroplethMapUF />` | ⚠️ **sem cobertura** — nenhum teste importa o componente (verificado 05/09); e2e deferido |
+| RF-035 | Mapa votos reportados (bubbles) | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<BubbleMap />`, `<UFMapDuo />` | ⚠️ **sem cobertura** — nenhum teste importa o componente (verificado 05/09); e2e deferido |
+| RF-036 | Mapa estimativa do que falta | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ChoroplethMapUF />`, `<UFMapDuo />` | ⚠️ **sem cobertura** — nenhum teste importa o componente (verificado 05/09); e2e deferido |
 | RF-037 | Tabela municípios virtualizada | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<MunicipioTable />` | unit |
-| RF-038 | Mapa swing vs 2022 | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<SwingArrowMap />`, `<ChoroplethMap />` | unit (mock MapLibre) + e2e (deferred S05) |
+| RF-038 | Mapa swing vs 2022 | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<SwingArrowMap />`, `<ChoroplethMapUF />` | ⚠️ **sem cobertura** — nenhum teste importa o componente (verificado 05/09); e2e deferido |
 | RF-039 | Agulha estadual + margem | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<Needle />`, `<ConfidenceBar />` | unit |
 | RF-040 | Margem ao longo do tempo | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<TimeSeriesChart />` | unit |
 | RF-041 | Probabilidade ao longo do tempo | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ProbabilityOverTime />` | unit |
@@ -118,10 +131,21 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-006.5 | Tabs cargo com disabled | [006](../specs/006-grid-governadores/) |
 | RF-012.1 | Botão "Pausar Cron" | [012](../specs/012-dashboard-status/) |
 | RF-012.2 | Botão "Forçar refresh" | [012](../specs/012-dashboard-status/) |
+| RF-010.1 | Integridade dado oficial | [001](../specs/001-ingestao-tse/) |
+| RF-010.2 | Projeção rotulada como derivada | [001](../specs/001-ingestao-tse/) |
+| RF-010.3 | Rate limiter saída | [001](../specs/001-ingestao-tse/) |
+| RF-010.4 | Requisição condicional (304 conta) | [001](../specs/001-ingestao-tse/) |
+| RF-010.5 | Proibição sondar URL | [001](../specs/001-ingestao-tse/) |
+| RF-010.6 | User-Agent honesto | [001](../specs/001-ingestao-tse/) |
+| RF-030.7 | Indicador P(2º turno) | [003](../specs/003-home-nacional/) |
+| RF-030.8 | Transparência total (sem collapsible) | [003](../specs/003-home-nacional/) |
+| RF-030.9 | Cenários 2º turno | [003](../specs/003-home-nacional/) |
+| RF-061 | Hero seis termômetros 1T | [003](../specs/003-home-nacional/) |
+| RF-063 | Identidade visual por trilha | [003](../specs/003-home-nacional/) |
 
 ## Cobertura
 
-**60 RFs originais do PRD** + 15 RFs adicionados nas specs (RF-005.1-4, RF-006.1-5, RF-012.1-2, RF-058.1-2) = **75 RFs no total**. Todos mapeados pra alguma spec.
+**60 RFs originais do PRD** + 28 RFs adicionados nas specs (RF-005.1-4, RF-006.1-5, RF-012.1-2, RF-058.1-2, RF-010.1-6, RF-020.1, RF-030.7-9, RF-061-63) = **88 RFs no total**. Todos mapeados pra alguma spec.
 
 ## RNFs
 

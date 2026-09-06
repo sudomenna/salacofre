@@ -1,69 +1,156 @@
 ---
 title: Catálogo de Componentes
-description: Catálogo de componentes com referência cruzada a RFs e arquivos
+description: Catálogo de componentes com referência cruzada a RFs, arquivo real e teste
 status: stable
 source: PRD.md § 14.3
+last_updated: 2026-09-05
 ---
 
 # Catálogo de Componentes
 
-| Componente | Tipo | RFs atendidos | Arquivo |
+> **Regra deste arquivo**: a coluna `Arquivo` só contém caminhos **verificados no disco**.
+> Um componente que ainda não existe entra com status `planejada` e caminho *previsto*
+> entre parênteses — nunca como se estivesse pronto. Saneado em 2026-09-05 (S07/Fase 3)
+> após o catálogo acumular 8 entradas fantasma, 5 caminhos errados e 6 linhas duplicadas.
+
+**Legenda de status**
+
+| Status | Significado |
+|---|---|
+| ✅ | Arquivo existe no disco |
+| 🕐 planejada | Componente ainda não construído; há RF vivo apontando para ele |
+| ⛔ substituída | Nome mantido só porque `traceability.md`/specs ainda o citam; a função é cumprida por outro componente |
+
+## Atoms
+
+| Componente | Status | RFs atendidos | Arquivo | Testes |
+|---|---|---|---|---|
+| `<Needle />` | ✅ | RF-021, RF-039 | `components/atoms/needle/Needle.tsx` | `tests/unit/components/Needle.test.tsx` |
+| `<CandidateBar />` | ✅ | RF-022, RF-023 | `components/atoms/bars/CandidateBar.tsx` | `tests/unit/components/CandidateBar.test.tsx` |
+| `<ProjectionThermometer />` | ✅ S07 | RF-061, RF-062 | `components/atoms/bars/ProjectionThermometer.tsx` | `tests/unit/components/ProjectionThermometer.test.tsx` |
+| `<TimeSeriesChart />` | ✅ | RF-040 | `components/atoms/charts/TimeSeriesChart.tsx` | `tests/unit/components/charts.test.tsx` |
+| `<ProbabilityOverTime />` | ✅ | RF-041 | `components/atoms/charts/ProbabilityOverTime.tsx` | `tests/unit/components/charts.test.tsx` |
+| `<TurnoutAreaChart />` | ✅ | RF-042 | `components/atoms/charts/TurnoutAreaChart.tsx` | `tests/unit/components/charts.test.tsx` |
+| `<ChoroplethMapUF />` | ✅ | RF-034, RF-036 | `components/atoms/maps/ChoroplethMapUF.tsx` | — (sem teste dedicado) |
+| `<BubbleMap />` | ✅ | RF-035 | `components/atoms/maps/BubbleMap.tsx` | — (sem teste dedicado) |
+| `<SwingArrowMap />` | ✅ | RF-038 (Should) | `components/atoms/maps/SwingArrowMap.tsx` | — (sem teste dedicado) |
+| `<MapSkeleton />` | ✅ | (ADR-0010 — placeholder de carga do chunk MapLibre) | `components/atoms/maps/MapSkeleton.tsx` | `tests/unit/components/MapSkeleton.test.tsx` |
+| `<MapPlaceholder />` | ✅ | (ADR-0010 — fallback client dos wrappers dinâmicos) | `components/atoms/maps/MapPlaceholder.tsx` | — (sem teste dedicado) |
+| `<CandidateRow />` | ✅ | RF-033 | `components/atoms/tables/CandidateRow.tsx` | `tests/unit/components/CandidateRow.test.tsx` |
+| `<WinnerBanner />` | ✅ | RF-032 | `components/atoms/banners/WinnerBanner.tsx` | `tests/unit/components/WinnerBanner.test.tsx` |
+| `<NewsClippingPlaceholder />` | ✅ | (spec 004 — slot visual, sem RF formal) | `components/atoms/banners/NewsClippingPlaceholder.tsx` | `tests/unit/components/UFPage.test.tsx` |
+| `<TurnoBadge />` | ✅ S05 | RF-030 ext | `components/atoms/badges/TurnoBadge.tsx` | `tests/unit/components/TurnoBadge.test.tsx` |
+| `<RaceTypeIndicator />` | ✅ S05 | RF-030 ext | `components/atoms/badges/RaceTypeIndicator.tsx` | `tests/unit/components/RaceTypeIndicator.test.tsx` |
+| `<MinorCandidatesList />` | ✅ S05 | RF-030 ext, RF-031..044 ext | `components/atoms/lists/MinorCandidatesList.tsx` | `tests/unit/components/MinorCandidatesList.test.tsx` |
+| `<MapViewToggle />` | ✅ | RF-030.2 | `components/atoms/controls/MapViewToggle.tsx` | `tests/unit/components/MapViewToggle.test.tsx` |
+| `<BaseToggle />` | 🕐 planejada S08 | RF-062 (E2b) | *previsto*: `components/atoms/controls/BaseToggle.tsx` | — |
+| `<Tabs />` | ✅ | RF-029, RF-030, RF-006.5 | `components/atoms/controls/Tabs.tsx` | `tests/unit/components/Tabs.test.tsx`, `Tabs.disabled.test.tsx` |
+| `<UFBreadcrumb />` | ✅ | RF-031, RF-063 | `components/atoms/nav/UFBreadcrumb.tsx` | `tests/unit/components/UFBreadcrumb.test.tsx` |
+| `<TrilhaKicker />` | ✅ S07 | RF-063 | `components/atoms/nav/TrilhaKicker.tsx` | `tests/unit/components/TrilhaKicker.test.tsx` |
+| `<SwingIllustration />` | ✅ | (spec 011) | `app/sobre-o-modelo/page.tsx` (função local, não é arquivo próprio) | — (coberto por SSR da página) |
+| `<ConfidenceBandIllustration />` | ✅ | (spec 011) | `app/sobre-o-modelo/page.tsx` (função local) | — |
+| `<NeedleIllustration />` | ✅ | (spec 011) | `app/sobre-o-modelo/page.tsx` (função local) | — |
+| `<ConfidenceBar />` | 🕐 planejada | RF-023 | *previsto*: `components/atoms/bars/ConfidenceBar.tsx` | — |
+| `<DotPlotRange />` | 🕐 planejada | RF-025 | *previsto*: `components/atoms/charts/DotPlotRange.tsx` | — |
+| `<ModelComposition />` | 🕐 planejada | RF-043 | *previsto*: `components/atoms/charts/ModelComposition.tsx` | — |
+| `<ChoroplethMap />` | ⛔ substituída | RF-034, RF-036, RF-038 | — | — |
+
+Notas dos atoms não construídos:
+
+- `<ConfidenceBar />` — RF-023 é hoje atendido por `<HeadlineScore />` + `<CandidateBar />`
+  (`role="meter"` com IC95 no rodapé) e, no 1º turno, por `<ProjectionThermometer />`.
+  Mantido como planejado porque RF-023 segue vivo em `traceability.md`.
+- `<DotPlotRange />` e `<UFForecastTable />` — RF-025 está **deferido** desde S05
+  (`docs/specs/003-home-nacional/spec.md:15`, `tasks.md:94`): a spec 003 entrega dot-plot
+  inline via `<StateGroupedTable />`.
+- `<ModelComposition />` — RF-043 é hoje atendido por `<ForecastTransparency />` (shipped,
+  com teste). Mantido como planejado porque `traceability.md:85` ainda o lista.
+- `<ChoroplethMap />` — nunca existiu como arquivo. O mapa de UF em granularidade de
+  município é `<ChoroplethMapUF />` (`mode='leader'` → RF-034, `mode='estimate'` → RF-036);
+  o swing é `<SwingArrowMap />` (RF-038). Linha mantida só porque `traceability.md:76,78,80`
+  e `docs/specs/005-pagina-uf-governador/spec.md:12` ainda a citam.
+
+## Blocks
+
+| Componente | Status | RFs atendidos | Arquivo | Testes |
+|---|---|---|---|---|
+| `<NationalNeedle />` | ✅ | RF-021, RF-022, RF-023 | `components/blocks/NationalNeedle.tsx` | `tests/unit/components/NationalNeedle.test.tsx` |
+| `<HeadlineScore />` | ✅ | RF-022, RF-023, RF-030.5 | `components/blocks/HeadlineScore.tsx` | `tests/unit/components/HeadlineScore.test.tsx` |
+| `<ProjectionThermometers />` | ✅ S07 | RF-061, RF-062 | `components/blocks/ProjectionThermometers.tsx` | `tests/unit/components/ProjectionThermometers.test.tsx` (testa `base` prop Fase 5) |
+| `<NationalChoroplethMap />` | ✅ | RF-030.1, RF-030.3, RF-030.4 | `components/blocks/NationalChoroplethMap.tsx` | `tests/unit/components/NationalChoroplethMap.test.tsx` |
+| `<_NationalChoroplethMapImpl />` | ✅ | RF-030.1..RF-030.4 (interno — só via `next/dynamic`, ADR-0010) | `components/blocks/_NationalChoroplethMapImpl.tsx` | coberto por `NationalChoroplethMap.test.tsx` |
+| `<StateGroupedTable />` | ✅ | RF-030.6 | `components/blocks/StateGroupedTable.tsx` | `tests/unit/components/StateGroupedTable.test.tsx` |
+| `<DecisiveUFsGrid />` | ✅ | RF-024 | `components/blocks/DecisiveUFsGrid.tsx` | `tests/unit/components/DecisiveUFsGrid.test.tsx` |
+| `<UFMapDuo />` | ✅ | RF-035, RF-036 | `components/blocks/UFMapDuo.tsx` | — (sem teste dedicado) |
+| `<UfMapsLazy />` | ✅ | RF-034, RF-035, RF-036, RF-038 (wrapper `next/dynamic`, ADR-0010) | `components/blocks/UfMapsLazy.tsx` | — (sem teste dedicado) |
+| `<MunicipioTable />` | ✅ | RF-037 | `components/blocks/MunicipioTable.tsx` | `tests/unit/components/MunicipioTable.test.tsx`, `MunicipioTable.topByEleitorado.test.tsx` |
+| `<MunicipioWaffleGrid />` | ✅ S06 | RF-005.2 | `components/blocks/MunicipioWaffleGrid.tsx` | `tests/unit/components/MunicipioWaffleGrid.test.tsx` |
+| `<ForecastTransparency />` | ✅ | RF-043 | `components/blocks/ForecastTransparency.tsx` | `tests/unit/components/ForecastTransparency.test.tsx` |
+| `<InsightCard />` | ✅ | RF-044 | `components/blocks/InsightCard.tsx` | `tests/unit/components/InsightCard.test.tsx` |
+| `<ApuracaoMeta />` | ✅ | RF-026 | `components/blocks/ApuracaoMeta.tsx` | `tests/unit/components/ApuracaoMeta.test.tsx` |
+| `<NationalWinnerBanner />` | ✅ | RF-032 (variante nacional) | `components/blocks/NationalWinnerBanner.tsx` | `tests/unit/components/NationalWinnerBanner.test.tsx` |
+| `<RunoffScenarios />` | ✅ S05 | RF-030.8 (⚠️ RF ainda não registrado em `traceability.md`) | `components/blocks/RunoffScenarios.tsx` | `tests/unit/components/RunoffScenarios.test.tsx` |
+| `<TurnoOneRecap />` | ✅ S06 | (ADR-0016 — sem RF formal) | `components/blocks/TurnoOneRecap.tsx` | `tests/unit/components/TurnoOneRecap.test.tsx` |
+| `<TwoRoundIndicator />` | ✅ S05 | RF-030 ext (métrica P(2º turno), ADR-0014) | `components/blocks/TwoRoundIndicator.tsx` | `tests/unit/components/TwoRoundIndicator.test.tsx` |
+| `<CandidateRanking />` | ✅ S05 | RF-030 ext, RF-031..044 ext (rank 3–6) | `components/blocks/CandidateRanking.tsx` | `tests/unit/components/CandidateRanking.test.tsx` |
+| `<GovernorCard />` | ✅ S06 | RF-006.3 | `components/blocks/GovernorCard.tsx` | `tests/unit/components/GovernorCard.test.tsx` |
+| `<HexCartogramBrasil />` | ✅ S06 | RF-006.3 | `components/blocks/HexCartogramBrasil.tsx` | `tests/unit/components/HexCartogramBrasil.test.tsx` |
+| `<RaceStatsCards />` | ✅ S06 | RF-006.1 | `components/blocks/RaceStatsCards.tsx` | `tests/unit/components/RaceStatsCards.test.tsx` |
+| `<BreakingNewsTicker />` | ✅ S06 | RF-006.4 | `components/blocks/BreakingNewsTicker.tsx` | `tests/unit/components/BreakingNewsTicker.test.tsx` |
+| `<UFForecastTable />` | 🕐 planejada | RF-025 (deferido desde S05) | *previsto*: `components/blocks/UFForecastTable.tsx` | — |
+| `<MaintenancePageMessage />` | 🕐 planejada | RF-058 | *previsto*: `components/blocks/MaintenancePageMessage.tsx` | — |
+| `<TurnoTransitionBanner />` | 🕐 planejada | RF-058.1 | *previsto*: `components/blocks/TurnoTransitionBanner.tsx` | — |
+
+`<MaintenancePageMessage />` e `<TurnoTransitionBanner />` pertencem à
+[spec 013](../specs/013-pagina-manutencao/) (`status: ready`, não implementada).
+`app/manutencao/` existe no disco apenas como diretório vazio com `.gitkeep`.
+
+## Layout
+
+| Componente | Status | RFs atendidos | Arquivo | Testes |
+|---|---|---|---|---|
+| `<RaceHeader />` | ✅ S07 | RF-063 | `components/layout/RaceHeader.tsx` | `tests/integration/home-page.test.tsx`, `governador-page.test.tsx`, `uf-governador-page.test.tsx`, `tests/unit/components/UFPage.test.tsx` |
+| `<LiveBadge />` | ✅ | RF-026, RF-028 | `components/layout/LiveBadge.tsx` | `tests/unit/components/LiveBadge.test.tsx` |
+| `<Footer />` | ✅ | RF-055 | `components/layout/Footer.tsx` | `tests/unit/components/Footer.test.tsx` |
+
+## Shared
+
+| Componente | Status | RFs atendidos | Arquivo | Testes |
+|---|---|---|---|---|
+| `<SWRProvider />` / `useProjection()` | ✅ | RF-027 | `components/shared/swr-provider.tsx` | — (sem teste dedicado) |
+| `<HoverTooltip />` | 🕐 planejada | RF-045, RF-048 | *previsto*: `components/shared/HoverTooltip.tsx` | — |
+| `<BottomSheet />` | 🕐 planejada | RF-049, RF-050 | *previsto*: `components/shared/BottomSheet.tsx` | — |
+
+`<HoverTooltip />` e `<BottomSheet />` pertencem à
+[spec 008 — Interatividade (Brushing & Linking)](../specs/008-interatividade-brushing/),
+que está em `status: draft` e foi **diferida para S08+** (decisão de fechamento da S05).
+Continuam catalogadas porque RF-045, RF-048, RF-049 e RF-050 seguem vivos em
+`traceability.md:87-92`.
+
+## Componentes novos da S07/Fase 2 (hero 1T + trilhas)
+
+Introduzidos no commit `978929c`, sob ADR-0018 (termômetros) e ADR-0019 (trilhas):
+
+| Componente | Tipo | RF | O que faz |
 |---|---|---|---|
-| `<Needle />` | atom | RF-021, RF-039 | `components/atoms/needle/Needle.tsx` |
-| `<ConfidenceBar />` | atom | RF-023, RF-039 | `components/atoms/bars/ConfidenceBar.tsx` |
-| `<DotPlotRange />` | atom | RF-025 | `components/atoms/charts/DotPlotRange.tsx` |
-| `<TimeSeriesChart />` | atom | RF-040 | `components/atoms/charts/TimeSeriesChart.tsx` |
-| `<ProbabilityOverTime />` | atom | RF-041 | `components/atoms/charts/ProbabilityOverTime.tsx` |
-| `<TurnoutAreaChart />` | atom | RF-042 | `components/atoms/charts/TurnoutAreaChart.tsx` |
-| `<ChoroplethMap />` | atom | RF-034, RF-036, RF-038 | `components/atoms/maps/ChoroplethMap.tsx` |
-| `<BubbleMap />` | atom | RF-035 | `components/atoms/maps/BubbleMap.tsx` |
-| `<SwingArrowMap />` | atom | RF-038 | `components/atoms/maps/SwingArrowMap.tsx` |
-| `<CandidateRow />` | atom | RF-033 | `components/atoms/tables/CandidateRow.tsx` |
-| `<WinnerBanner />` | atom | RF-032 | `components/atoms/banners/WinnerBanner.tsx` |
-| `<ModelComposition />` | atom | RF-043 | `components/atoms/charts/ModelComposition.tsx` |
-| `<NationalNeedle />` | block | RF-021, RF-022, RF-023 | `components/blocks/NationalNeedle.tsx` |
-| `<HeadlineScore />` | block | RF-022, RF-023, RF-030.5 | `components/blocks/HeadlineScore.tsx` |
-| `<NationalChoroplethMap />` | block | RF-030.1, RF-030.3, RF-030.4, RF-045 | `components/blocks/NationalChoroplethMap.tsx` |
-| `<MapViewToggle />` | atom | RF-030.2 | `components/atoms/controls/MapViewToggle.tsx` |
-| `<StateGroupedTable />` | block | RF-030.6, RF-046 | `components/blocks/StateGroupedTable.tsx` |
-| `<DecisiveUFsGrid />` | block | RF-024 | `components/blocks/DecisiveUFsGrid.tsx` |
-| `<UFForecastTable />` | block | RF-025 | `components/blocks/UFForecastTable.tsx` |
-| `<UFMapDuo />` | block | RF-035, RF-036 | `components/blocks/UFMapDuo.tsx` |
-| `<MunicipioTable />` | block | RF-037 | `components/blocks/MunicipioTable.tsx` |
-| `<ForecastTransparency />` ✅ shipped | block | RF-043 | [`components/blocks/ForecastTransparency.tsx`](../../components/blocks/ForecastTransparency.tsx) — unit tests: [`tests/unit/components/ForecastTransparency.test.tsx`](../../tests/unit/components/ForecastTransparency.test.tsx) |
-| `<InsightCard />` ✅ shipped | block | RF-044 | `components/blocks/InsightCard.tsx` |
-| `<HoverTooltip />` | shared | RF-045, RF-048 | `components/shared/HoverTooltip.tsx` |
-| `<BottomSheet />` | shared | RF-049, RF-050 | `components/shared/BottomSheet.tsx` |
-| `<LiveBadge />` ✅ shipped | layout | RF-026, RF-028 | `components/layout/LiveBadge.tsx` |
-| `<Tabs />` ✅ shipped | layout | RF-029 | `components/layout/Tabs.tsx` |
-| `<WinnerBanner />` ✅ shipped | atom | RF-032 | `components/atoms/banners/WinnerBanner.tsx` |
-| `<CandidateRow />` ✅ shipped | atom | RF-033 | `components/atoms/tables/CandidateRow.tsx` |
-| `<NewsClippingPlaceholder />` ✅ shipped | atom | (spec 004 slot visual) | `components/atoms/cards/NewsClippingPlaceholder.tsx` |
-| `<ChoroplethMapUF />` ✅ shipped | atom | RF-034, RF-036, RF-038 | `components/atoms/maps/ChoroplethMapUF.tsx` |
-| `<BubbleMap />` ✅ shipped | atom | RF-035 | `components/atoms/maps/BubbleMap.tsx` |
-| `<SwingArrowMap />` ✅ shipped | atom | RF-038 | `components/atoms/maps/SwingArrowMap.tsx` |
-| `<MunicipioTable />` ✅ shipped | block | RF-037 | `components/blocks/MunicipioTable.tsx` |
-| `<UFMapDuo />` ✅ shipped | block | RF-035, RF-036 | `components/blocks/UFMapDuo.tsx` |
-| `<UfMapsLazy />` ✅ shipped | block | (lazy load wrapper) | `components/blocks/UfMapsLazy.tsx` |
-| `<UFBreadcrumb />` ✅ shipped | atom | RF-031 | `components/atoms/navigation/UFBreadcrumb.tsx` |
-| `<Footer />` ✅ shipped | layout | RF-055 | `components/layout/Footer.tsx` |
-| `<SwingIllustration />` ✅ shipped | atom | (spec 011) | `components/atoms/illustrations/SwingIllustration.tsx` |
-| `<ConfidenceBandIllustration />` ✅ shipped | atom | (spec 011) | `components/atoms/illustrations/ConfidenceBandIllustration.tsx` |
-| `<NeedleIllustration />` ✅ shipped | atom | (spec 011) | `components/atoms/illustrations/NeedleIllustration.tsx` |
-| `<TurnoBadge />` ✅ shipped S05 | atom | RF-030 ext | `components/atoms/badges/TurnoBadge.tsx` — tests: `tests/unit/components/TurnoBadge.test.tsx` |
-| `<RaceTypeIndicator />` ✅ shipped S05 | atom | RF-030 ext | `components/atoms/indicators/RaceTypeIndicator.tsx` — tests: `tests/unit/components/RaceTypeIndicator.test.tsx` |
-| `<MinorCandidatesList />` ✅ shipped S05 | atom | RF-030 ext, RF-031..044 ext | `components/atoms/lists/MinorCandidatesList.tsx` — tests: `tests/unit/components/MinorCandidatesList.test.tsx` |
-| `<TwoRoundIndicator />` ✅ shipped S05 | block | RF-030 ext (nova métrica P(2º turno)) | `components/blocks/TwoRoundIndicator.tsx` — tests: `tests/unit/components/TwoRoundIndicator.test.tsx` |
-| `<CandidateRanking />` ✅ shipped S05 | block | RF-030 ext, RF-031..044 ext (rank 3–6) | `components/blocks/CandidateRanking.tsx` — tests: `tests/unit/components/CandidateRanking.test.tsx` |
-| `<GovernorCard />` ✅ shipped S06 | block | RF-006.3 (grid) | `components/blocks/GovernorCard.tsx` — tests: `tests/unit/components/GovernorCard.test.tsx` |
-| `<HexCartogramBrasil />` ✅ shipped S06 | block | RF-006.3 | `components/blocks/HexCartogramBrasil.tsx` — tests: `tests/unit/components/HexCartogramBrasil.test.tsx` |
-| `<RaceStatsCards />` ✅ shipped S06 | block | RF-006.1 | `components/blocks/RaceStatsCards.tsx` — tests: `tests/unit/components/RaceStatsCards.test.tsx` |
-| `<BreakingNewsTicker />` ✅ shipped S06 | block | RF-006.4 | `components/blocks/BreakingNewsTicker.tsx` — tests: `tests/unit/components/BreakingNewsTicker.test.tsx` |
-| `<MunicipioWaffleGrid />` ✅ shipped S06 | block | RF-005.2 | `components/blocks/MunicipioWaffleGrid.tsx` — tests: `tests/unit/components/MunicipioWaffleGrid.test.tsx` |
-| `<TurnoTransitionBanner />` ✅ shipped S06 | block | RF-058.1 | `components/blocks/TurnoTransitionBanner.tsx` — tests: `tests/unit/components/TurnoTransitionBanner.test.tsx` |
-| `<MaintenancePageMessage />` ✅ shipped S06 | block | RF-058 | `components/blocks/MaintenancePageMessage.tsx` — tests: `tests/unit/components/MaintenancePageMessage.test.tsx` |
+| `<ProjectionThermometer />` | atom | RF-061, RF-062 | Trilho com faixa IC95, tick do projetado, marcador do apurado e **denominador rotulado**. `role="meter"`. |
+| `<ProjectionThermometers />` | block | RF-061, RF-062 | Hero de seis termômetros no 1T (1º/2º/3º/Outros em % votos a votáveis; brancos-nulos em % comparecimento; abstenção em % eleitores das seções instaladas). `variant="participacao-only"` renderiza só os dois últimos. |
+| `<TrilhaKicker />` | atom (nav) | RF-063 | Rótulo `PRESIDÊNCIA · Brasil › SP` / `GOVERNADOR · SP`, colorido por `--trilha-accent`. |
+| `<RaceHeader />` | layout | RF-063 | Cabeçalho compartilhado pelas 4 rotas de corrida: breadcrumb + kicker + `<h1>` + LiveBadge/TurnoBadge + Tabs. |
+
+Os denominadores e os tokens `--color-part-*` / `--trilha-accent*` estão em
+[tokens.md](./tokens.md#participação-e-trilhas-s07fase-2).
+
+## Lacunas de teste conhecidas
+
+Componentes shipped **sem teste dedicado** (para o `rf-coverage-checker`):
+`<ChoroplethMapUF />`, `<BubbleMap />`, `<SwingArrowMap />`, `<UFMapDuo />`,
+`<UfMapsLazy />`, `<MapPlaceholder />`, `<SWRProvider />` e as três ilustrações
+inline de `/sobre-o-modelo`. `traceability.md:76-80` declara "unit (mock MapLibre)"
+para os mapas de UF — não existe tal arquivo de teste hoje.
 
 ## Cross-refs
 
 - Estrutura de pastas: [../architecture/folder-structure.md](../architecture/folder-structure.md)
+- Tokens de cor e trilha: [./tokens.md](./tokens.md)
 - Matriz completa RF → spec → componente → teste: [../_meta/traceability.md](../_meta/traceability.md)

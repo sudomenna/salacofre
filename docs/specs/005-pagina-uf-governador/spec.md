@@ -6,12 +6,12 @@ shipped_date: 2026-05-18
 priority: M
 personas: [P1, P2, P3]
 screens: [T-04]
-requirements: [RF-031, RF-032, RF-033, RF-034, RF-035, RF-036, RF-037, RF-038, RF-039, RF-040, RF-041, RF-042, RF-043, RF-044, RF-005.1, RF-005.2, RF-005.3, RF-005.4]
+requirements: [RF-031, RF-032, RF-033, RF-034, RF-035, RF-036, RF-037, RF-038, RF-039, RF-040, RF-041, RF-042, RF-043, RF-044, RF-005.1, RF-005.2, RF-005.3, RF-005.4, RF-061, RF-062, RF-063]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 004-pagina-uf-presidencial]
 apis: [GET /api/projection?cargo=governador&uf=<sigla>]
-components: [WinnerBanner, CandidateRow, ChoroplethMap, BubbleMap, MunicipioTable, MunicipioWaffleGrid, UFMapDuo, Needle, TimeSeriesChart, ProbabilityOverTime, TurnoutAreaChart, ForecastTransparency, InsightCard]
+components: [WinnerBanner, CandidateRow, ChoroplethMap, BubbleMap, MunicipioTable, MunicipioWaffleGrid, UFMapDuo, Needle, TimeSeriesChart, ProbabilityOverTime, TurnoutAreaChart, ForecastTransparency, InsightCard, UFBreadcrumb, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-008, RNF-022, RNF-023, RNF-024, RNF-025, RNF-027]
-adrs: [0001, 0003, 0004, 0007, 0010, 0012, 0013, 0015, 0016, 0017]
+adrs: [0001, 0003, 0004, 0007, 0010, 0012, 0013, 0015, 0016, 0017, 0018, 0019]
 ---
 
 # Spec 005 — Página de UF (Governador)
@@ -43,6 +43,8 @@ Versão da página de UF para a corrida de Governador daquela unidade federativa
 
 **Idênticos a [spec 004](../004-pagina-uf-presidencial/spec.md)** — todos os RFs RF-031 a RF-044 se aplicam, com `cargo=3` no fetch.
 
+**Exceção de RF-031**: a trilha governador **não tem nó nacional** — o breadcrumb é `Governadores › <SIGLA>`, com "Governadores" linkando para `/governador`, não para `/` ([ADR-0019](../../architecture/adrs/0019-identidade-visual-por-trilha.md): só o cargo Presidente tem arquivo de abrangência Brasil no EA20, então não existe home nacional de governador). O texto legado `‹ Voltar ao nacional` não se aplica a esta rota.
+
 ### Adições S06/F4d
 
 **RF-005.1 — K-1 disclaimer adaptativo** (ADR-0015)
@@ -68,6 +70,16 @@ WHEN ao final da composição, the system SHALL renderizar `<MunicipioTable mode
 > Quando todos os candidatos a Governador de uma UF não são mapeáveis em 2022 (100% novos), a página deve existir ou retornar 404?
 
 **Decisão**: página **EXISTE** com K-1 disclaimer tier 3 e exibe parcial atual sem projeção. `WinnerBanner` "ELEITO" ainda pode aparecer com base em apuração factual (>= 99% apurado), apesar de p_vitoria não ser confiável.
+
+## Requisitos herdados da spec 003 (S07)
+
+Esta rota está no escopo do hero de 1º turno (decisão D7 de 2026-09-05). Definidos em [spec 003](../003-home-nacional/spec.md), referenciados aqui:
+
+| RF | Aplicação em `/uf/[sigla]/governador` |
+|---|---|
+| **RF-061** — hero de seis termômetros | Renderizado em modo `multi-1t`, com heading "Projeção do 1º turno — Governador \<SIGLA\>". IC dos candidatos via `ci95`. Em `binary` (2T) a corrida é literalmente binária e o layout de S06 é preservado. |
+| **RF-062** — participação e "Outros" | Alimentado por `payload.participacao` da UF (RF-020.1, [spec 002](../002-modelo-estatistico/spec.md)). Quando `participacao.outros` está ausente, o termômetro cai no fallback `100 − Σtop3` rotulado "IC indisponível". |
+| **RF-063** — identidade de trilha | `<main data-trilha="gov">`, `<RaceHeader />` com kicker "GOVERNADOR · \<SIGLA\>" e breadcrumb `Governadores › \<SIGLA\>`. |
 
 ## Requisitos Não-Funcionais
 
