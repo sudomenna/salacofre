@@ -202,7 +202,11 @@ export default function SobreOModeloPage() {
                 <td>
                   <span
                     className={styles.bandSwatch}
-                    style={{ background: "var(--color-pl-band)" }}
+                    // FIX 2026-09-05 (a11y-perf-auditor): usava --color-pl-band, token de
+                    // banda partidária (e, ademais, invertido — ver app/globals.css:22-23).
+                    // Lean/Likely são intensidades de confiança simétricas (valem pro lado A
+                    // ou B), não uma cor de partido — migrado para o token neutro dedicado.
+                    style={{ background: "var(--color-band-lean)" }}
                     aria-hidden="true"
                   />
                   Lean
@@ -214,7 +218,8 @@ export default function SobreOModeloPage() {
                 <td>
                   <span
                     className={styles.bandSwatch}
-                    style={{ background: "var(--color-pt-band)" }}
+                    // FIX 2026-09-05 (a11y-perf-auditor): mesmo motivo do swatch Lean acima.
+                    style={{ background: "var(--color-band-likely)" }}
                     aria-hidden="true"
                   />
                   Likely
@@ -361,7 +366,19 @@ export default function SobreOModeloPage() {
           </p>
         </aside>
 
-        <footer className={styles.footer}>Não oficial. Fonte: TSE. · SalaCofre 2026</footer>
+        {/* Constituição § 1: o footer de TODA página precisa trazer "Não oficial.
+            Fonte: TSE." **e** o link para resultados.tse.jus.br. O link existia só
+            no <aside> acima — fora do <footer> — o que não cumpria a regra
+            (achado MEDIUM do constitution-guard, 2026-09-05). Esta é a única
+            página que não usa o <Footer /> compartilhado, porque ele linka para
+            /sobre-o-modelo e aqui isso seria auto-referência. */}
+        <footer className={styles.footer}>
+          Não oficial. Fonte:{" "}
+          <a href="https://resultados.tse.jus.br" rel="noopener noreferrer" target="_blank">
+            TSE
+          </a>
+          . · SalaCofre 2026
+        </footer>
       </article>
     </main>
   );
@@ -594,8 +611,12 @@ function ConfidenceBandIllustration() {
         42%
       </text>
 
-      {/* Banda */}
-      <path d={bandPath} fill="var(--color-pt-band)" opacity={0.55} />
+      {/* Banda — clareado do candidato ilustrativo (linha central usa
+          --color-pt). FIX 2026-09-05 (a11y-perf-auditor): antes usava
+          --color-pt-band, que está invertido (renderiza azul, não vermelho
+          claro — ver app/globals.css:22-23); --color-cand-band-1 é o
+          clareado correto de --color-cand-1/--color-pt e já está certo. */}
+      <path d={bandPath} fill="var(--color-cand-band-1)" opacity={0.55} />
 
       {/* Linha central */}
       <path d={linePath} fill="none" stroke="var(--color-pt)" strokeWidth="2" />
@@ -704,19 +725,25 @@ function NeedleIllustration() {
 
       <rect x="0" y="0" width="400" height="220" fill="url(#needleGlow)" />
 
-      {/* Arcos das bandas (esquerda = candidato B, direita = candidato A) */}
+      {/* Arcos das bandas (esquerda = candidato B, direita = candidato A).
+          FIX 2026-09-05 (a11y-perf-auditor): usavam --color-pl-band/-pt-band
+          (invertidos entre si, ver app/globals.css:22-23). Migrado para os
+          tokens que o <Needle/> real usa em modo binário 2T
+          (--color-cand-band-1 = A/PT-like vermelho claro,
+          --color-cand-band-2 = B/PL-like azul claro) — mantém o lado A à
+          direita em vermelho e B à esquerda em azul, como em todo o app. */}
       {/* very_likely B */}
       {arc(0.0, 0.05, "var(--color-text)")}
       {/* likely B */}
-      {arc(0.05, 0.25, "var(--color-pl-band)")}
+      {arc(0.05, 0.25, "var(--color-cand-band-2)")}
       {/* lean B */}
-      {arc(0.25, 0.4, "var(--color-pl-band)")}
+      {arc(0.25, 0.4, "var(--color-cand-band-2)")}
       {/* tossup */}
       {arc(0.4, 0.6, "var(--color-tossup)")}
       {/* lean A */}
-      {arc(0.6, 0.75, "var(--color-pt-band)")}
+      {arc(0.6, 0.75, "var(--color-cand-band-1)")}
       {/* likely A */}
-      {arc(0.75, 0.95, "var(--color-pt-band)")}
+      {arc(0.75, 0.95, "var(--color-cand-band-1)")}
       {/* very_likely A */}
       {arc(0.95, 1.0, "var(--color-text)")}
 

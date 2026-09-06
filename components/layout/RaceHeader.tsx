@@ -15,6 +15,18 @@
  * `href` do breadcrumb. Concentrar o chrome aqui garante que o accent de
  * trilha, o kicker e a ordem dos badges não divirjam entre rotas.
  *
+ * Trilha duplicada no kicker + breadcrumb (achado a11y-perf-auditor
+ * 2026-09-05, ver `app/uf/[sigla]/page.tsx`): quando `crumbs` repete
+ * literalmente o que o `breadcrumb` da página já mostra (caso de
+ * `/uf/[sigla]` presidencial: kicker "PRESIDÊNCIA · Brasil › SP" sobre
+ * `<UFBreadcrumb>` "Brasil › SP"), a página deve passar `crumbs` mais curto
+ * (ex.: `[]`) para o kicker não repetir o que o breadcrumb (nav com links
+ * reais, RF-031) já anuncia. Este componente não decide isso sozinho — a
+ * trilha de governador (`/uf/[sigla]/governador`) intencionalmente passa
+ * `crumbs={[sigla]}` mesmo com breadcrumb presente, porque o texto não
+ * coincide 1:1 ("GOVERNADOR · SP" vs. "Governadores › SP" no breadcrumb) e
+ * um teste de integração fixa esse comportamento.
+ *
  * O `<h1>` é **opcional** de propósito: na home em modo `binary` (2º turno)
  * o `<h1>` continua sendo o do `<HeadlineScore />` (ADR-0017 intocado para
  * 2T) — passar `titulo` ali criaria dois `<h1>` na mesma página. Em

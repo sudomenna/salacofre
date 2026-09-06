@@ -18,6 +18,7 @@ import {
   MAX_CAND_RANK,
   resolveBandHex,
   resolveCandHex,
+  strongForRank,
 } from "@/lib/utils/cand-color";
 
 describe("colorForRank", () => {
@@ -53,6 +54,30 @@ describe("bandForRank", () => {
   it("retorna var(--color-cand-band-other) para rank fora do intervalo", () => {
     expect(bandForRank(0)).toBe("var(--color-cand-band-other)");
     expect(bandForRank(MAX_CAND_RANK + 5)).toBe("var(--color-cand-band-other)");
+  });
+});
+
+describe("strongForRank", () => {
+  // A variante -strong existe só para fundo sólido com texto branco por cima
+  // (avatar do <CandidateRow />). Contra `--color-cand-3` (âmbar) e
+  // `--color-cand-5` (lilás) o branco ficava em ~3:1, falhando WCAG 1.4.3.
+  it("mapeia rank válido para o token -strong", () => {
+    expect(strongForRank(1)).toBe("var(--color-cand-1-strong)");
+    expect(strongForRank(3)).toBe("var(--color-cand-3-strong)");
+    expect(strongForRank(5)).toBe("var(--color-cand-5-strong)");
+    expect(strongForRank(6)).toBe("var(--color-cand-6-strong)");
+  });
+
+  it("rank fora do intervalo cai no token neutro", () => {
+    expect(strongForRank(0)).toBe("var(--color-cand-other)");
+    expect(strongForRank(7)).toBe("var(--color-cand-other)");
+    expect(strongForRank(Number.NaN)).toBe("var(--color-cand-other)");
+  });
+
+  it("não colide com colorForRank — são tokens distintos para todo rank", () => {
+    for (let rank = 1; rank <= 6; rank++) {
+      expect(strongForRank(rank)).not.toBe(colorForRank(rank));
+    }
   });
 });
 

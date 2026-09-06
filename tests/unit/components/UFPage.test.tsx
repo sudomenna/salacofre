@@ -182,7 +182,11 @@ describe("UFPage SSR (S07/Fase 2 — ADR-0018 + ADR-0019)", () => {
     expect(doc.body.textContent).toContain("Margem estimada");
   });
 
-  it("(d) trilha presidencial: main[data-trilha=pres], kicker e breadcrumb Brasil › SP", async () => {
+  // O kicker carrega só o rótulo da trilha; a profundidade da navegação é do
+  // breadcrumb, que tem links reais. Antes os dois repetiam "Brasil › SP"
+  // (achado 2 do a11y-perf-auditor, 2026-09-05) e este teste fixava a
+  // duplicação como esperada.
+  it("(d) trilha presidencial: main[data-trilha=pres], kicker sem crumbs, breadcrumb Brasil › SP", async () => {
     readUfProjectionMock.mockResolvedValueOnce(
       buildUfPayload({ turno: 1, candidatos: oitoCandidatos, comParticipacao: true }),
     );
@@ -192,7 +196,7 @@ describe("UFPage SSR (S07/Fase 2 — ADR-0018 + ADR-0019)", () => {
     expect(doc.querySelector("main")?.getAttribute("data-trilha")).toBe("pres");
     expect(
       doc.querySelector("[data-trilha-kicker]")?.textContent?.replace(/\s+/g, " ").trim(),
-    ).toBe("PRESIDÊNCIA · Brasil › SP");
+    ).toBe("PRESIDÊNCIA");
 
     const crumbs = [...doc.querySelectorAll('nav[aria-label="Breadcrumb"] li')].map((li) =>
       li.textContent?.replace(/[\s›]+/g, " ").trim(),

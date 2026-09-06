@@ -5,7 +5,7 @@
  * lidos diretamente de `EdgeNational.cenarios_2t` (S05/F4c — ADR-0014).
  *
  * Cobertura
- *   - RF-030.8 (cenários 2T — exibe top-3 pares prováveis com probabilidade).
+ *   - RF-030.9 (cenários 2T — exibe top-3 pares prováveis com probabilidade).
  *   - ADR-0014 (`cenarios_2t` é métrica de primeira classe do payload —
  *     UI não recalcula, só renderiza).
  *

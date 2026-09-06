@@ -2,7 +2,7 @@
 /**
  * tests/unit/components/RunoffScenarios.test.tsx
  *
- * Cobre RF-030.8 (cenários 2T) + gate de relevância (P >= 0.4) +
+ * Cobre RF-030.9 (cenários 2T) + gate de relevância (P >= 0.4) +
  * ordenação por prob desc + a11y.
  */
 

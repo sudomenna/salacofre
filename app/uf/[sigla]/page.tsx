@@ -293,7 +293,13 @@ export default async function UFPage({ params }: UFPageProps) {
     >
       <RaceHeader
         trilha="pres"
-        crumbs={["Brasil", sigla]}
+        // Sem crumbs no kicker: o `<UFBreadcrumb>` logo abaixo já mostra
+        // "Brasil › SP" com links reais e é a fonte de verdade do "onde estou"
+        // (RF-031). Repetir a trilha aqui produzia "PRESIDÊNCIA · Brasil › SP"
+        // sobre "Brasil › SP" — redundante na tela e no leitor de tela
+        // (achado 2 do a11y-perf-auditor, 2026-09-05). O kicker mantém só o
+        // rótulo da trilha, que é o que ele existe para comunicar (RF-063).
+        crumbs={[]}
         titulo={`${sigla} — Apuração Presidencial 2026`}
         liveActive={payload.pct_apurado > 0 && payload.pct_apurado < 100}
         turno={payload.turno}

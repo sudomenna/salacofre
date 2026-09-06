@@ -83,14 +83,17 @@ function chipFor(bucket: EdgeUfRow["bucket"]): StatusChip {
     case "decidido_1t":
       return {
         label: "● ELEITO",
-        bg: "var(--color-success, #166534)",
+        // -strong: texto branco por cima exige 4.5:1 (--color-success falha,
+        // 4.14:1) — achado a11y-perf-auditor 2026-09-05, ver globals.css.
+        bg: "var(--color-success-strong, #166534)",
         fg: "#ffffff",
         ariaText: "eleito",
       };
     case "vai_2t":
       return {
         label: "VAI A 2T",
-        bg: "var(--color-warning, #b45309)",
+        // -strong: idem acima — --color-warning falha (3.18:1 com texto branco).
+        bg: "var(--color-warning-strong, #b45309)",
         fg: "#ffffff",
         ariaText: "vai ao segundo turno",
       };

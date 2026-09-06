@@ -40,6 +40,35 @@ O RNF-007 foi refinado em 2026-05-17 após audit: a meta original "<150KB total"
 
 `Lighthouse` mede o above-the-fold; CI lint deve falhar quando RNF-007a > 150KB. Análise por bundle-analyzer cobre RNF-007b/c.
 
+### ⚠️ Como medir RNF-007a sem inflar o número (2026-09-05)
+
+**Não some ingenuamente todo `<script src>` do HTML.** O Next.js emite um chunk de polyfills legados
+com o atributo `nomodule` — 112.594 bytes raw / **39.373 bytes gz**, byte a byte idêntico a
+`node_modules/next/dist/build/polyfills/polyfill-nomodule.js`. Qualquer navegador que entenda
+`<script type="module">` **ignora esse arquivo e nem faz o request**, então ele não custa nada a
+usuário real algum — mas entra na soma e infla a métrica em ~39KB.
+
+Foi exatamente isso que fez o above-the-fold "medir" 191,6KB e parecer 42KB acima da meta. Descontando
+o chunk `nomodule`, o custo real é de **~148,7 KiB em 8 requests** — ou seja, **dentro da meta**, com o
+resultado dependendo de arredondamento (KB decimal vs. KiB) e do nível de compressão do medidor.
+
+Composição real dos 8 chunks que o navegador de fato baixa:
+
+| Bucket | gz |
+|---|---|
+| React 19 DOM runtime | 70,85 KB |
+| React core + Scheduler + Flight (RSC) | 38,48 KB |
+| App Router client runtime (4 chunks) | 36,69 KB |
+| Turbopack module runtime | 4,16 KB |
+| Glue/misc | 1,45 KB |
+
+Nenhum dos chunks contém `framer-motion`, `zustand`, `swr`, `zod`, `maplibre` ou `d3-*` — o código do
+app não vazou para o above-the-fold; o que resta é overhead de framework.
+
+**Antes de virar gate de CI**, a régua precisa filtrar `noModule`. O caminho mais robusto é capturar os
+requests reais via Playwright (`page.on("response")` com `resourceType === "script"`), porque o próprio
+navegador aplica a semântica de `nomodule` e elimina essa classe de erro sem depender de regex de HTML.
+
 ## Validação
 
 - Load test 30k VUs: [../testing/load.md](../testing/load.md)

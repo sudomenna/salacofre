@@ -93,7 +93,10 @@ export function BreakingNewsTicker({
       >
         <span
           className="text-xs uppercase tracking-wide font-semibold"
-          style={{ color: "var(--color-warning, #b45309)" }}
+          // -strong: cor de texto exige 4.5:1 — --color-warning falha
+          // (3.05:1 sobre --color-bg-muted). Achado a11y-perf-auditor
+          // 2026-09-05, ver globals.css.
+          style={{ color: "var(--color-warning-strong, #b45309)" }}
         >
           ÚLTIMAS CHAMADAS
         </span>
@@ -128,7 +131,8 @@ export function BreakingNewsTicker({
     >
       <span
         className="shrink-0 text-xs uppercase tracking-wide font-semibold"
-        style={{ color: "var(--color-warning, #b45309)" }}
+        // -strong: idem acima — cor de texto exige 4.5:1.
+        style={{ color: "var(--color-warning-strong, #b45309)" }}
       >
         AGORA
       </span>

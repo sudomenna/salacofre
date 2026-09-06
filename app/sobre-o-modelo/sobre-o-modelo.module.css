@@ -300,6 +300,20 @@
   font-weight: 600;
 }
 
+/* WCAG 1.4.1 (uso de cor): dentro de um bloco de texto, o link não pode ser
+   distinguível só pela cor — axe apontava `link-in-text-block` aqui
+   (a11y-perf-auditor, 2026-09-05). Espelha o tratamento de `.footer a`. */
+.disclaimer a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.disclaimer a:hover {
+  text-decoration-thickness: 2px;
+}
+
 .footer {
   margin-top: 48px;
   padding-top: 24px;

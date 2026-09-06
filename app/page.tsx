@@ -311,8 +311,12 @@ export default async function HomePage() {
       {insights.length > 0 && <InsightCard frases={insights} heading="Análise" />}
 
       {/* `composition` reservado para futuras melhorias do ForecastTransparency */}
+      {/* FIX 2026-09-05 (a11y-perf-auditor): --color-text-faint (#999999)
+          mede ~2.85:1 sobre branco — falha RNF-022 (4.5:1). Só aparece em
+          dev (NODE_ENV==="development"), mas axe-core não distingue isso;
+          trocado por --color-text-muted (~5.7:1). */}
       {process.env.NODE_ENV === "development" && (
-        <details className="text-xs" style={{ color: "var(--color-text-faint)" }}>
+        <details className="text-xs" style={{ color: "var(--color-text-muted)" }}>
           <summary>debug: composition</summary>
           <pre>{JSON.stringify(composition, null, 2)}</pre>
         </details>

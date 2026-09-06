@@ -112,6 +112,33 @@ export function resolveBandHex(rank: number): string {
   return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
 }
 
+/** Token CSS literal pra versão escura — fundos sólidos com texto branco. */
+export type CandStrongVar = `var(--color-cand-${number}-strong)` | "var(--color-cand-other)";
+
+/**
+ * Versão escura (strong) — pra **fundo sólido com texto branco por cima**.
+ *
+ * Existe porque `--color-cand-3` (âmbar) e `--color-cand-5` (lilás) não têm
+ * contraste suficiente com branco: o avatar de iniciais do `<CandidateRow />`
+ * ficava em ~3:1, falhando WCAG 1.4.3 / RNF-022 (achado do `a11y-perf-auditor`
+ * em 2026-09-05, já previsto como watch item em `globals.css`). Os tokens
+ * `--color-cand-N-strong` já existiam para isso e não estavam sendo usados.
+ *
+ * **Não substitui `colorForRank`.** Aquela continua sendo a cor de identidade do
+ * candidato (barras, ticks, linhas) e é congelada pelo ADR-0013. Use esta
+ * **apenas** quando houver texto por cima do preenchimento.
+ *
+ * Exemplo:
+ *   strongForRank(3) === "var(--color-cand-3-strong)"
+ *   strongForRank(99) === "var(--color-cand-other)"
+ */
+export function strongForRank(rank: number): CandStrongVar {
+  if (!Number.isFinite(rank) || rank < 1 || rank > MAX_CAND_RANK) {
+    return "var(--color-cand-other)";
+  }
+  return `var(--color-cand-${rank}-strong)` as CandStrongVar;
+}
+
 /**
  * Extrai o rank de uma string CSS var produzida por `colorForRank()`.
  * Ex: `"var(--color-cand-3)"` → 3 | `"var(--color-cand-other)"` → undefined.

@@ -19,6 +19,7 @@
  */
 
 import type { CSSProperties } from "react";
+import { rankFromColorVar, strongForRank } from "@/lib/utils/cand-color";
 
 export interface CandidateRowProps {
   /** Nome do candidato (line 1). */
@@ -57,8 +58,14 @@ export function CandidateRow({ nome, partido, cor, votos, pct, iniciais }: Candi
   const initials = iniciais ?? defaultIniciais(nome);
   const safePct = Math.max(0, Math.min(100, pct));
 
+  // O avatar é o único lugar deste componente com texto **sobre** a cor do
+  // candidato. `--color-cand-3` (âmbar) e `--color-cand-5` (lilás) contra branco
+  // ficavam em ~3:1, falhando WCAG 1.4.3 / RNF-022 (a11y-perf-auditor,
+  // 2026-09-05). Usamos a variante `-strong` só aqui; a barra e o resto seguem
+  // com a cor de identidade de `colorForRank` (ADR-0013, intocado).
+  const rank = rankFromColorVar(cor);
   const avatarStyle: CSSProperties = {
-    backgroundColor: cor,
+    backgroundColor: rank === undefined ? cor : strongForRank(rank),
     color: "#ffffff",
   };
 
