@@ -23,7 +23,7 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchEA20 } from "@/lib/tse/client";
 import { IngestError, TSEError } from "@/lib/tse/errors";
-import { resetTseRateLimiter } from "@/lib/tse/rate-limiter";
+import { getTseRateLimiter, resetTseRateLimiter } from "@/lib/tse/rate-limiter";
 import { RETRY_MAX_DELAY_MS, withRetry } from "@/lib/tse/retry";
 
 // ---------------------------------------------------------------------------
@@ -247,6 +247,24 @@ describe("fetchEA20 — 304 Not Modified", () => {
     const [, init] = mockFn.mock.calls[0] as [string, RequestInit];
     const headers = init?.headers as Record<string, string>;
     expect(headers?.["If-None-Match"]).toBe('"abc-123"');
+  });
+
+  // RF-010.3 + RF-010.4 (spec 001): a requisição condicional economiza banda,
+  // não cota. Dimensionamos o ciclo como se o 304 contasse no limite de 100
+  // req/s do TSE — postura conservadora, já que o material oficial é silente
+  // sobre cache condicional. Este teste trava esse comportamento: se alguém
+  // "otimizar" o cliente para pular o rate limiter quando há ETag, o orçamento
+  // de requisições do ciclo passa a mentir e o gate quebra aqui.
+  it("consome token do rate limiter mesmo quando a resposta é 304 (RF-010.4)", async () => {
+    resetTseRateLimiter();
+    const bucket = getTseRateLimiter();
+    const acquiredAntes = bucket.stats.acquired;
+
+    mockFetchOnce({ status: 304 });
+    const result = await fetchEA20({ url: TEST_URL, etag: '"abc-123"' });
+
+    expect(result).toStrictEqual({ kind: "not_modified" });
+    expect(bucket.stats.acquired).toBe(acquiredAntes + 1);
   });
 });
 

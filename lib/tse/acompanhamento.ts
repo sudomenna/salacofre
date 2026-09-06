@@ -24,6 +24,7 @@
  */
 
 import { z } from "zod";
+import { USER_AGENT } from "./client";
 import { logDebug, logWarn } from "./log";
 import { getTseRateLimiter } from "./rate-limiter";
 import { buildEA14Url, getCodEleicao, getTseBaseUrl } from "./targets";
@@ -181,7 +182,10 @@ export async function detectChangedUfs(args: {
     const headers: Record<string, string> = {
       Accept: "application/json",
       "Accept-Encoding": "gzip",
-      "User-Agent": "SalaCofre/1.0 (+https://salacofre.com.br; contato: pendente)",
+      // Reusa a constante de client.ts — nunca duplicar o literal: quando o
+      // contato pendente for preenchido (decisão humana antes de 15/09), este
+      // caminho tem de acompanhar automaticamente (ADR-0020).
+      "User-Agent": USER_AGENT,
     };
     if (args.previous?.etag) {
       headers["If-None-Match"] = args.previous.etag;

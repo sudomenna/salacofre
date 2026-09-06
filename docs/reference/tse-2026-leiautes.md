@@ -86,7 +86,7 @@ agora aceita `dd/mm/aaaa` (preferencial, testado primeiro) e `ddMMyyyy` (legado)
 
 Ver tabela acima — `sp-c0003-e999999-u.json` (UF) e `br-c0003-e999999-u.json` (Brasil) são formatos oficiais
 documentados. A tabela de cargos × arquivo (`EA20 §2`, linha 143-167) confirma que **Presidente (0001) é o único
-cargo com arquivo BR**; Governador (0003) só tem arquivo UF/Município/Zona. Ver § 5 (Recomendação de fan-out)
+cargo com arquivo BR**; Governador (0003) só tem arquivo UF/Município/Zona. Ver § 6 (Recomendação de fan-out)
 abaixo para a estratégia de ciclo.
 
 ---
@@ -193,6 +193,13 @@ achado mais urgente para o orquestrador re-priorizar**: sem uma correção equiv
 (`_payload_abr0`, `_iter_cands`, `_extract_zone_candidate_pcts`, `_extract_zone_participacao`,
 `fetch_municipio_aggregates`), o modelo estatístico vai rodar silenciosamente sem candidatos/participação reais
 a partir do simulado de 15/09. Recomenda-se despachar `model-validator` ou `spec-implementer` **imediatamente**.
+
+> **✅ Resolvido em 2026-09-05 (commit `67c1014`, verificado na Fase 3).** `api/model/project.py`
+> foi reescrito para o shape real: `_payload_abr0` e `_iter_cands` percorrem
+> `carg[] → (fed[] | agr[].par[]).cand[]` e aceitam também o dict achatado legado de
+> testes/replay; `_extract_zone_participacao` lê os objetos de raiz `s`/`e`/`v`. Os 153 testes
+> Python passam. **Este bloco fica como registro histórico do achado — a ação que ele pedia já
+> foi executada.**
 
 ---
 

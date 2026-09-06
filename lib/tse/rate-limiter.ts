@@ -135,10 +135,13 @@ export function createTokenBucket(opts: TokenBucketOptions): TokenBucket {
 // Singleton — getTseRateLimiter
 // ---------------------------------------------------------------------------
 
-/** Limite documentado pelo TSE é 100 req/s/IP; nunca deixamos configurar
- *  acima de 80 mesmo via env, para deixar margem de segurança (outros
- *  processos no mesmo IP, retries, HEAD do tse-watch, etc). */
-const TSE_MAX_RPS_CEILING = 80;
+/** Limite documentado pelo TSE é 100 req/s/IP, com bloqueio de 10 min
+ *  renovado em caso de violação. Nunca deixamos configurar acima de 50
+ *  mesmo via env, para deixar margem de segurança (outros processos no
+ *  mesmo IP, retries, HEAD do tse-watch, e o 304 que tratamos como se
+ *  consumisse cota). Teto exigido por RF-010.3 da spec 001 — não elevar
+ *  sem revisar a spec e o ADR-0020. */
+const TSE_MAX_RPS_CEILING = 50;
 const TSE_MAX_RPS_FLOOR = 1;
 const TSE_MAX_RPS_DEFAULT = 30;
 

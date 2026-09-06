@@ -17,14 +17,14 @@ closed: 2026-05-17
 
 - **Plano Vercel: Pro** (confirmado pelo orquestrador em 2026-05-17). `maxDuration` default 60s, até 800s via Fluid Compute.
 - **Cron via Vercel Cron nativo a cada 60s** (decisão D-1 abaixo). RF-002 e RNF-006 renegociados via ADR-0011 (a ser criado pelo `adr-author` antes de T09).
-- **Cadastro "interessado divulgação"** (RF-010) é **operacional, não código** — entra como task de checklist (T22), não implementação.
+- ~~**Cadastro "interessado divulgação"** (RF-010) é **operacional, não código** — entra como task de checklist (T22), não implementação.~~ **OBSOLETO (2026-09-05)**: a Res. TSE 23.751/2026 **não prevê cadastro algum** — a premissa veio de analogia com a Res. 23.736/2024 e nunca se confirmou ([ADR-0020](../../architecture/adrs/0020-conformidade-res-23751-2026.md)). RF-010 foi reescrito como conformidade verificável por código (RF-010.1..RF-010.6).
 - `lib/db/schema.ts` já tem `snapshots` e `ingest_log` definidos (não duplicar).
 - Reutilizar `data-pipeline/_tse-common.ts` **só como inspiração** — runtime do `/api/ingest` é Fluid Compute Node, sem `node:fs` cache, sem `unzip`.
 
 ## Decisões fechadas (resolvendo as Open Questions originais)
 
 - **D-1 (ex-OQ-1) Cadência: 60s via Vercel Cron nativo.** Não self-loop. Implicações: (a) RF-002 muda de "a cada 15s" para "a cada 60s"; (b) RNF-006 muda defasagem TSE→tela de <30s para <90s (60s polling + ~10s processamento + ~10s propagação Edge Config + margem). Renegociação formal via **ADR-0011** (`adr-author` antes de T09). Spec.md e design.md também são atualizados (T-pre-coding abaixo).
-- **D-2 (ex-OQ-2) User-Agent**: manter `SalaCofre/1.0 (interessado-divulgacao-cadastrado)` como placeholder. Revisado no T22 quando resolução TSE 2026 for publicada.
+- ~~**D-2 (ex-OQ-2) User-Agent**: manter `SalaCofre/1.0 (interessado-divulgacao-cadastrado)` como placeholder. Revisado no T22 quando resolução TSE 2026 for publicada.~~ **REVERTIDA (2026-09-05)**: aquele User-Agent declarava ao TSE um cadastro **que nunca existiu** — afirmação falsa. Substituído por `SalaCofre/1.0 (+<url>; <contato>)` (RF-010.6, ADR-0020, `lib/tse/client.ts:60`). Falta só o texto do contato (decisão humana).
 - **D-3 (ex-OQ-3) Raw EA20**: **só Postgres** nesta sprint. JSONB completo na coluna `snapshots.payload`. Dual write para Blob fica como chore S03 se custo de armazenamento couber. Backlog atualizado.
 - **D-4 (ex-OQ-4) Whitelist preview**: SP × cargo 1 (Presidente) × ~500 zonas (~500 GETs/ciclo). Configurada via `TSE_TARGETS_WHITELIST=SP:1` env var no preview. Produção lê todas as zonas × cargos ativos da `zonas`.
 
@@ -232,16 +232,23 @@ closed: 2026-05-17
   - Cobre: DoD sprint S02.
   - Estimado: 0.5h.
 
-### Fase 9 — RF-010 (conformidade regulatória)
+### Fase 9 — RF-010 (conformidade regulatória) — *ver adendo de obsolescência ao fim do arquivo*
 
-- [x] **T22 — Checklist RF-010 e watch regulatório**
-  - **NÃO é código** — entrada em `docs/operations/runbook.md` (seção "Conformidade TSE"):
-    - User-Agent atual: `SalaCofre/1.0 (interessado-divulgacao-cadastrado)`.
-    - Status cadastro TSE: **pendente** (resolução 2026 não publicada).
-    - Owner: usuário (Tiago).
-    - Watch: revisar `docs/reference/regulatory.md` semanalmente.
-  - Cobre: **RF-010** parcialmente — fica "watch" até resolução 2026 sair.
-  - Estimado: 0.3h.
+- [~] **T22 — ~~Checklist RF-010 e watch regulatório~~ — OBSOLETA (2026-09-05)**
+  - ~~**NÃO é código** — entrada em `docs/operations/runbook.md` (seção "Conformidade TSE"):~~
+    - ~~User-Agent atual: `SalaCofre/1.0 (interessado-divulgacao-cadastrado)`.~~
+    - ~~Status cadastro TSE: **pendente** (resolução 2026 não publicada).~~
+    - ~~Owner: usuário (Tiago).~~
+    - ~~Watch: revisar `docs/reference/regulatory.md` semanalmente.~~
+  - **Motivo da obsolescência**: a task inteira existia para acompanhar um **cadastro que não
+    existe** e uma **resolução que já estava publicada** (Res. 23.751/2026, arts. 264–269). Não há
+    status administrativo a monitorar, nem aprovação a esperar — ver
+    [ADR-0020](../../architecture/adrs/0020-conformidade-res-23751-2026.md).
+  - **O que a substitui**: RF-010 reescrito em seis sub-requisitos verificáveis por teste
+    (RF-010.1 integridade do payload · RF-010.2 rotulagem "não oficial" · RF-010.3 rate limiter
+    ≤ 50 rps · RF-010.4 condicional ciente do 304 · RF-010.5 zero sondagem de URL ·
+    RF-010.6 User-Agent honesto). O watch regulatório vira watch **técnico** de leiaute
+    (`pnpm tse:watch`), não administrativo.
 
 ### Fase 10 — Gates pré-`shipped` (sequencial)
 
@@ -253,6 +260,24 @@ Todos paralelos exceto onde indicado.
 - [x] **T26 — Gate: a11y N/A** (sem UI nesta spec).
 - [x] **T27 — Gate: model-validator N/A** (T12 só compila — validação real em S03).
 - [x] **T28 — Promoção: spec.md `status: draft → shipped`** + despachar `spec-syncer`.
+
+## Adendo de obsolescência — 2026-09-05 (Fase 3 da S07)
+
+Este `tasks.md` fechou a S02 em 2026-05-17 e permanece como registro histórico daquele ciclo —
+nenhuma checkbox marcada foi desmarcada. O que a pesquisa em fonte primária de 2026-09-05 tornou
+obsoleto está riscado acima, com o motivo ao lado:
+
+| Item | Situação |
+|---|---|
+| Premissa "Cadastro interessado divulgação" (Contexto) | **Obsoleta** — cadastro não existe na Res. 23.751/2026 |
+| D-2 (User-Agent declarando cadastro) | **Revertida** — o header afirmava status inexistente |
+| T22 (checklist de cadastro + watch regulatório) | **Obsoleta** — substituída por RF-010.1..RF-010.6 |
+| T25 (`rf-coverage-checker` "todos 10 RFs cobertos") | **Parcialmente vencida** — a spec passou de 10 para 16 RFs; os seis sub-RFs de RF-010 precisam de nova passada de cobertura |
+
+Não há neste arquivo nenhuma task de "refactor do parser EA20 → JSON": esse trabalho vivia na
+[spec 001.1](../001.1-tse-json-refactor/spec.md), agora `superseded` — o EA20 foi mantido pelo TSE
+e sempre foi JSON. O que de fato mudou (estrutura interna do leiaute 2026) foi absorvido nas Fases
+0 e 1a da S07 (commits `c6395a3` e `67c1014`), fora deste `tasks.md`.
 
 ## Caminho crítico
 

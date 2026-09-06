@@ -118,7 +118,7 @@ describe("getTseRateLimiter", () => {
     expect(succeeded).toBe(30);
   });
 
-  it("respeita TSE_MAX_RPS dentro do clamp [1, 80]", () => {
+  it("respeita TSE_MAX_RPS dentro do clamp [1, 50]", () => {
     vi.stubEnv("TSE_MAX_RPS", "5");
     const bucket = getTseRateLimiter();
 
@@ -129,15 +129,18 @@ describe("getTseRateLimiter", () => {
     expect(succeeded).toBe(5);
   });
 
-  it("clampa valores acima de 80 para 80", () => {
+  // RF-010.3 (spec 001): a taxa efetiva nunca pode passar de 50 req/s, teto de
+  // segurança abaixo dos 100 req/s documentados pelo TSE. Se este teste falhar
+  // por o clamp ter subido, a spec é que manda — revise RF-010.3 antes do código.
+  it("clampa valores acima de 50 para 50 (teto RF-010.3)", () => {
     vi.stubEnv("TSE_MAX_RPS", "500");
     const bucket = getTseRateLimiter();
 
     let succeeded = 0;
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < 60; i++) {
       if (bucket.tryAcquire()) succeeded++;
     }
-    expect(succeeded).toBe(80);
+    expect(succeeded).toBe(50);
   });
 
   it("clampa valores abaixo de 1 para 1", () => {
