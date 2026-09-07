@@ -35,9 +35,14 @@
  *     "GOVERNADOR · Brasil (27 UFs)" (ADR-0019). O grid de 27 cards e o
  *     cartograma seguem inalterados.
  *   - `<ProjectionThermometers variant="participacao-only" />` acima dos
- *     `<RaceStatsCards />`, **só** quando o payload traz `participacao`
- *     (ADR-0018). Não há "top 3 nacional" de governador — só Presidente tem
- *     abrangência Brasil no EA20 —, por isso a variante de participação.
+ *     `<RaceStatsCards />` quando o payload traz `participacao` (ADR-0018).
+ *     Não há "top 3 nacional" de governador — só Presidente tem abrangência
+ *     Brasil no EA20 —, por isso a variante de participação.
+ *   - Sem `participacao` no payload, o lugar do bloco é ocupado por um
+ *     parágrafo explicativo estático, com o mesmo `<h2>` (ADR-0022, emendado
+ *     em 06/09): o bloco nunca sai do DOM, mas também não alega que há um
+ *     valor a caminho — só explica que o agregado é a soma de 27 corridas e
+ *     que ele passa a existir na primeira zona apurada em qualquer estado.
  *
  * ISR: cadência de 60s (ADR-0011) — `revalidate = 60`.
  */
@@ -89,6 +94,14 @@ const FILTER_LABELS: Record<StatusFilter, string> = {
 };
 
 const FILTER_ORDER: StatusFilter[] = ["todas", "em_disputa", "decididos_1t", "vai_2t", "chamadas"];
+
+/**
+ * Título do bloco de participação nacional. Usado tanto pelo termômetro
+ * quanto pelo bloco explicativo que ocupa o lugar dele antes da 1ª apuração
+ * — o heading precisa ser o mesmo `<h2>`, no mesmo ponto da página, para que
+ * a navegação por headings não mude conforme o dado chega (ADR-0022).
+ */
+const PARTICIPACAO_HEADING = "Participação do eleitorado";
 
 /**
  * Predicado de filtro — case sobre `bucket` declarado pelo orchestrator
@@ -196,17 +209,43 @@ export default async function GovernadorGridPage({ searchParams }: PageProps) {
         liveActive={pct_apurado_total > 0}
       />
 
-      {/* Participação nacional agregada (ADR-0018). Sem o bloco no payload
-          o componente inteiro fica fora — aqui não há "aguardando", porque
-          uma corrida nacional de governador não existe: o que existe são 27
-          corridas, e a participação é o único agregado nacional legítimo. */}
-      {national.participacao && (
+      {/* Participação nacional agregada (ADR-0018 + ADR-0022, emendado em
+          06/09). O bloco NUNCA sai do DOM: com dado, é o termômetro normal;
+          sem dado, é o parágrafo explicativo abaixo, com o mesmo <h2> na
+          mesma posição. Não usamos "aguardando projeção" aqui porque não
+          existe uma corrida nacional de governador a ser aguardada — existem
+          27 corridas —, mas explicar por que o número ainda não existe é
+          honesto e mantém o bloco anunciável por leitor de tela. */}
+      {national.participacao ? (
         <ProjectionThermometers
           variant="participacao-only"
           participacao={national.participacao}
           candidatos={national.candidatos}
-          heading="Participação do eleitorado"
+          heading={PARTICIPACAO_HEADING}
         />
+      ) : (
+        <section
+          aria-labelledby="participacao-nacional-heading"
+          data-testid="participacao-nacional-indisponivel"
+          className="flex flex-col gap-2"
+        >
+          <h2
+            id="participacao-nacional-heading"
+            className="text-xl md:text-2xl"
+            style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
+          >
+            {PARTICIPACAO_HEADING}
+          </h2>
+          <p className="max-w-prose text-sm" style={{ color: "var(--color-text-muted)" }}>
+            Não existe uma corrida nacional de governador — são 27 disputas estaduais independentes,
+            uma em cada estado e no Distrito Federal. A participação do eleitorado desta página
+            (abstenção, votos brancos e nulos) é a soma dessas 27 corridas.
+          </p>
+          <p className="max-w-prose text-sm" style={{ color: "var(--color-text-muted)" }}>
+            Esse número só passa a existir quando a primeira zona eleitoral for apurada em algum
+            estado: antes disso, não há voto contado em lugar nenhum para somar.
+          </p>
+        </section>
       )}
 
       {/* Stats cards */}

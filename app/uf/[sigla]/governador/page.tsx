@@ -6,8 +6,8 @@
  * Herda ~70% da `app/uf/[sigla]/page.tsx` (presidencial) mas com cargo=gov,
  * adicionando 3 blocos NYT-style decididos no kickoff S06:
  *
- *   1. K-1 disclaimer (constituição § 8) — banner sobre o hero quando
- *      `payload.model_fallback_tier >= 2` (sinal opcional do orchestrator).
+ *   1. (removido em S07/Fase 5) K-1 disclaimer — ver ADR-0021, que supersede
+ *      o ADR-0015: sem 2022 no cálculo, não há "prior limitado" a declarar.
  *   2. `<MunicipioWaffleGrid>` — Print 3 NYT (1 quadrado = 1 município).
  *   3. Bloco "Apuração por mesorregião" — só renderiza se `mesorregioes?`
  *      vier populado (degrade gracioso conforme Fase 2 — IBGE seed pode
@@ -15,10 +15,11 @@
  *
  * Cobertura
  *   - RFs 031–044 (idênticos à spec 004 — Open question 005 resolvida:
- *     página existe mesmo sem mapping 2022, com disclaimer).
- *   - ADR-0001/0010/0012/0013/0015/0017.
+ *     página existe mesmo sem mapping 2022 — que, desde o ADR-0021, deixou
+ *     de ser um caso especial: a projeção não consulta 2022).
+ *   - ADR-0001/0010/0012/0013/0017/0021.
  *   - Constituição § 2 (cores via tokens, paleta multi-partido),
- *     § 3 (degrade gracioso), § 8 (transparência K-1).
+ *     § 3 (degrade gracioso), § 8 (transparência metodológica).
  *
  * S07/Fase 2
  *   - Dispatch de modo (`binary` | `multi-1t`) com a mesma regra da home;
@@ -154,19 +155,6 @@ function toMunicipioRows(
 }
 
 /**
- * K-1 disclaimer adaptativo (ADR-0015). Lê `model_fallback_tier` do
- * `EdgePayloadUf` (campo opcional formal — S06/F4d Fase 5). Quando ausente
- * (payloads pré-S05 ou tier 1 ouro sem disclaimer), retorna null.
- *
- * Pré-Fase 5 lia via cast (`as unknown as { ... }`) porque o campo não
- * estava no tipo formal — Fase 5 da S06 promoveu o campo a opcional em
- * `lib/edge-config/types.ts` e este consumidor passou a ler direto.
- */
-function readModelFallbackTier(payload: EdgePayloadUf): number | null {
-  return payload.model_fallback_tier ?? null;
-}
-
-/**
  * Sintetiza um `EdgePayloadUf` de governador a partir da fixture nacional de
  * gov — espelho de `synthesizeUfFromNational` na rota presidencial. Só roda
  * fora de produção e só quando o reader devolve null (dev/preview sem
@@ -295,8 +283,6 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
     payload.turno === 2 || payload.candidatos.length === 2 ? "binary" : "multi-1t";
 
   const mesorregioes = payload.mesorregioes ?? [];
-  const modelTier = readModelFallbackTier(payload);
-  const k1Disclaimer = modelTier != null && modelTier >= 2;
 
   return (
     <main
@@ -312,30 +298,16 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
         breadcrumb={govBreadcrumb(sigla)}
       />
 
-      {/* K-1 disclaimer (ADR-0015 + constituição § 8) — banner sobre o hero
-          quando bloco político não tem mapping 2022 confiável. */}
-      {k1Disclaimer && (
-        <aside
-          role="note"
-          aria-label="Aviso sobre o modelo"
-          className="rounded-md border px-4 py-3 text-sm"
-          style={{
-            borderColor: "var(--color-warning, #b45309)",
-            backgroundColor: "var(--color-bg-muted)",
-            color: "var(--color-text)",
-          }}
-        >
-          <strong>Modelagem com prior limitado.</strong>{" "}
-          {modelTier === 3
-            ? "Bloco político sem mapeamento histórico em 2022 — exibimos apenas o parcial atual sem projeção."
-            : "Bloco político com mapeamento parcial em 2022 — projeção usa pesquisa pré-eleitoral como prior, intervalos podem ser mais largos."}
-        </aside>
-      )}
+      {/* O disclaimer de K-1 (ADR-0015) foi REMOVIDO em S07/Fase 5. O ADR-0021
+          supersede o ADR-0015: a projeção não usa mais 2022 como insumo, então
+          não existe "bloco político sem mapeamento histórico" — o caminho de
+          código que alimentava esse banner é morto desde a Fase 1. Manter o
+          texto seria descrever ao leitor um modelo que não roda (constituição
+          § 8 v1.2). `model_fallback_tier` segue no schema como @deprecated,
+          sem consumidor. */}
 
-      {/* WinnerBanner — Open question 005 resolved: K-1 tier 3 (sem prior)
-          ainda pode mostrar "ELEITO" se chamada factual atingida (>=99%
-          apurado). p_vitoria fica unreliable em tier 3 mas o sinal de
-          apuração é factual. */}
+      {/* WinnerBanner — a chamada é factual (>=99% apurado), independente da
+          confiança do modelo. */}
       {lider && pVitoriaLider >= 0.95 && (
         <WinnerBanner
           candidato={lider.nome}

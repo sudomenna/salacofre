@@ -1130,6 +1130,58 @@ def _resolve_zone_weight(
     return eleitorado.get((uf, cod_zona), 0)
 
 
+# Mínimo de zonas para estratificar uma UF. Abaixo disso, três estratos
+# repartiriam pouquíssimas zonas e trocariam viés de composição por
+# variância — o remédio pior que a doença. Em 2026-09-06 as UFs abaixo do
+# limiar são RR (8 zonas), AC (9), ZT (10) e AP (10); a seguinte, SE, tem 29.
+_MIN_ZONAS_PARA_ESTRATIFICAR = 12
+
+# Número de estratos (tercis de `te`). Três é o maior número que ainda deixa
+# ≥ 4 zonas por estrato na menor UF elegível.
+_N_ESTRATOS = 3
+
+
+def _compute_estratos_por_uf(
+    uf: str,
+    eleitorado: dict[tuple[str, int], int],
+) -> tuple[dict[int, int] | None, dict[int, float] | None]:
+    """Pós-estratificação por porte: tercis de `te` sobre TODAS as zonas da UF.
+
+    O ponto inteiro da estratificação está em usar `eleitorado` — que conhece
+    **todas** as zonas — e não os snapshots, que só conhecem as que já
+    reportaram. É isso que fixa o peso de cada estrato *a priori* e neutraliza
+    o viés de composição: as zonas grandes chegam primeiro, mas o peso do
+    estrato "grande" não cresce por causa disso (achado do replay 2022
+    regenerado, 2026-09-06 — MAE@1h de 3,2pp concentrado em UFs com apuração
+    parcial e composição enviesada).
+
+    Devolve `(None, None)` quando a UF não é elegível — o caller então chama
+    `estimate_uf_candidatos` sem os parâmetros e o caminho original roda
+    byte-a-byte idêntico (nenhum sorteio extra é consumido do RNG, § 6).
+    """
+    zonas_da_uf = [
+        (cod_zona, aptos)
+        for (u, cod_zona), aptos in eleitorado.items()
+        if u == uf and cod_zona != 0 and aptos > 0
+    ]
+    if len(zonas_da_uf) < _MIN_ZONAS_PARA_ESTRATIFICAR:
+        return None, None
+
+    # Ordena por porte e corta em tercis por CONTAGEM de zonas (não por soma
+    # de eleitores): estratos com número parecido de zonas mantêm o bootstrap
+    # por estrato estável. Empate de `te` resolve por `cod_zona` para que a
+    # atribuição seja determinística (§ 6).
+    zonas_da_uf.sort(key=lambda t: (t[1], t[0]))
+    n = len(zonas_da_uf)
+    estrato_by_cod_zona: dict[int, int] = {}
+    te_total_by_estrato: dict[int, float] = {}
+    for pos, (cod_zona, aptos) in enumerate(zonas_da_uf):
+        k = min(pos * _N_ESTRATOS // n, _N_ESTRATOS - 1)
+        estrato_by_cod_zona[cod_zona] = k
+        te_total_by_estrato[k] = te_total_by_estrato.get(k, 0.0) + float(aptos)
+    return estrato_by_cod_zona, te_total_by_estrato
+
+
 def compute_uf_projections(
     cargo: int,
     turno: int,
@@ -1189,18 +1241,34 @@ def compute_uf_projections(
     for uf, snaps in snaps_by_uf.items():
         zonas: list[ZonaCandidatos] = []
         pct_num = 0.0
-        pct_den = 0.0
         for s in snaps:
             cod_zona = s["cod_zona"]
             w = _resolve_zone_weight(uf, cod_zona, eleitorado, eleitorado_total_by_uf)
             if w > 0:
                 pct_num += s["pct_apurado"] * w
-                pct_den += w
             raw = _extract_zone_candidatos(s["payload"])
             if raw is None:
                 continue
             zona: ZonaCandidatos = {**raw, "cod_zona": cod_zona, "weight": w}  # type: ignore[typeddict-item]
             zonas.append(zona)
+        # Denominador é o eleitorado TOTAL da UF (todas as zonas
+        # conhecidas via `eleitorado`), não a soma dos pesos das zonas
+        # PRESENTES no snapshot. Zonas ausentes (404 "sem dados ainda",
+        # `app/api/ingest/route.ts`) apuraram 0% — contribuem 0 ao
+        # numerador e nada ao denominador antigo, o que inflava
+        # `uf_pct_apurado` para perto de 100% assim que qualquer zona
+        # pequena fechasse (achado: no replay 2022 fixado (t=1h), TO
+        # mostrava 100% apurado quando o real era ~52%; PI 93% vs ~37%
+        # real — ver model-validator, 2026-09-06). NOTA: essa métrica só
+        # alimenta RF-018 (limiar binário <5%) e o rótulo exibido ao
+        # leitor — NÃO alimenta o ponto projetado (`estimate_uf_
+        # candidatos` usa razão de somas das zonas efetivamente apuradas,
+        # independente de `uf_pct_apurado`). Corrigir este denominador
+        # não move MAE@1h nem cobertura IC95@1h no replay atual porque
+        # nenhuma UF cruza o limiar de 5% nesse timestep mesmo com o
+        # valor correto — o driver da falha de OT-4 é viés de composição
+        # (zonas maiores apuram primeiro), não este bug.
+        pct_den = eleitorado_total_by_uf.get(uf, 0)
         uf_pct_apurado = pct_num / pct_den if pct_den > 0 else 0.0
 
         local_seed = (
@@ -1211,7 +1279,16 @@ def compute_uf_projections(
             )
         ) & 0xFFFFFFFF
 
-        est = estimate_uf_candidatos(zonas, uf_pct_apurado, local_seed)
+        estrato_by_cod_zona, te_total_by_estrato = _compute_estratos_por_uf(
+            uf, eleitorado
+        )
+        est = estimate_uf_candidatos(
+            zonas,
+            uf_pct_apurado,
+            local_seed,
+            estrato_by_cod_zona=estrato_by_cod_zona,
+            te_total_by_estrato=te_total_by_estrato,
+        )
         if est is None:
             if int(cargo) == 1:
                 # RF-017 2o nível — resolvido na 2a passada abaixo, depois
@@ -1699,19 +1776,22 @@ def compute_participacao(
     for uf, snaps in snaps_by_uf.items():
         zonas: list[ZonaParticipacao] = []
         pct_num = 0.0
-        pct_den = 0.0
         for s in snaps:
             w = _resolve_zone_weight(
                 uf, s["cod_zona"], eleitorado, eleitorado_total_by_uf
             )
             if w > 0:
                 pct_num += s["pct_apurado"] * w
-                pct_den += w
             raw = _extract_zone_participacao(s["payload"])
             if raw is None or w <= 0:
                 continue
             zona: ZonaParticipacao = {**raw, "cod_zona": s["cod_zona"], "weight": w}  # type: ignore[typeddict-item]
             zonas.append(zona)
+        # Mesmo fix de `compute_uf_projections` acima: denominador é o
+        # eleitorado TOTAL da UF, não a soma dos pesos das zonas
+        # presentes no snapshot (gêmeo do bug — zonas ausentes apuraram
+        # 0%, não devem sumir do denominador).
+        pct_den = eleitorado_total_by_uf.get(uf, 0)
         pct_apurado_uf = pct_num / pct_den if pct_den > 0 else 0.0
 
         uf_result: dict[str, ParticipacaoEstimate | None] = {}
@@ -2603,13 +2683,31 @@ def build_edge_payload(
         uf_by_sigla.setdefault(r["uf"], []).append(r)
 
     # pct_apurado_total ponderado pelo eleitorado.
+    #
+    # Itera pela UNIÃO de `eleitorado_total_by_uf` (todas as UFs
+    # conhecidas, RF-008) e `uf_by_sigla` (UFs com ao menos 1 linha em
+    # `uf_rows`) — não só as últimas. Uma UF pode faltar inteiramente de
+    # `uf_rows` quando NENHUMA zona sua apareceu em `snapshots` ainda
+    # (todas as respostas do TSE foram 404 "sem dados", `app/api/ingest/
+    # route.ts`) — nesse caso `compute_uf_projections` nunca a processa
+    # (RF-017 hoje só cobre UFs presentes com estimativa `None`, não UFs
+    # ausentes de ponta a ponta; achado do model-validator, 2026-09-06,
+    # gêmeo do bug do denominador de `uf_pct_apurado`). Sem esta união, a
+    # UF ficava fora do numerador E do denominador — inflando
+    # artificialmente `pct_apurado_total` bem no início da apuração
+    # (exatamente quando ele é mais visível). Trata a UF ausente como 0%
+    # apurado (correto: ela não apurou nada), contribuindo com seu peso
+    # cheio ao denominador.
     pct_total_num = 0.0
     pct_total_den = 0.0
     ufs_apuradas = 0
-    for sigla, rows in uf_by_sigla.items():
+    todas_siglas = set(eleitorado_total_by_uf.keys()) | set(uf_by_sigla.keys())
+    for sigla in todas_siglas:
+        rows = uf_by_sigla.get(sigla)
         # rows são por candidato — pct_apurado vem repetido (é da UF, não do
-        # candidato). Usa o primeiro.
-        pct_uf = float(rows[0].get("pct_apurado") or 0.0)
+        # candidato). Usa o primeiro. UF sem nenhuma linha -> 0% (não
+        # apurou nada ainda), não "ausente do cálculo".
+        pct_uf = float(rows[0].get("pct_apurado") or 0.0) if rows else 0.0
         if pct_uf > 0:
             ufs_apuradas += 1
         w = eleitorado_total_by_uf.get(sigla, 0)

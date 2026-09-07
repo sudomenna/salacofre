@@ -110,4 +110,14 @@ describe("<DecisiveUFsGrid />", () => {
     );
     expect(siglas).toEqual(["SML", "MID", "BIG"]);
   });
+  it("(h) swing_vs_2022 null renderiza \u2014 e o subtítulo não fala de swing nacional", () => {
+    // ADR-0021: o campo é comparação descritiva e sai `null` (nunca 0.0)
+    // quando não há número de 2022 para comparar. A ordenação do bloco não
+    // depende dele desde S05 — o card só o exibe.
+    const rows = [{ ...mkRow("AC", 2, 40), swing_vs_2022: null }];
+    const doc = parse(<DecisiveUFsGrid rows={rows} candidatoAId={13} />);
+    const texto = doc.body.textContent ?? "";
+    expect(texto).toContain("Swing vs 2022: —");
+    expect(texto).not.toContain("contribuição ao swing nacional");
+  });
 });

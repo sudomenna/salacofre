@@ -29,8 +29,13 @@
  *   segunda base, o termômetro entra em **"aguardando projeção"**: exibir o
  *   número de `votaveis` sob o rótulo "% do comparecimento" seria mostrar um
  *   valor de outro universo com o rótulo errado, pior que não mostrar nada.
- *   O botão que alterna a base (`?base=`) chega na Fase 5 — até lá todos os
- *   callers usam o default e nada muda na tela.
+ *   O átomo que alterna a base existe (`components/atoms/controls/BaseToggle.tsx`,
+ *   S07/Fase 5), mas ainda NÃO está ligado às rotas: ler `searchParams` em
+ *   `/`, `/uf/[sigla]` e `/uf/[sigla]/governador` tira as três de
+ *   estático/SSG e as torna dinâmicas (medido no `next build` da Fase 5 —
+ *   54 páginas pré-renderizadas deixam de existir). Enquanto a decisão de
+ *   arquitetura não é tomada, todos os callers usam o default e nada muda
+ *   na tela.
  *
  * Rótulo de origem (RF-062)
  *   Linha única sob o `<h2>`, lida de `participacao.metodo`: diz que o número
@@ -62,7 +67,12 @@ import type {
 } from "@/lib/edge-config/types";
 import { bandForRank, colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent } from "@/lib/utils/format";
-import { denominadorLabel, outrosCount, outrosFallback } from "@/lib/utils/participacao";
+import {
+  denominadorLabel,
+  outrosCount,
+  outrosFallback,
+  type ProjectionBase,
+} from "@/lib/utils/participacao";
 
 const HEADING_ID = "projecao-termometros-heading";
 const ORIGEM_ID = "projecao-termometros-origem";
@@ -73,8 +83,13 @@ type AnyCand = EdgeCandidate | EdgeUfCandidate;
 /**
  * Base exibível pelo bloco. Subconjunto de `ParticipacaoBase`:
  * `eleitores_instalados` é base exclusiva da abstenção, nunca de candidato.
+ *
+ * O tipo passou a viver em `lib/utils/participacao.ts` na Fase 5, para que
+ * `components/atoms/controls/BaseToggle.tsx` possa usá-lo sem que um atom
+ * importe de um block. Reexportado aqui para não quebrar quem já importava
+ * daqui.
  */
-export type ProjectionBase = "votaveis" | "comparecimento";
+export type { ProjectionBase };
 
 export interface ProjectionThermometersProps {
   /** Candidatos já ordenados por `pct_projetado` desc (rank 1 primeiro). */

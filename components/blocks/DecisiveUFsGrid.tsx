@@ -7,7 +7,9 @@
  *   - Sigla da UF
  *   - Líder atual + margem projetada (com sinal) — barra pintada com `colorForRank()`
  *   - Mini-bar (margem projetada visualizada como faixa)
- *   - Swing vs 2022 (pp)
+ *   - Swing vs 2022 (pp) — **comparação descritiva**, não insumo da projeção
+ *     (ADR-0021 / constituição § 8 v1.2). `null` quando não há número de 2022
+ *     para comparar; renderiza "—", nunca 0.
  *   - Link para `/uf/[sigla]`
  *
  * Fórmula de "decisivo" (S05/F3B — refator)
@@ -97,7 +99,8 @@ export function DecisiveUFsGrid({
           UFs decisivas
         </h2>
         <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-          As UFs com maior contribuição ao swing nacional vs. 2022.
+          As UFs em que a disputa segue mais apertada com mais urnas já apuradas — onde poucos
+          pontos ainda viram a chamada.
         </p>
       </header>
       <ul

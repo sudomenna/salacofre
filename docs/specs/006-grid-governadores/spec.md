@@ -11,7 +11,7 @@ depends_on: [001-ingestao-tse, 002-modelo-estatistico, 005-pagina-uf-governador]
 apis: [GET /api/projection?cargo=governador]
 components: [GovernorCard, HexCartogramBrasil, RaceStatsCards, BreakingNewsTicker, LiveBadge, Tabs, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-022, RNF-023, RNF-024]
-adrs: [0001, 0002, 0010, 0011, 0012, 0013, 0017, 0018, 0019]
+adrs: [0001, 0002, 0010, 0011, 0012, 0013, 0017, 0018, 0019, 0022]
 ---
 
 # Spec 006 — Grid Nacional Governadores

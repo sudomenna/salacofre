@@ -135,10 +135,11 @@ export const snapshots = pgTable(
  * gera novas rows com `ts` distinto. Replay = `SELECT ... ORDER BY ts`.
  *
  * S05/F4c (ADR-0014, ADR-0015) — colunas multi-candidato:
- *   - `modelFallbackTier` ∈ {1, 2, 3}: qual tier do K-1 fallback foi usado
- *     na linha (1 = mapping direto OU swing de partido, 2 = prior pesquisa
- *     com CI inflado, 3 = modelo desabilitado). Permite auditoria do
- *     comportamento do modelo por linha.
+ *   - `modelFallbackTier` — **@deprecated desde o ADR-0021**, que supersede o
+ *     ADR-0015. Registrava qual tier do K-1 fallback (mapeamento 2022→2026)
+ *     tinha sido usado na linha; esse fallback deixou de existir junto com o
+ *     swing. A coluna fica no schema sem migration de remoção e sem escritor
+ *     — nenhum consumidor a lê.
  *   - `cenario2tJson`: dump JSON do `cenarios_2t` (top-3 pares mais prováveis)
  *     na hora do snapshot — usado pra reconstruir histórico do "termômetro
  *     de cenários 2T" sem precisar dos resamples originais. NULL nas

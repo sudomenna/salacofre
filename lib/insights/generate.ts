@@ -34,7 +34,12 @@ export interface InsightContext {
  *
  * Regras (didáticas, espelho de insights-templates.md):
  *   1. Líder à frente por margem > 5pp → "X amplia margem com 53,2%."
- *   2. Existe UF com swing |.| >= 4 → "Y surpreende: +4,8pp vs 2022."
+ *   2. Existe UF cuja COMPARAÇÃO com 2022 é |.| >= 4 → "Movimento expressivo
+ *      em Y: +4,8pp em relação a 2022." É comparação descritiva do apurado
+ *      contra o resultado de 2022 (ADR-0021 / constituição § 8 v1.2) — 2022
+ *      não é insumo da projeção. `swing_vs_2022: null` (UF sem número de 2022
+ *      para comparar) SAI do ranking: ausência de comparação não é "ficou
+ *      estável".
  *   3. Existe UF em tossup com pct_apurado < 50 → "Z pode ser decisiva..."
  *
  * Regras 1T multi-candidato (S05/F3B):
@@ -46,7 +51,8 @@ export interface InsightContext {
  *
  * Ordem de prioridade quando há overflow (>3 frases candidatas):
  *   M1 (P(2T) alto) > M2 (líder fecha 1T) > regra binária 1 > M3 (terceiro
- *   briga) > regra 2 (swing) > regra 3 (tossup). Regras multi-1t (Mx) só
+ *   briga) > regra 2 (comparação vs. 2022) > regra 3 (tossup). Regras
+ *   multi-1t (Mx) só
  *   disparam quando aplicáveis (pSegundoTurno != null, etc).
  */
 export function generateInsights(ctx: InsightContext): string[] {
@@ -94,11 +100,11 @@ export function generateInsights(ctx: InsightContext): string[] {
     lines.push(`${terceiro.nome} briga pela vaga no 2º turno (${pct} de chance).`);
   }
 
-  // Maior swing absoluto
-  // `swing_vs_2022` aceita null desde S07/Fase 2 (UF sem número de 2022 para
-  // comparar). Uma UF sem comparação não pode gerar a frase "movimento
-  // expressivo" — sai do ranking em vez de virar 0 e competir como se
-  // tivesse ficado estável.
+  // Maior movimento em relação a 2022 — COMPARAÇÃO DESCRITIVA, não insumo do
+  // modelo (ADR-0021). `swing_vs_2022` aceita null desde S07/Fase 2 (UF sem
+  // número de 2022 para comparar) e sai `null`, nunca `0.0`, de propósito:
+  // `0.0` afirmaria que a UF não mudou desde 2022. Uma UF sem comparação sai
+  // do ranking em vez de competir como se tivesse ficado estável.
   if (por_uf.length > 0 && lines.length < 3) {
     const comSwing = por_uf.filter(
       (u): u is (typeof por_uf)[number] & { swing_vs_2022: number } => u.swing_vs_2022 !== null,

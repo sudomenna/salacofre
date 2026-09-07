@@ -183,14 +183,12 @@ IF uma URL do CDN do TSE não puder ser derivada deterministicamente da padroniz
 WHEN o sistema faz qualquer requisição ao CDN do TSE, the system SHALL enviar um `User-Agent` que identifique o projeto por nome, URL pública e contato verificável, e SHALL NOT declarar cadastro, credenciamento ou homologação junto ao TSE.
 
 **Aceitação**:
-- Given qualquer requisição, when os headers são inspecionados, then há `User-Agent` no formato `SalaCofre/<versão> (+<url pública>; <contato>)` e `Accept: application/json`.
+- Given qualquer requisição, when os headers são inspecionados, then há `User-Agent` no formato `SalaCofre/<versão> (+<url pública>; <contato>)` com `contato: contato@salacofre.com.br` e `Accept: application/json`.
 - Given o valor do `User-Agent`, when se busca por "cadastr"/"credenci"/"homolog", then não há ocorrência.
-
-**Pendência (decisão humana, ADR-0020)**: o contato ainda é literal `contato: pendente` (`lib/tse/client.ts:60`). O formato já é honesto — falta o valor verificável (URL ou e-mail público) antes do simulado de 15/09.
 
 ## Requisitos Não-Funcionais aplicáveis
 
-- Defasagem TSE → tela <90s — [RNF-006](../../nfr/performance.md) (revisado de <30s por [ADR-0011](../../architecture/adrs/0011-cadencia-60s.md)).
+- Defasagem TSE → tela <90s — [RNF-006](../../nfr/performance.md) (revisado de <30s por [ADR-0011](../../architecture/adrs/0011-cadencia-60s.md)) [⚠️ meta de S07 adiada para re-calibração pós-simulado 1 — medida local em 05/09 com mock indicou ~130–160s em modo `zona`].
 - Recuperação automática após falha do TSE — [RNF-011](../../nfr/availability.md).
 - Graceful degradation com último valor conhecido — [RNF-012](../../nfr/availability.md).
 - Endpoint `/api/ingest` cron-only — [RNF-016](../../nfr/security.md).

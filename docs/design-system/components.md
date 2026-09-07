@@ -43,11 +43,11 @@ last_updated: 2026-09-05
 | `<RaceTypeIndicator />` | ✅ S05 | RF-030 ext | `components/atoms/badges/RaceTypeIndicator.tsx` | `tests/unit/components/RaceTypeIndicator.test.tsx` |
 | `<MinorCandidatesList />` | ✅ S05 | RF-030 ext, RF-031..044 ext | `components/atoms/lists/MinorCandidatesList.tsx` | `tests/unit/components/MinorCandidatesList.test.tsx` |
 | `<MapViewToggle />` | ✅ | RF-030.2 | `components/atoms/controls/MapViewToggle.tsx` | `tests/unit/components/MapViewToggle.test.tsx` |
-| `<BaseToggle />` | 🕐 planejada S08 | RF-062 (E2b) | *previsto*: `components/atoms/controls/BaseToggle.tsx` | — |
+| `<BaseToggle />` | ✅ S07 (não integrado) | RF-062 (E2b) | `components/atoms/controls/BaseToggle.tsx` | `tests/unit/components/BaseToggle.test.tsx` |
 | `<Tabs />` | ✅ | RF-029, RF-030, RF-006.5 | `components/atoms/controls/Tabs.tsx` | `tests/unit/components/Tabs.test.tsx`, `Tabs.disabled.test.tsx` |
 | `<UFBreadcrumb />` | ✅ | RF-031, RF-063 | `components/atoms/nav/UFBreadcrumb.tsx` | `tests/unit/components/UFBreadcrumb.test.tsx` |
 | `<TrilhaKicker />` | ✅ S07 | RF-063 | `components/atoms/nav/TrilhaKicker.tsx` | `tests/unit/components/TrilhaKicker.test.tsx` |
-| `<SwingIllustration />` | ✅ | (spec 011) | `app/sobre-o-modelo/page.tsx` (função local, não é arquivo próprio) | — (coberto por SSR da página) |
+| `<ExtrapolationIllustration />` | ✅ | (spec 011) | `app/sobre-o-modelo/page.tsx` (função local, não é arquivo próprio) | — (coberto por SSR da página) |
 | `<ConfidenceBandIllustration />` | ✅ | (spec 011) | `app/sobre-o-modelo/page.tsx` (função local) | — |
 | `<NeedleIllustration />` | ✅ | (spec 011) | `app/sobre-o-modelo/page.tsx` (função local) | — |
 | `<ConfidenceBar />` | 🕐 planejada | RF-023 | *previsto*: `components/atoms/bars/ConfidenceBar.tsx` | — |

@@ -45,7 +45,15 @@ interface Snapshot {
   uf: string;
   cod_zona: number;
   pct_apurado: number;
-  payload: { cand: Array<{ n: number; pvap: string | number }> };
+  // Opaco por design: este script NÃO introspecciona o payload (repassa
+  // para o subprocess Python via stdin). Desde a Fase 5 (não-tautológico,
+  // `docs/_meta/plano-modelo-regra-de-tres-2026-09-05.md` § E), o dataset
+  // real (`scripts/build-replay-fixtures.ts`) emite o envelope EA20
+  // completo (`carg[].agr[].par[].cand[]` + `e`/`v`/`s` de raiz); o
+  // self-test abaixo ainda usa o formato achatado legado `{cand:[...]}`
+  // (aceito por `_extract_zone_participacao`/`_iter_cands` só quando faz
+  // sentido — o self-test não exercita a extrapolação por regra de três).
+  payload: Record<string, unknown>;
 }
 
 interface HistoricalRow {
@@ -131,6 +139,12 @@ interface ReplayReport {
   n_timesteps: number;
   wall_time_ms: number;
   maeByTimePoint: Record<Bucket, Record<string, number>>;
+  // Fase 5 (docs/_meta/plano-modelo-regra-de-tres-2026-09-05.md § E) — OT-4
+  // redefinido: além do MAE@1h < 2pp, exige cobertura do IC95 (o intervalo
+  // [pct_projetado_lower, pct_projetado_upper] contém o valor real de 2022)
+  // >= 90% dos pares (UF, candidato). Reportado para todos os buckets;
+  // gate formal só em "1h".
+  ciCoverageByTimePoint: Record<Bucket, { coverage: number; n: number }>;
   calibration: Array<{
     predicted_p_win_bucket: number;
     actual_win_rate: number;
@@ -333,6 +347,52 @@ function computeMae(
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Cobertura do IC95 — OT-4 redefinido (Fase 5, plano § E): além do MAE, o
+// intervalo [lower, upper] devolvido pelo bootstrap precisa CONTER o valor
+// real de 2022 em >= 90% dos pares (UF, candidato) — senão o CI está
+// sistematicamente estreito demais (overconfidence) mesmo quando o ponto
+// central está ok.
+// ---------------------------------------------------------------------------
+
+function computeCiCoverage(
+  results: TimestepResult[],
+  groundTruth: Record<string, Record<string, number>>,
+): Record<Bucket, { coverage: number; n: number }> {
+  const accum: Record<Bucket, { hit: number; total: number }> = {
+    "15min": { hit: 0, total: 0 },
+    "30min": { hit: 0, total: 0 },
+    "1h": { hit: 0, total: 0 },
+    "2h": { hit: 0, total: 0 },
+    final: { hit: 0, total: 0 },
+  };
+
+  for (const r of results) {
+    for (const u of r.uf_projections) {
+      const truth = groundTruth[u.uf]?.[String(u.candidato_id)];
+      if (truth === undefined) continue;
+      const bucket = accum[r.bucket];
+      bucket.total += 1;
+      if (truth >= u.pct_projetado_lower && truth <= u.pct_projetado_upper) {
+        bucket.hit += 1;
+      }
+    }
+  }
+
+  const out: Record<Bucket, { coverage: number; n: number }> = {
+    "15min": { coverage: 0, n: 0 },
+    "30min": { coverage: 0, n: 0 },
+    "1h": { coverage: 0, n: 0 },
+    "2h": { coverage: 0, n: 0 },
+    final: { coverage: 0, n: 0 },
+  };
+  for (const b of Object.keys(accum) as Bucket[]) {
+    const cell = accum[b];
+    out[b] = { coverage: cell.total > 0 ? cell.hit / cell.total : 0, n: cell.total };
+  }
+  return out;
+}
+
 function computeCalibration(
   results: TimestepResult[],
   groundTruth: Record<string, Record<string, number>>,
@@ -465,6 +525,7 @@ async function main(): Promise<void> {
   const wallMs = Date.now() - t0;
 
   const mae = computeMae(response.results, payload.ground_truth);
+  const ciCoverageByTimePoint = computeCiCoverage(response.results, payload.ground_truth);
   const calibration = computeCalibration(response.results, payload.ground_truth);
 
   const ufs = [
@@ -478,10 +539,11 @@ async function main(): Promise<void> {
     n_timesteps: payload.timesteps.length,
     wall_time_ms: wallMs,
     maeByTimePoint: mae,
+    ciCoverageByTimePoint,
     calibration,
     notes: args.selfTest
       ? "self-test mode — mock dataset. OT-4 gate roda em modo real (T21 → T22)."
-      : "replay 2022 real. Gate OT-4: MAE@1h por candidato < 0.02 (RNF-006).",
+      : "replay 2022 real (Fase 5, não-tautológico). Gate OT-4: MAE@1h por candidato < 2pp E cobertura IC95@1h >= 90% (RNF-006, docs/_meta/plano-modelo-regra-de-tres-2026-09-05.md § E). MAE@15min é informativo, sem gate.",
   };
 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -491,7 +553,11 @@ async function main(): Promise<void> {
   await writeFile(outPath, JSON.stringify(report, null, 2), "utf8");
 
   console.log(`[replay-2022] report: ${outPath} (${(wallMs / 1000).toFixed(1)}s)`);
+  console.log(`[replay-2022] MAE@15min: ${JSON.stringify(mae["15min"])}`);
   console.log(`[replay-2022] MAE@1h: ${JSON.stringify(mae["1h"])}`);
+  console.log(
+    `[replay-2022] cobertura IC95@1h: ${(ciCoverageByTimePoint["1h"].coverage * 100).toFixed(1)}% (n=${ciCoverageByTimePoint["1h"].n})`,
+  );
 }
 
 main().catch((err) => {

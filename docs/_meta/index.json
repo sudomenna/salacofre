@@ -3,7 +3,7 @@
   "name": "SalaCofre Docs Index",
   "description": "Índice machine-readable da documentação SDD do SalaCofre. Carregar este arquivo dá a um agente o mapa completo das specs, NFRs, ADRs e fontes canônicas.",
   "version": "1.0",
-  "last_updated": "2026-05-18",
+  "last_updated": "2026-09-07",
   "source_prd": "docs/PRD.md",
   "constitution": "docs/constitution.md",
   "conventions": "docs/_meta/conventions.md",
@@ -154,6 +154,22 @@
       "date": "2026-09-05",
       "supersedes": "0015",
       "path": "docs/architecture/adrs/0021-extrapolacao-do-apurado-sem-2022.md"
+    },
+    {
+      "id": "0022",
+      "title": "Participação nacional omitida do DOM em /governador antes da 1ª apuração, exceção pontual ao ADR-0018",
+      "status": "accepted",
+      "date": "2026-09-05",
+      "note": "exceção pontual ao ADR-0018, que permanece accepted e vigente para todas as demais rotas e blocos de candidato",
+      "path": "docs/architecture/adrs/0022-participacao-governador-fora-do-dom.md"
+    },
+    {
+      "id": "0023",
+      "title": "Pós-estratificação por porte de zona no bootstrap de candidatos, não amostragem simples das zonas apuradas",
+      "status": "accepted",
+      "date": "2026-09-07",
+      "note": "continuação direta do ADR-0021 — não o supersede; responde ao risco de viés de composição já nomeado ali como central",
+      "path": "docs/architecture/adrs/0023-pos-estratificacao-por-porte-de-zona.md"
     }
   ],
   "nfr": {

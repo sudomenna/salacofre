@@ -6,14 +6,15 @@
  *
  * Estratégia
  *   - Mocka `readUfProjection({cargo:"gov"})` retornando payload populado
- *     com municípios, mesorregiões opcional, e (em um caso) tier 2 K-1.
+ *     com municípios, mesorregiões opcional, e (em um caso) `model_fallback_tier`
+ *     — hoje só para provar que ele NÃO gera mais banner (ADR-0021).
  *   - Renderiza via `renderToStaticMarkup`. Mapas via dynamic import com
  *     ssr:false expandem para placeholder em SSR.
  *
  * Cobertura
  *   - RFs 031..044 (espelho da spec 004 com cargo gov).
  *   - MunicipioWaffleGrid (Print 3), mesorregioes condicional, MunicipioTable
- *     top-by-eleitorado, K-1 disclaimer.
+ *     top-by-eleitorado, ausência do antigo disclaimer de K-1.
  */
 
 import { renderToStaticMarkup } from "react-dom/server";
@@ -245,23 +246,29 @@ describe("UFGovernadorPage (integration / smoke)", () => {
     expect(html).toContain("Maiores municípios por eleitorado");
   });
 
-  it("(f) K-1 disclaimer aparece quando model_fallback_tier >= 2", async () => {
+  it("(f) NÃO existe mais disclaimer de K-1, nem com model_fallback_tier >= 2", async () => {
+    // ADR-0021 supersede o ADR-0015: a projeção não usa 2022 como insumo, logo
+    // não existe "bloco político sem mapeamento histórico". O banner foi
+    // removido em S07/Fase 5; o campo `model_fallback_tier` segue no payload
+    // como @deprecated e não pode mais produzir texto na tela.
     readUfProjectionMock.mockResolvedValueOnce(
       buildUfPayload({ municipios: 10, withMesorregioes: false, modelTier: 2 }),
     );
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("Modelagem com prior limitado");
-    expect(html).toContain("pesquisa pré-eleitoral");
+    expect(html).not.toContain("Modelagem com prior limitado");
+    expect(html).not.toContain("pesquisa pré-eleitoral");
   });
 
-  it("(g) K-1 disclaimer tier 3 mostra texto 'sem mapeamento histórico'", async () => {
+  it("(g) tier 3 também não produz texto de 'sem mapeamento histórico'", async () => {
     readUfProjectionMock.mockResolvedValueOnce(
       buildUfPayload({ municipios: 10, withMesorregioes: false, modelTier: 3 }),
     );
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("sem mapeamento histórico");
+    expect(html).not.toContain("sem mapeamento histórico");
+    // a página segue renderizando normalmente — a remoção não quebra o resto
+    expect(html).toContain("Governador SP — Apuração 2026");
   });
 
   // -------------------------------------------------------------------------

@@ -113,8 +113,8 @@ export function formatTimeHMS(iso: string): string {
 
 /**
  * Margem em pp formatada com sinal explícito: "+2,1 pp" / "-0,8 pp".
- * Útil para swing vs 2022 (RF-038, embora não usado na home, é
- * útil em insights).
+ * Útil para a comparação descritiva vs. 2022 (RF-038) e para margens em
+ * insights. NaN e `null` são responsabilidade do caller — aqui NaN vira "—".
  */
 export function formatPp(value: number, decimals = 1): string {
   if (Number.isNaN(value)) return "—";

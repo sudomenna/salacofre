@@ -284,14 +284,62 @@ describe("GovernadorGridPage (integration / smoke)", () => {
     ).toBeTruthy();
   });
 
-  it("(k) sem `participacao` no payload o bloco inteiro fica fora (grid intocado)", async () => {
+  it("(k) sem `participacao` renderiza o bloco explicativo no lugar dos termômetros", async () => {
     comParticipacao = false;
     const node = await GovernadorGridPage({ searchParams: Promise.resolve({}) });
     const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
 
+    // Nenhum termômetro (não há dado para desenhar barra ou faixa).
     expect(doc.querySelector('[id^="termometro-"]')).toBeNull();
+    expect(doc.querySelector('section[aria-labelledby="projecao-termometros-heading"]')).toBeNull();
+
+    // Mas o bloco continua no DOM, como region nomeada pelo próprio heading
+    // (ADR-0022 emendado — a omissão silenciosa é o que a emenda corrige).
+    const bloco = doc.querySelector('[data-testid="participacao-nacional-indisponivel"]');
+    expect(bloco).not.toBeNull();
+    expect(bloco?.tagName.toLowerCase()).toBe("section");
+    expect(bloco?.getAttribute("aria-labelledby")).toBe("participacao-nacional-heading");
+
+    const heading = doc.querySelector("#participacao-nacional-heading");
+    expect(heading?.tagName.toLowerCase()).toBe("h2");
+    expect(heading?.textContent).toBe("Participação do eleitorado");
+
+    // O texto explica a soma das 27 corridas e a condição de existência, sem
+    // prometer valor nem sugerir progresso ("aguardando", "em breve", "%").
+    const texto = bloco?.textContent?.replace(/\s+/g, " ") ?? "";
+    expect(texto).toContain("27 disputas estaduais");
+    expect(texto).toContain("primeira zona eleitoral for apurada");
+    expect(texto).not.toMatch(/aguardando|em breve|carregando|%/i);
+
+    // Mesma posição do termômetro: acima dos stats cards.
+    const stats = doc.querySelector('[data-testid="stat-eleitos"]');
+    expect(
+      bloco && stats && bloco.compareDocumentPosition(stats) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
     // Cartograma e cards seguem lá.
     expect(doc.body.textContent).toContain("Mapa hexagonal");
     expect(doc.body.textContent).toContain("São Paulo");
+  });
+
+  it("(l) o heading 'Participação do eleitorado' existe com e sem dado, sempre como h2", async () => {
+    const headingsCom = await (async () => {
+      comParticipacao = true;
+      const node = await GovernadorGridPage({ searchParams: Promise.resolve({}) });
+      const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
+      return [...doc.querySelectorAll("h2")].map((h) => h.textContent?.trim());
+    })();
+
+    const headingsSem = await (async () => {
+      comParticipacao = false;
+      const node = await GovernadorGridPage({ searchParams: Promise.resolve({}) });
+      const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
+      return [...doc.querySelectorAll("h2")].map((h) => h.textContent?.trim());
+    })();
+
+    expect(headingsCom).toContain("Participação do eleitorado");
+    expect(headingsSem).toContain("Participação do eleitorado");
+    // Estrutura de navegação por headings idêntica nos dois estados.
+    expect(headingsSem).toEqual(headingsCom);
   });
 });

@@ -41,17 +41,19 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-010.4 | Requisição condicional (304 conta para cota) | M | [001](../specs/001-ingestao-tse/) | — | unit (`client.test.ts` — `If-None-Match`, 304, e assert de que o 304 consome token do rate limiter) |
 | RF-010.5 | Proibição sondar URL adivinhada | M | [001](../specs/001-ingestao-tse/) | — | unit (`no-url-probing.test.ts` — varredura de fonte: o host do TSE só pode aparecer nas 2 constantes de base URL) + `targets.test.ts` (builders) |
 | RF-010.6 | Identificação honesta no User-Agent | M | [001](../specs/001-ingestao-tse/) | — | unit |
-| RF-011 | Extrapolação do apurado por zona: k=te/esi, V_c=vap_c·k (ADR-0021; **texto em revisão**) | M | [002](../specs/002-modelo-estatistico/) | — | unit (`test_extrapolation.py::test_zona_scale_factor_k`), replay |
-| RF-012 | Agregação por UF: razão de somas (ADR-0021; **texto em revisão**) | M | [002](../specs/002-modelo-estatistico/) | — | unit (`test_extrapolation.py::test_uf_aggregation_sum_ratio`), replay |
-| RF-013 | Projeção por UF com E3 hierárquico: zona apurada ou imputada (ADR-0021; **texto em revisão**) | M | [002](../specs/002-modelo-estatistico/) | — | unit (`test_extrapolation.py::test_e3_hierarchical_imputation`), replay |
+| RF-011 | Extrapolação do apurado por zona: `k = te/esi`, `V_c = vap_c·k` (ADR-0021) | M | [002](../specs/002-modelo-estatistico/) | — | pytest (`test_extrapolation.py::test_esi_metade_de_te_dobra_votos_projetados`, `::test_reprodutibilidade_bit_a_bit_mesmo_seed_duas_bases`, `test_orchestrator.py::test_do_project_e_invariante_a_historical`) |
+| RF-012 | Agregação por UF: razão de somas nas duas bases, rótulo "votáveis" (ADR-0021) | M | [002](../specs/002-modelo-estatistico/) | — | pytest (`test_extrapolation.py::test_razao_de_somas_diferente_de_media_simples`, `::test_soma_estimates_comparecimento_igual_vv_sobre_c_zona_unica`) |
+| RF-013 | Zona não apurada imputada pela proporção da própria UF; share inalterado, volume completo (ADR-0021) | M | [002](../specs/002-modelo-estatistico/) | — | pytest (`test_extrapolation.py::test_e3_zona_nao_apurada_nao_altera_share_soma_volume`) |
 | RF-014 | Projeção nacional | M | [002](../specs/002-modelo-estatistico/) | — | unit, replay |
 | RF-015 | CI95 bootstrap | M | [002](../specs/002-modelo-estatistico/) | — | unit |
 | RF-016 | P(vitória) | M | [002](../specs/002-modelo-estatistico/) | — | unit |
-| RF-017 | Imputação nacional: UF sem zona apurada usa proporção nacional, IC ±10pp (ADR-0021; **texto em revisão**) | M | [002](../specs/002-modelo-estatistico/) | — | unit (`test_extrapolation.py::test_national_imputation_ci_inflation`), replay |
-| RF-018 | UF <5% apurado (penalização IC ×1.5, clip para ±10pp) | S | [002](../specs/002-modelo-estatistico/) | — | unit (`test_extrapolation.py::test_ci_inflation_low_apurado`) |
+| RF-017 | UF sem zona apurada: proporção nacional com IC ±10pp (cargo 1) ou UF omitida (cargo 3) (ADR-0021) | M | [002](../specs/002-modelo-estatistico/) | — | pytest (`test_extrapolation.py::test_impute_uf_from_national_ci_10pp_e_volume`, `::test_impute_uf_from_national_clipa_perto_das_bordas`, `::test_zero_zonas_retorna_none`) |
+| RF-018 | UF <5% apurado (penalização IC ×1.5, nas duas bases) | S | [002](../specs/002-modelo-estatistico/) | — | pytest (`test_extrapolation.py::test_rf018_infla_ci_1_5x_nas_duas_bases`, `test_edge_cases.py`) |
 | RF-019 | Recálculo por snapshot | M | [002](../specs/002-modelo-estatistico/) | — | integration |
 | RF-020 | Persistir cada cálculo | M | [002](../specs/002-modelo-estatistico/) | — | integration |
-| RF-020.1 | Projeção de participação e agregado "Outros" com IC | M | [002](../specs/002-modelo-estatistico/) | — | pytest (`test_extrapolation.py::test_candidatos_bootstrap`, `test_turnout.py`, `test_outros.py`, `test_orchestrator.py::test_do_project_e_invariante_a_historical`) — requisito **do modelo**; a contraparte de UI é RF-062 |
+| RF-020.1 | Projeção de participação e agregado "Outros" com IC | M | [002](../specs/002-modelo-estatistico/) | — | pytest (`test_turnout.py`, `test_outros.py`, `test_orchestrator.py::test_do_project_e_invariante_a_historical`) — requisito **do modelo**; a contraparte de UI é RF-062 |
+| RF-020.2 | Duas bases por candidato (votáveis e comparecimento) com resíduo declarado (ADR-0021/0020) | M | [002](../specs/002-modelo-estatistico/) | `<ProjectionThermometers />` | pytest (`test_extrapolation.py::test_pareamento_2_candidatos_soma_1_base_votaveis`, `::test_soma_estimates_comparecimento_igual_vv_sobre_c_zona_unica`) + vitest (`ProjectionThermometers.test.tsx`) |
+| RF-020.3 | `votos_projetados` = Σ zona → UF → BR, persistido em `projections` (ADR-0021) | M | [002](../specs/002-modelo-estatistico/) | `<HeadlineScore />` | pytest (`test_extrapolation.py::test_aggregate_national_votos_soma_por_candidato_e_total`, `test_orchestrator.py`) |
 | RF-021 | Agulha hero | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<Needle />`, `<NationalNeedle />` | unit |
 | RF-022 | Votos absolutos projetados | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<HeadlineScore />`, `<NationalNeedle />` | unit |
 | RF-023 | % projetado com CI | M | [003](../specs/003-home-nacional/) | `<HeadlineScore />`, `<ConfidenceBar />`, `<NationalNeedle />` | unit |
@@ -145,7 +147,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 
 ## Cobertura
 
-**60 RFs originais do PRD** + 28 RFs adicionados nas specs (RF-005.1-4, RF-006.1-5, RF-012.1-2, RF-058.1-2, RF-010.1-6, RF-020.1, RF-030.7-9, RF-061-63) = **88 RFs no total**. Todos mapeados pra alguma spec.
+**60 RFs originais do PRD** + 30 RFs adicionados nas specs (RF-005.1-4, RF-006.1-5, RF-012.1-2, RF-058.1-2, RF-010.1-6, RF-020.1-3, RF-030.7-9, RF-061-63) = **90 RFs no total**. Todos mapeados pra alguma spec.
 
 ## RNFs
 

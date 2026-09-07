@@ -15,12 +15,12 @@ import styles from "./sobre-o-modelo.module.css";
 export const metadata: Metadata = {
   title: "Sobre o Modelo — SalaCofre",
   description:
-    "Como funciona o modelo estatístico de projeção da SalaCofre: swing zona-a-zona, intervalo de confiança via bootstrap, bandas de probabilidade e limitações conhecidas.",
+    "Como funciona o modelo estatístico de projeção da SalaCofre: regra de três por zona eleitoral, intervalo de confiança via bootstrap, bandas de probabilidade e limitações conhecidas.",
   alternates: { canonical: "/sobre-o-modelo" },
   openGraph: {
     title: "Sobre o Modelo — SalaCofre",
     description:
-      "Metodologia da projeção eleitoral SalaCofre: swing, bootstrap, agulha de probabilidade e limitações.",
+      "Metodologia da projeção eleitoral SalaCofre: regra de três por zona, bootstrap, agulha de probabilidade e limitações.",
     type: "article",
   },
 };
@@ -32,9 +32,9 @@ export default function SobreOModeloPage() {
         <p className={styles.kicker}>Metodologia</p>
         <h1 className={styles.title}>Como a SalaCofre faz uma projeção</h1>
         <p className={styles.deck}>
-          O método em três partes: medir a diferença em relação a 2022 em cada zona eleitoral,
-          simular mil reamostragens para estimar incerteza, e traduzir tudo em uma probabilidade que
-          se atualiza a cada novo boletim do TSE.
+          O método em três partes: projetar, por regra de três, o total de cada zona eleitoral a
+          partir do que ela já apurou; simular mil reamostragens para estimar a incerteza; e
+          traduzir tudo em uma probabilidade que se atualiza a cada novo boletim do TSE.
         </p>
         <p className={styles.byline}>Equipe SalaCofre · Última atualização: maio de 2026</p>
 
@@ -51,52 +51,89 @@ export default function SobreOModeloPage() {
             como um todo.
           </p>
           <p className={styles.body}>
-            Em vez de mostrar o percentual bruto da apuração corrente, nosso modelo compara cada
-            zona ao mesmo voto de 2022, calcula quanto a preferência <strong>mudou</strong> ali, e
-            projeta esse movimento para o resto do país. O resultado é uma estimativa de como
-            ficaria o pleito se 100% das urnas já tivessem sido apuradas — junto de uma faixa de
+            Em vez de mostrar apenas o percentual bruto da apuração corrente, nosso modelo pergunta,
+            zona por zona:{" "}
+            <em>se esta parte da zona já votou assim, quanto a zona inteira deve produzir?</em>{" "}
+            Projeta o total de cada zona a partir do que ela mesma já apurou, e soma — zona a zona
+            forma o estado, estado a estado forma o país. O resultado é uma estimativa de como
+            ficaria o pleito se 100% das urnas já tivessem sido apuradas, junto de uma faixa de
             incerteza honesta sobre essa estimativa.
+          </p>
+          <p className={styles.body}>
+            <strong>O resultado de 2022 não entra nessa conta.</strong> A projeção nasce
+            inteiramente das urnas de 2026. O pleito anterior aparece no site apenas como comparação
+            — quanto o resultado de agora se afastou do de quatro anos atrás —, um fato observado,
+            nunca um ingrediente do cálculo.
           </p>
         </section>
 
-        {/* 2. Swing zona-a-zona */}
-        <section className={styles.section} aria-labelledby="sec-swing">
-          <p className={styles.sectionLabel}>2 · Swing</p>
-          <h2 id="sec-swing" className={styles.h2}>
-            A unidade mínima: o swing zona a zona
+        {/* 2. Regra de três por zona */}
+        <section className={styles.section} aria-labelledby="sec-regra-de-tres">
+          <p className={styles.sectionLabel}>2 · Regra de três</p>
+          <h2 id="sec-regra-de-tres" className={styles.h2}>
+            A unidade mínima: a regra de três por zona
           </h2>
           <p className={styles.body}>
-            Definimos <strong>swing</strong> de um candidato em uma zona como a diferença entre seu
-            percentual atual e o percentual do mesmo bloco político em 2022:
+            Dentro de uma zona eleitoral, as seções não terminam de apurar todas juntas. O boletim
+            do TSE informa quantos eleitores a zona tem ao todo (os <strong>aptos</strong>) e
+            quantos já estão cobertos pelas <strong>seções instaladas</strong> que reportaram. A
+            razão entre esses dois números é o nosso fator de escala:
           </p>
 
           <div className={styles.pullquote}>
-            swing<sub>z</sub> = pct<sub>atual</sub>(z) − pct<sub>2022</sub>(z)
+            k = eleitores aptos da zona ÷ eleitores das seções já instaladas
           </div>
 
           <p className={styles.body}>
-            Se uma zona deu 50% em 2022 e está dando 55% agora, o swing local é de +5 pontos
-            percentuais. Esse swing é então agregado para a UF e para o país por{" "}
-            <strong>média ponderada pelo número de eleitores aptos</strong> de cada zona — zonas
-            grandes pesam mais que zonas pequenas.
+            Se metade dos eleitores da zona já está coberta, k = 2: cada voto contado ali representa
+            dois na zona inteira. Multiplicamos por <strong>k</strong> os votos de cada candidato e
+            também o total de votos daquela zona, e obtemos o resultado projetado da zona. É a frase
+            inteira do método:{" "}
+            <strong>
+              a partir do que cada zona já apurou, projetamos o total daquela zona e somamos
+            </strong>{" "}
+            — zona a zona vira estado, estado a estado vira país.
           </p>
 
-          <figure className={styles.figure} aria-labelledby="fig-swing-cap">
-            <SwingIllustration />
-            <figcaption id="fig-swing-cap" className={styles.figcaption}>
-              <strong>Como o swing se propaga.</strong> Cada barra mostra uma zona apurada. Acima da
-              linha zero, o candidato ganhou pontos em relação a 2022; abaixo, perdeu. A média
-              ponderada dessas barras vira a projeção da UF.
+          <p className={styles.body}>
+            A parcela de um candidato no estado é a divisão de duas somas: todos os votos projetados
+            dele nas zonas, sobre todos os votos projetados do estado. Não é a média dos percentuais
+            das zonas. Assim uma zona grande pesa naturalmente mais que uma pequena, sem precisar de
+            nenhum peso artificial — o peso já está no número de votos.
+          </p>
+
+          <figure className={styles.figure} aria-labelledby="fig-extrap-cap">
+            <ExtrapolationIllustration />
+            <figcaption id="fig-extrap-cap" className={styles.figcaption}>
+              <strong>Como uma zona é projetada.</strong> Em cima, uma zona em que metade dos
+              eleitores já está em seções instaladas: só esses votos foram contados. O fator de
+              escala k = 2 estica essa contagem para o tamanho da zona inteira, preservando a
+              proporção entre os candidatos. Embaixo, o total projetado da zona — que entra na soma
+              do estado.
             </figcaption>
           </figure>
+
+          <div className={styles.callout}>
+            <p className={styles.calloutLabel}>E a zona que ainda não abriu nenhuma urna?</p>
+            <p>
+              Ela não fica de fora da conta: assumimos, provisoriamente, que vota na mesma proporção
+              já observada nas zonas apuradas do próprio estado, e usamos o número de eleitores
+              aptos dela para estimar o volume de votos. Por isso o total nacional aparece completo
+              desde o primeiro boletim. Se um estado inteiro ainda não tem nenhuma zona apurada, ele
+              herda a proporção nacional e recebe uma faixa de incerteza deliberadamente larga (±10
+              pontos). Na corrida de governador não existe um "nacional" para herdar, então a UF
+              fica marcada como aguardando projeção.
+            </p>
+          </div>
 
           <div className={styles.callout}>
             <p className={styles.calloutLabel}>Por que zona, e não município</p>
             <p>
               A zona eleitoral é a menor unidade na qual o TSE divulga resultados detalhados durante
-              a apuração. Trabalhar em zona dá ~3.000 unidades de medida em vez das ~5.570 cidades,
-              mas em troca entrega resolução compatível com o ritmo de divulgação e com o histórico
-              padronizado de 2022.
+              a apuração dentro da janela de tempo em que conseguimos coletar tudo a cada ciclo.
+              Trabalhar em zona dá cerca de 3.000 unidades de medida em vez das ~5.570 cidades — uma
+              resolução mais fina do que a do estado, o que reduz a distorção de projetar um estado
+              inteiro a partir das poucas regiões que apuraram primeiro.
             </p>
           </div>
         </section>
@@ -118,6 +155,12 @@ export default function SobreOModeloPage() {
             entre o percentil 2,5 e o percentil 97,5 dessa distribuição é o nosso{" "}
             <strong>intervalo de confiança de 95%</strong> — a faixa onde o resultado final tem 95%
             de chance de cair, condicional ao que já foi apurado.
+          </p>
+          <p className={styles.body}>
+            Um detalhe que importa: em cada estado, o sorteio de zonas é <strong>o mesmo</strong>{" "}
+            para todos os candidatos. Numa simulação em que sai um conjunto de zonas favorável a um
+            candidato, o adversário perde na mesma simulação — as estimativas são comparáveis par a
+            par, e é isso que torna honesta a probabilidade de vitória da seção seguinte.
           </p>
 
           <figure className={styles.figure} aria-labelledby="fig-ci-cap">
@@ -255,41 +298,51 @@ export default function SobreOModeloPage() {
             <div className={styles.limitationItem}>
               <span className={styles.limitationNumber}>01</span>
               <div className={styles.limitationBody}>
-                <strong>UFs com menos de 5% apurado.</strong> Quando uma UF ainda mal começou a
-                apuração, a amostra de zonas é pequena demais para confiar. Nessa faixa, inflamos o
-                intervalo de confiança em 50% adicional como pedágio à incerteza extra. Em UFs com
-                0% apurado, mantemos a projeção igual ao resultado de 2022, com banda larga de
-                ±10pp.
+                <strong>As primeiras urnas de uma zona não representam a zona.</strong> Este é o
+                ponto cego central do método. A regra de três supõe que a parte já apurada de cada
+                zona se parece com a zona inteira — e no começo da noite isso costuma ser falso: as
+                seções que reportam primeiro tendem a ser sistematicamente diferentes das que
+                reportam depois. É o chamado <em>viés de composição</em>, e o intervalo de confiança{" "}
+                <strong>não o enxerga</strong>: reamostrar as zonas já apuradas mede a variação
+                entre elas, não o quanto elas diferem das que ainda faltam. As duas mitigações são
+                declaradas, não silenciosas — o intervalo é inflado abaixo de 5% apurado (item 02) e
+                todo número projetado carrega o rótulo "projeção a partir do apurado". Nenhuma das
+                duas elimina o viés; elas o comunicam.
               </div>
             </div>
 
             <div className={styles.limitationItem}>
               <span className={styles.limitationNumber}>02</span>
               <div className={styles.limitationBody}>
-                <strong>Candidato sem bloco político mapeável em 2022.</strong> O swing depende de
-                comparar com um valor de referência de 2022. Quando o candidato 2026 representa um
-                agrupamento novo, sem ancoragem confiável no resultado anterior, o modelo se{" "}
-                <strong>desabilita</strong> e a página passa a mostrar a apuração parcial bruta, com
-                aviso explícito.
+                <strong>UFs com menos de 5% apurado.</strong> Quando uma UF ainda mal começou a
+                apuração, a amostra de zonas é pequena demais para confiar. Nessa faixa, inflamos o
+                intervalo de confiança em 50% adicional como pedágio à incerteza extra. Em UFs sem
+                nenhuma zona apurada, a projeção é a proporção observada no país até o momento, com
+                banda larga de ±10pp.
               </div>
             </div>
 
             <div className={styles.limitationItem}>
               <span className={styles.limitationNumber}>03</span>
               <div className={styles.limitationBody}>
-                <strong>Casos extremos disparam fallback.</strong> Volatilidade anômala entre zonas,
-                swing &gt; ±30pp em uma unidade, ou divergência drástica entre projeções de UFs
-                vizinhas fazem o modelo recolher a projeção e exibir só o consolidado oficial do TSE
-                até que o cenário estabilize. Preferimos não opinar a opinar errado.
+                <strong>O modelo não tem opinião sobre o que ainda não votou.</strong> Ele não
+                incorpora pesquisas, histórico eleitoral, perfil socioeconômico da zona nem qualquer
+                ajuste editorial: só aritmética sobre o boletim oficial. Isso o torna auditável e
+                imune a chutes, mas também significa que uma virada anunciada por outra fonte não
+                aparece aqui até aparecer nas urnas.
               </div>
             </div>
 
             <div className={styles.limitationItem}>
               <span className={styles.limitationNumber}>04</span>
               <div className={styles.limitationBody}>
-                <strong>Voto branco, nulo e abstenção.</strong> A projeção opera sobre votos
-                válidos. Mudanças bruscas no comparecimento ou na taxa de votos brancos/nulos entre
-                2022 e 2026 não são modeladas — entram como ruído no resíduo do swing.
+                <strong>Voto branco, nulo e abstenção têm bases próprias.</strong> A parcela dos
+                candidatos é calculada sobre os <strong>votos a votáveis</strong> — que não são a
+                mesma coisa que "votos válidos" do vocabulário corrente. Brancos, nulos e abstenção
+                são projetados pela mesma regra de três, mas cada um com o seu denominador, e por
+                isso não somam 100% com os candidatos numa única conta. Onde exibimos tudo sobre a
+                mesma base (quem compareceu), sobra um resíduo pequeno — votos anulados e sub judice
+                — que declaramos na legenda em vez de esconder.
               </div>
             </div>
           </div>
@@ -338,7 +391,8 @@ export default function SobreOModeloPage() {
                 <a href="https://dadosabertos.tse.jus.br" rel="noopener noreferrer" target="_blank">
                   dadosabertos.tse.jus.br
                 </a>
-                . Servem de baseline para o cálculo de swing.
+                . Usados <strong>apenas para comparação</strong> na tela — quanto o resultado de
+                agora se afastou do de 2022. Não entram no cálculo da projeção.
               </span>
             </li>
             <li>
@@ -389,128 +443,166 @@ export default function SobreOModeloPage() {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Ilustra o swing zona-a-zona: barras (positivas e negativas) em torno de uma
- * linha zero, com uma seta indicando a média ponderada. Cores via tokens.
+ * Ilustra a regra de três por zona (ADR-0021): em cima, uma zona cuja metade
+ * dos eleitores já está em seções instaladas — só esses votos foram contados;
+ * embaixo, o total projetado da zona depois de multiplicar a contagem pelo
+ * fator de escala `k = aptos / eleitores das seções instaladas`. A proporção
+ * entre os candidatos é a mesma nas duas barras — é isso que a ilustração
+ * precisa deixar claro. Cores via tokens (constituição § 2).
  */
-function SwingIllustration() {
-  // 12 zonas fictícias — alguns swings positivos, alguns negativos.
-  const swings = [+5.2, +3.4, +6.1, -1.8, +4.7, +2.0, -3.1, +5.5, +1.2, +4.0, -0.8, +3.6];
-  const max = 8; // limite visual (pp)
-  const barW = 22;
-  const gap = 8;
-  const left = 30;
-  const top = 30;
-  const height = 130;
-  const zero = top + height / 2;
-  const width = left + swings.length * (barW + gap) + 30;
+function ExtrapolationIllustration() {
+  const x0 = 60;
+  const full = 460; // largura = eleitores aptos da zona
+  const apurado = full / 2; // metade dos eleitores em seções instaladas
+  const shareA = 0.55; // proporção fictícia entre os dois candidatos
+  const barH = 34;
+  const yTop = 44;
+  const yBottom = 158;
 
   return (
     <svg
       className={styles.svgFrame}
-      viewBox={`0 0 ${width} 200`}
+      viewBox="0 0 600 230"
       role="img"
-      aria-label="Doze barras representando swings em zonas eleitorais, com média ponderada positiva próxima a +3 pontos percentuais."
+      aria-label="Uma zona eleitoral em que metade dos eleitores já está em seções instaladas. Os votos contados nessa metade são multiplicados pelo fator de escala k igual a 2, projetando o total da zona inteira e preservando a proporção de 55% para o candidato A e 45% para o candidato B."
       xmlns="http://www.w3.org/2000/svg"
     >
-      {/* Linha zero */}
-      <line
-        x1={left - 8}
-        x2={width - 10}
-        y1={zero}
-        y2={zero}
-        stroke="var(--color-text)"
-        strokeWidth="1"
-      />
+      {/* ---- Barra 1: o que já foi contado ---- */}
       <text
-        x={left - 12}
-        y={zero + 4}
-        fontSize="10"
-        fontFamily="var(--font-sans)"
-        fill="var(--color-text-muted)"
-        textAnchor="end"
-      >
-        0
-      </text>
-
-      {/* Marcações ±5pp */}
-      <line
-        x1={left - 4}
-        x2={width - 10}
-        y1={zero - (5 / max) * (height / 2)}
-        y2={zero - (5 / max) * (height / 2)}
-        stroke="var(--color-border)"
-        strokeDasharray="2,3"
-      />
-      <text
-        x={left - 12}
-        y={zero - (5 / max) * (height / 2) + 3}
-        fontSize="9"
-        fontFamily="var(--font-sans)"
-        fill="var(--color-text-muted)"
-        textAnchor="end"
-      >
-        +5
-      </text>
-      <line
-        x1={left - 4}
-        x2={width - 10}
-        y1={zero + (5 / max) * (height / 2)}
-        y2={zero + (5 / max) * (height / 2)}
-        stroke="var(--color-border)"
-        strokeDasharray="2,3"
-      />
-      <text
-        x={left - 12}
-        y={zero + (5 / max) * (height / 2) + 3}
-        fontSize="9"
-        fontFamily="var(--font-sans)"
-        fill="var(--color-text-muted)"
-        textAnchor="end"
-      >
-        −5
-      </text>
-
-      {/* Barras */}
-      {swings.map((s, i) => {
-        const x = left + i * (barW + gap);
-        const h = Math.abs(s / max) * (height / 2);
-        const y = s >= 0 ? zero - h : zero;
-        const fill = s >= 0 ? "var(--color-pt)" : "var(--color-pl)";
-        // Lista estática, ordem nunca muda — index estável.
-        const key = `swing-bar-${i}-${s}`;
-        return <rect key={key} x={x} y={y} width={barW} height={h} fill={fill} opacity={0.85} />;
-      })}
-
-      {/* Indicador de média ponderada */}
-      <line
-        x1={left - 8}
-        x2={width - 10}
-        y1={zero - (2.8 / max) * (height / 2)}
-        y2={zero - (2.8 / max) * (height / 2)}
-        stroke="var(--color-text)"
-        strokeWidth="1.5"
-        strokeDasharray="4,3"
-      />
-      <text
-        x={width - 14}
-        y={zero - (2.8 / max) * (height / 2) - 6}
+        x={x0}
+        y={yTop - 12}
         fontSize="11"
         fontFamily="var(--font-sans)"
+        fill="var(--color-text-muted)"
+      >
+        Zona eleitoral — todos os eleitores aptos
+      </text>
+
+      {/* votos contados, divididos entre os dois candidatos */}
+      <rect
+        x={x0}
+        y={yTop}
+        width={apurado * shareA}
+        height={barH}
+        fill="var(--color-cand-1)"
+        opacity={0.85}
+      />
+      <rect
+        x={x0 + apurado * shareA}
+        y={yTop}
+        width={apurado * (1 - shareA)}
+        height={barH}
+        fill="var(--color-cand-2)"
+        opacity={0.85}
+      />
+      {/* parte da zona ainda sem seção instalada */}
+      <rect
+        x={x0 + apurado}
+        y={yTop}
+        width={full - apurado}
+        height={barH}
+        fill="none"
+        stroke="var(--color-border)"
+        strokeWidth="1.5"
+        strokeDasharray="5,4"
+      />
+
+      <text
+        x={x0 + apurado / 2}
+        y={yTop + barH + 15}
+        fontSize="10"
+        fontFamily="var(--font-sans)"
+        fill="var(--color-text-muted)"
+        textAnchor="middle"
+      >
+        seções instaladas: votos contados
+      </text>
+      <text
+        x={x0 + apurado + (full - apurado) / 2}
+        y={yTop + barH + 15}
+        fontSize="10"
+        fontFamily="var(--font-sans)"
+        fill="var(--color-text-muted)"
+        textAnchor="middle"
+      >
+        ainda sem seção instalada
+      </text>
+
+      {/* ---- Fator de escala ---- */}
+      <line
+        x1={x0 + full / 2}
+        x2={x0 + full / 2}
+        y1={yTop + barH + 28}
+        y2={yBottom - 12}
+        stroke="var(--color-text)"
+        strokeWidth="1.5"
+      />
+      <path
+        d={`M ${x0 + full / 2 - 5} ${yBottom - 18} L ${x0 + full / 2} ${yBottom - 8} L ${
+          x0 + full / 2 + 5
+        } ${yBottom - 18} Z`}
         fill="var(--color-text)"
-        textAnchor="end"
+      />
+      <text
+        x={x0 + full / 2 + 12}
+        y={yBottom - 22}
+        fontSize="12"
+        fontFamily="var(--font-sans)"
+        fill="var(--color-text)"
         fontWeight="600"
       >
-        média ponderada: +2,8 pp
+        × k = 2
+      </text>
+
+      {/* ---- Barra 2: total projetado da zona ---- */}
+      <rect
+        x={x0}
+        y={yBottom}
+        width={full * shareA}
+        height={barH}
+        fill="var(--color-cand-1)"
+        opacity={0.85}
+      />
+      <rect
+        x={x0 + full * shareA}
+        y={yBottom}
+        width={full * (1 - shareA)}
+        height={barH}
+        fill="var(--color-cand-2)"
+        opacity={0.85}
+      />
+
+      <text
+        x={x0 + (full * shareA) / 2}
+        y={yBottom + barH / 2 + 4}
+        fontSize="11"
+        fontFamily="var(--font-sans)"
+        fill="var(--color-bg)"
+        textAnchor="middle"
+        fontWeight="600"
+      >
+        A · 55%
+      </text>
+      <text
+        x={x0 + full * shareA + (full * (1 - shareA)) / 2}
+        y={yBottom + barH / 2 + 4}
+        fontSize="11"
+        fontFamily="var(--font-sans)"
+        fill="var(--color-bg)"
+        textAnchor="middle"
+        fontWeight="600"
+      >
+        B · 45%
       </text>
 
       <text
-        x={left}
-        y={190}
+        x={x0}
+        y={yBottom + barH + 16}
         fontSize="10"
         fontFamily="var(--font-sans)"
         fill="var(--color-text-muted)"
       >
-        12 zonas fictícias (ilustração)
+        total projetado da zona (números fictícios)
       </text>
     </svg>
   );

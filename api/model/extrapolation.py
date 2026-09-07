@@ -94,7 +94,7 @@ pendente, Fase 0 do plano — fora do escopo desta tarefa).
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
 import numpy as np
 
@@ -183,6 +183,8 @@ def estimate_uf_candidatos(
     pct_apurado_uf: float,
     seed: int,
     n_resamples: int = 1000,
+    estrato_by_cod_zona: dict[int, int] | None = None,
+    te_total_by_estrato: dict[int, float] | None = None,
 ) -> UfCandidatosEstimate | None:
     """Projeta candidatos de uma UF por regra de três + bootstrap de zonas.
 
@@ -198,6 +200,22 @@ def estimate_uf_candidatos(
         seed: determinístico, DERIVADO PELO CALLER de `(uf, "candidatos")`
             (mesmo padrão de `local_seed` em `project.py`).
         n_resamples: default 1000 (paridade com `turnout.py`/`bootstrap.py`).
+        estrato_by_cod_zona: pós-estratificação por porte de zona (tercis
+            de `te` a priori, ver `project.py::_compute_estratos_por_uf`)
+            — `None` (default) preserva o comportamento ORIGINAL,
+            byte-a-byte (nenhum sorteio adicional é consumido do `rng`).
+            Quando fornecido, `{cod_zona: 0|1|2}` classifica CADA zona da
+            UF (apurada ou não) — construído a partir de TODAS as zonas
+            conhecidas em `eleitorado`, não apenas as que já reportaram
+            (é isso que fixa o peso de cada estrato a priori e mata o
+            viés de composição — zonas grandes reportam primeiro, mas o
+            peso do estrato "grande" não cresce por causa disso).
+        te_total_by_estrato: `{estrato: Σte_apriori}` — peso a priori de
+            cada estrato (soma de `eleitorado` sobre TODAS as zonas do
+            estrato, apuradas ou não). Share da UF = média dos shares por
+            estrato ponderada por este peso (RF-013 estendido — estrato
+            sem nenhuma zona apurada cai para a proporção da UF inteira,
+            mesma hierarquia já usada para zona individual).
 
     Returns:
         `None` se NENHUMA zona estiver apurada — caller decide o
@@ -248,6 +266,44 @@ def estimate_uf_candidatos(
     den_v_boot = bv_arr[idx].sum(axis=1)
     den_c_boot = bc_arr[idx].sum(axis=1)
 
+    # --- Pós-estratificação por porte de zona (tercis de `te` a priori) ---
+    # `estratificar` fica `False` (e ZERO sorteios extras são consumidos
+    # do `rng`) sempre que o caller não passar os dois dicts — garante
+    # que o caminho ORIGINAL (sem estratos) permaneça byte-a-byte idêntico
+    # ao de antes desta mudança (testes de reprodutibilidade/seed cobrem).
+    estratificar = bool(estrato_by_cod_zona) and bool(te_total_by_estrato)
+    w_total = 0.0
+    strata_boot: dict[int, dict[str, Any]] = {}
+    if estratificar:
+        assert te_total_by_estrato is not None  # narrows for mypy/type-checkers
+        w_total = sum(w for w in te_total_by_estrato.values() if w > 0)
+        estratificar = w_total > 0
+    if estratificar:
+        assert estrato_by_cod_zona is not None
+        strata_zone_idx: dict[int, list[int]] = {}
+        for i, z in enumerate(apuradas):
+            k_estrato = estrato_by_cod_zona.get(z["cod_zona"])
+            if k_estrato is None:
+                continue
+            strata_zone_idx.setdefault(k_estrato, []).append(i)
+        for k_estrato, zone_positions in strata_zone_idx.items():
+            zone_idx_arr = np.array(zone_positions, dtype=np.int64)
+            bv_k = bv_arr[zone_idx_arr]
+            bc_k = bc_arr[zone_idx_arr]
+            kk = len(zone_positions)
+            idx_k = rng.integers(0, kk, size=(n_resamples, kk))
+            strata_boot[k_estrato] = {
+                "zone_idx_arr": zone_idx_arr,
+                "idx_k": idx_k,
+                "den_v_boot": bv_k[idx_k].sum(axis=1),
+                "den_c_boot": bc_k[idx_k].sum(axis=1),
+                "sum_bv": float(bv_k.sum()),
+                "sum_bc": float(bc_k.sum()),
+            }
+        # Nenhuma zona apurada caiu em nenhum estrato conhecido (dado
+        # inconsistente) -> desiste da estratificação, mantém o share UF.
+        estratificar = bool(strata_boot)
+
     por_candidato: dict[int, CandidatoEstimate] = {}
     for cod in sorted(candidatos):
         vap_arr = np.array([float(z["votos"].get(cod, 0)) for z in apuradas])
@@ -256,24 +312,76 @@ def estimate_uf_candidatos(
         sum_vap = float(vap_arr.sum())
         sum_vc = float(vc_arr.sum())
 
-        s_v = (sum_vc / sum_bv) if sum_bv > 0 else 0.0
-        s_c = (sum_vc / sum_bc) if sum_bc > 0 else 0.0
+        # Share/estimativa SEM estratificação — sempre calculado: é o
+        # resultado final quando `estratificar` é `False`, E é o fallback
+        # RF-013 para qualquer estrato sem nenhuma zona apurada.
+        s_v_uf = (sum_vc / sum_bv) if sum_bv > 0 else 0.0
+        s_c_uf = (sum_vc / sum_bc) if sum_bc > 0 else 0.0
         pct_atual_v = (sum_vap / sum_vvc) if sum_vvc > 0 else None
         pct_atual_c = (sum_vap / sum_c) if sum_c > 0 else None
 
         num_boot = vc_arr[idx].sum(axis=1)
-        est_v = np.divide(
+        est_v_uf = np.divide(
             num_boot,
             den_v_boot,
             out=np.zeros_like(num_boot),
             where=den_v_boot > 0,
         )
-        est_c = np.divide(
+        est_c_uf = np.divide(
             num_boot,
             den_c_boot,
             out=np.zeros_like(num_boot),
             where=den_c_boot > 0,
         )
+
+        if estratificar:
+            assert te_total_by_estrato is not None
+            point_v_num = 0.0
+            point_c_num = 0.0
+            boot_v = np.zeros(n_resamples)
+            boot_c = np.zeros(n_resamples)
+            for k_estrato, w_k in te_total_by_estrato.items():
+                if w_k <= 0:
+                    continue
+                sb = strata_boot.get(k_estrato)
+                if sb is not None:
+                    vc_k = vc_arr[sb["zone_idx_arr"]]
+                    sum_vc_k = float(vc_k.sum())
+                    s_v_k = (sum_vc_k / sb["sum_bv"]) if sb["sum_bv"] > 0 else 0.0
+                    s_c_k = (sum_vc_k / sb["sum_bc"]) if sb["sum_bc"] > 0 else 0.0
+                    num_boot_k = vc_k[sb["idx_k"]].sum(axis=1)
+                    p_v_k = np.divide(
+                        num_boot_k,
+                        sb["den_v_boot"],
+                        out=np.zeros(n_resamples),
+                        where=sb["den_v_boot"] > 0,
+                    )
+                    p_c_k = np.divide(
+                        num_boot_k,
+                        sb["den_c_boot"],
+                        out=np.zeros(n_resamples),
+                        where=sb["den_c_boot"] > 0,
+                    )
+                else:
+                    # Estrato SEM nenhuma zona apurada (RF-013 estendido):
+                    # cai para a proporção (ponto + bootstrap) da UF.
+                    s_v_k = s_v_uf
+                    s_c_k = s_c_uf
+                    p_v_k = est_v_uf
+                    p_c_k = est_c_uf
+                point_v_num += w_k * s_v_k
+                point_c_num += w_k * s_c_k
+                boot_v = boot_v + w_k * p_v_k
+                boot_c = boot_c + w_k * p_c_k
+            s_v = point_v_num / w_total
+            s_c = point_c_num / w_total
+            est_v = boot_v / w_total
+            est_c = boot_c / w_total
+        else:
+            s_v = s_v_uf
+            s_c = s_c_uf
+            est_v = est_v_uf
+            est_c = est_c_uf
 
         ci_v = inflate_ci_low_apurado(
             {

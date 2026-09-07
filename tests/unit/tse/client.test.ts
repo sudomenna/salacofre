@@ -391,7 +391,7 @@ describe("fetchEA20 — User-Agent + Accept headers", () => {
     // 2026-09-05 — User-Agent revisado: NÃO declara cadastro (não existe —
     // Res. TSE 23.751/2026 não prevê cadastro prévio de "interessado").
     expect(headers?.["User-Agent"]).toBe(
-      "SalaCofre/1.0 (+https://salacofre.com.br; contato: pendente)",
+      "SalaCofre/1.0 (+https://salacofre.com.br; contato: contato@salacofre.com.br)",
     );
   });
 

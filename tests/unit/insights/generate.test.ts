@@ -120,7 +120,7 @@ describe("generateInsights()", () => {
     expect(out[0]).toContain("Disputa apertada");
   });
 
-  it("(d) swing UF >= 4 → frase de movimento", () => {
+  it("(d) comparação vs. 2022 >= 4pp → frase de movimento", () => {
     const out = generateInsights({ national, por_uf: [ufBig], pct_apurado_total: 23 });
     expect(out.some((l) => l.includes("MG"))).toBe(true);
     expect(out.some((l) => l.includes("2022"))).toBe(true);
@@ -194,5 +194,50 @@ describe("generateInsights()", () => {
     const out = generateInsights({ national: com3, por_uf: [], pct_apurado_total: 10 });
     expect(out.some((l) => l.includes("Terceiro") && l.includes("briga pela vaga"))).toBe(true);
     expect(out.some((l) => l.includes("42%"))).toBe(true);
+  });
+
+  // --- S07/Fase 5: `swing_vs_2022` é comparação descritiva e aceita `null` ---
+  // ADR-0021 tirou 2022 do cálculo. O campo sai `null` (nunca 0.0) quando não
+  // há número de 2022 para comparar — `0.0` afirmaria que a UF não mudou.
+
+  it("(j) swing_vs_2022 null não quebra e não gera frase de movimento", () => {
+    const semComparacao: EdgeUfRow = { ...ufBig, swing_vs_2022: null };
+    const out = generateInsights({
+      national,
+      por_uf: [semComparacao],
+      pct_apurado_total: 23,
+    });
+    expect(() =>
+      generateInsights({ national, por_uf: [semComparacao], pct_apurado_total: 23 }),
+    ).not.toThrow();
+    expect(out.some((l) => l.includes("Movimento expressivo"))).toBe(false);
+    expect(out.some((l) => l.includes("em relação a 2022"))).toBe(false);
+  });
+
+  it("(k) UF com comparação vence UF sem comparação no ranking", () => {
+    // A UF sem número de 2022 não pode "ganhar" o ranking por ausência: ela
+    // sai da lista, e a UF que tem comparação real gera a frase.
+    const semComparacao: EdgeUfRow = { ...ufTossup, sigla: "AC", swing_vs_2022: null };
+    const out = generateInsights({
+      national,
+      por_uf: [semComparacao, ufBig],
+      pct_apurado_total: 23,
+    });
+    expect(out.some((l) => l.includes("Movimento expressivo em MG"))).toBe(true);
+    expect(out.some((l) => l.includes("Movimento expressivo em AC"))).toBe(false);
+  });
+
+  it("(l) todas as UFs sem comparação → nenhuma frase de 2022, resto intacto", () => {
+    const out = generateInsights({
+      national,
+      por_uf: [
+        { ...ufBig, swing_vs_2022: null },
+        { ...ufTossup, swing_vs_2022: null },
+      ],
+      pct_apurado_total: 23,
+    });
+    expect(out.some((l) => l.includes("2022"))).toBe(false);
+    // a regra 3 (tossup) continua funcionando
+    expect(out.some((l) => l.includes("SP") && l.includes("decisiva"))).toBe(true);
   });
 });

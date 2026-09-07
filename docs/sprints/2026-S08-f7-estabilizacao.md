@@ -6,9 +6,9 @@ start: 2026-09-25
 end: 2026-10-03
 phase: F7
 goal: Levar o sistema ao estado deployable para o 1º turno — checklist pré-prod 100% verde, load test aprovado, alertas e página de manutenção no ar, sem feature nova.
-specs_in_flight: [009-compartilhamento-meta, 010-operacao-monitoramento, 013-pagina-manutencao]
+specs_in_flight: [010-operacao-monitoramento, 012-dashboard-status, 013-pagina-manutencao]
 specs_deferred:
-  - 012-dashboard-status (ver "Spec diferida" — decisão do usuário pendente)
+  - 009-compartilhamento-meta (trocada pela 012 em 05/09 — ver "Spec diferida")
 specs_planned_next: []
 plano: ../_meta/plano-s07-2026-09-05.md
 ---
@@ -38,28 +38,40 @@ checklist pré-prod.
 São a Fase 7 do plano. Nenhuma delas é feature de produto nova: são o encanamento de
 pré-produção que já estava especificado e ficou parado na S07 antiga.
 
-- [ ] **009-compartilhamento-meta** (`draft`) — OG dinâmica, share buttons, sitemap, footer canônico.
 - [ ] **010-operacao-monitoramento** (`draft`) — alertas, cron toggle, rolling release.
+- [ ] **012-dashboard-status** (`draft`) — `/_status` protegido por auth básica: lag de ingestão,
+      zonas processadas/restantes, taxa de erro, cache hit, throughput de invalidação; botões
+      "Pausar Cron" (`CRON_ENABLED=false` via API da Vercel) e "Forçar refresh" (`/api/ingest`
+      fora do schedule). **Trazida para a S08 em 05/09 por decisão do usuário** — ver abaixo.
 - [ ] **013-pagina-manutencao** (`ready`) — `/manutencao` como fallback; `<TurnoTransitionBanner />`,
       `<MaintenancePageMessage />`, flag `maintenance:mode` no Edge Config.
       RFs 058/058.1/058.2 já em `traceability.md` sem código (carry-over da S06).
 
 ### Spec diferida
 
-- **012-dashboard-status** (`/_status`, T-07) — **não cabe na janela** e não consta da Fase 7 do
-  plano. Com 9 dias corridos para 3 specs + load test + checklist pré-prod, o dashboard operacional
-  é o item que sai. Na noite do 1º turno a operação passa a depender dos logs da Vercel + alertas
-  Slack da spec 010.
-  ⚠️ **Decisão do usuário pendente**: `/_status` tem valor sobretudo *durante* o D1 — empurrá-la
-  para depois do 1º turno esvazia boa parte do seu propósito. As alternativas são (a) aceitar a
-  diferição, (b) encaixar uma versão mínima (read-only, sem os botões "Pausar Cron"/"Forçar refresh")
-  como stretch da S08, ou (c) trocar 009 por 012 na S08.
+- **009-compartilhamento-meta** (`draft`) — OG dinâmica, share buttons, sitemap, footer canônico.
+  **Diferida em 05/09** (decisão do usuário, alternativa "c" da versão anterior desta seção): a
+  janela de 9 dias corridos não comporta 4 specs + load test + checklist pré-prod, e entre 009 e
+  012 a que serve a noite do 1º turno é a 012. O site funciona sem OG dinâmica — o link
+  compartilhado cai no card estático; **não funciona bem sem visibilidade operacional** quando o
+  pipeline trava às 20h de domingo. Custo aceito: menos tração de compartilhamento no dia D.
+
+  **Por que a 012 entrou.** `/_status` responde, num olhar, a pergunta que a noite eleitoral impõe
+  — o TSE caiu, tomamos bloqueio de IP, ou nosso cron travou? Sem ela a resposta sai de logs da
+  Vercel + query no Postgres, com alguém num terminal sob pressão. Pesa também que a cadência em
+  granularidade zona ficou em ~120 s efetivos contra a meta de 90 s (E4/ADR-0021): o lag é
+  justamente a métrica que vamos querer vigiar. E a spec 010, que já estava in-flight, declara
+  `depends_on: [012-dashboard-status]` — mantê-la fora deixava a 010 com dependência apontando
+  para spec cortada.
 
 ## Foco da sprint
 
 - **Checklist pré-produção** ([pre-prod-checklist.md](../operations/pre-prod-checklist.md)) — 100% checado:
 
-  - [ ] Replay 2022 com MAE <2pp em t=1h (já **PASS**: 0,998pp — reconfirmar sem regressão)
+  - [ ] Replay 2022 com MAE <2pp em t=1h. ⚠️ O ~~PASS de 0,998pp~~ era **tautológico** (dataset
+        construído a partir do próprio 2022, zonas apurando 100% de uma vez). O gate foi
+        **suspenso** e depende do replay regenerado na Fase 5 da S07; o OT-4 novo é
+        MAE@1h < 2pp **+** cobertura do IC95 ≥ 90%. Esperar MAE maior que 0,998pp.
   - [ ] Load test 30k VUs com p95 <200ms ([load.md](../testing/load.md))
   - [ ] Simulados oficiais TSE executados com sucesso (S07 — 15–17/09 e 22–24/09)
   - [ ] Lighthouse a11y >95 em todas as páginas (⚠️ `rm -rf .next` antes)
@@ -67,7 +79,8 @@ pré-produção que já estava especificado e ficou parado na S07 antiga.
   - [ ] Runbook revisado
   - [ ] Alertas Slack testados (forçar falsos positivos)
   - [ ] Rolling Release configurado com canary 10% inicial
-  - [ ] OG images dinâmicas testadas em WhatsApp/X/Threads
+  - [ ] ~~OG images dinâmicas testadas em WhatsApp/X/Threads~~ — cai com a diferição da spec 009 (05/09).
+        Conferir apenas que o card estático de fallback renderiza nos três apps.
   - [ ] Página de manutenção testada (forçar via flag)
   - [ ] DNS preparado (`salacofre.com.br` + `.com` apontando pro Vercel)
   - [ ] Backup Postgres configurado
@@ -101,7 +114,7 @@ pré-produção que já estava especificado e ficou parado na S07 antiga.
 
 ## Definition of Done
 
-- ✅ Specs 009, 010 e 013 com `status: shipped` (4 gates cada)
+- ✅ Specs 010, 012 e 013 com `status: shipped` (4 gates cada)
 - ✅ Checklist pré-prod 100% verde
 - ✅ Env de produção configurada, incluindo `TSE_COD_ELEICAO` real
 - ✅ Load test 30k VUs aprovado (p95 <200ms, error rate <0.1%)
@@ -134,7 +147,8 @@ spec 008 (brushing & linking) idem.
 
 - **2026-09-05 — re-baseline (decisão D9).** Janela movida de 31/08 → 06/09 para 25/09 → 03/10;
   título de "Estabilização final" para "Estabilização + D-1"; conteúdo alinhado à Fase 7 do plano.
-  Recebeu as specs 009, 010 e 013 vindas da S07 antiga; a 012 ficou diferida. Removidas as
+  Recebeu as specs 009, 010 e 013 vindas da S07 antiga; a 012 ficou diferida. (Revertido em
+  05/09: a 012 entrou e a 009 saiu — ver "Spec diferida".) Removidas as
   referências a "cadastro TSE aprovado" (não existe cadastro no pleito 2026) e ao risco
   "resolução TSE 2026 publicada agora" (a Res. 23.751/2026 já está publicada e o diff técnico
   já foi feito — ver [`tse-2026-leiautes.md`](../reference/tse-2026-leiautes.md)).

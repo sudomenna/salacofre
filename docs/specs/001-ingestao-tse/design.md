@@ -261,7 +261,8 @@ em notação BR — `parseEA20Numeric()` converte no ponto de uso, preservando o
 // lib/tse/client.ts
 // User-Agent HONESTO — identifica projeto, URL pública e contato. NUNCA declara
 // cadastro/credenciamento: a Res. 23.751/2026 não prevê nenhum (RF-010.6, ADR-0020).
-export const USER_AGENT = 'SalaCofre/1.0 (+https://salacofre.com.br; contato: <pendente>)';
+// Contato: contato@salacofre.com.br (definido em 2026-09-05, ADR-0020).
+export const USER_AGENT = 'SalaCofre/1.0 (+https://salacofre.com.br; contato: contato@salacofre.com.br)';
 
 async function fetchEA20(opts: { url: string; etag?: string | null }): Promise<FetchResult> {
   // Token de taxa ANTES de cada tentativa, inclusive retries (RF-010.3).

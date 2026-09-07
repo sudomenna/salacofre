@@ -44,7 +44,8 @@ import { db, schema } from "@/lib/db";
 /**
  * Nível de abrangência de um target.
  *   - "zona": arquivo de resultado unificado da zona eleitoral (mais granular;
- *     necessário para o swing vs. 2022 do modelo — ver spec 002 RF-011/RF-012).
+ *     é a unidade da regra de três do modelo — `k = te/esi` por zona, spec 002
+ *     RF-011/RF-012, ADR-0021).
  *   - "uf": arquivo agregado da UF inteira (1 GET cobre todos os municípios/
  *     zonas da UF).
  *   - "br": arquivo agregado nacional (só existe para cargo 1 — Presidente).
@@ -380,10 +381,10 @@ export type TseGranularidade = (typeof VALID_GRANULARIDADES)[number];
  *   - "uf" (opt-in): 27 UFs × cargos ativos + 1 BR (só cargo 1). Cabe
  *     folgadamente no maxDuration/rate-limit. É o suficiente para as telas
  *     nacional/UF (specs 003/004).
- *   - "zona": granularidade completa (~2.600 zonas × cargos ativos). Ainda
- *     necessária para o swing vs. 2022 do modelo (spec 002 RF-011/RF-012,
- *     que opera por zona) — ver recomendação de fan-out no relatório desta
- *     tarefa. NÃO usar como default em produção sem EA14/EA15 gating (Fase
+ *   - "zona": granularidade completa (~2.600 zonas × cargos ativos). É a
+ *     granularidade do modelo: a extrapolação do apurado projeta zona a zona
+ *     (spec 002 RF-011/RF-012, ADR-0021) — ver recomendação de fan-out no
+ *     relatório desta tarefa. NÃO usar como default em produção sem EA14/EA15 gating (Fase
  *     1b) ou o ciclo estoura o rate limit de 100 req/s.
  *
  * IMPORTANTE (limitação conhecida, não resolvida aqui): a tabela `snapshots`
@@ -644,7 +645,7 @@ function buildProductionTargetsUf(codEleicao: string, baseUrl: string): Target[]
 }
 
 // ---------------------------------------------------------------------------
-// Targets — granularidade "zona" (opt-in, necessário pro swing do modelo)
+// Targets — granularidade "zona" (unidade da regra de três do modelo)
 // ---------------------------------------------------------------------------
 
 async function buildPreviewTargetsZona(codEleicao: string, baseUrl: string): Promise<Target[]> {

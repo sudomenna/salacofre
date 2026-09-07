@@ -13,22 +13,48 @@ Endpoint Python (`/api/model/project`) rodando em Vercel Fluid Compute (Python 3
 
 ## Cálculos
 
-### Bootstrap (Python)
+### Extrapolação do apurado + bootstrap — `api/model/extrapolation.py`
+
+Módulo **irmão** de `turnout.py` (semânticas diferentes: aqui é razão de somas de contagens escaladas, lá é média ponderada de taxas). Não importa `historical_results`, não conhece `pct_validos` de 2022, não faz swing ([ADR-0021](../../architecture/adrs/0021-extrapolacao-do-apurado-sem-2022.md)).
 
 ```python
-def bootstrap_uf(zones_apuradas, n_resamples=1000):
-    estimates = []
-    for _ in range(n_resamples):
-        sample = np.random.choice(zones_apuradas, size=len(zones_apuradas), replace=True)
-        swing_sample = weighted_swing(sample)
-        estimate = result_2022_uf + swing_sample
-        estimates.append(estimate)
-    return {
-        'point': np.mean(estimates),
-        'ci_lower': np.percentile(estimates, 2.5),
-        'ci_upper': np.percentile(estimates, 97.5),
-    }
+def estimate_uf_candidatos(
+    zonas: list[ZonaCandidatos],
+    pct_apurado_uf: float,      # 0–100
+    seed: int,                  # derivado pelo CALLER de (uf, "candidatos")
+    n_resamples: int = 1000,
+) -> UfCandidatosEstimate | None:
+    """
+    Zona apurada  <=> esi > 0 ∧ vvc > 0 ∧ weight > 0.
+    k(z)   = te/esi                       # fator de escala (RF-011)
+    V_c(z) = vap_c·k   B_v(z) = vvc·k   B_c(z) = c·k
+    s_v_c(U) = ΣV_c / ΣB_v                # razão de somas (RF-012)
+    pct_atual_v(U) = Σvap_c / Σvvc        # literal, SEM k
+
+    E3 (RF-013): zonas não apuradas entram por fórmula fechada
+        B_v(U) = ΣB_v(A) · (Σte(todas) / Σte(A))
+    — o share não muda; só o volume absoluto.
+
+    IC (RF-015): UM idx por UF, compartilhado entre TODOS os candidatos
+    e as DUAS bases, sorteado só sobre as zonas apuradas:
+        idx     = default_rng(seed).integers(0, k_A, (n, k_A))
+        den_v   = (vvc·k)[idx].sum(1);  den_c = (c·k)[idx].sum(1)
+        num_c   = (vap_c·k)[idx].sum(1)
+        est_v_c = num_c/den_v;          est_c_c = num_c/den_c
+    Ponto = fórmula fechada (não `mean` do bootstrap). RF-018 nas duas bases.
+    Retorna None se NENHUMA zona estiver apurada -> caller decide (RF-017).
+    """
+
+def impute_uf_from_national(national_shares, national_point, w_uf, r_v_br) -> UfCandidatosEstimate:
+    """RF-017, 2º nível hierárquico: UF sem zona apurada (só cargo 1).
+    s_c(U) := s_c(BR), CI ±10pp via `inflate_ci_zero_apurado`, `estimates`
+    reusa o array NACIONAL pareado. Cargo 3 não chama — o caller omite a UF."""
+
+def aggregate_national_votos(by_uf) -> tuple[dict[int, int], int]:
+    """RF-020.3 — Σ `votos_projetados` por candidato, UF → Brasil."""
 ```
+
+O contrato de `estimates_by_uf[uf][cand]` (share **fracionário**, shape `(1000,)`, pareado) é preservado — `compute_national`, `p_vitoria`, `compute_p_passa_2t`, `compute_p_fecha_1t`, `compute_two_round_scenarios` e `compute_outros_estimates` continuam agnósticos ao método de projeção.
 
 ### Probabilidade de vitória
 
@@ -54,10 +80,12 @@ band = {
 
 | Caso | Tratamento |
 |---|---|
-| UF com 0 zonas apuradas | Projeção = resultado 2022, CI = ±10pp (penalização forte) |
-| UF com <5% apurado | CI inflado em 50% adicional |
-| Zona apurada mas sem dado 2022 (raro, mudança administrativa) | Excluída do cálculo de swing |
-| Candidato 2026 com bloco político não-mapeável em 2022 | Modelo desabilitado para essa corrida, fallback para parcial atual |
+| Zona sem urna aberta (`esi ≤ 0` ∨ `vvc ≤ 0` ∨ `w ≤ 0`) | **Imputada** pela proporção das zonas apuradas da própria UF (RF-013). Nunca descartada do total. |
+| UF (presidente) com 0 zonas apuradas | Proporção do agregado **nacional**, CI = ±10pp, `metodo.tipo = "imputado_nacional"` (RF-017) |
+| UF (governador) com 0 zonas apuradas | UF **omitida** — não existe corrida nacional para ancorar; UI mostra "aguardando projeção" |
+| UF com <5% apurado | CI inflado em 50% adicional nas duas bases (RF-018) |
+| Candidato sem histórico em 2022 | **Não é caso de borda** — a projeção não consulta 2022; o candidato entra pela união dos vistos nas zonas apuradas |
+| Volatilidade anômala / divergência entre UFs vizinhas | **Não existe circuit breaker** no código. A redação anterior descrevia um fallback por volatilidade que nunca foi implementado; qualquer mecanismo desse tipo exigiria ADR próprio |
 
 ## Validação por Replay
 
@@ -68,9 +96,12 @@ Script `scripts/replay-2022.ts`:
 - A cada timestep, computa projeção e compara com resultado final.
 - **Métricas**:
   - Erro absoluto médio (MAE) por candidato em t = {15min, 30min, 1h, 2h}.
+  - Cobertura do IC95: em quantos pares (UF, candidato) o resultado final caiu dentro da faixa.
   - Calibração de probabilidade: dos casos onde modelo disse P=80%, em quantos % candidato realmente venceu?
 
-Critério de aceite: MAE em t=1h < 2pp (OT-4).
+Critério de aceite: MAE em t=1h < 2pp (OT-4) **+** cobertura do IC95 em t=1h ≥ 90%.
+
+> **Gate suspenso (2026-09-05).** O fixture atual (`scripts/build-replay-fixtures.ts`) é construído a partir do próprio resultado de 2022 e grava `pct_apurado: 100` por zona — cada zona apura inteira num instante, então **não há nada a extrapolar** e a projeção colapsa no gabarito. O MAE de 0,998pp reportado em S03 mede essa tautologia, não o modelo. O gate volta a valer depois que o fixture for regerado com envelope EA20 sintético, ordem de apuração enviesada e apuração progressiva intra-zona (`f ∈ {0,25; 0,5; 0,75; 1}`) — e espera-se um MAE **maior**, que é o gate ficando honesto.
 
 ## Contratos
 
@@ -86,7 +117,7 @@ Critério de aceite: MAE em t=1h < 2pp (OT-4).
 { "computed": true, "uf_count": 14, "national_p_vitoria_a": 0.78 }
 ```
 
-## Cálculos S05 — 2º turno e K-1 fallback
+## Cálculos S05 — 2º turno (e a remoção do K-1 em S07)
 
 ### `compute_two_round_scenarios`
 
@@ -144,22 +175,11 @@ def compute_p_fecha_1t(national_estimates: dict[int, np.ndarray]) -> dict[int, f
     """
 ```
 
-### K-1 Fallback 3-tier (conforme [ADR-0015](../../architecture/adrs/0015-k1-fallback-3-tier.md))
+### K-1 Fallback 3-tier — **removido** ([ADR-0021](../../architecture/adrs/0021-extrapolacao-do-apurado-sem-2022.md) supersede [ADR-0015](../../architecture/adrs/0015-k1-fallback-3-tier.md))
 
-```python
-def fallback_k1_mapping(candidate_2026, uf: str) -> dict:
-    """
-    Quando candidato 2026 não tem mapeamento óbvio em 2022:
-    
-    Tier 1: Candidatos de mesmo partido em vizinhos geográficos (até 3 UFs próximas).
-    Tier 2: Candidatos de mesmo partido em zonas similares dentro da UF (crescimento pop, PIB).
-    Tier 3: Média nacional do partido em 2022.
-    
-    Retorna {'tier': int, 'mapping': historico_2022_ref, 'confidence': float}
-    Se todas as tiers falham, retorna {'disabled': True}
-    """
-    pass
-```
+O fallback K-1 nunca ficou operacional (`swing.resolve_k1_tier`, `party_mapping`, `pre_election_polls` eram código morto, não chamados por `project.py`) e deixou de fazer sentido: sem 2022 no caminho do cálculo, não existe "candidato sem mapeamento". Os módulos foram deletados.
+
+A coluna `projections.model_fallback_tier` e o campo opcional `EdgePayloadUf.model_fallback_tier?` permanecem no schema marcados `@deprecated`, **sem migration de remoção** — nenhum consumidor os lê, e a UI não exibe mais disclaimer de prior limitado.
 
 Color lock em `pct_apurado ≥ 1%` (conforme [ADR-0013](../../architecture/adrs/0013-tokens-multi-candidato-por-rank.md)): candidatos com < 1% são greyed out, não recebem token de rank visual.
 
@@ -213,6 +233,21 @@ def compute_outros_estimates(
 
 A soma é **elementwise entre arrays já sorteados** — preserva a covariância entre os candidatos de cauda e produz um IC genuíno. `100 − Σtop3` descartaria toda essa incerteza e por isso só existe como fallback de apresentação, obrigatoriamente rotulado "IC indisponível" (ADR-0018).
 
+### Contrato das duas bases por candidato (RF-020.2)
+
+```ts
+export interface EdgeBaseComparecimento {
+  pct_atual: number | null;   // 0–100
+  pct_projetado: number;      // 0–100
+  lower: number;
+  upper: number;
+}
+// EdgeCandidate  / EdgeUfCandidate:      comparecimento?: EdgeBaseComparecimento;
+// EdgeParticipacao.outros:               ... & { comparecimento?: EdgeBaseComparecimento };
+```
+
+Os campos de topo (`pct_atual`, `pct_projetado`, `lower`, `upper`) seguem na base **votáveis** — o default da tela. A chave `comparecimento` é **opcional**: fixtures anteriores à S07 não a têm, e o consumidor que não a encontra renderiza "aguardando projeção", **nunca** o número de votáveis sob o rótulo de comparecimento (seria publicar um valor sob denominador alheio — art. 267 §4º, [ADR-0020](../../architecture/adrs/0020-conformidade-res-23751-2026.md)).
+
 ### Contrato do bloco `participacao` no payload
 
 Emitido por `build_participacao_payload` em `EdgeNational` e em `EdgePayloadUf` — ambos opcionais (`participacao?`), tipados em `lib/edge-config/types.ts`:
@@ -242,7 +277,7 @@ Cada métrica é omitida quando não calculável; o bloco inteiro é omitido qua
 - [ADR-0001 Edge Config write path](../../architecture/adrs/0001-edge-config-no-read-path.md)
 - [ADR-0012 Chaves nomeadas por corrida e turno](../../architecture/adrs/0012-edge-config-chaves-nomeadas.md)
 - [ADR-0014 Métricas de 2º turno primeira classe](../../architecture/adrs/0014-p-segundo-turno-primeira-classe.md)
-- [ADR-0015 K-1 fallback 3-tier](../../architecture/adrs/0015-k1-fallback-3-tier.md)
+- [ADR-0021 Extrapolação do apurado por zona, sem 2022](../../architecture/adrs/0021-extrapolacao-do-apurado-sem-2022.md) — supersede o ADR-0015 e é a base de RF-011/012/013/017/020.2/020.3
 - [ADR-0018 Seis termômetros no hero do 1T](../../architecture/adrs/0018-termometros-hero-1t.md) — origem de RF-020.1
 - [ADR-0020 Conformidade Res. TSE 23.751/2026](../../architecture/adrs/0020-conformidade-res-23751-2026.md) — art. 267 §4º veda alterar o conteúdo dos dados (base da regra de denominadores não-intercambiáveis)
 
@@ -250,7 +285,7 @@ Cada métrica é omitida quando não calculável; o bloco inteiro é omitido qua
 
 - **Modelo retorna NaN sob input degenerado** — guardrails em `lib/model/project.py` com defaults seguros.
 - **Bootstrap lento sob alta carga de UFs** — paralelizar via `numpy.random.Generator` com seeds determinísticas.
-- **Participação volátil em baixa apuração** — a regra de três de RF-020.1 não tem prior; em <5% apurado o CI é inflado por RF-018, mas o viés de composição (zonas urbanas apuram antes) permanece. Reavaliar após os simulados TSE de 15–17/09 e 22–24/09/2026 (ADR-0018, seção Consequências).
+- **Viés de composição — risco metodológico central** ([ADR-0021](../../architecture/adrs/0021-extrapolacao-do-apurado-sem-2022.md), Consequências). Vale para candidatos e participação: as seções/zonas que apuram primeiro podem ter perfil sistematicamente diferente das que faltam, e **o bootstrap não vê esse resíduo** — reamostrar zonas apuradas mede a variação entre elas, não a distância para as não apuradas. Mitigação declarada: RF-018 (CI inflado <5% apurado) + rótulo "projeção a partir do apurado" (RF-062). Não inventar inflações extras sem ADR. Reavaliar após os simulados TSE de 15–17/09 e 22–24/09/2026.
 
 ## Cross-refs
 

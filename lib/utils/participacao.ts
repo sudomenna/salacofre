@@ -43,6 +43,18 @@ export function denominadorLabel(base: ParticipacaoBase): string {
   return `% ${denominadorFrase(base)}`;
 }
 
+/**
+ * Base do denominador que o leitor pode ESCOLHER para candidatos e "Outros"
+ * (S07/Fase 5, decisão E2b). Subconjunto de `ParticipacaoBase`:
+ * `eleitores_instalados` é base exclusiva da abstenção e nunca de candidato,
+ * então não entra no toggle.
+ *
+ * Vive aqui (e não no bloco que a consome) porque `components/atoms/controls/
+ * BaseToggle.tsx` também precisa do tipo: atom não pode importar de block
+ * (`docs/architecture/folder-structure.md` — lib → atoms → blocks → app).
+ */
+export type ProjectionBase = "votaveis" | "comparecimento";
+
 /** Candidato de qualquer um dos dois shapes do payload (nacional ou UF). */
 export type AnyEdgeCandidate = EdgeCandidate | EdgeUfCandidate;
 

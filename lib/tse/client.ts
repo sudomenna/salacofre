@@ -54,10 +54,12 @@ export type FetchEA20Result =
  * continua sendo boa prática de transparência (constituição § 1) mesmo sem
  * exigência formal do TSE.
  *
- * TODO(humano): preencher o texto de contato (URL/e-mail público) antes do
- * simulado de 15/09 — "pendente" é um placeholder deliberado, não um erro.
+ * 2026-09-05 — contato definido pelo usuário: `contato@salacofre.com.br`.
+ * A caixa precisa estar ativa e ser lida: é por ela que o TSE avisaria de
+ * bloqueio de IP ou de mudança de leiaute durante os simulados e no dia D.
  */
-export const USER_AGENT = "SalaCofre/1.0 (+https://salacofre.com.br; contato: pendente)";
+export const USER_AGENT =
+  "SalaCofre/1.0 (+https://salacofre.com.br; contato: contato@salacofre.com.br)";
 
 /** Fetch timeout in milliseconds. Documented in design.md § Tratamento de falhas. */
 const FETCH_TIMEOUT_MS = 5_000;

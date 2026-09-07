@@ -256,7 +256,10 @@ export type HistoricalResultRow = {
 /**
  * Lê todos os resultados históricos 2022 para (cargo, turno).
  *
- * Cobre RF-011/RF-012: o ponto de partida do swing é `p_2022(zone)`.
+ * NÃO é insumo da projeção desde o ADR-0021: a extrapolação do apurado
+ * (RF-011/RF-012) não consulta 2022. O histórico sobrevive apenas para a
+ * **comparação descritiva** exibida ao leitor (`swing_vs_2022` no payload de
+ * UF) — fato observado, não ingrediente do cálculo.
  *
  * Atravessa o índice `ix_hist_lookup (ano, turno, cargo, uf, cod_zona)`.
  *
