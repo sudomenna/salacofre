@@ -1,7 +1,15 @@
 /**
  * lib/edge-config/writer.ts
  *
- * Escrita no Vercel Edge Config via REST API.
+ * Escrita no Vercel Global Config via REST API.
+ *
+ * Nomenclatura: o produto foi renomeado de **Edge Config** para **Global
+ * Config** (changelog Vercel; docs em `/docs/global-config/*`). O pacote npm
+ * segue sendo `@vercel/edge-config`, e os endpoints REST, variáveis de
+ * ambiente (`EDGE_CONFIG`, `EDGE_CONFIG_ID`, `EDGE_CONFIG_TOKEN`), símbolos e
+ * chaves deste módulo mantêm o nome antigo de propósito — renomear a 26 dias
+ * do 1º turno é risco sem retorno. O texto novo usa "Global Config"; os
+ * identificadores, não.
  *
  * Por quê uma camada própria?
  *   - O SDK `@vercel/edge-config` (já em deps) cobre só LEITURA. Para gravar
@@ -12,17 +20,28 @@
  *     centraliza o no-op em ambientes sem credencial.
  *
  * Covers
- *   - RF-020 (persistência da projeção para leitura via Edge Config) — write
- *     side. A leitura vive em código de UI usando o SDK.
- *   - ADR-0001 (Edge Config como único caminho de leitura no read path) —
- *     este writer é o ponto onde Postgres → Edge Config se materializa.
+ *   - RF-020 (persistência da projeção para leitura via Global Config) —
+ *     write side. A leitura vive em código de UI usando o SDK.
+ *   - ADR-0001 (Global Config como caminho de leitura no read path) — este
+ *     writer é o ponto onde Postgres → Global Config se materializa.
  *
  * Exporta
  *   - `writeEdgePayload(key, value)` — primitivo de baixo nível (T03).
  *   - `writeProjection(payload)` — wrapper de alto nível (T14) que materializa
- *     UM `EdgePayload` em `projection:current` + N chaves `projection:uf:<sigla>`.
+ *     UM `EdgePayload` em `projection-current` + N chaves `projection-uf-<SIGLA>`.
+ *
+ * Nomes de chave
+ *   - Nenhuma chave é montada neste arquivo. Todas vêm de
+ *     `lib/edge-config/keys.ts`, que é o ponto único de construção E de
+ *     validação contra o padrão documentado `^[A-Za-z0-9_-]+$`.
+ *   - `writeEdgePayload` valida a chave ANTES de bater na API da Vercel
+ *     (`assertValidGlobalConfigKey`). É a trava que impede uma chave fora do
+ *     padrão de chegar ao store, inclusive vinda de um caller ad hoc que
+ *     tenha construído a string à mão.
  *
  * Behaviour
+ *   - Chave fora do padrão documentado → throw ANTES do fetch, com mensagem
+ *     que nomeia o caractere ofensor.
  *   - Sem `EDGE_CONFIG_TOKEN` ou `EDGE_CONFIG_ID` → no-op + warn estruturado.
  *     Isso é o esperado em preview deploys, CI e dev local quando ainda não
  *     há config Vercel — segue o mesmo padrão do `lib/tse/alerts.ts` quando
@@ -31,17 +50,26 @@
  *     corpo. Engolir erros aqui esconderia falhas de gravação que quebram
  *     `RF-019` em produção.
  *   - Erro de rede / DNS → throw com a cause original encadeada.
- *   - Payload >450 KB serializado → warn (margem antes do limite duro 512 KB
- *     do Edge Config; nunca aborta — gravação procede e o limite eventual
- *     será capturado pelo HTTP 413).
+ *   - **Guarda de tamanho do store** (ver `guardStoreSize` abaixo): o limite
+ *     da Vercel é por STORE INTEIRO, não por requisição. Antes de gravar,
+ *     medimos o store e comparamos com o limite real; passando do limiar,
+ *     emitimos aviso acionável. A guarda NUNCA aborta a gravação nem
+ *     propaga exceção — o pipeline vale mais que a instrumentação.
  *   - `writeProjection`: best-effort por chave. Falha em UMA chave NÃO aborta
  *     as demais (cron é melhor parcialmente consistente do que totalmente
  *     ausente). Exceção final agrega o que falhou.
  */
 
 import type { Cargo, Turno } from "@/lib/config/calendar";
+import {
+  assertValidGlobalConfigKey,
+  currentProjectionKey,
+  LEGACY_CURRENT_ALIAS_KEY,
+  legacyUfAliasKey,
+  ufProjectionKey,
+} from "@/lib/edge-config/keys";
 import type { EdgePayload, EdgePayloadUf } from "@/lib/edge-config/types";
-import { logInfo, logWarn } from "@/lib/tse/log";
+import { logError, logInfo, logWarn } from "@/lib/tse/log";
 
 // ---------------------------------------------------------------------------
 // Config / constants
@@ -51,7 +79,7 @@ import { logInfo, logWarn } from "@/lib/tse/log";
 const VERCEL_API_BASE = "https://api.vercel.com";
 
 /**
- * Lê o ID do Edge Config diretamente da connection string que a Vercel
+ * Lê o ID do Global Config diretamente da connection string que a Vercel
  * injeta como `EDGE_CONFIG`, OU de uma var explícita `EDGE_CONFIG_ID`.
  *
  * Formato `EDGE_CONFIG`:
@@ -78,18 +106,29 @@ function resolveEdgeConfigId(): string | null {
 // ---------------------------------------------------------------------------
 
 /**
- * Faz upsert de UM item no Edge Config.
+ * Faz upsert de UM item no Global Config.
  *
- * @param key   Nome da chave (ex. `projection:current`).
+ * @param key   Nome da chave (ex. `projection-current`). **Validado contra o
+ *              padrão documentado `^[A-Za-z0-9_-]+$` antes de qualquer coisa
+ *              — inclusive antes do curto-circuito de "sem credencial".** A
+ *              ordem importa: se a validação viesse depois, uma chave
+ *              inválida passaria silenciosamente em CI e dev local (onde não
+ *              há credencial) e só quebraria em produção, que é exatamente o
+ *              modo de falha que esta trava existe para eliminar.
  * @param value Valor — JSON-serializável. Sem validação de shape aqui;
  *              o caller (orchestrator, T12/T14) deve passar um `EdgePayload`.
  * @returns     `void` em sucesso ou no-op (sem credencial). Throws em falha
  *              HTTP / rede.
  *
- * @throws Error se a Vercel API responder non-2xx ou se o `fetch` falhar
- *               por motivo de rede.
+ * @throws Error se a chave violar o padrão documentado do Global Config, se
+ *               a Vercel API responder non-2xx, ou se o `fetch` falhar por
+ *               motivo de rede.
  */
 export async function writeEdgePayload(key: string, value: unknown): Promise<void> {
+  // Trava de esquema de chave — ver `lib/edge-config/keys.ts`. Roda antes do
+  // no-op sem credencial de propósito (ver @param key acima).
+  assertValidGlobalConfigKey(key, "writeEdgePayload");
+
   const token = process.env.EDGE_CONFIG_TOKEN;
   const edgeConfigId = resolveEdgeConfigId();
 
@@ -97,7 +136,7 @@ export async function writeEdgePayload(key: string, value: unknown): Promise<voi
   // Logamos uma única linha estruturada pra ficar evidente nos logs por que
   // a gravação foi pulada.
   if (!token || !edgeConfigId) {
-    logWarn("edge-config write skipped: missing credentials", {
+    logWarn("global-config write skipped: missing credentials", {
       key,
       hasToken: Boolean(token),
       hasEdgeConfigId: Boolean(edgeConfigId),
@@ -125,7 +164,7 @@ export async function writeEdgePayload(key: string, value: unknown): Promise<voi
     // TLS, abort, etc.). Não logamos aqui — o caller decide se loga ou
     // re-throw silencioso.
     throw new Error(
-      `edge-config write failed (network) for key=${key}: ${
+      `global-config write failed (network) for key=${key}: ${
         cause instanceof Error ? cause.message : String(cause)
       }`,
       { cause },
@@ -134,16 +173,18 @@ export async function writeEdgePayload(key: string, value: unknown): Promise<voi
 
   if (!response.ok) {
     // Snippet do corpo para diagnosticar 401 (token expirado), 403 (escopo),
-    // 404 (id errado), 413 (>512 KB). Trunca para não vazar payloads gigantes
-    // em logs.
+    // 404 (id errado), e a recusa por tamanho quando o store resultante
+    // passaria de 1 MB (ver `guardStoreSize` — a guarda avisa antes; este é
+    // o erro que chega quando ninguém agiu). Trunca para não vazar payloads
+    // gigantes em logs.
     const textSnippet = await response.text().catch(() => "<unreadable body>");
     const truncated = textSnippet.length > 500 ? `${textSnippet.slice(0, 500)}...` : textSnippet;
     throw new Error(
-      `edge-config write failed (http ${response.status}) for key=${key}: ${truncated}`,
+      `global-config write failed (http ${response.status}) for key=${key}: ${truncated}`,
     );
   }
 
-  logInfo("edge-config write ok", {
+  logInfo("global-config write ok", {
     key,
     status: response.status,
     bytes: body.length,
@@ -151,22 +192,110 @@ export async function writeEdgePayload(key: string, value: unknown): Promise<voi
 }
 
 // ---------------------------------------------------------------------------
-// High-level — writeProjection (T14)
+// Orçamento de tamanho — STORE inteiro (o limite que a Vercel de fato aplica)
 // ---------------------------------------------------------------------------
 
 /**
- * Limite de tamanho a partir do qual emitimos warn. 450 KB deixa ~62 KB de
- * margem antes do limite duro de 512 KB do Edge Config (cf. data-model.md
- * § "Payload do Edge Config" + types.ts cabeçalho).
+ * Limite duro de tamanho do Global Config, em bytes.
  *
- * Quando o payload nacional sozinho atinge 450 KB, algo está errado:
+ * Fonte: Vercel, `/docs/global-config/global-config-limits` (atualizada em
+ * 2026-07-29). "Maximum store size" é **1 MB em Hobby, Pro e Enterprise** —
+ * o mesmo número nos três planos, então não há upgrade que compre folga.
+ * A doc é explícita quanto ao escopo: é *"the total size limit of each
+ * store, including all keys and values"* — o limite é do STORE INTEIRO,
+ * somando todas as chaves, não de cada requisição isoladamente.
+ *
+ * O valor anterior registrado neste arquivo (512 KB) estava errado, e a
+ * validação era por requisição — somava só o payload sendo escrito e nunca
+ * o que já estava no store. As duas coisas juntas significavam que a guarda
+ * não guardava nada: podíamos passar de 1 MB de store com todos os avisos
+ * em silêncio.
+ *
+ * **1 MB lido como 1.000.000 e não 1.048.576.** A doc escreve "1 MB" sem
+ * dizer qual das duas convenções usa. Assumimos a decimal (a menor) porque
+ * o erro é assimétrico: se a Vercel na verdade contar em MiB, sobra folga
+ * de 48 KB e não perdemos nada; se assumíssemos MiB e eles contarem em MB,
+ * estaríamos operando 48 KB ACIMA do teto real achando que estamos abaixo —
+ * e o modo de falha é a escrita ser recusada na noite da apuração.
+ *
+ * Modo de falha documentado, para calibrar a severidade dos avisos abaixo:
+ * *"Updates to items in your Global Config will be rejected if the resulting
+ * size of your Global Config would exceed your account plan's limits."* Não
+ * é truncamento nem degradação — é **recusa da escrita**. Em 04/10 isso
+ * significa a projeção congelar no último payload que coube.
+ */
+const GLOBAL_CONFIG_STORE_LIMIT_BYTES = 1_000_000;
+
+/**
+ * Limiar operacional de aviso: 780 KB = 78% do limite, 220 KB de folga.
+ *
+ * Por que abaixo do limite oficial, e por que 78%. O repositório já opera
+ * com piso operacional distinto do mínimo formal quando o custo de errar é
+ * alto: o ADR-0031 fixa `PARTY_SEPARATION_FLOOR = 12` contra o mínimo 10 da
+ * constituição justamente porque *"10 cortaria rente ao mínimo
+ * constitucional sem folga nenhuma"*; o ADR-0030 formaliza o orçamento de
+ * aplicação com folga real medida em vez de um teto colado no limite. Mesma
+ * lógica aqui — só que o "rente ao limite" custa a apuração inteira.
+ *
+ * A folga é dimensionada pela **taxa de crescimento medida**, não por gosto:
+ *   - Volume medido hoje: 5.572 municípios em 27 UFs a ~206 B/município
+ *     (medição sobre o payload real de MG) = **1.147.832 B só de arrays de
+ *     municípios para UM cargo**, e ~2,19 MB com Presidente + Governador.
+ *     Ou seja: com o detalhe municipal no Global Config, o store JÁ NÃO
+ *     CABE — o aviso não é hipotético, é o estado atual. A migração do
+ *     drill-down municipal para o Vercel Blob (ADR-0026) é o que resolve;
+ *     esta guarda é o que mede se resolveu.
+ *   - Esses ~1,15 MB não aparecem de uma vez: os arrays municipais enchem
+ *     conforme as urnas chegam, ao longo de ~2h de apuração = ~120 ciclos
+ *     de 60s (ADR-0011). Média ~9,6 KB/ciclo; como o TSE publica
+ *     fortemente carregado no início, o pico fica em ~30 KB/ciclo.
+ *   - 220 KB de folga ÷ 30 KB/ciclo ≈ **7 ciclos ≈ 7 minutos** de aviso
+ *     antes da primeira recusa, no pior caso de crescimento. É o mínimo
+ *     que dá para alguém ler o log, entender e apagar uma chave.
+ */
+const GLOBAL_CONFIG_STORE_WARN_BYTES = 780_000;
+
+/**
+ * Limiar crítico: 940 KB = 94% do limite, 60 KB de folga ≈ **2 ciclos** no
+ * pico de crescimento. A partir daqui o aviso sobe para `error` e passa a
+ * afirmar que a próxima escrita pode ser recusada — porque, na taxa medida,
+ * pode mesmo. Dois níveis (warn/error) em vez de um só existem para que a
+ * linha que exige ação humana imediata não se confunda, no meio da noite,
+ * com a linha que só pede atenção.
+ */
+const GLOBAL_CONFIG_STORE_CRITICAL_BYTES = 940_000;
+
+/**
+ * Timeout da medição do store. A guarda é instrumentação: se a Vercel API
+ * estiver lenta, desistimos rápido e gravamos assim mesmo. 5s cabe com
+ * sobra no ciclo de 60s e nunca vira o gargalo do pipeline.
+ */
+const STORE_MEASURE_TIMEOUT_MS = 5_000;
+
+/** Quantas chaves listar no aviso. 5 cabe numa linha de log legível. */
+const LARGEST_KEYS_REPORTED = 5;
+
+/**
+ * Piso para uma chave entrar na lista de "maiores chaves": 1% do limite.
+ * Apagar uma chave de 300 B não resolve nada, e listá-la só gasta a atenção
+ * de quem está lendo o aviso sob pressão.
+ */
+const LARGEST_KEY_FLOOR_BYTES = GLOBAL_CONFIG_STORE_LIMIT_BYTES / 100;
+
+// ---------------------------------------------------------------------------
+// Orçamento de tamanho — por payload (aplicação, não plataforma)
+// ---------------------------------------------------------------------------
+
+/**
+ * Limiar de aviso por payload individual. 450 KB é 45% do store inteiro numa
+ * única chave — muito antes de a plataforma reclamar, isso já é sintoma de
+ * bug de aplicação:
  *   - candidatos repetidos sem dedup
  *   - `insights` virou log de execução (deveria ser 1-3 frases curtas)
  *   - `por_uf` ganhou municípios (que pertencem ao drill-down, não ao nacional)
  *
- * O warn não aborta a gravação — apenas marca a linha de log para
- * investigação. Se o request chegar a 512 KB de verdade, a Vercel API
- * retorna 413 e o caller do `writeEdgePayload` propaga o erro.
+ * Independente da guarda de store: esta olha UMA chave, aquela olha o total.
+ * Uma chave de 450 KB é problema mesmo num store de 500 KB.
  */
 const EDGE_CONFIG_SIZE_WARN_BYTES = 450 * 1024;
 
@@ -181,6 +310,313 @@ const EDGE_CONFIG_SIZE_WARN_BYTES = 450 * 1024;
  */
 const EDGE_CONFIG_NATIONAL_WARN_BYTES = 75 * 1024;
 const EDGE_CONFIG_UF_WARN_BYTES = 20 * 1024;
+
+// ---------------------------------------------------------------------------
+// Guarda de tamanho do store
+// ---------------------------------------------------------------------------
+
+/** Tamanho contabilizado de UMA chave do store. */
+interface KeySize {
+  key: string;
+  bytes: number;
+}
+
+/**
+ * Custo de um item no documento do store, em bytes, comparável ao
+ * `sizeInBytes` que a Vercel reporta.
+ *
+ * A Vercel conta o documento serializado inteiro ("including all keys and
+ * values" — um store vazio reporta `sizeInBytes: 2`, que é o `{}`). Então a
+ * conta local precisa incluir a sintaxe JSON do par, não só o valor:
+ * `"chave":valor,` = nome da chave + 2 aspas + 1 dois-pontos + 1 vírgula.
+ * Sem esses 4 bytes por chave, o número local ficaria ~224 B abaixo do
+ * número da Vercel num store de 56 chaves — pouco, mas os dois números são
+ * comparados lado a lado no aviso e precisam estar na mesma unidade.
+ */
+function itemBytes(key: string, serialisedValue: string): number {
+  return key.length + 4 + serialisedValue.length;
+}
+
+/** `812345` → `"812 KB"`. KB decimal, coerente com o limite lido como 1 MB = 10^6. */
+function formatKb(bytes: number): string {
+  return `${Math.round(bytes / 1000).toLocaleString("pt-BR")} KB`;
+}
+
+/** `0.7823` → `"78,2"`. */
+function formatPct(part: number, whole: number): string {
+  return ((part / whole) * 100).toFixed(1).replace(".", ",");
+}
+
+/**
+ * Metadados do store, lidos SEM baixar o conteúdo.
+ *
+ * `GET /v1/edge-config/<id>` devolve `{ id, slug, digest, sizeInBytes,
+ * itemCount, ownerId, createdAt, updatedAt }` — algumas centenas de bytes,
+ * e nenhum par chave-valor. É a contabilidade da própria Vercel, isto é,
+ * exatamente o número contra o qual o limite é aplicado; qualquer soma que
+ * a gente fizesse localmente seria uma reconstrução aproximada dele.
+ *
+ * Custo por ciclo: 1 request, resposta ~200 B, contabilizada como 1 read
+ * (a doc de limites é explícita: *"Vercel counts it as one read, regardless
+ * of whether you retrieve one or all items"*). A 60s por ciclo são ~1.440
+ * reads/dia — ruído contra o volume do read path. É por isso que esta é a
+ * medição do caminho saudável, e a listagem de itens (cara) só entra
+ * quando já estamos em apuros.
+ *
+ * @throws Error se a credencial faltar, o HTTP falhar, ou a resposta não
+ *   trouxer `sizeInBytes` numérico. Caller trata — a guarda degrada.
+ */
+async function measureStore(
+  token: string,
+  edgeConfigId: string,
+): Promise<{ sizeInBytes: number; itemCount: number }> {
+  const response = await fetch(`${VERCEL_API_BASE}/v1/edge-config/${edgeConfigId}`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(STORE_MEASURE_TIMEOUT_MS),
+  });
+
+  if (!response.ok) {
+    throw new Error(`http ${response.status}`);
+  }
+
+  const meta = (await response.json()) as { sizeInBytes?: unknown; itemCount?: unknown };
+  if (typeof meta.sizeInBytes !== "number" || !Number.isFinite(meta.sizeInBytes)) {
+    throw new Error("resposta sem sizeInBytes numérico");
+  }
+
+  return {
+    sizeInBytes: meta.sizeInBytes,
+    itemCount: typeof meta.itemCount === "number" ? meta.itemCount : Number.NaN,
+  };
+}
+
+/**
+ * Tamanho de CADA chave já presente no store.
+ *
+ * Isto baixa o store inteiro (até 1 MB) e por isso **só roda quando o
+ * limiar já foi ultrapassado** — no caminho saudável não é chamado nenhuma
+ * vez. A informação que ele acrescenta é a que a medição local não tem: o
+ * tamanho das chaves que este ciclo **não** escreve. O caso concreto é
+ * `projection-archive-*` — o congelamento do 1º turno que o `reader.ts` lê
+ * e que ninguém apaga; em 25/10 o store carrega o arquivo inteiro do 1T
+ * junto com o 2T ao vivo. Sem isto, o aviso listaria só as chaves que
+ * estamos gravando e ficaria mudo justamente sobre o que dá para apagar.
+ *
+ * @throws Error em falha de HTTP / rede / parse. Caller degrada para a
+ *   contabilidade local.
+ */
+async function fetchStoreKeySizes(token: string, edgeConfigId: string): Promise<KeySize[]> {
+  const response = await fetch(`${VERCEL_API_BASE}/v1/edge-config/${edgeConfigId}/items`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(STORE_MEASURE_TIMEOUT_MS),
+  });
+
+  if (!response.ok) {
+    throw new Error(`http ${response.status}`);
+  }
+
+  // O endpoint REST devolve uma lista de items `{ key, value, ... }`; o
+  // endpoint de leitura otimizado devolve um objeto `{ chave: valor }`.
+  // Aceitamos os dois — custa 6 linhas e evita que a guarda emudeça por
+  // uma diferença de shape.
+  const parsed: unknown = await response.json();
+  const entries: Array<[string, unknown]> = Array.isArray(parsed)
+    ? parsed
+        .filter((item): item is { key: string; value: unknown } => {
+          return typeof (item as { key?: unknown })?.key === "string";
+        })
+        .map((item) => [item.key, item.value])
+    : Object.entries((parsed ?? {}) as Record<string, unknown>);
+
+  return entries.map(([key, value]) => ({
+    key,
+    bytes: itemBytes(key, JSON.stringify(value) ?? "null"),
+  }));
+}
+
+/**
+ * Compara o tamanho do store com o limite real e, passando do limiar, emite
+ * UM aviso acionável.
+ *
+ * **Nunca lança e nunca aborta a gravação.** Se a medição falhar, a
+ * ingestão segue: o pipeline vale mais que a guarda. Toda a função vive
+ * dentro de um try/catch, e o modo degradado ainda avalia o limiar contra a
+ * contabilidade local (que não depende da rede) em vez de ficar cego.
+ *
+ * Como o total é estimado, e por que não é uma soma simples.
+ *   Todas as nossas escritas são `upsert` — elas SUBSTITUEM a chave, não
+ *   acrescentam. Somar `store + incoming` contaria nossas próprias chaves
+ *   duas vezes e faria a guarda gritar todo ciclo (o writer grava
+ *   praticamente o store inteiro). Então:
+ *     - `storeBytes`    = o que está lá agora (nossas chaves no tamanho do
+ *                         ciclo anterior + o que não tocamos).
+ *     - `incomingBytes` = o que nosso conjunto de escrita vai ocupar depois.
+ *     - estimativa      = `max(storeBytes, incomingBytes)` no caminho
+ *                         normal. Como o conjunto de escrita cobre quase
+ *                         todo o store, o tamanho pós-escrita fica entre os
+ *                         dois e perto do segundo; o `max` é a leitura
+ *                         conservadora, e os dois números vão no `ctx`
+ *                         separados para ninguém depender da estimativa.
+ *     - Quando a listagem por chave está disponível (só acima do limiar), a
+ *       projeção vira exata: `store − Σ(tamanho antigo das chaves que vamos
+ *       reescrever) + incoming`.
+ *
+ * @param incoming Chaves que ESTE ciclo vai gravar, já com tamanho medido.
+ */
+async function guardStoreSize(incoming: KeySize[]): Promise<void> {
+  const incomingBytes = incoming.reduce((sum, k) => sum + k.bytes, 0) + 2; // +2 = `{}`
+
+  try {
+    const token = process.env.EDGE_CONFIG_TOKEN;
+    const edgeConfigId = resolveEdgeConfigId();
+
+    // Sem credencial não há store para medir. `writeEdgePayload` já loga o
+    // no-op por chave; não duplicamos o aviso aqui.
+    if (!token || !edgeConfigId) return;
+
+    let storeBytes: number | null = null;
+    let itemCount = Number.NaN;
+    let measureError: string | null = null;
+
+    try {
+      const meta = await measureStore(token, edgeConfigId);
+      storeBytes = meta.sizeInBytes;
+      itemCount = meta.itemCount;
+    } catch (err) {
+      measureError = err instanceof Error ? err.message : String(err);
+    }
+
+    // Modo degradado: sem o total do store, avaliamos o limiar contra o que
+    // sabemos localmente. Subestima (ignora chaves que não escrevemos), mas
+    // é muito melhor que ficar cego — e o aviso diz que está subestimando.
+    const estimatedBytes =
+      storeBytes === null ? incomingBytes : Math.max(storeBytes, incomingBytes);
+
+    if (measureError !== null) {
+      logWarn("global-config store guard degraded: não foi possível medir o store", {
+        reason: measureError,
+        incomingBytes,
+        limitBytes: GLOBAL_CONFIG_STORE_LIMIT_BYTES,
+        note: "gravação segue normalmente; limiar avaliado só contra as chaves deste ciclo",
+      });
+    }
+
+    if (estimatedBytes <= GLOBAL_CONFIG_STORE_WARN_BYTES) {
+      // Caminho saudável: uma linha info com o número, sem alarme. É o que
+      // permite ver a curva de crescimento no gráfico depois.
+      logInfo("global-config store size ok", {
+        storeBytes,
+        incomingBytes,
+        itemCount,
+        limitBytes: GLOBAL_CONFIG_STORE_LIMIT_BYTES,
+        pctOfLimit: Number(
+          formatPct(estimatedBytes, GLOBAL_CONFIG_STORE_LIMIT_BYTES).replace(",", "."),
+        ),
+      });
+      return;
+    }
+
+    // --- Acima do limiar: vale pagar pela lista de chaves. -----------------
+    let storeKeys: KeySize[] = [];
+    let breakdownSource = "local (só as chaves deste ciclo)";
+    if (storeBytes !== null) {
+      try {
+        storeKeys = await fetchStoreKeySizes(token, edgeConfigId);
+        breakdownSource = "store completo";
+      } catch (err) {
+        breakdownSource = `local (listagem do store falhou: ${
+          err instanceof Error ? err.message : String(err)
+        })`;
+      }
+    }
+
+    // Chaves que vamos escrever entram com o tamanho NOVO; as demais, com o
+    // tamanho atual no store.
+    const sizes = new Map<string, number>();
+    for (const { key, bytes } of storeKeys) sizes.set(key, bytes);
+    const overwritten = storeKeys.reduce(
+      (sum, k) => sum + (incoming.some((i) => i.key === k.key) ? k.bytes : 0),
+      0,
+    );
+    for (const { key, bytes } of incoming) sizes.set(key, bytes);
+
+    const projectedBytes =
+      storeBytes !== null && storeKeys.length > 0
+        ? Math.max(storeBytes - overwritten + incomingBytes, incomingBytes)
+        : estimatedBytes;
+
+    // Só chaves grandes o bastante para valer a pena apagar. Sem o filtro a
+    // lista enche de `projection-uf-AC (0 KB)` e quem lê às 20h gasta a
+    // atenção no ruído em vez de no arquivo de 196 KB logo acima. Se nada
+    // passar do piso, mostramos as maiores mesmo assim — lista vazia seria
+    // pior que lista pequena.
+    const ranked = [...sizes.entries()]
+      .map(([key, bytes]) => ({ key, bytes }))
+      .sort((a, b) => b.bytes - a.bytes);
+    const notable = ranked.filter((k) => k.bytes >= LARGEST_KEY_FLOOR_BYTES);
+    const largest = (notable.length > 0 ? notable : ranked).slice(0, LARGEST_KEYS_REPORTED);
+
+    const headroomBytes = GLOBAL_CONFIG_STORE_LIMIT_BYTES - projectedBytes;
+    const critical = projectedBytes > GLOBAL_CONFIG_STORE_CRITICAL_BYTES;
+
+    // A mensagem é escrita para ser lida às 20h de 04/10 por alguém sob
+    // pressão: quanto tem, quanto cabe, quanto falta, o que é grande, e o
+    // que fazer. Nessa ordem, numa linha só.
+    const head = critical
+      ? `global-config store size CRÍTICO: ${formatKb(projectedBytes)} de ${formatKb(
+          GLOBAL_CONFIG_STORE_LIMIT_BYTES,
+        )} (${formatPct(projectedBytes, GLOBAL_CONFIG_STORE_LIMIT_BYTES)}%) — faltam ${formatKb(
+          headroomBytes,
+        )} para o limite. A PRÓXIMA ESCRITA PODE SER RECUSADA pela Vercel.`
+      : `global-config store size warning: ${formatKb(projectedBytes)} de ${formatKb(
+          GLOBAL_CONFIG_STORE_LIMIT_BYTES,
+        )} (${formatPct(projectedBytes, GLOBAL_CONFIG_STORE_LIMIT_BYTES)}%) — faltam ${formatKb(
+          headroomBytes,
+        )} para o limite.`;
+
+    const keyList = largest.map((k) => `${k.key} (${formatKb(k.bytes)})`).join(", ");
+
+    const remedy =
+      "Para liberar espaço, na ordem: apagar chaves projection-archive-* de turno já encerrado; " +
+      "tirar `municipios` dos payloads de UF (o detalhe municipal sozinho mede ~1.148 KB e não " +
+      "cabe no store — ver migração para Vercel Blob).";
+
+    const message = `${head} Maiores chaves (${breakdownSource}): ${keyList}. ${remedy}`;
+
+    const ctx = {
+      storeBytes,
+      incomingBytes,
+      projectedBytes,
+      limitBytes: GLOBAL_CONFIG_STORE_LIMIT_BYTES,
+      warnThresholdBytes: GLOBAL_CONFIG_STORE_WARN_BYTES,
+      criticalThresholdBytes: GLOBAL_CONFIG_STORE_CRITICAL_BYTES,
+      headroomBytes,
+      itemCount,
+      breakdownSource,
+      largestKeys: largest,
+    };
+
+    if (critical) {
+      logError(message, ctx);
+    } else {
+      logWarn(message, ctx);
+    }
+  } catch (err) {
+    // Rede de segurança final. Nada nesta função pode derrubar a ingestão —
+    // nem um bug nela mesma.
+    logWarn("global-config store guard failed: guarda de tamanho abortada", {
+      reason: err instanceof Error ? err.message : String(err),
+      incomingBytes,
+      note: "gravação segue normalmente",
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// High-level — writeProjection (T14)
+// ---------------------------------------------------------------------------
 
 /**
  * Sumário de uma chave que falhou dentro do `writeProjection`. Mantemos o
@@ -203,14 +639,14 @@ function cargoFromTseNumeric(cargoTse: number): Cargo {
 }
 
 /**
- * Materializa UMA projeção completa no Edge Config:
+ * Materializa UMA projeção completa no Global Config:
  *
- *   - 1 chave nacional NOMEADA `projection:current:<cargo>:t<turno>`
- *     (ADR-0012 — S05/F4c).
- *   - 1 alias `projection:current` apontando para o MESMO valor — preserva
+ *   - 1 chave nacional NOMEADA `projection-current-<cargo>-t<turno>`
+ *     (ADR-0012 — S05/F4c, com a emenda de separador de 2026-09-08).
+ *   - 1 alias `projection-current` apontando para o MESMO valor — preserva
  *     o read path S04 dos consumidores que ainda não migraram.
- *   - N chaves de drill-down NOMEADAS `projection:uf:<sigla>:<cargo>:t<turno>`.
- *   - N aliases legacy `projection:uf:<sigla>` (mesmo valor).
+ *   - N chaves de drill-down NOMEADAS `projection-uf-<SIGLA>-<cargo>-t<turno>`.
+ *   - N aliases legacy `projection-uf-<SIGLA>` (mesmo valor).
  *
  * Total de chaves gravadas: `2 + 2N` (N = número de UFs em `por_uf`).
  *
@@ -223,7 +659,7 @@ function cargoFromTseNumeric(cargoTse: number): Cargo {
  *   Alternativas consideradas e descartadas:
  *     a) Fail-fast: aborta na 1ª falha. Pior para resiliência do cron — uma
  *        UF com problema transitório (DNS hiccup) cancelaria toda a gravação.
- *     b) Transactional via tags: Vercel Edge Config não tem MVCC para
+ *     b) Transactional via tags: o Vercel Global Config não tem MVCC para
  *        múltiplas chaves; um PATCH com vários items é atômico, mas
  *        somando todas as chaves estouramos o limite por payload. Manter
  *        chaves separadas é o que o data-model.md determina (~30 KB +
@@ -248,7 +684,7 @@ export async function writeProjection(
   // corrida sendo gravada, NÃO a corrida ativa pelo calendário.
   const cargoLit: Cargo = cargoFromTseNumeric(payload.cargo);
   const turnoLit: Turno = payload.turno as Turno;
-  const namedNationalKey = `projection:current:${cargoLit}:t${turnoLit}`;
+  const namedNationalKey = currentProjectionKey(cargoLit, turnoLit);
 
   // Tamanho do payload nacional (apenas — o por-UF é gravado em chaves
   // separadas e cada uma tem seu próprio orçamento). Stringify uma vez
@@ -259,20 +695,20 @@ export async function writeProjection(
   // Warn dedicado multi-candidato (ADR-0014): 75KB é o sweet spot pro
   // payload nacional cheio (11 cands + cenarios_2t).
   if (nationalJson.length > EDGE_CONFIG_NATIONAL_WARN_BYTES) {
-    logWarn("edge-config national payload oversize (S05 budget)", {
+    logWarn("global-config national payload oversize (S05 budget)", {
       key: namedNationalKey,
       bytes: nationalJson.length,
       threshold: EDGE_CONFIG_NATIONAL_WARN_BYTES,
-      hardLimit: 512 * 1024,
+      storeLimit: GLOBAL_CONFIG_STORE_LIMIT_BYTES,
     });
   }
-  // Warn agregado (S04): fica até chegar perto do hard limit.
+  // Warn agregado (S04): uma única chave ocupando ~45% do store inteiro.
   if (nationalJson.length > EDGE_CONFIG_SIZE_WARN_BYTES) {
-    logWarn("edge-config projection oversize", {
+    logWarn("global-config projection oversize", {
       key: namedNationalKey,
       bytes: nationalJson.length,
       threshold: EDGE_CONFIG_SIZE_WARN_BYTES,
-      hardLimit: 512 * 1024,
+      storeLimit: GLOBAL_CONFIG_STORE_LIMIT_BYTES,
     });
   }
 
@@ -280,14 +716,25 @@ export async function writeProjection(
   //   1. `payloadsUf[sigla]` se fornecido (S04/F2 — payload rico do orchestrator).
   //   2. Esqueleto sintetizado de `payload.por_uf` (backward-compat — quando
   //      o orchestrator é antigo OU a UF caiu fora do mapa explícito).
-  // Em ambos casos a chave EXISTE no Edge Config — o read path nunca 404.
+  // Em ambos casos a chave EXISTE no Global Config — o read path nunca 404.
   //
   // S05/F4c — para cada UF gravamos DUAS chaves:
-  //   - Nomeada: `projection:uf:<sigla>:<cargo>:t<turno>` (ADR-0012)
-  //   - Alias legacy: `projection:uf:<sigla>` (backward-compat S04)
+  //   - Nomeada: `projection-uf-<SIGLA>-<cargo>-t<turno>` (ADR-0012)
+  //   - Alias legacy: `projection-uf-<SIGLA>` (backward-compat S04)
   // Mesmo valor nas duas chaves — escrita best-effort em paralelo.
   type UfKey = { key: string; payload: EdgePayloadUf };
   const ufKeys: UfKey[] = [];
+
+  // Contabilidade de tamanho por chave, alimentando a guarda de store. Cada
+  // payload de UF é serializado UMA vez e o tamanho reusado nas duas chaves
+  // (nomeada + alias) que carregam o mesmo valor.
+  const incomingSizes: KeySize[] = [
+    { key: namedNationalKey, bytes: itemBytes(namedNationalKey, nationalJson) },
+    {
+      key: LEGACY_CURRENT_ALIAS_KEY,
+      bytes: itemBytes(LEGACY_CURRENT_ALIAS_KEY, nationalJson),
+    },
+  ];
 
   for (const row of payload.por_uf) {
     const explicit = payloadsUf?.[row.sigla];
@@ -305,36 +752,45 @@ export async function writeProjection(
       municipios: [],
     };
 
+    const namedUfKey = ufProjectionKey(row.sigla, cargoLit, turnoLit);
+    const aliasUfKey = legacyUfAliasKey(row.sigla);
+    const ufJson = JSON.stringify(ufPayload);
+
     // Validação dedicada de tamanho UF (S05): 20KB é o orçamento pra UF
     // típica com 11 cands + top_candidatos + bucket + 645 municípios (SP).
+    // Só vale para o payload rico do orchestrator — o esqueleto sintetizado
+    // é pequeno por construção.
     if (explicit) {
-      const ufJson = JSON.stringify(explicit);
       if (ufJson.length > EDGE_CONFIG_UF_WARN_BYTES) {
-        logWarn("edge-config uf payload oversize (S05 budget)", {
-          key: `projection:uf:${row.sigla}:${cargoLit}:t${turnoLit}`,
+        logWarn("global-config uf payload oversize (S05 budget)", {
+          key: namedUfKey,
           bytes: ufJson.length,
           threshold: EDGE_CONFIG_UF_WARN_BYTES,
-          hardLimit: 512 * 1024,
+          storeLimit: GLOBAL_CONFIG_STORE_LIMIT_BYTES,
         });
       }
       if (ufJson.length > EDGE_CONFIG_SIZE_WARN_BYTES) {
-        logWarn("edge-config uf payload oversize", {
-          key: `projection:uf:${row.sigla}:${cargoLit}:t${turnoLit}`,
+        logWarn("global-config uf payload oversize", {
+          key: namedUfKey,
           bytes: ufJson.length,
           threshold: EDGE_CONFIG_SIZE_WARN_BYTES,
-          hardLimit: 512 * 1024,
+          storeLimit: GLOBAL_CONFIG_STORE_LIMIT_BYTES,
         });
       }
     }
 
     // Nomeada (S05+, primária).
-    ufKeys.push({
-      key: `projection:uf:${row.sigla}:${cargoLit}:t${turnoLit}`,
-      payload: ufPayload,
-    });
+    ufKeys.push({ key: namedUfKey, payload: ufPayload });
     // Alias legacy (S04 read path).
-    ufKeys.push({ key: `projection:uf:${row.sigla}`, payload: ufPayload });
+    ufKeys.push({ key: aliasUfKey, payload: ufPayload });
+
+    incomingSizes.push({ key: namedUfKey, bytes: itemBytes(namedUfKey, ufJson) });
+    incomingSizes.push({ key: aliasUfKey, bytes: itemBytes(aliasUfKey, ufJson) });
   }
+
+  // Guarda de tamanho do STORE (não da requisição) — roda ANTES de gravar,
+  // nunca lança, nunca aborta. Ver `guardStoreSize`.
+  await guardStoreSize(incomingSizes);
 
   const failures: WriteFailure[] = [];
 
@@ -350,10 +806,10 @@ export async function writeProjection(
     });
   }
   try {
-    await writeEdgePayload("projection:current", payload);
+    await writeEdgePayload(LEGACY_CURRENT_ALIAS_KEY, payload);
   } catch (err) {
     failures.push({
-      key: "projection:current",
+      key: LEGACY_CURRENT_ALIAS_KEY,
       message: err instanceof Error ? err.message : String(err),
     });
   }
@@ -366,7 +822,7 @@ export async function writeProjection(
   ufResults.forEach((result, i) => {
     if (result.status === "rejected") {
       // ufKeys.length === ufResults.length por construção; o `!` é seguro.
-      const k = ufKeys[i]?.key ?? `projection:uf:<index-${i}>`;
+      const k = ufKeys[i]?.key ?? `projection-uf-<index-${i}>`;
       failures.push({
         key: k,
         message: result.reason instanceof Error ? result.reason.message : String(result.reason),
@@ -381,7 +837,7 @@ export async function writeProjection(
     );
   }
 
-  logInfo("edge-config projection written", {
+  logInfo("global-config projection written", {
     namedKey: namedNationalKey,
     nationalBytes: nationalJson.length,
     ufKeysWritten: ufKeys.length,

@@ -182,7 +182,55 @@ type EdgePayload = {
 };
 ```
 
-Payload `por_uf` para drill-down (chave `projection:uf:[sigla]`): inclui municípios e zonas. ~5–10KB por UF.
+Payload `por_uf` para drill-down (chave `projection:uf:[sigla]`): inclui municípios e zonas. ~5–10KB por UF **quando sem o array de municípios** — com ele, muito mais; ver a medição na seção seguinte.
+
+### Limite de tamanho — é do STORE, não da requisição
+
+> **Correção 2026-09-08.** Esta seção antes não existia, e o número que
+> circulava no código (`lib/edge-config/writer.ts`) era **512 KB por
+> requisição**. As duas coisas estavam erradas: o limite é o dobro disso, e é
+> aplicado ao store inteiro. Escrevemos 2 + 2N chaves por ciclo; validar cada
+> uma isoladamente nunca detectaria o estouro do conjunto.
+
+Fonte: Vercel, [Global Config Limits](https://vercel.com/docs/global-config/global-config-limits)
+(atualizada em 2026-07-29). O produto foi renomeado de **Edge Config** para
+**Global Config**; o pacote npm segue sendo `@vercel/edge-config`, e as
+variáveis de ambiente (`EDGE_CONFIG`, `EDGE_CONFIG_ID`, `EDGE_CONFIG_TOKEN`) e
+os nomes de chave deste documento não mudam.
+
+| Fato | Valor |
+|---|---|
+| Tamanho máximo do store | **1 MB** — igual em Hobby, Pro e Enterprise (não há upgrade que compre folga) |
+| Escopo do limite | *"the total size limit of each store, including all keys and values"* — **o store inteiro**, somando todas as chaves |
+| Stores por projeto | 3 (Pro) |
+| Modo de falha | *"Updates to items will be rejected if the resulting size would exceed your plan's limits"* — a escrita é **recusada**, não truncada |
+| Propagação | até 10s globalmente |
+
+O modo de falha é o que importa operacionalmente: passando de 1 MB, o `PATCH`
+é recusado e a projeção **congela no último payload que coube** — na noite da
+apuração, isso é a página parar de atualizar sem nenhum erro visível ao
+usuário.
+
+**Volume medido (2026-09-08).** 5.572 municípios em 27 UFs, a ~206 B por
+município (medido sobre o payload real de MG):
+
+| Conteúdo | Bytes |
+|---|---|
+| Arrays de municípios, 1 cargo | ~1.148.000 (**1,10 MiB**) |
+| Arrays de municípios, Presidente + Governador | ~2.296.000 (**2,19 MiB**) |
+| Limite do store | 1.000.000 |
+
+Ou seja: **com o detalhe municipal dentro do Global Config, o store já não
+cabe.** A saída decidida é mover o drill-down municipal para o Vercel Blob —
+formalizada em ADR próprio, fora do escopo deste documento.
+
+**Instrumentação.** `lib/edge-config/writer.ts` mede o store antes de cada
+escrita (`GET /v1/edge-config/<id>` → `sizeInBytes`, metadados apenas, sem
+baixar conteúdo) e avisa com limiar operacional abaixo do limite oficial:
+warn em **780.000 B (78%)**, error em **940.000 B (94%)**. A folga de 220 KB
+do primeiro limiar cobre ~7 ciclos de 60s no pico de crescimento medido
+(~30 KB/ciclo), que é a janela para alguém ler o log e apagar uma chave. A
+guarda **nunca aborta a gravação**: se a medição falhar, a ingestão segue.
 
 O bloco acima é o esqueleto histórico (S04). O shape completo e vigente — com
 `rank`, `p_passa_2t`, `p_fecha_1t`, `participacao`, `mesorregioes` e o bloco de

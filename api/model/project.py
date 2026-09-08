@@ -3005,9 +3005,22 @@ def post_edge_write(
 
     `payloads_uf` (S04/F2): mapa `sigla → EdgePayloadUf` rico (candidatos
     com votos, municípios com margem, séries temporais). Quando presente,
-    o endpoint Node grava cada UF na sua chave `projection:uf:<sigla>`
-    em vez de sintetizar esqueleto a partir de `por_uf`. Forward-compat:
-    Zod no endpoint usa `passthrough`, então campo extra é aceito.
+    o endpoint Node grava cada UF na sua chave
+    `projection-uf-<SIGLA>-<cargo>-t<turno>` em vez de sintetizar esqueleto
+    a partir de `por_uf`. Forward-compat: Zod no endpoint usa `passthrough`,
+    então campo extra é aceito.
+
+    **Nomes de chave do Global Config não são construídos deste lado.** O
+    Python envia um payload; quem deriva os nomes de chave é o TS, num ponto
+    único (`lib/edge-config/keys.ts`), que também os valida contra o padrão
+    documentado `^[A-Za-z0-9_-]+$` — dois-pontos NÃO é aceito (emenda ao
+    ADR-0012, 2026-09-08). Se um dia for preciso montar chave aqui, a regra
+    é espelhar aquele módulo, não reinventar o formato.
+
+    O único componente de chave que sai daqui é `por_uf[].sigla`, que vira
+    `projection-uf-<SIGLA>-...`. O endpoint Node valida cada sigla na borda
+    (2 letras) e responde 400 se não formar chave válida — falhar no POST é
+    melhor que falhar parcialmente na gravação no meio da apuração.
 
     Best-effort:
       - Sem `MODEL_SECRET` em ambiente → log warn e retorna (no-op).
@@ -3240,7 +3253,8 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
             )
             # S04/F2 — payloads UF ricos (candidatos com votos, municípios,
             # séries temporais). Envia junto do nacional; endpoint Node
-            # grava cada chave `projection:uf:<sigla>` quando presente.
+            # grava cada chave `projection-uf-<SIGLA>-<cargo>-t<turno>`
+            # quando presente (nome derivado no TS — ver lib/edge-config/keys.ts).
             uf_payloads = build_uf_payloads(
                 cargo=req.cargo,
                 turno=req.turno,

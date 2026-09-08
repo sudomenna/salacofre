@@ -311,30 +311,50 @@ Passos operacionais transcritos do plano. Registrar tudo em [`../testing/tse-sim
 - [ ] Ensaio de `TSE_TURNO=2` se o TSE simular 2º turno
 - [ ] Validar cargos 5 e 6 (specs 016/017) com dado real; medir duração do ingest e `rateLimited`
 
-### 🔄 Fase 7 — Redesign Atlas Menna — aprovada 07/09, **em execução**
+### ✅ Fase 7 — Redesign Atlas Menna — concluída em 08/09 (falta dark mode)
 
-Plano aprovado pelo usuário em 07/09; handoff em
-[`../_meta/handoff-2026-09-07-redesign.md`](../_meta/handoff-2026-09-07-redesign.md).
-Decisão do usuário: entra **direto nesta branch**, para o simulado 1 rodar na UI nova.
-ADRs [0024](../architecture/adrs/0024-paleta-editorial-por-partido.md) (**`accepted` em 07/09**,
-com a constituição em **1.3** — cor por partido liberada) e
-[0025](../architecture/adrs/0025-design-system-atlas-menna-restyle-in-place.md) (`accepted`).
-O [ADR-0013](../architecture/adrs/0013-tokens-multi-candidato-por-rank.md) virou `superseded`.
+Plano vivo: [`../_meta/plano-redesign-2026-09-08.md`](../_meta/plano-redesign-2026-09-08.md).
+Handoff da sessão: [`../_meta/handoff-2026-09-08.md`](../_meta/handoff-2026-09-08.md).
 
-- [x] **Bloco 0** (behavior-neutral): tokens em Tailwind v4 `@theme static` com valores atuais,
-      `--container-page` + `max-w-page` nos 7 wrappers, deletar `tailwind.config.ts`, remover
-      `framer-motion` e `d3-*`, `tests/e2e/perf-budget.spec.ts` com a baseline de RNF-007a/b/c
-- [x] **Aprovação do usuário** ao texto da emenda ao § 2 — dada em 07/09; `constitution.md` 1.2 → 1.3,
-      ADR-0024 `accepted`, ADR-0013 `superseded`
-- [ ] **Encaminhamento do "corrida ativa única"** de `lib/config/calendar.ts` — pergunta aberta com o
-      usuário em 07/09; pré-requisito das specs 016/017, não do Bloco 1
-- [x] **Bloco 1, Fase 1 — Fundação**: tokens do design (primitivos + party palette), `party-color.ts` + `gen-party-scale.ts`, fontes (Spectral/Archivo/JetBrains Mono), 13 atoms novos (`Panel`, `Figure`, `PartyTag`, `ProbabilityMeter`, `Button`, `SegmentedControl`, `SearchInput`, `VoteBar`, `MapLegend`, `HoverCard`, `Sheet`) + 2 layout (`TopBar`, `TabBar`). Documentação sincronizada (`docs/design-system/tokens.md`, `components.md`). **Completo em 07/09.**
-- [ ] **Bloco 1, Fase 2 — UI** (não iniciado): home recomposta com novo shell (TopBar + TabBar + redesign do hero), recolorização de specs 003/004/005/006 (referência a `--party-*`), testes de integração (27 arquivos que citam `--color-cand-*` precisam passar com nova paleta)
-- [ ] **Bloco 2**: `/uf/[sigla]`, `/uf/[sigla]/governador`, `/governador`, `/sobre-o-modelo`
-      (sai do CSS Module), dark mode com contraste medido
-- [ ] **Gate G1** (meta 12/09): `constitution-guard` · `a11y-perf-auditor` · `rf-coverage-checker`
-      (003/004/005/006/011) em paralelo; `spec-syncer` depois
+Constituição foi de **1.2 → 1.4** em duas emendas aprovadas pelo usuário (§ 2 paleta por partido,
+§ 3 orçamento em duas partes). ADRs novos: 0028 (corrida explícita por rota), 0029 (home
+mobile-first), 0030 (orçamento), 0031 (piso de separação entre partidos), 0032 (detalhe municipal
+em Blob). ADR-0013 `superseded`; 0017, 0018, 0001, 0026 e 0024 com nota de emenda.
+
+- [x] **Bloco 0** — tokens em `@theme static`, `max-w-page`, `tailwind.config.ts` deletado,
+      `framer-motion` e `d3-*` removidos, gate de bundle criado. Commit `84ab8bf`.
+- [x] **Bloco 1** — design system aplicado: primitivos do kit, escala tipográfica, fontes
+      Spectral/Archivo/JetBrains Mono, paleta por partido (250 → 281 tokens), 13 átomos novos,
+      shell global com 4 abas, mapa por partido, home em 10 painéis com 3 blocos novos.
+      Commit `22bf266`.
+- [x] **ADR-0029 implementado** — mapa primeiro, controles de turno e Parcial/Projeção,
+      abas no rodapé em mobile, `<h1>` dentro do painel. Commits `1ac871b` e `ef9a87d`.
+- [x] **Bloco 2** — as 4 rotas restantes recompostas, `/sobre-o-modelo` fora do CSS Module,
+      `ChancesPanel`, folha do estado (com botão "Ver detalhes do estado") e folha do município.
+      **Não commitado ainda** — ver handoff.
+- [x] **Gate G1** — `constitution-guard` 0 violações · `rf-coverage-checker` 74/74 RFs ·
+      `a11y-perf-auditor` + axe-core **0 violações** em 5 rotas × 2 viewports · `spec-syncer` feito
+      (faltam 4 componentes no catálogo, ver handoff).
+- [ ] **Dark mode** — o único item do redesign que não entrou. Bloqueado por trabalho real:
+      **13 das 31 bases de partido reprovam 3:1 no tema escuro** e só PT/PL têm rampa escura;
+      o gerador precisa produzir 29 rampas novas e rerodar os gates dos ADRs 0024 e 0031.
 - [ ] Congelar a UI nas janelas do simulado 1 (9–12h e 14–17h de 15–17/09)
+
+### 🔴 Fase 7b — P0 de pipeline, descoberto em 08/09 — **em execução, na frente do resto**
+
+- [x] Guarda de tamanho do store no writer (não existia; o código afirmava 512 KB e o limite real
+      é **1 MB do store inteiro**). Aviso em 78% e crítico em 94%, com ~7 minutos de antecedência
+      medidos contra a taxa de crescimento real.
+- [ ] **Renomear as chaves do Global Config** — usam dois-pontos, que o padrão documentado
+      (`^[A-Za-z0-9_-]+$`) não permite. Não foi possível verificar se a API aceita: `EDGE_CONFIG`
+      está comentado desde 18/05, sem token de escrita, CLI não autenticado. Decisão do usuário:
+      renomear em vez de depender de tolerância não documentada.
+- [ ] **Migrar detalhe municipal e séries para o Blob** (ADR-0032) — o payload mede 2,19 MB com
+      Presidente + Governador contra 1 MB de limite, e **cresce conforme a cobertura melhora**.
+      Decisão do usuário: **antes do simulado 1**.
+- [ ] **Investigar `eleitorado`** — inflada 21,8% de forma desigual por UF (SP 1,454 · BA 1,018)
+      porque o importador não filtra turno, e alimenta o peso de cada UF na agregação nacional.
+      **Candidata a causa do gate OT-4.** Pede `model-validator` medindo o replay antes/depois.
 
 ### ⏳ Fase 8 — Cargos novos: Senador e Deputado Federal — specs 016 e 017
 

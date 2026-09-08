@@ -11,15 +11,15 @@
  * Notes
  *   - Um payload encapsula UMA corrida: 1 cargo (1 = Presidente, 3 = Governador)
  *     × 1 turno. Múltiplas corridas vivem em chaves distintas.
- *   - Chave canônica nacional: `projection:current` (e.g. presidência turno 1).
+ *   - Chave canônica nacional: `projection-current` (e.g. presidência turno 1).
  *     Para múltiplos cargos / turnos, sufixar a chave (ex.
- *     `projection:current:gov-uf-sp`). T14 finaliza o esquema definitivo de chaves.
- *   - Chave de drill-down por UF: `projection:uf:<sigla>` (ex. `projection:uf:SP`).
+ *     `projection-current-gov-uf-sp`). T14 finaliza o esquema definitivo de chaves.
+ *   - Chave de drill-down por UF: `projection-uf-<sigla>` (ex. `projection-uf-SP`).
  *     Inclui municípios e zonas — definido em `EdgePayloadUf` abaixo.
  *   - Determinismo (constituição § 6): todos os números aqui são funções puras
  *     de (snapshots, historical_results, seed). Não há ruído introduzido na
  *     serialização.
- *   - Tamanho-alvo: <30 KB para `projection:current` binário S04;
+ *   - Tamanho-alvo: <30 KB para `projection-current` binário S04;
  *     **S05/F4c (multi-candidato 11 cands + cenarios_2t)**: <75 KB nacional,
  *     <20 KB por UF (top_candidatos + bucket). `writeEdgePayload` warna em
  *     450 KB no agregado (margem para limite duro de 512 KB do Edge Config),
@@ -30,11 +30,15 @@
  *     → ~1.5–2 KB extras. UFs pequenas (SE = 2 meso) → <0.3 KB. Cabe no
  *     budget de 20 KB por UF sem regressão. Campo OPCIONAL: payload pode
  *     omitir quando `municipios.mesorregiao_cod` ainda não está populado.
- *   - Chaves nomeadas (S05/F4c — ADR-0012): além de `projection:current`,
- *     o orchestrator pode gravar `projection:current:pres:t1`,
- *     `:pres:t2`, `:gov:t1`, `:gov:t2`, e `projection:archive:pres:t1`
- *     (na transição 1T→2T). `projection:current` segue como ALIAS dinâmico
+ *   - Chaves nomeadas (S05/F4c — ADR-0012): além de `projection-current`,
+ *     o orchestrator pode gravar `projection-current-pres-t1`,
+ *     `-pres-t2`, `-gov-t1`, `-gov-t2`, e `projection-archive-pres-t1`
+ *     (na transição 1T→2T). `projection-current` segue como ALIAS dinâmico
  *     resolvido por `lib/config/calendar.ts` → `(cargo, turno)` ativo.
+ *   - **Separador `-`, não `:`** (emenda ao ADR-0012, 2026-09-08): o padrão
+ *     documentado de nome de chave do Global Config é `^[A-Za-z0-9_-]+$` e
+ *     não admite dois-pontos. Nenhuma chave é montada à mão — todas vêm de
+ *     `lib/edge-config/keys.ts`, que também valida.
  */
 
 // ---------------------------------------------------------------------------
@@ -501,7 +505,7 @@ export interface EdgeComposition {
 }
 
 // ---------------------------------------------------------------------------
-// Payload principal (chave `projection:current`)
+// Payload principal (chave `projection-current`)
 // ---------------------------------------------------------------------------
 
 export interface EdgePayload {
@@ -524,7 +528,7 @@ export interface EdgePayload {
 }
 
 // ---------------------------------------------------------------------------
-// Payload de drill-down por UF (chave `projection:uf:<sigla>`)
+// Payload de drill-down por UF (chave `projection-uf-<sigla>`)
 // ---------------------------------------------------------------------------
 
 /**
@@ -617,7 +621,7 @@ export interface EdgeUfMunicipio {
  * isso dá até 480 pontos por série × 3 séries = 1440 valores numéricos
  * (~30–40 KB serializado). Dentro do envelope ~5–10 KB declarado em
  * data-model.md? **Não.** Carry-over: se aproximar dos 450KB no payload
- * total da UF, paginar via chave separada `projection:uf:<sigla>:series`.
+ * total da UF, paginar via chave separada `projection-uf-<sigla>-series`.
  */
 export interface EdgeUfSeriesTemporais {
   /** Margem do líder ao longo do tempo (RF-040). Em pp. */
@@ -675,8 +679,8 @@ export interface EdgeMesorregiao {
 }
 
 /**
- * Drill-down de UMA UF. Chave canônica: `projection:uf:<sigla>` (ex.
- * `projection:uf:SP`). ~5–10 KB por UF conforme data-model.md § "Payload do
+ * Drill-down de UMA UF. Chave canônica: `projection-uf-<sigla>` (ex.
+ * `projection-uf-SP`). ~5–10 KB por UF conforme data-model.md § "Payload do
  * Edge Config" linha 158. Inclui municípios para o mapa zoom-in.
  *
  * `needle_position` / `needle_band` aqui são da CORRIDA NESTA UF (governador
@@ -710,7 +714,7 @@ export interface EdgePayloadUf {
    *
    * S05/F4c (ADR-0014): a série "p_vitoria do líder" (top-2 binário) é
    * insuficiente em corrida multi-candidato. A série por-candidato vai
-   * morar numa CHAVE DEDICADA `projection:uf:<sigla>:series-por-cand`
+   * morar numa CHAVE DEDICADA `projection-uf-<sigla>-series-por-cand`
    * (não inline aqui) para não inflar `EdgePayloadUf` além do orçamento
    * de 20 KB. Esta chave dedicada é placeholder até spec de "evolução
    * histórica multi-candidato" (S06+); o tipo correspondente ainda não

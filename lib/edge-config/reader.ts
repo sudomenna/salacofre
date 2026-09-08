@@ -11,7 +11,11 @@
  * Covers
  *   - RF-019, RF-020 (leitura da projeção via Edge Config) — read side.
  *   - ADR-0001 (Edge Config como único caminho de leitura no read path).
- *   - ADR-0012 (S05/F4c — chaves nomeadas + alias dinâmico).
+ *   - ADR-0012 (S05/F4c — chaves nomeadas + alias dinâmico), com a nota de
+ *     emenda de 2026-09-08: separador `-` no lugar de `:`, porque o padrão
+ *     documentado do Global Config (`^[A-Za-z0-9_-]+$`) não admite
+ *     dois-pontos. Nenhuma chave é montada aqui — tudo vem de
+ *     `lib/edge-config/keys.ts`.
  *
  * Não-objetivos
  *   - Cache HTTP (delegado ao SDK / CDN).
@@ -22,15 +26,40 @@
 import { get } from "@vercel/edge-config";
 
 import { type Cargo, currentRace, type Turno } from "@/lib/config/calendar";
+import {
+  archiveProjectionKey,
+  currentProjectionKey,
+  DEPRECATED_COLON_CURRENT_ALIAS_KEY,
+  deprecatedColonArchiveProjectionKey,
+  deprecatedColonCurrentProjectionKey,
+  deprecatedColonLegacyUfAliasKey,
+  deprecatedColonUfProjectionKey,
+  LEGACY_CURRENT_ALIAS_KEY,
+  legacyUfAliasKey,
+  ufProjectionKey,
+} from "@/lib/edge-config/keys";
 import type { EdgePayload, EdgePayloadUf } from "@/lib/edge-config/types";
 
 /**
- * Monta a chave canônica `projection:current:<cargo>:t<turno>` (ADR-0012,
- * S05/F4c). Estrutura compatível com `projection:archive:<cargo>:t<turno>`
- * (arquivado pós-virada de turno em S07) — só troca o prefixo.
+ * Tenta cada chave em ordem e devolve o primeiro valor não-vazio.
+ *
+ * Custo: uma leitura por chave, e **só no caminho de miss** — a primeira
+ * chave que responder encerra a busca. No caminho saudável (chave nova
+ * publicada) é exatamente uma leitura, igual a antes.
+ *
+ * A ordem sempre é: chave nova → chave deprecada com dois-pontos → alias.
+ * A chave deprecada existe porque não foi possível verificar se a API da
+ * Vercel de fato recusa `:`; se ela sempre aceitou, há dado publicado sob o
+ * esquema antigo e o read path não pode ficar cego durante a migração.
+ * **Remover essa camada em `DEPRECATED_COLON_KEYS_REMOVAL_DATE`
+ * (2026-10-26, dia seguinte ao 2º turno)** — ver `lib/edge-config/keys.ts`.
  */
-function projectionKeyForRace(cargo: Cargo, turno: Turno): string {
-  return `projection:current:${cargo}:t${turno}`;
+async function getFirst<T>(keys: readonly string[]): Promise<T | null> {
+  for (const key of keys) {
+    const value = await get<T>(key);
+    if (value) return value;
+  }
+  return null;
 }
 
 /**
@@ -38,10 +67,14 @@ function projectionKeyForRace(cargo: Cargo, turno: Turno): string {
  * `lib/config/calendar.currentRace()` — em 2026 antes de 25/10 retorna
  * `pres t1`, depois `pres t2`.
  *
- * Backward-compat (S04 e anterior): se `EDGE_CONFIG_LEGACY_KEY` estiver
- * ativo OU se a chave nomeada vier vazia E `projection:current` (chave
- * antiga, sem cargo/turno) tiver valor, retorna o legado. Isso permite
- * deploys parciais em S05 sem quebrar consumers antigos.
+ * Backward-compat, em duas camadas, ambas só no caminho de miss:
+ *   1. `projection-current-<cargo>-t<turno>` — esquema atual.
+ *   2. `projection:current:<cargo>:t<turno>` — esquema deprecado com
+ *      dois-pontos, caso a API da Vercel o tenha aceitado. **Remover em
+ *      2026-10-26** (ver `lib/edge-config/keys.ts`).
+ *   3. `projection-current` / `projection:current` — alias dinâmico S04,
+ *      sem cargo/turno. Só para a corrida ATIVA: caller que passou override
+ *      explícito não cai aqui.
  *
  * Retorna `null` quando:
  *   - `EDGE_CONFIG` ausente (dev/preview sem credencial).
@@ -64,20 +97,21 @@ export async function readProjection(opts?: {
   const cargo = opts?.cargo ?? race.cargo;
   const turno = opts?.turno ?? race.turno;
 
-  try {
-    // Primary: chave nomeada (S05+).
-    const namedKey = projectionKeyForRace(cargo, turno);
-    const namedPayload = await get<EdgePayload>(namedKey);
-    if (namedPayload) return namedPayload;
+  const isActiveRace = cargo === race.cargo && turno === race.turno;
 
-    // Fallback: chave legada `projection:current` (S04). Só faz sentido se
-    // o cargo/turno coincide com o ativo — caller que passou override
-    // explícito não cai aqui.
-    if (cargo === race.cargo && turno === race.turno) {
-      const legacy = await get<EdgePayload>("projection:current");
-      return legacy ?? null;
-    }
-    return null;
+  try {
+    return await getFirst<EdgePayload>([
+      currentProjectionKey(cargo, turno),
+      // DEPRECADO — remover em 2026-10-26.
+      deprecatedColonCurrentProjectionKey(cargo, turno),
+      ...(isActiveRace
+        ? [
+            LEGACY_CURRENT_ALIAS_KEY,
+            // DEPRECADO — remover em 2026-10-26.
+            DEPRECATED_COLON_CURRENT_ALIAS_KEY,
+          ]
+        : []),
+    ]);
   } catch {
     return null;
   }
@@ -94,15 +128,15 @@ export async function readNationalProjection(): Promise<EdgePayload | null> {
 }
 
 /**
- * Lê o payload ARQUIVADO de uma corrida — sufixo `:archive` em vez de
- * `:current` (ADR-0012, S06/F1). Usado pra acessar o resultado final do 1T
+ * Lê o payload ARQUIVADO de uma corrida — segmento `archive` em vez de
+ * `current` (ADR-0012, S06/F1). Usado pra acessar o resultado final do 1T
  * a partir de uma página em mode 2T:
  *
- *   `projection:archive:<cargo>:t<turno>`  →  ex. `projection:archive:pres:t1`
+ *   `projection-archive-<cargo>-t<turno>`  →  ex. `projection-archive-pres-t1`
  *
  * O orchestrator grava o archive na transição de turno (S07 — virada 1T→2T)
- * congelando o último `projection:current:pres:t1` antes de mover a chave
- * dinâmica `projection:current` para `pres:t2`. Simetria total com
+ * congelando o último `projection-current-pres-t1` antes de mover a chave
+ * dinâmica `projection-current` para `pres-t2`. Simetria total com
  * `readProjection`: mesmo shape `EdgePayload`, mesma serialização.
  *
  * Comportamento de retorno
@@ -134,9 +168,11 @@ export async function readArchivedProjection(opts?: {
   const turno = opts?.turno ?? race.turno;
 
   try {
-    const key = `projection:archive:${cargo}:t${turno}`;
-    const payload = await get<EdgePayload>(key);
-    return payload ?? null;
+    return await getFirst<EdgePayload>([
+      archiveProjectionKey(cargo, turno),
+      // DEPRECADO — remover em 2026-10-26.
+      deprecatedColonArchiveProjectionKey(cargo, turno),
+    ]);
   } catch {
     return null;
   }
@@ -146,13 +182,16 @@ export async function readArchivedProjection(opts?: {
  * Lê o payload de drill-down de UMA UF do Edge Config.
  *
  * S05/F4c — chave para corridas com cargo/turno explícito:
- *   `projection:uf:<sigla>:<cargo>:t<turno>` (ex: `projection:uf:SP:pres:t1`).
+ *   `projection-uf-<SIGLA>-<cargo>-t<turno>` (ex: `projection-uf-SP-pres-t1`).
  *
- * Backward-compat: tenta primeiro a chave nomeada; se vier nula, cai na
- * chave antiga `projection:uf:<sigla>` (S04).
+ * Backward-compat, só no caminho de miss: chave nomeada → chave deprecada
+ * com dois-pontos (**remover em 2026-10-26**) → alias legado
+ * `projection-uf-<SIGLA>` / `projection:uf:<SIGLA>` (S04).
  *
- * @param sigla UF de 2 letras maiúsculas. Não validado aqui — o caller
- *   (`/api/projection?uf=`) normaliza e rejeita inválido.
+ * @param sigla UF de 2 letras. `lib/edge-config/keys.ts` valida o formato e
+ *   normaliza para maiúscula — sigla malformada lança, e o `catch` desta
+ *   função converte em `null` (mesma degradação de qualquer outra falha de
+ *   leitura). O caller (`/api/projection?uf=`) já normaliza antes.
  * @param opts.cargo  Override do cargo. Default: cargo ativo.
  * @param opts.turno  Override do turno. Default: turno ativo.
  */
@@ -165,18 +204,21 @@ export async function readUfProjection(
   const cargo = opts?.cargo ?? race.cargo;
   const turno = opts?.turno ?? race.turno;
 
-  try {
-    // Primary: chave nomeada (S05+).
-    const namedKey = `projection:uf:${sigla}:${cargo}:t${turno}`;
-    const named = await get<EdgePayloadUf>(namedKey);
-    if (named) return named;
+  const isActiveRace = cargo === race.cargo && turno === race.turno;
 
-    // Fallback legacy só para corrida ativa.
-    if (cargo === race.cargo && turno === race.turno) {
-      const legacy = await get<EdgePayloadUf>(`projection:uf:${sigla}`);
-      return legacy ?? null;
-    }
-    return null;
+  try {
+    return await getFirst<EdgePayloadUf>([
+      ufProjectionKey(sigla, cargo, turno),
+      // DEPRECADO — remover em 2026-10-26.
+      deprecatedColonUfProjectionKey(sigla, cargo, turno),
+      ...(isActiveRace
+        ? [
+            legacyUfAliasKey(sigla),
+            // DEPRECADO — remover em 2026-10-26.
+            deprecatedColonLegacyUfAliasKey(sigla),
+          ]
+        : []),
+    ]);
   } catch {
     return null;
   }

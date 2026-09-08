@@ -11,6 +11,60 @@ date: 2026-05-17
 
 Aceito.
 
+### Emenda 2026-09-08 — separador `-` no lugar de `:` (a decisão de fundo permanece)
+
+**Append-only. O corpo abaixo não foi reescrito** — ele registra o esquema como foi decidido em
+S05, com dois-pontos. O que mudou é apenas o **separador**; onde este ADR escreve
+`projection:current:pres:t1`, leia `projection-current-pres-t1`, e assim por diante.
+
+**O que mudou.** Todas as chaves do Global Config passaram a usar `-` como separador:
+
+| Como este ADR escreve (S05) | Como é hoje |
+|---|---|
+| `projection:current:<cargo>:t<turno>` | `projection-current-<cargo>-t<turno>` |
+| `projection:uf:<sigla>:<cargo>:t<turno>` | `projection-uf-<SIGLA>-<cargo>-t<turno>` |
+| `projection:archive:<cargo>:t<turno>` | `projection-archive-<cargo>-t<turno>` |
+| `projection:current` (alias dinâmico) | `projection-current` |
+| `projection:uf:<sigla>` (alias legado) | `projection-uf-<SIGLA>` |
+
+**Por quê.** A doc da Vercel — `/docs/global-config/global-config-limits`, seção "Maximum item key
+name length", atualizada em 2026-07-29 — é literal: *"The key name must adhere to the regex pattern
+`^[\w-]+$`, which is equivalent to `/^[A-Za-z0-9_-]+$/`, and allows A-Z, a-z, 0-9, `_`, and `-`"*.
+**Dois-pontos não está na lista.** Se a API aplicar o padrão que documenta, nenhuma escrita sob o
+esquema original jamais funcionou, e a descoberta chegaria com a gravação recusada na noite da
+apuração.
+
+Não foi possível verificar empiricamente: `EDGE_CONFIG` está comentada no `.env.local` desde 18/05,
+não há token de escrita no ambiente, o `vercel` CLI não está autenticado, e os testes de ingestão
+rodam contra `fetch` mockado. Diante de um caminho crítico que não dá para testar a 26 dias do 1º
+turno, adota-se o padrão documentado em vez de depender de uma tolerância não documentada.
+
+**O que NÃO mudou — e é o ponto.** A decisão de fundo deste ADR permanece **intacta**: chaves
+**nomeadas por corrida e turno**, em vez de uma chave única. Cada corrida segue independente no
+store (escrita concorrente entre presidencial e governadores sem race condition), a transição de
+turno segue sem destruir `projection-archive-pres-t1`, e o alias dinâmico resolvido por
+`lib/config/calendar.ts` segue existindo. Arity, semântica e consequências (positivas e negativas)
+deste ADR valem sem alteração. **Muda o separador, não o esquema.**
+
+**Como isso passou a ser garantido.** A construção de chave, que estava espalhada por `reader.ts` e
+`writer.ts` em template literals soltos, foi centralizada em **`lib/edge-config/keys.ts`** — ponto
+único de construção *e* de validação. Todo construtor valida a chave que produz contra
+`^[A-Za-z0-9_-]+$`, e `writeEdgePayload` revalida antes de chamar a API da Vercel (inclusive antes do
+no-op sem credencial, para que CI e dev local não passem cegos). Uma chave fora do padrão não nasce
+e não chega ao store. Cobertura em `tests/unit/edge-config/keys.test.ts` (matriz completa das 144
+chaves produzíveis contra a regex transcrita da doc) e `tests/unit/edge-config/reader.test.ts`.
+
+**Compatibilidade de leitura, com prazo.** O reader tenta a chave nova e, só em caso de miss, tenta
+a chave antiga com dois-pontos — cobrindo o cenário em que a API sempre aceitou `:` e há dado
+publicado. Custa uma leitura a mais apenas no caminho de miss. **Remoção marcada para 2026-10-26**
+(dia seguinte ao 2º turno), em `DEPRECATED_COLON_KEYS_REMOVAL_DATE` (`lib/edge-config/keys.ts`).
+
+**Escopo.** Esta emenda cobre só chaves do Global Config. Os pathnames de Vercel Blob definidos pelo
+ADR-0026 (`deputado:uf:<sigla>.json`) e pelo ADR-0032 (`municipios:uf:<sigla>:<cargo>:t<turno>.json`)
+**não são afetados**: pathname de Blob obedece a outra regra, e `:` é seguro ali (verificado na doc
+do `@vercel/blob` e no próprio SDK v2.3.3, cuja única sequência proibida é `//`, com limite de 950
+caracteres).
+
 ## Contexto
 
 O ADR-0001 definiu `projection:current` e `projection:uf:[sigla]` como chaves do Edge Config para o read path. No escopo original (presidencial, turno único em foco), uma chave por nível geográfico era suficiente.

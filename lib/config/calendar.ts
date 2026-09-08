@@ -4,7 +4,7 @@
  * Calendário canônico das corridas eleitorais 2026. Single source of truth
  * para "qual cargo/turno é o ATIVO hoje" — alimenta:
  *
- *   - O alias dinâmico de `projection:current` no Edge Config (ADR-0012).
+ *   - O alias dinâmico de `projection-current` no Global Config (ADR-0012, separador corrigido em 08/09).
  *     Antes de 04/10 → resolve para `(pres, 1)`; entre 04/10 e 25/10
  *     → `(pres, 2)`; antes de cada janela de governador também aliasa
  *     conforme a UF.
@@ -52,7 +52,7 @@ export interface Race {
  * o consumer precisa de uma chave determinística pra ler.
  *
  * Governador segue o mesmo calendário do presidente em 2026 (eleição
- * geral). Como o read path SOMA por sigla via `projection:uf:<sigla>`,
+ * geral). Como o read path SOMA por sigla via `projection-uf-<SIGLA>`,
  * não há ambiguidade gerencial — UF apurada de governador alimenta a
  * mesma chave de UF, mas o consumidor passa `cargo="gov"` no reader.
  */
@@ -64,7 +64,7 @@ export const CALENDAR_2026: Race[] = [
   // o estado "1T ativo".
   { start: "2026-10-04T00:00:00-03:00", cargo: "pres", turno: 1 },
   // 2T — 25/10/2026, 00:00 BRT. A virada do alias deve coincidir com a
-  // archival do payload 1T (`projection:archive:pres:t1`). Essa archival é
+  // archival do payload 1T (`projection-archive-pres-t1`). Essa archival é
   // feita por job dedicado em S07 (não nessa sprint).
   { start: "2026-10-25T00:00:00-03:00", cargo: "pres", turno: 2 },
 ];
