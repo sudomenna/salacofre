@@ -348,3 +348,84 @@ describe("GovernadorGridPage (integration / smoke)", () => {
     expect(headingsSem).toEqual(headingsCom);
   });
 });
+
+// ---------------------------------------------------------------------------
+// S07/Bloco 2 (ADR-0029) — recomposição da grade de governadores.
+// ---------------------------------------------------------------------------
+describe("GovernadorGridPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
+  async function renderGrid(status?: string): Promise<Document> {
+    comParticipacao = true;
+    const node = await GovernadorGridPage({
+      searchParams: Promise.resolve(status ? { status } : {}),
+    });
+    return new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
+  }
+
+  it("(m) o <Footer> continua DENTRO do <main data-trilha> desta página", async () => {
+    const doc = await renderGrid();
+    const main = doc.querySelector("main[data-trilha]");
+    expect(main).not.toBeNull();
+    const footer = main?.querySelector("footer");
+    expect(footer).not.toBeNull();
+    expect(footer?.textContent).toContain("Não oficial");
+    expect(doc.querySelectorAll("footer")).toHaveLength(1);
+  });
+
+  it("(n) o cartograma é o primeiro conteúdo, antes do painel de resultado", async () => {
+    const doc = await renderGrid();
+    const mapa = doc.querySelector('section[aria-labelledby="hex-cartogram-heading"]');
+    const painel = doc.querySelector("#resultado-heading");
+    expect(mapa).not.toBeNull();
+    expect(painel).not.toBeNull();
+    expect(
+      mapa && painel && mapa.compareDocumentPosition(painel) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("(o) exatamente um <h1> — 'Governadores 2026', título do painel", async () => {
+    const doc = await renderGrid();
+    const h1s = doc.querySelectorAll("h1");
+    expect(h1s).toHaveLength(1);
+    expect(h1s[0]?.textContent).toBe("Governadores 2026");
+    expect(h1s[0]?.getAttribute("id")).toBe("resultado-heading");
+  });
+
+  it("(p) os filtros de status têm alvo de toque de --tap-min (44px), não 28px", async () => {
+    const doc = await renderGrid();
+    const filtros = [...doc.querySelectorAll('[data-testid="governador-filtro"]')];
+    expect(filtros).toHaveLength(5);
+    for (const f of filtros) {
+      const style = f.getAttribute("style") ?? "";
+      expect(style).toContain("min-height:var(--tap-min)");
+      // Nenhuma medida de padding vertical fixa reintroduzindo a altura antiga.
+      expect(f.getAttribute("class")).not.toContain("py-1.5");
+    }
+  });
+
+  it("(q) o filtro ativo não depende só de cor — carrega aria-current", async () => {
+    const doc = await renderGrid("vai_2t");
+    const ativos = [...doc.querySelectorAll('[data-testid="governador-filtro"]')].filter(
+      (f) => f.getAttribute("aria-current") === "page",
+    );
+    expect(ativos).toHaveLength(1);
+    expect(ativos[0]?.textContent).toBe("Vão a 2º turno");
+    expect(ativos[0]?.getAttribute("data-active")).toBe("true");
+  });
+
+  it("(r) nenhum <Panel> fica vazio (filete órfão)", async () => {
+    const doc = await renderGrid();
+    const panels = [...doc.querySelectorAll('[data-testid="panel"]')];
+    expect(panels.length).toBeGreaterThanOrEqual(4);
+    for (const p of panels) {
+      expect((p.textContent ?? "").trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("(s) o kicker da seção de resultado carrega o 'não oficial' (constituição § 1)", async () => {
+    const doc = await renderGrid();
+    const kickers = [...doc.querySelectorAll('[data-testid="panel-kicker"]')].map(
+      (k) => k.textContent,
+    );
+    expect(kickers).toContain("Projeção Atlas Menna · não oficial");
+  });
+});

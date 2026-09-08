@@ -187,7 +187,13 @@ describe("UFGovernadorPage (integration / smoke)", () => {
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
 
-    expect(doc.body.textContent).toContain("Governador SP — Apuração 2026");
+    // S07/Bloco 2 (ADR-0029 § 5): o `<h1>` saiu da primeira dobra e virou o
+    // título do painel de resultado, alternando parcial/projeção por cascata.
+    // Os dois textos ficam no DOM; o CSS revela um.
+    const h1 = doc.querySelectorAll("h1");
+    expect(h1).toHaveLength(1);
+    expect(h1[0]?.textContent).toContain("Governador SP — Resultado parcial");
+    expect(h1[0]?.textContent).toContain("Governador SP — Projeção Atlas Menna");
     // ADR-0019: breadcrumb passa a mostrar a profundidade real da trilha
     // governador (que não tem nó nacional), preservando o link de volta.
     const crumbs = [...doc.querySelectorAll('nav[aria-label="Breadcrumb"] li')].map((li) =>
@@ -268,7 +274,7 @@ describe("UFGovernadorPage (integration / smoke)", () => {
     const html = renderToStaticMarkup(node);
     expect(html).not.toContain("sem mapeamento histórico");
     // a página segue renderizando normalmente — a remoção não quebra o resto
-    expect(html).toContain("Governador SP — Apuração 2026");
+    expect(html).toContain("Governador SP — Resultado parcial");
   });
 
   // -------------------------------------------------------------------------
@@ -337,5 +343,97 @@ describe("UFGovernadorPage (integration / smoke)", () => {
     const html = renderToStaticMarkup(node);
     expect(html).toContain("Aguardando dados");
     expect(html).toContain("Não oficial");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S07/Bloco 2 (ADR-0029) — "mapa primeiro" na rota de governador por UF.
+// ---------------------------------------------------------------------------
+describe("UFGovernadorPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
+  async function renderGov(): Promise<Document> {
+    readUfProjectionMock.mockResolvedValueOnce(
+      buildUfPayload({ municipios: 12, withMesorregioes: true, multiCandidato: true }),
+    );
+    const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
+    return new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
+  }
+
+  it("(l) o <Footer> continua DENTRO do <main data-trilha> desta página", async () => {
+    const doc = await renderGov();
+    const main = doc.querySelector("main[data-trilha]");
+    expect(main).not.toBeNull();
+    const footer = main?.querySelector("footer");
+    expect(footer).not.toBeNull();
+    expect(footer?.textContent).toContain("Não oficial");
+    expect(doc.querySelectorAll("footer")).toHaveLength(1);
+  });
+
+  it("(m) o mapa é o primeiro conteúdo, antes do painel de resultado", async () => {
+    const doc = await renderGov();
+    const mapa = doc.querySelector('section[aria-labelledby="leader-map-heading"]');
+    const painel = doc.querySelector("#resultado-heading");
+    expect(mapa).not.toBeNull();
+    expect(painel).not.toBeNull();
+    expect(
+      mapa && painel && mapa.compareDocumentPosition(painel) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("(n) exatamente um <h1>, e ele é o título do painel de resultado", async () => {
+    const doc = await renderGov();
+    const h1s = doc.querySelectorAll("h1");
+    expect(h1s).toHaveLength(1);
+    expect(h1s[0]?.getAttribute("id")).toBe("resultado-heading");
+  });
+
+  it("(o) linhas de candidato com parcial e projeção lado a lado (ADR-0029 § 7)", async () => {
+    const doc = await renderGov();
+    const linhas = doc.querySelectorAll('[data-testid="candidate-result-row"]');
+    expect(linhas.length).toBeGreaterThan(0);
+    expect(linhas[0]?.querySelector('[data-view-cell="parcial"]')).not.toBeNull();
+    expect(linhas[0]?.querySelector('[data-view-cell="proj"]')).not.toBeNull();
+  });
+
+  it("(p) a grade está ligada à folha do município — cada quadrado carrega seu cod_ibge", async () => {
+    const doc = await renderGov();
+
+    // A grade é o caminho de ponteiro: o handler do `<svg role="img">` lê o
+    // `data-cod` do `<rect>` que recebeu o toque.
+    const svg = doc.querySelector('[data-testid="waffle-svg"]');
+    expect(svg?.getAttribute("style")).toContain("cursor:pointer");
+    const rects = [...doc.querySelectorAll('[data-testid="waffle-svg"] rect')];
+    expect(rects).toHaveLength(12);
+    expect(rects.every((r) => r.getAttribute("data-cod"))).toBe(true);
+
+    // ACHADO PRÉ-EXISTENTE (não introduzido aqui): a tabela desta rota é
+    // `mode="top-by-eleitorado"`, que filtra `eleitorado != null` — e
+    // `EdgeUfMunicipio` não tem esse campo. Por isso ela renderiza zero
+    // linhas, e nesta rota (só nesta) não há botão de município. Quando o
+    // orchestrator publicar `eleitorado`, os botões aparecem sem mais
+    // nenhuma mudança de código; o teste (o) da rota presidencial cobre o
+    // caminho de teclado enquanto isso.
+    expect(doc.querySelector('[data-testid="municipios-top-table"] tbody tr')).toBeNull();
+
+    // O sheet começa fechado — abrir é interação, coberta em e2e.
+    expect(doc.querySelector('[data-testid="sheet"]')).toBeNull();
+  });
+
+  it("(q) nenhum <Panel> fica vazio (filete órfão)", async () => {
+    const doc = await renderGov();
+    const panels = [...doc.querySelectorAll('[data-testid="panel"]')];
+    expect(panels.length).toBeGreaterThanOrEqual(6);
+    for (const p of panels) {
+      expect((p.textContent ?? "").trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("(r) mesorregiões, waffle, maiores municípios, agulha e séries seguem na página", async () => {
+    const texto = (await renderGov()).body.textContent ?? "";
+    expect(texto).toContain("Apuração por mesorregião");
+    expect(texto).toContain("Cada quadrado é um município");
+    expect(texto).toContain("Maiores municípios por eleitorado");
+    expect(texto).toContain("Forecast ao vivo — Governador SP");
+    expect(texto).toContain("Margem ao longo do tempo");
+    expect(texto).toContain("O que está movendo o forecast");
   });
 });

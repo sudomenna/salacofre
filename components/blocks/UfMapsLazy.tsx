@@ -40,11 +40,17 @@ const SwingArrowMap = dynamic(
   },
 );
 
+// 440px no skeleton porque, desde o S07/Bloco 2 (ADR-0029 § 1), este é o mapa
+// HERO das duas rotas de UF — o primeiro conteúdo da página. Um skeleton de
+// 320px trocado por um mapa de 440px empurraria toda a página 120px para baixo
+// no momento da hidratação, que é CLS medido exatamente onde ele mais dói
+// (RNF-007 / Core Web Vitals). Mantenha este número igual ao `HERO_MAP_HEIGHT`
+// de `app/uf/[sigla]/page.tsx` e `app/uf/[sigla]/governador/page.tsx`.
 const ChoroplethMapUF = dynamic(
   () => import("@/components/atoms/maps/ChoroplethMapUF").then((m) => m.ChoroplethMapUF),
   {
     ssr: false,
-    loading: () => <MapPlaceholder label="Líder por município" height={320} />,
+    loading: () => <MapPlaceholder label="Líder por município" height={440} />,
   },
 );
 

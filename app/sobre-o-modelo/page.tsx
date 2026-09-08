@@ -1,5 +1,275 @@
 import type { Metadata } from "next";
-import styles from "./sobre-o-modelo.module.css";
+import type { CSSProperties, ReactNode } from "react";
+
+/**
+ * Folha de estilo desta página, em tokens do design system Atlas Menna
+ * (ADR-0025). S07/Bloco 2 tirou a rota do CSS Module (removido) e a trouxe
+ * para a mesma linguagem visual do resto do site: papel/tinta, filete duplo
+ * abrindo seção, kicker em caixa alta ocre, título em serifa, números em mono.
+ *
+ * **O conteúdo não mudou** — nem uma frase, nem uma ilustração, nem a ordem
+ * das oito seções. O que mudou é de onde vêm as cores, as medidas e as
+ * escalas tipográficas.
+ *
+ * Por que um objeto de `CSSProperties` e não classes utilitárias: as regras
+ * do módulo que sobreviveram são todas de elemento único, e inline é o padrão
+ * que os componentes do kit já usam (`Panel`, `Figure`, `CandidateResultRow`).
+ *
+ * Três regras do módulo **não** foram portadas porque `app/globals.css` já as
+ * cobre globalmente, e melhor:
+ *
+ *   - `.body a` / `.footer a` / `.disclaimer a` — o `a` global já sai
+ *     sublinhado com `--accent` na decoração, o que atende WCAG 1.4.1 (link
+ *     dentro de bloco de texto não distinguível só por cor) sem repetir a
+ *     regra por página. Era exatamente o achado que o módulo corrigia à mão.
+ *   - `@media (prefers-reduced-motion)` sobre `.svgFrame *` — o bloco global
+ *     de RNF-026 já zera animação e transição em `*`.
+ *   - o `@media (max-width: 540px)` de tipografia — as escalas do kit são
+ *     absolutas e desenhadas a partir de 430px; não há segundo tamanho a
+ *     escolher.
+ *
+ * Contrastes medidos (constituição § 4 / RNF-022):
+ *   --text-secondary (#5B636E) sobre --surface-page (#F3F4F6) ....... 5,52:1
+ *   --text-secondary (#5B636E) sobre --surface-sunken (#E9EBEE) ..... 5,01:1
+ *   --accent-text   (#8E5D18) sobre --surface-page .................. 5,12:1
+ * `--accent` (2,67:1) e `--ink-3` (2,79:1) não carregam texto em lugar nenhum
+ * desta página.
+ */
+const S = {
+  page: {
+    background: "var(--surface-page)",
+    color: "var(--text-primary)",
+    minHeight: "100vh",
+    // A barra de cargos do shell é fixa no rodapé abaixo de 960px e flutua
+    // sobre o conteúdo durante a rolagem (ADR-0029 § 3). Esta página não é
+    // `main[data-trilha]`, então não recebe a folga que `globals.css` dá às
+    // quatro rotas de corrida — ela reserva a altura aqui.
+    paddingBottom: "calc(var(--space-16) + env(safe-area-inset-bottom))",
+  },
+  container: {
+    maxWidth: 660,
+    margin: "0 auto",
+    padding: "var(--space-10) var(--space-5) 0",
+  },
+  kicker: {
+    font: "var(--type-kicker)",
+    letterSpacing: "var(--tracking-caps)",
+    textTransform: "uppercase",
+    color: "var(--accent-text)",
+    margin: "0 0 var(--space-3)",
+  },
+  title: {
+    font: "var(--type-headline)",
+    letterSpacing: "var(--tracking-tight)",
+    margin: "0 0 var(--space-4)",
+    textWrap: "pretty",
+  },
+  deck: {
+    font: "var(--type-deck)",
+    fontSize: "var(--text-lg)",
+    lineHeight: "var(--leading-normal)",
+    color: "var(--text-secondary)",
+    margin: "0 0 var(--space-8)",
+  },
+  byline: {
+    font: "var(--type-data)",
+    color: "var(--text-muted)",
+    margin: "0 0 var(--space-10)",
+    paddingBottom: "var(--space-6)",
+    borderBottom: "1px solid var(--border-hairline)",
+  },
+  section: {
+    marginTop: "var(--space-10)",
+    paddingTop: "var(--space-6)",
+    borderTop: "var(--rule-double)",
+  },
+  sectionFirst: {
+    marginTop: 0,
+    paddingTop: 0,
+    borderTop: 0,
+  },
+  sectionLabel: {
+    font: "var(--type-kicker)",
+    letterSpacing: "var(--tracking-caps)",
+    textTransform: "uppercase",
+    color: "var(--accent-text)",
+    margin: "0 0 var(--space-2)",
+  },
+  h2: {
+    font: "var(--type-title)",
+    margin: "0 0 var(--space-5)",
+    textWrap: "pretty",
+  },
+  h3: {
+    font: "var(--type-title)",
+    fontSize: "var(--text-lg)",
+    margin: "var(--space-6) 0 var(--space-3)",
+  },
+  body: {
+    font: "var(--type-deck)",
+    fontSize: "var(--text-lg)",
+    lineHeight: "var(--leading-relaxed)",
+    color: "var(--text-primary)",
+    margin: "0 0 var(--space-4)",
+  },
+  pullquote: {
+    font: "var(--type-title)",
+    fontStyle: "italic",
+    color: "var(--text-primary)",
+    borderLeft: "3px solid var(--border-strong)",
+    padding: "var(--space-2) 0 var(--space-2) var(--space-5)",
+    margin: "var(--space-6) 0",
+  },
+  callout: {
+    background: "var(--surface-sunken)",
+    border: "1px solid var(--border-hairline)",
+    padding: "var(--space-5)",
+    margin: "var(--space-6) 0",
+    font: "var(--type-body-sm)",
+    color: "var(--text-primary)",
+  },
+  calloutLabel: {
+    font: "var(--type-kicker)",
+    letterSpacing: "var(--tracking-caps)",
+    textTransform: "uppercase",
+    color: "var(--text-secondary)",
+    margin: "0 0 var(--space-2)",
+  },
+  figure: {
+    margin: "var(--space-6) 0 var(--space-8)",
+  },
+  figcaption: {
+    font: "var(--type-body-sm)",
+    color: "var(--text-secondary)",
+    marginTop: "var(--space-3)",
+    paddingTop: "var(--space-2)",
+    borderTop: "1px solid var(--border-hairline)",
+  },
+  svgFrame: {
+    width: "100%",
+    height: "auto",
+    display: "block",
+    background: "var(--surface-card)",
+  },
+  bandTable: {
+    width: "100%",
+    borderCollapse: "collapse",
+    font: "var(--type-body-sm)",
+    margin: "var(--space-4) 0 var(--space-6)",
+  },
+  bandTh: {
+    textAlign: "left",
+    verticalAlign: "top",
+    padding: "var(--space-3) var(--space-2)",
+    font: "var(--type-kicker)",
+    letterSpacing: "var(--tracking-caps)",
+    textTransform: "uppercase",
+    color: "var(--text-secondary)",
+    borderBottom: "1px solid var(--border-strong)",
+  },
+  bandTd: {
+    textAlign: "left",
+    verticalAlign: "top",
+    padding: "var(--space-3) var(--space-2)",
+    borderBottom: "1px solid var(--border-hairline)",
+  },
+  bandRange: {
+    font: "var(--type-figure-sm)",
+    color: "var(--text-secondary)",
+  },
+  bandSwatch: {
+    display: "inline-block",
+    width: 14,
+    height: 14,
+    borderRadius: "50%",
+    verticalAlign: "middle",
+    marginRight: "var(--space-2)",
+    border: "1px solid var(--border-hairline)",
+  },
+  limitations: {
+    display: "grid",
+    gap: "var(--space-5)",
+    margin: "var(--space-6) 0",
+  },
+  limitationItem: {
+    display: "grid",
+    gridTemplateColumns: "36px 1fr",
+    gap: "var(--space-4)",
+    padding: "var(--space-4) 0",
+    borderTop: "1px solid var(--border-hairline)",
+  },
+  limitationItemFirst: {
+    display: "grid",
+    gridTemplateColumns: "36px 1fr",
+    gap: "var(--space-4)",
+    padding: "var(--space-4) 0",
+    borderTop: "var(--rule-double)",
+  },
+  limitationNumber: {
+    font: "var(--type-figure)",
+    color: "var(--text-primary)",
+    lineHeight: 1,
+  },
+  limitationBody: {
+    font: "var(--type-deck)",
+    lineHeight: "var(--leading-normal)",
+    color: "var(--text-primary)",
+  },
+  sourceList: {
+    listStyle: "none",
+    padding: 0,
+    margin: "var(--space-4) 0 0",
+  },
+  sourceItem: {
+    font: "var(--type-body-sm)",
+    padding: "var(--space-4) 0",
+    borderTop: "1px solid var(--border-hairline)",
+    color: "var(--text-primary)",
+  },
+  sourceItemFirst: {
+    font: "var(--type-body-sm)",
+    padding: "var(--space-4) 0",
+    borderTop: "var(--rule-double)",
+    color: "var(--text-primary)",
+  },
+  sourceTitle: {
+    display: "block",
+    marginBottom: "var(--space-1)",
+  },
+  sourceText: {
+    color: "var(--text-secondary)",
+  },
+  disclaimer: {
+    marginTop: "var(--space-12)",
+    padding: "var(--space-6)",
+    background: "var(--surface-sunken)",
+    borderTop: "3px solid var(--border-strong)",
+    font: "var(--type-body-sm)",
+    color: "var(--text-primary)",
+  },
+  footer: {
+    marginTop: "var(--space-12)",
+    paddingTop: "var(--space-6)",
+    borderTop: "1px solid var(--border-hairline)",
+    font: "var(--type-body-sm)",
+    color: "var(--text-secondary)",
+    textAlign: "center",
+  },
+} satisfies Record<string, CSSProperties>;
+
+/** Cabeçalho da tabela de bandas — o módulo estilava por `.bandTable th`. */
+function BandTh({ children }: { children: ReactNode }) {
+  return (
+    <th scope="col" style={S.bandTh}>
+      {children}
+    </th>
+  );
+}
+
+/** Célula da tabela de bandas — o módulo estilava por `.bandTable td`. */
+function BandTd({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+  return <td style={style ? { ...S.bandTd, ...style } : S.bandTd}>{children}</td>;
+}
 
 /**
  * Página /sobre-o-modelo — Spec 011 (RF-054) + constituição § 8.
@@ -27,30 +297,30 @@ export const metadata: Metadata = {
 
 export default function SobreOModeloPage() {
   return (
-    <main className={styles.page}>
-      <article className={styles.container}>
-        <p className={styles.kicker}>Metodologia</p>
-        <h1 className={styles.title}>Como a SalaCofre faz uma projeção</h1>
-        <p className={styles.deck}>
+    <main style={S.page}>
+      <article style={S.container}>
+        <p style={S.kicker}>Metodologia</p>
+        <h1 style={S.title}>Como a SalaCofre faz uma projeção</h1>
+        <p style={S.deck}>
           O método em três partes: projetar, por regra de três, o total de cada zona eleitoral a
           partir do que ela já apurou; simular mil reamostragens para estimar a incerteza; e
           traduzir tudo em uma probabilidade que se atualiza a cada novo boletim do TSE.
         </p>
-        <p className={styles.byline}>Equipe SalaCofre · Última atualização: maio de 2026</p>
+        <p style={S.byline}>Equipe SalaCofre · Última atualização: maio de 2026</p>
 
         {/* 1. O modelo */}
-        <section className={styles.section} aria-labelledby="sec-modelo">
-          <p className={styles.sectionLabel}>1 · O modelo</p>
-          <h2 id="sec-modelo" className={styles.h2}>
+        <section style={S.sectionFirst} aria-labelledby="sec-modelo">
+          <p style={S.sectionLabel}>1 · O modelo</p>
+          <h2 id="sec-modelo" style={S.h2}>
             O que estamos calculando
           </h2>
-          <p className={styles.body}>
+          <p style={S.body}>
             Em uma noite de apuração, o TSE divulga resultados parciais a cada poucos minutos. Esses
             resultados chegam <em>zona a zona</em> — o Brasil tem cerca de três mil zonas eleitorais
             — e quase sempre as primeiras zonas a serem apuradas não são representativas do país
             como um todo.
           </p>
-          <p className={styles.body}>
+          <p style={S.body}>
             Em vez de mostrar apenas o percentual bruto da apuração corrente, nosso modelo pergunta,
             zona por zona:{" "}
             <em>se esta parte da zona já votou assim, quanto a zona inteira deve produzir?</em>{" "}
@@ -59,7 +329,7 @@ export default function SobreOModeloPage() {
             ficaria o pleito se 100% das urnas já tivessem sido apuradas, junto de uma faixa de
             incerteza honesta sobre essa estimativa.
           </p>
-          <p className={styles.body}>
+          <p style={S.body}>
             <strong>O resultado de 2022 não entra nessa conta.</strong> A projeção nasce
             inteiramente das urnas de 2026. O pleito anterior aparece no site apenas como comparação
             — quanto o resultado de agora se afastou do de quatro anos atrás —, um fato observado,
@@ -68,23 +338,23 @@ export default function SobreOModeloPage() {
         </section>
 
         {/* 2. Regra de três por zona */}
-        <section className={styles.section} aria-labelledby="sec-regra-de-tres">
-          <p className={styles.sectionLabel}>2 · Regra de três</p>
-          <h2 id="sec-regra-de-tres" className={styles.h2}>
+        <section style={S.section} aria-labelledby="sec-regra-de-tres">
+          <p style={S.sectionLabel}>2 · Regra de três</p>
+          <h2 id="sec-regra-de-tres" style={S.h2}>
             A unidade mínima: a regra de três por zona
           </h2>
-          <p className={styles.body}>
+          <p style={S.body}>
             Dentro de uma zona eleitoral, as seções não terminam de apurar todas juntas. O boletim
             do TSE informa quantos eleitores a zona tem ao todo (os <strong>aptos</strong>) e
             quantos já estão cobertos pelas <strong>seções instaladas</strong> que reportaram. A
             razão entre esses dois números é o nosso fator de escala:
           </p>
 
-          <div className={styles.pullquote}>
+          <div style={S.pullquote}>
             k = eleitores aptos da zona ÷ eleitores das seções já instaladas
           </div>
 
-          <p className={styles.body}>
+          <p style={S.body}>
             Se metade dos eleitores da zona já está coberta, k = 2: cada voto contado ali representa
             dois na zona inteira. Multiplicamos por <strong>k</strong> os votos de cada candidato e
             também o total de votos daquela zona, e obtemos o resultado projetado da zona. É a frase
@@ -95,16 +365,16 @@ export default function SobreOModeloPage() {
             — zona a zona vira estado, estado a estado vira país.
           </p>
 
-          <p className={styles.body}>
+          <p style={S.body}>
             A parcela de um candidato no estado é a divisão de duas somas: todos os votos projetados
             dele nas zonas, sobre todos os votos projetados do estado. Não é a média dos percentuais
             das zonas. Assim uma zona grande pesa naturalmente mais que uma pequena, sem precisar de
             nenhum peso artificial — o peso já está no número de votos.
           </p>
 
-          <figure className={styles.figure} aria-labelledby="fig-extrap-cap">
+          <figure style={S.figure} aria-labelledby="fig-extrap-cap">
             <ExtrapolationIllustration />
-            <figcaption id="fig-extrap-cap" className={styles.figcaption}>
+            <figcaption id="fig-extrap-cap" style={S.figcaption}>
               <strong>Como uma zona é projetada.</strong> Em cima, uma zona em que metade dos
               eleitores já está em seções instaladas: só esses votos foram contados. O fator de
               escala k = 2 estica essa contagem para o tamanho da zona inteira, preservando a
@@ -113,8 +383,8 @@ export default function SobreOModeloPage() {
             </figcaption>
           </figure>
 
-          <div className={styles.callout}>
-            <p className={styles.calloutLabel}>E a zona que ainda não abriu nenhuma urna?</p>
+          <div style={S.callout}>
+            <p style={S.calloutLabel}>E a zona que ainda não abriu nenhuma urna?</p>
             <p>
               Ela não fica de fora da conta: assumimos, provisoriamente, que vota na mesma proporção
               já observada nas zonas apuradas do próprio estado, e usamos o número de eleitores
@@ -126,8 +396,8 @@ export default function SobreOModeloPage() {
             </p>
           </div>
 
-          <div className={styles.callout}>
-            <p className={styles.calloutLabel}>Por que zona, e não município</p>
+          <div style={S.callout}>
+            <p style={S.calloutLabel}>Por que zona, e não município</p>
             <p>
               A zona eleitoral é a menor unidade na qual o TSE divulga resultados detalhados durante
               a apuração dentro da janela de tempo em que conseguimos coletar tudo a cada ciclo.
@@ -139,41 +409,41 @@ export default function SobreOModeloPage() {
         </section>
 
         {/* 3. Intervalo de confiança */}
-        <section className={styles.section} aria-labelledby="sec-ci">
-          <p className={styles.sectionLabel}>3 · Incerteza</p>
-          <h2 id="sec-ci" className={styles.h2}>
+        <section style={S.section} aria-labelledby="sec-ci">
+          <p style={S.sectionLabel}>3 · Incerteza</p>
+          <h2 id="sec-ci" style={S.h2}>
             Quanto a gente <em>não</em> sabe: o bootstrap
           </h2>
-          <p className={styles.body}>
+          <p style={S.body}>
             Uma projeção sem barra de erro engana. Para estimar a incerteza, o modelo usa{" "}
             <strong>bootstrap não-paramétrico</strong> com mil reamostragens: a cada simulação,
             sorteamos com reposição um novo conjunto de zonas apuradas do tamanho original,
             recalculamos a projeção, e guardamos o resultado.
           </p>
-          <p className={styles.body}>
+          <p style={S.body}>
             Ao final das mil rodadas, temos uma distribuição de projeções possíveis. O intervalo
             entre o percentil 2,5 e o percentil 97,5 dessa distribuição é o nosso{" "}
             <strong>intervalo de confiança de 95%</strong> — a faixa onde o resultado final tem 95%
             de chance de cair, condicional ao que já foi apurado.
           </p>
-          <p className={styles.body}>
+          <p style={S.body}>
             Um detalhe que importa: em cada estado, o sorteio de zonas é <strong>o mesmo</strong>{" "}
             para todos os candidatos. Numa simulação em que sai um conjunto de zonas favorável a um
             candidato, o adversário perde na mesma simulação — as estimativas são comparáveis par a
             par, e é isso que torna honesta a probabilidade de vitória da seção seguinte.
           </p>
 
-          <figure className={styles.figure} aria-labelledby="fig-ci-cap">
+          <figure style={S.figure} aria-labelledby="fig-ci-cap">
             <ConfidenceBandIllustration />
-            <figcaption id="fig-ci-cap" className={styles.figcaption}>
+            <figcaption id="fig-ci-cap" style={S.figcaption}>
               <strong>A banda se estreita com a apuração.</strong> Logo no início (lado esquerdo),
               poucas zonas apuradas produzem uma faixa larga. Conforme novas zonas entram, a
               estimativa central converge e o intervalo de confiança aperta em torno dela.
             </figcaption>
           </figure>
 
-          <div className={styles.callout}>
-            <p className={styles.calloutLabel}>Por que bootstrap em vez de bayesiano</p>
+          <div style={S.callout}>
+            <p style={S.calloutLabel}>Por que bootstrap em vez de bayesiano</p>
             <p>
               Bootstrap é determinístico (com seed fixa), reproduzível, e não exige especificar uma
               distribuição a priori. Para uma operação ao vivo onde cada execução precisa ser
@@ -192,112 +462,108 @@ export default function SobreOModeloPage() {
         </section>
 
         {/* 4. Agulha */}
-        <section className={styles.section} aria-labelledby="sec-agulha">
-          <p className={styles.sectionLabel}>4 · Agulha</p>
-          <h2 id="sec-agulha" className={styles.h2}>
+        <section style={S.section} aria-labelledby="sec-agulha">
+          <p style={S.sectionLabel}>4 · Agulha</p>
+          <h2 id="sec-agulha" style={S.h2}>
             Da projeção à probabilidade: a agulha
           </h2>
-          <p className={styles.body}>
+          <p style={S.body}>
             Com a distribuição bootstrap dos dois principais candidatos em mãos, calculamos a{" "}
             <strong>probabilidade de vitória</strong> como a fração das mil simulações em que o
             candidato A terminou à frente do candidato B. Essa probabilidade é o que a agulha
             aponta.
           </p>
 
-          <figure className={styles.figure} aria-labelledby="fig-needle-cap">
+          <figure style={S.figure} aria-labelledby="fig-needle-cap">
             <NeedleIllustration />
-            <figcaption id="fig-needle-cap" className={styles.figcaption}>
+            <figcaption id="fig-needle-cap" style={S.figcaption}>
               <strong>A agulha viva.</strong> No exemplo (fictício), o Candidato A tem
               aproximadamente 72% de chance de vencer. A posição da agulha sai do bootstrap; a cor
               da banda diz <em>quão decidida</em> a corrida está.
             </figcaption>
           </figure>
 
-          <h3 className={styles.h3}>As quatro bandas</h3>
-          <p className={styles.body}>
+          <h3 style={S.h3}>As quatro bandas</h3>
+          <p style={S.body}>
             Nem toda chance de 60% significa a mesma coisa. Dividimos o intervalo de probabilidade
             em quatro faixas, com cores neutras calibradas para acessibilidade (não são cores
             partidárias oficiais):
           </p>
 
-          <table className={styles.bandTable}>
+          <table style={S.bandTable}>
             <thead>
               <tr>
-                <th scope="col">Banda</th>
-                <th scope="col">Faixa</th>
-                <th scope="col">Leitura</th>
+                <BandTh>Banda</BandTh>
+                <BandTh>Faixa</BandTh>
+                <BandTh>Leitura</BandTh>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td>
+                <BandTd>
                   <span
-                    className={styles.bandSwatch}
-                    style={{ background: "var(--color-tossup)" }}
+                    style={{ ...S.bandSwatch, background: "var(--color-tossup)" }}
                     aria-hidden="true"
                   />
                   Tossup
-                </td>
-                <td className={styles.bandRange}>40 – 60%</td>
-                <td>Empate técnico. A corrida pode virar para qualquer lado.</td>
+                </BandTd>
+                <BandTd style={S.bandRange}>40 – 60%</BandTd>
+                <BandTd>Empate técnico. A corrida pode virar para qualquer lado.</BandTd>
               </tr>
               <tr>
-                <td>
+                <BandTd>
                   <span
-                    className={styles.bandSwatch}
                     // FIX 2026-09-05 (a11y-perf-auditor): usava --color-pl-band, token de
                     // banda partidária (e, ademais, invertido — ver app/globals.css:22-23).
                     // Lean/Likely são intensidades de confiança simétricas (valem pro lado A
                     // ou B), não uma cor de partido — migrado para o token neutro dedicado.
-                    style={{ background: "var(--color-band-lean)" }}
+                    style={{ ...S.bandSwatch, background: "var(--color-band-lean)" }}
                     aria-hidden="true"
                   />
                   Lean
-                </td>
-                <td className={styles.bandRange}>60 – 75%</td>
-                <td>Inclinação clara, mas o resultado oposto ainda é plausível.</td>
+                </BandTd>
+                <BandTd style={S.bandRange}>60 – 75%</BandTd>
+                <BandTd>Inclinação clara, mas o resultado oposto ainda é plausível.</BandTd>
               </tr>
               <tr>
-                <td>
+                <BandTd>
                   <span
-                    className={styles.bandSwatch}
                     // FIX 2026-09-05 (a11y-perf-auditor): mesmo motivo do swatch Lean acima.
-                    style={{ background: "var(--color-band-likely)" }}
+                    style={{ ...S.bandSwatch, background: "var(--color-band-likely)" }}
                     aria-hidden="true"
                   />
                   Likely
-                </td>
-                <td className={styles.bandRange}>75 – 95%</td>
-                <td>Vitória provável; surpresa exigiria evento atípico.</td>
+                </BandTd>
+                <BandTd style={S.bandRange}>75 – 95%</BandTd>
+                <BandTd>Vitória provável; surpresa exigiria evento atípico.</BandTd>
               </tr>
               <tr>
-                <td>
+                <BandTd>
                   <span
-                    className={styles.bandSwatch}
-                    style={{ background: "var(--color-text)" }}
+                    style={{ ...S.bandSwatch, background: "var(--color-text)" }}
                     aria-hidden="true"
                   />
                   Very&nbsp;likely
-                </td>
-                <td className={styles.bandRange}>&gt; 95%</td>
-                <td>Resultado essencialmente decidido pelo que já foi apurado.</td>
+                </BandTd>
+                <BandTd style={S.bandRange}>&gt; 95%</BandTd>
+                <BandTd>Resultado essencialmente decidido pelo que já foi apurado.</BandTd>
               </tr>
             </tbody>
           </table>
         </section>
 
         {/* 5. Limitações */}
-        <section className={styles.section} aria-labelledby="sec-limits">
-          <p className={styles.sectionLabel}>5 · Limitações</p>
-          <h2 id="sec-limits" className={styles.h2}>
+        <section style={S.section} aria-labelledby="sec-limits">
+          <p style={S.sectionLabel}>5 · Limitações</p>
+          <h2 id="sec-limits" style={S.h2}>
             O que o modelo <em>não</em> faz bem
           </h2>
-          <p className={styles.body}>Toda projeção tem ângulos cegos. Os nossos são explícitos:</p>
+          <p style={S.body}>Toda projeção tem ângulos cegos. Os nossos são explícitos:</p>
 
-          <div className={styles.limitations}>
-            <div className={styles.limitationItem}>
-              <span className={styles.limitationNumber}>01</span>
-              <div className={styles.limitationBody}>
+          <div style={S.limitations}>
+            <div style={S.limitationItemFirst}>
+              <span style={S.limitationNumber}>01</span>
+              <div style={S.limitationBody}>
                 <strong>As primeiras urnas de uma zona não representam a zona.</strong> Este é o
                 ponto cego central do método. A regra de três supõe que a parte já apurada de cada
                 zona se parece com a zona inteira — e no começo da noite isso costuma ser falso: as
@@ -311,9 +577,9 @@ export default function SobreOModeloPage() {
               </div>
             </div>
 
-            <div className={styles.limitationItem}>
-              <span className={styles.limitationNumber}>02</span>
-              <div className={styles.limitationBody}>
+            <div style={S.limitationItem}>
+              <span style={S.limitationNumber}>02</span>
+              <div style={S.limitationBody}>
                 <strong>UFs com menos de 5% apurado.</strong> Quando uma UF ainda mal começou a
                 apuração, a amostra de zonas é pequena demais para confiar. Nessa faixa, inflamos o
                 intervalo de confiança em 50% adicional como pedágio à incerteza extra. Em UFs sem
@@ -322,9 +588,9 @@ export default function SobreOModeloPage() {
               </div>
             </div>
 
-            <div className={styles.limitationItem}>
-              <span className={styles.limitationNumber}>03</span>
-              <div className={styles.limitationBody}>
+            <div style={S.limitationItem}>
+              <span style={S.limitationNumber}>03</span>
+              <div style={S.limitationBody}>
                 <strong>O modelo não tem opinião sobre o que ainda não votou.</strong> Ele não
                 incorpora pesquisas, histórico eleitoral, perfil socioeconômico da zona nem qualquer
                 ajuste editorial: só aritmética sobre o boletim oficial. Isso o torna auditável e
@@ -333,9 +599,9 @@ export default function SobreOModeloPage() {
               </div>
             </div>
 
-            <div className={styles.limitationItem}>
-              <span className={styles.limitationNumber}>04</span>
-              <div className={styles.limitationBody}>
+            <div style={S.limitationItem}>
+              <span style={S.limitationNumber}>04</span>
+              <div style={S.limitationBody}>
                 <strong>Voto branco, nulo e abstenção têm bases próprias.</strong> A parcela dos
                 candidatos é calculada sobre os <strong>votos a votáveis</strong> — que não são a
                 mesma coisa que "votos válidos" do vocabulário corrente. Brancos, nulos e abstenção
@@ -349,17 +615,17 @@ export default function SobreOModeloPage() {
         </section>
 
         {/* 6. Quem somos */}
-        <section className={styles.section} aria-labelledby="sec-team">
-          <p className={styles.sectionLabel}>6 · Quem somos</p>
-          <h2 id="sec-team" className={styles.h2}>
+        <section style={S.section} aria-labelledby="sec-team">
+          <p style={S.sectionLabel}>6 · Quem somos</p>
+          <h2 id="sec-team" style={S.h2}>
             O time por trás da SalaCofre
           </h2>
-          <p className={styles.body}>
+          <p style={S.body}>
             A SalaCofre é um projeto independente de jornalismo de dados eleitorais. Os nomes da
             equipe, créditos editoriais e contato de redação serão publicados aqui antes do dia da
             eleição.
           </p>
-          <p className={styles.body}>
+          <p style={S.body}>
             Não temos vínculo partidário, não recebemos financiamento de campanhas, e o código que
             produz a projeção é open source — todo o histórico de snapshots fica disponível para
             auditoria após o pleito.
@@ -367,15 +633,15 @@ export default function SobreOModeloPage() {
         </section>
 
         {/* 7. Fontes */}
-        <section className={styles.section} aria-labelledby="sec-fontes">
-          <p className={styles.sectionLabel}>7 · Fontes</p>
-          <h2 id="sec-fontes" className={styles.h2}>
+        <section style={S.section} aria-labelledby="sec-fontes">
+          <p style={S.sectionLabel}>7 · Fontes</p>
+          <h2 id="sec-fontes" style={S.h2}>
             De onde vêm os dados
           </h2>
-          <ul className={styles.sourceList}>
-            <li>
-              <strong>Resultados eleitorais</strong>
-              <span>
+          <ul style={S.sourceList}>
+            <li style={S.sourceItemFirst}>
+              <strong style={S.sourceTitle}>Resultados eleitorais</strong>
+              <span style={S.sourceText}>
                 Tribunal Superior Eleitoral — divulgação oficial em{" "}
                 <a href="https://resultados.tse.jus.br" rel="noopener noreferrer" target="_blank">
                   resultados.tse.jus.br
@@ -384,9 +650,9 @@ export default function SobreOModeloPage() {
                 apuração, sob a resolução TSE vigente.
               </span>
             </li>
-            <li>
-              <strong>Histórico 2022</strong>
-              <span>
+            <li style={S.sourceItem}>
+              <strong style={S.sourceTitle}>Histórico 2022</strong>
+              <span style={S.sourceText}>
                 Resultados por zona eleitoral disponibilizados pelo TSE no{" "}
                 <a href="https://dadosabertos.tse.jus.br" rel="noopener noreferrer" target="_blank">
                   dadosabertos.tse.jus.br
@@ -395,9 +661,9 @@ export default function SobreOModeloPage() {
                 agora se afastou do de 2022. Não entram no cálculo da projeção.
               </span>
             </li>
-            <li>
-              <strong>Geometria, eleitorado e demografia</strong>
-              <span>
+            <li style={S.sourceItem}>
+              <strong style={S.sourceTitle}>Geometria, eleitorado e demografia</strong>
+              <span style={S.sourceText}>
                 IBGE — malha territorial de UFs e municípios, e estatísticas de eleitorado em{" "}
                 <a href="https://www.ibge.gov.br" rel="noopener noreferrer" target="_blank">
                   ibge.gov.br
@@ -409,7 +675,7 @@ export default function SobreOModeloPage() {
         </section>
 
         {/* 8. Disclaimer */}
-        <aside className={styles.disclaimer} aria-label="Aviso oficial">
+        <aside style={S.disclaimer} aria-label="Aviso oficial">
           <p>
             <strong>Não somos um órgão oficial.</strong> Esta projeção é uma estimativa estatística.
             O resultado oficial da eleição é divulgado pelo Tribunal Superior Eleitoral em{" "}
@@ -426,7 +692,7 @@ export default function SobreOModeloPage() {
             (achado MEDIUM do constitution-guard, 2026-09-05). Esta é a única
             página que não usa o <Footer /> compartilhado, porque ele linka para
             /sobre-o-modelo e aqui isso seria auto-referência. */}
-        <footer className={styles.footer}>
+        <footer style={S.footer}>
           Não oficial. Fonte:{" "}
           <a href="https://resultados.tse.jus.br" rel="noopener noreferrer" target="_blank">
             TSE
@@ -461,7 +727,7 @@ function ExtrapolationIllustration() {
 
   return (
     <svg
-      className={styles.svgFrame}
+      style={S.svgFrame}
       viewBox="0 0 600 230"
       role="img"
       aria-label="Uma zona eleitoral em que metade dos eleitores já está em seções instaladas. Os votos contados nessa metade são multiplicados pelo fator de escala k igual a 2, projetando o total da zona inteira e preservando a proporção de 55% para o candidato A e 45% para o candidato B."
@@ -657,7 +923,7 @@ function ConfidenceBandIllustration() {
 
   return (
     <svg
-      className={styles.svgFrame}
+      style={S.svgFrame}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
       aria-label="Banda de confiança decrescente ao longo da apuração: faixa larga no início afunilando para uma estimativa central de aproximadamente 53% ao final."
@@ -801,7 +1067,7 @@ function NeedleIllustration() {
 
   return (
     <svg
-      className={styles.svgFrame}
+      style={S.svgFrame}
       viewBox="0 0 400 220"
       role="img"
       aria-label="Agulha de probabilidade indicando aproximadamente 72% de chance de vitória para o Candidato A. Arco dividido em bandas: tossup ao centro, lean e likely nas laterais."

@@ -165,4 +165,40 @@ describe('<MunicipioTable mode="top-by-eleitorado" />', () => {
     expect(doc.body.textContent ?? "").toContain("Com eleitorado");
     expect(doc.body.textContent ?? "").not.toContain("Sem eleitorado");
   });
+
+  /**
+   * Regressão medida em 2026-09-08: nenhum consumidor real deste modo passa
+   * `eleitorado` — `EdgeUfMunicipio` não publica o campo, e os adaptadores
+   * `toMunicipioRows` das duas páginas de UF não o emitem. O filtro por
+   * `eleitorado != null` zerava a lista e a tabela saía só com cabeçalho e
+   * "(0)". Enquanto o payload não tiver o dado, o modo declara a ausência.
+   */
+  it("(i) sem nenhum eleitorado, declara a ausência em vez de tabela vazia", () => {
+    const rows: MunicipioRow[] = [
+      {
+        cod_ibge: "3550308",
+        nome: "São Paulo",
+        lider: 13,
+        liderCor: "var(--color-cand-1)",
+        liderNome: "Lula",
+        margemPp: 8.2,
+        pctApurado: 100,
+        votosReportados: 4_213_847,
+        // `eleitorado` ausente — exatamente o que as páginas de UF montam hoje.
+      },
+    ];
+    const doc = parse(<MunicipioTable rows={rows} mode="top-by-eleitorado" />);
+
+    // Nenhuma tabela com cabeçalho e corpo vazio.
+    expect(doc.querySelector('[data-testid="municipios-top-table"]')).toBeNull();
+    expect(doc.querySelectorAll("tbody tr").length).toBe(0);
+
+    // O leitor recebe o motivo, não um silêncio.
+    const vazio = doc.querySelector('[data-testid="municipios-top-empty"]');
+    expect(vazio).not.toBeNull();
+    expect(vazio?.textContent ?? "").toContain("não é publicado no payload");
+
+    // O título continua sendo o mesmo landmark rotulado (a11y — RNF-023).
+    expect(doc.querySelector("h3")?.id).toBe("municipios-top-heading");
+  });
 });

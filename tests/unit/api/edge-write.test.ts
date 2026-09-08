@@ -156,6 +156,38 @@ describe("POST /api/_internal/edge-write — body validation", () => {
     expect(writeProjection).not.toHaveBeenCalled();
   });
 
+  it("retorna 400 quando uma sigla de por_uf não formaria chave válida", async () => {
+    // A sigla é o único componente do nome de chave do Global Config que vem
+    // de fora do código — ela entra literalmente em
+    // `projection-uf-<SIGLA>-<cargo>-t<turno>`. Barrar aqui, na borda, com um
+    // 400 explicativo, é melhor que estourar lá dentro do `writeProjection`
+    // como falha parcial de gravação no meio da apuração.
+    for (const badSigla of ["SP:1", "S", "SPX", "", "sp/rj"]) {
+      const body = validBody();
+      body.payload.por_uf = [{ sigla: badSigla }];
+      const req = makeRequest(body, { "x-model-secret": "test-secret-xyz" });
+
+      const res = await POST(req);
+
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as { error: string; detail: unknown };
+      expect(json.error).toBe("invalid_body");
+      expect(JSON.stringify(json.detail)).toContain("A-Za-z0-9_-");
+      expect(writeProjection).not.toHaveBeenCalled();
+    }
+  });
+
+  it("aceita sigla de 2 letras — o caso normal segue passando", async () => {
+    vi.mocked(writeProjection).mockResolvedValueOnce(undefined);
+    const body = validBody();
+    body.payload.por_uf = [{ sigla: "SP" }, { sigla: "DF" }];
+
+    const res = await POST(makeRequest(body, { "x-model-secret": "test-secret-xyz" }));
+
+    expect(res.status).toBe(200);
+    expect(writeProjection).toHaveBeenCalledOnce();
+  });
+
   it("retorna 400 quando body não é JSON válido", async () => {
     // Construímos um NextRequest com body que não parseia.
     const req = new NextRequest("http://localhost/api/_internal/edge-write", {
@@ -196,7 +228,7 @@ describe("POST /api/_internal/edge-write — happy path", () => {
 describe("POST /api/_internal/edge-write — failure mapping", () => {
   it("retorna 500 com mensagem quando writeProjection lança", async () => {
     vi.mocked(writeProjection).mockRejectedValueOnce(
-      new Error("writeProjection: 1/3 chave(s) falharam — projection:uf:SP: http 500"),
+      new Error("writeProjection: 1/3 chave(s) falharam — projection-uf-SP: http 500"),
     );
 
     const req = makeRequest(validBody(), { "x-model-secret": "test-secret-xyz" });
@@ -206,6 +238,6 @@ describe("POST /api/_internal/edge-write — failure mapping", () => {
     expect(res.status).toBe(500);
     const json = (await res.json()) as { error: string; detail: string };
     expect(json.error).toBe("edge_write_failed");
-    expect(json.detail).toContain("projection:uf:SP");
+    expect(json.detail).toContain("projection-uf-SP");
   });
 });

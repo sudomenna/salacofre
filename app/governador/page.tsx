@@ -44,11 +44,30 @@
  *     valor a caminho — só explica que o agregado é a soma de 27 corridas e
  *     que ele passa a existir na primeira zona apurada em qualquer estado.
  *
+ * ===== S07/Bloco 2 — mapa primeiro (ADR-0029) =====
+ * A mesma recomposição da home, adaptada ao que esta página é: uma grade de
+ * 27 corridas, não uma corrida. **Nenhum bloco saiu.**
+ *
+ *   1. O `<HexCartogramBrasil>` — o "mapa" desta rota — sobe para PRIMEIRO
+ *      conteúdo, logo abaixo do ticker (ADR-0029 § 1).
+ *   2. O `<RaceHeader>` com `<h1>` grande saiu da primeira dobra: o `<h1>`
+ *      "Governadores 2026" virou o título do painel de resultado, na escala
+ *      de qualquer outra seção (ADR-0029 § 5), com `<TrilhaKicker>` acima.
+ *      Ele NÃO alterna "Parcial / Projeção" como nas rotas de corrida única:
+ *      27 disputas não têm um resultado só para nomear.
+ *   3. Cada seção virou um `<Panel>` com filete e kicker (ADR-0025).
+ *   4. Os filtros de status passaram de 28px de alvo de toque para
+ *      `--tap-min` (44px), o mínimo que o design system fixou. Continuam
+ *      sendo links GET — a página segue RSC pura.
+ *
  * ISR: cadência de 60s (ADR-0011) — `revalidate = 60`.
  */
 
 import type { Metadata } from "next";
 
+import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
+import { TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
+import { Panel } from "@/components/atoms/surfaces/Panel";
 import { BreakingNewsTicker } from "@/components/blocks/BreakingNewsTicker";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { GovernorCard } from "@/components/blocks/GovernorCard";
@@ -56,7 +75,6 @@ import { HexCartogramBrasil } from "@/components/blocks/HexCartogramBrasil";
 import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
 import { RaceStatsCards } from "@/components/blocks/RaceStatsCards";
 import { Footer } from "@/components/layout/Footer";
-import { RaceHeader } from "@/components/layout/RaceHeader";
 import { readProjection } from "@/lib/edge-config/reader";
 import type { EdgePayload, EdgeUfRow } from "@/lib/edge-config/types";
 import govFixture from "@/tests/fixtures/edge-config/gov-current.json" with { type: "json" };
@@ -189,130 +207,192 @@ export default async function GovernadorGridPage({ searchParams }: PageProps) {
   return (
     <main
       data-trilha="gov"
-      className="mx-auto flex max-w-page flex-col gap-6 px-4 py-6 md:px-6 md:py-10"
+      className="mx-auto flex max-w-page flex-col px-4 py-6 md:px-6 md:py-10"
+      style={{ gap: "var(--space-8)" }}
     >
-      {/* Breaking news no topo — só renderiza se há chamadas */}
+      {/* Breaking news no topo — faixa fina entre o shell e o mapa
+          (ADR-0029 § 1). Só renderiza se há chamadas. */}
       {chamadas_recentes.length > 0 && <BreakingNewsTicker chamadas={chamadas_recentes} />}
 
-      <RaceHeader
-        trilha="gov"
-        crumbs={["Brasil (27 UFs)"]}
-        titulo="Governadores 2026"
-        subtitulo="27 corridas estaduais — apuração em tempo real. Não oficial. Fonte: TSE."
-        liveActive={pct_apurado_total > 0}
-      />
-
-      {/* Participação nacional agregada (ADR-0018 + ADR-0022, emendado em
-          06/09). O bloco NUNCA sai do DOM: com dado, é o termômetro normal;
-          sem dado, é o parágrafo explicativo abaixo, com o mesmo <h2> na
-          mesma posição. Não usamos "aguardando projeção" aqui porque não
-          existe uma corrida nacional de governador a ser aguardada — existem
-          27 corridas —, mas explicar por que o número ainda não existe é
-          honesto e mantém o bloco anunciável por leitor de tela. */}
-      {national.participacao ? (
-        <ProjectionThermometers
-          variant="participacao-only"
-          participacao={national.participacao}
-          candidatos={national.candidatos}
-          heading={PARTICIPACAO_HEADING}
-        />
-      ) : (
-        <section
-          aria-labelledby="participacao-nacional-heading"
-          data-testid="participacao-nacional-indisponivel"
-          className="flex flex-col gap-2"
-        >
-          <h2
-            id="participacao-nacional-heading"
-            className="text-xl md:text-2xl"
-            style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
+      {/* Seção 1 — o MAPA desta rota é o cartograma hexagonal. Primeiro
+          conteúdo da página (ADR-0029 § 1); `rule="none"` para a página não
+          abrir com cromo. O `<h2>` continua existindo, na escala de kicker. */}
+      <Panel rule="none">
+        {por_uf.length > 0 ? (
+          <section
+            aria-labelledby="hex-cartogram-heading"
+            className="flex flex-col"
+            style={{ gap: "var(--space-2)" }}
           >
-            {PARTICIPACAO_HEADING}
-          </h2>
-          <p className="max-w-prose text-sm" style={{ color: "var(--color-text-muted)" }}>
-            Não existe uma corrida nacional de governador — são 27 disputas estaduais independentes,
-            uma em cada estado e no Distrito Federal. A participação do eleitorado desta página
-            (abstenção, votos brancos e nulos) é a soma dessas 27 corridas.
+            <h2
+              id="hex-cartogram-heading"
+              style={{
+                margin: 0,
+                font: "var(--type-kicker)",
+                letterSpacing: "var(--tracking-caps)",
+                textTransform: "uppercase",
+                color: "var(--text-secondary)",
+              }}
+            >
+              Mapa hexagonal — visão por líder
+            </h2>
+            <HexCartogramBrasil rows={por_uf} candidatos={national.candidatos} />
+          </section>
+        ) : (
+          <p style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-muted)" }}>
+            Aguardando primeiros boletins do TSE para preencher o cartograma.
           </p>
-          <p className="max-w-prose text-sm" style={{ color: "var(--color-text-muted)" }}>
-            Esse número só passa a existir quando a primeira zona eleitoral for apurada em algum
-            estado: antes disso, não há voto contado em lugar nenhum para somar.
-          </p>
-        </section>
-      )}
+        )}
+      </Panel>
 
-      {/* Stats cards */}
-      <RaceStatsCards rows={por_uf} />
+      {/* ADR-0019 — kicker de trilha imediatamente acima do `<h1>`. */}
+      <TrilhaKicker trilha="gov" crumbs={["Brasil (27 UFs)"]} className="-mb-4" />
 
-      {/* Cartograma hex */}
-      {por_uf.length > 0 ? (
-        <section aria-labelledby="hex-cartogram-heading" className="flex flex-col gap-2">
-          <h2
-            id="hex-cartogram-heading"
-            className="text-lg"
-            style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
+      {/* Seção 2 — o placar das 27 corridas. O `<h1>` é o título deste painel
+          (ADR-0029 § 5) e não alterna Parcial/Projeção: não há um resultado
+          único a nomear. O kicker carrega o "não oficial" da constituição § 1. */}
+      <Panel
+        rule="none"
+        kicker="Projeção Atlas Menna · não oficial"
+        title="Governadores 2026"
+        titleId="resultado-heading"
+        headingLevel={1}
+        action={<TurnoBadge turno={payload.turno} />}
+      >
+        <div className="flex flex-col" style={{ gap: "var(--space-6)" }}>
+          <p
+            className="max-w-prose"
+            style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
           >
-            Mapa hexagonal — visão por líder
-          </h2>
-          <HexCartogramBrasil rows={por_uf} candidatos={national.candidatos} />
-        </section>
-      ) : (
-        <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-          Aguardando primeiros boletins do TSE para preencher o cartograma.
-        </p>
-      )}
-
-      {/* Filtros — server-side, links GET */}
-      <nav aria-label="Filtros por status">
-        <ul className="flex flex-wrap items-center gap-2 text-sm">
-          {FILTER_ORDER.map((f) => {
-            const active = status === f;
-            const href = f === "todas" ? "/governador" : `/governador?status=${f}`;
-            return (
-              <li key={f}>
-                <a
-                  href={href}
-                  aria-current={active ? "page" : undefined}
-                  className="rounded-md border px-3 py-1.5 transition-colors"
-                  style={{
-                    borderColor: "var(--color-border)",
-                    backgroundColor: active ? "var(--color-text)" : "transparent",
-                    color: active ? "var(--color-bg)" : "var(--color-text-muted)",
-                    fontWeight: active ? 600 : 400,
-                  }}
-                >
-                  {FILTER_LABELS[f]}
-                </a>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-
-      {/* Grid 27 cards — 3 cols sm, 4 cols xl */}
-      {ufsFiltradas.length > 0 ? (
-        <section aria-label="Corridas estaduais de governador" className="flex flex-col gap-3">
-          <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-            {ufsFiltradas.length} {ufsFiltradas.length === 1 ? "corrida" : "corridas"} —{" "}
-            {FILTER_LABELS[status].toLowerCase()}.
+            27 corridas estaduais — apuração em tempo real. Não oficial. Fonte: TSE.
           </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {ufsFiltradas.map((uf) => (
-              <GovernorCard key={uf.sigla} uf={uf} candidatos={national.candidatos} />
-            ))}
-          </div>
-        </section>
-      ) : (
-        <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-          Nenhuma UF se encaixa no filtro <strong>{FILTER_LABELS[status]}</strong> no momento.{" "}
-          <a href="/governador" className="underline">
-            Ver todas
-          </a>
-          .
-        </p>
-      )}
 
-      <ForecastTransparency pctApurado={pct_apurado_total} variant="national" />
+          {/* Participação nacional agregada (ADR-0018 + ADR-0022, emendado em
+              06/09). O bloco NUNCA sai do DOM: com dado, é o termômetro
+              normal; sem dado, é o parágrafo explicativo abaixo, com o mesmo
+              <h2> na mesma posição. Não usamos "aguardando projeção" aqui
+              porque não existe uma corrida nacional de governador a ser
+              aguardada — existem 27 corridas —, mas explicar por que o número
+              ainda não existe é honesto e mantém o bloco anunciável por leitor
+              de tela. */}
+          {national.participacao ? (
+            <ProjectionThermometers
+              variant="participacao-only"
+              participacao={national.participacao}
+              candidatos={national.candidatos}
+              heading={PARTICIPACAO_HEADING}
+            />
+          ) : (
+            <section
+              aria-labelledby="participacao-nacional-heading"
+              data-testid="participacao-nacional-indisponivel"
+              className="flex flex-col"
+              style={{ gap: "var(--space-2)" }}
+            >
+              <h2
+                id="participacao-nacional-heading"
+                style={{ margin: 0, font: "var(--type-title)", textWrap: "pretty" }}
+              >
+                {PARTICIPACAO_HEADING}
+              </h2>
+              <p
+                className="max-w-prose"
+                style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
+              >
+                Não existe uma corrida nacional de governador — são 27 disputas estaduais
+                independentes, uma em cada estado e no Distrito Federal. A participação do
+                eleitorado desta página (abstenção, votos brancos e nulos) é a soma dessas 27
+                corridas.
+              </p>
+              <p
+                className="max-w-prose"
+                style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
+              >
+                Esse número só passa a existir quando a primeira zona eleitoral for apurada em algum
+                estado: antes disso, não há voto contado em lugar nenhum para somar.
+              </p>
+            </section>
+          )}
+
+          {/* Stats cards — eleitos / vai a 2T / em apuração. */}
+          <RaceStatsCards rows={por_uf} />
+        </div>
+      </Panel>
+
+      {/* Seção 3 — as 27 corridas, com os filtros de status. */}
+      <Panel kicker="Corridas estaduais">
+        <div className="flex flex-col" style={{ gap: "var(--space-4)" }}>
+          {/* Filtros — server-side, links GET, RSC puro.
+              Alvo de toque `--tap-min` (44px): a versão anterior media 28px,
+              abaixo do mínimo que o design system fixou (WCAG 2.5.8 / kit
+              Atlas Menna). O ativo é tinta cheia sobre papel (`--surface-
+              inverse` × `--text-inverse`); o inativo é `--text-secondary`
+              sobre `--paper-1` (5,52:1) — nenhum dos dois depende de cor
+              sozinha, porque o ativo também carrega `aria-current="page"`. */}
+          <nav aria-label="Filtros por status">
+            <ul className="flex flex-wrap items-center" style={{ gap: "var(--space-2)" }}>
+              {FILTER_ORDER.map((f) => {
+                const active = status === f;
+                const href = f === "todas" ? "/governador" : `/governador?status=${f}`;
+                return (
+                  <li key={f}>
+                    <a
+                      href={href}
+                      aria-current={active ? "page" : undefined}
+                      data-testid="governador-filtro"
+                      data-active={active ? "true" : "false"}
+                      className="inline-flex items-center justify-center transition-colors"
+                      style={{
+                        minHeight: "var(--tap-min)",
+                        padding: "0 var(--space-4)",
+                        border: "1px solid",
+                        borderColor: active ? "var(--surface-inverse)" : "var(--border-hairline)",
+                        borderRadius: "var(--radius-pill)",
+                        backgroundColor: active ? "var(--surface-inverse)" : "transparent",
+                        color: active ? "var(--text-inverse)" : "var(--text-secondary)",
+                        font: "var(--type-body-sm)",
+                        fontWeight: active ? 600 : 400,
+                        textDecoration: "none",
+                      }}
+                    >
+                      {FILTER_LABELS[f]}
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+
+          {/* Grid 27 cards — 3 cols sm, 4 cols xl */}
+          {ufsFiltradas.length > 0 ? (
+            <section
+              aria-label="Corridas estaduais de governador"
+              className="flex flex-col"
+              style={{ gap: "var(--space-3)" }}
+            >
+              <p style={{ margin: 0, font: "var(--type-data)", color: "var(--text-muted)" }}>
+                {ufsFiltradas.length} {ufsFiltradas.length === 1 ? "corrida" : "corridas"} —{" "}
+                {FILTER_LABELS[status].toLowerCase()}.
+              </p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {ufsFiltradas.map((uf) => (
+                  <GovernorCard key={uf.sigla} uf={uf} candidatos={national.candidatos} />
+                ))}
+              </div>
+            </section>
+          ) : (
+            <p style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}>
+              Nenhuma UF se encaixa no filtro <strong>{FILTER_LABELS[status]}</strong> no momento.{" "}
+              <a href="/governador">Ver todas</a>.
+            </p>
+          )}
+        </div>
+      </Panel>
+
+      {/* Seção 4 — transparência metodológica. */}
+      <Panel kicker="Metodologia">
+        <ForecastTransparency pctApurado={pct_apurado_total} variant="national" />
+      </Panel>
 
       <Footer />
     </main>

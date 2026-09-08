@@ -12,11 +12,11 @@
  *
  * Server Component puro — sem state, sem efeitos, sem interatividade.
  * O caller (page.tsx em mode 2T) é responsável por buscar o payload via
- * `getEdge('projection:archive:pres:t1')` e passá-lo aqui.
+ * `getEdge('projection-archive-pres-t1')` e passá-lo aqui.
  *
  * Gate de renderização
  *   - `recap == null` → null. Cobre:
- *     a) Pré-D1 (chave `projection:archive:pres:t1` ainda não gravada).
+ *     a) Pré-D1 (chave `projection-archive-pres-t1` ainda não gravada).
  *     b) Erro do orchestrator no archive — recap silencioso é preferível
  *        a placeholder mentindo sobre o 1T.
  *
@@ -44,7 +44,7 @@ import { formatPercent } from "@/lib/utils/format";
 
 export interface TurnoOneRecapProps {
   /**
-   * Payload do 1T arquivado (chave `projection:archive:pres:t1` —
+   * Payload do 1T arquivado (chave `projection-archive-pres-t1` —
    * ADR-0012 + ADR-0016). `null` quando não disponível (pré-D1 ou erro
    * do orchestrator); componente retorna `null` em ambos os casos.
    */

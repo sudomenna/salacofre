@@ -16,20 +16,55 @@
  *   `HomeClientShell.tsx` é Client Component, mas o test `home-page.test.tsx`
  *   usa `renderToStaticMarkup` que chama `useRouter()` (só válido no App Router
  *   montado). Separar o impl em dynamic import garante que nenhum hook de
- *   navegação/browser escapa para o contexto SSR dos testes.
+ *   navegação/browser escapa para o contexto SSR dos testes. Este wrapper
+ *   ganhou `useState`/`useEffect` em 2026-09-08 (folha de UF, ver abaixo) —
+ *   nenhum dos dois é hook de navegação, `renderToStaticMarkup` continua
+ *   seguro (SSR nunca roda `useEffect`; `useState` só devolve o valor
+ *   inicial).
  *
  * A11y: lista textual paralela fica em <StateGroupedTable /> (irmão no shell).
+ *
+ * Folha de UF (2026-09-08, decisão do usuário): clique/toque numa UF do mapa
+ * não navega mais direto para `/uf/[sigla]` — abre `<StateResultSheet>`
+ * (scrim modal no mobile, cartão lateral não-modal no desktop, `Sheet.side`).
+ * O estado da UF selecionada mora AQUI, não em `_NationalChoroplethMapImpl.tsx`
+ * nem em `app/`: este wrapper já é client e já é carregado eager (fora do
+ * chunk lazy do MapLibre), então a folha soma ao orçamento de aplicação
+ * (RNF-007a, headroom grande hoje) em vez de inflar o chunk do mapa
+ * (RNF-007b, 285 KiB de 300 KiB — sem margem pra mais JS).
  */
 
 import dynamic from "next/dynamic";
-import type { CSSProperties } from "react";
+import { type CSSProperties, useEffect, useState } from "react";
 
 import type { MapView } from "@/components/atoms/controls/MapViewToggle";
 import { MapLegend } from "@/components/atoms/maps/MapLegend";
 import { MapSkeleton } from "@/components/atoms/maps/MapSkeleton";
+import { StateResultSheet } from "@/components/blocks/StateResultSheet";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import type { ViewMode } from "@/lib/state/view-mode";
 import { intensityForParty, type PartyIntensity } from "@/lib/utils/party-color";
+
+/**
+ * Breakpoint desktop do `Sheet` — mesmo valor de `ADR-0029` (mobile <960px).
+ * Sem hook compartilhado em `lib/utils/**` pra este propósito hoje (o mais
+ * próximo, `BreakingNewsTicker.tsx`, resolve `prefers-reduced-motion`, outra
+ * media query) — local e pequeno, como o padrão já usado em `UF_NAMES`
+ * (`GovernorCard.tsx`, `StateResultSheet.tsx`).
+ */
+const DESKTOP_QUERY = "(min-width: 960px)";
+
+function useIsDesktopSheet(): boolean {
+  const [desktop, setDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(DESKTOP_QUERY);
+    setDesktop(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setDesktop(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return desktop;
+}
 
 export interface NationalChoroplethMapProps {
   rows: EdgeUfRow[];
@@ -148,6 +183,10 @@ export function NationalChoroplethMap({
   className,
 }: NationalChoroplethMapProps) {
   const legend = buildPartyLegend(candidatos, view);
+  const [selectedSigla, setSelectedSigla] = useState<string | null>(null);
+  const isDesktop = useIsDesktopSheet();
+  const selectedRow = selectedSigla ? (rows.find((r) => r.sigla === selectedSigla) ?? null) : null;
+
   return (
     // biome-ignore lint/a11y/useSemanticElements: role=region + aria-label correto para div-container de mapa interativo
     <div
@@ -166,6 +205,7 @@ export function NationalChoroplethMap({
         candidatos={candidatos}
         viewMode={viewMode}
         height={height}
+        onSelectUf={setSelectedSigla}
       />
       {legend ? (
         <MapLegend
@@ -176,6 +216,13 @@ export function NationalChoroplethMap({
           className="mt-2"
         />
       ) : null}
+      <StateResultSheet
+        open={selectedSigla != null}
+        onClose={() => setSelectedSigla(null)}
+        row={selectedRow}
+        candidatos={candidatos ?? []}
+        side={isDesktop}
+      />
     </div>
   );
 }

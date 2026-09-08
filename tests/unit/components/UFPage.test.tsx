@@ -222,3 +222,146 @@ describe("UFPage SSR (S07/Fase 2 — ADR-0018 + ADR-0019)", () => {
     expect(doc.querySelector("#termometro-outros")?.textContent).toContain("IC indisponível");
   });
 });
+
+// ---------------------------------------------------------------------------
+// S07/Bloco 2 (ADR-0029) — "mapa primeiro" na rota de UF presidencial.
+//
+// O conteúdo não mudou; a ORDEM e o invólucro mudaram. Estes testes fixam a
+// nova ordem e as duas invariantes estruturais da página (`Footer` dentro do
+// `<main data-trilha>`; exatamente um `<h1>`).
+// ---------------------------------------------------------------------------
+describe("UFPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
+  const candidatos = [
+    makeCand(1, "Candidato A", 41),
+    makeCand(2, "Candidato B", 33),
+    makeCand(3, "Candidato C", 9),
+  ];
+
+  async function renderUF(): Promise<Document> {
+    readUfProjectionMock.mockResolvedValueOnce(
+      buildUfPayload({ turno: 1, candidatos, comParticipacao: true }),
+    );
+    return parse(await UFPage({ params: Promise.resolve({ sigla: "SP" }) }));
+  }
+
+  it("(f) o <Footer> continua DENTRO do <main data-trilha> desta página", async () => {
+    const doc = await renderUF();
+    const main = doc.querySelector("main[data-trilha]");
+    expect(main).not.toBeNull();
+    // O shell global (app/layout.tsx) não fornece nenhum dos dois.
+    const footer = main?.querySelector("footer");
+    expect(footer).not.toBeNull();
+    expect(footer?.textContent).toContain("Não oficial");
+    expect(doc.querySelectorAll("footer")).toHaveLength(1);
+  });
+
+  it("(g) exatamente um <h1>, dentro do painel de resultado, alternando parcial/projeção", async () => {
+    const doc = await renderUF();
+    const h1s = doc.querySelectorAll("h1");
+    expect(h1s).toHaveLength(1);
+    expect(h1s[0]?.getAttribute("id")).toBe("resultado-heading");
+    expect(h1s[0]?.textContent).toContain("SP — Resultado parcial");
+    expect(h1s[0]?.textContent).toContain("SP — Projeção Atlas Menna");
+    // O `<TrilhaKicker>` fica imediatamente acima do `<h1>` (ADR-0019).
+    const kicker = doc.querySelector("[data-trilha-kicker]");
+    const h1 = h1s[0];
+    expect(
+      kicker && h1 && kicker.compareDocumentPosition(h1) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("(h) o mapa é o primeiro conteúdo, antes do painel de resultado", async () => {
+    const doc = await renderUF();
+    const mapa = doc.querySelector('section[aria-labelledby="leader-map-heading"]');
+    const painel = doc.querySelector("#resultado-heading");
+    expect(mapa).not.toBeNull();
+    expect(painel).not.toBeNull();
+    expect(
+      mapa && painel && mapa.compareDocumentPosition(painel) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("(i) as linhas de candidato trazem parcial e projeção lado a lado (ADR-0029 § 7)", async () => {
+    const doc = await renderUF();
+    const linhas = doc.querySelectorAll('[data-testid="candidate-result-row"]');
+    expect(linhas).toHaveLength(candidatos.length);
+    // Nenhuma linha sai do DOM (ADR-0017): as duas bases sempre visíveis.
+    expect(linhas[0]?.querySelector('[data-view-cell="parcial"]')).not.toBeNull();
+    expect(linhas[0]?.querySelector('[data-view-cell="proj"]')).not.toBeNull();
+    // `pct_atual` do fixture é `pct - 1`; `pct_projetado` é `pct`.
+    expect(linhas[0]?.querySelector('[data-view-cell="parcial"]')?.textContent).toContain("40,0%");
+    expect(linhas[0]?.querySelector('[data-view-cell="proj"]')?.textContent).toContain("41,0%");
+  });
+
+  it("(j) o kicker da 1ª seção de dado carrega o rótulo 'não oficial' (constituição § 1)", async () => {
+    const doc = await renderUF();
+    const kickers = [...doc.querySelectorAll('[data-testid="panel-kicker"]')].map(
+      (k) => k.textContent,
+    );
+    expect(kickers).toContain("Projeção Atlas Menna · não oficial");
+  });
+
+  it("(k) nenhum <Panel> fica vazio (filete órfão)", async () => {
+    const doc = await renderUF();
+    const panels = [...doc.querySelectorAll('[data-testid="panel"]')];
+    expect(panels.length).toBeGreaterThanOrEqual(6);
+    for (const p of panels) {
+      expect((p.textContent ?? "").trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("(l) `<ChancesPanel>` consome a probabilidade do líder — o átomo tem consumidor", async () => {
+    const doc = await renderUF();
+    const painel = doc.querySelector('[data-testid="chances-panel-meters"]');
+    expect(painel).not.toBeNull();
+    const meter = painel?.querySelector('[role="meter"]');
+    // `needle_position` do fixture é 0.3 → p do líder = 0.65.
+    expect(meter?.getAttribute("aria-valuenow")).toBe("65");
+    expect(meter?.getAttribute("aria-label")).toBe("Candidato A vence em SP");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S07/Bloco 2 — a folha do município na rota presidencial.
+//
+// `renderToStaticMarkup` não executa eventos, então o que se pode fixar aqui é
+// o CONTRATO: o botão existe, tem alvo de toque de 44px e carrega o
+// `cod_ibge` que o handler devolve. A abertura em si é interação de browser.
+// ---------------------------------------------------------------------------
+describe("UFPage — folha do município (S07/Bloco 2)", () => {
+  function makeMunicipio(i: number) {
+    return {
+      cod_ibge: `35${String(i).padStart(5, "0")}`,
+      nome: `Município ${i + 1}`,
+      pct_apurado: 60 + i,
+      lider: { candidato_id: 1, partido: "P1", votos: 1000 + i, margem_pp: 5 },
+      votos_reportados: { 1: 1000 + i, 2: 800 },
+    };
+  }
+
+  async function renderComMunicipios(): Promise<Document> {
+    const payload = buildUfPayload({
+      turno: 1,
+      candidatos: [makeCand(1, "Candidato A", 41), makeCand(2, "Candidato B", 33)],
+      comParticipacao: true,
+    });
+    payload.municipios = [makeMunicipio(0), makeMunicipio(1), makeMunicipio(2)];
+    readUfProjectionMock.mockResolvedValueOnce(payload);
+    return parse(await UFPage({ params: Promise.resolve({ sigla: "SP" }) }));
+  }
+
+  it("(m) cada município da tabela é um botão de 44px que devolve o cod_ibge", async () => {
+    const doc = await renderComMunicipios();
+    const botoes = [...doc.querySelectorAll('[data-testid="municipio-open"]')];
+    expect(botoes.length).toBeGreaterThan(0);
+    expect(botoes[0]?.tagName.toLowerCase()).toBe("button");
+    expect(botoes[0]?.getAttribute("style")).toContain("min-height:var(--tap-min)");
+    expect(botoes.map((b) => b.getAttribute("data-cod"))).toContain("3500000");
+  });
+
+  it("(n) o sheet começa fechado — nada de diálogo no primeiro paint", async () => {
+    const doc = await renderComMunicipios();
+    expect(doc.querySelector('[data-testid="sheet"]')).toBeNull();
+    expect(doc.querySelector('[role="dialog"]')).toBeNull();
+  });
+});

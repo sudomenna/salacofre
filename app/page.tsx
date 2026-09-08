@@ -5,7 +5,7 @@
  * ADR-0017 — multi-candidato) + S07/Fase 2 (ADR-0018 hero de seis
  * termômetros em 1T, ADR-0019 identidade de trilha).
  *
- * Server Component — lê Edge Config (`projection:current`) server-side via
+ * Server Component — lê Global Config (`projection-current`) server-side via
  * `readNationalProjection()` (ADR-0001) e passa o payload como `fallbackData`
  * para o SWR client que mantém polling vivo (RF-027).
  *

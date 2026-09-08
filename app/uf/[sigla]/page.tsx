@@ -28,32 +28,58 @@
  * S07/Fase 2
  *   - Dispatch de modo idêntico ao da home: `binary` quando `turno === 2`
  *     ou há exatamente 2 candidatos; `multi-1t` caso contrário.
- *   - Em `multi-1t`, `<ProjectionThermometers />` (ADR-0018) abre a página,
- *     acima da lista de `<CandidateRow />` (o IC vem de `ci95`). Em binary
- *     nada muda.
+ *   - Em `multi-1t`, `<ProjectionThermometers />` (ADR-0018) abre a projeção,
+ *     acima da lista de candidatos (o IC vem de `ci95`).
  *   - Identidade da trilha presidencial: `<main data-trilha="pres">`,
- *     `<RaceHeader />` com kicker "PRESIDÊNCIA · Brasil › <UF>" e breadcrumb
- *     de profundidade real (ADR-0019).
+ *     kicker "PRESIDÊNCIA" e breadcrumb de profundidade real (ADR-0019).
+ *
+ * ===== S07/Bloco 2 — mapa primeiro (ADR-0029) =====
+ * Esta rota recebe a MESMA recomposição que a home. Como lá, a mudança é de
+ * ORDEM e de invólucro, não de conteúdo: **nenhum bloco RF-bound saiu**.
+ *
+ *   1. O coroplético de municípios (`UfLeaderMapLazy`, RF-034) sobe do meio da
+ *      página para PRIMEIRO conteúdo, com altura de hero (ADR-0029 § 1). O
+ *      `<UFBreadcrumb>` (RF-031) fica acima dele — é uma linha, e tirar a
+ *      orientação de "onde estou" do topo custaria mais do que ganha.
+ *   2. O `<RaceHeader>` com `<h1>` grande saiu da primeira dobra. O `<h1>`
+ *      continua único: virou o TÍTULO DO PAINEL de resultado, na escala de
+ *      qualquer outra seção (ADR-0029 § 5), com o `<TrilhaKicker>` acima e o
+ *      `<TurnoBadge>` ao lado. Ele alterna "Resultado parcial" / "Projeção
+ *      Atlas Menna" pelo controle do shell, por cascata (nenhum JS novo).
+ *   3. As linhas de candidato passaram de `<CandidateRow>` (avatar + votos +
+ *      um único percentual, o projetado) para `<CandidateResultRow>` —
+ *      parcial e projeção lado a lado, ADR-0029 § 7. O leitor passa a poder
+ *      conferir a coluna "parcial" contra o boletim do TSE (constituição § 8).
+ *   4. Cada seção virou um `<Panel>` com filete e kicker (ADR-0025).
+ *   5. Novo: `<ChancesPanel>` (primeiro consumidor do `<ProbabilityMeter>`) e
+ *      `<MunicipioExplorer>` — tocar num município abre a folha no `<Sheet>`.
+ *
+ * A rota é pré-renderizada estática (27 UFs × 2 trilhas): nada aqui pode ler
+ * `searchParams`, `cookies()` ou `headers()`.
  */
 
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-
+import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { NewsClippingPlaceholder } from "@/components/atoms/banners/NewsClippingPlaceholder";
 import { WinnerBanner } from "@/components/atoms/banners/WinnerBanner";
 import { ProbabilityOverTime } from "@/components/atoms/charts/ProbabilityOverTime";
 import { TimeSeriesChart } from "@/components/atoms/charts/TimeSeriesChart";
 import { TurnoutAreaChart } from "@/components/atoms/charts/TurnoutAreaChart";
+import { Figure } from "@/components/atoms/data/Figure";
+import { TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
 import { UFBreadcrumb } from "@/components/atoms/nav/UFBreadcrumb";
 import { Needle } from "@/components/atoms/needle/Needle";
-import { CandidateRow } from "@/components/atoms/tables/CandidateRow";
+import { Panel } from "@/components/atoms/surfaces/Panel";
+import { CandidateResultRow } from "@/components/atoms/tables/CandidateResultRow";
+import { ChancesPanel } from "@/components/blocks/ChancesPanel";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { InsightCard } from "@/components/blocks/InsightCard";
-import { type MunicipioRow, MunicipioTable } from "@/components/blocks/MunicipioTable";
+import { MunicipioExplorer } from "@/components/blocks/MunicipioExplorer";
+import type { MunicipioRow } from "@/components/blocks/MunicipioTable";
 import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
 import { UfLeaderMapLazy, UfMapDuoLazy, UfSwingArrowMapLazy } from "@/components/blocks/UfMapsLazy";
 import { Footer } from "@/components/layout/Footer";
-import { RaceHeader } from "@/components/layout/RaceHeader";
 import { readUfProjection } from "@/lib/edge-config/reader";
 import type {
   EdgePayload,
@@ -62,9 +88,28 @@ import type {
   EdgeUfMunicipio,
 } from "@/lib/edge-config/types";
 import { rankFromColorVar } from "@/lib/utils/cand-color";
+import { formatPercent, formatTimeHMS } from "@/lib/utils/format";
 import nationalFixture from "@/tests/fixtures/edge-config/projection-current.json" with {
   type: "json",
 };
+
+/** Altura do mapa hero (ADR-0029 § 1). `ChoroplethMapUF.height` é `number`. */
+const HERO_MAP_HEIGHT = 440;
+
+/**
+ * Título do painel de resultado — e o `<h1>` da página (ADR-0029 § 5).
+ * Os dois textos ficam no DOM; `data-view-only` (cascata em
+ * `app/globals.css`) revela o da base ativa e tira o outro da árvore de
+ * acessibilidade com `display: none`. Mesma mecânica da home.
+ */
+function ResultTitle({ sigla }: { sigla: string }) {
+  return (
+    <>
+      <span data-view-only="parcial">{sigla} — Resultado parcial</span>
+      <span data-view-only="proj">{sigla} — Projeção Atlas Menna</span>
+    </>
+  );
+}
 
 // Mapas isolados em `UfMapsLazy` (Client Component) que internamente faz
 // `next/dynamic({ ssr: false })`. Mantém ADR-0010 (chunk separado) mesmo
@@ -283,31 +328,58 @@ export default async function UFPage({ params }: UFPageProps) {
 
   const municipioRows = toMunicipioRows(payload.municipios, candidateColor, candidateShortName);
 
+  const choropleth = payload.municipios.map((m) => ({
+    cod_ibge: m.cod_ibge,
+    cor: candidateColor[m.lider.candidato_id] ?? "var(--color-tossup)",
+    pctApurado: m.pct_apurado,
+  }));
+
   return (
     <main
       data-trilha="pres"
-      className="mx-auto flex min-h-screen max-w-page flex-col gap-6 px-5 py-6"
+      className="mx-auto flex min-h-screen max-w-page flex-col px-4 py-6 md:px-6 md:py-10"
+      // Mesma medida da home: 32px é a maior distância entre seções; a
+      // separação editorial é feita pelo filete e pelo kicker do `<Panel>`.
+      style={{ gap: "var(--space-8)" }}
     >
-      <RaceHeader
-        trilha="pres"
-        // Sem crumbs no kicker: o `<UFBreadcrumb>` logo abaixo já mostra
-        // "Brasil › SP" com links reais e é a fonte de verdade do "onde estou"
-        // (RF-031). Repetir a trilha aqui produzia "PRESIDÊNCIA · Brasil › SP"
-        // sobre "Brasil › SP" — redundante na tela e no leitor de tela
-        // (achado 2 do a11y-perf-auditor, 2026-09-05). O kicker mantém só o
-        // rótulo da trilha, que é o que ele existe para comunicar (RF-063).
-        crumbs={[]}
-        titulo={`${sigla} — Apuração Presidencial 2026`}
-        liveActive={payload.pct_apurado > 0 && payload.pct_apurado < 100}
-        turno={payload.turno}
-        breadcrumb={
-          <UFBreadcrumb trilha="pres" items={[{ label: "Brasil", href: "/" }, { label: sigla }]} />
-        }
-      />
+      {/* RF-031 — "onde estou", com links reais. Fica acima do mapa: é uma
+          linha, e o mapa sem ela abriria a página sem nenhuma âncora de
+          navegação. O `<TrilhaKicker>` mais abaixo carrega só o rótulo da
+          trilha, sem repetir "Brasil › SP" (achado 2 do a11y-perf-auditor,
+          2026-09-05). */}
+      <UFBreadcrumb trilha="pres" items={[{ label: "Brasil", href: "/" }, { label: sigla }]} />
+
+      {/* Seção 1 — o MAPA (ADR-0029 § 1). `rule="none"` e título em escala de
+          kicker: abrir a página com filete duplo e cabeçalho editorial seria
+          abrir com cromo em vez de com o mapa, que é o ponto da recomposição.
+          RF-034. */}
+      <Panel rule="none">
+        <section
+          aria-labelledby="leader-map-heading"
+          className="flex flex-col"
+          style={{ gap: "var(--space-2)" }}
+        >
+          <h2
+            id="leader-map-heading"
+            style={{
+              margin: 0,
+              font: "var(--type-kicker)",
+              letterSpacing: "var(--tracking-caps)",
+              textTransform: "uppercase",
+              color: "var(--text-secondary)",
+            }}
+          >
+            {sigla} · quem lidera cada município
+          </h2>
+          <UfLeaderMapLazy ufSigla={sigla} choropleth={choropleth} height={HERO_MAP_HEIGHT} />
+        </section>
+      </Panel>
 
       {/* RF-032: Winner banner quando p_vitoria_lider >= 0.95.
           S06/F4d — em mode 2T (`payload.turno === 2`) o threshold continua
-          válido; a UF "chama" o vencedor estadual da disputa 2T. */}
+          válido; a UF "chama" o vencedor estadual da disputa 2T. Fora de
+          `<Panel>`: é uma faixa de estado que se auto-anula, e um Panel aqui
+          deixaria filete órfão quando ela não renderiza. */}
       {lider && pVitoriaLider >= 0.95 && (
         <WinnerBanner
           candidato={lider.nome}
@@ -318,186 +390,237 @@ export default async function UFPage({ params }: UFPageProps) {
         />
       )}
 
-      {/* Hero 1T — seis termômetros com o IC de `ci95` (ADR-0018). Em 2T
-          (mode binary) o layout segue como em S04/S06, sem este bloco. */}
-      {mode === "multi-1t" && (
-        <ProjectionThermometers
-          candidatos={sortedCandidatos}
-          participacao={payload.participacao}
-          heading={`Projeção do 1º turno em ${sigla}`}
+      {/* ADR-0019 — kicker de trilha imediatamente acima do `<h1>`, que agora
+          é o título do painel de resultado. `-mb-4` cola os dois: vale metade
+          do `gap` entre seções. */}
+      <TrilhaKicker trilha="pres" crumbs={[]} className="-mb-4" />
+
+      {/* Seção 2 — a projeção. O kicker carrega o rótulo "não oficial" exigido
+          pela constituição § 1 no topo da primeira seção de dado. `rule="none"`
+          porque o filete desta seção é o do `<TrilhaKicker>` acima. */}
+      <Panel
+        rule="none"
+        kicker="Projeção Atlas Menna · não oficial"
+        title={<ResultTitle sigla={sigla} />}
+        titleId="resultado-heading"
+        headingLevel={1}
+        action={<TurnoBadge turno={payload.turno} />}
+      >
+        <div className="flex flex-col" style={{ gap: "var(--space-6)" }}>
+          <div className="grid grid-cols-2" style={{ gap: "var(--space-6)" }}>
+            <Figure label="Apurado" value={formatPercent(payload.pct_apurado, 1)} size="md" />
+            <Figure label="Última atualização" value={formatTimeHMS(payload.ts)} size="md" />
+          </div>
+
+          {/* Hero 1T — seis termômetros com o IC de `ci95` (ADR-0018). Em 2T
+              (mode binary) a corrida é binária e este bloco sai. */}
+          {mode === "multi-1t" && (
+            <ProjectionThermometers
+              candidatos={sortedCandidatos}
+              participacao={payload.participacao}
+              heading={`Projeção do 1º turno em ${sigla}`}
+            />
+          )}
+
+          {/* RF-033 — linhas de candidato no formato do ADR-0029 § 7: parcial
+              (tinta) e projeção (ocre) lado a lado, com a seta do movimento.
+              Nenhuma linha sai do DOM (ADR-0017). */}
+          <section
+            aria-labelledby="candidates-heading"
+            className="flex flex-col"
+            style={{
+              gap: "var(--space-2)",
+              borderTop: "1px solid var(--border-hairline)",
+              paddingTop: "var(--space-4)",
+            }}
+          >
+            <h2
+              id="candidates-heading"
+              style={{
+                margin: 0,
+                font: "var(--type-kicker)",
+                letterSpacing: "var(--tracking-caps)",
+                textTransform: "uppercase",
+                color: "var(--text-secondary)",
+              }}
+            >
+              Candidatos
+            </h2>
+            <div>
+              {sortedCandidatos.map((c, i) => (
+                <CandidateResultRow
+                  key={c.id}
+                  rank={i + 1}
+                  nome={c.nome}
+                  partido={c.partido}
+                  cor={c.cor}
+                  pctAtual={c.pct_atual}
+                  pctProjetado={c.pct_projetado}
+                  votos={c.votos_atuais ?? null}
+                />
+              ))}
+            </div>
+          </section>
+        </div>
+      </Panel>
+
+      {/* Seção 3 — chances (ADR-0029, painel do kit). `EdgePayloadUf` não traz
+          `p_segundo_turno_overall` nem `p_fecha_1t`; o que existe é a
+          probabilidade do líder derivada de `needle_position`, a MESMA que
+          alimenta a agulha mais abaixo. Ver o cabeçalho de `ChancesPanel`. */}
+      {lider && (
+        <ChancesPanel
+          liderNome={lider.nome}
+          liderPVitoria={pVitoriaLider}
+          liderPctProjetado={lider.pct_projetado}
+          pctApurado={payload.pct_apurado}
+          escopo={sigla}
         />
       )}
 
-      {/* Grid superior: tabela de candidatos | coroplético de municípios */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <section aria-labelledby="candidates-heading" className="flex flex-col gap-1">
-          <h2
-            id="candidates-heading"
-            className="mb-1 text-lg"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
-            Candidatos
-          </h2>
-          {sortedCandidatos.map((c) => (
-            <CandidateRow
-              key={c.id}
-              nome={c.nome}
-              partido={c.partido}
-              cor={c.cor}
-              // S04/F2: exibe votos reportados reais (antes era sempre `null`
-              // → "—"). Quando o payload é synthesized (dev fallback) ou
-              // pré-apuração, votos_atuais = 0 e a coluna mostra "0".
-              votos={c.votos_atuais ?? null}
-              pct={c.pct_projetado}
-            />
-          ))}
-          <p className="mt-2 text-xs" style={{ color: "var(--color-text-muted)" }}>
-            {payload.pct_apurado.toFixed(1)}% apurado em {sigla}
-          </p>
-        </section>
-
-        <section aria-labelledby="leader-map-heading" className="flex flex-col gap-2">
-          <h2
-            id="leader-map-heading"
-            className="text-lg"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
-            Mapa de municípios
-          </h2>
-          <UfLeaderMapLazy
-            ufSigla={sigla}
-            choropleth={payload.municipios.map((m) => ({
-              cod_ibge: m.cod_ibge,
-              cor: candidateColor[m.lider.candidato_id] ?? "var(--color-tossup)",
-              pctApurado: m.pct_apurado,
-            }))}
-            height={320}
-          />
-        </section>
-      </div>
-
-      {/* RF-044: insight textual */}
-      {/*
-        EdgePayloadUf não traz `insights` ainda. Quando o orchestrator
-        evoluir, substituímos pelo campo correto. v1: card vazio = não
-        renderiza (InsightCard retorna null com frases=[]).
-      */}
+      {/* RF-044: insight textual. EdgePayloadUf ainda não traz `insights`; com
+          `frases=[]` o bloco retorna null — por isso fica fora de `<Panel>`,
+          que desenharia um filete de seção vazia. */}
       <InsightCard frases={[]} variant="uf" />
 
-      {/* RF-035 + RF-036: mapas duo */}
-      <UfMapDuoLazy
-        ufSigla={sigla}
-        bubbles={payload.municipios.map((m) => ({
-          cod_ibge: m.cod_ibge,
-          nome: m.nome,
-          centro: [0, 0] as [number, number],
-          votos: m.lider.votos,
-          lider: m.lider.candidato_id,
-          liderCor: candidateColor[m.lider.candidato_id] ?? "var(--color-tossup)",
-        }))}
-        choropleth={payload.municipios.map((m) => ({
-          cod_ibge: m.cod_ibge,
-          cor: candidateColor[m.lider.candidato_id] ?? "var(--color-tossup)",
-          pctApurado: m.pct_apurado,
-        }))}
-        height={320}
-      />
-
-      {/* RF-037: tabela virtualizada */}
-      <MunicipioTable rows={municipioRows} />
-
-      {/* RF-038: swing arrows (Should) */}
-      <section aria-labelledby="swing-heading" className="flex flex-col gap-2">
-        <h3 id="swing-heading" className="text-lg" style={{ fontFamily: "var(--font-serif)" }}>
-          Como os votos se comparam com 2022
-        </h3>
-        <UfSwingArrowMapLazy ufSigla={sigla} arrows={[]} height={320} />
-      </section>
-
-      {/* RF-039: agulha estadual + estimated margin */}
-      {lider && segundo && (
-        <section
-          aria-labelledby="state-needle-heading"
-          className="flex flex-col items-center gap-2"
-        >
-          <h3
-            id="state-needle-heading"
-            className="text-lg"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
-            Forecast ao vivo de {sigla}
-          </h3>
-          <Needle
-            needlePosition={payload.needle_position}
-            needleBand={payload.needle_band}
-            pVitoria={pVitoriaLider}
-            candidatoA={lider.nome}
-            candidatoB={segundo.nome}
-            variant="uf"
+      {/* Seção 4 — RF-037: municípios. Tocar num município abre a folha
+          (`<Sheet>`) com os números dele (S07/Bloco 2). */}
+      {municipioRows.length > 0 && (
+        <Panel kicker="Municípios">
+          <MunicipioExplorer
+            ufSigla={sigla}
+            municipios={payload.municipios}
+            rows={municipioRows}
+            candidatos={payload.candidatos}
           />
-          <p className="text-sm tabular-nums" style={{ color: "var(--color-text-muted)" }}>
-            Margem estimada: {lider.nome.split(" ")[0]} +
-            {(lider.pct_projetado - segundo.pct_projetado).toFixed(1)}pp (CI95{" "}
-            {lider.ci95.lower.toFixed(1)} – {lider.ci95.upper.toFixed(1)})
-          </p>
-        </section>
+        </Panel>
       )}
 
-      {/* RF-040, RF-041, RF-042: charts (Should).
-          S04/F2: payload agora inclui `series_temporais` (optional para
-          forward-compat). Quando vazio ou ausente, charts caem no
-          placeholder "Série insuficiente" — nunca quebram. */}
-      <section className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <div className="flex flex-col gap-2">
-          <h4
-            className="text-sm uppercase tracking-wide"
-            style={{ color: "var(--color-text-muted)" }}
-          >
-            Margem ao longo do tempo
-          </h4>
-          <TimeSeriesChart
-            points={(payload.series_temporais?.margem ?? []).map((pt) => ({
-              ts: pt.ts,
-              margemPp: pt.margem_pp,
-            }))}
-            liderNome={lider?.nome ?? "Líder"}
-            liderCor={lider?.cor ?? "var(--color-text)"}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <h4
-            className="text-sm uppercase tracking-wide"
-            style={{ color: "var(--color-text-muted)" }}
-          >
-            Probabilidade ao longo do tempo
-          </h4>
-          <ProbabilityOverTime
-            points={(payload.series_temporais?.p_vitoria ?? []).map((pt) => ({
-              ts: pt.ts,
-              pVitoria: pt.p,
-            }))}
-            liderNome={lider?.nome ?? "Líder"}
-            liderCor={lider?.cor ?? "var(--color-text)"}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <h4
-            className="text-sm uppercase tracking-wide"
-            style={{ color: "var(--color-text-muted)" }}
-          >
-            Turnout cumulativo
-          </h4>
-          <TurnoutAreaChart
-            points={(payload.series_temporais?.turnout ?? []).map((pt) => ({
-              ts: pt.ts,
-              pctApurado: pt.pct_apurado,
-            }))}
-          />
-        </div>
-      </section>
+      {/* Seção 5 — RF-035 + RF-036: mapas duo (bolhas + estimativa). */}
+      <Panel kicker="Volume e estimativa">
+        <UfMapDuoLazy
+          ufSigla={sigla}
+          bubbles={payload.municipios.map((m) => ({
+            cod_ibge: m.cod_ibge,
+            nome: m.nome,
+            centro: [0, 0] as [number, number],
+            votos: m.lider.votos,
+            lider: m.lider.candidato_id,
+            liderCor: candidateColor[m.lider.candidato_id] ?? "var(--color-tossup)",
+          }))}
+          choropleth={choropleth}
+          height={320}
+        />
+      </Panel>
 
-      {/* RF-043: forecast transparency */}
-      <ForecastTransparency pctApurado={payload.pct_apurado} variant="uf" />
+      {/* Seção 6 — RF-038: swing arrows (Should). */}
+      <Panel kicker="Comparação" title="Como os votos se comparam com 2022" titleId="swing-heading">
+        <UfSwingArrowMapLazy ufSigla={sigla} arrows={[]} height={320} />
+      </Panel>
+
+      {/* Seção 7 — RF-039: agulha estadual + margem estimada. */}
+      {lider && segundo && (
+        <Panel
+          kicker="Forecast"
+          title={`Forecast ao vivo de ${sigla}`}
+          titleId="state-needle-heading"
+        >
+          <div className="flex flex-col items-center" style={{ gap: "var(--space-2)" }}>
+            <Needle
+              needlePosition={payload.needle_position}
+              needleBand={payload.needle_band}
+              pVitoria={pVitoriaLider}
+              candidatoA={lider.nome}
+              candidatoB={segundo.nome}
+              variant="uf"
+            />
+            <p
+              className="tabular-nums"
+              style={{ font: "var(--type-body-sm)", color: "var(--text-muted)" }}
+            >
+              Margem estimada: {lider.nome.split(" ")[0]} +
+              {(lider.pct_projetado - segundo.pct_projetado).toFixed(1)}pp (CI95{" "}
+              {lider.ci95.lower.toFixed(1)} – {lider.ci95.upper.toFixed(1)})
+            </p>
+          </div>
+        </Panel>
+      )}
+
+      {/* Seção 8 — RF-040, RF-041, RF-042: charts (Should). Séries vazias caem
+          no placeholder "Série insuficiente" — nunca quebram. */}
+      <Panel kicker="Ao longo da noite">
+        <div
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+          style={{ gap: "var(--space-6)" }}
+        >
+          <div className="flex flex-col" style={{ gap: "var(--space-2)" }}>
+            <h3
+              style={{
+                margin: 0,
+                font: "var(--type-kicker)",
+                letterSpacing: "var(--tracking-caps)",
+                textTransform: "uppercase",
+                color: "var(--text-secondary)",
+              }}
+            >
+              Margem ao longo do tempo
+            </h3>
+            <TimeSeriesChart
+              points={(payload.series_temporais?.margem ?? []).map((pt) => ({
+                ts: pt.ts,
+                margemPp: pt.margem_pp,
+              }))}
+              liderNome={lider?.nome ?? "Líder"}
+              liderCor={lider?.cor ?? "var(--color-text)"}
+            />
+          </div>
+          <div className="flex flex-col" style={{ gap: "var(--space-2)" }}>
+            <h3
+              style={{
+                margin: 0,
+                font: "var(--type-kicker)",
+                letterSpacing: "var(--tracking-caps)",
+                textTransform: "uppercase",
+                color: "var(--text-secondary)",
+              }}
+            >
+              Probabilidade ao longo do tempo
+            </h3>
+            <ProbabilityOverTime
+              points={(payload.series_temporais?.p_vitoria ?? []).map((pt) => ({
+                ts: pt.ts,
+                pVitoria: pt.p,
+              }))}
+              liderNome={lider?.nome ?? "Líder"}
+              liderCor={lider?.cor ?? "var(--color-text)"}
+            />
+          </div>
+          <div className="flex flex-col" style={{ gap: "var(--space-2)" }}>
+            <h3
+              style={{
+                margin: 0,
+                font: "var(--type-kicker)",
+                letterSpacing: "var(--tracking-caps)",
+                textTransform: "uppercase",
+                color: "var(--text-secondary)",
+              }}
+            >
+              Turnout cumulativo
+            </h3>
+            <TurnoutAreaChart
+              points={(payload.series_temporais?.turnout ?? []).map((pt) => ({
+                ts: pt.ts,
+                pctApurado: pt.pct_apurado,
+              }))}
+            />
+          </div>
+        </div>
+      </Panel>
+
+      {/* Seção 9 — RF-043: forecast transparency. */}
+      <Panel kicker="Metodologia">
+        <ForecastTransparency pctApurado={payload.pct_apurado} variant="uf" />
+      </Panel>
 
       {/* Slot "Repercussão na imprensa" (decisão kickoff S04, sem RF formal) */}
       <NewsClippingPlaceholder />

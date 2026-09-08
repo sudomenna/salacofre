@@ -8,7 +8,8 @@
  * NUNCA importe diretamente — use o wrapper público.
  *
  * RF-030.1 (mapa hero), RF-030.2 (4 views via setFeatureState), RF-030.3
- * (hover tooltip + click → /uf/[sigla]), RF-030.4 (hachura flip — Skip).
+ * (hover tooltip + click → folha `<StateResultSheet>`, ver nota 2026-09-08
+ * abaixo), RF-030.4 (hachura flip — Skip).
  *
  * ADR-0003: PMTiles (ufs.pmtiles ~462KB).
  * ADR-0004: MapLibre GL.
@@ -27,11 +28,17 @@
  *     entidade (ver `lib/state/hover-store.ts`) mas nada aqui a alimentava
  *     ainda; nenhum consumidor existe hoje (grep confirmado), então isto é
  *     aditivo/forward-compat, não uma migração de contrato quebrado.
+ *
+ * 2026-09-08 (decisão do usuário): clique/toque numa UF NÃO navega mais
+ * direto para `/uf/[sigla]` — abre a `<StateResultSheet>` (folha, ver
+ * `NationalChoroplethMap.tsx`) via o callback `onSelectUf`. A navegação real
+ * para `/uf/[sigla]` agora vive só no botão "Ver detalhes do estado" dentro
+ * da folha (link `<a href>` de verdade, não `router.push`). `useRouter` saiu
+ * daqui — este arquivo não navega mais sozinho.
  */
 
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useRouter } from "next/navigation";
 import { Protocol } from "pmtiles";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -80,6 +87,13 @@ export interface NationalChoroplethMapImplProps {
   viewMode?: ViewMode;
   /** Número → px; string → qualquer comprimento CSS (ADR-0029 § 1). */
   height?: number | string;
+  /**
+   * Chamado no click/tap sobre uma UF (2026-09-08, decisão do usuário) — a
+   * folha (`<StateResultSheet>`) é responsabilidade do wrapper
+   * (`NationalChoroplethMap.tsx`), não deste arquivo. Este componente só
+   * reporta a sigla selecionada; nunca navega sozinho.
+   */
+  onSelectUf?: (sigla: string) => void;
 }
 
 interface TooltipState {
@@ -293,6 +307,7 @@ export function NationalChoroplethMapImpl({
   candidatos,
   viewMode = "proj",
   height = 420,
+  onSelectUf,
 }: NationalChoroplethMapImplProps) {
   // Backward-compat: caller pré-S05 só passa `candidatoAId`; sintetizamos um
   // rankByLider mínimo `{ [candidatoAId]: 1 }` pra manter o líder em
@@ -311,7 +326,6 @@ export function NationalChoroplethMapImpl({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
-  const router = useRouter();
 
   // Keep rows lookup fresh for tooltip without remounting map
   const rowsMapRef = useRef<Map<string, EdgeUfRow>>(new Map());
@@ -454,14 +468,16 @@ export function NationalChoroplethMapImpl({
       map.getCanvas().style.cursor = "";
     });
 
-    // Click: navigate to /uf/[sigla] (RF-030.3). Também emite pro
-    // hover-store (mesmo padrão de tap-to-select do ChoroplethMapUF.tsx) —
-    // em touch não há mousemove antes do tap.
+    // Click: abre a folha de resumo da UF (RF-030.3, decisão 2026-09-08 — ver
+    // docstring do topo do arquivo). Também emite pro hover-store (mesmo
+    // padrão de tap-to-select do ChoroplethMapUF.tsx) — em touch não há
+    // mousemove antes do tap. `onSelectUfRef` porque este efeito roda só na
+    // montagem (mesmo padrão de `routerRef` antes dele).
     map.on("click", "ufs-fill", (e) => {
       const sigla = e.features?.[0]?.properties?.SIGLA_UF as string | undefined;
       if (!sigla) return;
       useHoverStore.getState().setHovered({ type: "uf", sigla }, "map");
-      routerRef.current.push(`/uf/${sigla}`);
+      onSelectUfRef.current?.(sigla);
     });
 
     return () => {
@@ -470,11 +486,12 @@ export function NationalChoroplethMapImpl({
     };
   }, []);
 
-  // Stable ref to router.push to avoid re-mount on navigation change
-  const routerRef = useRef(router);
+  // Stable ref a onSelectUf pra não re-montar o mapa quando o callback muda
+  // de identidade (o pai passa uma closure inline).
+  const onSelectUfRef = useRef(onSelectUf);
   useEffect(() => {
-    routerRef.current = router;
-  }, [router]);
+    onSelectUfRef.current = onSelectUf;
+  }, [onSelectUf]);
 
   // Refs for view/rankByLider/candidatosById used in load handler
   const viewRef = useRef(view);

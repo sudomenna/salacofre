@@ -83,6 +83,60 @@ export interface MunicipioTableProps {
   mode?: "default" | "top-by-eleitorado";
   /** Quantos municípios mostrar em `mode="top-by-eleitorado"`. Default 15. */
   topN?: number;
+  /**
+   * S07/Bloco 2 — quando presente, o nome do município vira um `<button>` que
+   * devolve o `cod_ibge` ao caller (tipicamente `<MunicipioExplorer>`, que
+   * abre a folha do município no `<Sheet>`).
+   *
+   * Ausente, a tabela renderiza exatamente como em S04/S06 — texto puro, sem
+   * nenhum nó interativo a mais. As duas formas coexistem de propósito: nem
+   * toda superfície que mostra a tabela precisa da folha.
+   *
+   * O botão tem altura `--tap-min` (44px), e no modo virtualizado a altura de
+   * linha sobe de 40 para 44 quando `onSelect` existe — abaixo disso o alvo de
+   * toque ficaria menor que o mínimo que o design system fixou.
+   */
+  onSelect?: (codIbge: string) => void;
+}
+
+/**
+ * Célula de nome do município. Vira botão quando há `onSelect`; caso
+ * contrário mantém o `<span title>` de sempre.
+ */
+function NomeCell({
+  nome,
+  codIbge,
+  onSelect,
+}: {
+  nome: string;
+  codIbge: string;
+  onSelect?: (codIbge: string) => void;
+}) {
+  if (!onSelect) return <span title={nome}>{nome}</span>;
+  return (
+    <button
+      type="button"
+      data-testid="municipio-open"
+      data-cod={codIbge}
+      onClick={() => onSelect(codIbge)}
+      title={nome}
+      className="flex w-full items-center truncate text-left"
+      style={{
+        minHeight: "var(--tap-min)",
+        border: 0,
+        background: "transparent",
+        padding: 0,
+        color: "inherit",
+        font: "inherit",
+        cursor: "pointer",
+        textDecoration: "underline",
+        textDecorationColor: "var(--accent)",
+        textUnderlineOffset: 2,
+      }}
+    >
+      {nome}
+    </button>
+  );
 }
 
 function fmtVotos(v: number): string {
@@ -101,11 +155,50 @@ function fmtDelta(d: number | null | undefined): string {
   return `${sign}${r}pp`;
 }
 
-function TopByEleitoradoTable({ rows, topN }: { rows: MunicipioRow[]; topN: number }) {
+function TopByEleitoradoTable({
+  rows,
+  topN,
+  onSelect,
+}: {
+  rows: MunicipioRow[];
+  topN: number;
+  onSelect?: (codIbge: string) => void;
+}) {
   const top = [...rows]
     .filter((r) => r.eleitorado != null)
     .sort((a, b) => (b.eleitorado ?? 0) - (a.eleitorado ?? 0))
     .slice(0, topN);
+
+  // Nenhuma linha traz `eleitorado`. Hoje esse é o caso REAL em produção: o
+  // payload de UF (`EdgeUfMunicipio`) não publica eleitorado por município, e
+  // os dois adaptadores que montam estas linhas (`toMunicipioRows` em
+  // `app/uf/[sigla]/page.tsx` e em `app/uf/[sigla]/governador/page.tsx`) não
+  // têm de onde tirá-lo — o filtro acima descarta tudo e a tabela saía com
+  // cabeçalho, contagem "(0)" e `<tbody>` vazio, sem dizer ao leitor por quê.
+  //
+  // Enquanto o campo não existir, declaramos a ausência em texto em vez de
+  // desenhar uma tabela sem conteúdo (constituição § 8 — o leitor precisa
+  // saber que é dado indisponível, não "nenhum município"). Quando o payload
+  // passar a publicar o eleitorado municipal, este ramo deixa de ser
+  // alcançado sozinho, sem mudança no consumidor.
+  if (top.length === 0) {
+    return (
+      <section aria-labelledby="municipios-top-heading" data-testid="municipios-top-empty">
+        <h3
+          id="municipios-top-heading"
+          className="mb-2 text-lg"
+          style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
+        >
+          Maiores municípios por eleitorado
+        </h3>
+        <p style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-muted)" }}>
+          O eleitorado por município ainda não é publicado no payload desta corrida, então não há
+          como ordenar os maiores colégios eleitorais. Os municípios apurados continuam listados nos
+          outros blocos desta página.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section aria-labelledby="municipios-top-heading" data-testid="municipios-top-table">
@@ -161,7 +254,7 @@ function TopByEleitoradoTable({ rows, topN }: { rows: MunicipioRow[]; topN: numb
           {top.map((m) => (
             <tr key={m.cod_ibge} style={{ borderBottom: "1px solid var(--color-border)" }}>
               <td className="truncate px-3 py-2 text-sm" style={{ color: "var(--color-text)" }}>
-                <span title={m.nome}>{m.nome}</span>
+                <NomeCell nome={m.nome} codIbge={m.cod_ibge} onSelect={onSelect} />
               </td>
               <td
                 className="px-3 py-2 text-right text-sm tabular-nums"
@@ -192,9 +285,13 @@ function TopByEleitoradoTable({ rows, topN }: { rows: MunicipioRow[]; topN: numb
 function MunicipioTableDefault({
   rows,
   height = 480,
-  rowHeight = 40,
+  rowHeight: rowHeightProp,
   overscan = 6,
+  onSelect,
 }: Omit<MunicipioTableProps, "mode" | "topN">) {
+  // 44 quando a linha é clicável: o botão do nome tem `--tap-min` (44px) e
+  // uma linha de 40 o cortaria. Sem `onSelect`, segue 40 como em S04.
+  const rowHeight = rowHeightProp ?? (onSelect ? 44 : 40);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [clientHeight, setClientHeight] = useState(height);
@@ -301,7 +398,7 @@ function MunicipioTableDefault({
                   }}
                 >
                   <td className="truncate px-3 text-sm" style={{ color: "var(--color-text)" }}>
-                    <span title={m.nome}>{m.nome}</span>
+                    <NomeCell nome={m.nome} codIbge={m.cod_ibge} onSelect={onSelect} />
                   </td>
                   <td
                     className="px-3 text-right text-sm tabular-nums"
@@ -348,11 +445,18 @@ export function MunicipioTable({
   overscan,
   mode = "default",
   topN = 15,
+  onSelect,
 }: MunicipioTableProps) {
   if (mode === "top-by-eleitorado") {
-    return <TopByEleitoradoTable rows={rows} topN={topN} />;
+    return <TopByEleitoradoTable rows={rows} topN={topN} onSelect={onSelect} />;
   }
   return (
-    <MunicipioTableDefault rows={rows} height={height} rowHeight={rowHeight} overscan={overscan} />
+    <MunicipioTableDefault
+      rows={rows}
+      height={height}
+      rowHeight={rowHeight}
+      overscan={overscan}
+      onSelect={onSelect}
+    />
   );
 }

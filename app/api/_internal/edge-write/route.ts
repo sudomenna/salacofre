@@ -46,6 +46,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { GLOBAL_CONFIG_KEY_PATTERN } from "@/lib/edge-config/keys";
 import { writeProjection } from "@/lib/edge-config/writer";
 import { logError, logInfo } from "@/lib/tse/log";
 
@@ -79,7 +80,32 @@ export const maxDuration = 30;
  * O custo de uma falha downstream é uma resposta 500 com mensagem clara,
  * não um payload corrompido em produção (porque o Edge Config valida tamanho
  * e a Vercel API rejeita JSON inválido).
+ *
+ * **Exceção deliberada a esse minimalismo: `por_uf[].sigla`.** Cada entrada
+ * de `por_uf` vira DUAS chaves do Global Config
+ * (`projection-uf-<SIGLA>-<cargo>-t<turno>` e o alias `projection-uf-<SIGLA>`,
+ * ver `lib/edge-config/keys.ts`). A sigla é o ÚNICO componente das nossas
+ * chaves que não é literal de código — é o caminho por onde uma chave fora do
+ * padrão documentado `^[A-Za-z0-9_-]+$` entraria no store vinda de fora. Por
+ * isso ela é validada aqui, na borda, com erro 400 explicativo, em vez de
+ * estourar lá dentro do `writeProjection` como falha parcial de gravação no
+ * meio da apuração.
  */
+const SIGLA_UF_PATTERN = /^[A-Za-z]{2}$/;
+
+const porUfRowSchema = z
+  .object({
+    sigla: z
+      .string()
+      .regex(
+        SIGLA_UF_PATTERN,
+        `sigla de UF deve ter exatamente 2 letras — ela entra literalmente no nome da chave ` +
+          `do Global Config, que precisa casar com ${GLOBAL_CONFIG_KEY_PATTERN.source} ` +
+          `(doc Vercel /docs/global-config/global-config-limits § "Maximum item key name length")`,
+      ),
+  })
+  .passthrough();
+
 const bodySchema = z.object({
   payload: z
     .object({
@@ -93,7 +119,7 @@ const bodySchema = z.object({
         needle_position: z.number(),
         needle_band: z.string(),
       }),
-      por_uf: z.array(z.unknown()),
+      por_uf: z.array(porUfRowSchema),
       insights: z.array(z.string()),
       composition: z.object({
         pre_election: z.number(),
@@ -104,8 +130,11 @@ const bodySchema = z.object({
     .passthrough(), // permite campos extras (forward-compat com Python avançando o shape)
   /**
    * Mapa opcional `sigla → EdgePayloadUf` rico (S04/F2). Quando presente,
-   * `writeProjection` usa esses payloads para as chaves `projection:uf:<sigla>`
-   * em vez de sintetizar esqueleto do `por_uf` nacional. Forward-compat:
+   * `writeProjection` usa esses payloads para as chaves
+   * `projection-uf-<SIGLA>-<cargo>-t<turno>` em vez de sintetizar esqueleto do
+   * `por_uf` nacional. As chaves DESTE mapa não formam nomes de chave do
+   * Global Config — são só lookup por `por_uf[].sigla`, que já é validado
+   * acima. Forward-compat:
    * orchestrators antigos sem `payloads_uf` continuam funcionando (cai no
    * fallback de síntese).
    *

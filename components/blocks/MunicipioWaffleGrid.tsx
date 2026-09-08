@@ -45,6 +45,22 @@ export interface MunicipioWaffleGridProps {
    * aproximadamente quadrado.
    */
   cols?: number;
+  /**
+   * S07/Bloco 2 — tocar num quadrado devolve o `cod_ibge` ao caller
+   * (`<MunicipioExplorer>`, que abre a folha do município).
+   *
+   * O handler fica no `<svg role="img">`, não em cada `<rect>`: um `<svg>`
+   * com `role="img"` remove todo o seu interior da árvore de acessibilidade,
+   * então 645 handlers individuais não comprariam nenhuma semântica — e
+   * comprariam 645 nós a mais no DOM. O alvo real do toque é lido de
+   * `data-cod`, atributo que os `<rect>` já emitiam antes desta prop existir.
+   *
+   * O caminho de teclado e de leitor de tela para o mesmo dado **não** é este
+   * gráfico: é a `<MunicipioTable>` que o `<MunicipioExplorer>` renderiza
+   * logo abaixo, onde cada município é um `<button>`. Este clique é um atalho
+   * de ponteiro sobre uma imagem, não a única porta.
+   */
+  onSelect?: (codIbge: string) => void;
 }
 
 function fmtPct(pct: number): string {
@@ -58,6 +74,7 @@ export function MunicipioWaffleGrid({
   cell = 12,
   gap = 2,
   cols: colsProp,
+  onSelect,
 }: MunicipioWaffleGridProps) {
   const candIndex = useMemo(() => new Map(candidatos.map((c) => [c.id, c] as const)), [candidatos]);
 
@@ -91,6 +108,11 @@ export function MunicipioWaffleGrid({
   return (
     <figure aria-labelledby="waffle-title" className="flex flex-col gap-3">
       <div className="overflow-x-auto">
+        {/* biome-ignore lint/a11y/useKeyWithClickEvents: `role="img"` tira todo
+            o interior do SVG da árvore de acessibilidade — este clique é um
+            atalho de ponteiro sobre uma imagem, e o caminho de teclado para os
+            mesmos municípios é a <MunicipioTable> logo abaixo, onde cada nome
+            é um <button>. Ver a doc de `onSelect` acima. */}
         <svg
           role="img"
           aria-labelledby="waffle-title waffle-desc"
@@ -98,6 +120,15 @@ export function MunicipioWaffleGrid({
           height={height}
           viewBox={`0 0 ${width} ${height}`}
           data-testid="waffle-svg"
+          style={onSelect ? { cursor: "pointer" } : undefined}
+          onClick={
+            onSelect
+              ? (event) => {
+                  const cod = (event.target as Element | null)?.getAttribute?.("data-cod");
+                  if (cod) onSelect(cod);
+                }
+              : undefined
+          }
         >
           <title id="waffle-title">{`Mosaico de ${N.toLocaleString("pt-BR")} municípios pelo líder`}</title>
           <desc id="waffle-desc">
