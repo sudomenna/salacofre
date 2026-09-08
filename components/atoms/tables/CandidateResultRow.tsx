@@ -138,17 +138,33 @@ export function CandidateResultRow({
       {/* Parcial. `data-view-cell` é lido pela cascata do shell — o número
           continua no DOM e visível nas duas bases; só a ênfase muda. */}
       <div className="text-right" data-view-cell="parcial">
-        <div style={{ font: "var(--type-figure-sm)", color: "var(--text-primary)" }}>
+        {/* As cores passam por `--cell-ink`/`--cell-kicker` em vez de irem
+            diretas no `style`: é o que permite à cascata do shell recuar a
+            coluna inativa TROCANDO A COR, com contraste medido. Recuar por
+            `opacity` (a primeira tentativa, 2026-09-08) compõe com a cor do
+            filho e derrubou o rótulo para 2,27:1 — o axe pegou em 16 nós. */}
+        <div
+          style={{
+            font: "var(--type-figure-sm)",
+            color: "var(--cell-ink, var(--text-primary))",
+          }}
+        >
           {atualLabel}
         </div>
-        <div style={{ ...KICKER, color: "var(--text-muted)", marginTop: 3 }}>parcial</div>
+        <div style={{ ...KICKER, color: "var(--cell-kicker, var(--text-muted))", marginTop: 3 }}>
+          parcial
+        </div>
       </div>
 
       <div className="text-right" data-view-cell="proj" style={{ minWidth: "3.5rem" }}>
-        <div style={{ font: "var(--type-figure-sm)", color: "var(--accent-text)" }}>
+        <div
+          style={{ font: "var(--type-figure-sm)", color: "var(--cell-ink, var(--accent-text))" }}
+        >
           {projLabel}
         </div>
-        <div style={{ ...KICKER, color: "var(--accent-text)", marginTop: 3 }}>proj.{glyph}</div>
+        <div style={{ ...KICKER, color: "var(--cell-kicker, var(--accent-text))", marginTop: 3 }}>
+          proj.{glyph}
+        </div>
       </div>
 
       {/* Barra: preenchimento exclusivo da base ativa (`data-view-only`), com

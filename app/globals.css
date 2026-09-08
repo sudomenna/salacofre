@@ -456,20 +456,27 @@ a:hover {
  * ========================================================================= */
 
 [data-view-cell] {
-  transition: opacity var(--dur-base) var(--ease-out);
+  transition: color var(--dur-base) var(--ease-out);
 }
 
-/* Base não enfatizada: recua, mas continua legível. `opacity: 0.55` sobre
- * `--text-primary` (#14171b em --paper-1) mede ~6,4:1 — acima de 4,5:1
- * (RNF-022), então o número secundário nunca vira texto de baixo contraste. */
+/* Base não enfatizada: recua por COR, nunca por opacidade.
+ *
+ * A primeira versão desta regra usava `opacity: 0.55` e o comentário afirmava
+ * ~6,4:1 — conta feita só para `--text-primary`. Opacidade, porém, compõe com
+ * a cor de CADA filho: sobre `--text-muted` o rótulo caía para **2,27:1**, e o
+ * axe reprovou 16 nós na home em 2026-09-08. Trocar a cor mantém o recuo
+ * visual com contraste medido:
+ *
+ *   --text-muted (#5b636e) sobre --paper-1 .......... 5,52:1
+ *   --text-faint (#626a75) sobre --paper-1 .......... 4,97:1
+ *
+ * Os componentes consomem `--cell-ink`/`--cell-kicker` com fallback próprio,
+ * então a coluna ativa mantém a cor de identidade (tinta no parcial, ocre na
+ * projeção) e só a inativa é neutralizada. */
 :root[data-view="proj"] [data-view-cell="parcial"],
 :root[data-view="parcial"] [data-view-cell="proj"] {
-  opacity: 0.55;
-}
-
-:root[data-view="proj"] [data-view-cell="proj"],
-:root[data-view="parcial"] [data-view-cell="parcial"] {
-  opacity: 1;
+  --cell-ink: var(--text-muted);
+  --cell-kicker: var(--text-faint);
 }
 
 /* Exclusivo. `display: none` (e não opacidade) porque isto também precisa
