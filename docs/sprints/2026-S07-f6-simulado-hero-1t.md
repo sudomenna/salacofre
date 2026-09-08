@@ -331,7 +331,22 @@ em Blob). ADR-0013 `superseded`; 0017, 0018, 0001, 0026 e 0024 com nota de emend
       abas no rodapé em mobile, `<h1>` dentro do painel. Commits `1ac871b` e `ef9a87d`.
 - [x] **Bloco 2** — as 4 rotas restantes recompostas, `/sobre-o-modelo` fora do CSS Module,
       `ChancesPanel`, folha do estado (com botão "Ver detalhes do estado") e folha do município.
-      **Não commitado ainda** — ver handoff.
+      Commits `d633ed3` (design) e `faa8916` (ADR-0031).
+- [x] **ADR-0033 — Cortes do protótipo e moldura do mapa** (08/09): 3 decisões do usuário.
+      (1) Moldura persistente para o mapa entre rotas de UF (não desmonta ao navegar) via
+      `layout.tsx` grupo de rotas; (2) home adota ordem e painéis do protótipo (Resultado →
+      Chances → Redutos → Falta apurar → Boletim), com Placar por estado **mantido** e
+      Cenários + UFs decisivas **removidos** — RF-024 e RF-030.9 caem sem cobertura, RF-030.7
+      migra de `TwoRoundIndicator` para `ChancesPanel`; (3) gate OT-4 não será calibrado
+      ajustando o fixture sintético (`REGIONAL_DELAY`) — aguarda dado real de 2022 (que pode
+      não existir). Componentes órfãos (sem consumidor em produção): `RunoffScenarios`,
+      `DecisiveUFsGrid`, `TwoRoundIndicator`, `TimeSeriesChart`, `ProbabilityOverTime`,
+      `TurnoutAreaChart`, `BubbleMap`, `SwingArrowMap`, `UFMapDuo`. Specs 004 e 005 regridem:
+      RF-035/036/038/039/040/041/042/044 removidos. Docs sincronizadas via `spec-syncer`.
+- [x] **ADR-0032 — Detalhe municipal + séries para Vercel Blob** (implementado antes de 08/09):
+      `readUfDetail` paralelo a `readUfProjection`, payload do Global Config encolhe de 2,19 MB
+      (Pres+Gov, limite 1 MB) para ~200 KB, detalhe de borda e séries vêm do Blob. Reduz
+      taxa de crescimento exponencial com a cobertura. Pré-requisito do simulado 1.
 - [x] **Gate G1** — `constitution-guard` 0 violações · `rf-coverage-checker` 74/74 RFs ·
       `a11y-perf-auditor` + axe-core **0 violações** em 5 rotas × 2 viewports · `spec-syncer` feito
       (faltam 4 componentes no catálogo, ver handoff).

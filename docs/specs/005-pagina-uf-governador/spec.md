@@ -6,12 +6,12 @@ shipped_date: 2026-05-18
 priority: M
 personas: [P1, P2, P3]
 screens: [T-04]
-requirements: [RF-031, RF-032, RF-033, RF-034, RF-035, RF-036, RF-037, RF-038, RF-039, RF-040, RF-041, RF-042, RF-043, RF-044, RF-005.1, RF-005.2, RF-005.3, RF-005.4, RF-061, RF-062, RF-063]
+requirements: [RF-031, RF-032, RF-033, RF-034, RF-037, RF-043, RF-005.4, RF-061, RF-062, RF-063]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 004-pagina-uf-presidencial]
 apis: [GET /api/projection?cargo=governador&uf=<sigla>]
-components: [WinnerBanner, CandidateRow, ChoroplethMap, BubbleMap, MunicipioTable, MunicipioWaffleGrid, UFMapDuo, Needle, TimeSeriesChart, ProbabilityOverTime, TurnoutAreaChart, ForecastTransparency, InsightCard, UFBreadcrumb, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader]
+components: [WinnerBanner, CandidateRow, ChoroplethMapUF, MunicipioTable, ForecastTransparency, UFBreadcrumb, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader, CandidateResultRow, MunicipioExplorer]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-008, RNF-022, RNF-023, RNF-024, RNF-025, RNF-027]
-adrs: [0001, 0003, 0004, 0007, 0010, 0012, 0013, 0015, 0016, 0017, 0018, 0019, 0025]
+adrs: [0001, 0003, 0004, 0007, 0010, 0012, 0013, 0018, 0019, 0025, 0032, 0033]
 ---
 
 # Spec 005 — Página de UF (Governador)

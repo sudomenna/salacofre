@@ -28,17 +28,17 @@ last_updated: 2026-09-05
 | `<Needle />` | ✅ | RF-021, RF-039 | `components/atoms/needle/Needle.tsx` | `tests/unit/components/Needle.test.tsx` |
 | `<CandidateBar />` | ✅ | RF-022, RF-023 | `components/atoms/bars/CandidateBar.tsx` | `tests/unit/components/CandidateBar.test.tsx` |
 | `<ProjectionThermometer />` | ✅ S07 | RF-061, RF-062 | `components/atoms/bars/ProjectionThermometer.tsx` | `tests/unit/components/ProjectionThermometer.test.tsx` |
-| `<TimeSeriesChart />` | ✅ | RF-040 | `components/atoms/charts/TimeSeriesChart.tsx` | `tests/unit/components/charts.test.tsx` |
-| `<ProbabilityOverTime />` | ✅ | RF-041 | `components/atoms/charts/ProbabilityOverTime.tsx` | `tests/unit/components/charts.test.tsx` |
-| `<TurnoutAreaChart />` | ✅ | RF-042 | `components/atoms/charts/TurnoutAreaChart.tsx` | `tests/unit/components/charts.test.tsx` |
+| `<TimeSeriesChart />` | ⛔ órfão | ~~RF-040~~ | `components/atoms/charts/TimeSeriesChart.tsx` | tests existem mas sem call site em produção |
+| `<ProbabilityOverTime />` | ⛔ órfão | ~~RF-041~~ | `components/atoms/charts/ProbabilityOverTime.tsx` | tests existem mas sem call site em produção |
+| `<TurnoutAreaChart />` | ⛔ órfão | ~~RF-042~~ | `components/atoms/charts/TurnoutAreaChart.tsx` | tests existem mas sem call site em produção |
 | `<ChoroplethMapUF />` | ✅ | RF-034, RF-036 | `components/atoms/maps/ChoroplethMapUF.tsx` | — (sem teste dedicado) |
-| `<BubbleMap />` | ✅ | RF-035 | `components/atoms/maps/BubbleMap.tsx` | — (sem teste dedicado) |
-| `<SwingArrowMap />` | ✅ | RF-038 (Should) | `components/atoms/maps/SwingArrowMap.tsx` | — (sem teste dedicado) |
+| `<BubbleMap />` | ⛔ órfão | ~~RF-035~~ | `components/atoms/maps/BubbleMap.tsx` | — (sem teste dedicado) |
+| `<SwingArrowMap />` | ⛔ órfão | ~~RF-038~~ | `components/atoms/maps/SwingArrowMap.tsx` | — (sem teste dedicado) |
 | `<MapSkeleton />` | ✅ | (ADR-0010 — placeholder de carga do chunk MapLibre) | `components/atoms/maps/MapSkeleton.tsx` | `tests/unit/components/MapSkeleton.test.tsx` |
 | `<MapPlaceholder />` | ✅ | (ADR-0010 — fallback client dos wrappers dinâmicos) | `components/atoms/maps/MapPlaceholder.tsx` | — (sem teste dedicado) |
 | `<CandidateRow />` | ✅ | RF-033 | `components/atoms/tables/CandidateRow.tsx` | `tests/unit/components/CandidateRow.test.tsx` |
 | `<WinnerBanner />` | ✅ | RF-032 | `components/atoms/banners/WinnerBanner.tsx` | `tests/unit/components/WinnerBanner.test.tsx` |
-| `<NewsClippingPlaceholder />` | ✅ | (spec 004 — slot visual, sem RF formal) | `components/atoms/banners/NewsClippingPlaceholder.tsx` | `tests/unit/components/UFPage.test.tsx` |
+| `<NewsClippingPlaceholder />` | ⛔ órfão | (spec 004 — slot visual, sem RF formal) | `components/atoms/banners/NewsClippingPlaceholder.tsx` | tests não existem; componente órfão desde 08/09 |
 | `<TurnoBadge />` | ✅ S05 | RF-030 ext | `components/atoms/badges/TurnoBadge.tsx` | `tests/unit/components/TurnoBadge.test.tsx` |
 | `<RaceTypeIndicator />` | ✅ S05 | RF-030 ext | `components/atoms/badges/RaceTypeIndicator.tsx` | `tests/unit/components/RaceTypeIndicator.test.tsx` |
 | `<MinorCandidatesList />` | ✅ S05 | RF-030 ext, RF-031..044 ext | `components/atoms/lists/MinorCandidatesList.tsx` | `tests/unit/components/MinorCandidatesList.test.tsx` |
@@ -80,18 +80,18 @@ Notas dos atoms não construídos:
 | `<NationalChoroplethMap />` | ✅ | RF-030.1, RF-030.3, RF-030.4 | `components/blocks/NationalChoroplethMap.tsx` | `tests/unit/components/NationalChoroplethMap.test.tsx` |
 | `<_NationalChoroplethMapImpl />` | ✅ | RF-030.1..RF-030.4 (interno — só via `next/dynamic`, ADR-0010) | `components/blocks/_NationalChoroplethMapImpl.tsx` | coberto por `NationalChoroplethMap.test.tsx` |
 | `<StateGroupedTable />` | ✅ | RF-030.6 | `components/blocks/StateGroupedTable.tsx` | `tests/unit/components/StateGroupedTable.test.tsx` |
-| `<DecisiveUFsGrid />` | ✅ | RF-024 | `components/blocks/DecisiveUFsGrid.tsx` | `tests/unit/components/DecisiveUFsGrid.test.tsx` |
-| `<UFMapDuo />` | ✅ | RF-035, RF-036 | `components/blocks/UFMapDuo.tsx` | — (sem teste dedicado) |
-| `<UfMapsLazy />` | ✅ | RF-034, RF-035, RF-036, RF-038 (wrapper `next/dynamic`, ADR-0010) | `components/blocks/UfMapsLazy.tsx` | — (sem teste dedicado) |
+| `<DecisiveUFsGrid />` | ⛔ órfão | ~~RF-024~~ | `components/blocks/DecisiveUFsGrid.tsx` | tests existem mas sem call site em produção |
+| `<UFMapDuo />` | ⛔ órfão | ~~RF-035, RF-036~~ | `components/blocks/UFMapDuo.tsx` | — (sem teste dedicado) |
+| `<UfMapsLazy />` | ⛔ órfão | ~~RF-034, RF-035, RF-036, RF-038~~ | `components/blocks/UfMapsLazy.tsx` | — (sem teste dedicado); exports `UfMapDuoLazy`/`UfSwingArrowMapLazy` órfãos |
 | `<MunicipioTable />` | ✅ | RF-037 | `components/blocks/MunicipioTable.tsx` | `tests/unit/components/MunicipioTable.test.tsx`, `MunicipioTable.topByEleitorado.test.tsx` |
 | `<MunicipioWaffleGrid />` | ✅ S06 | RF-005.2 | `components/blocks/MunicipioWaffleGrid.tsx` | `tests/unit/components/MunicipioWaffleGrid.test.tsx` |
 | `<ForecastTransparency />` | ✅ | RF-043 | `components/blocks/ForecastTransparency.tsx` | `tests/unit/components/ForecastTransparency.test.tsx` |
 | `<InsightCard />` | ✅ | RF-044 | `components/blocks/InsightCard.tsx` | `tests/unit/components/InsightCard.test.tsx` |
 | `<ApuracaoMeta />` | ✅ | RF-026 | `components/blocks/ApuracaoMeta.tsx` | `tests/unit/components/ApuracaoMeta.test.tsx` |
 | `<NationalWinnerBanner />` | ✅ | RF-032 (variante nacional) | `components/blocks/NationalWinnerBanner.tsx` | `tests/unit/components/NationalWinnerBanner.test.tsx` |
-| `<RunoffScenarios />` | ✅ S05 | RF-030.8 (⚠️ RF ainda não registrado em `traceability.md`) | `components/blocks/RunoffScenarios.tsx` | `tests/unit/components/RunoffScenarios.test.tsx` |
+| `<RunoffScenarios />` | ⛔ órfão | ~~RF-030.9~~ | `components/blocks/RunoffScenarios.tsx` | tests existem mas sem call site em produção |
 | `<TurnoOneRecap />` | ✅ S06 | (ADR-0016 — sem RF formal) | `components/blocks/TurnoOneRecap.tsx` | `tests/unit/components/TurnoOneRecap.test.tsx` |
-| `<TwoRoundIndicator />` | ✅ S05 | RF-030 ext (métrica P(2º turno), ADR-0014) | `components/blocks/TwoRoundIndicator.tsx` | `tests/unit/components/TwoRoundIndicator.test.tsx` |
+| `<TwoRoundIndicator />` | ⛔ órfão | ~~RF-030.7~~ | `components/blocks/TwoRoundIndicator.tsx` | tests existem mas sem call site em produção (RF-030.7 migrou para `<ChancesPanel />`) |
 | `<CandidateRanking />` | ✅ S05 | RF-030 ext, RF-031..044 ext (rank 3–6) | `components/blocks/CandidateRanking.tsx` | `tests/unit/components/CandidateRanking.test.tsx` |
 | `<GovernorCard />` | ✅ S06 | RF-006.3 | `components/blocks/GovernorCard.tsx` | `tests/unit/components/GovernorCard.test.tsx` |
 | `<HexCartogramBrasil />` | ✅ S06 | RF-006.3 | `components/blocks/HexCartogramBrasil.tsx` | `tests/unit/components/HexCartogramBrasil.test.tsx` |
@@ -207,6 +207,24 @@ Intoduzidos em 2026-09-07 para o redesign Atlas Menna (paleta por partido, tipog
 - Testes unitários: `tests/unit/components/{nome}.test.tsx` (11 dos 13 têm cobertura dedicada; `<HoverCard>` e `<Sheet>` cobertos por integração).
 - Todos constroem com `pnpm typecheck` 0 erros e `pnpm lint` sem warnings novos.
 - Dark mode prototipado mas **adiado para Bloco 2** (10 tokens de partido falhariam 3:1 em tema escuro, conforme medição em globals.css).
+
+## Componentes órfãos (removidos de rotas 08/09, ADR-0033)
+
+Os seguintes componentes **existem no disco mas não têm consumidor em produção** desde 2026-09-08:
+
+| Componente | Motivo | Decisão |
+|---|---|---|
+| `<RunoffScenarios />` | RF-030.9 removido da home (protótipo não o contém) | Arquivo mantido para possível futura reativação |
+| `<DecisiveUFsGrid />` | RF-024 removido da home (protótipo não o contém) | Arquivo mantido para possível futura reativação |
+| `<TwoRoundIndicator />` | RF-030.7 migrou de `TwoRoundIndicator` para `ChancesPanel` | Arquivo mantido para possível futura reativação |
+| `<TimeSeriesChart />` | RF-040 removido de specs 004/005 (protótipo não o contém) | Arquivo mantido para possível futura reativação |
+| `<ProbabilityOverTime />` | RF-041 removido de specs 004/005 (protótipo não o contém) | Arquivo mantido para possível futura reativação |
+| `<TurnoutAreaChart />` | RF-042 removido de specs 004/005 (protótipo não o contém) | Arquivo mantido para possível futura reativação |
+| `<BubbleMap />` | RF-035 removido de specs 004/005 (protótipo não o contém) | Arquivo mantido para possível futura reativação |
+| `<SwingArrowMap />` | RF-038 removido de specs 004/005 (protótipo não o contém) | Arquivo mantido para possível futura reativação |
+| `<UFMapDuo />` | RF-035/036 removido de specs 004/005 (protótipo não os contém) | Arquivo mantido; exports `UfMapDuoLazy`/`UfSwingArrowMapLazy` órfãos |
+| `<UfMapsLazy />` | Wrapper `next/dynamic` sem consumidor (RF-034 usa direto `<UfLeaderMapLazy />`) | Arquivo mantido para possível futura reativação |
+| `<NewsClippingPlaceholder />` | Slot visual spec 004 nunca teve RF formal; removido com ADR-0033 | Arquivo mantido para possível futura reativação |
 
 ## Lacunas de teste conhecidas
 

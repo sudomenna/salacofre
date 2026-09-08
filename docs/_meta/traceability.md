@@ -57,7 +57,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-021 | Agulha hero | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<Needle />`, `<NationalNeedle />` | unit |
 | RF-022 | Votos absolutos projetados | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<HeadlineScore />`, `<NationalNeedle />` | unit |
 | RF-023 | % projetado com CI | M | [003](../specs/003-home-nacional/) | `<HeadlineScore />`, `<ConfidenceBar />`, `<NationalNeedle />` | unit |
-| RF-024 | UFs decisivas (top 6) | M | [003](../specs/003-home-nacional/) | `<DecisiveUFsGrid />` | unit |
+| RF-024 | UFs decisivas (top 6) | M | ~~[003](../specs/003-home-nacional/)~~ | ⚠️ **sem cobertura** — removido em 08/09 (ADR-0033, D2) | — |
 | RF-025 | Tabela 27 UFs com dot-plot | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | `<UFForecastTable />`, `<DotPlotRange />` | deferred S05 |
 | RF-026 | Timestamp última atualização | M | [003](../specs/003-home-nacional/) | `<LiveBadge />` | unit |
 | RF-027 | Atualização sem reload | M | [003](../specs/003-home-nacional/), [006](../specs/006-grid-governadores/) | (SWR) | unit |
@@ -79,9 +79,9 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-030.4 | Hachura UFs que viraram | S | [003](../specs/003-home-nacional/) | `<NationalChoroplethMap />` | deferred S05 |
 | RF-030.5 | Scoreboard com gatilho 50%+1 | M | [003](../specs/003-home-nacional/) | `<HeadlineScore />` | unit |
 | RF-030.6 | Tabela agrupada por margem | M | [003](../specs/003-home-nacional/) | `<StateGroupedTable />` | unit |
-| RF-030.7 | Indicador P(2º turno) | M | [003](../specs/003-home-nacional/) | `<TwoRoundIndicator />` | unit |
+| RF-030.7 | Indicador P(2º turno) | M | [003](../specs/003-home-nacional/) | `<ChancesPanel />` | unit |
 | RF-030.8 | Transparência total (sem collapsible) | M | [003](../specs/003-home-nacional/) | `<MinorCandidatesList />`, `<RaceTypeIndicator />` | unit |
-| RF-030.9 | Cenários 2º turno | S | [003](../specs/003-home-nacional/) | `<RunoffScenarios />` | unit |
+| RF-030.9 | Cenários 2º turno | S | ~~[003](../specs/003-home-nacional/)~~ | ⚠️ **sem cobertura** — removido em 08/09 (ADR-0033, D2) | — |
 | RF-061 | Hero de seis termômetros no 1º turno | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ProjectionThermometer />`, `<ProjectionThermometers />` | unit (`ProjectionThermometer.test.tsx`, `ProjectionThermometers.test.tsx`) + integration (`home-page.test.tsx`, `UFPage.test.tsx`, `uf-governador-page.test.tsx`) |
 | RF-062 | Participação e "Outros" na interface; rótulo "Projeção a partir do apurado · N zonas · X% apurado" (ADR-0021) | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [006](../specs/006-grid-governadores/) | `<ProjectionThermometers />`, `<BaseToggle />` (Fase 5) | unit (`participacao.test.ts`, `ProjectionThermometers.test.tsx`, `payload-contract.test.ts`) + integration (`governador-page.test.tsx`) |
 | RF-063 | Identidade visual por trilha | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [006](../specs/006-grid-governadores/) | `<TrilhaKicker />`, `<RaceHeader />`, `<UFBreadcrumb />` | unit (`TrilhaKicker.test.tsx`, `RaceHeader.test.tsx`, `UFBreadcrumb.test.tsx`) + integration (4 smokes SSR) |
@@ -89,16 +89,16 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-032 | Winner banner P>95% | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<WinnerBanner />` | unit |
 | RF-033 | Tabela de candidatos | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<CandidateRow />` | unit |
 | RF-034 | Mapa estado choropleth (município) | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ChoroplethMapUF />` | ⚠️ **sem cobertura** — nenhum teste importa o componente (verificado 05/09); e2e deferido |
-| RF-035 | Mapa votos reportados (bubbles) | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<BubbleMap />`, `<UFMapDuo />` | ⚠️ **sem cobertura** — nenhum teste importa o componente (verificado 05/09); e2e deferido |
-| RF-036 | Mapa estimativa do que falta | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ChoroplethMapUF />`, `<UFMapDuo />` | ⚠️ **sem cobertura** — nenhum teste importa o componente (verificado 05/09); e2e deferido |
+| RF-035 | Mapa votos reportados (bubbles) | M | ~~[004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/)~~ | ⚠️ **sem cobertura** — removido em 08/09 (ADR-0033, D1); nenhum teste, nenhuma rota | — |
+| RF-036 | Mapa estimativa do que falta | M | ~~[004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/)~~ | ⚠️ **sem cobertura** — removido em 08/09 (ADR-0033, D1); nenhum teste, nenhuma rota | — |
 | RF-037 | Tabela municípios virtualizada | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<MunicipioTable />` | unit |
-| RF-038 | Mapa swing vs 2022 | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<SwingArrowMap />`, `<ChoroplethMapUF />` | ⚠️ **sem cobertura** — nenhum teste importa o componente (verificado 05/09); e2e deferido |
-| RF-039 | Agulha estadual + margem | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<Needle />`, `<ConfidenceBar />` | unit |
-| RF-040 | Margem ao longo do tempo | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<TimeSeriesChart />` | unit |
-| RF-041 | Probabilidade ao longo do tempo | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ProbabilityOverTime />` | unit |
-| RF-042 | Turnout cumulativo | S | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<TurnoutAreaChart />` | unit |
+| RF-038 | Mapa swing vs 2022 | S | ~~[004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/)~~ | ⚠️ **sem cobertura** — removido em 08/09 (ADR-0033, D1); nenhum teste, nenhuma rota | — |
+| RF-039 | Agulha estadual + margem | M | ~~[004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/)~~ | ⚠️ **sem cobertura** — removido em 08/09 (ADR-0033, D1); nenhuma rota | — |
+| RF-040 | Margem ao longo do tempo | S | ~~[004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/)~~ | ⚠️ **sem cobertura** — removido em 08/09 (ADR-0033, D1); nenhuma rota | — |
+| RF-041 | Probabilidade ao longo do tempo | S | ~~[004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/)~~ | ⚠️ **sem cobertura** — removido em 08/09 (ADR-0033, D1); nenhuma rota | — |
+| RF-042 | Turnout cumulativo | S | ~~[004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/)~~ | ⚠️ **sem cobertura** — removido em 08/09 (ADR-0033, D1); nenhuma rota | — |
 | RF-043 | "O que está movendo o forecast" | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [003](../specs/003-home-nacional/) | `<ForecastTransparency />`, `<ModelComposition />` | unit |
-| RF-044 | Insight textual por template | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [003](../specs/003-home-nacional/) | `<InsightCard />` | unit |
+| RF-044 | Insight textual por template | M | ~~[004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/)~~, [003](../specs/003-home-nacional/) | ⚠️ **sem cobertura em 004/005** — removido em 08/09 (ADR-0033, D1); cobre RF-044 ainda na home | home unit |
 | RF-045 | Hover destaca em todas visualizações | M | [008](../specs/008-interatividade-brushing/) | (hover-store + consumers) | e2e brushing |
 | RF-046 | Hover em linha tabela destaca mapas | M | [008](../specs/008-interatividade-brushing/) | (hover-store) | e2e brushing |
 | RF-047 | Click navega para drill-down | M | [008](../specs/008-interatividade-brushing/) | — | e2e |

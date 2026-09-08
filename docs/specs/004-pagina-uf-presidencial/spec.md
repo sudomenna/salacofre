@@ -5,12 +5,12 @@ status: shipped
 priority: M
 personas: [P1, P2, P3, P4]
 screens: [T-03]
-requirements: [RF-031, RF-032, RF-033, RF-034, RF-035, RF-036, RF-037, RF-038, RF-039, RF-040, RF-041, RF-042, RF-043, RF-044, RF-061, RF-062, RF-063]
+requirements: [RF-031, RF-032, RF-033, RF-034, RF-037, RF-043, RF-061, RF-062, RF-063]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 008-interatividade-brushing, 003-home-nacional]
 apis: [GET /api/projection?uf=<sigla>]
-components: [WinnerBanner, CandidateRow, NewsClippingPlaceholder, ChoroplethMapUF, BubbleMap, SwingArrowMap, MunicipioTable, UFMapDuo, UfMapsLazy, Needle, TimeSeriesChart, ProbabilityOverTime, TurnoutAreaChart, ForecastTransparency, InsightCard, UFBreadcrumb, Footer, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader]
+components: [WinnerBanner, CandidateRow, ChoroplethMapUF, MunicipioTable, ForecastTransparency, UFBreadcrumb, Footer, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader, CandidateResultRow, MunicipioExplorer]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-008, RNF-022, RNF-023, RNF-024, RNF-025, RNF-027]
-adrs: [0001, 0003, 0004, 0007, 0010, 0013, 0014, 0015, 0017, 0018, 0019, 0025]
+adrs: [0001, 0003, 0004, 0007, 0010, 0013, 0014, 0017, 0018, 0019, 0025, 0032, 0033]
 shipped_with_carry_overs:
   - NewsClippingPlaceholder-sem-RF-formal-clipping-midias-BR-virara-spec-em-F4b-F5
   - chunk-MapLibre-287KB-acima-RNF-007b-pendente-ADR-aumentar-meta-300KB

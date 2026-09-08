@@ -5,12 +5,12 @@ status: shipped
 priority: M
 personas: [P1, P2, P3, P4]
 screens: [T-01]
-requirements: [RF-021, RF-022, RF-023, RF-024, RF-025, RF-026, RF-027, RF-028, RF-029, RF-030, RF-030.1, RF-030.2, RF-030.3, RF-030.4, RF-030.5, RF-030.6, RF-030.7, RF-030.8, RF-030.9, RF-061, RF-062, RF-063]
+requirements: [RF-021, RF-022, RF-023, RF-025, RF-026, RF-027, RF-028, RF-029, RF-030, RF-030.1, RF-030.2, RF-030.3, RF-030.4, RF-030.5, RF-030.6, RF-030.7, RF-030.8, RF-061, RF-062, RF-063]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 008-interatividade-brushing]
 apis: [GET /api/projection]
-components: [HeadlineScore, NationalChoroplethMap, MapViewToggle, StateGroupedTable, NationalNeedle, DecisiveUFsGrid, InsightCard, ForecastTransparency, LiveBadge, Tabs, TwoRoundIndicator, RunoffScenarios, MinorCandidatesList, RaceTypeIndicator, TurnoBadge, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader, ApuracaoMeta, BreakingNewsTicker, NationalWinnerBanner, TurnoOneRecap]
+components: [HeadlineScore, NationalChoroplethMap, MapViewToggle, StateGroupedTable, NationalNeedle, ChancesPanel, InsightCard, ForecastTransparency, LiveBadge, Tabs, MinorCandidatesList, RaceTypeIndicator, TurnoBadge, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader, ApuracaoMeta, BreakingNewsTicker, NationalWinnerBanner, TurnoOneRecap]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-007, RNF-008, RNF-022, RNF-023, RNF-024, RNF-025, RNF-026, RNF-028]
-adrs: [0001, 0002, 0003, 0004, 0005, 0010, 0012, 0013, 0014, 0017, 0018, 0019, 0025]
+adrs: [0001, 0002, 0003, 0004, 0005, 0010, 0012, 0013, 0014, 0017, 0018, 0019, 0025, 0033]
 shipped_with_carry_overs:
   - RF-025-UFForecastTable-completa-deferida-S05
   - RF-030.4-hachura-flip-MapLibre-sprite-deferida-S05
