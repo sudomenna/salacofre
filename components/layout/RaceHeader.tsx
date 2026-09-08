@@ -8,7 +8,15 @@
  *   [breadcrumb opcional]
  *   TrilhaKicker            ← regra superior + "PRESIDÊNCIA · Brasil › SP"
  *   h1 (+ subtítulo)  |  LiveBadge · TurnoBadge · extras
- *   Tabs de cargo (opcional)
+ *
+ * S07/Bloco 1 — a faixa de abas de cargo (Presidente | Governador | …) SAIU
+ * daqui. Ela agora é `<CargoTabs>` dentro do `<TopBar>` em `app/layout.tsx`,
+ * ou seja, uma só vez por documento em vez de uma por página (ADR-0025 § 2).
+ * Mantê-la também aqui produziria duas navegações de cargo na mesma tela e
+ * dois landmarks concorrendo pelo mesmo papel. O que fica é o que pertence à
+ * página: o kicker da trilha, o título da corrida e os badges de estado
+ * (`LiveBadge`, `TurnoBadge`, `extras`) — nada disso o shell sabe, porque o
+ * shell não lê dado por requisição.
  *
  * Por que existe: antes de S07/Fase 2 as quatro páginas montavam headers
  * quase idênticos, e a única diferença perceptível entre trilhas era o
@@ -39,8 +47,6 @@
 
 import type { ReactNode } from "react";
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
-import type { TabsOption } from "@/components/atoms/controls/Tabs";
-import { Tabs } from "@/components/atoms/controls/Tabs";
 import { type Trilha, TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
 import { LiveBadge } from "@/components/layout/LiveBadge";
 
@@ -55,12 +61,6 @@ export interface RaceHeaderProps {
   subtitulo?: ReactNode;
   /** `id` do `<h1>` — útil para `aria-labelledby` de seções irmãs. */
   headingId?: string;
-  /** Tabs de cargo (Presidente | Governador | …). Omitido → sem tabs. */
-  tabs?: {
-    ariaLabel?: string;
-    value: string;
-    options: ReadonlyArray<TabsOption>;
-  };
   /** `undefined` → sem LiveBadge; boolean → badge com esse estado. */
   liveActive?: boolean;
   /** `undefined` → sem TurnoBadge. */
@@ -78,7 +78,6 @@ export function RaceHeader({
   titulo,
   subtitulo,
   headingId,
-  tabs,
   liveActive,
   turno,
   breadcrumb,
@@ -97,8 +96,6 @@ export function RaceHeader({
       <TrilhaKicker trilha={trilha} crumbs={crumbs} />
 
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        {/* `items-start` para as Tabs continuarem hugging o próprio conteúdo:
-            num flex column elas esticariam para a largura da coluna. */}
         <div className="flex flex-col items-start gap-2">
           {titulo && (
             <h1
@@ -113,18 +110,6 @@ export function RaceHeader({
             <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
               {subtitulo}
             </p>
-          )}
-          {tabs && (
-            // Cinco tabs (Presidente…Assembleias) somam ~520px: em 375px a
-            // faixa rola dentro do próprio contêiner em vez de empurrar a
-            // página inteira para o scroll horizontal.
-            <div className="max-w-full overflow-x-auto">
-              <Tabs
-                ariaLabel={tabs.ariaLabel ?? "Cargo"}
-                value={tabs.value}
-                options={tabs.options}
-              />
-            </div>
           )}
         </div>
 

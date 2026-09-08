@@ -77,10 +77,41 @@ describe("app/globals.css — @theme static", () => {
     expect(css).toContain('main[data-trilha="gov"]');
   });
 
-  it("não declara --font-mono no tema enquanto a fonte não é carregada", () => {
-    // Declarar `--font-mono` em `@theme` trocaria a stack da utilitária
-    // `font-mono` do Tailwind por uma família que o app ainda não baixa.
+  it("declara as três fontes via @theme inline, apontando para o next/font", () => {
+    // As famílias vêm de `next/font/google` (app/layout.tsx), que injeta
+    // `--font-sans-src`/`--font-serif-src`/`--font-mono-src` numa classe do
+    // <html>. O `@theme inline` mapeia para os nomes finais; declarar uma
+    // família literal aqui significaria uma fonte que o app não baixa.
+    const inlineStart = css.indexOf("@theme inline {");
+    expect(inlineStart).toBeGreaterThan(-1);
+    const inlineBlock = css.slice(inlineStart, css.indexOf("}", inlineStart));
+    for (const par of [
+      ["--font-sans", "--font-sans-src"],
+      ["--font-serif", "--font-serif-src"],
+      ["--font-mono", "--font-mono-src"],
+    ]) {
+      expect(inlineBlock).toContain(`${par[0]}: var(${par[1]})`);
+    }
+    // Nenhuma família literal fora do mapeamento.
+    expect(css).not.toContain('"JetBrains Mono", monospace');
     expect(block).not.toContain("--font-mono");
-    expect(css).toContain('--font-mono: "JetBrains Mono", monospace;');
+  });
+
+  it("mantém os tokens que o kit consome por var() fora do namespace --text-*", () => {
+    // `--text-*` é o namespace de font-size do Tailwind v4: declarar
+    // `--text-muted: <cor>` dentro do `@theme` geraria uma utilitária
+    // `text-muted` com uma cor no lugar de um tamanho.
+    for (const token of ["--text-primary", "--text-secondary", "--text-muted", "--text-faint"]) {
+      expect(block, `${token} não pode estar em @theme`).not.toContain(`${token}:`);
+      expect(css, `${token} precisa existir em :root`).toContain(`${token}:`);
+    }
+  });
+
+  it("mantém em hex literal todo token que o MapLibre lê", () => {
+    // `setPaintProperty` não aceita `var()`; o valor precisa chegar resolvido.
+    const literais = [/--color-cand-\d: #[0-9a-f]{6}/, /--map-stroke: #[0-9a-f]{6}/];
+    for (const re of literais) {
+      expect(block, `${re} precisa ser hex literal`).toMatch(re);
+    }
   });
 });

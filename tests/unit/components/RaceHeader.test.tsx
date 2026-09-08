@@ -103,6 +103,22 @@ describe("<RaceHeader /> — RF-063 / ADR-0019", () => {
     expect(comBadges.querySelector('[aria-label^="Status da apuração"]')).not.toBeNull();
   });
 
+  it("(h) não emite mais navegação de cargo — ela é do shell global", () => {
+    // S07/Bloco 1: as abas Presidente|Governador saíram do RaceHeader e
+    // viraram `<CargoTabs>` no `<TopBar>` de `app/layout.tsx` (ADR-0025 § 2).
+    // Mantê-las aqui daria duas navegações de cargo na mesma tela.
+    const doc = parse(
+      <RaceHeader trilha="pres" crumbs={["Brasil"]} titulo="Apuração 2026" liveActive turno={1} />,
+    );
+
+    expect(doc.querySelector("[role='tablist']")).toBeNull();
+    expect(doc.querySelector("a[href='/governador']")).toBeNull();
+    // O que continua sendo da página: kicker, título e badges de estado.
+    expect(doc.querySelector("[data-trilha-kicker]")).not.toBeNull();
+    expect(doc.querySelector("h1")).not.toBeNull();
+    expect(doc.querySelector('[aria-label^="Status da apuração"]')).not.toBeNull();
+  });
+
   it("(g) subtítulo e extras são renderizados quando fornecidos", () => {
     const doc = parse(
       <RaceHeader

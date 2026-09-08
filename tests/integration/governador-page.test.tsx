@@ -11,7 +11,8 @@
  *
  * Cobertura
  *   - RFs 021/022/025/029 + RF-006.1 (RaceStatsCards) + RF-006.2 (filtros).
- *   - Estrutura: Tabs, HexCartogram, GovernorCard, Footer.
+ *   - Estrutura: HexCartogram, GovernorCard, Footer. A navegação de cargo saiu
+ *     daqui em S07/Bloco 1 (agora `<CargoTabs>` no shell, ADR-0025 § 2).
  *
  * Estes smokes NÃO testam a regressão `useRouter` SSR do mapa nacional
  * (que afeta `home-page.test.tsx`) — `/governador` não monta o mapa
@@ -179,16 +180,20 @@ describe("GovernadorGridPage (integration / smoke)", () => {
     expect(html).toContain("Governadores 2026");
   });
 
-  it("(b) renderiza tabs com Senado/Congresso/Assembleias desabilitados", async () => {
+  it("(b) a navegação de cargo NÃO é mais desta página — é do shell global", async () => {
+    // S07/Bloco 1: as abas de cargo (incluindo as desabilitadas) saíram do
+    // `<RaceHeader>` e viraram `<CargoTabs>` dentro do `<TopBar>` de
+    // `app/layout.tsx` (ADR-0025 § 2), renderizadas uma vez por documento em
+    // vez de uma vez por página. RF-029 continua coberto — agora em
+    // `tests/unit/components/CargoTabs.test.tsx`. O que este smoke garante é
+    // que a página não duplica a navegação: duas listas de cargo na mesma
+    // tela seriam dois landmarks disputando o mesmo papel.
     const node = await GovernadorGridPage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("Presidente");
-    expect(html).toContain("Senado");
-    expect(html).toContain("Congresso");
-    expect(html).toContain("Assembleias");
-    // disabled → aria-disabled na tab + tooltip "Disponível em breve"
-    expect(html).toMatch(/aria-disabled="true"/);
-    expect(html).toContain("Disponível em breve");
+
+    expect(html).not.toContain('href="/"');
+    expect(html).not.toContain('role="tablist"');
+    expect(html).not.toContain("Assembleias");
   });
 
   it("(c) RaceStatsCards com counts batendo (9/14/4)", async () => {

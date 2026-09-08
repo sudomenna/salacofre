@@ -60,25 +60,41 @@ export interface RunoffScenariosProps {
   className?: string;
 }
 
-export function RunoffScenarios({
-  national,
-  candidatos,
+/** Um duelo já resolvido para `EdgeCandidate` nos dois lados. */
+export interface RunoffScenario {
+  a: EdgeCandidate;
+  b: EdgeCandidate;
+  prob: number;
+}
+
+/**
+ * Aplica os quatro gates e devolve os cenários renderizáveis. Array vazio
+ * ⇔ o bloco não renderiza nada.
+ *
+ * Extraída em S07/Bloco 1 porque `app/page.tsx` passou a envolver o bloco num
+ * `<Panel>` — e um Panel desenha o filete e o cabeçalho da seção antes de
+ * saber se o filho retornou `null`. Sem esta função a página duplicaria os
+ * gates (e eles divergiriam no primeiro ajuste de limiar); com ela, gate e
+ * render leem a mesma verdade.
+ */
+export function selectRunoffScenarios(
+  national: EdgeNational,
+  candidatos: EdgeCandidate[],
   topN = 3,
-  className,
-}: RunoffScenariosProps) {
+): RunoffScenario[] {
   // Gate 1: sem probabilidade de 2T (2T já em curso, ou payload pré-S05).
-  if (national.p_segundo_turno_overall == null) return null;
+  if (national.p_segundo_turno_overall == null) return [];
   // Gate 2: probabilidade de 2T abaixo do limiar de relevância.
-  if (national.p_segundo_turno_overall < RUNOFF_SCENARIOS_MIN_P) return null;
+  if (national.p_segundo_turno_overall < RUNOFF_SCENARIOS_MIN_P) return [];
   // Gate 3: array vazio (orchestrator não emitiu cenários neste ciclo).
-  if (!national.cenarios_2t || national.cenarios_2t.length === 0) return null;
+  if (!national.cenarios_2t || national.cenarios_2t.length === 0) return [];
 
   // Lookup por id — montamos um Map para O(1).
   const byId = new Map<number, EdgeCandidate>();
   for (const c of candidatos) byId.set(c.id, c);
 
-  // Filtra pares com candidatos válidos e pega top-N.
-  const cenarios = national.cenarios_2t
+  // Gate 4: filtra pares com candidatos válidos e pega top-N.
+  return national.cenarios_2t
     .map((s) => {
       const [idA, idB] = s.par;
       const a = byId.get(idA);
@@ -86,10 +102,19 @@ export function RunoffScenarios({
       if (!a || !b) return null;
       return { a, b, prob: s.prob };
     })
-    .filter((s): s is { a: EdgeCandidate; b: EdgeCandidate; prob: number } => s !== null)
+    .filter((s): s is RunoffScenario => s !== null)
     .slice(0, topN);
+}
 
-  // Após filtro de validade pode não sobrar nada — degradação silenciosa.
+export function RunoffScenarios({
+  national,
+  candidatos,
+  topN = 3,
+  className,
+}: RunoffScenariosProps) {
+  const cenarios = selectRunoffScenarios(national, candidatos, topN);
+
+  // Degradação silenciosa — caller já lida com ausência de bloco.
   if (cenarios.length === 0) return null;
 
   const containerClass = ["flex flex-col gap-3", className].filter(Boolean).join(" ");

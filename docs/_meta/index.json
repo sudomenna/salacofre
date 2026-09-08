@@ -195,6 +195,14 @@
       "date": "2026-09-07",
       "amends": "0001",
       "path": "docs/architecture/adrs/0026-cargos-senador-deputado-ingestao-e-read-path.md"
+    },
+    {
+      "id": "0028",
+      "title": "Corrida explícita por rota, não corrida ativa única — currentRace() passa a resolver só o turno presidencial",
+      "status": "accepted",
+      "date": "2026-09-07",
+      "note": "resolve a nota de implementação do item 2 da Decisão do ADR-0026, sem emendá-lo — escopo maior (atinge também Presidente e Governador)",
+      "path": "docs/architecture/adrs/0028-corrida-explicita-por-rota.md"
     }
   ],
   "nfr": {

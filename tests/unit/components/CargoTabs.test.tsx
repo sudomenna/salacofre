@@ -1,0 +1,189 @@
+// @vitest-environment happy-dom
+/**
+ * tests/unit/components/CargoTabs.test.tsx
+ *
+ * `<CargoTabs />` + o shell global de `app/layout.tsx` (ADR-0025 § 2,
+ * S07/Bloco 1).
+ *
+ * O que estes testes travam:
+ *   - as quatro abas de cargo (decisão D5, 2026-09-07), com Senador e
+ *     Deputado Federal **desabilitados de forma acessível** — `aria-disabled`
+ *     + a razão legível, nunca um `<a>` que levaria a 404;
+ *   - o shell inteiro é RSC: nenhum arquivo da cadeia
+ *     `layout → TopBar → CargoTabs → TabBar` declara `"use client"` nem usa
+ *     hook. Isso é orçamento, não estilo: o shell renderiza acima da dobra em
+ *     TODAS as rotas e RNF-007a está em 148,7 KiB de um teto de 150;
+ *   - o layout não lê nada por requisição (`cookies`, `headers`,
+ *     `searchParams`, `usePathname`) — qualquer um tornaria dinâmicas as 54
+ *     páginas de UF hoje pré-renderizadas estáticas (ADR-0025 § 2 e § 5);
+ *   - `Footer` e `main[data-trilha]` continuam FORA do layout, de posse de
+ *     cada página (ADR-0025 § 1) — é o que os testes de integração assumem.
+ *
+ * Por que asserção sobre o código-fonte do layout e não sobre seu render:
+ * `app/layout.tsx` importa `next/font/google`, que só existe sob o transform
+ * do Next; importá-lo aqui quebraria por um motivo que nada tem a ver com o
+ * que se quer medir.
+ */
+
+import { readFileSync } from "node:fs";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+
+import { CargoTabs } from "@/components/layout/CargoTabs";
+
+function parse(node: React.ReactElement): Document {
+  return new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
+}
+
+/** Fonte sem comentários — os cabeçalhos citam `"use client"`, `usePathname`
+ *  etc. justamente para explicar por que eles não estão lá. */
+function codeOf(path: string): string {
+  return readFileSync(path, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+}
+
+const SHELL_FILES = [
+  "app/layout.tsx",
+  "components/layout/TopBar.tsx",
+  "components/layout/TabBar.tsx",
+  "components/layout/CargoTabs.tsx",
+];
+
+describe("<CargoTabs /> — abas de cargo do shell global", () => {
+  it("(a) é um <nav> nomeado com as quatro abas, na ordem da decisão D5", () => {
+    const doc = parse(<CargoTabs />);
+    const nav = doc.querySelector("[data-testid='tab-bar']");
+
+    expect(nav?.tagName).toBe("NAV");
+    expect(nav?.getAttribute("aria-label")).toBe("Cargos");
+    expect(
+      [...(nav?.querySelectorAll("[data-value]") ?? [])].map((el) => el.getAttribute("data-value")),
+    ).toEqual(["pres", "gov", "sen", "dep"]);
+  });
+
+  it("(b) Presidente e Governador são links reais (zero JS)", () => {
+    const doc = parse(<CargoTabs />);
+    const links = [...doc.querySelectorAll("a")];
+
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/", "/governador"]);
+    expect(links.map((a) => a.getAttribute("data-value"))).toEqual(["pres", "gov"]);
+  });
+
+  it("(c) Senador e Deputado Federal não são links — são spans aria-disabled", () => {
+    const doc = parse(<CargoTabs />);
+
+    for (const value of ["sen", "dep"]) {
+      const el = doc.querySelector(`[data-value='${value}']`);
+      expect(el?.tagName).toBe("SPAN");
+      expect(el?.getAttribute("href")).toBeNull();
+      expect(el?.getAttribute("aria-disabled")).toBe("true");
+    }
+  });
+
+  it("(d) o motivo da indisponibilidade é legível por leitor de tela, não só title", () => {
+    const doc = parse(<CargoTabs />);
+    const sen = doc.querySelector("[data-value='sen']");
+
+    // `title` cobre o hover do mouse...
+    expect(sen?.getAttribute("title")).toMatch(/ainda não coberto/i);
+    // ...mas `title` não é anunciado de forma confiável em modo de leitura,
+    // então o mesmo texto existe como conteúdo visualmente escondido.
+    const sr = sen?.querySelector(".sr-only");
+    expect(sr?.textContent).toMatch(/ainda não coberto/i);
+    expect(sr?.textContent).toBe(sen?.getAttribute("title"));
+  });
+
+  it("(e) o rótulo visível continua sendo o nome do cargo", () => {
+    const doc = parse(<CargoTabs />);
+    const label = (value: string) =>
+      doc.querySelector(`[data-value='${value}'] > span`)?.textContent ?? "";
+
+    expect(label("pres")).toContain("Presidente");
+    expect(label("gov")).toContain("Governador");
+    expect(label("sen")).toContain("Senador");
+    expect(label("dep")).toContain("Deputado Federal");
+  });
+
+  it("(f) o ativo NÃO é decidido no servidor — é o CSS que lê main[data-trilha]", () => {
+    const doc = parse(<CargoTabs />);
+
+    // Nenhum item nasce ativo: o layout raiz não conhece a rota, e as três
+    // formas de descobri-la (usePathname / headers-cookies-searchParams /
+    // slot de parallel route) custariam JS acima da dobra ou render dinâmico.
+    expect(doc.querySelector("[aria-current]")).toBeNull();
+    expect(doc.querySelectorAll("[data-active='true']").length).toBe(0);
+
+    // O portador do estado é um texto por aba navegável, que o
+    // `CargoTabs.module.css` revela só sob `body:has(main[data-trilha=…])`.
+    const flags = [...doc.querySelectorAll("a .sr-only")];
+    expect(flags.length).toBe(2);
+    for (const flag of flags) {
+      expect(flag.textContent).toContain("página atual");
+      // `sr-only` (geometria) + a classe local do módulo (display: none até a
+      // trilha casar). Duas classes, não uma.
+      expect(flag.getAttribute("class")?.split(/\s+/).length).toBeGreaterThan(1);
+    }
+  });
+
+  it("(g) toda aba navegável tem a regra de CSS que a marca — nenhuma fica órfã", () => {
+    // Guarda de acoplamento: o TSX diz quais abas navegam, o CSS diz quais
+    // trilhas as marcam. Uma quinta aba navegável sem regra correspondente
+    // ficaria eternamente "inativa" e ninguém perceberia — este teste falha
+    // antes disso.
+    const doc = parse(<CargoTabs />);
+    const navegaveis = [...doc.querySelectorAll("a[data-value]")].map(
+      (a) => a.getAttribute("data-value") ?? "",
+    );
+
+    const css = readFileSync("components/layout/CargoTabs.module.css", "utf8");
+    const trilhasNoCss = new Set(
+      [...css.matchAll(/body:has\(main\[data-trilha="([a-z]+)"\]\)/g)].map((m) => m[1]),
+    );
+    const abasNoCss = new Set([...css.matchAll(/\[data-value="([a-z]+)"\]/g)].map((m) => m[1]));
+
+    expect([...abasNoCss].sort()).toEqual([...navegaveis].sort());
+    expect([...trilhasNoCss].sort()).toEqual([...navegaveis].sort());
+  });
+
+  it("(g2) nenhum hex literal no markup (constituição § 2)", () => {
+    expect(renderToStaticMarkup(<CargoTabs />)).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+  });
+});
+
+describe("shell global — app/layout.tsx (ADR-0025 § 2)", () => {
+  it("(h) monta TopBar + CargoTabs acima de {children}", () => {
+    const src = codeOf("app/layout.tsx");
+
+    expect(src).toContain("<TopBar");
+    expect(src).toContain("<CargoTabs />");
+    expect(src).toContain("{children}");
+    expect(src.indexOf("<CargoTabs />")).toBeLessThan(src.indexOf("{children}"));
+  });
+
+  it("(i) o layout não lê nada por requisição — as 54 páginas de UF seguem estáticas", () => {
+    const src = codeOf("app/layout.tsx");
+
+    for (const leitura of ["cookies(", "headers(", "draftMode(", "searchParams", "usePathname"]) {
+      expect(src).not.toContain(leitura);
+    }
+    expect(src).not.toContain("force-dynamic");
+  });
+
+  it("(j) nenhum arquivo do shell é Client Component (RNF-007a: 148,7 de 150 KiB)", () => {
+    for (const file of SHELL_FILES) {
+      const src = codeOf(file);
+      expect(src, file).not.toContain('"use client"');
+      expect(src, file).not.toContain("'use client'");
+      expect(src, file).not.toMatch(/\buse(State|Effect|Ref|Memo|Context|Pathname|Router)\s*\(/);
+    }
+  });
+
+  it("(k) Footer e main[data-trilha] NÃO migraram para o layout (ADR-0025 § 1)", () => {
+    const src = codeOf("app/layout.tsx");
+
+    expect(src).not.toContain("Footer");
+    expect(src).not.toContain("data-trilha");
+    expect(src).not.toContain("<main");
+  });
+});

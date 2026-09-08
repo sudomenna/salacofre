@@ -203,6 +203,77 @@ describe("HomePage (integration / smoke)", () => {
   });
 
   // -------------------------------------------------------------------------
+  // S07/Bloco 1 (ADR-0025) — gramática editorial: seções em <Panel>, três
+  // blocos novos, e as duas invariantes estruturais da página.
+  // -------------------------------------------------------------------------
+
+  it("(r) o <Footer> continua DENTRO do <main data-trilha> desta página", async () => {
+    const node = await HomePage();
+    const doc = parse(renderToStaticMarkup(node));
+
+    const main = doc.querySelector("main[data-trilha]");
+    expect(main).not.toBeNull();
+    // A pergunta não é "existe um footer", é "ele está dentro do main" — o
+    // shell global (app/layout.tsx) não fornece nenhum dos dois.
+    const footer = main?.querySelector("footer");
+    expect(footer).not.toBeNull();
+    expect(footer?.textContent).toContain("Não oficial");
+    expect(doc.querySelectorAll("footer")).toHaveLength(1);
+  });
+
+  it("(s) todo bloco do fluxo está dentro de um <Panel>, e nenhum Panel fica vazio", async () => {
+    const node = await HomePage();
+    const doc = parse(renderToStaticMarkup(node));
+
+    const panels = Array.from(doc.querySelectorAll('[data-testid="panel"]'));
+    expect(panels.length).toBeGreaterThanOrEqual(8);
+    for (const p of panels) {
+      // Um Panel sem conteúdo desenharia um filete órfão — é exatamente o que
+      // acontece se um bloco com gate próprio (RunoffScenarios) for envolvido
+      // sem consultar o gate antes.
+      expect((p.textContent ?? "").trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("(t) os três blocos novos renderizam com dado do fixture", async () => {
+    const node = await HomePage();
+    const doc = parse(renderToStaticMarkup(node));
+    const texto = doc.body.textContent ?? "";
+
+    // Boletim (RF-026 + RF-044 por template)
+    expect(doc.querySelector("#bulletin-panel-heading")?.textContent).toBe(
+      "O que está acontecendo agora",
+    );
+    expect(doc.querySelectorAll('[data-testid="bulletin-list"] > li').length).toBeGreaterThan(0);
+
+    // Redutos (RF-024 / RF-030.6) — uma coluna por candidato do top 3
+    expect(doc.querySelector("#strongholds-panel-heading")?.textContent).toBe(
+      "Onde cada força é mais forte",
+    );
+    expect(doc.querySelectorAll('[data-testid="stronghold-column"]')).toHaveLength(3);
+
+    // O que falta apurar (RF-026 / RF-024)
+    expect(doc.querySelector("#remaining-panel-heading")?.textContent).toBe(
+      "O que ainda falta apurar",
+    );
+    expect(doc.querySelectorAll('[data-testid="remaining-table"] tbody tr').length).toBeGreaterThan(
+      0,
+    );
+
+    // Fixture: 23,4% apurado → 76,6% por apurar; 14/27 UFs com boletim.
+    expect(texto).toContain("76,6%");
+  });
+
+  it("(u) a projeção segue rotulada como não oficial já no kicker da 1ª seção (constituição § 1)", async () => {
+    const node = await HomePage();
+    const doc = parse(renderToStaticMarkup(node));
+    const kickers = Array.from(doc.querySelectorAll('[data-testid="panel-kicker"]')).map(
+      (k) => k.textContent,
+    );
+    expect(kickers[0]).toBe("Projeção Atlas Menna · não oficial");
+  });
+
+  // -------------------------------------------------------------------------
   // S07/Fase 2 — modo binary (2º turno) permanece o layout de S06.
   // -------------------------------------------------------------------------
 

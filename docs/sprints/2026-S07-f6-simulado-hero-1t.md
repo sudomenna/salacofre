@@ -327,10 +327,8 @@ O [ADR-0013](../architecture/adrs/0013-tokens-multi-candidato-por-rank.md) virou
       ADR-0024 `accepted`, ADR-0013 `superseded`
 - [ ] **Encaminhamento do "corrida ativa única"** de `lib/config/calendar.ts` — pergunta aberta com o
       usuário em 07/09; pré-requisito das specs 016/017, não do Bloco 1
-- [ ] **Bloco 1**: tokens do design, `party-color.ts` + `gen-party-scale.ts`, fontes, atoms novos
-      (`Panel`, `Figure`, `Button`, `VoteBar`, `ProbabilityMeter`, `PartyTag`, `MapLegend`, `TopBar`,
-      `TabBar`, `ThemeToggle`, `Sheet`, `HoverCard`), shell, home recomposta, 27 arquivos de teste
-      que citam `--color-cand-*`
+- [x] **Bloco 1, Fase 1 — Fundação**: tokens do design (primitivos + party palette), `party-color.ts` + `gen-party-scale.ts`, fontes (Spectral/Archivo/JetBrains Mono), 13 atoms novos (`Panel`, `Figure`, `PartyTag`, `ProbabilityMeter`, `Button`, `SegmentedControl`, `SearchInput`, `VoteBar`, `MapLegend`, `HoverCard`, `Sheet`) + 2 layout (`TopBar`, `TabBar`). Documentação sincronizada (`docs/design-system/tokens.md`, `components.md`). **Completo em 07/09.**
+- [ ] **Bloco 1, Fase 2 — UI** (não iniciado): home recomposta com novo shell (TopBar + TabBar + redesign do hero), recolorização de specs 003/004/005/006 (referência a `--party-*`), testes de integração (27 arquivos que citam `--color-cand-*` precisam passar com nova paleta)
 - [ ] **Bloco 2**: `/uf/[sigla]`, `/uf/[sigla]/governador`, `/governador`, `/sobre-o-modelo`
       (sai do CSS Module), dark mode com contraste medido
 - [ ] **Gate G1** (meta 12/09): `constitution-guard` · `a11y-perf-auditor` · `rf-coverage-checker`

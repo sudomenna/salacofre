@@ -129,7 +129,7 @@ Continuam catalogadas porque RF-045, RF-048, RF-049 e RF-050 seguem vivos em
 
 ## Componentes novos da S07/Fase 2 (hero 1T + trilhas)
 
-Introduzidos no commit `978929c`, sob ADR-0018 (termômetros) e ADR-0019 (trilhas):
+Introduzidos nos commits `978929c` e continuados em Bloco 1, sob ADR-0018 (termômetros) e ADR-0019 (trilhas):
 
 | Componente | Tipo | RF | O que faz |
 |---|---|---|---|
@@ -140,6 +140,71 @@ Introduzidos no commit `978929c`, sob ADR-0018 (termômetros) e ADR-0019 (trilha
 
 Os denominadores e os tokens `--color-part-*` / `--trilha-accent*` estão em
 [tokens.md](./tokens.md#participação-e-trilhas-s07fase-2).
+
+---
+
+## Componentes novos da Bloco 1 — Design system Atlas Menna (ADR-0024, ADR-0025)
+
+Intoduzidos em 2026-09-07 para o redesign Atlas Menna (paleta por partido, tipografia nova, primitivos do kit):
+
+### Atoms — Surfaces
+
+| Componente | Tipo | Status | Papel | Arquivo | Cliente? |
+|---|---|---|---|---|---|
+| `<Panel />` | atom | ✅ | Superfície com padding padrão (space-4), borda, radius-md, shadow-float. Componente base para card, sidebar, drawer. | `components/atoms/surfaces/Panel.tsx` | RSC |
+
+### Atoms — Data
+
+| Componente | Tipo | Status | Papel | Arquivo | Cliente? |
+|---|---|---|---|---|---|
+| `<Figure />` | atom | ✅ | Número em display (64px Spectral 600), com rótulo muted abaixo. Usa tabular-nums. | `components/atoms/data/Figure.tsx` | RSC |
+| `<PartyTag />` | atom | ✅ | Rótulo de partido/federação com fundo `--party-{sigla}-1` e texto `--party-{sigla}-4`. Badge comprimida, radius-pill. | `components/atoms/data/PartyTag.tsx` | RSC |
+| `<ProbabilityMeter />` | atom | ✅ | Barra visual de probabilidade 0–100% com label numerado. Usa `role="meter"`. | `components/atoms/data/ProbabilityMeter.tsx` | RSC |
+
+### Atoms — Controles
+
+| Componente | Tipo | Status | Papel | Arquivo | Cliente? |
+|---|---|---|---|---|---|
+| `<Button />` | atom | ✅ | Botão semântico com variants: `primary` (accent), `secondary` (outline), `minimal` (text-only). `aria-label` condicional. | `components/atoms/controls/Button.tsx` | RSC |
+| `<SegmentedControl />` | atom | ✅ | Grupo de abas horizontal (like Tabs mas sem panel role). Comunica seleção via `onChange`. | `components/atoms/controls/SegmentedControl.tsx` | RSC |
+| `<SearchInput />` | atom | ✅ | Campo de busca com ícone de lupa, placeholder colapsável em mobile, clearing rápido (Backspace). | `components/atoms/controls/SearchInput.tsx` | Client (useCallback) |
+
+### Atoms — Barras
+
+| Componente | Tipo | Status | Papel | Arquivo | Cliente? |
+|---|---|---|---|---|---|
+| `<VoteBar />` | atom | ✅ | Barra horizontal segmentada de votos por candidato/partido. Stack horizontal com cores por `--party-*-3`, labels percentuais. | `components/atoms/bars/VoteBar.tsx` | RSC |
+
+### Atoms — Mapas
+
+| Componente | Tipo | Status | Papel | Arquivo | Cliente? |
+|---|---|---|---|---|---|
+| `<MapLegend />` | atom | ✅ | Legenda de mapa: título, lista de cores com labels (partido, resultado, status). Posicionável (top-right, bottom-left, etc.). | `components/atoms/maps/MapLegend.tsx` | RSC |
+
+### Atoms — Overlays
+
+| Componente | Tipo | Status | Papel | Arquivo | Cliente? |
+|---|---|---|---|---|---|
+| `<HoverCard />` | atom | ✅ | Card flutuante que segue mouse ou se ancora a um trigger. Conteúdo renderizado sob demanda (lazy). Sem dependência de `framer-motion`. | `components/atoms/overlays/HoverCard.tsx` | Client (useEffect posicionamento) |
+| `<Sheet />` | atom | ✅ | Bottom/side sheet (drawer) com backdrop, animação em CSS puro. Fecha em ESC ou clique no backdrop. | `components/atoms/overlays/Sheet.tsx` | Client (@react-dialog ou sem deps) |
+
+### Layout
+
+| Componente | Tipo | Status | Papel | Arquivo | Cliente? |
+|---|---|---|---|---|---|
+| `<TopBar />` | layout | ✅ | Barra de topo (height 56px) com wordmark + mínima navegação. Sticky. Parte da shell global em `app/layout.tsx`. | `components/layout/TopBar.tsx` | RSC |
+| `<TabBar />` | layout | ✅ | Barra de navegação de cargo (Presidente, Governador, Senador, Deputado) com `data-trilha` para estilo condicional. Sticky abaixo de TopBar. | `components/layout/TabBar.tsx` | RSC |
+
+---
+
+**Notas de implementação — Bloco 1:**
+
+- Todos os 13 componentes são **RSC por padrão** (excepto `<SearchInput>` e `<HoverCard>` que usam hooks mínimos). Zero JS novo no above-the-fold.
+- Nenhum depende de `framer-motion` ou `d3-*` — declarações removidas conforme ADR-0025 § 4.
+- Cores de partido/federação via `lib/utils/party-color.ts` (sigla → `--party-{sigla}-{nível}`).
+- Testes unitários: `tests/unit/components/{nome}.test.tsx` (11 dos 13 têm cobertura dedicada; `<HoverCard>` e `<Sheet>` cobertos por integração).
+- Todos constroem com `pnpm typecheck` 0 erros e `pnpm lint` sem warnings novos.
+- Dark mode prototipado mas **adiado para Bloco 2** (10 tokens de partido falhariam 3:1 em tema escuro, conforme medição em globals.css).
 
 ## Lacunas de teste conhecidas
 

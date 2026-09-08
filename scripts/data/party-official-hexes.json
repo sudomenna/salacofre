@@ -1,0 +1,848 @@
+{
+  "_meta": {
+    "descricao": "Hexes OFICIAIS dos partidos — a paleta que cada partido usa em material próprio. NÃO são cores do SalaCofre: são exatamente as cores das quais os tokens --party-* precisam ficar longe (constituição § 2 v1.3, ΔE76 ≥ 10; piso operacional deste repositório: 12).",
+    "consumido_por": "scripts/gen-party-scale.ts (validação) e tests/unit/design-system/party-delta-e.test.ts (gate no CSS commitado)",
+    "levantado_em": "2026-09-07",
+    "delta_e_floor": 12,
+    "por_que_12_e_nao_10": "A constituição fixa o MÍNIMO em 10. O piso operacional é 12 para dar 2 unidades de folga contra revisão de fonte: se um hex oficial for corrigido, ou uma fonte melhor aparecer, uma cor a 10,3 vira violação com um ajuste mínimo do lado do partido. 12 mantém a margem sem custo perceptual relevante.",
+    "escopo_da_medicao": "ΔE76 é medido contra TODOS os hexes documentados do partido — primária, secundárias, fim de gradiente em manual de marca, e token de CSS declarado no site oficial. Não só a cor primária.",
+    "source_type": {
+      "A": "manual de marca oficial do partido (hex ou CMYK/RGB explícito)",
+      "B": "documento oficial secundário (estatuto, material de campanha registrado)",
+      "C": "site oficial do partido — token de CSS declarado, theme-color, ou pixel dominante de logotipo servido pelo domínio oficial",
+      "D": "uso reiterado em material oficial",
+      "E": "terceiro (Wikimedia Commons e afins) — menor confiança, mantido porque o § 2 fala em 'uso reiterado'"
+    },
+    "sem_fonte": "official: [] significa que nenhuma fonte primária foi localizada. O validador NÃO reprova por ausência de oficial (não há do que se afastar), mas o gerador AVISA — é dívida a revisitar quando houver fonte."
+  },
+  "--party-pt": {
+    "party": "PT — Partido dos Trabalhadores",
+    "official": [
+      {
+        "hex": "#E4142C",
+        "role": "primaria (vermelho oficial)",
+        "source_type": "A+C",
+        "url": "https://siac.fpabramo.org.br/uploads/acervo/PTDN_DisputaEleitoral_ExecutivoFederal_2022_CRL_012.pdf",
+        "confidence": "alta",
+        "note": "Manual de Uso da Marca PT Digital (2021) p.18 'Padrao Cromatico'; confirmado no token --pt2026-red do tema pt_2026 e no fill do logo-pt-red.svg baixado de pt.org.br"
+      },
+      {
+        "hex": "#B9142C",
+        "role": "fim do gradiente do vermelho",
+        "source_type": "A",
+        "url": "https://siac.fpabramo.org.br/uploads/acervo/PTDN_DisputaEleitoral_ExecutivoFederal_2022_CRL_012.pdf",
+        "confidence": "alta"
+      }
+    ]
+  },
+  "--party-pl": {
+    "party": "PL — Partido Liberal",
+    "official": [
+      {
+        "hex": "#004F9F",
+        "role": "azul primario (R0 G79 B159 / C100 M70 Y0 K0)",
+        "source_type": "A",
+        "url": "https://partidoliberal.org.br/wp-content/uploads/2023/03/manual-da-marca-pl-2023.pdf",
+        "confidence": "alta",
+        "note": "Manual da Marca PL 2023"
+      },
+      {
+        "hex": "#0051A0",
+        "role": "azul do logotipo (pixel dominante)",
+        "source_type": "C",
+        "url": "https://partidoliberal.org.br/wp-content/themes/pl/img/logo.png",
+        "confidence": "media"
+      },
+      {
+        "hex": "#2A3591",
+        "role": "azul de UI (token --azul)",
+        "source_type": "C",
+        "url": "https://partidoliberal.org.br/wp-content/themes/pl/style.css",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-psd": {
+    "party": "PSD — Partido Social Democratico",
+    "official": [
+      {
+        "hex": "#022A59",
+        "role": "theme-color declarado",
+        "source_type": "C",
+        "url": "https://psd.org.br/",
+        "confidence": "media"
+      },
+      {
+        "hex": "#013F88",
+        "role": "azul do logotipo",
+        "source_type": "C",
+        "url": "https://psd.org.br/wp-content/themes/psd_2022/assets/images/logotipo-partido-social-democratico-800.png",
+        "confidence": "media"
+      },
+      {
+        "hex": "#FCB814",
+        "role": "amarelo do logotipo",
+        "source_type": "C",
+        "url": "https://psd.org.br/wp-content/themes/psd_2022/assets/images/logotipo-partido-social-democratico-800.png",
+        "confidence": "media"
+      },
+      {
+        "hex": "#7FC341",
+        "role": "verde do logotipo",
+        "source_type": "C",
+        "url": "https://psd.org.br/wp-content/themes/psd_2022/assets/images/logotipo-partido-social-democratico-800.png",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-novo": {
+    "party": "NOVO — Partido Novo",
+    "official": [
+      {
+        "hex": "#F17021",
+        "role": "laranja primario do manual 2021 (Pantone 1655 C)",
+        "source_type": "A (mirror SlideShare)",
+        "url": "https://www.slideshare.net/slideshow/novo-30-manual-de-marca-2021/251937555",
+        "confidence": "media-alta"
+      },
+      {
+        "hex": "#FF6500",
+        "role": "laranja em uso hoje (token --orange)",
+        "source_type": "C",
+        "url": "https://novo.org.br/wp-content/themes/novo/assets/css/styles.css",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#133465",
+        "role": "azul escuro em uso (--dark-blue)",
+        "source_type": "C",
+        "url": "https://novo.org.br/wp-content/themes/novo/assets/css/styles.css",
+        "confidence": "alta"
+      }
+    ]
+  },
+  "--party-avante": {
+    "party": "AVANTE",
+    "official": [
+      {
+        "hex": "#9200FD",
+        "role": "roxo primario (rebrand 2024)",
+        "source_type": "C/E",
+        "url": "https://avante.org.br/wp-content/uploads/2024/06/logo_Prancheta-43.svg",
+        "confidence": "media"
+      },
+      {
+        "hex": "#FF5400",
+        "role": "laranja do logotipo 2024",
+        "source_type": "C/E",
+        "url": "https://avante.org.br/wp-content/uploads/2024/06/logo_Prancheta-43.svg",
+        "confidence": "media"
+      },
+      {
+        "hex": "#BF247F",
+        "role": "magenta do logotipo 2024",
+        "source_type": "C/E",
+        "url": "https://avante.org.br/wp-content/uploads/2024/06/logo_Prancheta-43.svg",
+        "confidence": "media"
+      },
+      {
+        "hex": "#D27901",
+        "role": "laranja da identidade anterior (2023)",
+        "source_type": "C",
+        "url": "https://avante70.org.br/wp-content/uploads/2023/07/avante-70-logo-principal.png",
+        "confidence": "media"
+      },
+      {
+        "hex": "#67A4AD",
+        "role": "ciano da identidade anterior (2023)",
+        "source_type": "C",
+        "url": "https://avante70.org.br/wp-content/uploads/2023/07/avante-70-logo-principal.png",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-missao": {
+    "party": "MISSAO — Partido Missao (registro deferido 04/11/2025)",
+    "official": [
+      {
+        "hex": "#FBAC1E",
+        "role": "primaria (token mais usado no site)",
+        "source_type": "C",
+        "url": "https://missao.org.br/",
+        "confidence": "media"
+      },
+      {
+        "hex": "#FCBE26",
+        "role": "amarelo secundario",
+        "source_type": "C+D",
+        "url": "https://missao.org.br/",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-prtb": {
+    "party": "PRTB — Partido Renovador Trabalhista Brasileiro",
+    "official": [
+      {
+        "hex": "#0047AB",
+        "role": "azul primario (header + logo + infobox)",
+        "source_type": "C+D",
+        "url": "https://www.prtb.org.br/",
+        "confidence": "media-alta"
+      },
+      {
+        "hex": "#FFDC04",
+        "role": "amarelo do logotipo",
+        "source_type": "C",
+        "url": "https://www.prtb.org.br/logocabecalho.png",
+        "confidence": "media"
+      },
+      {
+        "hex": "#01A64A",
+        "role": "verde do logotipo",
+        "source_type": "C",
+        "url": "https://www.prtb.org.br/logocabecalho.png",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-up": {
+    "party": "UP — Unidade Popular",
+    "official": [
+      {
+        "hex": "#C00810",
+        "role": "vermelho de marca (bg-[#C00810] no site)",
+        "source_type": "C",
+        "url": "https://unidadepopular.org.br/",
+        "confidence": "media-baixa"
+      }
+    ]
+  },
+  "--party-pco": {
+    "party": "PCO — Partido da Causa Operaria",
+    "official": [
+      {
+        "hex": "#CE1920",
+        "role": "primaria (--ast-global-color-0)",
+        "source_type": "C+D",
+        "url": "https://pco.org.br/",
+        "confidence": "media-alta"
+      },
+      {
+        "hex": "#FFE700",
+        "role": "amarelo (--ast-global-color-1)",
+        "source_type": "C",
+        "url": "https://pco.org.br/",
+        "confidence": "media"
+      },
+      {
+        "hex": "#A10005",
+        "role": "vermelho escuro (--ast-global-color-2)",
+        "source_type": "C",
+        "url": "https://pco.org.br/",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-dc": {
+    "party": "DC — Democracia Crista",
+    "official": [
+      {
+        "hex": "#0B2574",
+        "role": "azul primario (--color-dc-blue)",
+        "source_type": "C",
+        "url": "https://www.democraciacrista.org.br/",
+        "confidence": "media-alta"
+      },
+      {
+        "hex": "#FFDE00",
+        "role": "amarelo (--color-dc-yellow)",
+        "source_type": "C",
+        "url": "https://www.democraciacrista.org.br/",
+        "confidence": "media-alta"
+      },
+      {
+        "hex": "#0666BE",
+        "role": "azul do arquivo de logo",
+        "source_type": "C",
+        "url": "https://www.democraciacrista.org.br/wp-content/themes/dcjovem2026/assets/logo-azul-slogan.png",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-pstu": {
+    "party": "PSTU — Partido Socialista dos Trabalhadores Unificado",
+    "official": [
+      {
+        "hex": "#CC0000",
+        "role": "primaria (--primary no :root)",
+        "source_type": "C",
+        "url": "https://pstu.org.br/new/css/style.css",
+        "confidence": "media-alta"
+      },
+      {
+        "hex": "#EECC00",
+        "role": "amarelo (--yellow)",
+        "source_type": "C",
+        "url": "https://pstu.org.br/new/css/style.css",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-pcb": {
+    "party": "PCB — Partido Comunista Brasileiro",
+    "official": [
+      {
+        "hex": "#C20000",
+        "role": "vermelho primario (51 ocorrencias no CSS do tema)",
+        "source_type": "C",
+        "url": "https://pcb.org.br/portal2/",
+        "confidence": "media"
+      },
+      {
+        "hex": "#C30000",
+        "role": "vermelho do logotipo",
+        "source_type": "C",
+        "url": "https://pcb.org.br/portal2/wp-content/uploads/2017/08/logo.png",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-democrata": {
+    "party": "DEMOCRATA — ex-PMB, renomeado pelo TSE em 02/12/2025 (numero 35)",
+    "official": [],
+    "note": "sem fonte primaria localizada — os hexes do site democrata.org.br (#1E3A8A, #059669, #3B82F6, #10B981, #0F172A) sao valores exatos da paleta padrao do Tailwind (blue-900, emerald-600, blue-500, emerald-500, slate-900), indicando template generico e nao paleta de marca. Nao tratar como identidade oficial."
+  },
+  "--party-republicanos": {
+    "party": "REPUBLICANOS",
+    "official": [
+      {
+        "hex": "#005CA9",
+        "role": "azul primario (manual, hex explicito)",
+        "source_type": "A",
+        "url": "https://republicanos10ba.org.br/wp-content/uploads/2020/07/manual-republicanos-vs2.pdf p.8",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#005DAA",
+        "role": "azul primario declarado como --primary-color no site nacional",
+        "source_type": "C",
+        "url": "https://republicanos10.org.br/",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#FDC300",
+        "role": "amarelo secundario",
+        "source_type": "A",
+        "url": "https://republicanos10ba.org.br/wp-content/uploads/2020/07/manual-republicanos-vs2.pdf",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#009E3D",
+        "role": "verde secundario",
+        "source_type": "A",
+        "url": "https://republicanos10ba.org.br/wp-content/uploads/2020/07/manual-republicanos-vs2.pdf",
+        "confidence": "alta"
+      }
+    ]
+  },
+  "--party-psb": {
+    "party": "PSB — Partido Socialista Brasileiro",
+    "official": [
+      {
+        "hex": "#ED1C24",
+        "role": "vermelho primario (render das amostras do manual; manual so publica CMYK 0/100/100/0)",
+        "source_type": "A-derivado",
+        "url": "https://psb40.org.br/wp-content/uploads/2016/09/MANUAL-DE-IDENTIDADE_PSB-1.pdf",
+        "confidence": "media"
+      },
+      {
+        "hex": "#FFF200",
+        "role": "amarelo primario (CMYK 0/0/100/0)",
+        "source_type": "A-derivado",
+        "url": "https://psb40.org.br/wp-content/uploads/2016/09/MANUAL-DE-IDENTIDADE_PSB-1.pdf",
+        "confidence": "media"
+      },
+      {
+        "hex": "#C41D23",
+        "role": "vermelho efetivamente usado no site",
+        "source_type": "C",
+        "url": "https://psb40.org.br/",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-rede": {
+    "party": "REDE Sustentabilidade",
+    "official": [
+      {
+        "hex": "#379E8D",
+        "role": "teal primario",
+        "source_type": "C",
+        "url": "https://redesustentabilidade.org.br/wp-content/uploads/elementor/css/post-19.css",
+        "confidence": "media-alta"
+      },
+      {
+        "hex": "#F05A22",
+        "role": "laranja primario",
+        "source_type": "C",
+        "url": "https://redesustentabilidade.org.br/wp-content/uploads/elementor/css/post-19.css",
+        "confidence": "media-alta"
+      },
+      {
+        "hex": "#2EB5C2",
+        "role": "ciano de apoio",
+        "source_type": "E",
+        "url": "https://upload.wikimedia.org/wikipedia/commons/3/39/Rede_Sustentabilidade_logo.svg",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-pp": {
+    "party": "PP — Progressistas",
+    "official": [
+      {
+        "hex": "#133D6D",
+        "role": "azul escuro primario (RGB 19/61/109, manual)",
+        "source_type": "A",
+        "url": "https://progressistas.org.br/website2020/wp-content/uploads/2020/12/Manual-Progressistas-Azul.pdf p.11",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#54B8EA",
+        "role": "azul claro secundario (RGB 84/184/234)",
+        "source_type": "A",
+        "url": "https://progressistas.org.br/website2020/wp-content/uploads/2020/12/Manual-Progressistas-Azul.pdf",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#234F74",
+        "role": "azul usado no site (diverge do manual)",
+        "source_type": "C",
+        "url": "https://progressistas.org.br/",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-pode": {
+    "party": "PODEMOS",
+    "official": [
+      {
+        "hex": "#602D91",
+        "role": "roxo primario — logo oficial e 100% desta cor",
+        "source_type": "C",
+        "url": "https://podemos.org.br/__l5e/assets-v1/58d38adc-fd17-4eeb-b20e-0596b3a0b495/podemos-logo.png",
+        "confidence": "alta",
+        "note": "o Podemos e ROXO hoje; tabelas derivadas da Wikipedia (azul #478ECC + verde #09A245) estao desatualizadas"
+      },
+      {
+        "hex": "#6B2FB3",
+        "role": "token --brand-purple do site",
+        "source_type": "C",
+        "url": "https://podemos.org.br/assets/styles-Ch55TFIW.css",
+        "confidence": "alta"
+      }
+    ]
+  },
+  "--party-cidadania": {
+    "party": "CIDADANIA",
+    "official": [
+      {
+        "hex": "#EC008D",
+        "role": "magenta primario (logo)",
+        "source_type": "C",
+        "url": "https://rede23.org/wp-content/uploads/2025/12/logo-rede23.webp",
+        "confidence": "media"
+      },
+      {
+        "hex": "#CA0088",
+        "role": "magenta do CSS do site",
+        "source_type": "C",
+        "url": "https://cidadania23.org.br/",
+        "confidence": "media"
+      },
+      {
+        "hex": "#ED037C",
+        "role": "magenta do SVG do Commons",
+        "source_type": "E",
+        "url": "https://upload.wikimedia.org/wikipedia/commons/1/13/Cidadania_%28Brasil%29_logo.svg",
+        "confidence": "media"
+      },
+      {
+        "hex": "#0E233C",
+        "role": "azul-noite secundario",
+        "source_type": "C",
+        "url": "https://rede23.org/",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-agir": {
+    "party": "AGIR (ex-PTC)",
+    "official": [
+      {
+        "hex": "#0033A0",
+        "role": "azul primario",
+        "source_type": "C",
+        "url": "https://agir36.org.br/",
+        "confidence": "media"
+      },
+      {
+        "hex": "#F2295B",
+        "role": "rosa/magenta secundario",
+        "source_type": "C",
+        "url": "https://agir36.org.br/",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-psol": {
+    "party": "PSOL — Partido Socialismo e Liberdade",
+    "official": [
+      {
+        "hex": "#E02028",
+        "role": "vermelho primario (manual, hex explicito)",
+        "source_type": "A",
+        "url": "https://psol50.org.br/wp-content/uploads/2018/11/manual-logotipo.pdf",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#FEDF00",
+        "role": "amarelo primario (manual, hex explicito)",
+        "source_type": "A",
+        "url": "https://psol50.org.br/wp-content/uploads/2018/11/manual-logotipo.pdf",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#FFC200",
+        "role": "amarelo efetivamente usado no site hoje",
+        "source_type": "C",
+        "url": "https://psol50.org.br/",
+        "confidence": "media-alta"
+      },
+      {
+        "hex": "#4C0068",
+        "role": "roxo usado no site",
+        "source_type": "C",
+        "url": "https://psol50.org.br/",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-mdb": {
+    "party": "MDB — Movimento Democratico Brasileiro",
+    "official": [
+      {
+        "hex": "#00A550",
+        "role": "verde primario (RGB 0/165/80, Pantone 347C, manual)",
+        "source_type": "A",
+        "url": "https://www.mdb.org.br/wp-content/uploads/2024/06/MANUAL_MDB_2018_v3.pdf p.5",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#0A9246",
+        "role": "verde efetivamente usado no site (--e-global-color-primary)",
+        "source_type": "C",
+        "url": "https://www.mdb.org.br/wp-content/uploads/elementor/css/post-5935.css",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#71BF43",
+        "role": "verde claro de gradiente",
+        "source_type": "A",
+        "url": "https://www.mdb.org.br/wp-content/uploads/2024/06/MANUAL_MDB_2018_v3.pdf",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#FDB813",
+        "role": "amarelo institucional",
+        "source_type": "A",
+        "url": "https://www.mdb.org.br/wp-content/uploads/2024/06/MANUAL_MDB_2018_v3.pdf",
+        "confidence": "alta"
+      }
+    ]
+  },
+  "--party-uniao": {
+    "party": "UNIAO BRASIL",
+    "official": [
+      {
+        "hex": "#254AA5",
+        "role": "azul primario (conversao CMYK 100/80/0/0 -> RGB; manual so publica CMYK)",
+        "source_type": "A-derivado",
+        "url": "https://spuniaobrasil.org.br/arquivos/2022081014523838.pdf p.5",
+        "confidence": "media"
+      },
+      {
+        "hex": "#33BDF2",
+        "role": "ciano (CMYK 80/0/0/0)",
+        "source_type": "A-derivado",
+        "url": "https://spuniaobrasil.org.br/arquivos/2022081014523838.pdf",
+        "confidence": "media"
+      },
+      {
+        "hex": "#FBC707",
+        "role": "amarelo (CMYK 0/20/100/0)",
+        "source_type": "A-derivado",
+        "url": "https://spuniaobrasil.org.br/arquivos/2022081014523838.pdf",
+        "confidence": "media"
+      },
+      {
+        "hex": "#00A4E8",
+        "role": "ciano usado no site",
+        "source_type": "C",
+        "url": "https://uniaobrasil.org.br/wp-content/uploads/elementor/css/post-17.css",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-prd": {
+    "party": "PRD — Partido Renovacao Democratica (fusao PTB+Patriota)",
+    "official": [
+      {
+        "hex": "#0E509E",
+        "role": "azul primario do site",
+        "source_type": "C",
+        "url": "https://prd25.org.br/wp-content/uploads/elementor/css/post-5.css",
+        "confidence": "media"
+      },
+      {
+        "hex": "#81C0ED",
+        "role": "azul claro",
+        "source_type": "C",
+        "url": "https://prd25.org.br/wp-content/uploads/elementor/css/post-5.css",
+        "confidence": "media"
+      },
+      {
+        "hex": "#B81F26",
+        "role": "vermelho",
+        "source_type": "C",
+        "url": "https://prd25.org.br/wp-content/uploads/elementor/css/post-5.css",
+        "confidence": "media"
+      },
+      {
+        "hex": "#1B3F7B",
+        "role": "azul escuro (SVG Commons)",
+        "source_type": "E",
+        "url": "https://upload.wikimedia.org/wikipedia/commons/d/dc/Partido_Renova%C3%A7%C3%A3o_Democr%C3%A1tica_logo.svg",
+        "confidence": "baixa-media"
+      }
+    ]
+  },
+  "--party-pdt": {
+    "party": "PDT — Partido Democratico Trabalhista",
+    "official": [
+      {
+        "hex": "#100A62",
+        "role": "azul-noite (paleta 'Solidas', manual 2026, hex explicito)",
+        "source_type": "A",
+        "url": "https://pdt.org.br/wp-content/uploads/2015/11/MNAUAL-DE-MARCA-PDT-2026_compressed.zip p.3",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#DB002C",
+        "role": "vermelho (paleta 'Solidas')",
+        "source_type": "A",
+        "url": "https://pdt.org.br/wp-content/uploads/2015/11/MNAUAL-DE-MARCA-PDT-2026_compressed.zip",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#176939",
+        "role": "verde (paleta 'Solidas')",
+        "source_type": "A",
+        "url": "https://pdt.org.br/wp-content/uploads/2015/11/MNAUAL-DE-MARCA-PDT-2026_compressed.zip",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#FFDE00",
+        "role": "amarelo (paleta 'Solidas')",
+        "source_type": "A",
+        "url": "https://pdt.org.br/wp-content/uploads/2015/11/MNAUAL-DE-MARCA-PDT-2026_compressed.zip",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#FFF4D4",
+        "role": "creme (paleta 'Solidas')",
+        "source_type": "A",
+        "url": "https://pdt.org.br/wp-content/uploads/2015/11/MNAUAL-DE-MARCA-PDT-2026_compressed.zip",
+        "confidence": "alta"
+      }
+    ],
+    "note": "Identidade nova: o manual de marca PDT 2026 substituiu a paleta anterior. Os hexes abaixo são os da paleta 'Sólidas' desse manual (consultado em 2026-09-07)."
+  },
+  "--party-psdb": {
+    "party": "PSDB — Partido da Social Democracia Brasileira",
+    "official": [
+      {
+        "hex": "#004C94",
+        "role": "azul primario (RGB 0/76/148, Pantone 301C, manual 2012)",
+        "source_type": "A/B",
+        "url": "https://static.poder360.com.br/2018/02/Manual-da-Marca-PSDB-Como-Usar.pdf p.12",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#FFD600",
+        "role": "amarelo primario (RGB 255/214/0, Pantone 109C)",
+        "source_type": "A/B",
+        "url": "https://static.poder360.com.br/2018/02/Manual-da-Marca-PSDB-Como-Usar.pdf",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#004997",
+        "role": "azul do site oficial",
+        "source_type": "C",
+        "url": "https://www.psdb.org.br/",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#FFCC01",
+        "role": "amarelo do site oficial",
+        "source_type": "C",
+        "url": "https://www.psdb.org.br/",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#F7941E",
+        "role": "laranja variante",
+        "source_type": "A-derivado",
+        "url": "https://static.poder360.com.br/2018/02/Manual-da-Marca-PSDB-Como-Usar.pdf",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-pcdob": {
+    "party": "PCdoB — Partido Comunista do Brasil",
+    "official": [
+      {
+        "hex": "#E52629",
+        "role": "vermelho institucional (site)",
+        "source_type": "C",
+        "url": "https://pcdob.org.br/",
+        "confidence": "media"
+      },
+      {
+        "hex": "#BF1522",
+        "role": "vermelho escuro (site)",
+        "source_type": "C",
+        "url": "https://pcdob.org.br/",
+        "confidence": "media"
+      },
+      {
+        "hex": "#035299",
+        "role": "azul (site)",
+        "source_type": "C",
+        "url": "https://pcdob.org.br/",
+        "confidence": "media"
+      },
+      {
+        "hex": "#006633",
+        "role": "verde da marca eleitoral 2026",
+        "source_type": "C-derivado",
+        "url": "https://pcdob.org.br/wp-content/uploads/2026/08/ASSINATURA-PCDOB-LULA-1024x1024.png",
+        "confidence": "media"
+      },
+      {
+        "hex": "#0A4C8F",
+        "role": "azul da marca eleitoral 2026",
+        "source_type": "C-derivado",
+        "url": "https://pcdob.org.br/identidade-visual/",
+        "confidence": "media"
+      },
+      {
+        "hex": "#FAB72D",
+        "role": "amarelo da marca eleitoral 2026",
+        "source_type": "C-derivado",
+        "url": "https://pcdob.org.br/identidade-visual/",
+        "confidence": "media"
+      },
+      {
+        "hex": "#DA251C",
+        "role": "vermelho do SVG do Commons",
+        "source_type": "E",
+        "url": "https://upload.wikimedia.org/wikipedia/commons/8/86/PCdoB_logo.svg",
+        "confidence": "baixa-media"
+      }
+    ],
+    "note": "Identidade nova: o PCdoB lançou a marca eleitoral 2026 em agosto/2026. Os hexes abaixo incluem tanto o vermelho institucional histórico quanto as cores da marca eleitoral 2026 (consultado em 2026-09-07)."
+  },
+  "--party-pv": {
+    "party": "PV — Partido Verde",
+    "official": [
+      {
+        "hex": "#146332",
+        "role": "COR UNICA institucional (RGB 20/99/50, Pantone 349C, manual)",
+        "source_type": "A",
+        "url": "https://pv.org.br/wp-content/uploads/2016/10/Manual-de-identidade-Visual-Partido-Verde.pdf p.15",
+        "confidence": "alta",
+        "note": "o manual e explicito: 'a escolha de uma cor unica'; nao ha amarelo oficial"
+      },
+      {
+        "hex": "#016124",
+        "role": "verde usado no site",
+        "source_type": "C",
+        "url": "https://pv.org.br/",
+        "confidence": "media"
+      },
+      {
+        "hex": "#006023",
+        "role": "verde alternativo do site",
+        "source_type": "C",
+        "url": "https://pv.org.br/",
+        "confidence": "media"
+      }
+    ]
+  },
+  "--party-solidariedade": {
+    "party": "SOLIDARIEDADE",
+    "official": [
+      {
+        "hex": "#F37021",
+        "role": "laranja primario (Pantone 1665U, manual, hex explicito)",
+        "source_type": "A",
+        "url": "https://solidariedade.org.br/media/2021/05/manualsolidariedade-v4.pdf",
+        "confidence": "alta",
+        "note": "confirmado independentemente: pixel dominante do logo.png oficial que baixei e decodifiquei"
+      },
+      {
+        "hex": "#293B97",
+        "role": "azul primario (Pantone 2736C, manual)",
+        "source_type": "A",
+        "url": "https://solidariedade.org.br/media/2021/05/manualsolidariedade-v4.pdf",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#1F1B5F",
+        "role": "azul efetivamente usado no site",
+        "source_type": "C",
+        "url": "https://solidariedade.org.br/layout/webpack/dist/styles.css",
+        "confidence": "alta"
+      },
+      {
+        "hex": "#0D348B",
+        "role": "azul do logo.png oficial (medido por mim)",
+        "source_type": "C",
+        "url": "https://solidariedade.org.br/media/2024/02/logo.png",
+        "confidence": "alta"
+      }
+    ]
+  },
+  "--party-mobiliza": {
+    "party": "MOBILIZA — Mobilizacao Nacional (ex-PMN, renomeado no TSE em dez/2023)",
+    "official": [],
+    "note": "sem fonte primaria localizada — mobiliza.org.br retorna 'Account Suspended' e pmn.org.br tem certificado TLS expirado. Wikipedia descreve as cores como vermelho/branco/preto, sem hex."
+  },
+  "--party-outros": {
+    "party": "(fallback, nao e partido)",
+    "official": [],
+    "note": "token neutro de fallback — nao se aplica"
+  },
+  "--party-tie": {
+    "party": "(empate, nao e partido)",
+    "official": [],
+    "note": "token neutro — nao se aplica"
+  },
+  "--party-none": {
+    "party": "(sem projecao, nao e partido)",
+    "official": [],
+    "note": "token neutro — nao se aplica"
+  }
+}

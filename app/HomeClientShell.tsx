@@ -24,7 +24,7 @@ import { useState } from "react";
 
 import { type MapView, MapViewToggle } from "@/components/atoms/controls/MapViewToggle";
 import { NationalChoroplethMap } from "@/components/blocks/NationalChoroplethMap";
-import type { EdgeUfRow } from "@/lib/edge-config/types";
+import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 
 export interface HomeClientShellProps {
   rows: EdgeUfRow[];
@@ -35,17 +35,34 @@ export interface HomeClientShellProps {
    * back-compat S04 (líder = vermelho usando `candidatoAId`).
    */
   rankByLider?: Record<number, number>;
+  /**
+   * `EdgeNational.candidatos` (S07/Bloco 1 — ADR-0024). Repassado sem
+   * transformação: é o que habilita cor por partido, `<HoverCard>` com nome
+   * e a `<MapLegend>` no `<NationalChoroplethMap />`. Ausente, o mapa degrada
+   * para o comportamento por rank.
+   */
+  candidatos?: EdgeCandidate[];
 }
 
-export function HomeClientShell({ rows, candidatoAId, rankByLider }: HomeClientShellProps) {
+export function HomeClientShell({
+  rows,
+  candidatoAId,
+  rankByLider,
+  candidatos,
+}: HomeClientShellProps) {
   const [view, setView] = useState<MapView>("winner");
 
   return (
-    <section aria-label="Mapa coroplético do Brasil" className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl" style={{ fontFamily: "var(--font-serif)" }}>
-          Brasil — visão geral
-        </h2>
+    <section
+      aria-label="Mapa coroplético do Brasil"
+      className="flex flex-col"
+      style={{ gap: "var(--space-3)" }}
+    >
+      <div
+        className="flex flex-wrap items-center justify-between"
+        style={{ gap: "var(--space-2)" }}
+      >
+        <h2 style={{ margin: 0, font: "var(--type-title)" }}>Brasil — visão geral</h2>
         <MapViewToggle value={view} onChange={setView} />
       </div>
       <NationalChoroplethMap
@@ -53,6 +70,7 @@ export function HomeClientShell({ rows, candidatoAId, rankByLider }: HomeClientS
         candidatoAId={candidatoAId}
         view={view}
         rankByLider={rankByLider}
+        candidatos={candidatos}
       />
     </section>
   );

@@ -182,15 +182,9 @@ export default async function GovernadorGridPage({ searchParams }: PageProps) {
 
   const ufsFiltradas = por_uf.filter((uf) => passesFilter(uf, status));
 
-  // Heurística pra `aria-disabled` das outras tabs (Senado/Congresso/Assembleias).
-  // Em S06/F4d eles ainda não existem como rota; tooltips esclarecem.
-  const tabsOptions = [
-    { id: "pres", label: "Presidente", href: "/" },
-    { id: "gov", label: "Governador", href: "/governador" },
-    { id: "sen", label: "Senado", disabled: true },
-    { id: "cong", label: "Congresso", disabled: true },
-    { id: "ass", label: "Assembleias", disabled: true },
-  ] as const;
+  // S07/Bloco 1 — a lista de cargos (Presidente/Governador + os ainda não
+  // cobertos) saiu daqui: agora é `<CargoTabs>` no `<TopBar>` global
+  // (app/layout.tsx, ADR-0025 § 2), uma vez por documento.
 
   return (
     <main
@@ -205,7 +199,6 @@ export default async function GovernadorGridPage({ searchParams }: PageProps) {
         crumbs={["Brasil (27 UFs)"]}
         titulo="Governadores 2026"
         subtitulo="27 corridas estaduais — apuração em tempo real. Não oficial. Fonte: TSE."
-        tabs={{ ariaLabel: "Cargo", value: "gov", options: tabsOptions }}
         liveActive={pct_apurado_total > 0}
       />
 

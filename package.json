@@ -20,7 +20,8 @@
     "db:postgis": "node scripts/apply-postgis.mjs",
     "tse:watch": "tsx scripts/tse-watch.ts",
     "tse:mock": "tsx scripts/tse-mock-server.ts",
-    "replay-2022": "tsx scripts/replay-2022.ts"
+    "replay-2022": "tsx scripts/replay-2022.ts",
+    "gen:party-scale": "tsx scripts/gen-party-scale.ts"
   },
   "packageManager": "pnpm@10.33.0",
   "engines": {

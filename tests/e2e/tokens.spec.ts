@@ -63,7 +63,8 @@ test.describe("tokens do tema no CSS emitido", () => {
 
   test("as fontes do next/font continuam resolvendo por var(--font-*)", async ({ page }) => {
     await page.goto("/");
-    // Os consumidores reais usam `style={{ fontFamily: "var(--font-serif)" }}`;
+    // Bloco 1: as famílias passaram a ser Spectral (display), Archivo (corpo) e
+    // JetBrains Mono (números). Os consumidores reais usam `style={{ fontFamily: "var(--font-serif)" }}`;
     // se o `@theme inline` deixar de emitir a variável em `:root`, a família
     // cai no fallback do navegador sem nenhum erro visível.
     const fontes = await page.evaluate(() => {
@@ -76,7 +77,7 @@ test.describe("tokens do tema no CSS emitido", () => {
     });
     expect(fontes.sans).not.toBe("");
     expect(fontes.serif).not.toBe("");
-    expect(fontes.body).toContain("Inter");
+    expect(fontes.body).toContain("Archivo");
   });
 
   test("a cascata de trilha sobrevive à migração de tokens", async ({ page }) => {

@@ -1,0 +1,62 @@
+/*
+ * components/layout/CargoTabs.module.css
+ *
+ * Estado "aba atual" da navegação global de cargos, derivado por CSS da
+ * cascata `main[data-trilha]` (ADR-0019) que cada página já emite.
+ *
+ * Por que CSS e não JS: o `<CargoTabs />` mora em `app/layout.tsx`, acima da
+ * dobra de TODAS as rotas. As três formas de o layout raiz saber a rota são
+ * `usePathname()` (Client Component — somaria JS ao above-the-fold, e
+ * RNF-007a está em 148,7 KiB de 150), `headers()`/`cookies()`/`searchParams`
+ * (tornaria dinâmicas as 54 páginas de UF hoje pré-renderizadas estáticas) ou
+ * um slot de parallel route (`app/@cargo/...`), que exigiria duplicar
+ * `generateStaticParams` em segmentos dinâmicos de slot. Nenhuma é aceitável
+ * aqui. A trilha, porém, JÁ está no DOM: `main[data-trilha="pres"|"gov"]`.
+ * `:has()` lê esse atributo de dentro do `<body>` e marca a aba — zero JS,
+ * zero render dinâmico, sem duplicar informação.
+ *
+ * Degradação: sem suporte a `:has()` (pré-Chrome 105 / Safari 15.4 /
+ * Firefox 121) nenhuma aba fica marcada — a navegação continua íntegra e o
+ * "onde estou" segue disponível no `<TrilhaKicker>`/`<h1>` da página.
+ *
+ * Seletores de elemento e de atributo NÃO são hasheados por CSS Modules; só
+ * `.cargoTabs` e `.flag` são locais. Cada regra carrega ao menos um deles,
+ * como o modo `pure` exige.
+ */
+
+/* Marca a aba da trilha atual. A cor vai no `<span>` do rótulo, não no `<a>`:
+ * o `<TabBar>` escreve `color` inline no âncora, e declaração inline vence
+ * qualquer folha de estilo. O filho apenas herda essa cor, então uma regra
+ * de autor sobre ele ganha sem precisar de `!important`. */
+body:has(main[data-trilha="pres"]) .cargoTabs [data-value="pres"] > span,
+body:has(main[data-trilha="gov"]) .cargoTabs [data-value="gov"] > span {
+  color: var(--text-primary);
+}
+
+/* Sublinhado da aba atual — o mesmo traço que o `<TabBar>` desenha no modo
+ * `value`, aqui via `::after` porque o item ativo não é conhecido no render.
+ * O item já é `position: relative` (itemStyle do TabBar). */
+body:has(main[data-trilha="pres"]) .cargoTabs [data-value="pres"]::after,
+body:has(main[data-trilha="gov"]) .cargoTabs [data-value="gov"]::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  background: var(--text-primary);
+}
+
+/* Estado atual para leitor de tela. Cor e sublinhado são sinais visuais; o
+ * texto abaixo é o portador não-visual (WCAG 1.4.1). Fica `display: none` —
+ * e portanto fora da árvore de acessibilidade — em toda aba que não é a da
+ * trilha corrente; na que é, volta a existir com a geometria de `.sr-only`
+ * (globals.css), audível sem ocupar pixel. */
+.flag {
+  display: none;
+}
+
+body:has(main[data-trilha="pres"]) .cargoTabs [data-value="pres"] .flag,
+body:has(main[data-trilha="gov"]) .cargoTabs [data-value="gov"] .flag {
+  display: inline;
+}

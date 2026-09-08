@@ -8,6 +8,13 @@
  * spec-implementer da 003 pode evoluir layout/estilo conforme necessidade.
  * Interface estável: recebe `frases: string[]` já geradas (1–3 sentenças).
  *
+ * S07/Bloco 1 (ADR-0025) — perdeu a moldura. O card cinza com borda
+ * arredondada era a única superfície "caixa" restante no fluxo da home, e a
+ * gramática do design system Atlas Menna separa seções por filete, não por
+ * card. O filete e o kicker agora vêm do `<Panel>` que envolve o bloco na
+ * página; o `<h3>` virou o título em serifa e as frases, deck. Contrato de
+ * dados e de a11y inalterados.
+ *
  * Server Component puro.
  *
  * A11y: `<aside>` semântico + `aria-labelledby` apontando ao heading. Cada
@@ -30,27 +37,15 @@ export function InsightCard({ frases, heading = "Análise" }: InsightCardProps) 
   const headingId = "insight-card-heading";
 
   return (
-    <aside
-      aria-labelledby={headingId}
-      className="flex flex-col gap-2 rounded-md border px-5 py-4"
-      style={{
-        borderColor: "var(--color-border)",
-        backgroundColor: "var(--color-bg-muted)",
-      }}
-    >
-      <h3
-        id={headingId}
-        className="text-sm font-medium uppercase tracking-wider"
-        style={{ color: "var(--color-text-muted)" }}
-      >
+    <aside aria-labelledby={headingId} className="flex flex-col" style={{ gap: "var(--space-3)" }}>
+      <h3 id={headingId} style={{ margin: 0, font: "var(--type-title)", textWrap: "pretty" }}>
         {heading}
       </h3>
       {frases.map((f) => (
         <p
           // Frases vêm do engine de templates; conteúdo é a chave estável.
           key={f}
-          className="text-base leading-relaxed"
-          style={{ color: "var(--color-text)" }}
+          style={{ margin: 0, font: "var(--type-deck)", textWrap: "pretty" }}
         >
           {f}
         </p>
