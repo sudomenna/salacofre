@@ -60,6 +60,9 @@
  *     ausente). Exceção final agrega o que falhou.
  */
 
+import { ufDetailBlobPathname } from "@/lib/blob/paths";
+import { splitUfPayload, type UfDetailBlob } from "@/lib/blob/uf-detail";
+import { putJson } from "@/lib/blob/write";
 import type { Cargo, Turno } from "@/lib/config/calendar";
 import {
   assertValidGlobalConfigKey,
@@ -68,7 +71,7 @@ import {
   legacyUfAliasKey,
   ufProjectionKey,
 } from "@/lib/edge-config/keys";
-import type { EdgePayload, EdgePayloadUf } from "@/lib/edge-config/types";
+import type { EdgePayload, EdgePayloadUf, UfPayloadInput } from "@/lib/edge-config/types";
 import { logError, logInfo, logWarn } from "@/lib/tse/log";
 
 // ---------------------------------------------------------------------------
@@ -304,9 +307,13 @@ const EDGE_CONFIG_SIZE_WARN_BYTES = 450 * 1024;
  *   - Nacional com 11 candidatos + `cenarios_2t` + `p_passa_2t`/`p_fecha_1t`
  *     em cada cand: tipicamente 30–55 KB. Warn em 75 KB = sinal de blow-up
  *     (e.g. `cenarios_2t` virou top-50 em vez de top-3).
- *   - UF com 11 candidatos + `top_candidatos` + `bucket` + municípios +
- *     séries: tipicamente 8–15 KB (50 em SP). Warn em 20 KB = sinal de
- *     vazamento (`series_temporais` cresceu além da janela 24h).
+ *   - UF com 11 candidatos + `top_candidatos` + `bucket` + mesorregiões:
+ *     poucos KB. O número 20 KB foi calibrado em S05, quando `municipios` e
+ *     `series_temporais` ainda estavam INLINE nesta chave; desde o ADR-0032 os
+ *     dois vivem no Blob (`lib/blob/uf-detail.ts`) e o que sobra aqui é
+ *     resumo. Mantido em 20 KB de propósito: passar disso agora significa que
+ *     algo voltou a inflar o resumo — que é exatamente o que o aviso deve
+ *     pegar.
  */
 const EDGE_CONFIG_NATIONAL_WARN_BYTES = 75 * 1024;
 const EDGE_CONFIG_UF_WARN_BYTES = 20 * 1024;
@@ -580,8 +587,9 @@ async function guardStoreSize(incoming: KeySize[]): Promise<void> {
 
     const remedy =
       "Para liberar espaço, na ordem: apagar chaves projection-archive-* de turno já encerrado; " +
-      "tirar `municipios` dos payloads de UF (o detalhe municipal sozinho mede ~1.148 KB e não " +
-      "cabe no store — ver migração para Vercel Blob).";
+      "conferir se algum payload de UF voltou a carregar `municipios`/`series_temporais` — " +
+      "desde o ADR-0032 os dois vivem no Vercel Blob, e só o detalhe municipal mede ~1.148 KB, " +
+      "que sozinho não cabe no store.";
 
     const message = `${head} Maiores chaves (${breakdownSource}): ${keyList}. ${remedy}`;
 
@@ -650,6 +658,19 @@ function cargoFromTseNumeric(cargoTse: number): Cargo {
  *
  * Total de chaves gravadas: `2 + 2N` (N = número de UFs em `por_uf`).
  *
+ * **E, desde o ADR-0032, N objetos no Vercel Blob** — um por UF com payload
+ * explícito, em `municipios/uf/<SIGLA>/<cargo>/t<turno>.json`, carregando os
+ * dois campos que saíram do envelope de Global Config (`municipios`,
+ * `series_temporais`). A fronteira é aplicada aqui, do lado TypeScript
+ * (`splitUfPayload`): o orchestrator Python segue enviando tudo junto.
+ *
+ * Os dois mecanismos falham de forma INDEPENDENTE, de propósito (ADR-0032
+ * item 3): uma falha de Blob **não** entra na exceção agregada desta função.
+ * Ela é logada como `error` ("blob uf detail write failures") e o ciclo segue
+ * — o resumo publicado vale mais que um ciclo marcado vermelho, e o read path
+ * já degrada por seção com estado "detalhe indisponível" explícito no DOM. É
+ * essa linha de log que o runbook precisa vigiar.
+ *
  * Estratégia de granularidade do erro — **best-effort por chave**:
  *   Cada `writeEdgePayload` é tentado de forma INDEPENDENTE. Se a chave
  *   nacional falhar mas 26/27 UFs gravarem, o read path ainda serve o
@@ -667,17 +688,20 @@ function cargoFromTseNumeric(cargoTse: number): Cargo {
  *
  * @param payload     `EdgePayload` nacional canônico. `payload.cargo` e
  *                    `payload.turno` definem a chave nomeada.
- * @param payloadsUf  Opcional (S04/F2): mapa `sigla → EdgePayloadUf` rico
+ * @param payloadsUf  Opcional (S04/F2): mapa `sigla → UfPayloadInput` rico
  *                    com candidatos completos, municípios e séries temporais.
  *                    Quando presente, sobrescreve o esqueleto sintetizado
  *                    de `payload.por_uf`. Falta de uma UF cai no fallback
- *                    sintético — garante chave existe.
- * @throws Error agregando as chaves que falharam, com mensagem por chave.
- *               Se TODAS gravaram OK, resolve sem erro.
+ *                    sintético — garante chave existe. O tipo é
+ *                    `UfPayloadInput` (entrada) e não `EdgePayloadUf`
+ *                    (armazenado): ver ADR-0032 e `lib/edge-config/types.ts`.
+ * @throws Error agregando as chaves de GLOBAL CONFIG que falharam, com
+ *               mensagem por chave. Falhas de Blob não entram aqui — são
+ *               logadas como `error` (ver acima).
  */
 export async function writeProjection(
   payload: EdgePayload,
-  payloadsUf?: Record<string, EdgePayloadUf>,
+  payloadsUf?: Record<string, UfPayloadInput>,
 ): Promise<void> {
   // Resolve a chave nomeada via cargo/turno do payload. ADR-0012:
   // orchestrator é a fonte de verdade — payload.cargo/turno reflete a
@@ -736,21 +760,38 @@ export async function writeProjection(
     },
   ];
 
+  // Detalhe municipal + séries de cada UF com payload explícito, destinado ao
+  // Blob (ADR-0032). Uma entrada por UF — nunca por chave: o alias legacy
+  // aponta para o mesmo resumo, e duplicar o objeto de detalhe no Blob custaria
+  // o dobro de escrita por nada.
+  const blobDetails: UfDetailBlob[] = [];
+
   for (const row of payload.por_uf) {
     const explicit = payloadsUf?.[row.sigla];
-    const ufPayload: EdgePayloadUf = explicit ?? {
-      uf: row.sigla,
-      ts: payload.ts,
-      cargo: payload.cargo,
-      turno: payload.turno,
-      pct_apurado: row.pct_apurado,
+
+    // A fronteira campo a campo do ADR-0032 acontece aqui, num ponto só:
+    // `stored` vai para o Global Config, `detail` vai para o Blob.
+    let ufPayload: EdgePayloadUf;
+    if (explicit) {
+      const split = splitUfPayload(explicit, cargoLit, turnoLit);
+      ufPayload = split.stored;
+      blobDetails.push(split.detail);
+    } else {
       // Esqueleto: orchestrator antigo sem payloads_uf. Página de UF
-      // renderiza com placeholders gentis (constituição § 3).
-      candidatos: [],
-      needle_position: 0,
-      needle_band: "tossup",
-      municipios: [],
-    };
+      // renderiza com placeholders gentis (constituição § 3). Sem entrada de
+      // Blob — não há detalhe a publicar, e o read path degrada com
+      // "detalhe indisponível" explícito (ADR-0032 item 3).
+      ufPayload = {
+        uf: row.sigla,
+        ts: payload.ts,
+        cargo: payload.cargo,
+        turno: payload.turno,
+        pct_apurado: row.pct_apurado,
+        candidatos: [],
+        needle_position: 0,
+        needle_band: "tossup",
+      };
+    }
 
     const namedUfKey = ufProjectionKey(row.sigla, cargoLit, turnoLit);
     const aliasUfKey = legacyUfAliasKey(row.sigla);
@@ -789,8 +830,14 @@ export async function writeProjection(
   }
 
   // Guarda de tamanho do STORE (não da requisição) — roda ANTES de gravar,
-  // nunca lança, nunca aborta. Ver `guardStoreSize`.
+  // nunca lança, nunca aborta. Ver `guardStoreSize`. Desde o ADR-0032 ela mede
+  // o resumo JÁ SEM municípios/séries — que é o que de fato vai para o store.
   await guardStoreSize(incomingSizes);
+
+  // Blob em paralelo com o Global Config: os dois read paths são independentes
+  // (ADR-0032 item 3) e serializá-los só somaria latência ao ciclo de 60 s.
+  // Disparado aqui, colhido no fim — sem `await` no meio.
+  const blobWrites = writeUfDetails(blobDetails);
 
   const failures: WriteFailure[] = [];
 
@@ -830,6 +877,11 @@ export async function writeProjection(
     }
   });
 
+  // Colhe o Blob ANTES de decidir sobre a exceção: mesmo num ciclo que falhou
+  // no Global Config, o detalhe municipal pode ter publicado, e o log precisa
+  // dizer isso.
+  const blob = await blobWrites;
+
   if (failures.length > 0) {
     const summary = failures.map((f) => `${f.key}: ${f.message}`).join("; ");
     throw new Error(
@@ -842,5 +894,74 @@ export async function writeProjection(
     nationalBytes: nationalJson.length,
     ufKeysWritten: ufKeys.length,
     totalKeys: ufKeys.length + 2,
+    blobWritten: blob.written,
+    blobSkipped: blob.skipped,
+    blobFailed: blob.failures.length,
+    blobBytes: blob.bytes,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Escrita do detalhe por UF no Blob (ADR-0032)
+// ---------------------------------------------------------------------------
+
+/** Contabilidade de uma rodada de escrita de detalhe no Blob. */
+interface BlobWriteSummary {
+  written: number;
+  skipped: number;
+  bytes: number;
+  failures: WriteFailure[];
+}
+
+/**
+ * Publica o detalhe de cada UF no Blob, best-effort e em paralelo — a mesma
+ * política por chave que o Global Config usa: uma UF com problema transitório
+ * não cancela as outras 26.
+ *
+ * **Nunca lança.** Falhas voltam no sumário e são logadas como `error` pelo
+ * caller. Ver o docblock de `writeProjection` para o porquê de o Blob não
+ * derrubar o ciclo.
+ *
+ * Volume por ciclo: até 27 UFs × 1 objeto para o cargo sendo gravado. Com
+ * Presidente e Governador rodando no mesmo cron de 60 s, até 54 `put()` por
+ * ciclo — o número que o ADR-0032 registrou como pendência operacional a
+ * validar antes do simulado 1.
+ */
+async function writeUfDetails(details: readonly UfDetailBlob[]): Promise<BlobWriteSummary> {
+  const summary: BlobWriteSummary = { written: 0, skipped: 0, bytes: 0, failures: [] };
+  if (details.length === 0) return summary;
+
+  const results = await Promise.allSettled(
+    details.map(async (detail) => {
+      const pathname = ufDetailBlobPathname(detail.uf, detail.cargo, detail.turno);
+      return putJson(pathname, detail);
+    }),
+  );
+
+  results.forEach((result, i) => {
+    const detail = details[i];
+    if (result.status === "fulfilled") {
+      if (result.value.status === "written") summary.written += 1;
+      else summary.skipped += 1;
+      summary.bytes += result.value.bytes;
+      return;
+    }
+    summary.failures.push({
+      key: detail ? `municipios/uf/${detail.uf}` : `municipios/uf/<index-${i}>`,
+      message: result.reason instanceof Error ? result.reason.message : String(result.reason),
+    });
+  });
+
+  if (summary.failures.length > 0) {
+    logError("blob uf detail write failures", {
+      failed: summary.failures.length,
+      total: details.length,
+      detail: summary.failures
+        .map((f) => `${f.key}: ${f.message}`)
+        .join("; ")
+        .slice(0, 800),
+    });
+  }
+
+  return summary;
 }

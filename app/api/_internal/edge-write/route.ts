@@ -129,10 +129,18 @@ const bodySchema = z.object({
     })
     .passthrough(), // permite campos extras (forward-compat com Python avançando o shape)
   /**
-   * Mapa opcional `sigla → EdgePayloadUf` rico (S04/F2). Quando presente,
+   * Mapa opcional `sigla → UfPayloadInput` rico (S04/F2). Quando presente,
    * `writeProjection` usa esses payloads para as chaves
    * `projection-uf-<SIGLA>-<cargo>-t<turno>` em vez de sintetizar esqueleto do
-   * `por_uf` nacional. As chaves DESTE mapa não formam nomes de chave do
+   * `por_uf` nacional.
+   *
+   * **ADR-0032 (2026-09-08)**: o Python continua enviando `municipios` e
+   * `series_temporais` dentro de cada UF deste mapa — inalterado. Quem separa é
+   * o lado TypeScript: `writeProjection` → `splitUfPayload` manda o resumo para
+   * o Global Config e o detalhe para o Vercel Blob. O contrato desta rota não
+   * mudou; o destino de dois campos, sim.
+   *
+   * As chaves DESTE mapa não formam nomes de chave do
    * Global Config — são só lookup por `por_uf[].sigla`, que já é validado
    * acima. Forward-compat:
    * orchestrators antigos sem `payloads_uf` continuam funcionando (cai no

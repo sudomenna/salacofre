@@ -182,7 +182,11 @@ type EdgePayload = {
 };
 ```
 
-Payload `por_uf` para drill-down (chave `projection:uf:[sigla]`): inclui municípios e zonas. ~5–10KB por UF **quando sem o array de municípios** — com ele, muito mais; ver a medição na seção seguinte.
+Payload `por_uf` para drill-down (chave `projection-uf-<SIGLA>-<cargo>-t<turno>`):
+o **resumo** da UF — candidatos, agulha, bucket, mesorregiões, participação.
+Poucos KB. Desde o ADR-0032 ele **não** carrega mais `municipios` nem
+`series_temporais`: os dois vivem no Vercel Blob, descritos em «Detalhe por UF
+no Vercel Blob» abaixo.
 
 ### Limite de tamanho — é do STORE, não da requisição
 
@@ -221,8 +225,9 @@ município (medido sobre o payload real de MG):
 | Limite do store | 1.000.000 |
 
 Ou seja: **com o detalhe municipal dentro do Global Config, o store já não
-cabe.** A saída decidida é mover o drill-down municipal para o Vercel Blob —
-formalizada em ADR próprio, fora do escopo deste documento.
+cabe.** A saída, formalizada no [ADR-0032](adrs/0032-detalhe-municipal-vercel-blob.md)
+e implementada em `lib/blob/`, é mover o detalhe para o Vercel Blob — ver a
+seção seguinte.
 
 **Instrumentação.** `lib/edge-config/writer.ts` mede o store antes de cada
 escrita (`GET /v1/edge-config/<id>` → `sizeInBytes`, metadados apenas, sem
@@ -236,6 +241,52 @@ O bloco acima é o esqueleto histórico (S04). O shape completo e vigente — co
 `rank`, `p_passa_2t`, `p_fecha_1t`, `participacao`, `mesorregioes` e o bloco de
 segunda base descrito abaixo — vive em `lib/edge-config/types.ts`, que **deriva
 deste markdown**: alterou o shape, atualize aqui primeiro.
+
+### Detalhe por UF no Vercel Blob (ADR-0032)
+
+Dois campos saíram do envelope de Global Config e passaram a ser um objeto
+próprio no Vercel Blob, um por UF/cargo/turno:
+
+```
+municipios/uf/<SIGLA>/<cargo>/t<turno>.json     municipios/uf/SP/pres/t1.json
+```
+
+```ts
+type UfDetailBlob = {
+  ts: string;                       // ISO8601 — PRÓPRIO, ver abaixo
+  uf: string;                       // "SP" — redundante com o caminho, de propósito
+  cargo: 'pres' | 'gov';
+  turno: 1 | 2;
+  municipios: EdgeUfMunicipio[];    // saiu de EdgePayloadUf.municipios
+  series_temporais: EdgeUfSeriesTemporais | null;  // saiu de EdgePayloadUf.series_temporais
+};
+```
+
+Contrato canônico em `lib/blob/uf-detail.ts`; o esquema de caminho e a
+construção de URL vivem em `lib/blob/paths.ts`, compartilhados com o
+drill-down de Deputado Federal do [ADR-0026](adrs/0026-cargos-senador-deputado-ingestao-e-read-path.md)
+(`deputado/uf/<SIGLA>.json`).
+
+| Fato | Valor |
+|---|---|
+| Separador de segmento | `/` — dois-pontos produz URL percent-encoded no Blob, e o read path monta a URL a partir do pathname, sem lookup |
+| Escrita | `put()` com `allowOverwrite: true`, `addRandomSuffix: false` → URL determinística |
+| `cacheControlMaxAge` | **60 s** — o mínimo do Blob e a cadência do ADR-0011. O default do SDK é **um mês**, que congelaria o detalhe no CDN |
+| Leitura | `fetch` no servidor com `next: { revalidate: 60 }`, **em paralelo** com `readUfProjection()` |
+| Objetos por ciclo | até 27 UFs × 2 cargos = 54 `put()` |
+| Tamanho medido (SP, pior caso) | **248.473 B** com os 645 municípios reais, 11 candidatos por município e 3 séries de 480 pontos |
+
+**Por que `ts` é próprio.** As duas escritas (Global Config e Blob) não são
+atômicas entre si, e o CDN pode servir uma versão anterior além do
+`revalidate`. O detalhe municipal pode ficar visivelmente mais velho que o
+resumo, e a UI **não deve silenciar** essa diferença — `<DetailFreshness>`
+exibe a idade do detalhe e a defasagem contra o resumo.
+
+**Degradação.** `readUfDetail` nunca lança e nunca devolve `null` cru: devolve
+o motivo (`not_configured` | `not_found` | `fetch_error` | `invalid`). As
+seções de detalhe renderizam `<DetailUnavailable>` — explícito e **sempre no
+DOM** ([ADR-0017](adrs/0017-transparencia-total-3-camadas.md)) — nunca somem
+nem ficam vazias em silêncio. Global Config e Blob falham independentemente.
 
 ### Duas bases por candidato (S07/Fase 2 — extrapolação do apurado)
 

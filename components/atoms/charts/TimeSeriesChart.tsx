@@ -6,8 +6,10 @@
  * Server Component (SVG inline). Sem D3, sem Recharts — escala feita
  * inline com aritmética simples (constituição § 9 / RNF-007: bundle).
  *
- * Quando o payload `EdgePayloadUf` não traz `series_temporais` ainda, o
- * caller passa uma lista vazia ou stub; renderizamos placeholder gentil.
+ * A série vem do objeto de detalhe no Vercel Blob (ADR-0032), não mais de
+ * `EdgePayloadUf`. Quando o detalhe não chegou, o caller passa lista vazia e
+ * renderizamos placeholder gentil — e a página, acima, declara o motivo com
+ * `<DetailUnavailable>` (o vazio nunca é silencioso).
  */
 
 import type { CSSProperties } from "react";

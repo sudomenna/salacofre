@@ -9,6 +9,10 @@
  *   1. (removido em S07/Fase 5) K-1 disclaimer — ver ADR-0021, que supersede
  *      o ADR-0015: sem 2022 no cálculo, não há "prior limitado" a declarar.
  *   2. `<MunicipioWaffleGrid>` — Print 3 NYT (1 quadrado = 1 município).
+ *      Desde o ADR-0032 os municípios (e as séries) chegam pelo Vercel Blob, em
+ *      `readUfDetail` disparado EM PARALELO com `readUfProjection` — dois read
+ *      paths que falham de forma independente, com degradação por seção
+ *      (`<DetailUnavailable>`, sempre no DOM — ADR-0017).
  *   3. Bloco "Apuração por mesorregião" — só renderiza se `mesorregioes?`
  *      vier populado (degrade gracioso conforme Fase 2 — IBGE seed pode
  *      estar pendente).
@@ -57,6 +61,7 @@ import { Figure } from "@/components/atoms/data/Figure";
 import { TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
 import { UFBreadcrumb } from "@/components/atoms/nav/UFBreadcrumb";
 import { Needle } from "@/components/atoms/needle/Needle";
+import { DetailFreshness, DetailUnavailable } from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { CandidateResultRow } from "@/components/atoms/tables/CandidateResultRow";
 import { ChancesPanel } from "@/components/blocks/ChancesPanel";
@@ -67,6 +72,12 @@ import type { MunicipioRow } from "@/components/blocks/MunicipioTable";
 import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
 import { UfLeaderMapLazy, UfMapDuoLazy } from "@/components/blocks/UfMapsLazy";
 import { Footer } from "@/components/layout/Footer";
+import {
+  municipiosFrom,
+  readUfDetail,
+  seriesFrom,
+  type UfDetailResult,
+} from "@/lib/blob/uf-detail";
 import { readUfProjection } from "@/lib/edge-config/reader";
 import type {
   EdgePayload,
@@ -225,9 +236,21 @@ function synthesizeGovUfFromFixture(sigla: string): EdgePayloadUf | null {
     participacao: fixture.national.participacao,
     needle_position: 0.3,
     needle_band: "lean_a",
-    municipios: [],
-    series_temporais: { margem: [], p_vitoria: [], turnout: [] },
   };
+}
+
+/**
+ * Motivo do estado "detalhe indisponível" da seção de municípios, ou `null`
+ * quando há detalhe. Espelha a função homônima da rota presidencial: fonte que
+ * não respondeu (`result.reason`) e detalhe vazio (`"empty"`) são notícias
+ * diferentes, e nenhuma das duas esconde o bloco (ADR-0032 item 3 / ADR-0017).
+ */
+function municipioDetailReason(
+  result: UfDetailResult,
+  quantidade: number,
+): "not_configured" | "not_found" | "fetch_error" | "invalid" | "empty" | null {
+  if (result.status !== "ok") return result.reason;
+  return quantidade === 0 ? "empty" : null;
 }
 
 /** Breadcrumb da trilha governador — sem nó nacional (ADR-0019). */
@@ -248,9 +271,18 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
     notFound();
   }
 
-  // Leitura específica: cargo=gov, turno=1 default (orchestrator alterna
-  // pra turno=2 via chave dinâmica em S07).
-  let payload = await readUfProjection(sigla, { cargo: "gov", turno: 1 });
+  // Os DOIS read paths, em paralelo (ADR-0032 item 3): resumo no Global Config,
+  // detalhe municipal + séries no Vercel Blob. Nunca em série — a página não
+  // espera o Blob para renderizar o resumo, e os dois falham independentemente.
+  //
+  // cargo=gov, turno=1 default (orchestrator alterna pra turno=2 via chave
+  // dinâmica em S07). Os mesmos qualificadores nomeiam a chave do Global Config
+  // e o caminho do Blob.
+  const [payloadDoStore, detalhe] = await Promise.all([
+    readUfProjection(sigla, { cargo: "gov", turno: 1 }),
+    readUfDetail(sigla, { cargo: "gov", turno: 1 }),
+  ]);
+  let payload = payloadDoStore;
 
   // Só em `pnpm dev`: em teste (NODE_ENV=test) e em produção o caminho
   // "Aguardando dados" continua sendo exercitado de verdade.
@@ -285,7 +317,12 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
     candidateShortName[c.id] = c.nome.split(" ")[0] ?? c.nome;
   }
 
-  const municipioRows = toMunicipioRows(payload.municipios, candidateColor, candidateShortName);
+  // Detalhe do Blob. Coalesce para vazio; o estado explícito é decidido abaixo.
+  const municipios = municipiosFrom(detalhe);
+  const series = seriesFrom(detalhe);
+  const municipioReason = municipioDetailReason(detalhe, municipios.length);
+
+  const municipioRows = toMunicipioRows(municipios, candidateColor, candidateShortName);
 
   // Adapta candidatos UF → EdgeCandidate-like pra <MunicipioWaffleGrid> /
   // <RaceStatsCards>. Como faltam alguns campos (`p_vitoria`, `rank`,
@@ -313,7 +350,7 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
 
   const mesorregioes = payload.mesorregioes ?? [];
 
-  const choropleth = payload.municipios.map((m) => ({
+  const choropleth = municipios.map((m) => ({
     cod_ibge: m.cod_ibge,
     cor: candidateColor[m.lider.candidato_id] ?? "var(--color-tossup)",
     pctApurado: m.pct_apurado,
@@ -348,6 +385,18 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
             {sigla} · quem lidera cada município
           </h2>
           <UfLeaderMapLazy ufSigla={sigla} choropleth={choropleth} height={HERO_MAP_HEIGHT} />
+          {/* O coroplético é alimentado pelo Blob (ADR-0032). Sem detalhe ele
+              desenha o contorno da UF sem nenhuma feição colorida — o que, sem
+              este aviso, o leitor interpretaria como "ninguém apurou ainda".
+              Fica ABAIXO do mapa para não empurrar a primeira dobra
+              (ADR-0029 § 1), mas está no DOM em todos os casos. */}
+          {municipioReason !== null && (
+            <DetailUnavailable
+              label="A cor por município deste mapa"
+              reason={municipioReason}
+              style={{ borderTop: "none", paddingTop: 0 }}
+            />
+          )}
         </section>
       </Panel>
 
@@ -458,11 +507,19 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
       {/* `frases=[]` → o bloco retorna null; por isso fica fora de `<Panel>`. */}
       <InsightCard frases={[]} variant="uf" />
 
-      {/* Seção 4 — mapas duo (líder + bolhas). */}
+      {/* Seção 4 — mapas duo (líder + bolhas). Alimentada pelo Blob: sem
+          detalhe, os mapas ficam sem feição e o estado explícito diz por quê. */}
       <Panel kicker="Volume e estimativa">
+        {municipioReason !== null && (
+          <DetailUnavailable
+            label="O mapa de volume por município"
+            reason={municipioReason}
+            style={{ borderTop: "none", paddingTop: 0, marginBottom: "var(--space-3)" }}
+          />
+        )}
         <UfMapDuoLazy
           ufSigla={sigla}
-          bubbles={payload.municipios.map((m) => ({
+          bubbles={municipios.map((m) => ({
             cod_ibge: m.cod_ibge,
             nome: m.nome,
             centro: [0, 0] as [number, number],
@@ -476,17 +533,24 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
       </Panel>
 
       {/* Seção 5 — Print 3 NYT: waffle + maiores municípios, os dois ligados à
-          folha do município (`<Sheet>`). Cada quadrado = 1 município. */}
-      {payload.municipios.length > 0 && (
-        <Panel kicker="Municípios" title="Cada quadrado é um município" titleId="waffle-heading">
+          folha do município (`<Sheet>`). Cada quadrado = 1 município.
+
+          O `<Panel>` deixou de sumir quando não há município: a fonte agora é o
+          Vercel Blob (ADR-0032), que falha independentemente do resumo, e um
+          bloco ausente diria "não existe" onde a verdade é "não chegou". */}
+      <Panel kicker="Municípios" title="Cada quadrado é um município" titleId="waffle-heading">
+        {municipioReason === null ? (
           <div className="flex flex-col" style={{ gap: "var(--space-3)" }}>
             <p style={{ margin: 0, font: "var(--type-data)", color: "var(--text-muted)" }}>
-              Mosaico de {payload.municipios.length.toLocaleString("pt-BR")} municípios — cor pelo
-              líder. Toque num município para ver os números dele.
+              Mosaico de {municipios.length.toLocaleString("pt-BR")} municípios — cor pelo líder.
+              Toque num município para ver os números dele.
             </p>
+            {detalhe.status === "ok" && (
+              <DetailFreshness ts={detalhe.detail.ts} resumoTs={payload.ts} />
+            )}
             <MunicipioExplorer
               ufSigla={sigla}
-              municipios={payload.municipios}
+              municipios={municipios}
               rows={municipioRows}
               candidatos={payload.candidatos}
               waffleCandidatos={candidatosForGrid}
@@ -494,8 +558,10 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
               topN={15}
             />
           </div>
-        </Panel>
-      )}
+        ) : (
+          <DetailUnavailable label="O detalhe por município" reason={municipioReason} />
+        )}
+      </Panel>
 
       {/* Seção 6 — apuração por mesorregião. Degrade gracioso (Fase 2): só
           renderiza se o orchestrator anexou `mesorregioes`. */}
@@ -620,8 +686,17 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
         </Panel>
       )}
 
-      {/* Seção 8 — séries temporais. */}
+      {/* Seção 8 — séries temporais. Vêm do Blob (ADR-0032), não do resumo:
+          falha de fonte é dita explicitamente; série vazia continua caindo no
+          placeholder gentil de cada chart. */}
       <Panel kicker="Ao longo da noite">
+        {detalhe.status !== "ok" && (
+          <DetailUnavailable
+            label="A evolução ao longo da noite"
+            reason={detalhe.reason}
+            style={{ borderTop: "none", paddingTop: 0, marginBottom: "var(--space-3)" }}
+          />
+        )}
         <div
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
           style={{ gap: "var(--space-6)" }}
@@ -639,7 +714,7 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
               Margem ao longo do tempo
             </h3>
             <TimeSeriesChart
-              points={(payload.series_temporais?.margem ?? []).map((pt) => ({
+              points={(series?.margem ?? []).map((pt) => ({
                 ts: pt.ts,
                 margemPp: pt.margem_pp,
               }))}
@@ -660,7 +735,7 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
               Probabilidade ao longo do tempo
             </h3>
             <ProbabilityOverTime
-              points={(payload.series_temporais?.p_vitoria ?? []).map((pt) => ({
+              points={(series?.p_vitoria ?? []).map((pt) => ({
                 ts: pt.ts,
                 pVitoria: pt.p,
               }))}
@@ -681,7 +756,7 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
               Turnout cumulativo
             </h3>
             <TurnoutAreaChart
-              points={(payload.series_temporais?.turnout ?? []).map((pt) => ({
+              points={(series?.turnout ?? []).map((pt) => ({
                 ts: pt.ts,
                 pctApurado: pt.pct_apurado,
               }))}

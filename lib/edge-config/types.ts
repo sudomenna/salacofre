@@ -15,15 +15,30 @@
  *     Para múltiplos cargos / turnos, sufixar a chave (ex.
  *     `projection-current-gov-uf-sp`). T14 finaliza o esquema definitivo de chaves.
  *   - Chave de drill-down por UF: `projection-uf-<sigla>` (ex. `projection-uf-SP`).
- *     Inclui municípios e zonas — definido em `EdgePayloadUf` abaixo.
+ *     Traz o RESUMO da UF — candidatos, agulha, bucket, mesorregiões. O
+ *     detalhe municipal e as séries temporais NÃO vivem mais aqui (ADR-0032,
+ *     ver abaixo).
  *   - Determinismo (constituição § 6): todos os números aqui são funções puras
  *     de (snapshots, historical_results, seed). Não há ruído introduzido na
  *     serialização.
+ *   - **Fronteira Global Config × Blob (ADR-0032, 2026-09-08)**:
+ *     `EdgePayloadUf.municipios` e `EdgePayloadUf.series_temporais` foram
+ *     REMOVIDOS deste envelope e passaram a viver no Vercel Blob
+ *     (`lib/blob/uf-detail.ts`, `municipios/uf/<SIGLA>/<cargo>/t<turno>.json`).
+ *     Motivo medido, não estimado: 5.572 municípios a ~206 B cada = 1,10 MB só
+ *     do array `municipios` para UM cargo — acima do limite do store INTEIRO.
+ *     O tipo que o orchestrator ENVIA (com os dois campos) é `UfPayloadInput`;
+ *     o tipo ARMAZENADO no Global Config é `EdgePayloadUf`. São distintos de
+ *     propósito: o tipo armazenado não deve declarar campos que o store não
+ *     guarda.
  *   - Tamanho-alvo: <30 KB para `projection-current` binário S04;
- *     **S05/F4c (multi-candidato 11 cands + cenarios_2t)**: <75 KB nacional,
- *     <20 KB por UF (top_candidatos + bucket). `writeEdgePayload` warna em
- *     450 KB no agregado (margem para limite duro de 512 KB do Edge Config),
- *     com warns dedicados por chave em 75 KB / 20 KB.
+ *     **S05/F4c (multi-candidato 11 cands + cenarios_2t)**: <75 KB nacional.
+ *     Por UF, o orçamento de 20 KB dos comentários S05 foi escrito quando
+ *     `municipios` ainda estava inline; sem ele a UF típica fica na casa de
+ *     poucos KB. `writeEdgePayload` warna em 450 KB por chave, e
+ *     `guardStoreSize` mede o **store inteiro** contra o limite real de 1 MB
+ *     (não os 512 KB que este cabeçalho citava até 2026-09-08 — número errado,
+ *     corrigido pelo ADR-0032).
  *   - **S06/F4d (Fase 2 — mesorregião)**: adicionado `EdgePayloadUf.mesorregioes?`
  *     opcional. Footprint estimado por UF: ~80–120 bytes por mesorregião
  *     serializada (8 campos numéricos + nome + cod). SP tem ~15 mesorregiões
@@ -699,28 +714,18 @@ export interface EdgePayloadUf {
   needle_position: number; // [-1, 1]
   needle_band: NeedleBand;
   /**
-   * Municípios para drill-down do mapa + tabela RF-037. Schema completo
-   * (margem, votos por candidato) habilitado em S04/F2 — antes era apenas
-   * `{cod_ibge, nome, pct_apurado, lider}` e a tabela usava placeholders.
-   * Zonas individuais NÃO cabem nesta chave (>512KB no pior caso).
-   */
-  municipios: EdgeUfMunicipio[];
-  /**
-   * Séries temporais (margem, p_vitoria, turnout) que alimentam os charts
-   * RF-040/041/042. Adicionado em S04/F2. **Optional** porque payloads
-   * gravados pré-S04/F2 não têm essa chave — consumidores devem coalescer
-   * para `{margem: [], p_vitoria: [], turnout: []}` para manter
-   * compatibilidade durante o rollout.
+   * `municipios` e `series_temporais` NÃO estão mais aqui — ADR-0032,
+   * 2026-09-08. Os dois vivem no Vercel Blob, num objeto por UF/cargo/turno
+   * (`lib/blob/uf-detail.ts` → `UfDetailBlob`), lido em paralelo com este
+   * payload. Quem monta o payload para gravar usa `UfPayloadInput` (abaixo),
+   * que ainda os carrega; quem LÊ do Global Config recebe este tipo, sem eles.
    *
-   * S05/F4c (ADR-0014): a série "p_vitoria do líder" (top-2 binário) é
-   * insuficiente em corrida multi-candidato. A série por-candidato vai
-   * morar numa CHAVE DEDICADA `projection-uf-<sigla>-series-por-cand`
-   * (não inline aqui) para não inflar `EdgePayloadUf` além do orçamento
-   * de 20 KB. Esta chave dedicada é placeholder até spec de "evolução
-   * histórica multi-candidato" (S06+); o tipo correspondente ainda não
-   * está definido — apenas reservamos a chave.
+   * A série por candidato que o ADR-0014 reservou como chave dedicada
+   * `projection-uf-<sigla>-series-por-cand` fica resolvida antes de existir: o
+   * destino dela é o mesmo objeto Blob (ou um irmão no mesmo esquema de
+   * caminho), nunca uma chave nova de Global Config — uma série por candidato
+   * multiplica o custo de `series_temporais` pelo número de candidatos.
    */
-  series_temporais?: EdgeUfSeriesTemporais;
   /**
    * Agregação por mesorregião IBGE — S06/F4d (Fase 2). Alimenta o bloco
    * "Apuração por mesorregião" da página `/uf/[sigla]/governador` (print 3
@@ -788,4 +793,28 @@ export interface EdgePayloadUf {
    * calculáveis são omitidas individualmente (não emitir 0).
    */
   participacao?: EdgeParticipacao;
+}
+
+/**
+ * O payload de UF **como o orchestrator o envia** — resumo mais o detalhe que
+ * o ADR-0032 tirou do Global Config.
+ *
+ * Existe porque a fronteira campo a campo é aplicada do lado TypeScript, num
+ * ponto só (`splitUfPayload`, `lib/blob/uf-detail.ts`): o Python segue
+ * emitindo `municipios` e `series_temporais` no mesmo objeto, e a rota
+ * `/api/_internal/edge-write` separa o que vai para cada mecanismo. Sem este
+ * tipo, `EdgePayloadUf` teria que continuar declarando dois campos que o
+ * Global Config não guarda mais — o tipo armazenado mentindo sobre o store.
+ *
+ * Consumidores de LEITURA nunca veem este tipo: `readUfProjection` devolve
+ * `EdgePayloadUf`, e o detalhe vem de `readUfDetail` (Blob), em paralelo.
+ */
+export interface UfPayloadInput extends EdgePayloadUf {
+  /** Municípios para drill-down do mapa + tabela RF-037. Destino: Blob. */
+  municipios: EdgeUfMunicipio[];
+  /**
+   * Séries (margem, p_vitoria, turnout) dos charts RF-040/041/042. Destino:
+   * Blob. Opcional — orchestrators pré-S04/F2 não emitem a chave.
+   */
+  series_temporais?: EdgeUfSeriesTemporais;
 }

@@ -50,7 +50,8 @@ salacofre/
 ├── lib/
 │   ├── tse/{client,ea20-parser,cdn-urls,ea-config}.ts
 │   ├── model/{swing,bootstrap,project,types}.ts (+ project.py)
-│   ├── edge-config/{reader,writer}.ts
+│   ├── edge-config/{keys,reader,writer,types}.ts
+│   ├── blob/{paths,uf-detail,write}.ts     # Vercel Blob — ADR-0026/0032
 │   ├── db/{schema.sql,queries.ts,migrations/}
 │   ├── state/hover-store.ts
 │   ├── geo/{municipios.pmtiles,ufs.pmtiles,index.ts}
@@ -79,7 +80,8 @@ salacofre/
 
 - **`app/`** segue convenção do Next.js App Router; rotas são pastas.
 - **`components/`** dividido em `atoms` (primitivos visuais), `blocks` (composições de domínio), `layout`, `shared`.
-- **`lib/`** concentra lógica não-React: TSE client, modelo, Edge Config, DB, state global.
+- **`lib/`** concentra lógica não-React: TSE client, modelo, Global Config, Blob, DB, state global.
+- **`lib/blob/`** é o ponto único de caminho, URL, escrita e leitura no Vercel Blob — o segundo mecanismo do read path (ADR-0026 para Deputado Federal, ADR-0032 para o detalhe municipal e as séries por UF). Fica fora de `lib/edge-config/` de propósito: é outro produto de armazenamento, com outro modo de falha, e nomeá-lo pelo mecanismo errado convidaria a uma segunda implementação ad hoc — exatamente o que o ADR-0032 proíbe.
 - **`data-pipeline/`** scripts one-shot rodados fora do request path (import histórico, geração PMTiles).
 - **`scripts/`** automações (replay, load test, simulador TSE).
 - **`tests/`** mirror da estrutura de `lib/` + e2e por rota.

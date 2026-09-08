@@ -152,6 +152,8 @@ Intoduzidos em 2026-09-07 para o redesign Atlas Menna (paleta por partido, tipog
 | Componente | Tipo | Status | Papel | Arquivo | Cliente? |
 |---|---|---|---|---|---|
 | `<Panel />` | atom | ✅ | Superfície com padding padrão (space-4), borda, radius-md, shadow-float. Componente base para card, sidebar, drawer. | `components/atoms/surfaces/Panel.tsx` | RSC |
+| `<DetailUnavailable />` | atom | ✅ | Estado "detalhe indisponível" de uma seção cuja fonte (Vercel Blob) não respondeu — texto explícito com o motivo, **sempre no DOM**, nunca escondendo o bloco (ADR-0032 item 3, ADR-0017). | `components/atoms/surfaces/DetailUnavailable.tsx` | RSC |
+| `<DetailFreshness />` | atom | ✅ | Idade do detalhe vinda do `ts` próprio do objeto Blob, com a defasagem em minutos contra o `ts` do resumo quando ≥ 2 min (ADR-0032 — a UI não deve silenciar a diferença). | `components/atoms/surfaces/DetailUnavailable.tsx` | RSC |
 
 ### Atoms — Data
 

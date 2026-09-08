@@ -29,8 +29,27 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { EdgePayload } from "@/lib/edge-config/types";
+import type { EdgePayload, UfPayloadInput } from "@/lib/edge-config/types";
 import { writeEdgePayload, writeProjection } from "@/lib/edge-config/writer";
+
+/**
+ * ADR-0032: `writeProjection` passou a escrever TAMBÉM no Vercel Blob, um
+ * objeto por UF com payload explícito. O primitivo de escrita é mockado aqui
+ * para o teste inspecionar caminho e conteúdo sem tocar rede — a URL
+ * determinística e o esquema de caminho têm cobertura própria em
+ * `tests/unit/blob/paths.test.ts`.
+ */
+const putJsonMock = vi.fn(async (pathname: string, value: unknown) => ({
+  pathname,
+  status: "written" as const,
+  bytes: JSON.stringify(value).length,
+  url: `https://exemplo.test/${pathname}`,
+}));
+vi.mock("@/lib/blob/write", () => ({
+  BLOB_CACHE_CONTROL_MAX_AGE_SECONDS: 60,
+  hasBlobWriteCredentials: () => true,
+  putJson: (pathname: string, value: unknown) => putJsonMock(pathname, value),
+}));
 
 // ---------------------------------------------------------------------------
 // Env management
@@ -759,5 +778,162 @@ describe("writeProjection — guarda de tamanho do store", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(logs.find("global-config store guard")).toBeUndefined();
     expect(logs.find("global-config write skipped")).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0032 — a fronteira Global Config × Blob dentro de `writeProjection`
+// ---------------------------------------------------------------------------
+
+describe("writeProjection — split de detalhe municipal para o Blob (ADR-0032)", () => {
+  /** Payload de UF como o orchestrator envia: resumo + detalhe, juntos. */
+  function buildUfInput(sigla: string, municipios: number): UfPayloadInput {
+    return {
+      uf: sigla,
+      ts: "2026-10-04T20:00:00Z",
+      cargo: 1,
+      turno: 1,
+      pct_apurado: 42,
+      candidatos: [],
+      needle_position: 0.1,
+      needle_band: "tossup",
+      municipios: Array.from({ length: municipios }, (_, i) => ({
+        cod_ibge: `35${String(i).padStart(5, "0")}`,
+        nome: `Município ${i}`,
+        pct_apurado: 50,
+        lider: { candidato_id: 1, partido: "P1", votos: 1000, margem_pp: 5 },
+        votos_reportados: { 1: 1000, 2: 800 },
+      })),
+      series_temporais: { margem: [], p_vitoria: [], turnout: [] },
+    };
+  }
+
+  beforeEach(() => {
+    process.env.EDGE_CONFIG_TOKEN = "test-token-abc";
+    process.env.EDGE_CONFIG_ID = "ecfg_testid123";
+    // `restoreAllMocks` do afterEach global limpa a implementação — repomos.
+    putJsonMock.mockReset();
+    putJsonMock.mockImplementation(async (pathname: string, value: unknown) => ({
+      pathname,
+      status: "written" as const,
+      bytes: JSON.stringify(value).length,
+      url: `https://exemplo.test/${pathname}`,
+    }));
+  });
+
+  /** Corpo JSON enviado num PATCH, por chave. */
+  function valueWrittenFor(
+    mock: ReturnType<typeof mockVercelApi>,
+    key: string,
+  ): Record<string, unknown> | undefined {
+    for (const call of patchCalls(mock)) {
+      const init = call[1] as RequestInit;
+      const body = JSON.parse(init.body as string) as {
+        items: Array<{ key: string; value: Record<string, unknown> }>;
+      };
+      if (body.items[0]?.key === key) return body.items[0]?.value;
+    }
+    return undefined;
+  }
+
+  it("o payload gravado no Global Config NÃO carrega municipios nem series_temporais", async () => {
+    const fetchMock = mockVercelApi();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await writeProjection(buildPayload(["SP"]), { SP: buildUfInput("SP", 40) });
+
+    for (const key of ["projection-uf-SP-pres-t1", "projection-uf-SP"]) {
+      const value = valueWrittenFor(fetchMock, key);
+      expect(value, `chave ${key} deveria ter sido gravada`).toBeDefined();
+      expect(value).not.toHaveProperty("municipios");
+      expect(value).not.toHaveProperty("series_temporais");
+      // O resumo continua íntegro.
+      expect(value?.pct_apurado).toBe(42);
+    }
+  });
+
+  it("grava UM objeto de Blob por UF — não um por chave (nomeada + alias)", async () => {
+    mockVercelApi();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await writeProjection(buildPayload(["SP", "RJ"]), {
+      SP: buildUfInput("SP", 3),
+      RJ: buildUfInput("RJ", 2),
+    });
+
+    expect(putJsonMock).toHaveBeenCalledTimes(2);
+    expect(putJsonMock.mock.calls.map((c) => c[0])).toEqual([
+      "municipios/uf/SP/pres/t1.json",
+      "municipios/uf/RJ/pres/t1.json",
+    ]);
+  });
+
+  it("o objeto de Blob carrega o detalhe, os qualificadores e um `ts` próprio", async () => {
+    mockVercelApi();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await writeProjection(buildPayload(["SP"]), { SP: buildUfInput("SP", 5) });
+
+    const detail = putJsonMock.mock.calls[0]?.[1] as {
+      ts: string;
+      uf: string;
+      cargo: string;
+      turno: number;
+      municipios: unknown[];
+      series_temporais: unknown;
+    };
+    expect(detail.uf).toBe("SP");
+    expect(detail.cargo).toBe("pres");
+    expect(detail.turno).toBe(1);
+    expect(detail.municipios).toHaveLength(5);
+    expect(detail.series_temporais).toEqual({ margem: [], p_vitoria: [], turnout: [] });
+    // `ts` PRÓPRIO: as duas escritas não são atômicas entre si, e a UI precisa
+    // poder datar o detalhe separadamente do resumo.
+    expect(detail.ts).not.toBe("2026-10-04T20:00:00Z");
+  });
+
+  it("UF sem payload explícito não gera objeto de Blob — só o esqueleto no store", async () => {
+    const fetchMock = mockVercelApi();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await writeProjection(buildPayload(["SP", "RJ"]), { SP: buildUfInput("SP", 3) });
+
+    expect(putJsonMock).toHaveBeenCalledTimes(1);
+    expect(putJsonMock.mock.calls[0]?.[0]).toBe("municipios/uf/SP/pres/t1.json");
+    // O esqueleto de RJ existe no store e também não tem o campo.
+    const rj = valueWrittenFor(fetchMock, "projection-uf-RJ-pres-t1");
+    expect(rj).toBeDefined();
+    expect(rj).not.toHaveProperty("municipios");
+  });
+
+  it("falha de Blob NÃO derruba o ciclo — degrada por seção e loga como error", async () => {
+    mockVercelApi();
+    const logs = captureErrorLines();
+    putJsonMock.mockRejectedValueOnce(new Error("blob 500"));
+
+    await expect(
+      writeProjection(buildPayload(["SP"]), { SP: buildUfInput("SP", 3) }),
+    ).resolves.toBeUndefined();
+
+    const line = logs.find("blob uf detail write failures");
+    expect(line).toBeDefined();
+    expect(line).toContain("municipios/uf/SP");
+    expect(line).toContain("blob 500");
+  });
+
+  it("a guarda de store mede o resumo JÁ SEM municípios", async () => {
+    // 800 municípios × ~206 B ≈ 165 KB se fossem inline. A contabilidade que
+    // alimenta a guarda tem que enxergar o resumo, não o payload de entrada.
+    mockVercelApi({ storeSizeInBytes: 800_000 });
+    const logs = captureErrorLines();
+
+    await writeProjection(buildPayload(["SP"]), { SP: buildUfInput("SP", 800) });
+
+    const line = logs.find("global-config store size warning");
+    expect(line).toBeDefined();
+    const parsed = JSON.parse(line as string) as { ctx: Record<string, number> };
+    // Sem o split, `incomingBytes` passaria de 150 KB. Com ele, o resumo de
+    // uma UF vazia de candidatos é da ordem de centenas de bytes.
+    expect(parsed.ctx.incomingBytes).toBeLessThan(10_000);
   });
 });

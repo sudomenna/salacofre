@@ -5,7 +5,14 @@
  * declarado pelas specs 003 (home) e 004 (UF):
  *
  *   GET /api/projection                → EdgePayload (nacional)
- *   GET /api/projection?uf=<sigla>     → EdgePayloadUf (drill-down)
+ *   GET /api/projection?uf=<sigla>     → EdgePayloadUf (RESUMO da UF)
+ *
+ * **ADR-0032 (2026-09-08)**: o `?uf=` devolve só o resumo. O detalhe municipal
+ * e as séries temporais deixaram de fazer parte de `EdgePayloadUf` — vivem no
+ * Vercel Blob, lidos no servidor por `readUfDetail` (`lib/blob/uf-detail.ts`).
+ * Não há consumidor deste endpoint no repositório que esperasse esses campos
+ * (o `useProjection()` de `components/shared/swr-provider.tsx` só busca o
+ * nacional), mas um cliente externo que os esperasse passará a não recebê-los.
  *
  * Backed por Edge Config (ADR-0001). Quando não há payload publicado
  * (dev/preview sem credencial), cai num fixture estático compartilhado com os
@@ -79,7 +86,6 @@ export async function GET(req: Request): Promise<Response> {
           })),
           needle_position: row.lider === national.national.candidato_a_id ? 0.4 : -0.4,
           needle_band: "lean_a",
-          municipios: [],
         };
         return NextResponse.json(synthesized, { headers: CACHE_HEADERS });
       }

@@ -4,8 +4,14 @@
  * Server Component. `generateStaticParams` lista as 27 UFs (PR-IBGE).
  *
  * Pipeline:
- *   1. Lê `EdgePayloadUf` via `readUfProjection(sigla)` (ADR-0001 — Edge
- *      Config no read path).
+ *   1. Lê, EM PARALELO, os dois read paths (ADR-0032):
+ *        a. `readUfProjection(sigla)` — o RESUMO, no Global Config (ADR-0001).
+ *        b. `readUfDetail(sigla, ...)` — o DETALHE (municípios + séries), no
+ *           Vercel Blob. Nunca em série: a página não espera o Blob para
+ *           renderizar o resumo.
+ *      Os dois falham de forma independente, e a página degrada **por seção**:
+ *      as seções de detalhe mostram estado "detalhe indisponível" explícito,
+ *      sempre no DOM (`<DetailUnavailable>`, ADR-0017), nunca somem.
  *   2. Identifica líder por `pct_projetado` desc (EdgePayloadUf não tem
  *      `candidato_a_id`/`candidato_b_id` ainda — flagado em tasks.md como
  *      risco/enhancement).
@@ -70,6 +76,7 @@ import { Figure } from "@/components/atoms/data/Figure";
 import { TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
 import { UFBreadcrumb } from "@/components/atoms/nav/UFBreadcrumb";
 import { Needle } from "@/components/atoms/needle/Needle";
+import { DetailFreshness, DetailUnavailable } from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { CandidateResultRow } from "@/components/atoms/tables/CandidateResultRow";
 import { ChancesPanel } from "@/components/blocks/ChancesPanel";
@@ -80,6 +87,13 @@ import type { MunicipioRow } from "@/components/blocks/MunicipioTable";
 import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
 import { UfLeaderMapLazy, UfMapDuoLazy, UfSwingArrowMapLazy } from "@/components/blocks/UfMapsLazy";
 import { Footer } from "@/components/layout/Footer";
+import {
+  municipiosFrom,
+  readUfDetail,
+  seriesFrom,
+  type UfDetailResult,
+} from "@/lib/blob/uf-detail";
+import { currentRace } from "@/lib/config/calendar";
 import { readUfProjection } from "@/lib/edge-config/reader";
 import type {
   EdgePayload,
@@ -239,11 +253,23 @@ function synthesizeUfFromNational(sigla: string): EdgePayloadUf | null {
     participacao: national.national.participacao,
     needle_position: row.lider === national.national.candidato_a_id ? 0.4 : -0.4,
     needle_band: "lean_a",
-    municipios: [],
-    // S04/F2: campo opcional; em dev sem dados, séries vazias → charts
-    // exibem placeholder gentil ("Série temporal ainda insuficiente").
-    series_temporais: { margem: [], p_vitoria: [], turnout: [] },
   };
+}
+
+/**
+ * Motivo a exibir no estado "detalhe indisponível" da seção de municípios, ou
+ * `null` quando há detalhe para mostrar.
+ *
+ * Separa dois casos que o ADR-0032 trata como notícias diferentes: a fonte não
+ * respondeu (`result.reason`) vs. respondeu e não há município apurado
+ * (`"empty"`). Os dois continuam no DOM; nenhum esconde o bloco (ADR-0017).
+ */
+function municipioDetailReason(
+  result: UfDetailResult,
+  quantidade: number,
+): "not_configured" | "not_found" | "fetch_error" | "invalid" | "empty" | null {
+  if (result.status !== "ok") return result.reason;
+  return quantidade === 0 ? "empty" : null;
 }
 
 /**
@@ -279,7 +305,20 @@ export default async function UFPage({ params }: UFPageProps) {
     notFound();
   }
 
-  let payload = await readUfProjection(sigla);
+  // Os DOIS read paths, em paralelo (ADR-0032 item 3). O resumo vem do Global
+  // Config; o detalhe municipal e as séries vêm do Vercel Blob. Nunca em série:
+  // a página não espera o Blob para renderizar o resumo, e os dois falham de
+  // forma independente.
+  //
+  // `currentRace()` é a MESMA resolução que `readUfProjection()` faz por
+  // default — passar os literais aqui garante que o caminho do Blob e a chave
+  // do Global Config apontam para a mesma corrida.
+  const race = currentRace();
+  const [payloadDoStore, detalhe] = await Promise.all([
+    readUfProjection(sigla),
+    readUfDetail(sigla, { cargo: race.cargo, turno: race.turno }),
+  ]);
+  let payload = payloadDoStore;
 
   // Dev fallback: quando o reader retorna `null` (chave UF ainda não publicada
   // OR sem EDGE_CONFIG), em desenvolvimento sintetiza a partir do fixture
@@ -326,9 +365,15 @@ export default async function UFPage({ params }: UFPageProps) {
     candidateShortName[c.id] = c.nome.split(" ")[0] ?? c.nome;
   }
 
-  const municipioRows = toMunicipioRows(payload.municipios, candidateColor, candidateShortName);
+  // Detalhe do Blob. `municipiosFrom`/`seriesFrom` coalescem para vazio quando
+  // indisponível — o estado explícito é decidido logo abaixo, não aqui.
+  const municipios = municipiosFrom(detalhe);
+  const series = seriesFrom(detalhe);
+  const municipioReason = municipioDetailReason(detalhe, municipios.length);
 
-  const choropleth = payload.municipios.map((m) => ({
+  const municipioRows = toMunicipioRows(municipios, candidateColor, candidateShortName);
+
+  const choropleth = municipios.map((m) => ({
     cod_ibge: m.cod_ibge,
     cor: candidateColor[m.lider.candidato_id] ?? "var(--color-tossup)",
     pctApurado: m.pct_apurado,
@@ -372,6 +417,18 @@ export default async function UFPage({ params }: UFPageProps) {
             {sigla} · quem lidera cada município
           </h2>
           <UfLeaderMapLazy ufSigla={sigla} choropleth={choropleth} height={HERO_MAP_HEIGHT} />
+          {/* O coroplético é alimentado pelo Blob (ADR-0032). Sem detalhe ele
+              desenha o contorno da UF sem nenhuma feição colorida — o que, sem
+              este aviso, o leitor interpretaria como "ninguém apurou ainda".
+              Fica ABAIXO do mapa para não empurrar a primeira dobra
+              (ADR-0029 § 1), mas está no DOM em todos os casos. */}
+          {municipioReason !== null && (
+            <DetailUnavailable
+              label="A cor por município deste mapa"
+              reason={municipioReason}
+              style={{ borderTop: "none", paddingTop: 0 }}
+            />
+          )}
         </section>
       </Panel>
 
@@ -484,23 +541,44 @@ export default async function UFPage({ params }: UFPageProps) {
       <InsightCard frases={[]} variant="uf" />
 
       {/* Seção 4 — RF-037: municípios. Tocar num município abre a folha
-          (`<Sheet>`) com os números dele (S07/Bloco 2). */}
-      {municipioRows.length > 0 && (
-        <Panel kicker="Municípios">
-          <MunicipioExplorer
-            ufSigla={sigla}
-            municipios={payload.municipios}
-            rows={municipioRows}
-            candidatos={payload.candidatos}
-          />
-        </Panel>
-      )}
+          (`<Sheet>`) com os números dele (S07/Bloco 2).
 
-      {/* Seção 5 — RF-035 + RF-036: mapas duo (bolhas + estimativa). */}
+          O `<Panel>` NÃO some mais quando não há município: desde o ADR-0032 a
+          fonte deste bloco é o Vercel Blob, que falha independentemente do
+          resumo, e esconder a seção comunicaria "não existe" quando a verdade é
+          "não chegou". Estado explícito, sempre no DOM (ADR-0017). */}
+      <Panel kicker="Municípios">
+        {municipioReason === null ? (
+          <div className="flex flex-col" style={{ gap: "var(--space-3)" }}>
+            {detalhe.status === "ok" && (
+              <DetailFreshness ts={detalhe.detail.ts} resumoTs={payload.ts} />
+            )}
+            <MunicipioExplorer
+              ufSigla={sigla}
+              municipios={municipios}
+              rows={municipioRows}
+              candidatos={payload.candidatos}
+            />
+          </div>
+        ) : (
+          <DetailUnavailable label="O detalhe por município" reason={municipioReason} />
+        )}
+      </Panel>
+
+      {/* Seção 5 — RF-035 + RF-036: mapas duo (bolhas + estimativa). Também
+          alimentada pelo Blob: quando o detalhe não chega, os mapas ficam sem
+          feição e o estado explícito diz por quê. */}
       <Panel kicker="Volume e estimativa">
+        {municipioReason !== null && (
+          <DetailUnavailable
+            label="O mapa de volume por município"
+            reason={municipioReason}
+            style={{ borderTop: "none", paddingTop: 0, marginBottom: "var(--space-3)" }}
+          />
+        )}
         <UfMapDuoLazy
           ufSigla={sigla}
-          bubbles={payload.municipios.map((m) => ({
+          bubbles={municipios.map((m) => ({
             cod_ibge: m.cod_ibge,
             nome: m.nome,
             centro: [0, 0] as [number, number],
@@ -549,6 +627,16 @@ export default async function UFPage({ params }: UFPageProps) {
       {/* Seção 8 — RF-040, RF-041, RF-042: charts (Should). Séries vazias caem
           no placeholder "Série insuficiente" — nunca quebram. */}
       <Panel kicker="Ao longo da noite">
+        {/* As três séries vêm do Blob (ADR-0032), não do resumo. Falha de fonte
+            é dita explicitamente aqui; série vazia continua caindo no
+            placeholder gentil de cada chart. */}
+        {detalhe.status !== "ok" && (
+          <DetailUnavailable
+            label="A evolução ao longo da noite"
+            reason={detalhe.reason}
+            style={{ borderTop: "none", paddingTop: 0, marginBottom: "var(--space-3)" }}
+          />
+        )}
         <div
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
           style={{ gap: "var(--space-6)" }}
@@ -566,7 +654,7 @@ export default async function UFPage({ params }: UFPageProps) {
               Margem ao longo do tempo
             </h3>
             <TimeSeriesChart
-              points={(payload.series_temporais?.margem ?? []).map((pt) => ({
+              points={(series?.margem ?? []).map((pt) => ({
                 ts: pt.ts,
                 margemPp: pt.margem_pp,
               }))}
@@ -587,7 +675,7 @@ export default async function UFPage({ params }: UFPageProps) {
               Probabilidade ao longo do tempo
             </h3>
             <ProbabilityOverTime
-              points={(payload.series_temporais?.p_vitoria ?? []).map((pt) => ({
+              points={(series?.p_vitoria ?? []).map((pt) => ({
                 ts: pt.ts,
                 pVitoria: pt.p,
               }))}
@@ -608,7 +696,7 @@ export default async function UFPage({ params }: UFPageProps) {
               Turnout cumulativo
             </h3>
             <TurnoutAreaChart
-              points={(payload.series_temporais?.turnout ?? []).map((pt) => ({
+              points={(series?.turnout ?? []).map((pt) => ({
                 ts: pt.ts,
                 pctApurado: pt.pct_apurado,
               }))}

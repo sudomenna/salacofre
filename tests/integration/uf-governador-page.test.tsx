@@ -21,6 +21,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import UFGovernadorPage from "@/app/uf/[sigla]/governador/page";
+import type { UfDetailBlob, UfDetailResult } from "@/lib/blob/uf-detail";
 import type { EdgePayloadUf, EdgeUfMunicipio } from "@/lib/edge-config/types";
 
 function makeMunicipio(i: number): EdgeUfMunicipio {
@@ -51,7 +52,6 @@ function buildUfPayload(opts: {
   comParticipacao?: boolean;
   turno?: 1 | 2;
 }): EdgePayloadUf {
-  const municipios = Array.from({ length: opts.municipios }, (_, i) => makeMunicipio(i));
   const base: EdgePayloadUf = {
     uf: "SP",
     ts: "2026-10-04T17:30:00-03:00",
@@ -84,8 +84,6 @@ function buildUfPayload(opts: {
     ],
     needle_position: 0.4,
     needle_band: "lean_a",
-    municipios,
-    series_temporais: { margem: [], p_vitoria: [], turnout: [] },
   };
   base.turno = opts.turno ?? 1;
   if (opts.multiCandidato) {
@@ -179,11 +177,52 @@ vi.mock("@/lib/edge-config/reader", () => ({
   readUfProjection: (sigla: string, opts?: { cargo?: string }) => readUfProjectionMock(sigla, opts),
 }));
 
+/**
+ * Desde o ADR-0032 esta página tem DOIS read paths: o resumo no Global Config
+ * e o detalhe (municípios + séries) no Vercel Blob. Só `readUfDetail` é
+ * mockado — `municipiosFrom`/`seriesFrom` seguem os reais, para o teste
+ * exercitar a coalescência de verdade.
+ *
+ * O default é `unavailable`: sem detalhe explicitamente mockado, a página cai
+ * no estado "detalhe indisponível", que é exatamente o comportamento a fixar.
+ */
+const readUfDetailMock = vi.fn(
+  async (): Promise<UfDetailResult> => ({
+    status: "unavailable",
+    reason: "not_configured",
+    url: null,
+  }),
+);
+vi.mock("@/lib/blob/uf-detail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/blob/uf-detail")>()),
+  readUfDetail: () => readUfDetailMock(),
+}));
+
+/** Detalhe de Blob com `n` municípios e séries vazias. */
+function buildUfDetail(n: number): UfDetailBlob {
+  return {
+    ts: "2026-10-04T17:30:00-03:00",
+    uf: "SP",
+    cargo: "gov",
+    turno: 1,
+    municipios: Array.from({ length: n }, (_, i) => makeMunicipio(i)),
+    series_temporais: { margem: [], p_vitoria: [], turnout: [] },
+  };
+}
+
+/** Enfileira os dois read paths de uma renderização — resumo e detalhe. */
+function mockUf(opts: Parameters<typeof buildUfPayload>[0]): void {
+  readUfProjectionMock.mockResolvedValueOnce(buildUfPayload(opts));
+  readUfDetailMock.mockResolvedValueOnce({
+    status: "ok",
+    detail: buildUfDetail(opts.municipios),
+    url: "https://example.test/municipios/uf/SP/gov/t1.json",
+  });
+}
+
 describe("UFGovernadorPage (integration / smoke)", () => {
   it("(a) renderiza header e breadcrumb 'Governadores › SP' apontando pra /governador", async () => {
-    readUfProjectionMock.mockResolvedValueOnce(
-      buildUfPayload({ municipios: 20, withMesorregioes: false }),
-    );
+    mockUf({ municipios: 20, withMesorregioes: false });
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
 
@@ -206,9 +245,7 @@ describe("UFGovernadorPage (integration / smoke)", () => {
   });
 
   it("(b) renderiza waffle grid com SVG e legend", async () => {
-    readUfProjectionMock.mockResolvedValueOnce(
-      buildUfPayload({ municipios: 25, withMesorregioes: false }),
-    );
+    mockUf({ municipios: 25, withMesorregioes: false });
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const html = renderToStaticMarkup(node);
     expect(html).toContain("Cada quadrado é um município");
@@ -219,9 +256,7 @@ describe("UFGovernadorPage (integration / smoke)", () => {
   });
 
   it("(c) bloco mesorregião renderiza quando populado", async () => {
-    readUfProjectionMock.mockResolvedValueOnce(
-      buildUfPayload({ municipios: 20, withMesorregioes: true }),
-    );
+    mockUf({ municipios: 20, withMesorregioes: true });
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const html = renderToStaticMarkup(node);
     expect(html).toContain("Apuração por mesorregião");
@@ -233,18 +268,14 @@ describe("UFGovernadorPage (integration / smoke)", () => {
   });
 
   it("(d) bloco mesorregião AUSENTE quando lista vazia/undefined (degrade gracioso)", async () => {
-    readUfProjectionMock.mockResolvedValueOnce(
-      buildUfPayload({ municipios: 20, withMesorregioes: false }),
-    );
+    mockUf({ municipios: 20, withMesorregioes: false });
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const html = renderToStaticMarkup(node);
     expect(html).not.toContain("Apuração por mesorregião");
   });
 
   it("(e) MunicipioTable mode='top-by-eleitorado' renderiza (header)", async () => {
-    readUfProjectionMock.mockResolvedValueOnce(
-      buildUfPayload({ municipios: 20, withMesorregioes: false }),
-    );
+    mockUf({ municipios: 20, withMesorregioes: false });
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const html = renderToStaticMarkup(node);
     // O modo top-by-eleitorado renderiza o header customizado; sem eleitorado
@@ -257,9 +288,7 @@ describe("UFGovernadorPage (integration / smoke)", () => {
     // não existe "bloco político sem mapeamento histórico". O banner foi
     // removido em S07/Fase 5; o campo `model_fallback_tier` segue no payload
     // como @deprecated e não pode mais produzir texto na tela.
-    readUfProjectionMock.mockResolvedValueOnce(
-      buildUfPayload({ municipios: 10, withMesorregioes: false, modelTier: 2 }),
-    );
+    mockUf({ municipios: 10, withMesorregioes: false, modelTier: 2 });
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const html = renderToStaticMarkup(node);
     expect(html).not.toContain("Modelagem com prior limitado");
@@ -267,9 +296,7 @@ describe("UFGovernadorPage (integration / smoke)", () => {
   });
 
   it("(g) tier 3 também não produz texto de 'sem mapeamento histórico'", async () => {
-    readUfProjectionMock.mockResolvedValueOnce(
-      buildUfPayload({ municipios: 10, withMesorregioes: false, modelTier: 3 }),
-    );
+    mockUf({ municipios: 10, withMesorregioes: false, modelTier: 3 });
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const html = renderToStaticMarkup(node);
     expect(html).not.toContain("sem mapeamento histórico");
@@ -282,14 +309,12 @@ describe("UFGovernadorPage (integration / smoke)", () => {
   // -------------------------------------------------------------------------
 
   it("(i) 1T com mais de dois candidatos → seis termômetros", async () => {
-    readUfProjectionMock.mockResolvedValueOnce(
-      buildUfPayload({
-        municipios: 10,
-        withMesorregioes: false,
-        multiCandidato: true,
-        comParticipacao: true,
-      }),
-    );
+    mockUf({
+      municipios: 10,
+      withMesorregioes: false,
+      multiCandidato: true,
+      comParticipacao: true,
+    });
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
 
@@ -303,20 +328,16 @@ describe("UFGovernadorPage (integration / smoke)", () => {
   });
 
   it("(j) duelo (2 candidatos) e 2º turno → sem termômetros", async () => {
-    readUfProjectionMock.mockResolvedValueOnce(
-      buildUfPayload({ municipios: 10, withMesorregioes: false }),
-    );
+    mockUf({ municipios: 10, withMesorregioes: false });
     const duelo = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     expect(renderToStaticMarkup(duelo)).not.toContain('id="termometro-');
 
-    readUfProjectionMock.mockResolvedValueOnce(
-      buildUfPayload({
-        municipios: 10,
-        withMesorregioes: false,
-        multiCandidato: true,
-        turno: 2,
-      }),
-    );
+    mockUf({
+      municipios: 10,
+      withMesorregioes: false,
+      multiCandidato: true,
+      turno: 2,
+    });
     const segundoTurno = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const html = renderToStaticMarkup(segundoTurno);
     expect(html).not.toContain('id="termometro-');
@@ -325,9 +346,7 @@ describe("UFGovernadorPage (integration / smoke)", () => {
   });
 
   it("(k) trilha gov: main[data-trilha=gov] + kicker 'GOVERNADOR · SP'", async () => {
-    readUfProjectionMock.mockResolvedValueOnce(
-      buildUfPayload({ municipios: 10, withMesorregioes: false }),
-    );
+    mockUf({ municipios: 10, withMesorregioes: false });
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
 
@@ -351,9 +370,7 @@ describe("UFGovernadorPage (integration / smoke)", () => {
 // ---------------------------------------------------------------------------
 describe("UFGovernadorPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
   async function renderGov(): Promise<Document> {
-    readUfProjectionMock.mockResolvedValueOnce(
-      buildUfPayload({ municipios: 12, withMesorregioes: true, multiCandidato: true }),
-    );
+    mockUf({ municipios: 12, withMesorregioes: true, multiCandidato: true });
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     return new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
   }
@@ -435,5 +452,54 @@ describe("UFGovernadorPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
     expect(texto).toContain("Forecast ao vivo — Governador SP");
     expect(texto).toContain("Margem ao longo do tempo");
     expect(texto).toContain("O que está movendo o forecast");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0032 — degradação por seção também nesta rota.
+//
+// A rota de governador tem estrutura própria (waffle + tabela top-15 num
+// `<Panel>` que ANTES sumia quando não havia município). Depois do ADR-0032 a
+// fonte desse bloco é o Blob, que falha independentemente do resumo — sumir
+// diria "não existe" onde a verdade é "não chegou".
+// ---------------------------------------------------------------------------
+describe("UFGovernadorPage — degradação do detalhe municipal (ADR-0032)", () => {
+  async function renderComDetalhe(detalhe: UfDetailResult): Promise<Document> {
+    readUfProjectionMock.mockResolvedValueOnce(
+      buildUfPayload({ municipios: 0, withMesorregioes: true }),
+    );
+    readUfDetailMock.mockResolvedValueOnce(detalhe);
+    const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
+    return new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
+  }
+
+  it("(s) Blob 404: o painel de municípios continua no DOM, com motivo explícito", async () => {
+    const doc = await renderComDetalhe({
+      status: "unavailable",
+      reason: "not_found",
+      url: "https://exemplo.test/municipios/uf/SP/gov/t1.json",
+    });
+
+    const painelMunicipios = doc.querySelector("#waffle-heading");
+    expect(painelMunicipios).not.toBeNull();
+    const estados = [...doc.querySelectorAll('[data-testid="detail-unavailable"]')];
+    expect(estados.map((e) => e.getAttribute("data-reason"))).toContain("not_found");
+    expect(doc.body.textContent).toContain("O detalhe por município está indisponível");
+
+    // Resumo e mesorregiões vêm da OUTRA fonte e seguem inteiros.
+    expect(doc.querySelectorAll('[data-testid="candidate-result-row"]').length).toBeGreaterThan(0);
+    expect(doc.querySelector('[data-testid="mesorregioes-table"]')).not.toBeNull();
+  });
+
+  it("(t) com detalhe, o waffle volta e a idade própria do Blob é exibida", async () => {
+    const doc = await renderComDetalhe({
+      status: "ok",
+      url: "https://exemplo.test/municipios/uf/SP/gov/t1.json",
+      detail: buildUfDetail(12),
+    });
+
+    expect(doc.querySelector('[data-testid="detail-unavailable"]')).toBeNull();
+    expect(doc.querySelector('[data-testid="detail-freshness"]')).not.toBeNull();
+    expect(doc.querySelectorAll('[data-testid="waffle-svg"] rect')).toHaveLength(12);
   });
 });

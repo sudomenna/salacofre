@@ -22,6 +22,7 @@ import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { InsightCard } from "@/components/blocks/InsightCard";
 import { MunicipioTable } from "@/components/blocks/MunicipioTable";
 import { Footer } from "@/components/layout/Footer";
+import type { UfDetailResult } from "@/lib/blob/uf-detail";
 import type { EdgePayloadUf, EdgeUfCandidate } from "@/lib/edge-config/types";
 
 const readUfProjectionMock = vi.fn();
@@ -30,6 +31,27 @@ vi.mock("@/lib/edge-config/reader", () => ({
   readNationalProjection: vi.fn(async () => null),
   readArchivedProjection: vi.fn(async () => null),
   readUfProjection: (sigla: string, opts?: { cargo?: string }) => readUfProjectionMock(sigla, opts),
+}));
+
+/**
+ * Segundo read path (ADR-0032): o detalhe municipal e as séries vêm do Vercel
+ * Blob, em paralelo com o resumo. Só `readUfDetail` é mockado — os acessores
+ * `municipiosFrom`/`seriesFrom` seguem reais.
+ *
+ * Default `unavailable`: sem detalhe explícito, a página deve cair no estado
+ * "detalhe indisponível" — que é o comportamento a fixar, não um efeito
+ * colateral do mock.
+ */
+const readUfDetailMock = vi.fn(
+  async (): Promise<UfDetailResult> => ({
+    status: "unavailable",
+    reason: "not_configured",
+    url: null,
+  }),
+);
+vi.mock("@/lib/blob/uf-detail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/blob/uf-detail")>()),
+  readUfDetail: () => readUfDetailMock(),
 }));
 
 function makeCand(id: number, nome: string, pct: number): EdgeUfCandidate {
@@ -61,8 +83,6 @@ function buildUfPayload(opts: {
     candidatos: opts.candidatos,
     needle_position: 0.3,
     needle_band: "lean_a",
-    municipios: [],
-    series_temporais: { margem: [], p_vitoria: [], turnout: [] },
   };
   if (opts.comParticipacao) {
     payload.participacao = {
@@ -345,8 +365,19 @@ describe("UFPage — folha do município (S07/Bloco 2)", () => {
       candidatos: [makeCand(1, "Candidato A", 41), makeCand(2, "Candidato B", 33)],
       comParticipacao: true,
     });
-    payload.municipios = [makeMunicipio(0), makeMunicipio(1), makeMunicipio(2)];
     readUfProjectionMock.mockResolvedValueOnce(payload);
+    readUfDetailMock.mockResolvedValueOnce({
+      status: "ok",
+      detail: {
+        ts: "2026-10-04T18:00:00-03:00",
+        uf: "SP",
+        cargo: "pres",
+        turno: 1,
+        municipios: [makeMunicipio(0), makeMunicipio(1), makeMunicipio(2)],
+        series_temporais: null,
+      },
+      url: "https://example.test/municipios/uf/SP/pres/t1.json",
+    });
     return parse(await UFPage({ params: Promise.resolve({ sigla: "SP" }) }));
   }
 
@@ -363,5 +394,97 @@ describe("UFPage — folha do município (S07/Bloco 2)", () => {
     const doc = await renderComMunicipios();
     expect(doc.querySelector('[data-testid="sheet"]')).toBeNull();
     expect(doc.querySelector('[role="dialog"]')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0032 — dois read paths, degradação POR SEÇÃO.
+//
+// O resumo (Global Config) e o detalhe municipal (Vercel Blob) falham
+// independentemente. Quando o Blob não responde, as seções de detalhe precisam
+// continuar no DOM com um estado explícito — nunca sumir, nunca ficar vazias em
+// silêncio (ADR-0017 aplicado a uma fonte de dado).
+// ---------------------------------------------------------------------------
+describe("UFPage — degradação do detalhe municipal (ADR-0032)", () => {
+  function payloadPadrao(): EdgePayloadUf {
+    return buildUfPayload({
+      turno: 1,
+      candidatos: [makeCand(1, "Candidato A", 41), makeCand(2, "Candidato B", 33)],
+      comParticipacao: true,
+    });
+  }
+
+  async function render(detalhe: UfDetailResult): Promise<Document> {
+    readUfProjectionMock.mockResolvedValueOnce(payloadPadrao());
+    readUfDetailMock.mockResolvedValueOnce(detalhe);
+    return parse(await UFPage({ params: Promise.resolve({ sigla: "SP" }) }));
+  }
+
+  function detalheOk(municipios: number, ts = "2026-10-04T18:00:00-03:00"): UfDetailResult {
+    return {
+      status: "ok",
+      url: "https://exemplo.test/municipios/uf/SP/pres/t1.json",
+      detail: {
+        ts,
+        uf: "SP",
+        cargo: "pres",
+        turno: 1,
+        municipios: Array.from({ length: municipios }, (_, i) => ({
+          cod_ibge: `35${String(i).padStart(5, "0")}`,
+          nome: `Município ${i + 1}`,
+          pct_apurado: 60,
+          lider: { candidato_id: 1, partido: "P1", votos: 1000, margem_pp: 5 },
+          votos_reportados: { 1: 1000, 2: 800 },
+        })),
+        series_temporais: null,
+      },
+    };
+  }
+
+  it("(o) Blob 404: o bloco de municípios CONTINUA no DOM, com motivo explícito", async () => {
+    const doc = await render({
+      status: "unavailable",
+      reason: "not_found",
+      url: "https://exemplo.test/municipios/uf/SP/pres/t1.json",
+    });
+
+    const estados = [...doc.querySelectorAll('[data-testid="detail-unavailable"]')];
+    expect(estados.length).toBeGreaterThan(0);
+    expect(estados.map((e) => e.getAttribute("data-reason"))).toContain("not_found");
+    expect(doc.body.textContent).toContain("O detalhe por município está indisponível");
+    // E o resumo, que vem da OUTRA fonte, segue inteiro.
+    expect(doc.querySelectorAll('[data-testid="candidate-result-row"]').length).toBeGreaterThan(0);
+  });
+
+  it("(p) erro de rede no Blob: as séries também declaram indisponibilidade", async () => {
+    const doc = await render({ status: "unavailable", reason: "fetch_error", url: null });
+    const razoes = [...doc.querySelectorAll('[data-testid="detail-unavailable"]')].map((e) =>
+      e.getAttribute("data-reason"),
+    );
+    expect(razoes.every((r) => r === "fetch_error")).toBe(true);
+    expect(doc.body.textContent).toContain("A evolução ao longo da noite está indisponível");
+  });
+
+  it("(q) Blob OK e vazio é `empty`, não `not_found` — são notícias diferentes", async () => {
+    const doc = await render(detalheOk(0));
+    const estado = doc.querySelector('[data-testid="detail-unavailable"]');
+    expect(estado?.getAttribute("data-reason")).toBe("empty");
+  });
+
+  it("(r) com detalhe, a seção mostra a idade PRÓPRIA do Blob e nenhum estado de falha", async () => {
+    const doc = await render(detalheOk(3));
+    expect(doc.querySelector('[data-testid="detail-unavailable"]')).toBeNull();
+    const frescor = doc.querySelector('[data-testid="detail-freshness"]');
+    expect(frescor).not.toBeNull();
+    expect(frescor?.textContent).toContain("Detalhe atualizado às");
+    expect(doc.querySelectorAll('[data-testid="municipio-open"]').length).toBeGreaterThan(0);
+  });
+
+  it("(s) detalhe atrasado em relação ao resumo: a defasagem é dita, não silenciada", async () => {
+    // Resumo às 18:00 (fixture), detalhe às 17:51 → 9 min de defasagem.
+    const doc = await render(detalheOk(2, "2026-10-04T17:51:00-03:00"));
+    const frescor = doc.querySelector('[data-testid="detail-freshness"]');
+    expect(frescor?.getAttribute("data-lag-minutes")).toBe("9");
+    expect(frescor?.textContent).toContain("9 min mais antigo que o resumo");
   });
 });

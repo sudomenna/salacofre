@@ -294,6 +294,61 @@ O JSON de resposta, `logIngestRun.notes` e o `logInfo` final de cada ciclo agora
 
 `/api/ingest` grava uma linha marcador (`notes: {running: true}`) em `ingest_log` no início do ciclo e outra (`notes: {running: false, ...métricas}`) no fim — append-only (constituição § 10, nunca `UPDATE`). Se a última linha tem `running: true` com menos de 3 minutos, o handler responde `{ skipped: "overlap" }` em vez de rodar em paralelo. Falha ao ler/escrever o lock é fail-open (loga e segue) — um lock ilegível nunca deve travar o pipeline inteiro.
 
+## Vercel Blob — monitoramento do detalhe por UF (ADR-0032)
+
+Desde 2026-09-08 o read path tem **dois** mecanismos. O resumo por UF continua
+no Global Config; o **detalhe municipal e as séries temporais** vivem no Vercel
+Blob, um objeto por UF/cargo/turno:
+
+```
+https://<storeId>.public.blob.vercel-storage.com/municipios/uf/<SIGLA>/<cargo>/t<turno>.json
+```
+
+O `<storeId>` é derivado do `BLOB_READ_WRITE_TOKEN`
+(`vercel_blob_rw_<storeId>_<segredo>`) por `lib/blob/paths.ts`;
+`BLOB_PUBLIC_BASE_URL` sobrepõe quando presente.
+
+**O que vigiar no log do ciclo.** `writeProjection` emite, na linha
+`global-config projection written`, quatro contadores novos:
+
+| Campo | O que significa | Quando agir |
+|---|---|---|
+| `blobWritten` | objetos publicados no ciclo | esperado: 1 por UF com payload explícito (até 27/cargo) |
+| `blobSkipped` | pulados por falta de `BLOB_READ_WRITE_TOKEN` | **> 0 em produção = detalhe municipal offline** |
+| `blobFailed` | falhas de `put()` | > 0 recorrente = investigar |
+| `blobBytes` | soma dos objetos gravados | referência de crescimento |
+
+E, quando há falha, uma linha `error` dedicada:
+`blob uf detail write failures`, com a lista de UFs e o motivo por UF.
+
+**Falha de Blob NÃO derruba o ciclo, de propósito.** O resumo publicado vale
+mais que um ciclo marcado vermelho, e o read path degrada por seção com estado
+"detalhe indisponível" explícito no DOM. Isso significa que **esta linha de log
+é o único alarme** — não existe erro 500 correspondente.
+
+**Verificação manual rápida** (não escreve nada):
+
+```bash
+set -a; . ./.env.local; set +a
+curl -sI "https://$(echo "$BLOB_READ_WRITE_TOKEN" | cut -d_ -f4 | tr 'A-Z' 'a-z').public.blob.vercel-storage.com/municipios/uf/SP/pres/t1.json"
+```
+
+Esperado: `200`, `content-type: application/json` e
+`cache-control: public, max-age=60`. Um `max-age` maior significa que alguém
+removeu o `cacheControlMaxAge` do `put()` — o default do SDK é **um mês**, e o
+CDN passaria a servir o detalhe congelado enquanto o resumo continua andando.
+
+**Dimensionamento medido (2026-09-08, store real).** O objeto de SP com os 645
+municípios reais do banco, 11 candidatos por município e 3 séries de 480 pontos
+(o teto de uma noite de 8h a 60 s) pesa **248.473 B** — ordens de grandeza
+abaixo do limite por objeto do Blob, e a maior UF do país. A pendência do
+ADR-0032 item 6 fica **resolvida**: a cobertura municipal pode ir de 39% a 100%
+sem ameaçar o limite por objeto.
+
+**No dev sem token**: `readUfDetail` devolve `not_configured` e as seções de
+município/séries mostram o estado "detalhe indisponível". Não é bug — é o
+comportamento declarado.
+
 ## Ferramentas do pipeline TSE
 
 Três ferramentas introduzidas no hardening pré-simulado (Fase 0 da S07). As duas primeiras existem para que **nenhum teste precise tocar o CDN do TSE**.
