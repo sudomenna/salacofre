@@ -13,6 +13,7 @@ specs_superseded: [001.1-tse-json-refactor]
 specs_planned_next: [009-compartilhamento-meta, 010-operacao-monitoramento, 013-pagina-manutencao]
 plano: ../_meta/plano-s07-2026-09-05.md
 handoff: ../_meta/handoff-2026-09-07-redesign.md
+plano_redesign: ../_meta/plano-redesign-2026-09-08.md
 ---
 
 # Sprint 07 — Simulado-ready + Hero 1T
