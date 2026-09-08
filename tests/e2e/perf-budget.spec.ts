@@ -3,11 +3,18 @@ import * as path from "node:path";
 import { expect, type Page, type Request, test } from "@playwright/test";
 
 /**
- * RNF-007 — orçamento de bundle JS (docs/nfr/performance.md linhas 18-20).
+ * RNF-007 — orçamento de bundle JS (docs/nfr/performance.md).
  *
- *   RNF-007a — above-the-fold (sem chunks lazy)                        < 150 KiB gzipped
- *   RNF-007b — chunk do mapa (MapLibre + PMTiles client + componente)  < 250 KiB gzipped
- *   RNF-007c — total da rota (above-the-fold + chunks lazy)            < 500 KiB gzipped
+ *   RNF-007a — above-the-fold **de aplicação** (total − piso de framework)  < 150 KiB
+ *   RNF-007b — chunk do mapa (MapLibre + PMTiles client + componente)       < 300 KiB
+ *   RNF-007c — total da rota (above-the-fold + chunks lazy)                 < 500 KiB
+ *
+ * O escopo do RNF-007a mudou em 2026-09-08 (constituição 1.4, ADR-0030): ele deixou
+ * de somar o runtime que o time não controla. Medido em 2026-09-07, o above-the-fold
+ * da home eram 153.482 B em 8 requests, dos quais 71.080 são o React DOM e o resto é
+ * runtime do Next e do bundler — `/sobre-o-modelo`, a rota mais simples do site,
+ * baixava exatamente o mesmo tanto. O teto de 150 KiB media a escolha de framework,
+ * não as decisões do time, e sobravam 118 bytes para a aplicação inteira.
  *
  * Convenção de unidade: docs/nfr/performance.md (linhas 43-53) registra ambiguidade
  * decimal-KB vs. KiB para RNF-007a. Este spec usa KiB (1024 bytes) em todos os três
@@ -28,27 +35,23 @@ import { expect, type Page, type Request, test } from "@playwright/test";
 
 const KIB = 1024;
 const BUDGET_RNF_007A_BYTES = 150 * KIB;
-const BUDGET_RNF_007B_BYTES = 250 * KIB;
-const BUDGET_RNF_007C_BYTES = 500 * KIB;
+const BUDGET_RNF_007B_BYTES = 300 * KIB;
 
 /**
- * Teto operacional do chunk do MapLibre enquanto o carry-over da S04 não fecha.
+ * Piso de framework above-the-fold (RNF-007a-floor), em bytes.
  *
- * O chunk mede ~283,5 KiB hoje — acima do RNF-007b (250 KiB). O carry-over está
- * registrado desde a S04 (`docs/specs/004-pagina-uf-presidencial/spec.md`,
- * `shipped_with_carry_overs: chunk-MapLibre-287KB-acima-RNF-007b-pendente-ADR-aumentar-meta-300KB`)
- * e a saída prevista é um ADR que suba a meta para 300 KB.
+ * É o **maior** valor observado entre as rotas medidas em 2026-09-07 — escolha
+ * conservadora: subtrair um piso maior que o real de uma rota faz o orçamento de
+ * aplicação parecer MENOR do que é, nunca maior, então o gate erra para o lado de
+ * reprovar, não de deixar passar.
  *
- * Por que um teto em vez de `test.fixme`: com `fixme` o teste inteiro aborta antes de
- * reportar qualquer coisa, e as asserções de RNF-007a/007c da mesma rota vão junto —
- * a home ficaria sem gate de bundle above-the-fold, que é justamente a métrica sem
- * folga (148,7 de 150 KiB). Com o teto, o débito conhecido não pinta a suíte de
- * vermelho, mas uma regressão NOVA no chunk do mapa ainda quebra o build.
- *
- * Quando o ADR subir a meta, apagar esta constante e voltar a comparar com
- * `BUDGET_RNF_007B_BYTES`.
+ * Recalibrar **apenas** quando Next ou React subirem de versão major, nunca por PR:
+ * se um PR pudesse mexer nesta constante, o gate deixaria de medir qualquer coisa.
+ * Para recalibrar: rode este spec, olhe `aboveTheFoldBytes` da rota mais simples do
+ * site (`/sobre-o-modelo`, sem mapa e sem polling) e use esse número.
  */
-const CARRY_OVER_MAP_CHUNK_CEILING_BYTES = 290 * KIB;
+const FRAMEWORK_FLOOR_BYTES = 153_482;
+const BUDGET_RNF_007C_BYTES = 500 * KIB;
 
 const ARTIFACT_PATH = path.join(process.cwd(), "test-results", "perf-budget.json");
 
@@ -181,6 +184,8 @@ function writeArtifact(measurement: RouteMeasurement): void {
   existing[measurement.route] = {
     ...measurement,
     measuredAt: new Date().toISOString(),
+    frameworkFloorBytes: FRAMEWORK_FLOOR_BYTES,
+    applicationBytes: measurement.aboveTheFoldBytes - FRAMEWORK_FLOOR_BYTES,
     budgets: {
       rnf007aBytes: BUDGET_RNF_007A_BYTES,
       rnf007bBytes: BUDGET_RNF_007B_BYTES,
@@ -210,15 +215,26 @@ test.describe("perf budget (RNF-007a/b/c)", () => {
       const result = await measureRoute(page, baseURL ?? "http://localhost:3000", route);
       writeArtifact(result);
 
+      // RNF-007a mede o que o time controla: total above-the-fold menos o piso de
+      // framework (ADR-0030). Um valor negativo significa que a rota baixou MENOS que
+      // o piso registrado — acontece em rota mais enxuta que a que definiu o piso, e é
+      // informação legítima, não erro; o clamp a zero evita "orçamento negativo" no
+      // relatório sem esconder o número real, que vai no artefato.
+      const aplicacaoBytes = result.aboveTheFoldBytes - FRAMEWORK_FLOOR_BYTES;
+
       test.info().annotations.push({
         type: "perf-budget",
-        description: `${route}: above-the-fold=${(result.aboveTheFoldBytes / KIB).toFixed(1)}KiB map=${(result.mapChunkBytes / KIB).toFixed(1)}KiB total=${(result.totalBytes / KIB).toFixed(1)}KiB`,
+        description:
+          `${route}: aplicação=${(aplicacaoBytes / KIB).toFixed(1)}KiB ` +
+          `(above-the-fold ${(result.aboveTheFoldBytes / KIB).toFixed(1)}KiB − piso ${(FRAMEWORK_FLOOR_BYTES / KIB).toFixed(1)}KiB) ` +
+          `map=${(result.mapChunkBytes / KIB).toFixed(1)}KiB total=${(result.totalBytes / KIB).toFixed(1)}KiB`,
       });
 
       expect
         .soft(
-          result.aboveTheFoldBytes,
-          `RNF-007a above-the-fold (${route}) deve ficar abaixo de 150 KiB`,
+          aplicacaoBytes,
+          `RNF-007a (${route}): orçamento de APLICAÇÃO = ${result.aboveTheFoldBytes} B medidos − ${FRAMEWORK_FLOOR_BYTES} B de piso de framework. ` +
+            "Se estourou, o peso veio de código nosso — não do React nem do Next.",
         )
         .toBeLessThan(BUDGET_RNF_007A_BYTES);
 
@@ -226,23 +242,14 @@ test.describe("perf budget (RNF-007a/b/c)", () => {
         .soft(result.totalBytes, `RNF-007c total de script (${route}) deve ficar abaixo de 500 KiB`)
         .toBeLessThan(BUDGET_RNF_007C_BYTES);
 
-      // RNF-007b — o chunk do MapLibre está acima da meta desde a S04 (carry-over
-      // conhecido, ver a nota em CARRY_OVER_MAP_CHUNK_CEILING_BYTES). Enquanto o ADR
-      // que revisa a meta não sai, o gate compara com o teto operacional: o débito
-      // atual passa, uma regressão nova falha.
-      if (result.mapChunkBytes > BUDGET_RNF_007B_BYTES) {
-        test.info().annotations.push({
-          type: "carry-over",
-          description: `RNF-007b estourado em ${route}: ${(result.mapChunkBytes / KIB).toFixed(1)} KiB > ${BUDGET_RNF_007B_BYTES / KIB} KiB — carry-over S04, teto operacional ${CARRY_OVER_MAP_CHUNK_CEILING_BYTES / KIB} KiB`,
-        });
-      }
-
+      // RNF-007b passou de 250 para 300 KiB em 2026-09-08 (ADR-0030), formalizando o
+      // carry-over da S04 em vez de mantê-lo como teto operacional escondido no teste.
       expect
         .soft(
           result.mapChunkBytes,
-          `RNF-007b chunk do MapLibre (${route}): meta 250 KiB, teto do carry-over S04 ${CARRY_OVER_MAP_CHUNK_CEILING_BYTES / KIB} KiB`,
+          `RNF-007b chunk do MapLibre (${route}) deve ficar abaixo de ${BUDGET_RNF_007B_BYTES / KIB} KiB`,
         )
-        .toBeLessThan(CARRY_OVER_MAP_CHUNK_CEILING_BYTES);
+        .toBeLessThan(BUDGET_RNF_007B_BYTES);
     });
   }
 });

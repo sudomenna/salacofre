@@ -3,6 +3,7 @@ id: ADR-0017
 title: Todos os candidatos do 1T visíveis em 3 camadas fixas, sem collapsible
 status: accepted
 date: 2026-05-17
+amended_by: ADR-0029 # formato de linha das Camadas 2/3; regra "sempre no DOM" reafirmada
 ---
 
 # ADR-0017 — Todos os candidatos do 1T visíveis em 3 camadas fixas, sem collapsible
@@ -14,6 +15,8 @@ Aceito (parcialmente superado por [ADR-0018](0018-termometros-hero-1t.md) no mod
 > **Nota 2026-09-05**: não há precedente de supersessão parcial anterior neste repositório — ADRs até aqui eram supersedidos por inteiro ou permaneciam integralmente aceitos. Registra-se aqui o critério adotado: quando um ADR novo altera apenas uma fração de uma decisão anterior, o ADR antigo mantém `status: accepted` no frontmatter (a decisão como um todo continua majoritariamente vigente) e a seção `## Status` narra explicitamente qual parte foi substituída e em qual contexto.
 >
 > Especificamente: a definição de **Camada 1** (hero) deste ADR — `<HeadlineScore />` top-2 — deixa de valer no modo `multi-1t` (1º turno com >2 candidatos), onde o ADR-0018 a substitui por `<ProjectionThermometers />` (seis termômetros: 1º, 2º, 3º colocados, "Outros", brancos/nulos, abstenção). A regra estrutural deste ADR — **todas as camadas sempre presentes no DOM, sem collapsibles** — permanece **integralmente vigente** em ambos os modos, assim como a definição completa da Camada 2 (`<CandidateRanking />`) e da Camada 3 (`<MinorCandidatesList />`, agora também consumida pelo ADR-0018 como "Composição de Outros"). Para o modo `binary` (2º turno), este ADR aplica-se **sem nenhuma alteração** — `<HeadlineScore />` continua sendo a Camada 1.
+
+> **Nota 2026-09-08 (ADR-0029).** As linhas de candidato das Camadas 2 e 3 adotam o formato visual do componente `CandidateRow` do kit Atlas Menna (parcial e projeção lado a lado, com delta), em vez do formato comprimido pct+IC anterior. A regra central deste ADR — todas as camadas sempre no DOM, sem collapsible — é reafirmada e usada explicitamente para **rejeitar** o botão "Mostrar todos os N candidatos" presente no componente equivalente do kit (`ResultPanel`), que violaria esta regra se copiado sem revisão.
 
 ## Contexto
 

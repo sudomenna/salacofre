@@ -15,8 +15,9 @@ source: PRD.md § 6.1
 | RNF-004 | Latência do endpoint `/api/projection` p95 | <100ms |
 | RNF-005 | Cache hit ratio na CDN no pico | >99% |
 | RNF-006 | Defasagem TSE → tela do usuário | <90s ([ADR-0011](../architecture/adrs/0011-cadencia-60s.md)) |
-| RNF-007a | Bundle JS above-the-fold (sem chunks lazy) | <150KB gzipped |
-| RNF-007b | Bundle JS do chunk do mapa (MapLibre + PMTiles client + componente) | <250KB gzipped |
+| RNF-007a | Bundle JS above-the-fold **de aplicação** (total medido − piso de framework) | <150KB gzipped |
+| RNF-007a-floor | Piso de framework above-the-fold (React + runtime Next + runtime do bundler) | informacional — 153.482 B em 2026-09-07 |
+| RNF-007b | Bundle JS do chunk do mapa (MapLibre + PMTiles client + componente) | <300KB gzipped |
 | RNF-007c | Bundle JS total da home (above-the-fold + chunks lazy) | <500KB gzipped |
 | RNF-008 | Tempo de renderização do mapa inicial (após first paint) | <1.5s |
 
@@ -31,6 +32,22 @@ source: PRD.md § 6.1
 - Mapa, animações de spring e charts D3 ficam em chunks separados
 
 ## Nota sobre o orçamento de bundle
+
+> **Revisão 2026-09-08 (constituição 1.4, [ADR-0030](../architecture/adrs/0030-orcamento-above-the-fold-piso-framework-vs-aplicacao.md)).**
+> O RNF-007a mudou de **escopo**, não de valor. A medição do build de produção em 2026-09-07 mostrou
+> que o teto de 150KB tinha virado o piso do framework: dos **153.482 bytes** que a home baixa acima da
+> dobra em 8 requests, **71.080 são o React DOM** e o resto é runtime do Next e do bundler — e
+> `/sobre-o-modelo`, a rota mais simples do site (sem mapa, sem polling), baixa exatamente o mesmo tanto.
+> Sobravam 118 bytes para todo o código de aplicação.
+>
+> Agora o gate mede **total menos piso**: o piso é uma constante registrada (o maior valor observado,
+> 153.482 B), recalibrada só quando Next ou React sobem de versão major — nunca por PR. O RNF-007b subiu
+> de 250KB para 300KB, formalizando o débito do chunk do MapLibre aberto desde a S04 (medido em ~287KB).
+> **RNF-002 (LCP p95 < 2,5s) continua sendo a métrica de autoridade**; bytes são proxy.
+>
+> A medição canônica está em `tests/e2e/perf-budget.spec.ts`, que roda com Playwright contra o build de
+> produção e soma `responseBodySize` dos scripts até o evento `load`.
+
 
 O RNF-007 foi refinado em 2026-05-17 após audit: a meta original "<150KB total" era matematicamente inalcançável incluindo MapLibre (~200KB gzipped sozinho). A nova estrutura distingue:
 

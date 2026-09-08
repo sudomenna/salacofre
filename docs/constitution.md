@@ -2,8 +2,8 @@
 title: SalaCofre — Constituição do Produto
 description: Princípios não-negociáveis que governam toda decisão de produto, design e engenharia
 status: stable
-version: 1.3
-last_updated: 2026-09-07
+version: 1.4
+last_updated: 2026-09-08
 ---
 
 # Constituição do SalaCofre
@@ -41,7 +41,9 @@ A norma vigente é a **Resolução TSE nº 23.751/2026**, que trata da divulgaç
 - **INP p95 < 200ms** em todas as interações.
 - **Defasagem TSE → tela do usuário < 30s**.
 - O **banco de dados não pode** estar no read path do cliente — estado quente vive em Vercel Edge Config.
-- **Bundle JS above-the-fold < 150KB gzipped** (excluindo chunks lazy-loaded como o mapa). O mapa (MapLibre + PMTiles) é carregado via `next/dynamic({ ssr: false })` após o first paint — ver [ADR-0010](./architecture/adrs/0010-mapa-dynamic-import.md). Bundle total da home (above-the-fold + lazy) < 500KB gzipped.
+- **Bundle JS above-the-fold**, medido pelos scripts efetivamente baixados pelo navegador até o evento `load` (o chunk `nomodule` de polyfill legado nunca é requisitado por um navegador moderno e não entra na conta), separa **piso de framework** — React, o runtime do Next.js App Router e o runtime do bundler, recalibrado quando essas dependências sobem de versão major — de **orçamento de aplicação**, o número que o time efetivamente controla e que é auditado em CI a cada PR: **orçamento de aplicação < 150KB gzipped**. O mapa (MapLibre + PMTiles) é carregado via `next/dynamic({ ssr: false })` após o first paint e não entra no above-the-fold — ver [ADR-0010](./architecture/adrs/0010-mapa-dynamic-import.md), cujo orçamento de chunk **< 300KB gzipped**. Bundle total da home (above-the-fold + lazy) < 500KB gzipped.
+
+> **Mudança 1.3 → 1.4 (2026-09-08).** A versão anterior fixava "bundle JS above-the-fold < 150KB" como um número único, escrito em 2026-05-17, quando a home era placar + agulha e não existiam mapa, shell global nem paleta gerada. A medição do build de produção em 2026-09-07 mostrou que esse teto virou, na prática, o piso do framework: dos **153.482 bytes** que a home baixa acima da dobra em 8 requests, **71.080 são o React DOM** e o restante é runtime do Next e do bundler — a rota mais simples do site, `/sobre-o-modelo`, que não tem mapa nem polling, baixa exatamente o mesmo tanto. Sobravam **118 bytes** para todo o código de aplicação, o que tornava a métrica inútil como orçamento: ela media a escolha de framework, não as decisões do time. A 1.4 separa as duas coisas e mantém a exigência sobre a parte que o time controla, além de formalizar em 300KB o orçamento do chunk do mapa — débito aberto desde a S04, quando o chunk foi medido em ~287KB contra a meta de 250KB e seguiu sem ADR. **RNF-002 (LCP p95 < 2,5s) continua sendo a métrica de autoridade sobre performance percebida**; o orçamento de bytes é proxy. Justificativa completa em [ADR-0030](./architecture/adrs/0030-orcamento-above-the-fold-piso-framework-vs-aplicacao.md). Nenhum outro princípio (§§ 1–2, 4–10) foi alterado.
 
 ## 4. Acessibilidade (WCAG 2.1 AA)
 
