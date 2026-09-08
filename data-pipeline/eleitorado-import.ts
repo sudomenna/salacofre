@@ -98,7 +98,7 @@ async function processCsv(
   source: "tse" | "fixture",
 ): Promise<number> {
   const header = await readCsvHeader(csvPath);
-  const required = ["SG_UF", "CD_MUNICIPIO", "NR_ZONA", "QT_ELEITOR_SECAO"];
+  const required = ["NR_TURNO", "SG_UF", "CD_MUNICIPIO", "NR_ZONA", "QT_ELEITOR_SECAO"];
   const idx: Record<string, number> = {};
   for (const k of required) {
     const i = header.get(k);
@@ -109,10 +109,23 @@ async function processCsv(
   }
 
   // Agrega secao → zona em memória (Brasil ≈ 3000 zonas, cabe folgado).
+  // Filtra NR_TURNO=1: o CSV de eleitorado por local de votação 2024 traz
+  // uma linha por seção POR TURNO em que ela funcionou. Município com 2º
+  // turno em 2024 (municipal) tinha a mesma seção listada duas vezes —
+  // somando sem filtro, o eleitorado ficava inflado 21,8% nacionalmente e
+  // de forma desigual por UF (SP 1,454×, seis UFs sem 2º turno em 1,000×).
+  // Medido em 08/09 contra o CSV oficial: total 189.907.005 sem filtro,
+  // 155.910.528 com NR_TURNO=1 (docs/_meta/handoff-2026-09-08.md § P0.2).
   const agg = new Map<string, ZonaAgg>();
   let total = 0;
+  let skippedTurno2 = 0;
   for await (const fields of iterCsv(csvPath)) {
     total++;
+    const nrTurno = toIntOrNull(fields[idx.NR_TURNO!]);
+    if (nrTurno !== 1) {
+      skippedTurno2++;
+      continue;
+    }
     const uf = (fields[idx.SG_UF!] ?? "").trim();
     const codMun = toIntOrNull(fields[idx.CD_MUNICIPIO!]);
     const codZona = toIntOrNull(fields[idx.NR_ZONA!]);
@@ -138,7 +151,8 @@ async function processCsv(
     }
   }
   console.log(
-    `  [csv done] ${csvPath.split("/").pop()} — ${total.toLocaleString()} seções → ${agg.size} zonas`,
+    `  [csv done] ${csvPath.split("/").pop()} — ${total.toLocaleString()} seções lidas ` +
+      `(${skippedTurno2.toLocaleString()} de 2º turno descartadas) → ${agg.size} zonas`,
   );
 
   // Flush em batches.
