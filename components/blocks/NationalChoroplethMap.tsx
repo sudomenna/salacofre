@@ -13,7 +13,7 @@
  *     Carregada apenas no cliente, NUNCA no servidor.
  *
  * Por quê dois níveis?
- *   `HomeClientShell.tsx` é Client Component, mas o test `home-page.test.tsx`
+ *   `NationalMapBlock.tsx` é Client Component, mas o test `home-page.test.tsx`
  *   usa `renderToStaticMarkup` que chama `useRouter()` (só válido no App Router
  *   montado). Separar o impl em dynamic import garante que nenhum hook de
  *   navegação/browser escapa para o contexto SSR dos testes. Este wrapper
@@ -98,7 +98,7 @@ export interface NationalChoroplethMapProps {
   /**
    * Base de leitura do choropleth (ADR-0029 § 2) — `"proj"` (default) pinta a
    * projeção, `"parcial"` pinta o apurado. Vem do controle do shell via
-   * `app/HomeClientShell.tsx`; zero requisição nova, os dois números já estão
+   * `components/blocks/NationalMapBlock.tsx`; zero requisição nova, os dois números já estão
    * no mesmo `EdgeUfRow`.
    */
   viewMode?: ViewMode;
@@ -107,6 +107,19 @@ export interface NationalChoroplethMapProps {
    * hero da home usa `clamp(400px, 52vh, ...)` desde o ADR-0029 § 1.
    */
   height?: number | string;
+  /**
+   * Onde a `<MapLegend>` fica (ADR-0033 § 1).
+   *
+   * `"below"` (default) — no fluxo, logo abaixo do mapa. É o formato de
+   * quando o mapa é um bloco de página com altura fixa.
+   *
+   * `"overlay"` — caixa flutuante no canto inferior esquerdo, sobre o mapa,
+   * como no kit (`App.jsx`, o bloco `position: absolute; left: 12; bottom:
+   * 12; width: 200` dentro de `mapBlock`). É o formato obrigatório quando o
+   * mapa PREENCHE o container (`height="100%"`): com a legenda no fluxo, ela
+   * seria empurrada para fora da moldura e cortada pelo `overflow: hidden`.
+   */
+  legendPlacement?: "below" | "overlay";
   className?: string;
 }
 
@@ -180,6 +193,7 @@ export function NationalChoroplethMap({
   candidatos,
   viewMode = "proj",
   height = 420,
+  legendPlacement = "below",
   className,
 }: NationalChoroplethMapProps) {
   const legend = buildPartyLegend(candidatos, view);
@@ -208,13 +222,36 @@ export function NationalChoroplethMap({
         onSelectUf={setSelectedSigla}
       />
       {legend ? (
-        <MapLegend
-          leftLabel={legend.leftLabel}
-          rightLabel={legend.rightLabel}
-          leftColors={legend.leftColors}
-          rightColors={legend.rightColors}
-          className="mt-2"
-        />
+        legendPlacement === "overlay" ? (
+          <div
+            style={{
+              position: "absolute",
+              left: "var(--space-3)",
+              bottom: "var(--space-3)",
+              width: 200,
+              background: "var(--surface-card)",
+              border: "1px solid var(--border-hairline)",
+              borderRadius: "var(--radius-sm)",
+              padding: "var(--space-2)",
+              pointerEvents: "none",
+            }}
+          >
+            <MapLegend
+              leftLabel={legend.leftLabel}
+              rightLabel={legend.rightLabel}
+              leftColors={legend.leftColors}
+              rightColors={legend.rightColors}
+            />
+          </div>
+        ) : (
+          <MapLegend
+            leftLabel={legend.leftLabel}
+            rightLabel={legend.rightLabel}
+            leftColors={legend.leftColors}
+            rightColors={legend.rightColors}
+            className="mt-2"
+          />
+        )
       ) : null}
       <StateResultSheet
         open={selectedSigla != null}

@@ -4,7 +4,7 @@
  *
  * Duas camadas:
  *   1. Composição dos blocos (histórico) — garante que o wireframe monta.
- *   2. SSR do `app/uf/[sigla]/page.tsx` com o reader mockado (S07/Fase 2) —
+ *   2. SSR do `app/(pres)/uf/[sigla]/page.tsx` com o reader mockado (S07/Fase 2) —
  *      cobre o dispatch `binary` | `multi-1t`, o hero de termômetros
  *      (ADR-0018) e a identidade da trilha presidencial (ADR-0019).
  */
@@ -12,7 +12,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import UFPage from "@/app/uf/[sigla]/page";
+import UFPage from "@/app/(pres)/uf/[sigla]/page";
 
 import { NewsClippingPlaceholder } from "@/components/atoms/banners/NewsClippingPlaceholder";
 import { WinnerBanner } from "@/components/atoms/banners/WinnerBanner";

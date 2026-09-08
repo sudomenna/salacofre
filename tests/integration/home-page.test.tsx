@@ -2,7 +2,7 @@
 /**
  * tests/integration/home-page.test.tsx
  *
- * Smoke test do `app/page.tsx` — verifica que a home renderiza usando o
+ * Smoke test do `app/(pres)/page.tsx` — verifica que a home renderiza usando o
  * fixture estável e contém todos os componentes esperados (RF-021..030.6).
  *
  * Não é E2E (sem browser real). Apenas valida a árvore SSR mínima e a
@@ -34,7 +34,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import HomePage from "@/app/page";
+import HomePage from "@/app/(pres)/page";
 import fixture from "@/tests/fixtures/edge-config/projection-current.json" with { type: "json" };
 
 // Top-2 names do fixture — lidos dinâmicamente pra resistir a renomes.
@@ -317,13 +317,24 @@ describe("HomePage (integration / smoke)", () => {
   // S07/Bloco 2 (ADR-0029) — mapa primeiro.
   // -------------------------------------------------------------------------
 
-  it("(v) a ordem dos blocos é a do ADR-0029: ticker, mapa, banner, painel de resultado", async () => {
+  // ADR-0033 § 1 emenda a asserção original destes dois testes. O mapa deixou
+  // de ser um bloco desta página e virou a coluna persistente do
+  // `<AppShellSplit>`, montada por `app/(pres)/layout.tsx` — quem fixa a
+  // moldura agora é `tests/unit/shell/persistent-map-frame.test.tsx`. A ordem
+  // interna do `<main>` (kicker → painel com o `<h1>` → termômetros → rodapé)
+  // continua sendo a do ADR-0029 e continua fixada aqui.
+  it("(v) o mapa saiu da página, e a ordem dentro do `<main>` é a do ADR-0029", async () => {
     const node = await HomePage();
     const doc = parse(renderToStaticMarkup(node));
     const main = doc.querySelector("main[data-trilha]");
     expect(main).not.toBeNull();
 
-    // Índice de cada marcador na ordem do DOM dentro do <main>.
+    // 1. Nenhum mapa nesta página. Um segundo choropleth nacional aqui seria o
+    //    mesmo mapa duas vezes na mesma tela, e um segundo chunk do MapLibre.
+    expect(doc.querySelector('[aria-label="Mapa coroplético do Brasil"]')).toBeNull();
+    expect(doc.querySelector('[data-testid="map-view-toggle"]')).toBeNull();
+
+    // 2. Índice de cada marcador na ordem do DOM dentro do <main>.
     const html = main?.innerHTML ?? "";
     const at = (marcador: string) => {
       const i = html.indexOf(marcador);
@@ -331,35 +342,20 @@ describe("HomePage (integration / smoke)", () => {
       return i;
     };
 
-    const mapa = at("Mapa coroplético do Brasil");
     const kicker = at("data-trilha-kicker");
     const painel = at("Projeção Atlas Menna · não oficial");
     const termometros = at("projecao-termometros-heading");
     const rodape = at("Não oficial. Fonte:");
 
-    // 1. O mapa é o primeiro bloco de conteúdo — antes do painel de resultado
-    //    e, portanto, antes dos termômetros (que continuam existindo,
-    //    ADR-0029 § 6: mudaram de posição, não de conteúdo).
-    expect(mapa).toBeLessThan(painel);
-    expect(mapa).toBeLessThan(termometros);
-    // 2. TrilhaKicker imediatamente acima do painel que carrega o <h1>
-    //    (ADR-0019 preservado dentro da nova ordem).
-    expect(mapa).toBeLessThan(kicker);
+    // TrilhaKicker imediatamente acima do painel que carrega o <h1>
+    // (ADR-0019 preservado dentro da nova ordem).
     expect(kicker).toBeLessThan(painel);
-    // 3. O rodapé constitucional continua fechando a página.
+    expect(painel).toBeLessThan(termometros);
+    // O rodapé constitucional continua fechando a página.
     expect(termometros).toBeLessThan(rodape);
   });
 
-  it("(w) o mapa hero reserva a altura de viewport, e o esqueleto reserva a MESMA", async () => {
-    // Se o esqueleto reservasse 420px fixos e o mapa `clamp(400px, 52vh, ...)`,
-    // o chunk do MapLibre chegando empurraria a página inteira (CLS).
-    const node = await HomePage();
-    const html = renderToStaticMarkup(node);
-    expect(html).toContain("clamp(400px, 52vh, 520px)");
-    expect(html).toContain("--map-height");
-  });
-
-  it("(x) os seis termômetros do ADR-0018 continuam abaixo do mapa, intactos", async () => {
+  it("(x) os seis termômetros do ADR-0018 seguem no painel de resultado, intactos", async () => {
     const node = await HomePage();
     const doc = parse(renderToStaticMarkup(node));
     // Mesma asserção do teste (k), repetida aqui de propósito: a recomposição

@@ -1,5 +1,5 @@
 /**
- * app/page.tsx
+ * app/(pres)/page.tsx
  *
  * Home Nacional Presidencial (T-01). Spec 003 + S05/F4 (ADR-0013, ADR-0014,
  * ADR-0017 — multi-candidato) + S07/Fase 2 (ADR-0018 hero de seis
@@ -25,7 +25,7 @@
  * depois, em 2026-09-08; ver a seção do protótipo mais abaixo.
  *
  * Regra de composição usada aqui: quando o bloco já emite o próprio `<h2>`
- * (`ProjectionThermometers`, `HomeClientShell`, `StateGroupedTable`), o
+ * (`ProjectionThermometers`, `StateGroupedTable`), o
  * `Panel` recebe **só o kicker** — dois títulos para a mesma seção seriam
  * ruído visual e outline duplicado no leitor de tela. Quando o bloco não tem
  * heading próprio, o `Panel` fornece `title` + `titleId`.
@@ -56,7 +56,7 @@
  *   [shell: TopBar + controles + CargoTabs vêm do layout]  RF-029, ADR-0025 § 2
  *   <style> --live-pct-label (alimenta o selo do TopBar)    ADR-0029 § 4
  *   BreakingNewsTicker (faixa fina)                  S06/F4d
- *   Panel (sem filete) → HomeClientShell hero        RF-030.1-4, ADR-0029 § 1
+ *   [o mapa saiu para app/(pres)/layout.tsx]         RF-030.1-4, ADR-0033 § 1
  *   NationalWinnerBanner                             S06/F4d
  *   TrilhaKicker                                     ADR-0019
  *   Panel "Projeção Atlas Menna · não oficial"       constituição § 1
@@ -148,7 +148,6 @@ import nationalFixture from "@/tests/fixtures/edge-config/projection-current.jso
 import nationalFixtureT2 from "@/tests/fixtures/edge-config/projection-current-t2.json" with {
   type: "json",
 };
-import { HomeClientShell } from "./HomeClientShell";
 
 /**
  * RNF-028 — Meta/OG tags. Imagens dinâmicas OG (RF-051) ficam para spec 009;
@@ -232,7 +231,7 @@ function ResultTitle() {
   );
 }
 
-/** Polling SWR é gerenciado pelo `HomeClientShell`; o RSC fornece o estado inicial. */
+/** O RSC fornece o estado inicial dos painéis; o mapa da moldura busca o seu. */
 async function getInitialPayload(): Promise<EdgePayload> {
   const fromEdge = await readNationalProjection();
   if (fromEdge) return fromEdge;
@@ -270,12 +269,10 @@ export default async function HomePage() {
   const vaiA2tNacional: boolean | null =
     national.vai_a_2t_nacional ?? (pSegundoTurno == null ? null : pSegundoTurno >= 0.01);
 
-  // Mapping candidato_id → rank — alimenta paleta N-way no mapa e nas
-  // colunas decisivas/grouped (ADR-0013). Pré-S05 ou fallback: array
-  // já é ordenado por rank, então `index + 1` coincide com o rank.
-  const rankByLider: Record<number, number> = Object.fromEntries(
-    national.candidatos.map((c, i) => [c.id, c.rank ?? i + 1]),
-  );
+  // O mapping `candidato_id → rank` (paleta N-way, ADR-0013) era construído
+  // aqui e passado ao mapa. Com o mapa na moldura (ADR-0033 § 1), quem o
+  // constrói é o `<PersistentMapFrame />`, a partir do payload que ele mesmo
+  // busca. Esta página não tem mais consumidor para ele.
 
   // Para tabela e indicadores que precisam do nome do líder.
   const lider = national.candidatos.find((c) => (c.rank ?? -1) === 1) ?? national.candidatos[0];
@@ -286,6 +283,9 @@ export default async function HomePage() {
   // `<CandidateRanking />`) e 3 (rank 7+), já que rank 3 subiu para o hero.
   const outrosCandidatos = national.candidatos.filter((c, i) => (c.rank ?? i + 1) >= 4);
 
+  // O mapa não está mais nesta página (ADR-0033 § 1): quem o monta é
+  // `app/(pres)/layout.tsx`, na coluna persistente do `<AppShellSplit>`. Esta
+  // página emite só os painéis — a coluna que rola.
   return (
     <main
       data-trilha="pres"
@@ -309,22 +309,10 @@ export default async function HomePage() {
         <BreakingNewsTicker chamadas={national.chamadas_recentes ?? []} />
       )}
 
-      {/* Seção 1 — o MAPA (ADR-0029 § 1). Primeiro conteúdo da página, com
-          altura de viewport. `rule="none"` e sem kicker: o filete duplo e o
-          cabeçalho editorial abririam a página com cromo em vez de com o
-          mapa, que é o ponto da recomposição. Continua sendo um `<Panel>`
-          (portanto uma `<section>`) para não abrir exceção na gramática da
-          página. `rankByLider` segue como fallback de cor e `candidatos`
-          habilita cor por partido (ADR-0024) + HoverCard + legenda. */}
-      <Panel rule="none">
-        <HomeClientShell
-          rows={por_uf}
-          candidatoAId={national.candidato_a_id}
-          rankByLider={rankByLider}
-          candidatos={national.candidatos}
-          variant="hero"
-        />
-      </Panel>
+      {/* O mapa NÃO está mais aqui (ADR-0033 § 1). Ele é a coluna persistente
+          do `<AppShellSplit>` — à direita no desktop, faixa de 52vh acima dos
+          painéis no mobile — montada por `app/(pres)/layout.tsx`, e sobrevive
+          à navegação para `/uf/[sigla]` e de volta. */}
 
       {/* S06/F4d — Banner "ELEITO" nacional. Aparece quando threshold de
           chamada final atingido (p_vitoria >= 0.99 ou apurado >= 99%). Fica

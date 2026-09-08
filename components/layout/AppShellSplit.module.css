@@ -1,0 +1,132 @@
+/*
+ * components/layout/AppShellSplit.module.css
+ *
+ * A grade de duas colunas do protótipo (ADR-0033 § 1 / kit `App.jsx:371-388`).
+ *
+ * Duas formas, uma por breakpoint — as MESMAS medidas do kit, lidas no fonte:
+ *
+ *   desktop (>= 960px), `App.jsx:372-377`
+ *     grid `var(--sidebar-w) 1fr`, `height: 100vh`, `overflow: hidden`;
+ *     coluna esquerda em flex column com `minHeight: 0` e filete forte à
+ *     direita; painéis com `overflowY: auto` e `flex: 1` — rolam sozinhos,
+ *     o mapa não sai da tela.
+ *
+ *   mobile (< 960px), `App.jsx:380-388`
+ *     `maxWidth: var(--mobile-max)` centrado, filete fino nas duas laterais,
+ *     mapa em `52vh` com piso de 400px e filete forte embaixo, painéis
+ *     ocupando o resto.
+ *
+ * Os três tokens do kit já existiam em `app/globals.css` no namespace
+ * `--container-*` do Tailwind v4, com os mesmos valores e sem consumidor:
+ * `--container-sidebar` (400px) = `--sidebar-w`, `--container-mobile` (430px)
+ * = `--mobile-max`. Este arquivo é o primeiro a consumir os dois.
+ *
+ * ## Por que o `<body>` entra na conta
+ *
+ * No kit, o masthead mora DENTRO da coluna esquerda, então a coluna inteira
+ * mede `100vh`. Aqui o `<TopBar>` é do `RootLayout` e é comum a todas as
+ * rotas — inclusive as que não têm mapa (`/sobre-o-modelo`). Tirá-lo do
+ * `RootLayout` para reproduzir a árvore do kit deixaria essas rotas sem
+ * masthead.
+ *
+ * A saída é não medir a barra: `body:has(.split)` transforma o `<body>` em
+ * uma coluna flex de `100dvh` só nas rotas que montam esta grade — a barra
+ * fica com sua altura natural e a grade recebe o resto por `flex: 1`. Nenhum
+ * número mágico de altura de cabeçalho, e nenhuma rota sem `.split` é tocada.
+ * `:has()` já é o mecanismo do shell para decisões desse tipo
+ * (`CargoTabs.module.css`), com a mesma degradação: sem suporte, a página
+ * volta a rolar inteira — layout de coluna única, nada quebrado.
+ *
+ * Modo `pure` de CSS Modules: toda regra carrega ao menos uma classe local.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Mobile-first — a moldura de 430px (App.jsx:381-383).
+ * ------------------------------------------------------------------------ */
+
+.split {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* O mapa vem ANTES dos painéis no visual do mobile, mas depois deles no DOM:
+ * `<main>` é o conteúdo da página e deve preceder um bloco de apoio na ordem
+ * de leitura e de tabulação. `order` resolve o visual sem reordenar o DOM. */
+.split .map {
+  order: -1;
+  position: relative;
+  overflow: hidden;
+  height: 52vh;
+  min-height: 400px;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.split .panels {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 959px) {
+  body:has(.split) {
+    max-width: var(--container-mobile);
+    margin: 0 auto;
+    min-height: 100dvh;
+    border-left: 1px solid var(--border-hairline);
+    border-right: 1px solid var(--border-hairline);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Desktop — as duas colunas (App.jsx:371-378).
+ * ------------------------------------------------------------------------ */
+
+@media (min-width: 960px) {
+  /* O `<html>` entra junto de propósito. `overflow` do `<body>` PROPAGA para a
+   * viewport e o `<body>` volta a ser tratado como `visible` — medido aqui em
+   * 08/09: só com a regra no `<body>`, `document.documentElement.scrollHeight`
+   * dava 3900px numa janela de 900px e `window.scrollTo(0, 1500)` rolava a
+   * página inteira para um vazio, deixando a moldura fora da tela. Fixar a
+   * altura nos dois fecha essa saída: a única coisa que rola é a coluna de
+   * painéis, como no kit. */
+  html:has(.split) {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  body:has(.split) {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* A grade recebe a altura que sobra do `<TopBar>`; `min-height: 0` é o que
+   * permite a coluna interna encolher e rolar em vez de esticar o flex item. */
+  body:has(.split) > .split {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .split {
+    display: grid;
+    grid-template-columns: var(--container-sidebar) 1fr;
+    overflow: hidden;
+  }
+
+  .split .panels {
+    grid-column: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    border-right: 1px solid var(--border-strong);
+  }
+
+  .split .map {
+    grid-column: 2;
+    order: 0;
+    height: auto;
+    min-height: 0;
+    border-bottom: 0;
+  }
+}

@@ -71,7 +71,6 @@ import { Panel } from "@/components/atoms/surfaces/Panel";
 import { BreakingNewsTicker } from "@/components/blocks/BreakingNewsTicker";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { GovernorCard } from "@/components/blocks/GovernorCard";
-import { HexCartogramBrasil } from "@/components/blocks/HexCartogramBrasil";
 import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
 import { RaceStatsCards } from "@/components/blocks/RaceStatsCards";
 import { Footer } from "@/components/layout/Footer";
@@ -204,6 +203,8 @@ export default async function GovernadorGridPage({ searchParams }: PageProps) {
   // cobertos) saiu daqui: agora é `<CargoTabs>` no `<TopBar>` global
   // (app/layout.tsx, ADR-0025 § 2), uma vez por documento.
 
+  // O cartograma não está mais nesta página (ADR-0033 § 1): quem o monta é
+  // `app/(gov)/layout.tsx`, na coluna persistente do `<AppShellSplit>`.
   return (
     <main
       data-trilha="gov"
@@ -214,36 +215,10 @@ export default async function GovernadorGridPage({ searchParams }: PageProps) {
           (ADR-0029 § 1). Só renderiza se há chamadas. */}
       {chamadas_recentes.length > 0 && <BreakingNewsTicker chamadas={chamadas_recentes} />}
 
-      {/* Seção 1 — o MAPA desta rota é o cartograma hexagonal. Primeiro
-          conteúdo da página (ADR-0029 § 1); `rule="none"` para a página não
-          abrir com cromo. O `<h2>` continua existindo, na escala de kicker. */}
-      <Panel rule="none">
-        {por_uf.length > 0 ? (
-          <section
-            aria-labelledby="hex-cartogram-heading"
-            className="flex flex-col"
-            style={{ gap: "var(--space-2)" }}
-          >
-            <h2
-              id="hex-cartogram-heading"
-              style={{
-                margin: 0,
-                font: "var(--type-kicker)",
-                letterSpacing: "var(--tracking-caps)",
-                textTransform: "uppercase",
-                color: "var(--text-secondary)",
-              }}
-            >
-              Mapa hexagonal — visão por líder
-            </h2>
-            <HexCartogramBrasil rows={por_uf} candidatos={national.candidatos} />
-          </section>
-        ) : (
-          <p style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-muted)" }}>
-            Aguardando primeiros boletins do TSE para preencher o cartograma.
-          </p>
-        )}
-      </Panel>
+      {/* O cartograma hexagonal — o "mapa" desta rota — saiu daqui e virou a
+          coluna persistente do `<AppShellSplit>` (ADR-0033 § 1), montada por
+          `app/(gov)/layout.tsx`. Ele sobrevive à navegação para
+          `/uf/[sigla]/governador` e de volta. */}
 
       {/* ADR-0019 — kicker de trilha imediatamente acima do `<h1>`. */}
       <TrilhaKicker trilha="gov" crumbs={["Brasil (27 UFs)"]} className="-mb-4" />

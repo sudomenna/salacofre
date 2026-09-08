@@ -20,7 +20,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import UFGovernadorPage from "@/app/uf/[sigla]/governador/page";
+import UFGovernadorPage from "@/app/(gov)/uf/[sigla]/governador/page";
 import type { UfDetailBlob, UfDetailResult } from "@/lib/blob/uf-detail";
 import type { EdgePayloadUf, EdgeUfMunicipio } from "@/lib/edge-config/types";
 

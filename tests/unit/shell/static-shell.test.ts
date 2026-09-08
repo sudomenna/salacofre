@@ -154,7 +154,7 @@ describe("shell estático (ADR-0029 § 2 — restrição dura)", () => {
       ).toBe(false);
     }
     expect(read("components/layout/ShellLiveBadge.module.css")).toContain("--live-pct-label");
-    expect(read("app/page.tsx")).toContain("--live-pct-label");
+    expect(read("app/(pres)/page.tsx")).toContain("--live-pct-label");
   });
 
   it("(e) só DOIS componentes do shell são Client Component — o custo em JS é eles", () => {

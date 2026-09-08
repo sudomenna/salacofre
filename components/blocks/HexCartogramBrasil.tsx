@@ -129,9 +129,14 @@ export function HexCartogramBrasil({ rows, candidatos, hexRadius = 26 }: HexCart
             const liderText = lider ? `${lider.nome} (${lider.partido}) líder` : "sem dados";
             return (
               <li key={sigla}>
-                <a href={`/uf/${sigla.toLowerCase()}/governador`}>
+                {/* `<Link>`, como os hexágonos logo acima: esta é a rota de
+                    teclado e de leitor de tela para a mesma UF, e um `<a href>`
+                    cru recarregaria o documento — derrubando a moldura
+                    persistente do mapa (ADR-0033 § 1) só para quem navega
+                    assim. */}
+                <Link href={`/uf/${sigla.toLowerCase()}/governador`}>
                   {sigla}: {liderText}
-                </a>
+                </Link>
               </li>
             );
           })}

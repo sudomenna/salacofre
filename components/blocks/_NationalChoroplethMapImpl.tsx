@@ -513,7 +513,12 @@ export function NationalChoroplethMapImpl({
   }, [view, viewMode, rows, effectiveRankByLider, candidatosById]);
 
   return (
-    <div style={{ position: "relative" }}>
+    // `height` também aqui, e não só no container do MapLibre: com a moldura
+    // persistente (ADR-0033 § 1) o mapa recebe `height="100%"`, e 100% de um
+    // pai de altura automática resolve para zero — o mapa montava, o canvas
+    // existia e nada aparecia (medido em 08/09). Com altura numérica o efeito
+    // é nulo: o pai passa a ter a mesma altura que o filho já tinha.
+    <div style={{ position: "relative", height }}>
       <div
         ref={containerRef}
         role="img"

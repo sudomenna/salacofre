@@ -16,8 +16,16 @@
  * A11y
  *   - `<table>` semântico, com `<caption>` + `<thead>` + `<tbody>`.
  *   - Linhas vinculadas a `/uf/[sigla]`.
+ *
+ * As células de UF eram `<a href>` cru até 2026-09-08 e passaram a `<Link>`
+ * (ADR-0033 § 1). Um `<a href>` recarrega o documento, e com a moldura
+ * persistente isso significa derrubar a moldura inteira — medido no navegador
+ * naquele dia: uma marca gravada em `window` não sobrevivia ao clique daqui,
+ * mas sobrevivia ao clique num `<Link>`. O HTML rendido é o mesmo `<a href>`
+ * indexável; muda só o handler que o App Router acopla.
  */
 
+import Link from "next/link";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent, formatPp } from "@/lib/utils/format";
@@ -177,7 +185,7 @@ export function StateGroupedTable({
                       style={{ borderColor: "var(--color-border)" }}
                     >
                       {row ? (
-                        <a
+                        <Link
                           href={`/uf/${row.sigla}`}
                           className="flex items-baseline justify-between gap-2"
                           style={{ color: "var(--color-text)" }}
@@ -189,7 +197,7 @@ export function StateGroupedTable({
                           >
                             {formatPp(row.margem_projetada)} · {formatPercent(row.pct_apurado, 0)}
                           </span>
-                        </a>
+                        </Link>
                       ) : null}
                     </td>
                   );
@@ -332,7 +340,7 @@ function MultiTable({ rows, candidatos, multiDisputaThreshold, className }: Mult
                       style={{ borderColor: "var(--color-border)" }}
                     >
                       {row ? (
-                        <a
+                        <Link
                           href={`/uf/${row.sigla}`}
                           className="flex items-baseline justify-between gap-2"
                           style={{ color: "var(--color-text)" }}
@@ -344,7 +352,7 @@ function MultiTable({ rows, candidatos, multiDisputaThreshold, className }: Mult
                           >
                             {formatPp(row.margem_projetada)} · {formatPercent(row.pct_apurado, 0)}
                           </span>
-                        </a>
+                        </Link>
                       ) : null}
                     </td>
                   );

@@ -22,7 +22,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import GovernadorGridPage from "@/app/governador/page";
+import GovernadorGridPage from "@/app/(gov)/governador/page";
 import type { EdgePayload, EdgeUfRow } from "@/lib/edge-config/types";
 
 // Helper pra construir um payload de governador com bucket diverso.
@@ -208,13 +208,19 @@ describe("GovernadorGridPage (integration / smoke)", () => {
     expect(html).toMatch(/data-testid="stat-em-apuracao"[\s\S]*?>4</);
   });
 
-  it("(d) renderiza HexCartogramBrasil (SVG inline com label SP)", async () => {
+  // ADR-0033 § 1: o `<HexCartogramBrasil>` saiu desta página e virou a coluna
+  // persistente da moldura, montada por `app/(gov)/layout.tsx` — quem o fixa
+  // agora é `tests/unit/shell/persistent-map-frame.test.tsx`. O que este smoke
+  // passa a garantir é a AUSÊNCIA: um segundo cartograma na página seria o
+  // mesmo mapa duas vezes na mesma tela.
+  it("(d) o cartograma NÃO é mais desta página — é da moldura", async () => {
     const node = await GovernadorGridPage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("Mapa hexagonal");
-    // SVG inline tem text com sigla
-    expect(html).toContain(">SP<");
-    expect(html).toContain(">MG<");
+    expect(html).not.toContain("Mapa hexagonal");
+    expect(html).not.toContain('aria-labelledby="hex-cartogram-title"');
+    // As 27 UFs continuam na página, pelos cards.
+    expect(html).toContain("São Paulo");
+    expect(html).toContain("Minas Gerais");
   });
 
   it("(e) renderiza 27 GovernorCards (1 por UF)", async () => {
@@ -322,8 +328,7 @@ describe("GovernadorGridPage (integration / smoke)", () => {
       bloco && stats && bloco.compareDocumentPosition(stats) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
-    // Cartograma e cards seguem lá.
-    expect(doc.body.textContent).toContain("Mapa hexagonal");
+    // Os cards seguem lá. (O cartograma saiu para a moldura — ADR-0033 § 1.)
     expect(doc.body.textContent).toContain("São Paulo");
   });
 
@@ -371,15 +376,18 @@ describe("GovernadorGridPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
     expect(doc.querySelectorAll("footer")).toHaveLength(1);
   });
 
-  it("(n) o cartograma é o primeiro conteúdo, antes do painel de resultado", async () => {
+  // ADR-0033 § 1 substitui a asserção anterior deste teste ("o cartograma é o
+  // primeiro conteúdo"). O mapa não é mais um bloco desta página: é a coluna
+  // persistente do `<AppShellSplit>`, montada por `app/(gov)/layout.tsx`, e o
+  // primeiro conteúdo do `<main>` passa a ser o painel de resultado.
+  it("(n) o primeiro conteúdo do `<main>` é o painel de resultado", async () => {
     const doc = await renderGrid();
-    const mapa = doc.querySelector('section[aria-labelledby="hex-cartogram-heading"]');
+    const main = doc.querySelector("main[data-trilha='gov']");
     const painel = doc.querySelector("#resultado-heading");
-    expect(mapa).not.toBeNull();
+    expect(main).not.toBeNull();
     expect(painel).not.toBeNull();
-    expect(
-      mapa && painel && mapa.compareDocumentPosition(painel) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(painel?.closest("main")).toBe(main);
+    expect(doc.querySelector('section[aria-labelledby="hex-cartogram-heading"]')).toBeNull();
   });
 
   it("(o) exatamente um <h1> — 'Governadores 2026', título do painel", async () => {
@@ -415,7 +423,9 @@ describe("GovernadorGridPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
   it("(r) nenhum <Panel> fica vazio (filete órfão)", async () => {
     const doc = await renderGrid();
     const panels = [...doc.querySelectorAll('[data-testid="panel"]')];
-    expect(panels.length).toBeGreaterThanOrEqual(4);
+    // Eram 4 até o ADR-0033 § 1; o `<Panel>` que embrulhava o cartograma saiu
+    // com ele para a moldura persistente, que não é um `<Panel>`.
+    expect(panels.length).toBeGreaterThanOrEqual(3);
     for (const p of panels) {
       expect((p.textContent ?? "").trim().length).toBeGreaterThan(0);
     }
