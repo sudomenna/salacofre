@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { Archivo, JetBrains_Mono, Spectral } from "next/font/google";
+import { ThemeToggle } from "@/components/atoms/controls/ThemeToggle";
 import { CargoTabs } from "@/components/layout/CargoTabs";
 import { ShellControls } from "@/components/layout/ShellControls";
 import { ShellLiveBadge } from "@/components/layout/ShellLiveBadge";
 import { TopBar } from "@/components/layout/TopBar";
 import { currentTurno } from "@/lib/config/calendar";
+import { THEME_INIT_SCRIPT } from "@/lib/state/theme";
 import { VIEW_MODE_DEFAULT } from "@/lib/state/view-mode";
 import "./globals.css";
 
@@ -68,9 +70,29 @@ export const metadata: Metadata = {
  * flash e sem depender de hidratação. Precisa casar com `VIEW_MODE_DEFAULT`
  * — por isso vem da constante, não de um literal.
  *
- * O único JS de aplicação que este shell acrescenta é o `<ViewModeSwitch>`
- * dentro de `<ShellControls>`. `TopBar`, `CargoTabs`, `TabBar`,
- * `TurnoSwitch` e `ShellLiveBadge` são RSC puros.
+ * O JS de aplicação que este shell acrescenta são DOIS componentes client:
+ * `<ViewModeSwitch>` dentro de `<ShellControls>` e `<ThemeToggle>` no slot
+ * direito da barra. `TopBar`, `CargoTabs`, `TabBar`, `TurnoSwitch` e
+ * `ShellLiveBadge` continuam RSC puros.
+ *
+ * ## O tema, e por que ele começa por um `<script>` cru (ADR-0025 § 5)
+ *
+ * A preferência de tema mora em `localStorage` — nunca em cookie, que exigiria
+ * `cookies()` aqui e tiraria as 54 páginas de UF do pré-render estático. Só que
+ * `localStorage` não existe no servidor: o HTML sai sem `data-theme`, ou seja,
+ * claro. Aplicar a preferência na hidratação faria toda página começar branca e
+ * escurecer depois.
+ *
+ * `THEME_INIT_SCRIPT` (`lib/state/theme.ts`) resolve isso: inline, síncrono, o
+ * primeiro nó do `<body>`, ele lê `localStorage` — caindo para
+ * `prefers-color-scheme` quando não há escolha salva — e escreve `data-theme`
+ * no `<html>` **antes do primeiro paint**. Daí para baixo é cascata CSS.
+ *
+ * O `<html>` NÃO renderiza `data-theme` (ao contrário de `data-view`): o
+ * servidor não conhece a preferência, e escrever um valor ali só para o script
+ * sobrescrever criaria divergência de hidratação de verdade. `data-theme` é
+ * propriedade do script e da store, nunca do React — daí o
+ * `suppressHydrationWarning`, que cobre exatamente esse atributo a mais.
  *
  * O wordmark não é `<h1>`: cada página emite o seu.
  */
@@ -82,13 +104,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="pt-BR"
       data-view={VIEW_MODE_DEFAULT}
       className={`${sans.variable} ${serifDisplay.variable} ${mono.variable}`}
+      suppressHydrationWarning
     >
       <body>
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: conteúdo é uma
+            constante do repositório (lib/state/theme.ts), sem dado de usuário —
+            e precisa ser inline e síncrono para rodar antes do primeiro paint. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <TopBar
           brand="SalaCofre"
           brandHref="/"
           subtitle={`Eleições 2026 · ${turno}º turno · não oficial`}
-          right={<ShellLiveBadge />}
+          right={
+            <>
+              <ShellLiveBadge />
+              <ThemeToggle />
+            </>
+          }
         >
           <ShellControls cargoNav={<CargoTabs placement="top" />} />
         </TopBar>

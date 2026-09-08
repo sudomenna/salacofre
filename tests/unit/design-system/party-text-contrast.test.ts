@@ -116,7 +116,51 @@ function parseTokens(css: string): Map<string, string> {
   return map;
 }
 
-const TOKENS = parseTokens(TOKENS_CSS);
+/**
+ * O CSS tem **dois** blocos de token desde o dark mode (ADR-0025 § 5) — o claro
+ * em `@theme static { … }` e o escuro em `:root[data-theme="dark"] { … }` — com
+ * os mesmos nomes de propósito. Um parser que varra o arquivo inteiro guardaria
+ * só o último valor visto: mediria a tinta escura contra o papel claro, e o
+ * gate reprovaria a paleta certa pelo motivo errado.
+ */
+function blockOf(css: string, opener: string): string {
+  const start = css.indexOf(opener);
+  if (start === -1) throw new Error(`bloco não encontrado em tokens-party.css: ${opener}`);
+  let depth = 0;
+  for (let i = css.indexOf("{", start); i < css.length; i++) {
+    if (css[i] === "{") depth++;
+    if (css[i] === "}") {
+      depth--;
+      if (depth === 0) return css.slice(start, i + 1);
+    }
+  }
+  throw new Error(`bloco não fechado em tokens-party.css: ${opener}`);
+}
+
+/** Superfícies de papel do tema escuro — `--paper-1` e `--paper-0` em dark. */
+const DARK_SURFACES = [
+  { token: "--surface-page", hex: "#14171b" },
+  { token: "--surface-card", hex: "#1c1f24" },
+] as const;
+
+const THEMES = [
+  {
+    id: "claro",
+    tokens: parseTokens(blockOf(TOKENS_CSS, "@theme static {")),
+    surfaces: SURFACES,
+    /** Direção em que a tinta se move quando a base reprova sobre o papel. */
+    direcao: "mais escura" as const,
+  },
+  {
+    id: "escuro",
+    tokens: parseTokens(blockOf(TOKENS_CSS, ':root[data-theme="dark"] {')),
+    surfaces: DARK_SURFACES,
+    direcao: "mais clara" as const,
+  },
+] as const;
+
+/** Tokens do tema claro — usados pelos testes que citam números medidos nele. */
+const TOKENS = THEMES[0].tokens;
 
 /** Estados de corrida (`tie`, `none`): não são partido e não viram texto. */
 const STATE_TOKENS = new Set(["tie", "none"]);
@@ -129,57 +173,115 @@ const PARTY_SLUGS = [...TOKENS.keys()]
   .sort();
 
 // ---------------------------------------------------------------------------
-// O gate
+// O gate — vale nos dois temas
 // ---------------------------------------------------------------------------
 
-describe("constituição § 4 — a cor de partido usada como texto", () => {
-  it("todo partido tem o token -text (sem ele, textForParty aponta para o vazio)", () => {
-    expect(PARTY_SLUGS.length).toBe(31);
-    for (const slug of PARTY_SLUGS) {
-      expect(TOKENS.get(`${slug}-text`), `--party-${slug}-text ausente`).toMatch(/^#[0-9a-f]{6}$/);
-    }
-  });
+for (const theme of THEMES) {
+  const T = theme.tokens;
+  const slugs = [...T.keys()]
+    .filter((n) => n.endsWith("-text"))
+    .map((n) => n.slice(0, -"-text".length))
+    .filter((s) => !STATE_TOKENS.has(s))
+    .sort();
 
-  it.each(PARTY_SLUGS)("--party-%s-text lê em toda superfície de papel", (slug) => {
-    const text = TOKENS.get(`${slug}-text`) as string;
-    const base = TOKENS.get(slug) as string;
+  describe(`[tema ${theme.id}] constituição § 4 — a cor de partido usada como texto`, () => {
+    it("todo partido tem o token -text (sem ele, textForParty aponta para o vazio)", () => {
+      expect(slugs.length).toBe(31);
+      for (const slug of slugs) {
+        expect(T.get(`${slug}-text`), `--party-${slug}-text ausente`).toMatch(/^#[0-9a-f]{6}$/);
+      }
+    });
 
-    for (const surface of SURFACES) {
-      const ratio = contrastRatio(text, surface.hex);
-      expect(
-        ratio,
-        [
-          `--party-${slug}-text (${text}) sobre ${surface.token} (${surface.hex}) dá ` +
-            `${ratio.toFixed(2)}:1.`,
-          "",
-          "A constituição § 4 (WCAG 2.1 AA, SC 1.4.3) exige 4.5:1 para texto — sem exceção por",
-          "tamanho de fonte. Medidas do partido, para referência:",
-          ...SURFACES.map(
-            (s) =>
-              `  base  ${base} sobre ${s.hex}: ${contrastRatio(base, s.hex).toFixed(2)}:1` +
-              `   ·   text ${text}: ${contrastRatio(text, s.hex).toFixed(2)}:1`,
-          ),
-          "",
-          "Rode `pnpm gen:party-scale` — ele escurece a tinta (matiz preservada) até as duas",
-          "superfícies passarem, e falha em vez de emitir um texto ilegível. Se o CSS foi",
-          "editado à mão, esta é a divergência.",
-        ].join("\n"),
-      ).toBeGreaterThanOrEqual(CONTRAST_FLOOR);
-    }
-  });
+    it.each(slugs)("--party-%s-text lê em toda superfície de papel", (slug) => {
+      const text = T.get(`${slug}-text`) as string;
+      const base = T.get(slug) as string;
 
-  it("as superfícies deste teste são as que app/globals.css declara", () => {
-    // Se `--surface-page` deixar de ser #f3f4f6, este teste passa a medir contra
-    // um papel que não existe mais — e o gate viraria decoração.
-    expect(GLOBALS_CSS).toMatch(/--paper-1:\s*#f3f4f6\s*;/);
-    expect(GLOBALS_CSS).toMatch(/--paper-0:\s*#fbfbfc\s*;/);
-    expect(GLOBALS_CSS).toMatch(/--surface-page:\s*var\(--paper-1\)\s*;/);
-    expect(GLOBALS_CSS).toMatch(/--surface-card:\s*var\(--paper-0\)\s*;/);
+      for (const surface of theme.surfaces) {
+        const ratio = contrastRatio(text, surface.hex);
+        expect(
+          ratio,
+          [
+            `Tema ${theme.id}. --party-${slug}-text (${text}) sobre ${surface.token} ` +
+              `(${surface.hex}) dá ${ratio.toFixed(2)}:1.`,
+            "",
+            "A constituição § 4 (WCAG 2.1 AA, SC 1.4.3) exige 4.5:1 para texto — sem exceção por",
+            "tamanho de fonte. Medidas do partido, para referência:",
+            ...theme.surfaces.map(
+              (s) =>
+                `  base  ${base} sobre ${s.hex}: ${contrastRatio(base, s.hex).toFixed(2)}:1` +
+                `   ·   text ${text}: ${contrastRatio(text, s.hex).toFixed(2)}:1`,
+            ),
+            "",
+            "Rode `pnpm gen:party-scale` — ele move a tinta em L* (matiz preservada) até as duas",
+            "superfícies passarem, e falha em vez de emitir um texto ilegível. Se o CSS foi",
+            "editado à mão, esta é a divergência.",
+          ].join("\n"),
+        ).toBeGreaterThanOrEqual(CONTRAST_FLOOR);
+      }
+    });
+
+    it("as superfícies deste teste são as que app/globals.css declara", () => {
+      // Se `--surface-page` deixar de ser o hex medido aqui, o teste passa a
+      // medir contra um papel que não existe mais — e o gate vira decoração.
+      const [page, card] = theme.surfaces;
+      const escopo =
+        theme.id === "claro"
+          ? GLOBALS_CSS
+          : (GLOBALS_CSS.split(':root[data-theme="dark"] {')[1] ?? "");
+      expect(escopo).toMatch(new RegExp(`--paper-1:\\s*${page.hex}\\s*;`));
+      expect(escopo).toMatch(new RegExp(`--paper-0:\\s*${card.hex}\\s*;`));
+      // Os semânticos derivam dos primitivos e são declarados uma vez só, no
+      // `:root` claro — é justamente por isso que trocar os primitivos no
+      // escuro move os dois de graça.
+      expect(GLOBALS_CSS).toMatch(/--surface-page:\s*var\(--paper-1\)\s*;/);
+      expect(GLOBALS_CSS).toMatch(/--surface-card:\s*var\(--paper-0\)\s*;/);
+    });
+
+    it("o -text só diverge da base onde a base reprovava (ou colidia)", () => {
+      // Onde a base já lê, a identidade do partido chega intacta ao componente
+      // — mover sem necessidade afastaria a cor da identidade de graça. No
+      // escuro há uma segunda razão legítima para divergir: separação de ΔE76
+      // 12 do partido vizinho (ADR-0031), gateada em party-separation.test.ts.
+      for (const slug of slugs) {
+        const base = T.get(slug) as string;
+        const text = T.get(`${slug}-text`) as string;
+        const baseLe = theme.surfaces.every((s) => contrastRatio(base, s.hex) >= CONTRAST_FLOOR);
+        if (!baseLe) {
+          expect(text, `--party-${slug}-text deveria divergir da base ilegível ${base}`).not.toBe(
+            base,
+          );
+        } else if (theme.id === "claro") {
+          expect(
+            text,
+            `--party-${slug}-text (${text}) divergiu da base (${base}), que já dava ` +
+              `${contrastRatio(base, theme.surfaces[0].hex).toFixed(2)}:1`,
+          ).toBe(base);
+        }
+      }
+    });
+
+    it(`onde diverge, o -text é ${theme.direcao} que a base (intensidade, não outra cor)`, () => {
+      // O § 2 v1.3 permite variar intensidade e proíbe variar matiz. A guarda de
+      // matiz é o teste de arco em `tests/unit/utils/party-color.test.ts`; aqui
+      // checamos a direção — oposta nos dois temas, porque o papel é.
+      for (const slug of slugs) {
+        const base = T.get(slug) as string;
+        const text = T.get(`${slug}-text`) as string;
+        if (text === base) continue;
+        const maisClara = relativeLuminance(text) > relativeLuminance(base);
+        expect(
+          maisClara,
+          `tema ${theme.id}: --party-${slug}-text (${text}) devia ser ${theme.direcao} que a ` +
+            `base (${base})`,
+        ).toBe(theme.direcao === "mais clara");
+      }
+    });
   });
-});
+}
 
 // ---------------------------------------------------------------------------
 // Por que o token existe — e por que não dá para reusar base nem chip
+// (números medidos no tema CLARO)
 // ---------------------------------------------------------------------------
 
 describe("por que a base não serve de texto", () => {

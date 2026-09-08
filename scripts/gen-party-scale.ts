@@ -287,11 +287,73 @@ const KIT_RAMPS: Readonly<Record<string, readonly [string, string, string, strin
   pl: ["#DCE2F6", "#AEBCEB", "#6F86DA", "#2247B8", "#142E85"],
 };
 
-// BLOCO 2 (dark mode): `buildRamp()` recebe os alvos como parâmetro justamente
-// para que o tema escuro seja **uma chamada a mais**, não uma refatoração —
-// algo na linha de `DARK_L = [22, 34, 46, 60, 74]` (crescente: no escuro o
-// "decisivo" é o mais claro) emitido dentro de `[data-theme="dark"] { … }`.
-// A guarda de ΔE76 e o solver abaixo valem igual lá.
+// ---------------------------------------------------------------------------
+// BLOCO 2 — os alvos do TEMA ESCURO
+// ---------------------------------------------------------------------------
+// `buildRamp()` recebe os alvos por parâmetro justamente para que o tema escuro
+// seja **uma chamada a mais**, não um segundo gerador. A guarda de ΔE76, o
+// solver, o clamp de gamut e o gate de colapso de croma valem igual lá.
+//
+// De onde saem os cinco alvos escuros — mesmo método do tema claro: medir a
+// rampa que o designer entregou (`tokens/colors.css:104-113`) e adotar os
+// números, não os hexes.
+//
+//   nível | PT escuro do kit | PL escuro do kit | alvo adotado
+//   ------|------------------|------------------|--------------
+//     1   |  15,6 / 14,4     |  15,3 / 19,1     | L* 16 · C* 14
+//     2   |  26,0 / 32,9     |  26,2 / 42,3     | L* 26 · C* 33
+//     3   |  37,0 / 51,6     |  38,0 / 60,5     | L* 37 · C* 52
+//     4   |  50,0 / 62,1     |  53,8 / 58,2     | L* 50 · C* 62
+//     5   |  65,3 / 48,4     |  69,7 / 39,8     | L* 65 · C* 48
+//
+// A escala **inverte**: no escuro o "decisivo" é o mais CLARO, porque é a
+// distância ao papel que comunica intensidade, e o papel agora é #14171b. Daí
+// `ascending: true` — o gate de monotonicidade passa a cobrar L* estritamente
+// crescente do nível 1 ao 5, e o solver empurra o piso de L* para cima em vez
+// de para baixo.
+//
+// Como no claro, o alvo segue **o PT**: a cadência dele (+10,4, +11,0, +13,0,
+// +15,3) é a regular das duas, e L* 69,7 (o nível 5 do PL) é claro demais para
+// servir de alvo universal — em matiz de gamut estreito o croma desabaria.
+// C*₅ / C*₄ = 48 / 62 = **0,77**, o mesmo recuo que o kit desenhou.
+//
+// **Por que os hexes escuros do kit NÃO são emitidos literalmente**, embora
+// PT e PL sejam a referência de calibração: medidos, os dois derivam 16,7° (PT)
+// e 8,5° (PL) de matiz entre os níveis 1 e 5, e o § 2 v1.3 proíbe
+// explicitamente ("apenas a intensidade pode variar, nunca a matiz"). É
+// exatamente o motivo pelo qual `KIT_RAMPS` (as rampas claras) também deixou de
+// ser emitido em 2026-09-07. Emitir os literais compraria fidelidade ao
+// desenho ao preço de uma exceção constitucional em cima justamente dos dois
+// partidos mais visíveis da noite.
+
+/** Alvos de L* por nível no tema escuro. Estritamente **crescente**. */
+const DARK_RAMP_L: readonly [number, number, number, number, number] = [16, 26, 37, 50, 65];
+
+/** Alvos de C* por nível no tema escuro. Reduzidos ao gamut de cada matiz. */
+const DARK_RAMP_C: readonly [number, number, number, number, number] = [14, 33, 52, 62, 48];
+
+/**
+ * Rampas escuras literais do kit, mantidas **só como referência de auditoria**
+ * (o `--report` mede o ΔE76 entre cada nível gerado e o valor daqui), pelo
+ * mesmo motivo e com a mesma ressalva de `KIT_RAMPS`.
+ */
+const KIT_DARK_RAMPS: Readonly<Record<string, readonly [string, string, string, string, string]>> =
+  {
+    pt: ["#3a1f27", "#6b2634", "#a02a42", "#d4405a", "#f07a8e"],
+    pl: ["#1e2540", "#29397a", "#3452b5", "#5b7be0", "#91a8f0"],
+  };
+
+/**
+ * Os alvos de uma rampa, empacotados para `buildRamp()`. É este parâmetro que
+ * torna o tema escuro "uma chamada a mais": a mesma função, os mesmos gates,
+ * outros cinco pares (L*, C*) e o sentido da escala invertido.
+ */
+export interface RampTargets {
+  readonly L: readonly [number, number, number, number, number];
+  readonly C: readonly [number, number, number, number, number];
+  /** `true` = L* cresce do nível 1 ao 5 (tema escuro). */
+  readonly ascending: boolean;
+}
 
 // ===========================================================================
 // 3. COLORIMETRIA — sRGB ↔ CIE XYZ ↔ Lab ↔ LCh (D65, observador 2°)
@@ -800,8 +862,12 @@ interface GeneratedChip {
   ink: string;
   /** Contraste WCAG medido entre `hex` e `ink`. */
   contrast: number;
-  /** `true` quando a base não admitia nenhuma tinta e o chip precisou escurecer. */
-  darkened: boolean;
+  /**
+   * `true` quando a base não admitia nenhuma tinta (ou colidia com outro
+   * partido, no escuro) e o chip precisou se deslocar em L* — escurecendo no
+   * tema claro, clareando no escuro.
+   */
+  moved: boolean;
   /** Melhor contraste que a **base** alcançava, com qualquer das duas tintas. */
   baseBestContrast: number;
   /** L* da base e do chip (contínuos, pré-arredondamento 8-bit). */
@@ -814,14 +880,19 @@ interface GeneratedChip {
   worstAgainst: OfficialHex | null;
 }
 
-/** A tinta que contrasta mais com `hex`, e o contraste que ela dá. */
-function bestInkFor(hex: string): { ink: string; contrast: number } {
-  const dark = contrastRatio(hex, CHIP_INK_DARK);
-  const light = contrastRatio(hex, CHIP_INK_LIGHT);
+/**
+ * A tinta que contrasta mais com `hex`, e o contraste que ela dá. As duas
+ * candidatas vêm do tema (`ThemeSpec.chipInks`), na ordem [escura, clara].
+ */
+function bestInkFor(
+  hex: string,
+  inks: readonly [string, string],
+): { ink: string; contrast: number } {
+  const [inkDark, inkLight] = inks;
+  const dark = contrastRatio(hex, inkDark);
+  const light = contrastRatio(hex, inkLight);
   // Desempate explícito (determinismo, § 6): empatou, fica a tinta escura.
-  return dark >= light
-    ? { ink: CHIP_INK_DARK, contrast: dark }
-    : { ink: CHIP_INK_LIGHT, contrast: light };
+  return dark >= light ? { ink: inkDark, contrast: dark } : { ink: inkLight, contrast: light };
 }
 
 /**
@@ -841,20 +912,26 @@ function bestInkFor(hex: string): { ink: string; contrast: number } {
  * matiz estivesse cercada pela paleta oficial do partido em toda a coluna de L*.
  */
 function buildChip(
-  entry: PartyEntry,
+  themeBase: string,
   baseLch: Lch,
+  entry: PartyEntry,
   officials: readonly OfficialHex[],
+  spec: ThemeSpec,
+  placed: readonly string[],
 ): GeneratedChip | null {
-  const base = entry.base.toLowerCase();
-  const fromBase = bestInkFor(base);
+  const base = themeBase.toLowerCase();
+  const fromBase = bestInkFor(base, spec.chipInks);
+  const farEnough = (hex: string) =>
+    !spec.separationAware ||
+    placed.every((p) => deltaE76(hex, p) >= PARTY_SEPARATION_FLOOR + SEPARATION_SEARCH_MARGIN);
 
-  if (fromBase.contrast >= CHIP_CONTRAST_FLOOR) {
+  if (fromBase.contrast >= CHIP_CONTRAST_FLOOR && farEnough(base)) {
     const { delta, official } = worstAgainstOfficials(base, officials);
     return {
       hex: base,
       ink: fromBase.ink,
       contrast: fromBase.contrast,
-      darkened: false,
+      moved: false,
       baseBestContrast: fromBase.contrast,
       baseL: baseLch.L,
       chipL: baseLch.L,
@@ -866,22 +943,28 @@ function buildChip(
 
   // Índice inteiro em vez de `L -= passo` acumulado: mesmo resultado bit a bit
   // em qualquer máquina, sem erro de ponto flutuante somando ao longo da busca.
-  const steps = Math.floor(baseLch.L / CHIP_L_STEP);
+  // `spec.contrastStep` dá o sentido: −1 escurece (papel claro), +1 clareia
+  // (papel escuro). A tinta-alvo é a oposta, e vem do tema pelo mesmo motivo.
+  const [inkDark, inkLight] = spec.chipInks;
+  const target = spec.contrastStep < 0 ? inkLight : inkDark;
+  const room = spec.contrastStep < 0 ? baseLch.L : 100 - baseLch.L;
+  const steps = Math.floor(room / CHIP_L_STEP);
   for (let k = 1; k <= steps; k++) {
-    const L = baseLch.L - k * CHIP_L_STEP;
+    const L = baseLch.L + spec.contrastStep * k * CHIP_L_STEP;
     const C = Math.min(baseLch.C, maxChroma(L, baseLch.h));
     const hex = lchToHex(L, C, baseLch.h);
-    if (contrastRatio(hex, CHIP_INK_LIGHT) < CHIP_CONTRAST_FLOOR) continue;
+    if (contrastRatio(hex, target) < CHIP_CONTRAST_FLOOR) continue;
     const { delta, official } = worstAgainstOfficials(hex, officials);
-    // O chip escurecido é medido contra os oficiais como qualquer outro token:
-    // escurecer pode empurrar a cor para dentro de um disco proibido.
+    // O chip deslocado é medido contra os oficiais como qualquer outro token:
+    // mover em L* pode empurrar a cor para dentro de um disco proibido.
     if (delta < DELTA_E_FLOOR) continue;
-    const ink = bestInkFor(hex);
+    if (!farEnough(hex)) continue;
+    const ink = bestInkFor(hex, spec.chipInks);
     return {
       hex,
       ink: ink.ink,
       contrast: ink.contrast,
-      darkened: true,
+      moved: true,
       baseBestContrast: fromBase.contrast,
       baseL: baseLch.L,
       chipL: L,
@@ -959,8 +1042,11 @@ interface GeneratedText {
   /** O pior dos contrastes acima — é ele que precisa passar de 4,5:1. */
   worstContrast: number;
   worstSurface: string;
-  /** `true` quando a base reprovava como texto e a tinta precisou escurecer. */
-  darkened: boolean;
+  /**
+   * `true` quando a base reprovava como texto (ou colidia com outro partido,
+   * no escuro) e a tinta precisou se deslocar em L*.
+   */
+  moved: boolean;
   /** Pior contraste que a **base** alcançava, entre as superfícies. */
   baseWorstContrast: number;
   /** L* da base e da tinta (contínuos, pré-arredondamento 8-bit). */
@@ -973,20 +1059,23 @@ interface GeneratedText {
   worstAgainst: OfficialHex | null;
 }
 
-/** Contraste de `hex` contra cada superfície de papel, e o pior deles. */
-function surfaceContrasts(hex: string): {
+/** Contraste de `hex` contra cada superfície de papel do tema, e o pior deles. */
+function surfaceContrasts(
+  hex: string,
+  surfaces: ReadonlyArray<{ token: string; hex: string }>,
+): {
   contrasts: number[];
   worst: number;
   worstSurface: string;
 } {
-  const contrasts = TEXT_SURFACES.map((s) => contrastRatio(hex, s.hex));
+  const contrasts = surfaces.map((s) => contrastRatio(hex, s.hex));
   let worst = Number.POSITIVE_INFINITY;
   let worstSurface = "";
   for (const [i, c] of contrasts.entries()) {
     // `<` estrito: empatou, fica a primeira da lista (determinismo, § 6).
     if (c < worst) {
       worst = c;
-      worstSurface = TEXT_SURFACES[i]?.token ?? "";
+      worstSurface = surfaces[i]?.token ?? "";
     }
   }
   return { contrasts, worst, worstSurface };
@@ -1009,21 +1098,27 @@ function surfaceContrasts(hex: string): {
  * matiz estivesse cercada pela paleta oficial do partido em toda a coluna de L*.
  */
 function buildText(
-  entry: PartyEntry,
+  themeBase: string,
   baseLch: Lch,
+  entry: PartyEntry,
   officials: readonly OfficialHex[],
+  spec: ThemeSpec,
+  placed: readonly string[],
 ): GeneratedText | null {
-  const base = entry.base.toLowerCase();
-  const fromBase = surfaceContrasts(base);
+  const base = themeBase.toLowerCase();
+  const fromBase = surfaceContrasts(base, spec.textSurfaces);
+  const farEnough = (hex: string) =>
+    !spec.separationAware ||
+    placed.every((p) => deltaE76(hex, p) >= PARTY_SEPARATION_FLOOR + SEPARATION_SEARCH_MARGIN);
 
-  if (fromBase.worst >= TEXT_CONTRAST_FLOOR) {
+  if (fromBase.worst >= TEXT_CONTRAST_FLOOR && farEnough(base)) {
     const { delta, official } = worstAgainstOfficials(base, officials);
     return {
       hex: base,
       contrasts: fromBase.contrasts,
       worstContrast: fromBase.worst,
       worstSurface: fromBase.worstSurface,
-      darkened: false,
+      moved: false,
       baseWorstContrast: fromBase.worst,
       baseL: baseLch.L,
       textL: baseLch.L,
@@ -1035,23 +1130,26 @@ function buildText(
 
   // Índice inteiro em vez de `L -= passo` acumulado: mesmo resultado bit a bit
   // em qualquer máquina, sem erro de ponto flutuante somando ao longo da busca.
-  const steps = Math.floor(baseLch.L / TEXT_L_STEP);
+  // O sentido vem do tema: escurecer sobre papel claro, clarear sobre escuro.
+  const room = spec.contrastStep < 0 ? baseLch.L : 100 - baseLch.L;
+  const steps = Math.floor(room / TEXT_L_STEP);
   for (let k = 1; k <= steps; k++) {
-    const L = baseLch.L - k * TEXT_L_STEP;
+    const L = baseLch.L + spec.contrastStep * k * TEXT_L_STEP;
     const C = Math.min(baseLch.C, maxChroma(L, baseLch.h));
     const hex = lchToHex(L, C, baseLch.h);
-    const sc = surfaceContrasts(hex);
+    const sc = surfaceContrasts(hex, spec.textSurfaces);
     if (sc.worst < TEXT_CONTRAST_FLOOR) continue;
     const { delta, official } = worstAgainstOfficials(hex, officials);
-    // A tinta escurecida é medida contra os oficiais como qualquer outro token:
-    // escurecer pode empurrar a cor para dentro de um disco proibido.
+    // A tinta deslocada é medida contra os oficiais como qualquer outro token:
+    // mover em L* pode empurrar a cor para dentro de um disco proibido.
     if (delta < DELTA_E_FLOOR) continue;
+    if (!farEnough(hex)) continue;
     return {
       hex,
       contrasts: sc.contrasts,
       worstContrast: sc.worst,
       worstSurface: sc.worstSurface,
-      darkened: true,
+      moved: true,
       baseWorstContrast: fromBase.worst,
       baseL: baseLch.L,
       textL: L,
@@ -1061,6 +1159,176 @@ function buildText(
     };
   }
   return null;
+}
+
+// ===========================================================================
+// 5d. O TEMA COMO PARÂMETRO — e a cor de identidade no escuro
+// ===========================================================================
+// Tudo acima foi escrito assumindo papel claro: as duas superfícies de
+// `TEXT_SURFACES` são cinzas quase brancos, e `buildChip`/`buildText` ganham
+// contraste **escurecendo**. No tema escuro as duas afirmações se invertem, e
+// nada mais muda — por isso o tema entra como um `ThemeSpec` e não como um
+// segundo gerador.
+//
+// ---------------------------------------------------------------------------
+// O problema que o escuro traz e o claro não tinha: a BASE some
+// ---------------------------------------------------------------------------
+// `--party-<sigla>` é a cor de identidade — contorno de polígono, ponto,
+// preenchimento de barra, legenda. Sobre papel claro as 31 bases funcionam
+// como objeto gráfico. Sobre o papel escuro, **13 das 31 não chegam a 3:1**
+// contra `--paper-0` #1c1f24 (WCAG 2.1 SC 1.4.11, objeto gráfico): PL 2,09 ·
+// União 1,70 · PSTU 2,08 · Republicanos 2,15 · Democrata 2,19 · PDT 2,21 ·
+// PCdoB 2,30 · PCO 2,55 · PP 2,63 · Avante 2,72 · PV 2,78 · PCB 2,86 · UP 2,11.
+// São as cores escuras da paleta — as que o tema claro escolheu justamente por
+// serem escuras.
+//
+// ---------------------------------------------------------------------------
+// Por que NÃO se clareia "o mínimo necessário", partido a partido
+// ---------------------------------------------------------------------------
+// A saída óbvia — subir o L* de cada base violadora até bater 3:1 e parar — foi
+// medida e **reprova o piso de separação do ADR-0031**: sete pares caem abaixo
+// de ΔE76 12 (`dc × republicanos` 5,71, `pp × uniao` 7,59, `pl × prd` 8,58,
+// `dc × uniao` 8,57, `pstu × pcb` 10,27, `republicanos × uniao` 11,61,
+// `dc × pp` 11,92). O mecanismo é direto: os sete azuis institucionais da
+// paleta se distinguem no claro **principalmente por L***, e mandar todo mundo
+// parar na mesma linha de contraste é exatamente destruir esse eixo.
+//
+// ---------------------------------------------------------------------------
+// A regra adotada: um mapa AFIM de L*, igual para os 31
+// ---------------------------------------------------------------------------
+// A base escura de cada partido é a base clara com
+//
+//   L*_escuro = LO + (L*_claro − L*_min) / (L*_max − L*_min) × (HI − LO)
+//   C*_escuro = min( maxChroma(L*_escuro, h) , C*_claro × GANHO )
+//   h         = INTOCADA
+//
+// Um mapa afim é monótono: preserva **a ordem e o espaçamento relativo** de L*
+// da paleta inteira, que é o eixo que o clareamento ingênuo destruía. O ganho
+// de croma compensa o que o gamut aperta ao subir de lightness — sem ele, os
+// azuis desbotam para o mesmo lavanda.
+//
+// LO = 45, HI = 87 e GANHO = 1,30 não são escolha de gosto: são o ponto da
+// família (LO, HI, GANHO) medido para maximizar a separação mínima entre
+// partidos sujeita aos três pisos. O resultado é
+//
+//   contraste mínimo da base ......... 3,09:1  (União, o mais escuro)
+//   ΔE76 mínimo contra hex oficial ... 12,32   (piso 12)
+//   separação mínima entre partidos .. 13,13   (DC × Republicanos; piso 12)
+//
+// Nenhum piso foi relaxado, e nenhuma matiz se moveu: a identidade de cor de
+// cada partido é a mesma nos dois temas — só a intensidade varia, que é
+// literalmente o que o § 2 v1.3 autoriza.
+
+/** L* da base escura do partido mais escuro da paleta. */
+const DARK_BASE_L_LO = 45;
+
+/** L* da base escura do partido mais claro da paleta. */
+const DARK_BASE_L_HI = 87;
+
+/** Ganho de croma aplicado antes do clamp de gamut, ao subir de lightness. */
+const DARK_BASE_CHROMA_GAIN = 1.3;
+
+/**
+ * Descreve o que muda de um tema para o outro. Tudo o que o gerador faz —
+ * rampa, chip, tinta de texto, gates — é função destes campos.
+ */
+export interface ThemeSpec {
+  readonly id: "light" | "dark";
+  /** Alvos dos 5 níveis e o sentido da escala. */
+  readonly ramp: RampTargets;
+  /** Superfícies de papel sobre as quais um `-text` pode cair. */
+  readonly textSurfaces: ReadonlyArray<{ token: string; hex: string }>;
+  /** As duas tintas candidatas do chip, na ordem [escura, clara]. */
+  readonly chipInks: readonly [string, string];
+  /**
+   * Sentido do ajuste de L* que **ganha** contraste contra o papel do tema:
+   * −1 escurece (papel claro), +1 clareia (papel escuro).
+   */
+  readonly contrastStep: -1 | 1;
+  /**
+   * Piso de contraste da BASE contra as superfícies do tema (WCAG 1.4.11,
+   * objeto gráfico). `0` desliga o gate.
+   *
+   * No claro é 0 **de propósito**, e não por esquecimento: a base clara é
+   * `PARTY_BASE` literal, a mesma tabela que o `--suggest` move quando há
+   * colisão, e ligar um gate de contraste ali exigiria mover hexes por uma
+   * razão que o tema claro nunca teve (a base clara é lida sobre papel claro
+   * junto do rótulo textual, que tem seu próprio token `-text` medido em
+   * 4,5:1). No escuro a base é **derivada**, então o piso é aplicável sem
+   * mexer em nenhuma cor de identidade.
+   */
+  readonly baseContrastFloor: number;
+  /**
+   * Quando `true`, a busca de `-chip` e `-text` também exige separação de
+   * `PARTY_SEPARATION_FLOOR` contra os partidos já posicionados.
+   *
+   * Ligado só no escuro, e a assimetria é o ponto: no claro, colisão se
+   * resolve movendo o hex de `PARTY_BASE` (§ 7c) — a base é dado de entrada.
+   * No escuro a base é derivada da clara, então mover `PARTY_BASE` para
+   * resolver uma colisão que só existe no escuro degradaria o tema claro para
+   * consertar o outro. O grau de liberdade que sobra é a própria intensidade
+   * do token derivado — o mesmo que o § 2 v1.3 autoriza, e o mesmo que
+   * `buildChip`/`buildText` já usam para ganhar contraste.
+   */
+  readonly separationAware: boolean;
+  /** Estados de corrida (`tie` / `none`) no papel do tema. */
+  readonly states: ReadonlyArray<{ name: string; hex: string; nota: string }>;
+}
+
+/** Superfícies de papel do tema escuro — `--paper-1` e `--paper-0` em dark. */
+const DARK_TEXT_SURFACES: ReadonlyArray<{ token: string; hex: string }> = [
+  { token: "--surface-page", hex: "#14171b" },
+  { token: "--surface-card", hex: "#1c1f24" },
+];
+
+/** Estados de corrida no escuro — hexes do kit (`colors.css:117-118`). */
+const DARK_STATE_TOKENS: ReadonlyArray<{ name: string; hex: string; nota: string }> = [
+  { name: "tie", hex: "#4a505a", nota: "empate técnico" },
+  { name: "none", hex: "#2b3037", nota: "sem projeção / não apurado" },
+];
+
+export const LIGHT_THEME: ThemeSpec = {
+  id: "light",
+  ramp: { L: RAMP_L, C: RAMP_C, ascending: false },
+  textSurfaces: TEXT_SURFACES,
+  chipInks: [CHIP_INK_DARK, CHIP_INK_LIGHT],
+  contrastStep: -1,
+  baseContrastFloor: 0,
+  separationAware: false,
+  states: STATE_TOKENS,
+};
+
+export const DARK_THEME: ThemeSpec = {
+  id: "dark",
+  ramp: { L: DARK_RAMP_L, C: DARK_RAMP_C, ascending: true },
+  textSurfaces: DARK_TEXT_SURFACES,
+  // As tintas do chip no escuro são os primitivos escuros do kit: `--paper-1`
+  // (#14171b) e `--ink-0` (#eceef1). Hex literal pelo mesmo motivo do claro.
+  chipInks: ["#14171b", "#eceef1"],
+  contrastStep: 1,
+  baseContrastFloor: 3,
+  separationAware: true,
+  states: DARK_STATE_TOKENS,
+};
+
+/**
+ * A cor de identidade de um partido no tema do `spec`.
+ *
+ * No claro é `PARTY_BASE` literal. No escuro é o mapa afim documentado acima —
+ * matiz intocada, L* remapeado para a faixa legível sobre papel escuro, croma
+ * com ganho e clamp de gamut. Determinístico: a faixa de L* da paleta é
+ * calculada da própria `PARTY_BASE`, sem estado externo.
+ */
+function themeBaseHex(entry: PartyEntry, spec: ThemeSpec): string {
+  if (spec.id === "light") return entry.base.toLowerCase();
+  const all = PARTY_BASE.map((e) => hexToLch(e.base).L);
+  const lo = Math.min(...all);
+  const hi = Math.max(...all);
+  const { L, C, h } = hexToLch(entry.base);
+  const t = hi - lo <= 0 ? 0 : (L - lo) / (hi - lo);
+  const targetL = DARK_BASE_L_LO + t * (DARK_BASE_L_HI - DARK_BASE_L_LO);
+  const targetC = entry.neutral ? 0 : Math.min(maxChroma(targetL, h), C * DARK_BASE_CHROMA_GAIN);
+  return lchToHex(targetL, targetC, h);
 }
 
 // ===========================================================================
@@ -1092,6 +1360,13 @@ interface GeneratedLevel {
 
 interface GeneratedParty {
   entry: PartyEntry;
+  /** Tema em que esta instância foi construída. */
+  spec: ThemeSpec;
+  /**
+   * Cor de identidade **neste tema** — `entry.base` no claro, a derivada do
+   * mapa afim no escuro. É o que `--party-<slug>` recebe.
+   */
+  baseHex: string;
   baseLch: Lch;
   levels: GeneratedLevel[];
   /** Par de fundo/tinta do chip sólido — ver seção 5b. */
@@ -1134,17 +1409,26 @@ function worstAgainstOfficials(
  * A ordem importa: empurrar antes de ordenar faria a ordenação desfazer o
  * empurrão e reintroduzir a violação.
  */
-function buildRamp(entry: PartyEntry, officials: readonly OfficialHex[]): GeneratedParty {
-  const baseLch = hexToLch(entry.base);
+function buildRamp(
+  entry: PartyEntry,
+  officials: readonly OfficialHex[],
+  spec: ThemeSpec = LIGHT_THEME,
+  placedChips: readonly string[] = [],
+  placedTexts: readonly string[] = [],
+): GeneratedParty {
+  const themeBase = themeBaseHex(entry, spec);
+  const baseLch = hexToLch(themeBase);
   const h = baseLch.h;
+  const rampL = spec.ramp.L;
+  const rampC = spec.ramp.C;
   const discs = entry.neutral ? [] : discsForHue(h, officials, DELTA_E_FLOOR + SEARCH_MARGIN);
 
   // Passada 1 — alvo ∧ gamut.
   const chroma: number[] = [];
   const clamped: boolean[] = [];
   for (let i = 0; i < 5; i++) {
-    const target = entry.neutral ? 0 : (RAMP_C[i] ?? 0);
-    const c = entry.neutral ? 0 : Math.min(target, maxChroma(RAMP_L[i] ?? 0, h));
+    const target = entry.neutral ? 0 : (rampC[i] ?? 0);
+    const c = entry.neutral ? 0 : Math.min(target, maxChroma(rampL[i] ?? 0, h));
     chroma.push(c);
     clamped.push(!entry.neutral && c < target - 1e-9);
   }
@@ -1168,16 +1452,22 @@ function buildRamp(entry: PartyEntry, officials: readonly OfficialHex[]): Genera
   const levels: GeneratedLevel[] = [];
   let previousL: number | null = null;
   for (let i = 0; i < 5; i++) {
-    const targetL = RAMP_L[i] ?? 0;
+    const targetL = rampL[i] ?? 0;
     const targetC = chroma[i] ?? 0;
+    // No escuro a escala sobe, então o piso do nível é o L* já decidido do
+    // anterior MAIS o vão mínimo; no claro é o teto, MENOS o vão.
+    const minL =
+      previousL === null || spec.ramp.ascending === false
+        ? targetL - SOLVER_L_SLACK
+        : Math.max(targetL - SOLVER_L_SLACK, previousL + LEVEL_MIN_GAP);
     const maxL =
-      previousL === null
+      previousL === null || spec.ramp.ascending === true
         ? targetL + SOLVER_L_SLACK
         : Math.min(targetL + SOLVER_L_SLACK, previousL - LEVEL_MIN_GAP);
-    const solved = solveLevel(targetL, targetC, h, discs, targetL - SOLVER_L_SLACK, maxL);
+    const solved = solveLevel(targetL, targetC, h, discs, minL, maxL);
     if (solved === null) {
       throw new Error(
-        `--party-${entry.slug}-${i + 1}: nenhum ponto em L* ∈ [${(targetL - SOLVER_L_SLACK).toFixed(1)}, ${maxL.toFixed(1)}] ` +
+        `--party-${entry.slug}-${i + 1}: nenhum ponto em L* ∈ [${minL.toFixed(1)}, ${maxL.toFixed(1)}] ` +
           `na matiz ${h.toFixed(1)}° fica a ΔE76 ≥ ${DELTA_E_FLOOR} de todos os hexes oficiais do partido.\n` +
           `A matiz base #${entry.base} está cercada demais pela paleta oficial: escolha outro hex base em PARTY_BASE.`,
       );
@@ -1191,7 +1481,7 @@ function buildRamp(entry: PartyEntry, officials: readonly OfficialHex[]): Genera
       clamped: clamped[i] ?? false,
       ordered: ordered[i] ?? false,
       pushed: solved.pushed,
-      requestedChroma: entry.neutral ? 0 : (RAMP_C[i] ?? 0),
+      requestedChroma: entry.neutral ? 0 : (rampC[i] ?? 0),
       gamutChroma: targetC,
       effectiveL: solved.L,
       effectiveChroma: solved.C,
@@ -1201,31 +1491,33 @@ function buildRamp(entry: PartyEntry, officials: readonly OfficialHex[]): Genera
     previousL = solved.L;
   }
 
-  const chip = buildChip(entry, baseLch, officials);
+  const chip = buildChip(themeBase, baseLch, entry, officials, spec, placedChips);
   if (chip === null) {
     throw new Error(
-      `--party-${entry.slug}-chip: nenhuma intensidade da matiz ${h.toFixed(1)}° chega a ` +
-        `${CHIP_CONTRAST_FLOOR.toFixed(1)}:1 com a tinta clara sem cair a menos de ΔE76 ` +
+      `--party-${entry.slug}-chip (tema ${spec.id}): nenhuma intensidade da matiz ${h.toFixed(1)}° chega a ` +
+        `${CHIP_CONTRAST_FLOOR.toFixed(1)}:1 com a tinta oposta sem cair a menos de ΔE76 ` +
         `${DELTA_E_FLOOR} de um hex oficial de ${entry.nome}.\n` +
         `A matiz base ${entry.base} está cercada pela paleta oficial do partido em toda a coluna ` +
         "de L*: escolha outro hex base em PARTY_BASE.",
     );
   }
 
-  const text = buildText(entry, baseLch, officials);
+  const text = buildText(themeBase, baseLch, entry, officials, spec, placedTexts);
   if (text === null) {
     throw new Error(
-      `--party-${entry.slug}-text: nenhuma intensidade da matiz ${h.toFixed(1)}° chega a ` +
-        `${TEXT_CONTRAST_FLOOR.toFixed(1)}:1 contra ${TEXT_SURFACES.map((s) => s.hex).join(" e ")} ` +
+      `--party-${entry.slug}-text (tema ${spec.id}): nenhuma intensidade da matiz ${h.toFixed(1)}° chega a ` +
+        `${TEXT_CONTRAST_FLOOR.toFixed(1)}:1 contra ${spec.textSurfaces.map((s) => s.hex).join(" e ")} ` +
         `sem cair a menos de ΔE76 ${DELTA_E_FLOOR} de um hex oficial de ${entry.nome}.\n` +
         `A matiz base ${entry.base} está cercada pela paleta oficial do partido em toda a coluna ` +
         "de L*: escolha outro hex base em PARTY_BASE.",
     );
   }
 
-  const base = worstAgainstOfficials(entry.base.toLowerCase(), officials);
+  const base = worstAgainstOfficials(themeBase.toLowerCase(), officials);
   return {
     entry,
+    spec,
+    baseHex: themeBase.toLowerCase(),
     baseLch,
     levels,
     chip,
@@ -1234,6 +1526,92 @@ function buildRamp(entry: PartyEntry, officials: readonly OfficialHex[]): Genera
     baseDeltaE: base.delta,
     baseAgainst: base.official,
   };
+}
+
+/**
+ * Constrói os 31 partidos de **um tema**.
+ *
+ * No claro é um `map` — cada partido é independente. No escuro há uma ordem,
+ * porque `-chip` e `-text` passam a exigir separação contra os partidos já
+ * posicionados (`ThemeSpec.separationAware`), e "já posicionados" só existe se
+ * houver ordem. Ela é a mesma do § 7c, e pela mesma razão de neutralidade:
+ *
+ *   1. **Quem não precisa se mover, não se move.** Primeira passada sem
+ *      restrição de separação; quem sai com `moved: false` fica onde está.
+ *      É a regra "menos hexes alterados" aplicada aqui.
+ *   2. **Quem precisa se mover entra em ordem alfabética de slug** — desempate
+ *      cego a bancada, espectro ou relevância eleitoral. Cada um enxerga os já
+ *      colocados; o primeiro ponto que passa em contraste, ΔE76 contra os
+ *      oficiais e separação vence.
+ *
+ * Nenhuma das duas olha para quem é o partido.
+ */
+function buildTheme(
+  entries: readonly PartyEntry[],
+  officialsOf: (slug: string) => readonly OfficialHex[],
+  spec: ThemeSpec,
+): GeneratedParty[] {
+  const first = entries.map((e) => buildRamp(e, officialsOf(e.slug), spec));
+  if (!spec.separationAware) return first;
+
+  // Os dois papéis são posicionados de forma INDEPENDENTE: um partido pode
+  // estar parado no chip e precisar andar na tinta de texto (ou o contrário).
+  // Tratá-los juntos faria o parado ser comparado consigo mesmo e andar à toa.
+  const alphabetical = [...first].sort((a, b) => (a.entry.slug < b.entry.slug ? -1 : 1));
+
+  const placedChips = first.filter((p) => !p.chip.moved).map((p) => p.chip.hex);
+  const chips = new Map(first.filter((p) => !p.chip.moved).map((p) => [p.entry.slug, p.chip]));
+  for (const p of alphabetical) {
+    if (chips.has(p.entry.slug)) continue;
+    const chip = buildChip(
+      p.baseHex,
+      p.baseLch,
+      p.entry,
+      officialsOf(p.entry.slug),
+      spec,
+      placedChips,
+    );
+    if (chip === null) {
+      throw new Error(
+        `--party-${p.entry.slug}-chip (tema ${spec.id}): nenhuma intensidade da matiz ` +
+          `${p.baseLch.h.toFixed(1)}° satisfaz ao mesmo tempo ${CHIP_CONTRAST_FLOOR.toFixed(1)}:1 ` +
+          `com a tinta oposta, ΔE76 ${DELTA_E_FLOOR} dos hexes oficiais e ` +
+          `ΔE76 ${PARTY_SEPARATION_FLOOR} dos outros partidos.`,
+      );
+    }
+    placedChips.push(chip.hex);
+    chips.set(p.entry.slug, chip);
+  }
+
+  const placedTexts = first.filter((p) => !p.text.moved).map((p) => p.text.hex);
+  const texts = new Map(first.filter((p) => !p.text.moved).map((p) => [p.entry.slug, p.text]));
+  for (const p of alphabetical) {
+    if (texts.has(p.entry.slug)) continue;
+    const text = buildText(
+      p.baseHex,
+      p.baseLch,
+      p.entry,
+      officialsOf(p.entry.slug),
+      spec,
+      placedTexts,
+    );
+    if (text === null) {
+      throw new Error(
+        `--party-${p.entry.slug}-text (tema ${spec.id}): nenhuma intensidade da matiz ` +
+          `${p.baseLch.h.toFixed(1)}° satisfaz ao mesmo tempo ${TEXT_CONTRAST_FLOOR.toFixed(1)}:1 ` +
+          `sobre o papel escuro, ΔE76 ${DELTA_E_FLOOR} dos hexes oficiais e ` +
+          `ΔE76 ${PARTY_SEPARATION_FLOOR} dos outros partidos.`,
+      );
+    }
+    placedTexts.push(text.hex);
+    texts.set(p.entry.slug, text);
+  }
+
+  return first.map((p) => ({
+    ...p,
+    chip: chips.get(p.entry.slug) as GeneratedChip,
+    text: texts.get(p.entry.slug) as GeneratedText,
+  }));
 }
 
 // ===========================================================================
@@ -1260,7 +1638,7 @@ function deltaEViolations(parties: readonly GeneratedParty[]): Violation[] {
         }
       }
     };
-    check(`--party-${p.entry.slug}`, p.entry.base.toLowerCase());
+    check(`--party-${p.entry.slug}`, p.baseHex);
     // O chip entra no mesmo gate: quando ele diverge da base (por escurecimento),
     // é uma cor nova, e cor nova de partido se mede contra os oficiais como
     // qualquer outra. `--party-<slug>-ink` fica **fora** de propósito: é preto ou
@@ -1306,7 +1684,7 @@ function formatContrastViolations(
       `    contraste ${contrast.toFixed(2)}:1 contra --party-${party.entry.slug}-ink ${c.ink}`,
     );
     lines.push(
-      `    a base ${party.entry.base.toLowerCase()} alcançava no máximo ` +
+      `    a base ${party.baseHex} alcançava no máximo ` +
         `${c.baseBestContrast.toFixed(2)}:1 com qualquer das duas tintas`,
     );
   }
@@ -1346,7 +1724,7 @@ function formatTextContrastViolations(
   for (const { party, contrast } of violations) {
     const t = party.text;
     lines.push(`  --party-${party.entry.slug}-text: ${t.hex} (${party.entry.nome})`);
-    for (const [i, s] of TEXT_SURFACES.entries()) {
+    for (const [i, s] of party.spec.textSurfaces.entries()) {
       lines.push(`    ${(t.contrasts[i] ?? 0).toFixed(2)}:1 contra ${s.token} ${s.hex}`);
     }
     lines.push(`    pior: ${contrast.toFixed(2)}:1 em ${t.worstSurface}`);
@@ -1374,10 +1752,16 @@ function monotonicityViolations(parties: readonly GeneratedParty[]): string[] {
       const prev = p.levels[i - 1];
       const cur = p.levels[i];
       if (!prev || !cur) continue;
-      if (cur.measured.L >= prev.measured.L) {
+      // No tema escuro a escala inverte: "decisivo" é o mais CLARO.
+      const foraDeOrdem = p.spec.ramp.ascending
+        ? cur.measured.L <= prev.measured.L
+        : cur.measured.L >= prev.measured.L;
+      if (foraDeOrdem) {
         out.push(
-          `--party-${p.entry.slug}: nível ${cur.level} (L* ${cur.measured.L.toFixed(1)}) não é mais ` +
-            `escuro que o nível ${prev.level} (L* ${prev.measured.L.toFixed(1)})`,
+          `--party-${p.entry.slug} (tema ${p.spec.id}): nível ${cur.level} ` +
+            `(L* ${cur.measured.L.toFixed(1)}) não é mais ` +
+            `${p.spec.ramp.ascending ? "claro" : "escuro"} que o nível ${prev.level} ` +
+            `(L* ${prev.measured.L.toFixed(1)})`,
         );
       }
     }
@@ -1538,7 +1922,7 @@ const SEPARATED_ROLES = ["base", "chip", "text"] as const;
 type SeparatedRole = (typeof SEPARATED_ROLES)[number];
 
 function roleHex(p: GeneratedParty, role: SeparatedRole): string {
-  if (role === "base") return p.entry.base.toLowerCase();
+  if (role === "base") return p.baseHex;
   if (role === "chip") return p.chip.hex;
   return p.text.hex;
 }
@@ -2175,15 +2559,64 @@ const HEADER = `/* =============================================================
  *    tokens por \`getComputedStyle\` e passa a string direto para
  *    \`setPaintProperty\`, que não resolve nenhum dos dois.
  *
- * Dark mode (\`[data-theme="dark"]\`) entra no Bloco 2: mais um bloco emitido por
- * este mesmo gerador, com alvos de L* crescentes no lugar de \`RAMP_L\`.
+ * -----------------------------------------------------------------------------
+ * O bloco \`[data-theme="dark"]\` no fim do arquivo
+ * -----------------------------------------------------------------------------
+ * Mesmo gerador, mesmos gates, outro tema (ADR-0025 § 5). Três diferenças, e
+ * só três:
+ *
+ *   1. **A escala inverte.** Os alvos de L* sobem do nível 1 ao 5 — no papel
+ *      escuro é a distância ao fundo que comunica intensidade, então o
+ *      "decisivo" é o mais CLARO.
+ *   2. **A cor de identidade é derivada, não literal.** \`--party-<sigla>\` no
+ *      escuro é a base clara com L* remapeado por um mapa afim (matiz
+ *      intocada) — sem isso, 13 das 31 bases ficariam abaixo de 3:1 sobre
+ *      \`--paper-0\` #1c1f24 e sumiriam do mapa.
+ *   3. **\`-chip\` e \`-text\` ganham contraste CLAREANDO**, não escurecendo, e a
+ *      busca também exige separação de ΔE76 12 dos partidos já posicionados
+ *      (ADR-0031) — no escuro esse é o único grau de liberdade disponível,
+ *      porque mover \`PARTY_BASE\` degradaria o tema claro.
+ *
+ * Tudo o mais é idêntico: matiz estável por partido nos dois temas, ΔE76 ≥ 12
+ * de todo hex oficial, 4,5:1 nos pares chip/tinta e nas tintas de texto, L*
+ * monotônico, croma do nível 5 ≥ 0,60 do nível 4.
  * ========================================================================== */
 
 @theme static {`;
 
-function emitCss(parties: readonly GeneratedParty[]): string {
-  const out: string[] = [HEADER];
+/**
+ * Abertura do bloco escuro. `:root[data-theme="dark"]` e não `@theme`:
+ * `@theme` é diretiva de build do Tailwind v4 e não pode ser aninhada num
+ * seletor. Como o `@theme static` acima emite tudo em `:root`, este bloco vence
+ * por especificidade e por ordem, e as utilitárias geradas continuam apontando
+ * para as mesmas variáveis — nenhuma classe nova, nenhum token duplicado.
+ */
+const DARK_BLOCK_HEADER = `/* =============================================================================
+ * TEMA ESCURO (ADR-0025 § 5) — mesmos nomes, outra intensidade.
+ *
+ * A matiz de cada partido é **a mesma nos dois temas** (constituição § 2 v1.3:
+ * só a intensidade pode variar). O que muda: a escala de margem sobe em vez de
+ * descer, a cor de identidade é o mapa afim de L* documentado no gerador, e
+ * chip/tinta clareiam em vez de escurecer.
+ *
+ * Os hexes escuros literais do kit (PT e PL, tokens/colors.css:104-113) são a
+ * **referência de calibração**, não a saída: medidos, derivam 16,7° e 8,5° de
+ * matiz do nível 1 ao 5, o que o § 2 v1.3 proíbe. \`--report\` imprime o ΔE76
+ * entre cada nível gerado e o hex do kit, para que o desvio em relação ao
+ * desenho original seja um número e não uma impressão.
+ * ========================================================================== */
 
+:root[data-theme="dark"] {`;
+
+/**
+ * As linhas de token de UM tema. O bloco claro sai dentro de `@theme static`
+ * (é ele que gera as utilitárias do Tailwind); o escuro sai dentro de
+ * `:root[data-theme="dark"]`, sobrescrevendo por especificidade os MESMOS
+ * nomes — nenhuma utilitária nova é gerada, e `getComputedStyle` (MapLibre)
+ * devolve o hex do tema ativo.
+ */
+function emitTokens(parties: readonly GeneratedParty[], spec: ThemeSpec): string[] {
+  const out: string[] = [];
   for (const [i, party] of parties.entries()) {
     const { entry, baseLch } = party;
     const lch = `L* ${baseLch.L.toFixed(1)} · C* ${baseLch.C.toFixed(1)} · h ${baseLch.h.toFixed(1)}°`;
@@ -2191,21 +2624,32 @@ function emitCss(parties: readonly GeneratedParty[]): string {
       ? `ΔE76 ${party.baseDeltaE.toFixed(1)} de ${party.baseAgainst?.hex}`
       : "sem hex oficial conhecido";
     const origem = entry.neutral ? "rampa acromática (C* = 0) — cinza institucional" : de;
-    // Sem linha em branco logo após `@theme static {` — o formatter do Biome
+    // Sem linha em branco logo após a abertura do bloco — o formatter do Biome
     // a remove, e o arquivo gerado precisa já sair formatado (senão
     // `pnpm lint` e `pnpm gen:party-scale --check` brigam entre si).
     if (i > 0) out.push("");
     out.push(`  /* ${entry.nome} — base ${lch} · ${origem} */`);
-    out.push(`  --party-${entry.slug}: ${entry.base.toLowerCase()};`);
+    if (spec.id === "dark") {
+      const claro = entry.base.toLowerCase();
+      out.push(
+        `  --party-${entry.slug}: ${party.baseHex}; ` +
+          `/* mapa afim de L* a partir de ${claro} (matiz intacta) · ` +
+          `${surfaceContrasts(party.baseHex, spec.textSurfaces).worst.toFixed(2)}:1 sobre o papel escuro */`,
+      );
+    } else {
+      out.push(`  --party-${entry.slug}: ${party.baseHex};`);
+    }
 
     // Par chip/tinta — sempre os dois juntos, nesta ordem, logo abaixo da base:
     // quem lê o arquivo precisa ver que são um par, não dois tokens soltos.
     const c = party.chip;
-    const tinta = c.ink === CHIP_INK_DARK ? "tinta escura" : "tinta clara";
-    if (c.darkened) {
+    const [inkDark] = spec.chipInks;
+    const tinta = c.ink === inkDark ? "tinta escura" : "tinta clara";
+    const verbo = spec.contrastStep < 0 ? "escurecida" : "clareada";
+    if (c.moved) {
       out.push(
         `  --party-${entry.slug}-chip: ${c.hex}; ` +
-          `/* base escurecida L* ${c.baseL.toFixed(1)} → ${c.chipL.toFixed(1)} (matiz intacta): ` +
+          `/* base ${verbo} L* ${c.baseL.toFixed(1)} → ${c.chipL.toFixed(1)} (matiz intacta): ` +
           `a base parava em ${c.baseBestContrast.toFixed(2)}:1 com as duas tintas · ` +
           `agora ${c.contrast.toFixed(2)}:1 · ΔE76 ${c.deltaEFromBase.toFixed(1)} da base, ` +
           `${c.worstDeltaE.toFixed(1)} de ${c.worstAgainst?.hex} */`,
@@ -2224,10 +2668,10 @@ function emitCss(parties: readonly GeneratedParty[]): string {
     // Tinta de texto — o caso simétrico do chip: a cor do partido ESCREVENDO
     // sobre o papel, em vez de servindo de fundo para uma tinta.
     const t = party.text;
-    const medidos = TEXT_SURFACES.map(
-      (s, i) => `${(t.contrasts[i] ?? 0).toFixed(2)}:1 em ${s.hex}`,
-    ).join(" · ");
-    if (t.darkened) {
+    const medidos = spec.textSurfaces
+      .map((s, i) => `${(t.contrasts[i] ?? 0).toFixed(2)}:1 em ${s.hex}`)
+      .join(" · ");
+    if (t.moved) {
       // Sem hex oficial localizado (DEMOCRATA, MOBILIZA) não há distância a
       // declarar — dizer isso é mais honesto que imprimir "Infinity".
       const deTexto = Number.isFinite(t.worstDeltaE)
@@ -2235,7 +2679,7 @@ function emitCss(parties: readonly GeneratedParty[]): string {
         : "sem hex oficial conhecido";
       out.push(
         `  --party-${entry.slug}-text: ${t.hex}; ` +
-          `/* base escurecida L* ${t.baseL.toFixed(1)} → ${t.textL.toFixed(1)} (matiz intacta): ` +
+          `/* base ${verbo} L* ${t.baseL.toFixed(1)} → ${t.textL.toFixed(1)} (matiz intacta): ` +
           `a base parava em ${t.baseWorstContrast.toFixed(2)}:1 sobre o papel · ` +
           `agora ${medidos} · ΔE76 ${t.deltaEFromBase.toFixed(1)} da base, ${deTexto} */`,
       );
@@ -2254,7 +2698,7 @@ function emitCss(parties: readonly GeneratedParty[]): string {
       }
       if (lv.pushed) {
         const moves: string[] = [];
-        const targetL = RAMP_L[lv.level - 1] ?? 0;
+        const targetL = spec.ramp.L[lv.level - 1] ?? 0;
         if (Math.abs(lv.effectiveL - targetL) > 1e-9) {
           moves.push(`L* ${targetL.toFixed(1)} → ${lv.effectiveL.toFixed(1)}`);
         }
@@ -2272,10 +2716,19 @@ function emitCss(parties: readonly GeneratedParty[]): string {
 
   out.push("");
   out.push("  /* Estados de corrida — sem partido, logo sem rampa por margem. */");
-  for (const s of STATE_TOKENS) {
-    out.push(`  --party-${s.name}: ${s.hex.toLowerCase()}; /* ${s.nota} */`);
+  for (const st of spec.states) {
+    out.push(`  --party-${st.name}: ${st.hex.toLowerCase()}; /* ${st.nota} */`);
   }
+  return out;
+}
 
+function emitCss(light: readonly GeneratedParty[], dark: readonly GeneratedParty[]): string {
+  const out: string[] = [HEADER];
+  out.push(...emitTokens(light, LIGHT_THEME));
+  out.push("}");
+  out.push("");
+  out.push(DARK_BLOCK_HEADER);
+  out.push(...emitTokens(dark, DARK_THEME));
   out.push("}");
   out.push("");
   return out.join("\n");
@@ -2285,32 +2738,39 @@ function emitCss(parties: readonly GeneratedParty[]): string {
 // 9. CLI
 // ===========================================================================
 
-function report(parties: readonly GeneratedParty[]): string {
+function report(parties: readonly GeneratedParty[], spec: ThemeSpec): string {
   const rows: string[] = [];
   rows.push("");
-  rows.push("Auditoria — L*, C* e h e ΔE76 medidos no hex final (pós-arredondamento 8-bit).");
   rows.push(
-    "A matiz (h) precisa ser constante e L* estritamente decrescente dentro de cada partido.",
+    `Auditoria — tema ${spec.id}. L*, C*, h e ΔE76 medidos no hex final ` +
+      "(pós-arredondamento 8-bit).",
+  );
+  rows.push(
+    `A matiz (h) precisa ser constante e L* estritamente ${spec.ramp.ascending ? "crescente" : "decrescente"} dentro de cada partido.`,
   );
   rows.push("");
   for (const p of parties) {
     const baseDe = Number.isFinite(p.baseDeltaE)
       ? `ΔE ${p.baseDeltaE.toFixed(2)} (${p.baseAgainst?.hex})`
       : "sem oficial";
-    rows.push(`${p.entry.nome} (--party-${p.entry.slug}) — base ${p.entry.base} · ${baseDe}`);
+    const origem = spec.id === "dark" ? ` (de ${p.entry.base.toLowerCase()})` : "";
+    rows.push(
+      `${p.entry.nome} (--party-${p.entry.slug}) — base ${p.baseHex}${origem} · ${baseDe} · ` +
+        `${surfaceContrasts(p.baseHex, spec.textSurfaces).worst.toFixed(2)}:1 sobre o papel`,
+    );
     const c = p.chip;
     rows.push(
       `  chip   ${c.hex} + ink ${c.ink} → ${c.contrast.toFixed(2)}:1` +
-        (c.darkened
-          ? `  (base dava ${c.baseBestContrast.toFixed(2)}:1 · escurecida ΔE76 ` +
+        (c.moved
+          ? `  (base dava ${c.baseBestContrast.toFixed(2)}:1 · deslocada ΔE76 ` +
             `${c.deltaEFromBase.toFixed(1)} · ΔE76 ${c.worstDeltaE.toFixed(2)} do oficial)`
           : "  (= base)"),
     );
     const t = p.text;
     rows.push(
-      `  text   ${t.hex} → ${TEXT_SURFACES.map((s, i) => `${(t.contrasts[i] ?? 0).toFixed(2)}:1 (${s.hex})`).join("  ")}` +
-        (t.darkened
-          ? `  (base dava ${t.baseWorstContrast.toFixed(2)}:1 · escurecida ΔE76 ` +
+      `  text   ${t.hex} → ${spec.textSurfaces.map((s, i) => `${(t.contrasts[i] ?? 0).toFixed(2)}:1 (${s.hex})`).join("  ")}` +
+        (t.moved
+          ? `  (base dava ${t.baseWorstContrast.toFixed(2)}:1 · deslocada ΔE76 ` +
             `${t.deltaEFromBase.toFixed(1)} · ΔE76 ${t.worstDeltaE.toFixed(2)} do oficial)`
           : "  (= base)"),
     );
@@ -2332,7 +2792,7 @@ function report(parties: readonly GeneratedParty[]): string {
           `${de.padStart(6)}   ${(lv.worstAgainst?.hex ?? "—").padEnd(9)} ${notes}`,
       );
     }
-    const kit = KIT_RAMPS[p.entry.slug];
+    const kit = (spec.id === "dark" ? KIT_DARK_RAMPS : KIT_RAMPS)[p.entry.slug];
     if (kit) {
       const diffs = p.levels.map(
         (lv, i) => `${lv.level}: ${deltaE76(lv.hex, kit[i] ?? lv.hex).toFixed(1)}`,
@@ -2348,7 +2808,7 @@ function report(parties: readonly GeneratedParty[]): string {
   // a próxima revisão da paleta reintroduz a colisão sem perceber.
   const pairs = separationPairs(parties);
   rows.push(
-    `Separação entre partidos — ${pairs.length} comparações ` +
+    `Separação entre partidos (tema ${spec.id}) — ${pairs.length} comparações ` +
       `(${SEPARATED_ROLES.length} papéis × ${(parties.length * (parties.length - 1)) / 2} pares). ` +
       `Piso ${PARTY_SEPARATION_FLOOR}.`,
   );
@@ -2361,6 +2821,23 @@ function report(parties: readonly GeneratedParty[]): string {
         `${roleToken(p.slugB, p.role)} ${p.hexB}`,
     );
   }
+  rows.push("");
+  rows.push(
+    "Contraste da base contra o papel do tema (WCAG 1.4.11, objeto gráfico; piso " +
+      `${spec.baseContrastFloor > 0 ? `${spec.baseContrastFloor}:1` : "não aplicado neste tema"}):`,
+  );
+  const baseContrasts = parties
+    .map((p) => ({
+      slug: p.entry.slug,
+      c: surfaceContrasts(p.baseHex, spec.textSurfaces).worst,
+    }))
+    .sort((a, b) => (a.c !== b.c ? a.c - b.c : a.slug < b.slug ? -1 : 1));
+  for (const b of baseContrasts.slice(0, 5)) {
+    rows.push(`  ${b.c.toFixed(2)}  --party-${b.slug}`);
+  }
+  rows.push(
+    `  … maior: ${(baseContrasts.at(-1)?.c ?? 0).toFixed(2)} --party-${baseContrasts.at(-1)?.slug}`,
+  );
   rows.push("");
   rows.push(
     "Razão C*₅ / C*₄ por partido (piso " +
@@ -2381,6 +2858,170 @@ function report(parties: readonly GeneratedParty[]): string {
   return rows.join("\n");
 }
 
+/**
+ * Toda a bateria de gates de UM tema. Devolve a mensagem de erro do primeiro
+ * que reprovar, ou `null` quando passa. Nada é escrito em disco se algum tema
+ * reprovar — os dois blocos moram no mesmo arquivo, e meio arquivo válido é
+ * pior que nenhum.
+ */
+function runGates(parties: readonly GeneratedParty[], spec: ThemeSpec): string | null {
+  const violations = deltaEViolations(parties);
+  if (violations.length > 0) return formatViolations(violations);
+
+  const lowContrast = contrastViolations(parties);
+  if (lowContrast.length > 0) return formatContrastViolations(lowContrast);
+
+  const lowTextContrast = textContrastViolations(parties);
+  if (lowTextContrast.length > 0) return formatTextContrastViolations(lowTextContrast);
+
+  if (spec.baseContrastFloor > 0) {
+    const fracas = parties
+      .map((p) => ({ p, c: surfaceContrasts(p.baseHex, spec.textSurfaces).worst }))
+      .filter((x) => x.c < spec.baseContrastFloor);
+    if (fracas.length > 0) {
+      const lines = [
+        `${fracas.length} cor(es) de identidade abaixo de ${spec.baseContrastFloor}:1 contra o ` +
+          `papel do tema ${spec.id} — o contorno, o ponto e a barra do partido sumiriam.`,
+        "Isso viola a WCAG 2.1 SC 1.4.11 (objeto gráfico) cobrada pela constituição § 4.",
+        "",
+      ];
+      for (const f of fracas) {
+        lines.push(`  --party-${f.p.entry.slug}: ${f.p.baseHex} — ${f.c.toFixed(2)}:1`);
+      }
+      lines.push("");
+      lines.push(
+        "No tema escuro a base é derivada por mapa afim de L*: ajuste DARK_BASE_L_LO /\n" +
+          "DARK_BASE_L_HI / DARK_BASE_CHROMA_GAIN. Não relaxe o piso.",
+      );
+      return lines.join("\n");
+    }
+  }
+
+  const monotonic = monotonicityViolations(parties);
+  if (monotonic.length > 0) {
+    return (
+      `${monotonic.length} rampa(s) fora de ordem em L* (tema ${spec.id}) — a escala de margem\n` +
+      "ficaria fora de ordem (o nível mais 'decisivo' não seria o mais destacado):\n" +
+      monotonic.map((m) => `  ${m}`).join("\n")
+    );
+  }
+
+  const collapses = chromaCollapses(parties);
+  if (collapses.length > 0) return formatChromaCollapses(collapses);
+
+  const tooClose = separationViolations(parties);
+  if (tooClose.length > 0) return formatSeparationViolations(tooClose);
+
+  return null;
+}
+
+/** Resumo de console de um tema, depois que todos os gates passaram. */
+function summarize(parties: readonly GeneratedParty[], spec: ThemeSpec): void {
+  const inkLight = parties.filter((p) => p.chip.ink === spec.chipInks[1]).length;
+  const worstChip = parties.reduce((a, b) => (a.chip.contrast <= b.chip.contrast ? a : b));
+  const worstText = parties.reduce((a, b) =>
+    a.text.worstContrast <= b.text.worstContrast ? a : b,
+  );
+  const worstBase = parties.reduce((a, b) =>
+    surfaceContrasts(a.baseHex, spec.textSurfaces).worst <=
+    surfaceContrasts(b.baseHex, spec.textSurfaces).worst
+      ? a
+      : b,
+  );
+  const closest = separationPairs(parties)[0];
+  const worstRatio = parties
+    .filter((p) => !p.entry.neutral)
+    .reduce((a, b) => {
+      const ra = (a.levels[4]?.measured.C ?? 0) / (a.levels[3]?.measured.C ?? 1);
+      const rb = (b.levels[4]?.measured.C ?? 0) / (b.levels[3]?.measured.C ?? 1);
+      return ra <= rb ? a : b;
+    });
+
+  console.log(`\n— tema ${spec.id} —`);
+  console.log(
+    `ΔE76 ≥ ${DELTA_E_FLOOR} contra todo hex oficial: OK em ${parties.length * 8} tokens ` +
+      "(base + chip + text + 5 níveis por partido; `-ink` é preto/branco do kit, não cor de partido).",
+  );
+  console.log(
+    `Par chip/tinta ≥ ${CHIP_CONTRAST_FLOOR.toFixed(1)}:1 (§ 4): OK em ${parties.length} partidos ` +
+      `— ${inkLight} com tinta clara, ${parties.length - inkLight} com tinta escura; ` +
+      `pior par: --party-${worstChip.entry.slug} ${worstChip.chip.contrast.toFixed(2)}:1.`,
+  );
+  console.log(
+    `Tinta de texto ≥ ${TEXT_CONTRAST_FLOOR.toFixed(1)}:1 sobre ${spec.textSurfaces.map((s) => s.hex).join(" e ")} ` +
+      `(§ 4): OK em ${parties.length} partidos — pior: --party-${worstText.entry.slug}-text ` +
+      `${worstText.text.worstContrast.toFixed(2)}:1 em ${worstText.text.worstSurface}.`,
+  );
+  if (spec.baseContrastFloor > 0) {
+    console.log(
+      `Cor de identidade ≥ ${spec.baseContrastFloor}:1 sobre o papel (WCAG 1.4.11): OK em ` +
+        `${parties.length} partidos — pior: --party-${worstBase.entry.slug} ` +
+        `${surfaceContrasts(worstBase.baseHex, spec.textSurfaces).worst.toFixed(2)}:1.`,
+    );
+  }
+  console.log(
+    `Separação entre partidos ≥ ${PARTY_SEPARATION_FLOOR} (§ 2 / ADR-0031): OK em ` +
+      `${(parties.length * (parties.length - 1) * SEPARATED_ROLES.length) / 2} comparações ` +
+      `(base, chip e text de cada par) — par mais próximo: ${roleToken(closest?.slugA ?? "", closest?.role ?? "base")} ` +
+      `× ${roleToken(closest?.slugB ?? "", closest?.role ?? "base")} a ${closest?.deltaE.toFixed(2)}.`,
+  );
+  console.log(
+    `Croma do nível 5 ≥ ${LEVEL5_CHROMA_RATIO_FLOOR} × nível 4: OK — pior razão ` +
+      `${(
+        (worstRatio.levels[4]?.measured.C ?? 0) / (worstRatio.levels[3]?.measured.C ?? 1)
+      ).toFixed(2)} em --party-${worstRatio.entry.slug}.`,
+  );
+
+  const clamped = parties.flatMap((p) => p.levels.filter((lv) => lv.clamped));
+  const pushed = parties.flatMap((p) =>
+    p.levels.filter((lv) => lv.pushed).map((lv) => ({ slug: p.entry.slug, lv })),
+  );
+  console.log(`${clamped.length} nível(is) com croma reduzido ao gamut sRGB (matiz preservada).`);
+  if (pushed.length === 0) {
+    console.log("Nenhum nível precisou de empurrão por ΔE76.");
+  } else {
+    console.log(`${pushed.length} nível(is) empurrado(s) para fora do raio proibido.`);
+  }
+
+  const verbo = spec.contrastStep < 0 ? "escurecido" : "clareado";
+  const movedChips = parties.filter((p) => p.chip.moved);
+  if (movedChips.length === 0) {
+    console.log(`Nenhum chip precisou ser ${verbo}.`);
+  } else {
+    console.log(`${movedChips.length} chip(s) ${verbo}(s):`);
+    for (const p of movedChips) {
+      const c = p.chip;
+      console.log(
+        `  --party-${p.entry.slug}-chip: ${p.baseHex} → ${c.hex} ` +
+          `(${c.baseBestContrast.toFixed(2)}:1 → ${c.contrast.toFixed(2)}:1, ` +
+          `ΔE76 ${c.deltaEFromBase.toFixed(1)} da base)`,
+      );
+    }
+  }
+  const movedTexts = parties.filter((p) => p.text.moved);
+  if (movedTexts.length === 0) {
+    console.log(`Nenhuma tinta de texto precisou ser ${verbo}a.`);
+  } else {
+    console.log(`${movedTexts.length} tinta(s) de texto ${verbo}(s):`);
+    for (const p of movedTexts) {
+      const t = p.text;
+      console.log(
+        `  --party-${p.entry.slug}-text: ${p.baseHex} → ${t.hex} ` +
+          `(${t.baseWorstContrast.toFixed(2)}:1 → ${t.worstContrast.toFixed(2)}:1, ` +
+          `ΔE76 ${t.deltaEFromBase.toFixed(1)} da base)`,
+      );
+    }
+  }
+
+  const inversions = chromaInversions(parties);
+  if (inversions.length > 0) {
+    console.warn(
+      `AVISO — ${inversions.length} rampa(s) com croma caindo antes do nível 4 (tema ${spec.id}). ` +
+        "L* continua ordenado (a escala não mente), mas o degrau fica mais achatado que o do kit.",
+    );
+  }
+}
+
 function main(): void {
   const argv = process.argv.slice(2);
   const wantReport = argv.includes("--report");
@@ -2388,9 +3029,11 @@ function main(): void {
   const wantSuggest = argv.includes("--suggest");
 
   const official = loadOfficialHexes();
+  const officialsOf = (slug: string) => official[`--party-${slug}`]?.official ?? [];
 
   // `--suggest` roda ANTES dos gates: ele existe justamente para quando eles
-  // reprovam. Ver a seção 7c para o critério.
+  // reprovam. Ver a seção 7c para o critério. Opera sobre o tema CLARO, porque
+  // é lá que mora `PARTY_BASE` — no escuro a base é derivada.
   if (wantSuggest) {
     const fixes = suggestFixes(PARTY_BASE, official, PARTY_SEPARATION_FLOOR);
     if (fixes === null) {
@@ -2413,53 +3056,24 @@ function main(): void {
     return;
   }
 
-  const parties = PARTY_BASE.map((entry) =>
-    buildRamp(entry, official[`--party-${entry.slug}`]?.official ?? []),
-  );
+  const themes: ReadonlyArray<{ spec: ThemeSpec; parties: GeneratedParty[] }> = [
+    { spec: LIGHT_THEME, parties: buildTheme(PARTY_BASE, officialsOf, LIGHT_THEME) },
+    { spec: DARK_THEME, parties: buildTheme(PARTY_BASE, officialsOf, DARK_THEME) },
+  ];
 
-  // ---- gates: nada é escrito se algum falhar -----------------------------
-  const violations = deltaEViolations(parties);
-  if (violations.length > 0) {
-    console.error(formatViolations(violations));
-    process.exitCode = 1;
-    return;
-  }
-  const lowContrast = contrastViolations(parties);
-  if (lowContrast.length > 0) {
-    console.error(formatContrastViolations(lowContrast));
-    process.exitCode = 1;
-    return;
-  }
-  const lowTextContrast = textContrastViolations(parties);
-  if (lowTextContrast.length > 0) {
-    console.error(formatTextContrastViolations(lowTextContrast));
-    process.exitCode = 1;
-    return;
-  }
-  const monotonic = monotonicityViolations(parties);
-  if (monotonic.length > 0) {
-    console.error(
-      `${monotonic.length} rampa(s) não estritamente decrescente(s) em L* — a escala de margem\n` +
-        "ficaria fora de ordem (o nível mais 'decisivo' não seria o mais escuro):",
-    );
-    for (const m of monotonic) console.error(`  ${m}`);
-    process.exitCode = 1;
-    return;
-  }
-  const collapses = chromaCollapses(parties);
-  if (collapses.length > 0) {
-    console.error(formatChromaCollapses(collapses));
-    process.exitCode = 1;
-    return;
-  }
-  const tooClose = separationViolations(parties);
-  if (tooClose.length > 0) {
-    console.error(formatSeparationViolations(tooClose));
-    process.exitCode = 1;
-    return;
+  // ---- gates: nada é escrito se algum tema falhar ------------------------
+  for (const { spec, parties } of themes) {
+    const erro = runGates(parties, spec);
+    if (erro !== null) {
+      console.error(`[tema ${spec.id}] ${erro}`);
+      process.exitCode = 1;
+      return;
+    }
   }
 
-  const css = emitCss(parties);
+  const light = themes[0] as { spec: ThemeSpec; parties: GeneratedParty[] };
+  const dark = themes[1] as { spec: ThemeSpec; parties: GeneratedParty[] };
+  const css = emitCss(light.parties, dark.parties);
   const target = path.resolve(import.meta.dirname, "..", "app", "tokens-party.css");
 
   if (checkOnly) {
@@ -2472,135 +3086,32 @@ function main(): void {
       return;
     }
     console.log("app/tokens-party.css em sincronia com a tabela-fonte.");
-    if (wantReport) console.log(report(parties));
+    for (const { spec, parties } of themes) summarize(parties, spec);
+    if (wantReport) {
+      for (const { spec, parties } of themes) console.log(report(parties, spec));
+    }
     return;
   }
 
   writeFileSync(target, css, "utf8");
-
-  const clamped = parties.flatMap((p) => p.levels.filter((lv) => lv.clamped));
-  const pushed = parties.flatMap((p) =>
-    p.levels.filter((lv) => lv.pushed).map((lv) => ({ slug: p.entry.slug, lv })),
-  );
-  const semFonte = parties.filter((p) => !p.entry.neutral && p.officials.length === 0);
-
   console.log(
-    `app/tokens-party.css gerado — ${parties.length} partidos × 5 níveis + ${STATE_TOKENS.length} estados.`,
+    `app/tokens-party.css gerado — ${PARTY_BASE.length} partidos × 5 níveis + ` +
+      `${STATE_TOKENS.length} estados, em 2 temas (claro + escuro).`,
   );
-  console.log(
-    `ΔE76 ≥ ${DELTA_E_FLOOR} contra todo hex oficial: OK em ${parties.length * 8} tokens ` +
-      "(base + chip + text + 5 níveis por partido; `-ink` é preto/branco do kit, não cor de partido).",
-  );
-  console.log(`${clamped.length} nível(is) com croma reduzido ao gamut sRGB (matiz preservada).`);
+  for (const { spec, parties } of themes) summarize(parties, spec);
 
-  const darkenedChips = parties.filter((p) => p.chip.darkened);
-  const inkLight = parties.filter((p) => p.chip.ink === CHIP_INK_LIGHT).length;
-  const worstChip = parties.reduce((a, b) => (a.chip.contrast <= b.chip.contrast ? a : b));
-  console.log(
-    `Par chip/tinta ≥ ${CHIP_CONTRAST_FLOOR.toFixed(1)}:1 (§ 4): OK em ${parties.length} partidos ` +
-      `— ${inkLight} com tinta clara, ${parties.length - inkLight} com tinta escura; ` +
-      `pior par: --party-${worstChip.entry.slug} ${worstChip.chip.contrast.toFixed(2)}:1.`,
-  );
-  if (darkenedChips.length === 0) {
-    console.log("Nenhum chip precisou escurecer — todas as bases admitem alguma tinta.");
-  } else {
-    console.log(
-      `${darkenedChips.length} chip(s) escurecido(s) porque a base reprovava com as duas tintas:`,
-    );
-    for (const p of darkenedChips) {
-      const c = p.chip;
-      console.log(
-        `  --party-${p.entry.slug}-chip: ${p.entry.base.toLowerCase()} → ${c.hex} ` +
-          `(${c.baseBestContrast.toFixed(2)}:1 → ${c.contrast.toFixed(2)}:1, ` +
-          `ΔE76 ${c.deltaEFromBase.toFixed(1)} da base, ${c.worstDeltaE.toFixed(2)} do oficial)`,
-      );
-    }
-  }
-  const darkenedTexts = parties.filter((p) => p.text.darkened);
-  const worstText = parties.reduce((a, b) =>
-    a.text.worstContrast <= b.text.worstContrast ? a : b,
-  );
-  console.log(
-    `Tinta de texto ≥ ${TEXT_CONTRAST_FLOOR.toFixed(1)}:1 sobre ${TEXT_SURFACES.map((s) => s.hex).join(" e ")} ` +
-      `(§ 4): OK em ${parties.length} partidos — pior: --party-${worstText.entry.slug}-text ` +
-      `${worstText.text.worstContrast.toFixed(2)}:1 em ${worstText.text.worstSurface}.`,
-  );
-  if (darkenedTexts.length === 0) {
-    console.log(
-      "Nenhuma tinta de texto precisou escurecer — todas as bases já liam sobre o papel.",
-    );
-  } else {
-    console.log(
-      `${darkenedTexts.length} tinta(s) de texto escurecida(s) porque a base reprovava sobre o papel:`,
-    );
-    for (const p of darkenedTexts) {
-      const t = p.text;
-      // DEMOCRATA e MOBILIZA não têm hex oficial localizado: não há do que se
-      // afastar, e imprimir "Infinity" faria parecer defeito onde é ausência.
-      const de = Number.isFinite(t.worstDeltaE)
-        ? `${t.worstDeltaE.toFixed(2)} do oficial`
-        : "sem hex oficial conhecido";
-      console.log(
-        `  --party-${p.entry.slug}-text: ${p.entry.base.toLowerCase()} → ${t.hex} ` +
-          `(${t.baseWorstContrast.toFixed(2)}:1 → ${t.worstContrast.toFixed(2)}:1, ` +
-          `ΔE76 ${t.deltaEFromBase.toFixed(1)} da base, ${de})`,
-      );
-    }
-  }
-
-  const closest = separationPairs(parties)[0];
-  console.log(
-    `Separação entre partidos ≥ ${PARTY_SEPARATION_FLOOR} (§ 2): OK em ` +
-      `${(parties.length * (parties.length - 1) * SEPARATED_ROLES.length) / 2} comparações ` +
-      `(base, chip e text de cada par) — par mais próximo: ${roleToken(closest?.slugA ?? "", closest?.role ?? "base")} ` +
-      `× ${roleToken(closest?.slugB ?? "", closest?.role ?? "base")} a ${closest?.deltaE.toFixed(2)}.`,
-  );
-  const worstRatio = parties
-    .filter((p) => !p.entry.neutral)
-    .reduce((a, b) => {
-      const ra = (a.levels[4]?.measured.C ?? 0) / (a.levels[3]?.measured.C ?? 1);
-      const rb = (b.levels[4]?.measured.C ?? 0) / (b.levels[3]?.measured.C ?? 1);
-      return ra <= rb ? a : b;
-    });
-  console.log(
-    `Croma do nível 5 ≥ ${LEVEL5_CHROMA_RATIO_FLOOR} × nível 4: OK — pior razão ` +
-      `${(
-        (worstRatio.levels[4]?.measured.C ?? 0) / (worstRatio.levels[3]?.measured.C ?? 1)
-      ).toFixed(2)} em --party-${worstRatio.entry.slug}.`,
-  );
-
-  if (pushed.length === 0) {
-    console.log("Nenhum nível precisou de empurrão por ΔE76.");
-  } else {
-    console.log(`${pushed.length} nível(is) empurrado(s) para fora do raio proibido:`);
-    for (const { slug, lv } of pushed) {
-      console.log(
-        `  --party-${slug}-${lv.level}: ${lv.hex} — ΔE76 ${lv.worstDeltaE.toFixed(2)} de ` +
-          `${lv.worstAgainst?.hex} (${lv.worstAgainst?.role})`,
-      );
-    }
-  }
-
-  const inversions = chromaInversions(parties);
-  if (inversions.length > 0) {
-    console.warn(
-      `\nAVISO — ${inversions.length} rampa(s) com croma caindo antes do nível 4. ` +
-        "L* continua ordenado\n(a escala não mente), mas o degrau fica mais achatado do que o do kit:",
-    );
-    for (const i of inversions) console.warn(`  ${i}`);
-  }
-
+  const semFonte = PARTY_BASE.filter((e) => !e.neutral && officialsOf(e.slug).length === 0);
   if (semFonte.length > 0) {
     console.warn(
       `\nAVISO — ${semFonte.length} partido(s) sem hex oficial localizado. ` +
         "Não há do que se afastar,\nentão o piso de ΔE76 não é aplicável — revisitar quando houver fonte:",
     );
-    for (const p of semFonte) {
-      console.warn(`  --party-${p.entry.slug} (${p.entry.nome})`);
-    }
+    for (const e of semFonte) console.warn(`  --party-${e.slug} (${e.nome})`);
   }
 
-  if (wantReport) console.log(report(parties));
+  if (wantReport) {
+    for (const { spec, parties } of themes) console.log(report(parties, spec));
+  }
 }
 
 // Só executa quando invocado como script. Sem esta guarda, `import` deste

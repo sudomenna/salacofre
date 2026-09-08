@@ -98,12 +98,56 @@ function parseTokens(css: string): Map<string, string> {
   return map;
 }
 
-const TOKENS = parseTokens(TOKENS_CSS);
+/**
+ * O CSS tem **dois** blocos de token desde o dark mode (ADR-0025 § 5) — o claro
+ * em `@theme static { … }` e o escuro em `:root[data-theme="dark"] { … }` — com
+ * os mesmos nomes de propósito. Um parser que varra o arquivo inteiro guardaria
+ * só o último valor visto e mediria o chip escuro contra as tintas claras.
+ */
+function blockOf(css: string, opener: string): string {
+  const start = css.indexOf(opener);
+  if (start === -1) throw new Error(`bloco não encontrado em tokens-party.css: ${opener}`);
+  let depth = 0;
+  for (let i = css.indexOf("{", start); i < css.length; i++) {
+    if (css[i] === "{") depth++;
+    if (css[i] === "}") {
+      depth--;
+      if (depth === 0) return css.slice(start, i + 1);
+    }
+  }
+  throw new Error(`bloco não fechado em tokens-party.css: ${opener}`);
+}
 
 /** Estados de corrida (`tie`, `none`): não são partido e não têm chip. */
 const STATE_TOKENS = new Set(["tie", "none"]);
 
-/** Slugs de partido presentes no CSS, deduzidos dos tokens `-chip`. */
+/**
+ * As duas tintas candidatas de cada tema. No claro são `--ink-0` e `--paper-0`
+ * do bloco claro; no escuro, os primitivos escuros do kit (`--paper-1` #14171b
+ * e `--ink-0` #eceef1). O par chip/tinta é auto-contido — o que ele precisa
+ * garantir é que a sigla se leia SOBRE o chip, não contra a página.
+ */
+const THEMES = [
+  {
+    id: "claro",
+    tokens: parseTokens(blockOf(TOKENS_CSS, "@theme static {")),
+    inkDark: INK_DARK,
+    inkLight: INK_LIGHT,
+    /** Direção em que o chip se move quando a base reprova. */
+    direcao: "mais escuro" as const,
+  },
+  {
+    id: "escuro",
+    tokens: parseTokens(blockOf(TOKENS_CSS, ':root[data-theme="dark"] {')),
+    inkDark: "#14171b",
+    inkLight: "#eceef1",
+    direcao: "mais claro" as const,
+  },
+] as const;
+
+/** Tokens do tema claro — usados pelos testes que citam números medidos nele. */
+const TOKENS = THEMES[0].tokens;
+
 const PARTY_SLUGS = [...TOKENS.keys()]
   .filter((n) => n.endsWith("-chip"))
   .map((n) => n.slice(0, -"-chip".length))
@@ -111,59 +155,86 @@ const PARTY_SLUGS = [...TOKENS.keys()]
   .sort();
 
 // ---------------------------------------------------------------------------
-// O gate
+// O gate — vale nos dois temas
 // ---------------------------------------------------------------------------
 
-describe("constituição § 4 — o par chip/tinta do <PartyTag filled>", () => {
-  it("todo partido tem os dois tokens do par (um sem o outro não garante nada)", () => {
-    expect(PARTY_SLUGS.length).toBe(31);
-    for (const slug of PARTY_SLUGS) {
-      expect(TOKENS.get(`${slug}-chip`), `--party-${slug}-chip ausente`).toMatch(/^#[0-9a-f]{6}$/);
-      expect(TOKENS.get(`${slug}-ink`), `--party-${slug}-ink ausente`).toMatch(/^#[0-9a-f]{6}$/);
-    }
-  });
+for (const theme of THEMES) {
+  const T = theme.tokens;
+  const slugs = [...T.keys()]
+    .filter((n) => n.endsWith("-chip"))
+    .map((n) => n.slice(0, -"-chip".length))
+    .filter((s) => !STATE_TOKENS.has(s))
+    .sort();
 
-  it.each(PARTY_SLUGS)("--party-%s: chip + ink dão pelo menos 4.5:1", (slug) => {
-    const chip = TOKENS.get(`${slug}-chip`) as string;
-    const ink = TOKENS.get(`${slug}-ink`) as string;
-    const ratio = contrastRatio(chip, ink);
-    expect(
-      ratio,
-      [
-        `--party-${slug}-chip (${chip}) com --party-${slug}-ink (${ink}) dá ` +
-          `${ratio.toFixed(2)}:1.`,
-        "",
-        "A constituição § 4 (WCAG 2.1 AA, SC 1.4.3) exige 4.5:1 para texto — e a sigla do",
-        "<PartyTag filled> é texto. Contraste medido para referência com as duas tintas:",
-        `  contra ${INK_DARK}  (--ink-0)  : ${contrastRatio(chip, INK_DARK).toFixed(2)}:1`,
-        `  contra ${INK_LIGHT} (--paper-0): ${contrastRatio(chip, INK_LIGHT).toFixed(2)}:1`,
-        "",
-        "Rode `pnpm gen:party-scale` — ele escurece o chip (matiz preservada) até a tinta",
-        "clara passar, e falha em vez de emitir um par ilegível. Se o CSS foi editado à mão,",
-        "esta é a divergência.",
-      ].join("\n"),
-    ).toBeGreaterThanOrEqual(CONTRAST_FLOOR);
-  });
+  describe(`[tema ${theme.id}] constituição § 4 — o par chip/tinta do <PartyTag filled>`, () => {
+    it("todo partido tem os dois tokens do par (um sem o outro não garante nada)", () => {
+      expect(slugs.length).toBe(31);
+      for (const slug of slugs) {
+        expect(T.get(`${slug}-chip`), `--party-${slug}-chip ausente`).toMatch(/^#[0-9a-f]{6}$/);
+        expect(T.get(`${slug}-ink`), `--party-${slug}-ink ausente`).toMatch(/^#[0-9a-f]{6}$/);
+      }
+    });
 
-  it.each(PARTY_SLUGS)("--party-%s-ink é uma das duas tintas do kit, e a melhor delas", (slug) => {
-    const chip = TOKENS.get(`${slug}-chip`) as string;
-    const ink = TOKENS.get(`${slug}-ink`) as string;
-    // Só #14171b e #fbfbfc: uma tinta "quase preta" ou "quase branca" inventada
-    // sairia do kit e ninguém teria medido o resto do sistema contra ela.
-    expect([INK_DARK, INK_LIGHT], `--party-${slug}-ink: ${ink}`).toContain(ink);
-    const dark = contrastRatio(chip, INK_DARK);
-    const light = contrastRatio(chip, INK_LIGHT);
-    const esperada = dark >= light ? INK_DARK : INK_LIGHT;
-    expect(
-      ink,
-      `--party-${slug}-chip (${chip}) contrasta ${dark.toFixed(2)}:1 com ${INK_DARK} e ` +
-        `${light.toFixed(2)}:1 com ${INK_LIGHT} — a tinta emitida devia ser ${esperada}.`,
-    ).toBe(esperada);
+    it.each(slugs)("--party-%s: chip + ink dão pelo menos 4.5:1", (slug) => {
+      const chip = T.get(`${slug}-chip`) as string;
+      const ink = T.get(`${slug}-ink`) as string;
+      const ratio = contrastRatio(chip, ink);
+      expect(
+        ratio,
+        [
+          `Tema ${theme.id}. --party-${slug}-chip (${chip}) com --party-${slug}-ink (${ink}) dá ` +
+            `${ratio.toFixed(2)}:1.`,
+          "",
+          "A constituição § 4 (WCAG 2.1 AA, SC 1.4.3) exige 4.5:1 para texto — e a sigla do",
+          "<PartyTag filled> é texto. Contraste medido para referência com as duas tintas:",
+          `  contra ${theme.inkDark} : ${contrastRatio(chip, theme.inkDark).toFixed(2)}:1`,
+          `  contra ${theme.inkLight}: ${contrastRatio(chip, theme.inkLight).toFixed(2)}:1`,
+          "",
+          "Rode `pnpm gen:party-scale` — ele move o chip em L* (matiz preservada) até a tinta",
+          "oposta passar, e falha em vez de emitir um par ilegível. Se o CSS foi editado à",
+          "mão, esta é a divergência.",
+        ].join("\n"),
+      ).toBeGreaterThanOrEqual(CONTRAST_FLOOR);
+    });
+
+    it.each(slugs)("--party-%s-ink é uma das duas tintas do tema, e a melhor delas", (slug) => {
+      const chip = T.get(`${slug}-chip`) as string;
+      const ink = T.get(`${slug}-ink`) as string;
+      // Só as duas do tema: uma tinta "quase preta" ou "quase branca" inventada
+      // sairia do kit e ninguém teria medido o resto do sistema contra ela.
+      expect([theme.inkDark, theme.inkLight], `--party-${slug}-ink: ${ink}`).toContain(ink);
+      const dark = contrastRatio(chip, theme.inkDark);
+      const light = contrastRatio(chip, theme.inkLight);
+      const esperada = dark >= light ? theme.inkDark : theme.inkLight;
+      expect(
+        ink,
+        `Tema ${theme.id}. --party-${slug}-chip (${chip}) contrasta ${dark.toFixed(2)}:1 com ` +
+          `${theme.inkDark} e ${light.toFixed(2)}:1 com ${theme.inkLight} — a tinta emitida ` +
+          `devia ser ${esperada}.`,
+      ).toBe(esperada);
+    });
+
+    it(`onde o chip diverge da base, ele é ${theme.direcao} (intensidade, não outra cor)`, () => {
+      // O § 2 v1.3 permite variar intensidade e proíbe variar matiz. A guarda de
+      // matiz é o teste de arco em `tests/unit/utils/party-color.test.ts`; aqui
+      // checamos a direção — que é oposta nos dois temas, porque o papel é.
+      for (const slug of slugs) {
+        const base = T.get(slug) as string;
+        const chip = T.get(`${slug}-chip`) as string;
+        if (chip === base) continue;
+        const mais = relativeLuminance(chip) > relativeLuminance(base);
+        expect(
+          mais,
+          `tema ${theme.id}: --party-${slug}-chip (${chip}) devia ser ${theme.direcao} que a ` +
+            `base (${base})`,
+        ).toBe(theme.direcao === "mais claro");
+      }
+    });
   });
-});
+}
 
 // ---------------------------------------------------------------------------
-// A repartição que justifica o par existir
+// A repartição que justifica o par existir (números medidos no tema CLARO)
 // ---------------------------------------------------------------------------
 
 describe("por que nenhuma tinta fixa serve", () => {

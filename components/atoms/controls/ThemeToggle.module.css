@@ -1,0 +1,80 @@
+/*
+ * components/atoms/controls/ThemeToggle.module.css
+ *
+ * A pílula do kit (`components/actions/ThemeToggle.jsx`), em CSS Module em vez
+ * de `style` inline: o botão precisa de `:hover` e de uma media query de alvo
+ * de toque, e nenhum dos dois existe em style inline.
+ *
+ * Todas as cores saem de token — é o que faz o botão acompanhar o tema que ele
+ * mesmo troca, sem uma única condicional em JavaScript.
+ *
+ * Ordem das regras: as de menor especificidade primeiro, e a media query por
+ * último. `.toggle .label` (0,2,0) declarada antes de `.label` (0,1,0) é
+ * especificidade descendente — o Biome reprova, e com razão: a regra mais
+ * específica pareceria estar sendo sobrescrita por uma mais fraca.
+ */
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font: var(--type-label);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+.toggle:hover {
+  border-color: var(--border-strong);
+}
+
+/*
+ * O ponto de estado. No claro é tinta cheia; no escuro é o accent ocre com um
+ * halo — a mesma gramática do kit, e a única diferença visual entre os dois
+ * estados além do rótulo. `[aria-pressed]` é o seletor de propósito: o estado
+ * visual e o estado anunciado ao leitor de tela saem do MESMO atributo, então
+ * não há como um mudar sem o outro.
+ */
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--ink-0);
+}
+
+.label {
+  display: inline-block;
+  /* Largura do rótulo mais largo ("Escuro"), para que a barra do topo não dance
+   * ao alternar. */
+  min-width: 5ch;
+  text-align: left;
+}
+
+.toggle[aria-pressed="true"] .dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/*
+ * Alvo de toque de 44px (constituição § 4 / `--tap-min`). No mobile a moldura
+ * some — a barra do topo já está cheia de controles e mais uma borda vira
+ * ruído — e o botão vira área de toque pura, com a altura mínima exigida.
+ */
+@media (max-width: 959.98px) {
+  .toggle {
+    height: var(--tap-min);
+    padding: 0 var(--space-2);
+    border: 0;
+    background: transparent;
+  }
+}

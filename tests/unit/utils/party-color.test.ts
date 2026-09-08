@@ -47,7 +47,7 @@ import {
 const TOKENS_CSS_PATH = path.resolve(import.meta.dirname, "../../../app/tokens-party.css");
 const tokensCss = readFileSync(TOKENS_CSS_PATH, "utf8");
 
-/** Todos os `--party-<nome>: #hex;` do arquivo gerado. */
+/** Todos os `--party-<nome>: #hex;` de um bloco do arquivo gerado. */
 function parseTokens(css: string): Map<string, string> {
   const map = new Map<string, string>();
   const re = /--party-([a-z0-9-]+)\s*:\s*(#[0-9a-f]{6})\s*;/g;
@@ -59,7 +59,32 @@ function parseTokens(css: string): Map<string, string> {
   return map;
 }
 
-const TOKENS = parseTokens(tokensCss);
+/**
+ * O CSS gerado tem DOIS blocos desde o dark mode (ADR-0025 § 5), com os mesmos
+ * nomes de token: `@theme static { … }` (claro) e `:root[data-theme="dark"] { … }`.
+ * Varrer o arquivo inteiro guardaria só o último valor visto — o escuro.
+ *
+ * Este arquivo mede a sincronia de `lib/utils/party-color.ts` com o **tema
+ * claro**, e é o recorte certo: os fallbacks literais do módulo
+ * (`PARTY_FALLBACK_HEX`) são os do tema claro, porque é ele que o servidor
+ * renderiza antes de qualquer script de tema rodar. Em runtime o módulo lê o
+ * token por `getComputedStyle`, que já devolve o valor do tema ativo.
+ */
+function lightBlock(css: string): string {
+  const start = css.indexOf("@theme static {");
+  if (start === -1) throw new Error("bloco @theme static não encontrado em tokens-party.css");
+  let depth = 0;
+  for (let i = css.indexOf("{", start); i < css.length; i++) {
+    if (css[i] === "{") depth++;
+    if (css[i] === "}") {
+      depth--;
+      if (depth === 0) return css.slice(start, i + 1);
+    }
+  }
+  throw new Error("bloco @theme static não fechado em tokens-party.css");
+}
+
+const TOKENS = parseTokens(lightBlock(tokensCss));
 
 describe("normalizePartySlug", () => {
   it("normaliza caixa e espaço", () => {

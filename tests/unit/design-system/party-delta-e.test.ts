@@ -132,10 +132,54 @@ function parseTokens(css: string): Map<string, string> {
   return map;
 }
 
-const TOKENS = parseTokens(TOKENS_CSS);
+/**
+ * O CSS tem **dois** blocos de token desde o dark mode (ADR-0025 § 5) — o claro
+ * em `@theme static { … }` e o escuro em `:root[data-theme="dark"] { … }` — com
+ * os mesmos nomes, de propósito. Um parser que varra o arquivo inteiro guarda
+ * só o último valor visto, e metade da paleta deixaria de ser medida contra os
+ * hexes oficiais: exatamente o silêncio que este arquivo existe para impedir.
+ */
+function blockOf(css: string, opener: string): string {
+  const start = css.indexOf(opener);
+  if (start === -1) throw new Error(`bloco não encontrado em tokens-party.css: ${opener}`);
+  let depth = 0;
+  for (let i = css.indexOf("{", start); i < css.length; i++) {
+    if (css[i] === "{") depth++;
+    if (css[i] === "}") {
+      depth--;
+      if (depth === 0) return css.slice(start, i + 1);
+    }
+  }
+  throw new Error(`bloco não fechado em tokens-party.css: ${opener}`);
+}
 
 /** Estados de corrida: não são partido, não têm rampa, não têm oficial. */
 const STATE_TOKENS = new Set(["tie", "none"]);
+
+const THEMES = [
+  {
+    id: "claro",
+    tokens: parseTokens(blockOf(TOKENS_CSS, "@theme static {")),
+    /** No claro a escala DESCE em L*: o "decisivo" é o mais escuro. */
+    ascendente: false,
+    /**
+     * Rampas em que o croma cai antes do nível 4 — a matiz do partido está
+     * cercada pela paleta oficial dele e o empurrão de ΔE76 paga em C*. Caso
+     * declarado, não regressão silenciosa.
+     */
+    excecoesCroma: ["dc", "republicanos"],
+  },
+  {
+    id: "escuro",
+    tokens: parseTokens(blockOf(TOKENS_CSS, ':root[data-theme="dark"] {')),
+    /** No escuro a escala SOBE: o "decisivo" é o mais claro. */
+    ascendente: true,
+    excecoesCroma: ["mdb"],
+  },
+] as const;
+
+/** Tokens do tema claro — a paleta que o `--suggest` e a documentação citam. */
+const TOKENS = THEMES[0].tokens;
 
 /** Slugs de partido no CSS (base, sem os sufixos `-1..5`/`-chip`/`-ink`/`-text`). */
 const PARTY_SLUGS = [
@@ -151,33 +195,33 @@ const PARTY_SLUGS = [
  * sólido, a tinta de texto e os 5 níveis da rampa.
  *
  * `--party-<slug>-ink` fica de fora de propósito. Ele é uma das duas tintas do
- * kit (#14171b ou #fbfbfc), escolhida por contraste WCAG — não é uma cor
- * derivada da identidade do partido, e medir a distância dela até a paleta
- * oficial responderia a uma pergunta que ninguém fez. O gate do par chip/tinta
- * é outro arquivo: `party-chip-contrast.test.ts`.
+ * tema (#14171b ou #fbfbfc no claro; #14171b ou #eceef1 no escuro), escolhida
+ * por contraste WCAG — não é uma cor derivada da identidade do partido, e medir
+ * a distância dela até a paleta oficial responderia a uma pergunta que ninguém
+ * fez. O gate do par chip/tinta é outro arquivo: `party-chip-contrast.test.ts`.
  *
- * O chip, ao contrário, **entra**: quando ele diverge da base (hoje MDB e Rede,
- * que escurecem porque nenhuma tinta serve sobre a base), é uma cor nova de
- * partido, e escurecer pode empurrar a cor para dentro do raio proibido de um
+ * O chip, ao contrário, **entra**: quando ele diverge da base, é uma cor nova de
+ * partido, e mover em L* pode empurrar a cor para dentro do raio proibido de um
  * hex oficial exatamente como o empurrão da rampa já podia.
  *
- * `--party-<slug>-text` entra pelo mesmo motivo, e em 14 dos 31 partidos ele é
- * uma cor nova: onde a base reprova 4,5:1 sobre o papel (PSOL 2,08:1, PSB
- * 2,20:1, o fallback cinza 2,39:1, NOVO 2,72:1...), a tinta é a base escurecida
- * — e escurecer aproxima do fim do gradiente escuro que vários manuais de
- * partido publicam. Ficar de fora deste gate era a forma óbvia de a correção de
- * a11y reintroduzir uma violação do § 2.
+ * `--party-<slug>-text` entra pelo mesmo motivo. No claro, em 14 dos 31
+ * partidos ele é uma cor nova: onde a base reprova 4,5:1 sobre o papel (PSOL
+ * 2,08:1, PSB 2,20:1, o fallback cinza 2,39:1, NOVO 2,72:1...), a tinta é a
+ * base escurecida — e escurecer aproxima do fim do gradiente escuro que vários
+ * manuais de partido publicam. No escuro é a base CLAREADA, e clarear aproxima
+ * do outro extremo do mesmo gradiente. Ficar de fora deste gate era a forma
+ * óbvia de a correção de a11y reintroduzir uma violação do § 2.
  */
-function tokensOf(slug: string): Array<{ token: string; hex: string }> {
+function tokensOfIn(tokens: Map<string, string>, slug: string) {
   const out: Array<{ token: string; hex: string }> = [];
-  const base = TOKENS.get(slug);
+  const base = tokens.get(slug);
   if (base) out.push({ token: `--party-${slug}`, hex: base });
-  const chip = TOKENS.get(`${slug}-chip`);
+  const chip = tokens.get(`${slug}-chip`);
   if (chip) out.push({ token: `--party-${slug}-chip`, hex: chip });
-  const text = TOKENS.get(`${slug}-text`);
+  const text = tokens.get(`${slug}-text`);
   if (text) out.push({ token: `--party-${slug}-text`, hex: text });
   for (const level of [1, 2, 3, 4, 5]) {
-    const hex = TOKENS.get(`${slug}-${level}`);
+    const hex = tokens.get(`${slug}-${level}`);
     if (hex) out.push({ token: `--party-${slug}-${level}`, hex });
   }
   return out;
@@ -196,7 +240,7 @@ function describeViolation(token: string, hex: string, o: OfficialHex, party: st
     "Constituição § 2 v1.3 exige ΔE76 ≥ 10 contra o hex oficial documentado;",
     `este repositório opera com piso ${OPERATIONAL_FLOOR}.`,
     "Corrija o hex base em PARTY_BASE (scripts/gen-party-scale.ts) e rode",
-    "`pnpm gen:party-scale` — o gerador reempurra os níveis sozinho.",
+    "`pnpm gen:party-scale` — o gerador reempurra os níveis sozinho, nos dois temas.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -251,134 +295,149 @@ describe("scripts/data/party-official-hexes.json", () => {
 // O gate
 // ---------------------------------------------------------------------------
 
-describe("constituição § 2 — ΔE76 contra o hex oficial de cada partido", () => {
-  it("mede todos os 30 partidos + fallback: base, chip, text e 5 níveis", () => {
-    expect(PARTY_SLUGS.length).toBe(31);
-    for (const slug of PARTY_SLUGS) {
-      expect(tokensOf(slug), `--party-${slug}`).toHaveLength(8);
-    }
-  });
+for (const theme of THEMES) {
+  const T = theme.tokens;
+  const slugs = [
+    ...new Set(
+      [...T.keys()]
+        .map((n) => n.replace(/-(?:[1-5]|chip|ink|text)$/, ""))
+        .filter((s) => !STATE_TOKENS.has(s)),
+    ),
+  ].sort();
 
-  it.each(
-    PARTY_SLUGS,
-  )("--party-%s: base, chip, text e 5 níveis ficam a ΔE76 ≥ 10 de todo hex oficial", (slug) => {
-    const entry = OFFICIAL[`--party-${slug}`];
-    const officials = entry?.official ?? [];
-    // Sem hex oficial não há do que se afastar. É o caso declarado de
-    // DEMOCRATA e MOBILIZA (ver o teste de sanidade acima).
-    if (officials.length === 0) return;
-
-    for (const { token, hex } of tokensOf(slug)) {
-      for (const o of officials) {
-        const d = deltaE76(hex, o.hex);
-        expect(d, describeViolation(token, hex, o, entry?.party ?? slug)).toBeGreaterThanOrEqual(
-          CONSTITUTIONAL_FLOOR,
-        );
+  describe(`[tema ${theme.id}] constituição § 2 — ΔE76 contra o hex oficial de cada partido`, () => {
+    it("mede todos os 30 partidos + fallback: base, chip, text e 5 níveis", () => {
+      expect(slugs.length).toBe(31);
+      for (const slug of slugs) {
+        expect(tokensOfIn(T, slug), `--party-${slug}`).toHaveLength(8);
       }
-    }
-  });
+    });
 
-  it.each(PARTY_SLUGS)("--party-%s: mantém também a folga operacional de 12", (slug) => {
-    const entry = OFFICIAL[`--party-${slug}`];
-    const officials = entry?.official ?? [];
-    if (officials.length === 0) return;
+    it.each(
+      slugs,
+    )("--party-%s: base, chip, text e 5 níveis ficam a ΔE76 ≥ 10 de todo hex oficial", (slug) => {
+      const entry = OFFICIAL[`--party-${slug}`];
+      const officials = entry?.official ?? [];
+      // Sem hex oficial não há do que se afastar. É o caso declarado de
+      // DEMOCRATA e MOBILIZA (ver o teste de sanidade acima).
+      if (officials.length === 0) return;
 
-    for (const { token, hex } of tokensOf(slug)) {
-      for (const o of officials) {
-        const d = deltaE76(hex, o.hex);
-        expect(
-          d,
-          `${describeViolation(token, hex, o, entry?.party ?? slug)}\n\n` +
-            "Este token passa no mínimo constitucional (10) mas queimou a folga de 12 que o\n" +
-            "gerador garante. Ou o CSS foi editado à mão, ou a tabela de hexes oficiais mudou\n" +
-            "e o CSS não foi regerado.",
-        ).toBeGreaterThanOrEqual(OPERATIONAL_FLOOR);
+      for (const { token, hex } of tokensOfIn(T, slug)) {
+        for (const o of officials) {
+          const d = deltaE76(hex, o.hex);
+          expect(
+            d,
+            `Tema ${theme.id}.\n${describeViolation(token, hex, o, entry?.party ?? slug)}`,
+          ).toBeGreaterThanOrEqual(CONSTITUTIONAL_FLOOR);
+        }
       }
-    }
-  });
-});
+    });
 
-// ---------------------------------------------------------------------------
-// A rampa continua sendo uma escala
-// ---------------------------------------------------------------------------
+    it.each(slugs)("--party-%s: mantém também a folga operacional de 12", (slug) => {
+      const entry = OFFICIAL[`--party-${slug}`];
+      const officials = entry?.official ?? [];
+      if (officials.length === 0) return;
 
-describe("a rampa de margem ordena", () => {
-  // O empurrão de ΔE76 mexe em L* — é o preço de sair do raio proibido sem
-  // tocar na matiz. Este teste garante que o preço nunca chega a inverter a
-  // escala: se `--party-psol-4` voltar a sair mais claro que `--party-psol-3`,
-  // "decisivo" aparece mais fraco que "provável" e o mapa mente para o leitor.
-  it.each(PARTY_SLUGS)("--party-%s: L* cai estritamente do nível 1 ao 5", (slug) => {
-    const levels = [1, 2, 3, 4, 5].map((n) => TOKENS.get(`${slug}-${n}`) as string);
-    const Ls = levels.map(lightness);
-    for (let i = 1; i < Ls.length; i++) {
-      expect(
-        Ls[i] as number,
-        `--party-${slug}-${i + 1} (${levels[i]}, L* ${(Ls[i] as number).toFixed(1)}) não é mais ` +
-          `escuro que --party-${slug}-${i} (${levels[i - 1]}, L* ${(Ls[i - 1] as number).toFixed(1)})`,
-      ).toBeLessThan(Ls[i - 1] as number);
-    }
+      for (const { token, hex } of tokensOfIn(T, slug)) {
+        for (const o of officials) {
+          const d = deltaE76(hex, o.hex);
+          expect(
+            d,
+            `Tema ${theme.id}.\n${describeViolation(token, hex, o, entry?.party ?? slug)}\n\n` +
+              "Este token passa no mínimo constitucional (10) mas queimou a folga de 12 que o\n" +
+              "gerador garante. Ou o CSS foi editado à mão, ou a tabela de hexes oficiais mudou\n" +
+              "e o CSS não foi regerado.",
+          ).toBeGreaterThanOrEqual(OPERATIONAL_FLOOR);
+        }
+      }
+    });
   });
 
-  it("nenhum nível colapsa contra o vizinho — degraus de pelo menos 5 em L*", () => {
-    // Os alvos distam 13–18 unidades; o empurrão de ΔE76 pode encurtar um
-    // degrau, mas não a ponto de dois níveis lerem como a mesma cor.
-    for (const slug of PARTY_SLUGS) {
-      const Ls = [1, 2, 3, 4, 5].map((n) => lightness(TOKENS.get(`${slug}-${n}`) as string));
+  // -------------------------------------------------------------------------
+  // A rampa continua sendo uma escala
+  // -------------------------------------------------------------------------
+
+  describe(`[tema ${theme.id}] a rampa de margem ordena`, () => {
+    // O empurrão de ΔE76 mexe em L* — é o preço de sair do raio proibido sem
+    // tocar na matiz. Este teste garante que o preço nunca chega a inverter a
+    // escala: se `--party-psol-4` voltar a sair mais claro que `--party-psol-3`
+    // no tema claro, "decisivo" aparece mais fraco que "provável" e o mapa
+    // mente para o leitor. No escuro a leitura inverte junto com o papel.
+    const sentido = theme.ascendente ? "sobe" : "cai";
+    it.each(slugs)(`--party-%s: L* ${sentido} estritamente do nível 1 ao 5`, (slug) => {
+      const levels = [1, 2, 3, 4, 5].map((n) => T.get(`${slug}-${n}`) as string);
+      const Ls = levels.map(lightness);
       for (let i = 1; i < Ls.length; i++) {
+        const prev = Ls[i - 1] as number;
+        const cur = Ls[i] as number;
+        const msg =
+          `tema ${theme.id}: --party-${slug}-${i + 1} (${levels[i]}, L* ${cur.toFixed(1)}) ` +
+          `não é mais ${theme.ascendente ? "claro" : "escuro"} que --party-${slug}-${i} ` +
+          `(${levels[i - 1]}, L* ${prev.toFixed(1)})`;
+        if (theme.ascendente) expect(cur, msg).toBeGreaterThan(prev);
+        else expect(cur, msg).toBeLessThan(prev);
+      }
+    });
+
+    it("nenhum nível colapsa contra o vizinho — degraus de pelo menos 5 em L*", () => {
+      // Os alvos distam 10–18 unidades; o empurrão de ΔE76 pode encurtar um
+      // degrau, mas não a ponto de dois níveis lerem como a mesma cor.
+      for (const slug of slugs) {
+        const Ls = [1, 2, 3, 4, 5].map((n) => lightness(T.get(`${slug}-${n}`) as string));
+        for (let i = 1; i < Ls.length; i++) {
+          expect(
+            Math.abs((Ls[i - 1] as number) - (Ls[i] as number)),
+            `tema ${theme.id}: --party-${slug} níveis ${i} e ${i + 1} a menos de 5 unidades de L*`,
+          ).toBeGreaterThan(5);
+        }
+      }
+    });
+
+    it("o nível 5 conserva pelo menos 60% do croma do nível 4", () => {
+      // O nível 5 é o "decisivo": a cor mais carregada da escala. O kit recua o
+      // croma de propósito (C* 53 sobre 66 = 0,80 no claro; 48 sobre 62 = 0,77
+      // no escuro), o que mantém o nível 5 reconhecível como a cor do partido,
+      // só mais densa.
+      //
+      // O empurrão de ΔE76 destruía isso em silêncio: quando um hex oficial
+      // fica no caminho, escapar reduzindo o croma é a saída mais barata no
+      // custo do solver. `--party-pp` saía com C* 15,0 contra C* 43,8 do nível
+      // 4 — razão 0,34, um cinza-ardósia onde deveria estar o azul mais forte
+      // do PP — e nada reclamava. Corrigido em 2026-09-08 girando a matiz do
+      // hex base (#2c6fb0 → #0f60b3, 272,3° → 280,9°).
+      //
+      // O piso de 0,60 fica no vão entre 0,34 (o defeito) e 0,71 (o pior caso
+      // legítimo, `--party-pl` no claro, limitado pelo gamut do azul).
+      for (const slug of slugs) {
+        if (slug === "outros") continue; // acromático por construção: C* = 0.
+        const c4 = chroma(T.get(`${slug}-4`) as string);
+        const c5 = chroma(T.get(`${slug}-5`) as string);
         expect(
-          (Ls[i - 1] as number) - (Ls[i] as number),
-          `--party-${slug}: níveis ${i} e ${i + 1} a menos de 5 unidades de L*`,
-        ).toBeGreaterThan(5);
+          c5 / c4,
+          `tema ${theme.id}: --party-${slug}-5 (${T.get(`${slug}-5`)}) tem C* ${c5.toFixed(1)} ` +
+            `contra C* ${c4.toFixed(1)} do nível 4 — o "decisivo" perdeu a cor do partido e lê\n` +
+            "como cinza. A matiz do hex base está cercada pelos hexes oficiais do partido:\n" +
+            "gire-a em PARTY_BASE (`pnpm gen:party-scale --suggest` procura a rotação mínima).",
+        ).toBeGreaterThanOrEqual(0.6);
       }
-    }
-  });
+    });
 
-  it("o nível 5 conserva pelo menos 60% do croma do nível 4", () => {
-    // O nível 5 é o "decisivo": a cor mais carregada da escala. O kit recua o
-    // croma de propósito (C* 53 sobre 66 = 0,80), o que mantém o nível 5
-    // reconhecível como a cor do partido, só mais densa.
-    //
-    // O empurrão de ΔE76 destruía isso em silêncio: quando um hex oficial
-    // escuro fica no caminho, escapar reduzindo o croma é a saída mais barata
-    // no custo do solver. `--party-pp` saía com C* 15,0 contra C* 43,8 do nível
-    // 4 — razão 0,34, um cinza-ardósia onde deveria estar o azul mais forte do
-    // PP — e nada reclamava. Corrigido em 2026-09-08 girando a matiz do hex
-    // base (#2c6fb0 → #0f60b3, 272,3° → 280,9°), que abre o corredor entre os
-    // três hexes oficiais do partido.
-    //
-    // O piso de 0,60 fica no vão entre 0,34 (o defeito) e 0,71 (o pior caso
-    // legítimo, `--party-pl`, limitado pelo gamut do azul).
-    for (const slug of PARTY_SLUGS) {
-      if (slug === "outros") continue; // acromático por construção: C* = 0.
-      const c4 = chroma(TOKENS.get(`${slug}-4`) as string);
-      const c5 = chroma(TOKENS.get(`${slug}-5`) as string);
-      expect(
-        c5 / c4,
-        `--party-${slug}-5 (${TOKENS.get(`${slug}-5`)}) tem C* ${c5.toFixed(1)} contra ` +
-          `C* ${c4.toFixed(1)} do nível 4 — o "decisivo" perdeu a cor do partido e lê como\n` +
-          "cinza. A matiz do hex base está cercada pelos hexes oficiais do partido: gire-a em\n" +
-          "PARTY_BASE (`pnpm gen:party-scale --suggest` procura a rotação mínima).",
-      ).toBeGreaterThanOrEqual(0.6);
-    }
-  });
-
-  it("o croma sobe até o nível 4 (com as exceções que o ΔE76 impõe)", () => {
-    // Formato do kit: C* cresce do nível 1 ao 4 e recua no 5. Onde o empurrão
-    // de ΔE76 desfaz isso, é porque a matiz do partido está cercada pela
-    // paleta oficial dele — caso declarado, não regressão silenciosa.
-    const EXCECOES = new Set([
-      "dc", // C* 47,0 → 41,9 no nível 4: empurrado de #0666BE (logo do DC)
-      "republicanos", // 48,0 → 36,5: empurrado de #005DAA (--primary-color do site)
-    ]);
-    const invertidos: string[] = [];
-    for (const slug of PARTY_SLUGS) {
-      if (slug === "outros") continue; // acromático por construção
-      const Cs = [1, 2, 3, 4].map((n) => chroma(TOKENS.get(`${slug}-${n}`) as string));
-      for (let i = 1; i < Cs.length; i++) {
-        // 0,6 absorve o ruído do arredondamento 8-bit.
-        if ((Cs[i] as number) < (Cs[i - 1] as number) - 0.6) invertidos.push(slug);
+    it("o croma sobe até o nível 4 (com as exceções que o ΔE76 impõe)", () => {
+      // Formato do kit: C* cresce do nível 1 ao 4 e recua no 5. Onde o empurrão
+      // de ΔE76 desfaz isso, é porque a matiz do partido está cercada pela
+      // paleta oficial dele — caso declarado, não regressão silenciosa.
+      const invertidos: string[] = [];
+      for (const slug of slugs) {
+        if (slug === "outros") continue; // acromático por construção
+        const Cs = [1, 2, 3, 4].map((n) => chroma(T.get(`${slug}-${n}`) as string));
+        for (let i = 1; i < Cs.length; i++) {
+          // 0,6 absorve o ruído do arredondamento 8-bit.
+          if ((Cs[i] as number) < (Cs[i - 1] as number) - 0.6) invertidos.push(slug);
+        }
       }
-    }
-    expect([...new Set(invertidos)].sort()).toEqual([...EXCECOES].sort());
+      expect([...new Set(invertidos)].sort(), `tema ${theme.id}`).toEqual(
+        [...theme.excecoesCroma].sort(),
+      );
+    });
   });
-});
+}

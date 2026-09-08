@@ -330,6 +330,191 @@ main[data-trilha="gov"] {
 }
 
 /* ============================================================================
+ * TEMA ESCURO — ADR-0025 § 5, Bloco 2
+ *
+ * O seletor é `:root[data-theme="dark"]`, não `@theme`: `@theme` é diretiva de
+ * build do Tailwind v4 e não aceita ser aninhada em seletor. Como o
+ * `@theme static` acima emite tudo em `:root`, um bloco `:root[data-theme]`
+ * ganha por especificidade e por ordem — as utilitárias geradas continuam
+ * apontando para as MESMAS variáveis, então trocar o valor aqui repinta o app
+ * inteiro sem gerar uma segunda cópia de nenhuma classe.
+ *
+ * O que isto redefine, e por quê:
+ *
+ *   1. **Primitivos** (`--paper-*`, `--ink-*`, `--rule*`) nos hexes do kit
+ *      (`docs/design-system/atlas-menna/tokens/colors.css:88-120`). Como todos
+ *      os semânticos (`--surface-*`, `--text-*`, `--border-*`, e os alias
+ *      `--color-*`) resolvem a partir deles por `var()`, trocar os 10
+ *      primitivos já move ~40 tokens derivados de graça — foi exatamente para
+ *      isso que a estrutura foi desenhada no Bloco 1.
+ *
+ *   2. **Todo token que é hex LITERAL** no bloco claro. Esses não derivam de
+ *      nada e ficariam presos na cor clara: accent, status, mapa, sombras, a
+ *      paleta legada por rank (ADR-0013) e as bandas. Cada linha traz o
+ *      contraste medido (WCAG 2.1) contra os fundos escuros reais —
+ *      `--paper-1` #14171b (página), `--paper-0` #1c1f24 (card) e `--paper-2`
+ *      #262a31 (afundado) — e o piso aplicado: 4,5:1 onde o token carrega
+ *      TEXTO (constituição § 4) e 3:1 onde é objeto gráfico (WCAG 1.4.11:
+ *      contorno de mapa, ponto, preenchimento de barra).
+ *
+ *   3. **A identidade de trilha** (ADR-0019). #17365c dá 1,35:1 sobre o card
+ *      escuro — some. O par escuro mantém a semântica (azul = presidencial,
+ *      verde = governadores) com a luminância invertida.
+ *
+ * Divergências de nome em relação ao bloco `[data-theme="dark"]` do kit — o
+ * kit não conhece estes quatro, que nasceram aqui por exigência de contraste:
+ *   `--accent-text`, `--text-faint`/`--color-text-faint`,
+ *   `--color-success-strong`/`--color-warning-strong` e `--trilha-accent*`.
+ * E um valor deliberadamente diferente: o kit aponta `--text-muted` para
+ * `--ink-3`; aqui ele segue apontando para `--ink-2` (6,34:1 no escuro contra
+ * 3,60:1 do `--ink-3`), a mesma escolha já feita no tema claro.
+ *
+ * A paleta por partido tem bloco próprio, gerado: ver `app/tokens-party.css`.
+ * ========================================================================= */
+:root[data-theme="dark"] {
+  /* Primitivos do kit. Medidos sobre --paper-1 #14171b:
+   *   ink-0 #eceef1 15.47:1 · ink-1 #d3d7dc 12.43:1 · ink-2 #9aa1ab 6.90:1
+   *   ink-3 #6e7681 3.91:1 (decorativo, como no claro — não carrega texto) */
+  --paper-0: #1c1f24;
+  --paper-1: #14171b;
+  --paper-2: #262a31;
+  --paper-3: #30353d;
+  --ink-0: #eceef1;
+  --ink-1: #d3d7dc;
+  --ink-2: #9aa1ab;
+  --ink-3: #6e7681;
+  --rule: #363b44;
+  --rule-strong: #eceef1;
+
+  /* Accent ocre, clareado. `--accent` (#e0a33f) sobe para 7,46:1 no card e
+   * passa a servir também como texto — mas `--accent-text` continua existindo
+   * (o kit não tem esse token) para que os ~30 usos de `var(--accent-text)`
+   * não precisem saber em que tema estão: #e8b45c dá 8,75:1 no card.
+   * `--accent-soft` e `--accent-ink` TROCAM de papel — o soft vira o marrom
+   * escuro e a tinta vira o creme (10,85:1 entre eles). */
+  --accent: #e0a33f;
+  --accent-strong: #c98a2b;
+  --accent-text: #e8b45c;
+  --accent-soft: #3a2e17;
+  --accent-ink: #f4e7cf;
+
+  /* Status. Os hexes claros reprovam no escuro (final 3,28:1, warn 2,98:1 no
+   * card); os escuros dão 8,03:1 e 6,43:1. */
+  --status-live: #e0a33f;
+  --status-final: #5fc98a;
+  --status-warn: #f0836c;
+
+  /* Mapa — hex literal, lido pelo MapLibre por getComputedStyle. O traço
+   * inverte: no escuro quem separa dois polígonos é o próprio fundo. */
+  --map-stroke: #14171b;
+  --map-stroke-focus: #eceef1;
+  --map-uncounted: #2b3037;
+
+  /* Sombra sobre fundo escuro só existe se for preta de verdade. */
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-sheet: 0 -6px 20px rgba(0, 0, 0, 0.5);
+
+  /* Alias legados que são hex literal (os que usam var() já vieram junto com
+   * os primitivos). Pisos: 4,5:1 para os que carregam texto. */
+  --color-text-faint: #868e99; /* 4.99:1 no card (era 3.02:1) */
+  --color-success: #5fc98a;
+  --color-warning: #f0836c;
+  --color-error: #f0836c;
+  --color-live: #e0a33f;
+  --color-success-strong: #86dda8; /* 10.17:1 no card */
+  --color-warning-strong: #ffa896; /* 8.89:1 no card */
+
+  /* ---------------------------------------------------------------------
+   * Legado de cor por rank (ADR-0013, superseded pelo ADR-0024). Continua
+   * sendo o fallback de payload sem `partido`, então precisa existir no
+   * escuro também — senão o mapa cai para cores de 1,7:1 em silêncio.
+   * `-strong` carrega texto (piso 4,5:1); os demais são objeto gráfico (3:1).
+   * ------------------------------------------------------------------- */
+  --color-cand-1: #d43833; /* 3.03:1 */
+  --color-cand-2: #4f6ada; /* 3.02:1 */
+  --color-cand-3: #c97c1f; /* 4.38:1 — já passava, mantido */
+  --color-cand-4: #4a8b3e; /* 3.47:1 — já passava, mantido */
+  --color-cand-5: #945fa3; /* 3.04:1 */
+  --color-cand-6: #7a7165; /* 3.00:1 */
+  --color-cand-other: #737373; /* 3.04:1 */
+  --color-cand-1-strong: #ef6351; /* 4.51:1 */
+  --color-cand-2-strong: #7f89e4; /* 4.53:1 */
+  --color-cand-3-strong: #c58138; /* 4.51:1 */
+  --color-cand-4-strong: #6e9c5f; /* 4.52:1 */
+  --color-cand-5-strong: #ab81b9; /* 4.51:1 */
+  --color-cand-6-strong: #969086; /* 4.55:1 */
+
+  /* Bandas: no claro são tintas pálidas sobre papel claro; no escuro precisam
+   * ser tintas ESCURAS, porque o texto que cai em cima delas é `--ink-0`.
+   * Todas medidas ≥ 9,8:1 contra #eceef1. Matiz preservada. */
+  --color-cand-band-1: #642328;
+  --color-cand-band-2: #073b66;
+  --color-cand-band-3: #4d3500;
+  --color-cand-band-4: #12420e;
+  --color-cand-band-5: #4c2d59;
+  --color-cand-band-6: #3f3922;
+  --color-cand-band-other: #393939;
+  --color-pt: #d43833;
+  --color-pl: #4f6ada;
+  --color-tossup: #393939;
+  /* Seguem TROCADOS entre si, como no claro — defeito conhecido preservado
+   * porque /sobre-o-modelo os usa como swatch de intensidade. */
+  --color-pt-band: #073b66;
+  --color-pl-band: #642328;
+
+  /* Participação — neutras por construção (constituição § 2). */
+  --color-part-brancos-nulos: #909090; /* 4.51:1 */
+  --color-part-brancos-nulos-band: #393939;
+  --color-part-abstencao: #6c9995; /* 4.55:1 */
+  --color-part-abstencao-band: #1c3f3c;
+
+  /* Bandas da agulha (`NeedleBand`): a escala INVERTE. No claro, "mais certo"
+   * é mais escuro porque o papel é claro; no escuro é o contrário. */
+  --color-band-tossup: #2f333a;
+  --color-band-lean: #3d434c;
+  --color-band-likely: #59616d;
+  --color-band-very_likely: #818b99;
+}
+
+/* Semânticos que vivem fora do `@theme` (ver o bloco `:root` acima) e são hex
+ * literal — os que usam `var()` já acompanham os primitivos. */
+:root[data-theme="dark"] {
+  --text-faint: #868e99;
+  /* `--surface-inverse` vira `--ink-0` (quase branco), então a tinta que cai
+   * em cima dele precisa ser escura — 15,47:1. */
+  --text-inverse: #14171b;
+}
+
+/* Identidade de trilha no escuro (ADR-0019). Os hexes claros somem: #17365c dá
+ * 1,35:1 sobre o card escuro e #1c4d3a dá 1,71:1. Mesma semântica, luminância
+ * invertida — 7,63:1 e 8,50:1 sobre o card. */
+:root[data-theme="dark"] main[data-trilha="pres"] {
+  --trilha-accent: #8fb3e0;
+  --trilha-accent-soft: #1e2a3a;
+}
+
+:root[data-theme="dark"] main[data-trilha="gov"] {
+  --trilha-accent: #7fc9a6;
+  --trilha-accent-soft: #16302a;
+}
+
+/* Diz ao navegador em que tema a página está — form controls nativos, barras de
+ * rolagem e o fundo do canvas acompanham.
+ *
+ * O default é `light`, não `light dark`: os tokens acima só viram escuros com
+ * `data-theme="dark"` no `<html>`, e `light dark` faria o navegador pintar
+ * cromo escuro por cima de uma paleta clara em quem tem o SO no escuro e o
+ * JavaScript desligado. Quem tem JS recebe `data-theme` do script anti-flash
+ * (`app/layout.tsx`) antes do primeiro paint, e aí as duas coisas concordam. */
+:root {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* ============================================================================
  * Base — papel/tinta, números tabulares, links com sublinhado ocre.
  * ========================================================================= */
 * {

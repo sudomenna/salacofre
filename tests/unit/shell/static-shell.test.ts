@@ -46,6 +46,7 @@ const SHELL_FILES = [
   "components/layout/ShellLiveBadge.tsx",
   "components/layout/TurnoSwitch.tsx",
   "components/atoms/controls/ViewModeSwitch.tsx",
+  "components/atoms/controls/ThemeToggle.tsx",
 ] as const;
 
 /**
@@ -156,8 +157,48 @@ describe("shell estático (ADR-0029 § 2 — restrição dura)", () => {
     expect(read("app/page.tsx")).toContain("--live-pct-label");
   });
 
-  it("(e) só UM componente do shell é Client Component — o custo em JS é ele", () => {
+  it("(e) só DOIS componentes do shell são Client Component — o custo em JS é eles", () => {
+    // `<ViewModeSwitch>` (ADR-0029 § 2) e `<ThemeToggle>` (ADR-0025 § 5). Os
+    // dois têm a mesma forma: escrevem um atributo no `<html>` e deixam a
+    // cascata do `app/globals.css` resolver o resto, sem obrigar nenhum
+    // componente de dado — nem o `<TopBar>`, que os hospeda — a virar client.
+    // Qualquer terceiro nome aqui é um custo novo em JS acima da dobra em TODAS
+    // as rotas, contra o teto de 150 KiB do RNF-007a: exige justificativa.
     const client = SHELL_FILES.filter((rel) => /^\s*["']use client["']/m.test(read(rel)));
-    expect(client).toEqual(["components/atoms/controls/ViewModeSwitch.tsx"]);
+    expect(client.slice().sort()).toEqual([
+      "components/atoms/controls/ThemeToggle.tsx",
+      "components/atoms/controls/ViewModeSwitch.tsx",
+    ]);
+  });
+
+  it("(f) o tema é aplicado antes do primeiro paint, e persiste em localStorage", () => {
+    // ADR-0025 § 5, as duas metades:
+    //   - localStorage e NUNCA cookie (cookie => `cookies()` no layout => as 54
+    //     páginas de UF deixam de ser pré-renderizadas);
+    //   - script inline e síncrono no `<body>`, senão a página pisca clara
+    //     antes de escurecer.
+    const contrato = read("lib/state/theme.ts");
+    expect(contrato).toContain("localStorage.getItem");
+    expect(contrato).toContain("prefers-color-scheme: dark");
+    expect(contrato, "o script anti-flash não pode virar módulo carregado").not.toMatch(
+      /\bdocument\.cookie\b/,
+    );
+
+    const store = read("lib/state/theme-client.ts");
+    expect(store).toContain("localStorage.setItem");
+    expect(store, "a preferência de tema não pode ir para cookie").not.toMatch(
+      /\bdocument\.cookie\b/,
+    );
+
+    const layout = read("app/layout.tsx");
+    // Inline: `dangerouslySetInnerHTML` com a constante, sem `src`, sem
+    // `defer`/`async` — as três coisas que fariam o script rodar tarde demais.
+    expect(layout).toContain("dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}");
+    expect(layout).toMatch(/<script dangerouslySetInnerHTML/);
+    // O `<html>` não pode renderizar `data-theme`: o servidor não conhece a
+    // preferência, e um valor ali só para o script sobrescrever é divergência
+    // de hidratação de verdade.
+    expect(stripComments(layout)).not.toMatch(/data-theme=/);
+    expect(layout).toContain("suppressHydrationWarning");
   });
 });

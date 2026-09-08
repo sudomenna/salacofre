@@ -111,18 +111,36 @@ function parseTokens(css: string): Map<string, string> {
   return map;
 }
 
-const TOKENS = parseTokens(TOKENS_CSS);
+/**
+ * O CSS tem **dois** blocos de token desde o dark mode (ADR-0025 § 5): o claro
+ * em `@theme static { … }` e o escuro em `:root[data-theme="dark"] { … }`. Os
+ * dois declaram os MESMOS nomes, de propósito — é assim que a cascata troca a
+ * paleta inteira. Um parser que varra o arquivo todo, porém, guarda só o
+ * último valor visto: mediria o tema escuro e chamaria de claro. Fatiar por
+ * bloco é o que mantém cada gate medindo o que diz medir, e é o que faz o
+ * ADR-0031 valer nos DOIS temas em vez de num só.
+ */
+function blockOf(css: string, opener: string): string {
+  const start = css.indexOf(opener);
+  if (start === -1) throw new Error(`bloco não encontrado em tokens-party.css: ${opener}`);
+  let depth = 0;
+  for (let i = css.indexOf("{", start); i < css.length; i++) {
+    if (css[i] === "{") depth++;
+    if (css[i] === "}") {
+      depth--;
+      if (depth === 0) return css.slice(start, i + 1);
+    }
+  }
+  throw new Error(`bloco não fechado em tokens-party.css: ${opener}`);
+}
+
+const THEMES = [
+  { id: "claro", tokens: parseTokens(blockOf(TOKENS_CSS, "@theme static {")) },
+  { id: "escuro", tokens: parseTokens(blockOf(TOKENS_CSS, ':root[data-theme="dark"] {')) },
+] as const;
 
 /** Estados de corrida: não são partido, logo não entram na comparação. */
 const STATE_TOKENS = new Set(["tie", "none"]);
-
-const PARTY_SLUGS = [
-  ...new Set(
-    [...TOKENS.keys()]
-      .map((n) => n.replace(/-(?:[1-5]|chip|ink|text)$/, ""))
-      .filter((s) => !STATE_TOKENS.has(s)),
-  ),
-].sort();
 
 /**
  * Os três papéis que **identificam** um partido e aparecem sem rótulo que os
@@ -139,10 +157,6 @@ function tokenName(slug: string, role: Role): string {
   return role === "base" ? `--party-${slug}` : `--party-${slug}-${role}`;
 }
 
-function roleHex(slug: string, role: Role): string {
-  return TOKENS.get(role === "base" ? slug : `${slug}-${role}`) as string;
-}
-
 interface Pair {
   role: Role;
   a: string;
@@ -150,108 +164,133 @@ interface Pair {
   deltaE: number;
 }
 
-const PAIRS: Pair[] = (() => {
-  const out: Pair[] = [];
-  for (let i = 0; i < PARTY_SLUGS.length; i++) {
-    for (let j = i + 1; j < PARTY_SLUGS.length; j++) {
-      const a = PARTY_SLUGS[i] as string;
-      const b = PARTY_SLUGS[j] as string;
-      for (const role of ROLES) {
-        out.push({ role, a, b, deltaE: deltaE76(roleHex(a, role), roleHex(b, role)) });
+for (const theme of THEMES) {
+  const TOKENS = theme.tokens;
+
+  const PARTY_SLUGS = [
+    ...new Set(
+      [...TOKENS.keys()]
+        .map((n) => n.replace(/-(?:[1-5]|chip|ink|text)$/, ""))
+        .filter((s) => !STATE_TOKENS.has(s)),
+    ),
+  ].sort();
+
+  const roleHex = (slug: string, role: Role): string =>
+    TOKENS.get(role === "base" ? slug : `${slug}-${role}`) as string;
+
+  const PAIRS: Pair[] = (() => {
+    const out: Pair[] = [];
+    for (let i = 0; i < PARTY_SLUGS.length; i++) {
+      for (let j = i + 1; j < PARTY_SLUGS.length; j++) {
+        const a = PARTY_SLUGS[i] as string;
+        const b = PARTY_SLUGS[j] as string;
+        for (const role of ROLES) {
+          out.push({ role, a, b, deltaE: deltaE76(roleHex(a, role), roleHex(b, role)) });
+        }
       }
     }
-  }
-  return out.sort((x, y) => x.deltaE - y.deltaE);
-})();
+    return out.sort((x, y) => x.deltaE - y.deltaE);
+  })();
 
-// ---------------------------------------------------------------------------
-// Sanidade
-// ---------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // Sanidade
+  // -------------------------------------------------------------------------
 
-describe("app/tokens-party.css — cobertura da comparação", () => {
-  it("compara os 31 partidos em três papéis: 465 pares × 3 = 1395 medições", () => {
-    expect(PARTY_SLUGS.length).toBe(31);
-    expect(PAIRS.length).toBe(((31 * 30) / 2) * 3);
-  });
+  describe(`[tema ${theme.id}] app/tokens-party.css — cobertura da comparação`, () => {
+    it("compara os 31 partidos em três papéis: 465 pares × 3 = 1395 medições", () => {
+      expect(PARTY_SLUGS.length).toBe(31);
+      expect(PAIRS.length).toBe(((31 * 30) / 2) * 3);
+    });
 
-  it("todo papel comparado existe no CSS de todo partido", () => {
-    for (const slug of PARTY_SLUGS) {
-      for (const role of ROLES) {
-        expect(roleHex(slug, role), `${tokenName(slug, role)} ausente`).toMatch(/^#[0-9a-f]{6}$/);
+    it("todo papel comparado existe no CSS de todo partido", () => {
+      for (const slug of PARTY_SLUGS) {
+        for (const role of ROLES) {
+          expect(roleHex(slug, role), `${tokenName(slug, role)} ausente`).toMatch(/^#[0-9a-f]{6}$/);
+        }
       }
-    }
+    });
   });
 
-  it("o piso do gerador é o piso deste contrato", () => {
+  // -------------------------------------------------------------------------
+  // O gate
+  // -------------------------------------------------------------------------
+
+  describe(`[tema ${theme.id}] constituição § 2 — dois partidos nunca têm a mesma cor`, () => {
+    it.each(
+      ROLES,
+    )("papel %s: todo par de partidos fica a ΔE76 ≥ 12 (a paleta diz QUAL partido)", (role) => {
+      for (const p of PAIRS.filter((x) => x.role === role)) {
+        expect(
+          p.deltaE,
+          `${separationFailureMessage(
+            { token: tokenName(p.a, role), hex: roleHex(p.a, role), nome: p.a.toUpperCase() },
+            { token: tokenName(p.b, role), hex: roleHex(p.b, role), nome: p.b.toUpperCase() },
+            p.deltaE,
+            SEPARATION_FLOOR,
+          )}\n\n` +
+            `Tema ${theme.id}. Dois partidos com a mesma cor não respondem a pergunta que a\n` +
+            "paleta existe para responder. No tema claro, rode\n" +
+            "`pnpm gen:party-scale --suggest`: ele calcula o conjunto MÍNIMO de hexes a mudar\n" +
+            "em PARTY_BASE. No escuro, a base é derivada — ajuste DARK_BASE_L_LO /\n" +
+            "DARK_BASE_L_HI / DARK_BASE_CHROMA_GAIN. Não relaxe o piso.",
+        ).toBeGreaterThanOrEqual(SEPARATION_FLOOR);
+      }
+    });
+
+    it("nenhum papel esconde uma colisão que os outros não mostram", () => {
+      // O caso real que motivou medir os três papéis e não só a base: PSB e
+      // PSOL passavam como base e colidiam como texto, porque escurecer para
+      // alcançar 4,5:1 comprime distâncias. No escuro o mesmo vale ao clarear:
+      // DC × Republicanos e PP × União passam como base e colidiriam como
+      // texto se a busca não exigisse separação. Este teste é a versão
+      // genérica disso.
+      const worstByRole = Object.fromEntries(
+        ROLES.map((r) => [r, PAIRS.find((p) => p.role === r)?.deltaE ?? 0]),
+      );
+      for (const [role, worst] of Object.entries(worstByRole)) {
+        expect(worst, `tema ${theme.id}, pior par no papel ${role}`).toBeGreaterThanOrEqual(
+          SEPARATION_FLOOR,
+        );
+      }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Por que os níveis 1..5 NÃO entram no gate
+  // -------------------------------------------------------------------------
+
+  describe(`[tema ${theme.id}] os níveis de margem ficam fora do gate — e não por esquecimento`, () => {
+    it("é aritmeticamente impossível separar 31 partidos no nível 1", () => {
+      // Os cinco níveis são alvos absolutos de L*/C* iguais para todos os
+      // partidos: o nível 1 de todo mundo mora no mesmo círculo (L* 90 / C* 10
+      // no claro, L* 16 / C* 14 no escuro). Trinta e um pontos num círculo de
+      // raio ~10 ficam, no melhor arranjo possível, a 2·10·sen(180°/31) ≈ 2,02
+      // um do outro. Exigir 12 ali seria exigir o impossível — e é
+      // desnecessário: o nível comunica MARGEM; quem responde "qual partido" é
+      // a base, o chip e a tinta, que o gate acima cobre.
+      const bestPossible = 2 * 10 * Math.sin(Math.PI / PARTY_SLUGS.length);
+      expect(bestPossible).toBeLessThan(SEPARATION_FLOOR);
+
+      const level1 = PARTY_SLUGS.map((s) => TOKENS.get(`${s}-1`) as string);
+      let closest = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < level1.length; i++) {
+        for (let j = i + 1; j < level1.length; j++) {
+          closest = Math.min(closest, deltaE76(level1[i] as string, level1[j] as string));
+        }
+      }
+      expect(closest).toBeLessThan(SEPARATION_FLOOR);
+    });
+  });
+}
+
+describe("app/tokens-party.css — o piso do gerador é o piso deste contrato", () => {
+  it("PARTY_SEPARATION_FLOOR e SEPARATION_FLOOR não divergem", () => {
     expect(
       PARTY_SEPARATION_FLOOR,
       "PARTY_SEPARATION_FLOOR mudou em scripts/gen-party-scale.ts. Se a mudança é\n" +
         "deliberada, atualize SEPARATION_FLOOR aqui E a seção de paleta em\n" +
         "docs/design-system/tokens.md, com a tabela de custo por piso refeita.",
     ).toBe(SEPARATION_FLOOR);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// O gate
-// ---------------------------------------------------------------------------
-
-describe("constituição § 2 — dois partidos nunca têm a mesma cor", () => {
-  it.each(
-    ROLES,
-  )("papel %s: todo par de partidos fica a ΔE76 ≥ 12 (a paleta diz QUAL partido)", (role) => {
-    for (const p of PAIRS.filter((x) => x.role === role)) {
-      expect(
-        p.deltaE,
-        `${separationFailureMessage(
-          { token: tokenName(p.a, role), hex: roleHex(p.a, role), nome: p.a.toUpperCase() },
-          { token: tokenName(p.b, role), hex: roleHex(p.b, role), nome: p.b.toUpperCase() },
-          p.deltaE,
-          SEPARATION_FLOOR,
-        )}\n\n` +
-          "Dois partidos com a mesma cor não respondem a pergunta que a paleta existe para\n" +
-          "responder. Rode `pnpm gen:party-scale --suggest`: ele calcula o conjunto MÍNIMO\n" +
-          "de hexes a mudar em PARTY_BASE e imprime as linhas prontas. Não relaxe o piso.",
-      ).toBeGreaterThanOrEqual(SEPARATION_FLOOR);
-    }
-  });
-
-  it("nenhum papel esconde uma colisão que os outros não mostram", () => {
-    // O caso real que motivou medir os três papéis e não só a base: PSB e PSOL
-    // passavam como base e colidiam como texto, porque escurecer para alcançar
-    // 4,5:1 comprime distâncias. Este teste é a versão genérica disso.
-    const worstByRole = Object.fromEntries(
-      ROLES.map((r) => [r, PAIRS.find((p) => p.role === r)?.deltaE ?? 0]),
-    );
-    for (const [role, worst] of Object.entries(worstByRole)) {
-      expect(worst, `pior par no papel ${role}`).toBeGreaterThanOrEqual(SEPARATION_FLOOR);
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Por que os níveis 1..5 NÃO entram no gate
-// ---------------------------------------------------------------------------
-
-describe("os níveis de margem ficam fora do gate — e não por esquecimento", () => {
-  it("é aritmeticamente impossível separar 31 partidos no nível 1", () => {
-    // Os cinco níveis são alvos absolutos de L*/C* iguais para todos os
-    // partidos: o nível 1 de todo mundo mora no círculo L* 90 / C* 10. Trinta e
-    // um pontos nesse círculo ficam, no melhor arranjo possível, a
-    // 2·10·sen(180°/31) ≈ 2,02 um do outro. Exigir 12 ali seria exigir o
-    // impossível — e é desnecessário: o nível comunica MARGEM; quem responde
-    // "qual partido" é a base, o chip e a tinta, que o gate acima cobre.
-    const bestPossible = 2 * 10 * Math.sin(Math.PI / PARTY_SLUGS.length);
-    expect(bestPossible).toBeLessThan(SEPARATION_FLOOR);
-
-    const level1 = PARTY_SLUGS.map((s) => TOKENS.get(`${s}-1`) as string);
-    let closest = Number.POSITIVE_INFINITY;
-    for (let i = 0; i < level1.length; i++) {
-      for (let j = i + 1; j < level1.length; j++) {
-        closest = Math.min(closest, deltaE76(level1[i] as string, level1[j] as string));
-      }
-    }
-    expect(closest).toBeLessThan(SEPARATION_FLOOR);
   });
 });
 
