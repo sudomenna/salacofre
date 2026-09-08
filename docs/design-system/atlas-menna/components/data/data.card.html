@@ -1,0 +1,21 @@
+<!-- @dsCard group="Components" viewport="700x420" name="Data" subtitle="PartyTag, VoteBar, Figure, CandidateRow, ProbabilityMeter, LiveBadge, MapLegend" -->
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+<script src="../../ds-loader.js"></script>
+<style>body{padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:20px 28px;align-content:start}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}</style></head>
+<body><div id="root" style="display:contents"></div>
+<script>
+loadDS(['./PartyTag.jsx','./VoteBar.jsx','./Figure.jsx','./CandidateRow.jsx','./ProbabilityMeter.jsx','./LiveBadge.jsx','./MapLegend.jsx']).then(ns => {
+  const {PartyTag,VoteBar,Figure,CandidateRow,ProbabilityMeter,LiveBadge,MapLegend} = ns; const h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment,null,
+    h('div',{className:'row'}, ...['PT','PL','PSD','NOVO','AVANTE','MISSÃO','PSOL','REPUBLICANOS'].map(s=>h(PartyTag,{key:s,sigla:s})), h(PartyTag,{sigla:'PT',filled:true}), h(PartyTag,{sigla:'PL',filled:true})),
+    h('div',{className:'row'}, h(LiveBadge,{status:'live'},'Ao vivo · 62% apurado'), h(LiveBadge,{status:'final'})),
+    h(VoteBar,{segments:[{label:'Lula',party:'PT',pct:41.2},{label:'Outros',pct:22,color:'var(--party-outros)'},{label:'Flávio',party:'PL',pct:36.8}]}),
+    h('div',{className:'row',style:{gap:28}}, h(Figure,{label:'Apurado',value:'62,4',unit:'%',trend:1.2}), h(Figure,{label:'Projeção',value:'42,1',unit:'%',tone:'accent',size:'md'}), h(Figure,{label:'Margem',value:'+4,4',unit:'pp',tone:'pt',size:'md'})),
+    h('div',null, h(CandidateRow,{rank:1,name:'Lula',party:'PT',pct:41.2,votes:38204411,projPct:42.1,delta:0.9}), h(CandidateRow,{rank:2,name:'Flávio Bolsonaro',party:'PL',pct:36.8,votes:34110870,projPct:36.2,delta:-0.6}), h(CandidateRow,{rank:7,name:'Samara',party:'UP',pct:0.4,compact:true,showProj:false})),
+    h('div',{style:{display:'grid',gap:16}}, h(ProbabilityMeter,{label:'Chance de 2º turno',pct:71,note:'Com 62% apurado'}), h(ProbabilityMeter,{label:'Lula vence no 1º turno',pct:29,tone:'pt'}), h(MapLegend,{left:'Lula',right:'Flávio'}))
+  ));
+});
+</script></body></html>

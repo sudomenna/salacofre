@@ -1,0 +1,2 @@
+export interface TopBarProps { brand?: string; subtitle?: string; left?: React.ReactNode; right?: React.ReactNode; children?: React.ReactNode; style?: React.CSSProperties }
+export function TopBar(props: TopBarProps): JSX.Element;

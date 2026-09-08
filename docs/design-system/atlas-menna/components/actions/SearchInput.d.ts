@@ -1,0 +1,2 @@
+export interface SearchInputProps { value: string; onChange: (v: string) => void; placeholder?: string; autoFocus?: boolean; onClear?: () => void; style?: React.CSSProperties }
+export function SearchInput(props: SearchInputProps): JSX.Element;

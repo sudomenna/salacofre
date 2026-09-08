@@ -1,0 +1,2 @@
+export interface FigureProps { label: string; value: string | number; unit?: string; trend?: number; note?: string; size?: "lg" | "md" | "sm"; align?: "left" | "center" | "right"; tone?: "default" | "accent" | "pt" | "pl"; style?: React.CSSProperties }
+export function Figure(props: FigureProps): JSX.Element;

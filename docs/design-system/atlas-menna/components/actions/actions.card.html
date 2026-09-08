@@ -1,0 +1,23 @@
+<!-- @dsCard group="Components" viewport="700x300" name="Actions" subtitle="Button, SegmentedControl, ThemeToggle, SearchInput" -->
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+<script src="../../ds-loader.js"></script>
+<style>body{padding:16px;display:grid;gap:14px}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}</style></head>
+<body><div id="root"></div>
+<script>
+loadDS(['./Button.jsx','./SegmentedControl.jsx','./ThemeToggle.jsx','./SearchInput.jsx']).then(({Button,SegmentedControl,ThemeToggle,SearchInput}) => {
+  const h = React.createElement;
+  function Demo(){
+    const [v,setV]=React.useState('parcial'); const [q,setQ]=React.useState(''); const [t,setT]=React.useState('light');
+    React.useEffect(()=>{document.documentElement.dataset.theme=t},[t]);
+    return h(React.Fragment,null,
+      h('div',{className:'row'}, h(Button,{variant:'primary'},'Ver município'), h(Button,{variant:'secondary'},'Comparar'), h(Button,{variant:'ghost'},'Metodologia'), h(Button,{variant:'accent'},'Projeção'), h(Button,{variant:'primary',disabled:true},'Aguardando'), h(Button,{variant:'secondary',size:'sm'},'Pequeno')),
+      h('div',{className:'row'}, h('div',{style:{width:320}}, h(SegmentedControl,{value:v,onChange:setV,options:[{value:'parcial',label:'Parcial'},{value:'proj',label:'Projeção'},{value:'ambos',label:'Ambos'}]})), h(SegmentedControl,{size:'sm',full:false,value:'1',onChange:()=>{},options:[{value:'1',label:'1º turno'},{value:'2',label:'2º turno'}]}), h(ThemeToggle,{theme:t,onChange:setT})),
+      h('div',{className:'row'}, h('div',{style:{width:360}}, h(SearchInput,{value:q,onChange:setQ,placeholder:'Nome, partido ou número'})))
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+});
+</script></body></html>

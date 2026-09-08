@@ -11,90 +11,74 @@ Copie **tudo** dentro do bloco abaixo como a primeira mensagem.
 ---
 
 ```
-Continuando o SalaCofre. Leia primeiro, em ordem:
+Continuando o SalaCofre. Leia primeiro, nesta ordem:
 
-1. docs/_meta/handoff-2026-09-07.md   (estado atual — comece por aqui)
-2. docs/_meta/plano-modelo-regra-de-tres-2026-09-05.md  (plano do modelo; Fases 0–5
-   feitas, sobram 3 itens que o handoff lista)
-3. docs/sprints/2026-S07-f6-simulado-hero-1t.md  (sprint ativa)
+1. docs/_meta/handoff-2026-09-07-redesign.md   (estado atual — comece por aqui)
+2. docs/architecture/adrs/0025-design-system-atlas-menna-restyle-in-place.md
+3. docs/architecture/adrs/0024-paleta-editorial-por-partido.md   (status: proposed — leia a
+   seção "Proposta de emenda ao § 2" e me peça aprovação ANTES de escrever código de cor)
+4. docs/architecture/adrs/0026-cargos-senador-deputado-ingestao-e-read-path.md
+5. docs/design-system/atlas-menna/readme.md   (o kit de design; tokens em tokens/*.css)
+6. docs/sprints/2026-S07-f6-simulado-hero-1t.md   (sprint ativa)
 
-Estamos na branch s07/simulado-ready-hero-1t. Os 12 commits antigos estão em origin,
-mas TODO o trabalho das Fases 3b e 5 está na árvore, NÃO COMMITADO — são ~43 arquivos.
-Confirme com `git status` antes de qualquer coisa. Hoje é 2026-09-07 (ajuste se for
-outro dia). Simulados oficiais do TSE em 15-17/09 e 22-24/09; 1º turno em 04/10.
+Branch: s07/simulado-ready-hero-1t. Árvore limpa fora de docs/_pitch/ e tse_docs/. O commit
+5dee12d é o checkpoint do modelo (Fases 3b/5) e serve de ponto de rollback. Hoje é 2026-09-07
+(ajuste se for outro dia). Simulados oficiais do TSE em 15-17/09 e 22-24/09; 1º turno 04/10.
 
-Gates medidos em 07/09 com a árvore parada: 545 vitest (1 skipped, 71 arquivos),
-145 pytest, typecheck limpo, lint 0 erros e 5 warnings pré-existentes. O gate OT-4
-do replay REPROVA — isso é esperado e está explicado no handoff.
 Rodar testes exige: set -a; . ./.env.local; set +a
+Baseline: 545 vitest, 145 pytest, typecheck limpo, lint 0 erros / 5 warnings.
+O gate OT-4 do replay REPROVA — é esperado, está explicado no handoff do modelo
+(docs/_meta/handoff-2026-09-07.md), e não bloqueia o redesign.
 
-CONTEXTO EM UMA FRASE: o modelo deixou de projetar por "swing vs. 2022" e passou a
-extrapolar do que cada zona já apurou (k = te/esi), somando zona → UF → Brasil, com
-pós-estratificação por tercis de porte de zona. 2022 saiu do cálculo e ficou só como
-comparação na tela. ADR-0021 e ADR-0023; a constituição foi para 1.2.
+O QUE VAMOS FAZER: refazer a interface inteira sobre o design system "Atlas Menna" (editorial,
+papel/tinta, Spectral/Archivo/JetBrains Mono, seções separadas por filetes, Parcial em tinta ×
+Projeção em ocre, tema claro/escuro), direto nesta branch, para o simulado 1 já rodar na UI
+nova; e implementar dois cargos novos, Senador (spec 016) e Deputado Federal (spec 017), até
+o 1º turno. Seis decisões minhas já estão tomadas e NÃO devem ser reabertas — estão na tabela
+"Decisões do usuário" do handoff.
 
-O que falta, em ordem de prioridade:
+COMECE PELO BLOCO 0 (fundação, behavior-neutral, não depende de aprovação nenhuma):
+  1. Migrar os tokens de app/globals.css para Tailwind v4 `@theme static` com os VALORES
+     ATUAIS (zero mudança visual). `static` é obrigatório — sem ele o Tailwind descarta
+     variáveis não usadas em classe e lib/utils/cand-color.ts passa a devolver string vazia
+     para o MapLibre, deixando o mapa cinza em silêncio.
+  2. `--container-page: 1280px` e unificar os 7 wrappers <main> em max-w-page. Atenção: 3 deles
+     usam max-w-container, que HOJE NÃO EMITE CSS — a home, /governador e o loading estão sem
+     largura máxima e vão MUDAR visualmente; compare screenshots. Os outros 4 usam
+     max-w-[1280px] hardcoded e a troca é neutra.
+  3. Deletar tailwind.config.ts (nunca foi carregado) e remover framer-motion e d3-* do
+     package.json (zero imports reais).
+  4. Renomear as variáveis do next/font para --font-*-src e mapear com `@theme inline`.
+  5. Criar tests/e2e/perf-budget.spec.ts com a receita do handoff e registrar a BASELINE de
+     RNF-007a/b/c — todo bloco seguinte tem que medir delta ≤ 0.
+  6. Gate: pnpm typecheck && pnpm lint && pnpm test, mais um snapshot de
+     getComputedStyle(documentElement) antes/depois que precisa sair idêntico.
 
-A) COMMITAR. São duas sessões de trabalho não versionado, incluindo a correção de um
-   bug de produção. Sugestão de quebra temática: replay regenerado; fix do pct_apurado;
-   estratificação + ADR-0023; ADR-0022 e bloco do /governador; docs do método
-   (/sobre-o-modelo, specs 002/011); User-Agent; sprints e riscos.
+DEPOIS DO BLOCO 0, PARE E ME PERGUNTE duas coisas antes de seguir:
+  (a) aprovação do texto da emenda ao § 2 da constituição (está no ADR-0024) — sem isso não
+      existe código de cor por partido;
+  (b) como resolver o "corrida ativa única" de lib/config/calendar.ts, que não comporta os 4
+      cargos simultâneos de 04/10 (o handoff explica e recomenda uma saída).
 
-B) RODAR OS TRÊS GATES que não rodaram sobre o estado final: constitution-guard,
-   a11y-perf-auditor e rf-coverage-checker. (O spec-syncer já rodou.)
-   Rode `rm -rf .next` antes do gate visual.
+INVARIANTES que quebram a suíte ou o mapa se forem violadas — estão listadas no handoff, mas
+as três que mais importam: nomes de arquivo/export dos 46 componentes NÃO mudam; Footer e
+main[data-trilha] continuam de posse da página (não vão para o layout); zero JS client novo
+acima da dobra.
 
-C) TENTATIVA 3 DO GATE OT-4 — decisão do usuário, pergunte cedo. MAE@1h está em
-   2,590pp (Lula) e 2,070pp (Bolsonaro) contra limiar de 2pp, e a cobertura do IC95
-   em 79,5% contra 90%. A estratificação (tentativa 2) cortou 20% do erro no ponto e
-   não moveu a cobertura. LEIA a ressalva do handoff antes de opinar: a ordem de
-   apuração do replay é sintética, inventada por nós, e o limiar de 2pp nunca teve
-   base empírica. Os três caminhos são estratos mais finos, atacar a largura do
-   intervalo, ou recalibrar o limiar com dado do simulado. Isso bloqueia a spec 002.
-
-D) TRÊS ITENS PEQUENOS da Fase 5: compute_swing_descritivo (hoje só existe em
-   comentário), brancos_nulos no mesmo idx dos candidatos, e o assert de percentil
-   do RF-015. Mais a lacuna do RF-017 catalogada em risks.md.
-
-E) PREPARAR O SIMULADO (Fase 4 da sprint): env de preview, whitelist mínima,
-   ciclo manual antes de ligar o cron.
-
-DECISÕES QUE SÓ O USUÁRIO TOMA:
-1. A caixa contato@salacofre.com.br precisa existir e ser lida antes de 15/09 — o
-   código já envia esse endereço no User-Agent do TSE.
-2. Tentativa 3 do OT-4 (item C).
-3. Chamado ao TSE em 12/09 se as URLs do simulado não saírem — o usuário decidiu
-   não redigir antes. Em 30308800.tse.jus.br, descrição começando em
-   "Resultados - Divulgação".
-4. Visão municipal: hoje cobre ~39% dos municípios (agregação por zona-sede) e a
-   interface não avisa. O handoff tem os números e as duas saídas.
-
-MONITORAR O TSE DIARIAMENTE: pnpm tse:watch --once. Rodou em 05/09 e 07/09 sem
-mudança; ele-c.json de produção ainda em ele2024.
-
-REGRAS CRÍTICAS:
-- Nunca sondar URL adivinhada contra resultados.tse.jus.br ou
-  resultados-sim.tse.jus.br. Um 404 malformado pode bloquear nosso IP por 10
-  minutos. Use scripts/tse-mock-server.ts para qualquer teste de ingestão.
-- Não mudar o contrato de `estimates` (share fracionário pareado) — votos absolutos
-  nos arrays quebram p_fecha_1t em silêncio.
-- Não mexer em --color-cand-*, colorForRank, bandForRank (ADR-0013), nem no layout
-  binary do 2º turno.
-- O rótulo da base é "votáveis", nunca "válidos".
-- rm -rf .next antes de qualquer gate visual.
-- Relatório de subagent é hipótese: confira no disco. Nesta rodada a matriz de
-  rastreabilidade citava seis testes que não existiam e o rf-coverage-checker deu
-  verde sobre eles.
-
-COISAS QUE PARECEM BUG E NÃO SÃO: swing_vs_2022 sai None de propósito; os tokens
---color-pt-band e --color-pl-band seguem invertidos em globals.css:22-23,
-deliberadamente e sem consumidor; UFs com menos de 12 zonas (RR, AC, ZT, AP) não são
-estratificadas por desenho; e o BaseToggle está pronto e desligado de propósito —
-ligá-lo derrubaria 54 páginas de estático para dinâmico.
-
-SE A SUÍTE DE TESTES FICAR LENTA: na madrugada de 06→07/09 o Neon degradou e a suíte
-levou 70 minutos com falhas espúrias de timeout. A suíte sadia roda em ~140s. Meça o
-tempo antes de concluir que há regressão.
-
-Comece por A, delegando conforme o CLAUDE.md.
+Trabalhe em blocos, com a árvore verde ao fim de cada um, e delegue para os subagents do
+projeto (spec-implementer, map-builder, a11y-perf-auditor, constitution-guard,
+rf-coverage-checker, spec-syncer, adr-author, tse-parser-builder, model-validator). Confira no
+disco o que cada subagent reportar antes de aceitar — nesta sessão três ADRs vieram com uma
+afirmação errada cada, todas plausíveis.
 ```
+
+---
+
+## Contexto extra (não precisa colar)
+
+- O plano completo, com cronograma por bloco e a matriz componente-a-componente, está em
+  `~/.claude/plans/indexed-painting-melody.md` (fora do repositório).
+- O kit de design roda com `npx serve docs/design-system/atlas-menna` — abrir por `file://`
+  não funciona, e o mapa do protótipo fica vazio porque `assets/geo/` ficou fora do repo.
+- Handoff anterior (estado do **modelo**, ainda válido para OT-4 e pendências do Python):
+  [`handoff-2026-09-07.md`](./handoff-2026-09-07.md).

@@ -7,12 +7,12 @@ end: 2026-09-24
 opened: 2026-09-05
 phase: F6
 goal: Chegar aos simulados oficiais do TSE (15–17/09 e 22–24/09) com o pipeline ingerindo dados reais e as 4 rotas renderizando o hero de 1º turno.
-specs_in_flight: [002-modelo-estatistico]
+specs_in_flight: [002-modelo-estatistico, 016-senador, 017-deputado-federal]
 specs_evolving: [001-ingestao-tse, 003-home-nacional, 004-pagina-uf-presidencial, 005-pagina-uf-governador, 006-grid-governadores]
 specs_superseded: [001.1-tse-json-refactor]
 specs_planned_next: [009-compartilhamento-meta, 010-operacao-monitoramento, 013-pagina-manutencao]
 plano: ../_meta/plano-s07-2026-09-05.md
-handoff: ../_meta/handoff-2026-09-07.md
+handoff: ../_meta/handoff-2026-09-07-redesign.md
 ---
 
 # Sprint 07 — Simulado-ready + Hero 1T
@@ -308,6 +308,52 @@ Passos operacionais transcritos do plano. Registrar tudo em [`../testing/tse-sim
 
 - [ ] Fan-out completo (27 UFs × 2 cargos) no preview com `TSE_ACOMPANHAMENTO=on`
 - [ ] Ensaio de `TSE_TURNO=2` se o TSE simular 2º turno
+- [ ] Validar cargos 5 e 6 (specs 016/017) com dado real; medir duração do ingest e `rateLimited`
+
+### 🔄 Fase 7 — Redesign Atlas Menna — aprovada 07/09, **em execução**
+
+Plano aprovado pelo usuário em 07/09; handoff em
+[`../_meta/handoff-2026-09-07-redesign.md`](../_meta/handoff-2026-09-07-redesign.md).
+Decisão do usuário: entra **direto nesta branch**, para o simulado 1 rodar na UI nova.
+ADRs [0024](../architecture/adrs/0024-paleta-editorial-por-partido.md) (`proposed` — bloqueia
+código de cor até a emenda ao § 2 ser aprovada) e
+[0025](../architecture/adrs/0025-design-system-atlas-menna-restyle-in-place.md) (`accepted`).
+
+- [ ] **Bloco 0** (behavior-neutral): tokens em Tailwind v4 `@theme static` com valores atuais,
+      `--container-page` + `max-w-page` nos 7 wrappers, deletar `tailwind.config.ts`, remover
+      `framer-motion` e `d3-*`, `tests/e2e/perf-budget.spec.ts` com a baseline de RNF-007a/b/c
+- [ ] **Aprovação do usuário** ao texto da emenda ao § 2 (constituição 1.2 → 1.3) e ao encaminhamento
+      do "corrida ativa única" de `lib/config/calendar.ts`
+- [ ] **Bloco 1**: tokens do design, `party-color.ts` + `gen-party-scale.ts`, fontes, atoms novos
+      (`Panel`, `Figure`, `Button`, `VoteBar`, `ProbabilityMeter`, `PartyTag`, `MapLegend`, `TopBar`,
+      `TabBar`, `ThemeToggle`, `Sheet`, `HoverCard`), shell, home recomposta, 27 arquivos de teste
+      que citam `--color-cand-*`
+- [ ] **Bloco 2**: `/uf/[sigla]`, `/uf/[sigla]/governador`, `/governador`, `/sobre-o-modelo`
+      (sai do CSS Module), dark mode com contraste medido
+- [ ] **Gate G1** (meta 12/09): `constitution-guard` · `a11y-perf-auditor` · `rf-coverage-checker`
+      (003/004/005/006/011) em paralelo; `spec-syncer` depois
+- [ ] Congelar a UI nas janelas do simulado 1 (9–12h e 14–17h de 15–17/09)
+
+### ⏳ Fase 8 — Cargos novos: Senador e Deputado Federal — specs 016 e 017
+
+Decisão do usuário em 07/09: ambos até o 1º turno (turno único; o que não sair até 04/10 só
+vale para 2030). [ADR-0026](../architecture/adrs/0026-cargos-senador-deputado-ingestao-e-read-path.md)
+(`accepted`) fixa ingestão e read path. Prioridade: **P2 Senador, P3 Deputado** — abaixo do
+pipeline (P0) e do redesign (P1).
+
+- [ ] Resolver "corrida ativa única" (`lib/config/calendar.ts`) — pré-requisito de qualquer código
+- [ ] Estender `/api/ingest` para aceitar override de cargos por query string
+- [ ] **Spec 016 — Senador**: cargo 5, cron de 5 min, granularidade UF, **2 vagas por UF**,
+      `p_eleito` para top-2, rotas `/senador` e `/uf/[sigla]/senador`
+- [ ] **Spec 017 — Deputado Federal**: cargo 6, cron de **15 min**, granularidade UF, `v.vl` e
+      hierarquia federação/agremiação, módulo de cadeiras com **testes golden de 2022**, read path
+      em Vercel Blob, rotas `/deputado-federal` e `/uf/[sigla]/deputado-federal`
+- [ ] **Gate G2** (24/09): 4 gates + `model-validator` para a 016
+
+> **Degradação pré-acordada da 017** (decidida em 07/09, não re-discutir): se em 19/09 o módulo
+> de cadeiras não passar nos golden de 2022, a spec shippa como "parcial por partido/federação,
+> sem projeção de cadeiras"; se em 24/09 nem isso estiver verde, a aba fica desabilitada e o
+> cargo vai para 2030.
 
 ---
 

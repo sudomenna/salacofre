@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>SalaCofre — Pitch para Investidor</title>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 18mm;
+    @bottom-right {
+      content: counter(page) " / " counter(pages);
+      font-family: 'Inter', sans-serif;
+      font-size: 9pt;
+      color: #888;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.55;
+    color: #1a1a1a;
+    margin: 0;
+    padding: 0;
+  }
+  .cover {
+    page-break-after: always;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0 10mm;
+  }
+  .cover .brand {
+    font-size: 12pt;
+    letter-spacing: 4px;
+    color: #c0392b;
+    text-transform: uppercase;
+    margin-bottom: 30mm;
+  }
+  .cover h1 {
+    font-family: 'Source Serif Pro', 'Georgia', serif;
+    font-size: 36pt;
+    line-height: 1.1;
+    margin: 0 0 8mm 0;
+    color: #111;
+    font-weight: 700;
+  }
+  .cover .subtitle {
+    font-size: 14pt;
+    color: #555;
+    margin-bottom: 25mm;
+    max-width: 140mm;
+    line-height: 1.4;
+  }
+  .cover .meta {
+    font-size: 10pt;
+    color: #777;
+    border-top: 2px solid #c0392b;
+    padding-top: 4mm;
+    width: 60mm;
+  }
+  .cover .meta strong { color: #333; display: block; margin-bottom: 1mm; }
+  h1 {
+    font-family: 'Source Serif Pro', 'Georgia', serif;
+    font-size: 22pt;
+    color: #111;
+    margin: 0 0 4mm 0;
+    border-bottom: 3px solid #c0392b;
+    padding-bottom: 2mm;
+    page-break-after: avoid;
+  }
+  h2 {
+    font-family: 'Source Serif Pro', 'Georgia', serif;
+    font-size: 15pt;
+    color: #111;
+    margin: 8mm 0 3mm 0;
+    page-break-after: avoid;
+  }
+  h3 {
+    font-size: 11pt;
+    color: #333;
+    margin: 5mm 0 2mm 0;
+    page-break-after: avoid;
+  }
+  p { margin: 0 0 3mm 0; }
+  ul, ol { margin: 0 0 3mm 0; padding-left: 6mm; }
+  li { margin-bottom: 1.5mm; }
+  strong { color: #111; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 3mm 0 5mm 0;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+  }
+  th {
+    background: #f5f0eb;
+    text-align: left;
+    padding: 2.5mm 3mm;
+    font-weight: 600;
+    border-bottom: 2px solid #c0392b;
+    color: #111;
+  }
+  td {
+    padding: 2.5mm 3mm;
+    border-bottom: 1px solid #e8e4dd;
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  table.totals tr:last-child td {
+    border-top: 2px solid #111;
+    font-weight: 700;
+    background: #fafaf7;
+  }
+  .lead {
+    font-size: 11.5pt;
+    color: #333;
+    line-height: 1.5;
+    border-left: 3px solid #c0392b;
+    padding: 1mm 0 1mm 4mm;
+    margin: 4mm 0;
+  }
+  .callout {
+    background: #faf6f0;
+    border: 1px solid #e8d9c0;
+    border-radius: 2mm;
+    padding: 4mm 5mm;
+    margin: 5mm 0;
+    page-break-inside: avoid;
+  }
+  .callout-title {
+    font-weight: 700;
+    color: #c0392b;
+    font-size: 10pt;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 2mm;
+  }
+  .diagram {
+    background: #1a1a1a;
+    color: #f5f5f5;
+    padding: 4mm 5mm;
+    border-radius: 2mm;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 8.5pt;
+    line-height: 1.5;
+    margin: 4mm 0;
+    white-space: pre;
+    overflow: hidden;
+    page-break-inside: avoid;
+  }
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3mm;
+    margin: 4mm 0;
+    page-break-inside: avoid;
+  }
+  .kpi {
+    background: #faf6f0;
+    border-radius: 2mm;
+    padding: 4mm;
+    text-align: center;
+  }
+  .kpi-value {
+    font-family: 'Source Serif Pro', 'Georgia', serif;
+    font-size: 20pt;
+    font-weight: 700;
+    color: #c0392b;
+    display: block;
+    line-height: 1.1;
+  }
+  .kpi-label {
+    font-size: 8.5pt;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 1mm;
+    display: block;
+  }
+  .section { page-break-inside: auto; margin-bottom: 6mm; }
+  .footer-note {
+    margin-top: 8mm;
+    padding-top: 4mm;
+    border-top: 1px solid #ddd;
+    font-size: 8.5pt;
+    color: #888;
+    font-style: italic;
+  }
+  .tldr {
+    background: #111;
+    color: #fff;
+    padding: 6mm 7mm;
+    border-radius: 2mm;
+    margin: 5mm 0;
+    page-break-inside: avoid;
+  }
+  .tldr-title {
+    font-size: 9pt;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #f39c12;
+    margin-bottom: 3mm;
+  }
+  .tldr p {
+    font-family: 'Source Serif Pro', 'Georgia', serif;
+    font-size: 13pt;
+    line-height: 1.45;
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="brand">SalaCofre</div>
+  <h1>Como aguentamos<br>1 milhão de acessos<br>simultâneos no dia<br>da eleição.</h1>
+  <div class="subtitle">Arquitetura, garantia técnica e custo real de infraestrutura para a apuração 2026.</div>
+  <div class="meta">
+    <strong>Pitch para investidor</strong>
+    Maio · 2026
+  </div>
+</div>
+
+<!-- PAGE 1 -->
+<div class="section">
+  <h1>1. A ideia central</h1>
+  <p class="lead">O sistema separa quem precisa do resultado em tempo real (24 mil assinantes pagantes) de quem consome com pequeno delay (1 milhão+ gratuitos), e entrega cada grupo pela infraestrutura mais barata possível para o seu caso.</p>
+  <p>É a mesma lógica de um jornal premium. Os assinantes recebem a edição quente; o público geral lê uma versão pública atualizada a cada poucos minutos. A diferença é que nossa "edição" é refeita a cada 15 segundos, e a "distribuição" é uma rede global de 200+ pontos de presença que serve a mesma cópia para todo o Brasil simultaneamente.</p>
+</div>
+
+<div class="section">
+  <h1>2. A stack — o que cada peça faz</h1>
+  <table>
+    <thead>
+      <tr><th style="width:32%">Camada</th><th style="width:28%">Tecnologia</th><th>O que faz</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Coleta dos dados do TSE</td><td>Vercel Cron + Functions (Node 24)</td><td>A cada 15s, busca o JSON oficial do TSE</td></tr>
+      <tr><td>Modelo estatístico</td><td>Python 3.14 + NumPy/SciPy (Vercel Fluid Compute)</td><td>Roda a projeção estilo NYT <em>Live Forecast</em></td></tr>
+      <tr><td>Banco "frio" (auditoria)</td><td>Neon Postgres</td><td>Guarda snapshots e histórico. Fora do caminho do leitor.</td></tr>
+      <tr><td>"Memória rápida" global</td><td>Cloudflare KV</td><td>Estado quente da projeção, replicado em 200+ PoPs, &lt;10ms</td></tr>
+      <tr><td>Rede de entrega (CDN)</td><td>Cloudflare Pages + Workers</td><td>Serve a aplicação para o público. <strong>É aqui que mora o segredo da escala.</strong></td></tr>
+      <tr><td>Mapas vetoriais</td><td>MapLibre GL + PMTiles em Cloudflare R2</td><td>Mapa do Brasil servido como arquivo estático imutável</td></tr>
+      <tr><td>Frente (eleitor)</td><td>Next.js 16 + React 19</td><td>Aplicação web moderna</td></tr>
+      <tr><td>Paywall</td><td>Stripe + Clerk</td><td>Diferencia assinante pagante (tempo real) de público (delay)</td></tr>
+      <tr><td>Proteção</td><td>Cloudflare WAF + Bot Mgmt + rate limit</td><td>Bloqueia bots, scraping e DDoS no edge</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Tudo é auto-escalável sem intervenção humana.</strong> Não temos servidor próprio, data center, nem DevOps de plantão na noite eleitoral.</p>
+</div>
+
+<!-- PAGE 2 -->
+<div class="section">
+  <h1>3. Arquitetura — dois caminhos de leitura, uma só fonte</h1>
+  <div class="diagram">TSE (a cada 15s)
+   ↓
+[Coleta Node] → [Modelo Python]  ── "cozinha" (Vercel)
+   ↓
+[Cloudflare KV] — projeção replicada em 200+ PoPs em ~10s
+   ↓
+   ┌────────────────────────┴───────────────────────┐
+   ↓                                                ↓
+/api/projection  (PAGANTES)         /api/projection-public  (GRATUITOS)
+- Autenticação JWT                  - Sem autenticação
+- Cache: 5 segundos                 - Cache: 5 minutos
+- Refresh: 5s no cliente            - Refresh: 60s no cliente
+   ↓                                                ↓
+~24.000 simultâneos                          1.000.000+ simultâneos</div>
+
+  <p>A mágica está em <strong>separar caminhos</strong>:</p>
+  <ul>
+    <li><strong>Quem escreve</strong> (TSE → modelo → KV) acontece <strong>uma vez a cada 15 segundos</strong>, em 2 funções Vercel.</li>
+    <li><strong>Quem lê</strong> (1M+ pessoas) acontece <strong>milhões de vezes por minuto</strong>, mas sempre pela Cloudflare — que serve a mesma cópia em cache para todo mundo.</li>
+  </ul>
+  <p>O leitor nunca conversa com banco de dados, nunca espera consulta SQL, nunca roda Python. Só baixa um arquivo já pronto na máquina mais perto dele.</p>
+</div>
+
+<div class="section">
+  <h1>4. Por que temos garantia — a matemática</h1>
+
+  <h3>Para os pagantes (24.000 em tempo real)</h3>
+  <ul>
+    <li>24.000 × 1 requisição a cada 5s = <strong>4.800 req/s</strong></li>
+    <li>CDN absorve &gt;99%: origem vê <strong>~50 req/s</strong> — carga trivial</li>
+    <li>Cada uma é leitura de Cloudflare KV em &lt;10ms, sem SQL, sem TCP</li>
+  </ul>
+
+  <h3>Para os gratuitos (1.000.000+ com delay de 5 min)</h3>
+  <ul>
+    <li>A CDN faz <strong>~200 requisições à origem por janela de 5min</strong> (uma por PoP global)</li>
+    <li>Independente de serem 1M, 5M ou 20M leitores — a origem <strong>não sente diferença</strong></li>
+    <li>A escala vira problema apenas de bandwidth de saída — que é <strong>gratuito na Cloudflare</strong></li>
+  </ul>
+
+  <h3>Por que dá garantia, não esperança</h3>
+  <ol>
+    <li><strong>Não há gargalo arquitetural.</strong> É a mesma classe de arquitetura usada pelo <em>NYT</em> na noite eleitoral americana, pela <em>BBC</em> em referendos, pela <em>Globo G1</em> em 2022.</li>
+    <li><strong>Cloudflare entrega 80M+ requisições/segundo globalmente em regime.</strong> Nossos 200 mil req/s no pico são fração de %.</li>
+    <li><strong>Load tests com 20.000 VUs</strong> simulados rodam em cada release significativa. Meta: p95 &lt;200ms, erro &lt;0,1%, cache hit &gt;99%.</li>
+    <li><strong>Graceful degradation</strong>: se TSE cair, último valor conhecido permanece com banner "Reconectando". Uptime alvo na janela 17h–04h do dia D: <strong>99,9%</strong>.</li>
+  </ol>
+</div>
+
+<!-- PAGE 3 -->
+<div class="section">
+  <h1>5. Custo da campanha — números reais</h1>
+
+  <h2>Custo no dia D (1 turno, ~6h de pico)</h2>
+  <table class="totals">
+    <thead>
+      <tr><th>Item</th><th>Cálculo</th><th style="text-align:right">Custo</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Cloudflare Pages (HTML/JS/CSS)</td><td>Bandwidth ilimitado — free tier</td><td style="text-align:right">US$ 0</td></tr>
+      <tr><td>Cloudflare R2 (PMTiles)</td><td>~10M reads × US$ 0,36/M, egress zero</td><td style="text-align:right">US$ 4</td></tr>
+      <tr><td>Cloudflare Workers</td><td>~50M reqs · US$ 0,30/M após 10M</td><td style="text-align:right">US$ 12</td></tr>
+      <tr><td>Cloudflare KV</td><td>~50M leituras · US$ 0,50/M após 10M</td><td style="text-align:right">US$ 20</td></tr>
+      <tr><td>Vercel Functions (cron + Python)</td><td>Plano Pro rateado</td><td style="text-align:right">US$ 25</td></tr>
+      <tr><td>Neon Postgres (só write)</td><td>Plano Launch rateado</td><td style="text-align:right">US$ 5</td></tr>
+      <tr><td><strong>TOTAL INFRA — DIA D (1 turno)</strong></td><td></td><td style="text-align:right"><strong>~US$ 65 · R$ 325</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Custo da campanha completa (Mai – Out 2026)</h2>
+  <table class="totals">
+    <thead>
+      <tr><th>Janela</th><th style="text-align:right">Custo (US$)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Regime normal (Mai – Set, ~5 meses)</td><td style="text-align:right">250 – 400</td></tr>
+      <tr><td>1º turno (04/10)</td><td style="text-align:right">65 – 100</td></tr>
+      <tr><td>Outubro intermediário</td><td style="text-align:right">80 – 150</td></tr>
+      <tr><td>2º turno (25/10)</td><td style="text-align:right">65 – 100</td></tr>
+      <tr><td>Buffer para imprevistos (30%)</td><td style="text-align:right">140 – 230</td></tr>
+      <tr><td><strong>TOTAL INFRA CAMPANHA</strong></td><td style="text-align:right"><strong>~US$ 600 – 1.000 · R$ 3.000 – 5.000</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Por que tão barato</h3>
+  <ol>
+    <li><strong>Cloudflare entrega o público gratuito com bandwidth zero.</strong> A camada que normalmente custaria dezenas de milhares de reais simplesmente sai da conta.</li>
+    <li><strong>O paywall já filtra o tráfego "caro".</strong> Os 24.000 pagantes em tempo real são carga insignificante para uma CDN moderna.</li>
+    <li><strong>A "fábrica" (Vercel) faz 1 cálculo a cada 15s</strong> — não 200 mil. Compute é desprezível.</li>
+    <li><strong>Não há servidor ocioso para pagar.</strong> Pay-per-use. Em regime fora do dia D, custa o equivalente a uma assinatura de streaming.</li>
+  </ol>
+</div>
+
+<!-- PAGE 4 -->
+<div class="section">
+  <h1>6. Modelo financeiro da operação</h1>
+
+  <h2>Receita por tier de assinatura</h2>
+  <table class="totals">
+    <thead>
+      <tr><th>Tier</th><th>Usuários</th><th>Preço</th><th style="text-align:right">Receita</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Premium</strong></td><td>3.500 assinantes</td><td>R$ 59,90</td><td style="text-align:right">R$ 209.650</td></tr>
+      <tr><td><strong>Basic</strong></td><td>41.000 pagamentos<br><small>(20.500 × 2 turnos)</small></td><td>R$ 19,90/turno</td><td style="text-align:right">R$ 815.900</td></tr>
+      <tr><td><strong>Receita bruta total</strong></td><td>—</td><td>—</td><td style="text-align:right"><strong>R$ 1.025.550</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Margem da operação</h2>
+  <table class="totals">
+    <thead>
+      <tr><th>Item</th><th style="text-align:right">Valor</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Receita bruta</td><td style="text-align:right">R$ 1.025.550</td></tr>
+      <tr><td>Stripe Brasil (~4%)</td><td style="text-align:right">(R$ 41.022)</td></tr>
+      <tr><td>Infra campanha completa</td><td style="text-align:right">(R$ 5.000)</td></tr>
+      <tr><td><strong>Margem bruta</strong></td><td style="text-align:right"><strong>~R$ 979.500</strong></td></tr>
+    </tbody>
+  </table>
+
+  <div class="kpi-grid">
+    <div class="kpi">
+      <span class="kpi-value">95,5%</span>
+      <span class="kpi-label">Margem bruta</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi-value">196×</span>
+      <span class="kpi-label">Receita / custo infra</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi-value">R$ 5k</span>
+      <span class="kpi-label">Infra campanha inteira</span>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">Sustentabilidade financeira</div>
+    <p style="margin:0"><strong>A operação é superavitária por desenho.</strong> Não dependemos de patrocínio, mídia ou aporte para sobreviver à noite eleitoral. Os 1M+ usuários gratuitos viram funil de aquisição para 2030.</p>
+  </div>
+</div>
+
+<div class="section">
+  <h1>7. Resumo executivo</h1>
+  <ol>
+    <li><strong>A arquitetura é o padrão dos grandes portais de notícias</strong> (NYT, BBC, Globo). Não estamos inventando — estamos aplicando bem.</li>
+    <li><strong>O segredo da escala é separar leitura de escrita.</strong> O servidor faz 1 cálculo a cada 15s; a CDN entrega esse cálculo milhões de vezes por minuto.</li>
+    <li><strong>O segredo do custo baixo é cobrar pelo tempo real.</strong> Os 24.000 pagantes pagam pela latência; o 1M+ gratuito ganha versão com 5min de delay, servida por bandwidth gratuito.</li>
+    <li><strong>O custo de infraestrutura da campanha inteira cabe em R$ 5.000</strong> — menos que uma campanha de mídia digital de uma semana.</li>
+    <li><strong>Não há lock-in operacional.</strong> Auto-scale, pay-per-use, dois provedores independentes garantindo redundância. O time pode dormir na noite da eleição com plantão via Slack.</li>
+  </ol>
+
+  <div class="tldr">
+    <div class="tldr-title">Em uma frase para a mesa</div>
+    <p>"Construímos uma máquina que escala para 1 milhão de leitores ao custo de R$ 5 mil na campanha inteira, com margem bruta de R$ 979 mil em cima de 24 mil assinantes pagantes."</p>
+  </div>
+
+  <div class="footer-note">
+    Documento confidencial · SalaCofre · Apuração Eleitoral 2026<br>
+    Valores em US$ convertidos a US$ 1 ≈ R$ 5,00. Estimativas conservadoras, sujeitas a variação conforme demanda real.
+  </div>
+</div>
+
+</body>
+</html>

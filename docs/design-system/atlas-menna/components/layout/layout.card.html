@@ -1,0 +1,26 @@
+<!-- @dsCard group="Components" viewport="700x400" name="Layout" subtitle="TopBar, Panel, TabBar, Sheet, HoverCard" -->
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+<script src="../../ds-loader.js"></script>
+<style>body{padding:0}</style></head>
+<body><div id="root"></div>
+<script>
+loadDS(['../data/PartyTag.jsx','../data/LiveBadge.jsx','../actions/SegmentedControl.jsx','./TopBar.jsx','./Panel.jsx','./TabBar.jsx','./Sheet.jsx','./HoverCard.jsx']).then(ns => {
+  const {TopBar,Panel,TabBar,Sheet,HoverCard,LiveBadge,SegmentedControl} = ns; const h = React.createElement;
+  function Demo(){ const [tab,setTab]=React.useState('presidente');
+    return h('div',{style:{display:'grid',gridTemplateColumns:'360px 1fr',gap:0,minHeight:400}},
+      h('div',{style:{borderRight:'1px solid var(--border-hairline)',display:'flex',flexDirection:'column',position:'relative',overflow:'hidden'}},
+        h(TopBar,{subtitle:'Eleições 2026 · 1º turno',right:h(LiveBadge,null,'62% apurado'),style:{position:'relative'}}, h('div',{style:{padding:'0 16px 10px'}}, h(SegmentedControl,{size:'sm',value:'parcial',onChange:()=>{},options:[{value:'parcial',label:'Parcial'},{value:'proj',label:'Projeção'}]}))),
+        h('div',{style:{padding:16,flex:1}}, h(Panel,{kicker:'Presidente · Brasil',title:'Resultado parcial'}, h('p',{style:{margin:0,font:'var(--type-body-sm)',color:'var(--text-secondary)'}},'Conteúdo da seção. Seções são separadas por filetes, não por cartões.'))),
+        h(TabBar,{value:tab,onChange:setTab,style:{position:'relative'},items:[{value:'presidente',label:'Presidente'},{value:'governador',label:'Governador'},{value:'senador',label:'Senador'},{value:'deputado',label:'Deputado'}]})
+      ),
+      h('div',{style:{position:'relative',background:'var(--surface-sunken)'}},
+        h(HoverCard,{x:24,y:24,kicker:'Unidade federativa',title:'Minas Gerais',apurado:71,rows:[{name:'Lula',color:'var(--party-pt)',pct:47.1,proj:48.0},{name:'Flávio Bolsonaro',color:'var(--party-pl)',pct:38.4,proj:37.9}]}),
+        h(Sheet,{open:true,side:true,onClose:()=>{},kicker:'Município · SP',title:'Campinas',style:{top:'auto',bottom:16,maxHeight:180}}, h('p',{style:{margin:0,font:'var(--type-body-sm)',color:'var(--text-secondary)'}},'Sheet lateral no desktop; no celular vira bottom sheet com scrim.'))
+      )
+    ); }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+});
+</script></body></html>

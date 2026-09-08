@@ -11,6 +11,8 @@ date: 2026-05-17
 
 Aceito.
 
+> **Nota 2026-09-07 — Emenda**: Este ADR continua vigente e seu princípio central (Postgres fora do read path) permanece intacto. Porém, a partir de [ADR-0026](0026-cargos-senador-deputado-ingestao-e-read-path.md) (2026-09-07), o read path deixa de ser **exclusivamente** Edge Config para incluir **Vercel Blob** como um segundo mecanismo, restrito ao drill-down de UF de Deputado Federal — cargo que gera volume incompatível com o limite de 512KB do Edge Config. O princípio de "Postgres fora do read path" subsiste: o read path passa a ser uma union {Edge Config, Vercel Blob}, mas nunca Postgres.
+
 ## Contexto
 
 A noite eleitoral concentra ~20k acessos simultâneos sustentados. O read path precisa servir o mesmo payload (~30KB) para centenas de milhares de requests por minuto, com latência <100ms p95.

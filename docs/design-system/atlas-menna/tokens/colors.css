@@ -1,0 +1,121 @@
+:root {
+  /* Paper (cool grey) */
+  --paper-0: #FBFBFC;
+  --paper-1: #F3F4F6;
+  --paper-2: #E9EBEE;
+  --paper-3: #DDE0E4;
+  --ink-0: #14171B;
+  --ink-1: #2A2F36;
+  --ink-2: #5B636E;
+  --ink-3: #8C949E;
+  --rule: #C9CDD3;
+  --rule-strong: #14171B;
+
+  /* Semantic surfaces */
+  --surface-page: var(--paper-1);
+  --surface-card: var(--paper-0);
+  --surface-sunken: var(--paper-2);
+  --surface-inverse: var(--ink-0);
+  --text-primary: var(--ink-0);
+  --text-secondary: var(--ink-2);
+  --text-muted: var(--ink-3);
+  --text-inverse: var(--paper-0);
+  --border-hairline: var(--rule);
+  --border-strong: var(--rule-strong);
+
+  /* Accent: ochre — projections, live state, focus */
+  --accent: #C98A2B;
+  --accent-strong: #9E6A1C;
+  --accent-soft: #F4E7CF;
+  --accent-ink: #3F2A08;
+
+  /* Status */
+  --status-live: #C98A2B;
+  --status-final: #2F7D4F;
+  --status-warn: #B4432F;
+
+  /* Poles: PT (red) and PL (blue) — 5 intensities by margin */
+  --party-pt: #C0223B;
+  --party-pt-1: #F6DCE0;
+  --party-pt-2: #EBA9B3;
+  --party-pt-3: #DC6A7B;
+  --party-pt-4: #C0223B;
+  --party-pt-5: #8A1128;
+  --party-pl: #2247B8;
+  --party-pl-1: #DCE2F6;
+  --party-pl-2: #AEBCEB;
+  --party-pl-3: #6F86DA;
+  --party-pl-4: #2247B8;
+  --party-pl-5: #142E85;
+  --party-tie: #B8BCC4;
+  --party-none: #E1E4E8;
+
+  /* Other parties (chips, bars) */
+  --party-psd: #2F8F6B;
+  --party-novo: #E07B1D;
+  --party-avante: #7A4FB3;
+  --party-missao: #1E7F8C;
+  --party-prtb: #6B7A2C;
+  --party-up: #8C2F5C;
+  --party-pco: #A1332B;
+  --party-dc: #3B6FB0;
+  --party-pstu: #9E2B2B;
+  --party-pcb: #B63A2E;
+  --party-democrata: #4B5563;
+  --party-republicanos: #1F5FA8;
+  --party-psb: #C9A227;
+  --party-rede: #3D8F3D;
+  --party-pp: #2C6FB0;
+  --party-pode: #2E9C8F;
+  --party-cidadania: #C46A9C;
+  --party-agir: #7C6E5B;
+  --party-psol: #D6A400;
+  --party-mdb: #2E8B57;
+  --party-uniao: #2255A4;
+  --party-prd: #6A5ACD;
+  --party-outros: #9AA0A8;
+
+  /* Map */
+  --map-stroke: #FBFBFC;
+  --map-stroke-focus: #14171B;
+  --map-uncounted: #E1E4E8;
+
+  /* Shadows: editorial = almost none */
+  --shadow-float: 0 8px 24px rgba(20, 23, 27, 0.14);
+  --shadow-sheet: 0 -6px 20px rgba(20, 23, 27, 0.12);
+}
+
+[data-theme="dark"] {
+  --paper-0: #1C1F24;
+  --paper-1: #14171B;
+  --paper-2: #262A31;
+  --paper-3: #30353D;
+  --ink-0: #ECEEF1;
+  --ink-1: #D3D7DC;
+  --ink-2: #9AA1AB;
+  --ink-3: #6E7681;
+  --rule: #363B44;
+  --rule-strong: #ECEEF1;
+  --text-inverse: #14171B;
+  --accent: #E0A33F;
+  --accent-strong: #C98A2B;
+  --accent-soft: #3A2E17;
+  --accent-ink: #F4E7CF;
+  --party-pt-1: #3A1F27;
+  --party-pt-2: #6B2634;
+  --party-pt-3: #A02A42;
+  --party-pt-4: #D4405A;
+  --party-pt-5: #F07A8E;
+  --party-pl-1: #1E2540;
+  --party-pl-2: #29397A;
+  --party-pl-3: #3452B5;
+  --party-pl-4: #5B7BE0;
+  --party-pl-5: #91A8F0;
+  --party-tie: #4A505A;
+  --party-none: #2B3037;
+  --map-stroke: #14171B;
+  --map-stroke-focus: #ECEEF1;
+  --map-uncounted: #2B3037;
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-sheet: 0 -6px 20px rgba(0, 0, 0, 0.5);
+}

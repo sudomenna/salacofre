@@ -1,0 +1,2 @@
+export interface ProbabilityMeterProps { label: string; pct: number; note?: string; tone?: "accent" | "pt" | "pl"; style?: React.CSSProperties }
+export function ProbabilityMeter(props: ProbabilityMeterProps): JSX.Element;

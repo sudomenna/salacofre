@@ -155,7 +155,12 @@ NFRs cobertos em [../nfr/](../nfr/) — 34 RNFs (RNF-001..RNF-034). Cada spec li
 
 ## ADRs
 
-9 ADRs em [../architecture/adrs/](../architecture/adrs/) — todos `accepted`. Specs referenciam ADRs aplicáveis no frontmatter.
+26 ADRs em [../architecture/adrs/](../architecture/adrs/) — 25 `accepted`, 1 `proposed` (ADR-0024). Specs referenciam ADRs aplicáveis no frontmatter.
+
+**Novos em 2026-09-07**:
+- ADR-0024 (paleta editorial por partido) — `proposed`, supersede condicional de ADR-0013
+- ADR-0025 (design system Atlas Menna restyle-in-place) — `accepted`, afeta specs 003/004/005/006/011
+- ADR-0026 (Senador e Deputado Federal) — `accepted`, emenda ADR-0001 (Vercel Blob como exceção ao read path para Deputado)
 
 ## Como manter atualizado
 

@@ -1,0 +1,40 @@
+<!-- @dsCard group="Atlas Menna App" viewport="430x900" name="App · Apuração" subtitle="Protótipo mobile-first: Presidente, Governador, Senador, Dep. Federal" -->
+<!-- @startingPoint section="Atlas Menna" subtitle="Apuração 2026 — app completo" viewport="430x900" -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Atlas Menna — Apuração 2026</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+<script src="https://unpkg.com/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js" integrity="sha384-Ukv1p/xTma6P4/2bY5KzWBw+ydSpXmhCMtyciIQVDJ1RmOxtCYNMF1uXT9T63H67" crossorigin="anonymous"></script>
+<script src="../../ds-loader.js"></script>
+<script src="./data.js"></script>
+<style>
+  html, body { height: 100%; }
+  #root { min-height: 100%; }
+  button { font-family: inherit; }
+  ::-webkit-scrollbar { width: 10px; } ::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 5px; }
+</style>
+</head>
+<body>
+<div id="root"><div style="height:52px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--border-strong);font:var(--type-masthead);font-size:20px">Atlas Menna</div><div style="padding:16px;font:var(--type-data);color:var(--text-muted)">carregando apuração…</div></div>
+<script type="text/babel" src="./MapView.jsx"></script>
+<script type="text/babel" src="./App.jsx"></script>
+<script>
+  loadDS([
+    '../../components/data/PartyTag.jsx', '../../components/data/VoteBar.jsx', '../../components/data/Figure.jsx', '../../components/data/CandidateRow.jsx',
+    '../../components/data/ProbabilityMeter.jsx', '../../components/data/LiveBadge.jsx', '../../components/data/MapLegend.jsx',
+    '../../components/actions/Button.jsx', '../../components/actions/SegmentedControl.jsx', '../../components/actions/ThemeToggle.jsx', '../../components/actions/SearchInput.jsx',
+    '../../components/layout/Panel.jsx', '../../components/layout/Sheet.jsx', '../../components/layout/TopBar.jsx', '../../components/layout/TabBar.jsx', '../../components/layout/HoverCard.jsx'
+  ]).then(() => {
+    const start = () => ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(window.AtlasApp));
+    if (window.AtlasApp) start(); else { const t = setInterval(() => { if (window.AtlasApp) { clearInterval(t); start(); } }, 30); }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,2 @@
+export interface SheetProps { open: boolean; onClose: () => void; title: string; kicker?: string; children?: React.ReactNode; side?: boolean; style?: React.CSSProperties }
+export function Sheet(props: SheetProps): JSX.Element | null;

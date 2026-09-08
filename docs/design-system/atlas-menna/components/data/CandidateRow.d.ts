@@ -1,0 +1,2 @@
+export interface CandidateRowProps { rank: number; name: string; party: string; pct: number; votes?: number; projPct?: number; delta?: number; elected?: boolean; status?: string; compact?: boolean; showProj?: boolean; onClick?: () => void; style?: React.CSSProperties }
+export function CandidateRow(props: CandidateRowProps): JSX.Element;

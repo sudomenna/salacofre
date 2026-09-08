@@ -170,6 +170,30 @@
       "date": "2026-09-07",
       "note": "continuação direta do ADR-0021 — não o supersede; responde ao risco de viés de composição já nomeado ali como central",
       "path": "docs/architecture/adrs/0023-pos-estratificacao-por-porte-de-zona.md"
+    },
+    {
+      "id": "0024",
+      "title": "Paleta editorial própria por partido/federação, não tokens por rank de apuração",
+      "status": "proposed",
+      "date": "2026-09-07",
+      "supersedes": "0013",
+      "note": "proposto; passa a accepted apenas após aprovação de emenda ao § 2 da constituição",
+      "path": "docs/architecture/adrs/0024-paleta-editorial-por-partido.md"
+    },
+    {
+      "id": "0025",
+      "title": "Adoção do design system Atlas Menna por restyle-in-place, não árvore v2 paralela",
+      "status": "accepted",
+      "date": "2026-09-07",
+      "path": "docs/architecture/adrs/0025-design-system-atlas-menna-restyle-in-place.md"
+    },
+    {
+      "id": "0026",
+      "title": "Senador e Deputado Federal em crons próprios, granularidade UF, com Vercel Blob como exceção ao read path do ADR-0001 para Deputado",
+      "status": "accepted",
+      "date": "2026-09-07",
+      "amends": "0001",
+      "path": "docs/architecture/adrs/0026-cargos-senador-deputado-ingestao-e-read-path.md"
     }
   ],
   "nfr": {

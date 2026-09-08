@@ -84,6 +84,6 @@ Antes de criar/editar specs, ler [_meta/conventions.md](./_meta/conventions.md):
 
 ## Status atual
 
-- **Documentação**: completa (60 RFs do PRD + 4 RFs adicionados nas specs mapeados; 10 ADRs; 34 RNFs; 12 specs).
+- **Documentação**: completa (60 RFs do PRD + 30 RFs adicionados nas specs mapeados; 26 ADRs — 25 accepted + 1 proposed; 34 RNFs; 13 specs).
 - **Código**: greenfield (não iniciado em 2026-05-17).
 - **Próximo passo**: F1 (Fundação) — ver [roadmap](./product/roadmap.md).

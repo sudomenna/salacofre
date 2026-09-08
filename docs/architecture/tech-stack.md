@@ -16,20 +16,21 @@ source: PRD.md § 10
 | Runtime principal | Node.js (Fluid Compute) | 24 LTS | Padrão Vercel, single-instance multiplexing |
 | Runtime modelo | Python (Fluid Compute) | 3.14 | NumPy/SciPy para bootstrap eficiente |
 | Linguagem | TypeScript | 5.6+ | Type safety end-to-end |
-| Styling | Tailwind CSS | 4.0+ | Design system rápido, JIT |
+| Styling | Tailwind CSS | 4.0+ | ⚠️ **S07 planejado**: `@theme static { ... }` em `app/globals.css`; `tailwind.config.ts` será removido (morto desde migração v3→v4) |
 | Tipografia | next/font (Source Serif Pro + Inter) | latest | NYT-like via Google Fonts |
 | Estado cliente | Zustand | 5+ | Mais leve que Redux, ideal para hover store |
 | Fetcher cliente | SWR | 2+ | Polling, dedup, revalidação |
 | Mapas | MapLibre GL JS | 5+ | Open-source, sem lock-in Mapbox |
 | Mapa tiles | PMTiles | 4+ | Single-file vector tiles, range-requests |
 | Tile converter | tippecanoe | latest | shapefile → PMTiles |
-| Animações | Framer Motion | 12+ | Spring physics, layout animations |
-| Charts | D3 (selecionado) + custom SVG | 7+ | Não usamos Recharts/Visx — controle total |
+| Tipografia | next/font/google | latest | ⚠️ **S07 planejado**: Spectral 400/600 (display), Archivo 400/500/600 (corpo), JetBrains Mono 400/500 (números); substitui Source Serif Pro + Inter via Google Fonts com `@theme static` Tailwind v4 |
+| Animações | Framer Motion | 12+ | ⚠️ **S07 planejado a remover**: zero imports reais hoje, substituída por CSS puro com `prefers-reduced-motion` |
+| Charts | D3 (selecionado) + custom SVG | 7+ | ⚠️ **S07 planejado a remover**: zero imports reais hoje, módulos `d3-array`/`d3-scale`/`d3-shape` sairão de `package.json` |
 | DB | Neon Postgres (Marketplace) | 16+ | Serverless, branching, ramp gratuito |
 | ORM | Drizzle | latest | Type-safe, mais leve que Prisma |
-| Estado quente | Vercel Edge Config | latest | Replicado nos PoPs, <15ms |
-| Storage objeto | Vercel Blob | latest | PMTiles, raw archives |
-| Cron | Vercel Cron | latest | Trigger do ingest |
+| Estado quente | Vercel Edge Config | latest | Replicado nos PoPs, <15ms; limite 512KB total (ADR-0001, emendado ADR-0026) |
+| Storage objeto | Vercel Blob | latest | PMTiles, raw archives; ⚠️ **S07 planejado**: drill-down de UF de Deputado Federal (`deputado:uf:<sigla>.json`, exceção ao ADR-0001) |
+| Cron | Vercel Cron | latest | Trigger do ingest; ⚠️ **S07 planejado**: 3 crons desacoplados (Pres/Gov 60s, Senador 5min, Deputado 15min) |
 | Config | `vercel.ts` (`@vercel/config`) | latest | TS-typed, dynamic |
 | MDX | `@next/mdx` | latest | Página `/sobre-o-modelo` |
 | Validação | Zod | latest | Schema do TSE, payloads de API |
