@@ -34,6 +34,16 @@ function render(over: Partial<React.ComponentProps<typeof ProjectionThermometer>
   );
 }
 
+/** Segmento do `<VoteBar>` que desenha a faixa de IC95. */
+function band(doc: Document): Element | null {
+  return doc.querySelector('[data-label="intervalo de confiança 95%"]');
+}
+
+/** Segmento transparente que desloca a faixa até o limite inferior do IC. */
+function offset(doc: Document): Element | null {
+  return doc.querySelector('[data-label="antes do intervalo"]');
+}
+
 describe("<ProjectionThermometer />", () => {
   it("(a) expõe role=meter com aria-valuemax = scaleMax e aria-valuenow arredondado", () => {
     const doc = render({ scaleMax: 60, pctProjetado: 43.2 });
@@ -51,15 +61,70 @@ describe("<ProjectionThermometer />", () => {
   });
 
   it("(b) posiciona a faixa lower→upper em % de scaleMax", () => {
-    // scaleMax 60: lower 12 → left 20%; upper 24 → width (24-12)/60 = 20%
+    // O trilho passou a ser um `<VoteBar>` (ADR-0029 § 6): a faixa de IC é um
+    // segmento, precedido por um segmento transparente que faz o deslocamento.
+    // A geometria é a mesma de antes — o que muda é como ela é expressa.
+    //
+    // scaleMax 60: lower 12 → offset 20%; upper 24 → largura (24-12)/60 = 20%
     const doc = render({ scaleMax: 60, pctProjetado: 18, pctLower: 12, pctUpper: 24 });
-    const band = doc.querySelector('[data-testid="thermometer-band"]');
-    const style = band?.getAttribute("style") ?? "";
-    expect(style).toContain("left:20%");
-    expect(style).toContain("width:20%");
+    expect(offset(doc)?.getAttribute("style") ?? "").toContain("width:20%");
+    expect(band(doc)?.getAttribute("style") ?? "").toContain("width:20%");
     // tick do projetado: 18/60 = 30%
     const tick = doc.querySelector('[data-testid="thermometer-tick"]');
     expect(tick?.getAttribute("style") ?? "").toContain("left:30%");
+  });
+
+  it("(b2) o trilho é o `<VoteBar>` do kit, e o `meter` é quem fala (ADR-0029 § 6)", () => {
+    // Este teste existe para travar o restyle: se alguém reintroduzir um
+    // trilho próprio com `rounded-sm border`, o rail chapado do kit
+    // (`--surface-sunken`, sem borda) some junto — e ninguém percebe, porque
+    // a geometria continua correta.
+    const doc = render();
+    const meter = doc.querySelector('[role="meter"]');
+    const vb = doc.querySelector('[data-testid="vote-bar"]');
+
+    expect(vb).not.toBeNull();
+    // O `<VoteBar>` se anuncia como role="img". Dois nomes acessíveis para o
+    // mesmo trilho seriam anúncio duplicado, então ele entra sob aria-hidden
+    // e quem carrega valor/escala/IC/apurado é o `meter`.
+    expect(vb?.closest("[aria-hidden='true']")).not.toBeNull();
+    expect(meter?.contains(vb ?? null)).toBe(true);
+    // Rail chapado: nenhuma borda declarada no contêiner do meter.
+    expect(meter?.getAttribute("style") ?? "").not.toContain("border");
+  });
+
+  it("(b3) renderiza o par Parcial/Projeção sob `data-view-only`, sem JS (ADR-0029 § 2)", () => {
+    const doc = render({ pctProjetado: 21.4, pctAtual: 20.1 });
+
+    const proj = doc.querySelector('[data-testid="thermometer-numero"]');
+    const parcial = doc.querySelector('[data-testid="thermometer-numero-parcial"]');
+
+    // Os DOIS existem no HTML do servidor: quem escolhe é a cascata a partir
+    // de `data-view` no <html>, escrita pelo <ViewModeSwitch> do shell.
+    expect(proj?.getAttribute("data-view-only")).toBe("proj");
+    expect(parcial?.getAttribute("data-view-only")).toBe("parcial");
+    expect(proj?.textContent).toContain("21,4%");
+    expect(parcial?.textContent).toContain("20,1%");
+
+    // `data-view-only` NUNCA pode cair no <Figure>: ele escreve `display:grid`
+    // inline, e inline vence folha de autor — a regra `display: none` de
+    // globals.css seria ignorada e os dois números apareceriam juntos.
+    for (const el of [proj, parcial]) {
+      expect(el?.querySelector("[data-testid='figure']")?.hasAttribute("data-view-only")).toBe(
+        false,
+      );
+    }
+
+    // O algarismo é mono, do kit — não mais serifa (ADR-0029 § 6).
+    const valor = proj?.querySelector("[data-testid='figure-value']");
+    expect(valor?.getAttribute("style") ?? "").toContain("var(--type-figure");
+
+    // Sem apuração ainda, o lado "Parcial" mostra travessão em vez de 0,0%:
+    // zero apurado e ausência de apuração não são a mesma afirmação.
+    const semApuracao = render({ pctAtual: null });
+    expect(
+      semApuracao.querySelector('[data-testid="thermometer-numero-parcial"]')?.textContent,
+    ).toContain("—");
   });
 
   it("(c) pctAtual null → sem marcador de apurado e rodapé 'sem apuração'", () => {
@@ -89,8 +154,7 @@ describe("<ProjectionThermometer />", () => {
     const doc = render({ cor: undefined, corBand: undefined, rank: 3 });
     const tick = doc.querySelector('[data-testid="thermometer-tick"]');
     expect(tick?.getAttribute("style") ?? "").toContain("var(--color-cand-3)");
-    const band = doc.querySelector('[data-testid="thermometer-band"]');
-    expect(band?.getAttribute("style") ?? "").toContain("var(--color-cand-band-3)");
+    expect(band(doc)?.getAttribute("style") ?? "").toContain("var(--color-cand-band-3)");
 
     // Sem cor e sem rank → token neutro, nunca hex partidário (constituição § 2).
     const semRank = render({ cor: undefined, corBand: undefined });
@@ -164,10 +228,8 @@ describe("<ProjectionThermometer />", () => {
     const doc = render({ scaleMax: 50, pctProjetado: 130, pctLower: -20, pctUpper: 400 });
     const meter = doc.querySelector('[role="meter"]');
     expect(meter?.getAttribute("aria-valuenow")).toBe("50");
-    const band = doc.querySelector('[data-testid="thermometer-band"]');
-    const style = band?.getAttribute("style") ?? "";
-    expect(style).toContain("left:0%");
-    expect(style).toContain("width:100%");
+    expect(offset(doc)?.getAttribute("style") ?? "").toContain("width:0%");
+    expect(band(doc)?.getAttribute("style") ?? "").toContain("width:100%");
     expect(
       doc.querySelector('[data-testid="thermometer-tick"]')?.getAttribute("style") ?? "",
     ).toContain("left:100%");
@@ -175,7 +237,7 @@ describe("<ProjectionThermometer />", () => {
 
   it("(g) lower === upper → sem faixa e nota 'IC indisponível'", () => {
     const doc = render({ pctProjetado: 14.3, pctLower: 14.3, pctUpper: 14.3, pctAtual: null });
-    expect(doc.querySelector('[data-testid="thermometer-band"]')).toBeNull();
+    expect(band(doc)).toBeNull();
     expect(doc.body.textContent ?? "").toContain("IC indisponível");
     expect(doc.querySelector('[role="meter"]')?.getAttribute("aria-label") ?? "").toContain(
       "intervalo de confiança indisponível",
@@ -188,7 +250,7 @@ describe("<ProjectionThermometer />", () => {
     expect(meter).not.toBeNull();
     expect(meter?.getAttribute("aria-valuenow")).toBe("0");
     expect(meter?.getAttribute("aria-label") ?? "").toContain("aguardando projeção");
-    expect(doc.querySelector('[data-testid="thermometer-band"]')).toBeNull();
+    expect(band(doc)).toBeNull();
     expect(doc.querySelector("#t-abstencao")?.getAttribute("data-estado")).toBe("aguardando");
     expect(doc.body.textContent ?? "").toContain("aguardando projeção");
   });

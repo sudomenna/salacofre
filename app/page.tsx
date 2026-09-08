@@ -287,7 +287,14 @@ export default async function HomePage() {
     <main
       data-trilha="pres"
       className="mx-auto flex max-w-page flex-col px-4 py-6 md:px-6 md:py-10"
-      style={{ gap: "var(--space-12)" }}
+      // `--space-8` (32px) e não `--space-12` (48px): com 12 seções, o
+      // espaçamento entre blocos sozinho valia 576px de rolagem em 430px —
+      // 8% da página inteira gasta em ar. A separação editorial entre seções
+      // é feita pelo filete duplo e pelo kicker do `<Panel>` (ADR-0025), não
+      // pela distância; 32px continua sendo a maior medida de espaço da
+      // página e é o valor que `/governador` e `/uf/[sigla]` já usam na mesma
+      // posição (elas nunca receberam os 48px). Nenhum bloco saiu.
+      style={{ gap: "var(--space-8)" }}
     >
       {/* Alimenta o selo "23,4% APURADO" do `<TopBar>` (ADR-0029 § 4). */}
       <LivePctLabelStyle pctApurado={pct_apurado_total} />
@@ -333,7 +340,11 @@ export default async function HomePage() {
           acima dele porque a regra do ADR é "TrilhaKicker acima do `<h1>`" —
           e o `<h1>` agora é o título do painel (ADR-0029 § 5). O `<Panel>`
           não tem slot antes do próprio cabeçalho. */}
-      <TrilhaKicker trilha="pres" crumbs={["Brasil"]} className="-mb-8" />
+      {/* `-mb-4` acompanha o `gap` do `<main>`: a margem negativa existe só
+          para colar o kicker no painel que ele encabeça, e vale metade do
+          espaçamento entre seções. Com o gap em 32px, -16px deixa os mesmos
+          16px de respiro que havia quando o gap era 48px e a margem, -32px. */}
+      <TrilhaKicker trilha="pres" crumbs={["Brasil"]} className="-mb-4" />
 
       {/* Seção 2 — a projeção. O kicker carrega o rótulo "não oficial"
           exigido pela constituição § 1 já no topo da primeira seção de dado.
@@ -359,7 +370,11 @@ export default async function HomePage() {
           </div>
         }
       >
-        <div className="flex flex-col" style={{ gap: "var(--space-8)" }}>
+        {/* `--space-6` dentro do painel: 24px separa sub-blocos de uma MESMA
+            seção; 32px é a medida entre seções (o `gap` do `<main>`). Ter as
+            duas iguais fazia o interior do painel de resultado ler como se
+            fosse uma pilha de seções independentes. */}
+        <div className="flex flex-col" style={{ gap: "var(--space-6)" }}>
           <ApuracaoMeta pctApurado={pct_apurado_total} ufsApuradas={ufs_apuradas} ts={ts} />
 
           {/* Camada 1 (hero).

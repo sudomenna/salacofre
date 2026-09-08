@@ -59,6 +59,7 @@ import {
   ProjectionThermometer,
   type ThermometerBase,
 } from "@/components/atoms/bars/ProjectionThermometer";
+import { Figure } from "@/components/atoms/data/Figure";
 import type {
   EdgeCandidate,
   EdgeParticipacao,
@@ -248,6 +249,15 @@ export function ProjectionThermometers({
 
   const origem = origemLabel(participacao?.metodo);
 
+  // "Apurado" agregado (ADR-0029 § 6) — o mesmo número que a linha de origem
+  // já cita por extenso, promovido a `<Figure>` no cabeçalho do bloco. Sai
+  // como `null` (e o `Figure` não é renderizado) quando o modelo ainda não
+  // publicou `metodo`, em vez de imprimir "0,0%", que seria afirmar apuração
+  // zerada quando o que existe é ausência de medida.
+  const apuradoBruto = participacao?.metodo?.pct_apurado;
+  const apurado =
+    typeof apuradoBruto === "number" && Number.isFinite(apuradoBruto) ? apuradoBruto : null;
+
   // `participacao-only` só renderiza 2 termômetros (brancos/nulos +
   // abstenção): numa grid de 3 colunas sobrava uma coluna vazia em
   // `/governador` (achado a11y-perf-auditor 2026-09-05). 2 colunas no
@@ -263,15 +273,23 @@ export function ProjectionThermometers({
       // a partir do apurado" junto com o título, não só quem lê a linha.
       aria-describedby={ORIGEM_ID}
       data-variant={variant}
-      className={["flex flex-col gap-4", className].filter(Boolean).join(" ")}
+      className={["flex flex-col", className].filter(Boolean).join(" ")}
+      style={{ gap: "var(--space-3)" }}
     >
-      <h2
-        id={HEADING_ID}
-        className="text-xl md:text-2xl"
-        style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
-      >
-        {heading}
-      </h2>
+      {/* Cabeçalho do bloco: título à esquerda, `<Figure>` do "Apurado"
+          agregado à direita (ADR-0029 § 6). O `Figure` é o átomo do kit para
+          número-manchete e sai em mono — a mesma família dos seis algarismos
+          abaixo, o que amarra a leitura "esta é a fatia já contada, aqueles
+          são os projetados a partir dela". Só aparece quando o modelo já
+          publicou `metodo.pct_apurado`; sem ele, o cabeçalho é só o título. */}
+      <div className="flex items-end justify-between" style={{ gap: "var(--space-3)" }}>
+        <h2 id={HEADING_ID} style={{ font: "var(--type-title)", color: "var(--text-primary)" }}>
+          {heading}
+        </h2>
+        {apurado !== null && (
+          <Figure align="right" label="Apurado" size="sm" value={formatPercent(apurado, 1)} />
+        )}
+      </div>
 
       {/* Origem do número (RF-062): a projeção é extrapolada do que já foi
           apurado — nunca resultado oficial, nunca "baseado em 2022". Linha
@@ -280,13 +298,19 @@ export function ProjectionThermometers({
         id={ORIGEM_ID}
         data-testid="projecao-origem"
         data-metodo={participacao?.metodo?.tipo ?? "aguardando"}
-        className="text-xs"
-        style={{ color: "var(--color-text-muted)" }}
+        style={{
+          font: "var(--type-body-sm)",
+          fontSize: "var(--text-xs)",
+          color: "var(--text-secondary)",
+        }}
       >
         {origem}
       </p>
 
-      <div className={`grid grid-cols-1 gap-6 ${gridColsClass}`}>
+      <div
+        className={`grid grid-cols-1 ${gridColsClass}`}
+        style={{ gap: "var(--space-5) var(--space-6)" }}
+      >
         {top3.map((c, i) => {
           const rank = rankOf(c, i);
           const m = top3Metrics[i] ?? null;
@@ -375,19 +399,37 @@ export function ProjectionThermometers({
         // não em 100 exatos: o EA20 põe anulados e sub judice dentro de `c`
         // sem que pertençam a candidato, branco ou nulo. Declaramos o
         // resíduo em vez de arredondar a identidade para "somam 100".
-        <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+        <p
+          style={{
+            font: "var(--type-body-sm)",
+            fontSize: "var(--text-xs)",
+            color: "var(--text-secondary)",
+          }}
+        >
           Candidatos, Outros, brancos e nulos somam 100% de quem compareceu (resíduo: anulados e sub
           judice). Abstenção tem base própria — {denominadorLabel("eleitores_instalados")}.
         </p>
       ) : soCandidatos ? (
-        <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+        <p
+          style={{
+            font: "var(--type-body-sm)",
+            fontSize: "var(--text-xs)",
+            color: "var(--text-secondary)",
+          }}
+        >
           Denominadores diferentes — os seis números não somam 100. {denominadorLabel("votaveis")}{" "}
           (candidatos e Outros: válidos + anulados + sub judice, conforme o TSE) ·{" "}
           {denominadorLabel("comparecimento")} (brancos e nulos) ·{" "}
           {denominadorLabel("eleitores_instalados")} (abstenção).
         </p>
       ) : (
-        <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+        <p
+          style={{
+            font: "var(--type-body-sm)",
+            fontSize: "var(--text-xs)",
+            color: "var(--text-secondary)",
+          }}
+        >
           Denominadores diferentes — os dois números abaixo não são comparáveis entre si.{" "}
           {denominadorLabel("comparecimento")} (brancos e nulos) ·{" "}
           {denominadorLabel("eleitores_instalados")} (abstenção).

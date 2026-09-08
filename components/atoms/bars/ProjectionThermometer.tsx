@@ -31,9 +31,9 @@
  *   as duas marcas continuam-se lendo como formas distintas em posições
  *   distintas (não dependente só de cor, WCAG 1.4.1). O tick ganha um halo
  *   (`box-shadow` na cor de fundo) para não se perder dentro da faixa.
- *   Faixas patologicamente estreitas (IC < ~2% da escala) recebem uma
- *   largura mínima em px via `calc()`, recentrada no ponto médio real do
- *   IC — só ativa abaixo do limiar, então não altera o layout comum.
+ *   Faixas patologicamente estreitas (IC < 2% da escala) recebem uma largura
+ *   mínima de 2% da escala, recentrada no ponto médio real do IC — só ativa
+ *   abaixo do limiar, então não altera o layout comum.
  *
  * Cor de preenchimento ≠ cor de texto (achado axe-core 2026-09-07)
  *   O número grande é **texto**, e estava sendo pintado com `cor` — a cor de
@@ -61,12 +61,63 @@
  *     completo (valor projetado, base, IC95 e apurado).
  *   - Marcador do apurado é decorativo (`aria-hidden`) — o número já está
  *     no `aria-label` e no rodapé.
+ *
+ * ============================================================================
+ * S07/Bloco 2 — restyle com os átomos do kit (ADR-0029 § 6)
+ * ============================================================================
+ *
+ * O ADR-0029 § 6 manteve o conteúdo do ADR-0018 intacto (seis termômetros,
+ * três denominadores rotulados, IC por soma de resamples, número grande em cor
+ * de TEXTO segura) e pediu só o restyle: `VoteBar` no lugar do trilho próprio,
+ * `Figure` no lugar do número em serifa, tokens do kit no lugar dos legados.
+ * O que mudou aqui, e por quê:
+ *
+ *   1. **`VoteBar` desenha o trilho.** A faixa de IC95 virou um segmento do
+ *      `VoteBar` (precedido por um segmento transparente que a posiciona), o
+ *      que traz de graça o rail chapado do kit — `--surface-sunken`, sem
+ *      borda, `--radius-xs` — no lugar do `rounded-sm border` anterior. O
+ *      filete de 1px que o `VoteBar` desenha entre segmentos cai exatamente
+ *      sobre o **limite inferior do IC**, que é informação, não artefato.
+ *   2. **O tick continua sendo nosso.** O `marker` do `VoteBar` é fixo em
+ *      `--border-strong`; o tick do ponto projetado tem que sair na cor do
+ *      candidato (`cor`), com halo, pela mesma razão documentada acima. Por
+ *      isso o `VoteBar` entra com `marker={null}` dentro de um contêiner
+ *      `relative`, e o tick é irmão posicionado sobre ele.
+ *   3. **`role="meter"` fica no contêiner, e o `VoteBar` entra
+ *      `aria-hidden`.** O `VoteBar` se anuncia como `role="img"`; dois nomes
+ *      acessíveis para o mesmo trilho seriam anúncio duplicado. O `meter`
+ *      continua carregando valor, escala, IC e apurado no `aria-label`.
+ *   4. **`Figure` para o número.** Mono (`--type-figure-lg` / `--type-figure`)
+ *      em vez de serifa, com o rótulo da base em caixa alta acima — que é o
+ *      que torna legível qual dos dois números está em foco.
+ *   5. **Reage ao controle "Parcial / Projeção"** (ADR-0029 § 2) sem uma linha
+ *      de JavaScript: os DOIS `Figure` são renderizados no servidor, cada um
+ *      sob `data-view-only`, e a cascata de `app/globals.css` revela o da base
+ *      ativa. O componente segue Server Component puro.
+ *
+ *      Por que `data-view-only` (exclusivo) e não `data-view-cell` (os dois
+ *      visíveis, um esmaecido): dois algarismos de 48px lado a lado competem
+ *      pela mesma leitura e nenhum vence. E nada sai do DOM em termos de
+ *      informação — o rodapé sempre imprime IC95 **e** apurado, nas duas
+ *      bases, em qualquer estado do controle (ADR-0017).
+ *
+ *      O que deliberadamente NÃO reage: a faixa, o tick e o losango do
+ *      apurado. Esmaecer marca gráfica por opacidade a empurraria contra o
+ *      piso de 3:1 da WCAG 1.4.11 — `--color-cand-3` já mede 2,99:1 como
+ *      texto — e o trilho não é ambíguo: o tick é a projeção, o losango é o
+ *      apurado, os dois sempre desenhados.
  */
 
+import { VoteBar } from "@/components/atoms/bars/VoteBar";
+import { Figure } from "@/components/atoms/data/Figure";
 import { bandForRank, colorForRank, rankFromColorVar, strongForRank } from "@/lib/utils/cand-color";
 import { formatCI, formatPercent } from "@/lib/utils/format";
 import { denominadorFrase, denominadorLabel } from "@/lib/utils/participacao";
 import { textForParty } from "@/lib/utils/party-color";
+
+/** Rótulos dos segmentos do `VoteBar` — âncoras estáveis para os testes. */
+const SEG_OFFSET = "antes do intervalo";
+const SEG_BAND = "intervalo de confiança 95%";
 
 /**
  * Base (denominador) da métrica. Espelha `ParticipacaoBase` de
@@ -233,12 +284,17 @@ export function ProjectionThermometer({
   // apertado). Só ativa abaixo do limiar — o caso comum (band ≥ 2% da
   // escala) preserva o `left`/`width` exatos de sempre. Recentra em
   // `bandCenter` para não puxar a faixa visualmente para um dos lados.
+  //
+  // Antes do restyle isto saía como `calc(… - max(…%, 3px))`; agora a faixa é
+  // um segmento do `<VoteBar>`, que só aceita percentual. O piso passa a ser
+  // aritmético (2% da escala) em vez de híbrido %/px — mesma proteção, mesmo
+  // limiar, e continua determinístico (constituição § 6).
   const MIN_BAND_PCT = 2;
   const bandNeedsMinWidth = bandWidth > 0 && bandWidth < MIN_BAND_PCT;
-  const bandLeftCss = bandNeedsMinWidth
-    ? `calc(${bandCenter}% - max(${(bandWidth / 2).toFixed(4)}%, 3px))`
-    : `${bandLeft}%`;
-  const bandWidthCss = bandNeedsMinWidth ? `max(${bandWidth}%, 6px)` : `${bandWidth}%`;
+  const bandWidthPct = bandNeedsMinWidth ? MIN_BAND_PCT : bandWidth;
+  const bandOffsetPct = bandNeedsMinWidth
+    ? Number(Math.max(0, Math.min(100 - MIN_BAND_PCT, bandCenter - MIN_BAND_PCT / 2)).toFixed(4))
+    : bandLeft;
 
   const frase = denominadorFrase(base);
   const label = denominadorLabel(base);
@@ -257,40 +313,58 @@ export function ProjectionThermometer({
           : `; intervalo de ${formatPercent(loRaw, 1)} a ${formatPercent(hiRaw, 1)}`
       }${atual === null ? "; sem apuração" : `; apurado ${formatPercent(atual, 1)}`}`;
 
-  const numeroClass =
-    size === "hero"
-      ? "font-serif text-4xl font-semibold leading-none tabular-nums md:text-5xl"
-      : "font-serif text-3xl font-semibold leading-none tabular-nums";
-  const trilhoClass = size === "hero" ? "relative h-4 w-full" : "relative h-3 w-full";
+  const hero = size === "hero";
+  const railHeight = hero ? 14 : 12;
+  const figureSize = hero ? "lg" : "md";
+  const numeroCor = aguardando ? "var(--text-faint)" : corTextoResolvida;
 
   return (
     <div
       id={id}
-      className={["flex flex-col gap-2", className].filter(Boolean).join(" ")}
+      className={["flex flex-col", className].filter(Boolean).join(" ")}
+      style={{ gap: "var(--space-2)" }}
       data-base={base}
       data-estado={aguardando ? "aguardando" : "projetado"}
     >
-      <div className="flex items-baseline justify-between gap-3">
-        <div className="flex min-w-0 flex-col">
+      <div className="flex items-end justify-between" style={{ gap: "var(--space-3)" }}>
+        <div className="flex min-w-0 flex-col" style={{ gap: 2 }}>
           <span
-            className="truncate text-base font-medium md:text-lg"
-            style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
+            className="truncate"
+            style={{
+              font: hero ? "var(--type-title)" : "var(--type-body)",
+              color: "var(--text-primary)",
+            }}
           >
             {titulo}
           </span>
           {subtitulo && (
-            <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+            <span
+              style={{
+                font: "var(--type-body-sm)",
+                fontSize: "var(--text-xs)",
+                color: "var(--text-secondary)",
+              }}
+            >
               {subtitulo}
             </span>
           )}
         </div>
-        <span
-          className={numeroClass}
-          style={{ color: aguardando ? "var(--color-text-faint)" : corTextoResolvida }}
-          data-testid="thermometer-numero"
-        >
-          {aguardando ? "—" : formatPercent(projetado, 1)}
-        </span>
+        <div className="flex flex-none flex-col items-end">
+          <Numero
+            cor={numeroCor}
+            rotulo="Projeção"
+            size={figureSize}
+            valor={aguardando ? null : projetado}
+            view="proj"
+          />
+          <Numero
+            cor={numeroCor}
+            rotulo="Parcial"
+            size={figureSize}
+            valor={aguardando ? null : atual}
+            view="parcial"
+          />
+        </div>
       </div>
 
       {/* biome-ignore lint/a11y/useSemanticElements: <meter> nativo não estiliza faixa + tick + marcador. */}
@@ -300,42 +374,43 @@ export function ProjectionThermometer({
         aria-valuemax={escala}
         aria-valuenow={aguardando ? 0 : Math.round(projetado)}
         aria-label={ariaLabel}
-        className={`${trilhoClass} rounded-sm border transition-colors`}
-        style={{
-          backgroundColor: "var(--color-bg-muted)",
-          borderColor: "var(--color-border)",
-        }}
+        className="relative w-full"
+        style={{ height: railHeight }}
       >
+        {/* O `<VoteBar>` traz o rail do kit (chapado, `--surface-sunken`, sem
+            borda) e desenha a faixa de IC como segmento. `aria-hidden` porque
+            ele se anuncia como `role="img"` e quem fala aqui é o `meter`. */}
+        <div aria-hidden="true">
+          <VoteBar
+            ariaLabel={label}
+            height={railHeight}
+            marker={null}
+            segments={
+              aguardando || semIC
+                ? []
+                : [
+                    { label: SEG_OFFSET, pct: bandOffsetPct, color: "transparent" },
+                    { label: SEG_BAND, pct: bandWidthPct, color: corBandResolvida },
+                  ]
+            }
+            showLabels={false}
+          />
+        </div>
+        {/* Tick do ponto projetado. Halo na cor da superfície evita que o tick
+            se funda com a faixa quando as duas cores são análogas (banda
+            clara + tick forte do mesmo matiz medem ~3,19:1 — perto do
+            piso de WCAG 1.4.11 para objetos gráficos). */}
         {!aguardando && (
-          <>
-            {/* Faixa de incerteza (IC95) — ausente quando não há IC publicado */}
-            {!semIC && (
-              <span
-                aria-hidden="true"
-                className="absolute inset-y-0 block"
-                style={{
-                  left: bandLeftCss,
-                  width: bandWidthCss,
-                  backgroundColor: corBandResolvida,
-                }}
-                data-testid="thermometer-band"
-              />
-            )}
-            {/* Tick do ponto projetado. Halo na cor de fundo evita que o tick
-                se funda com a faixa quando as duas cores são análogas (banda
-                clara + tick forte do mesmo matiz medem ~3,19:1 — perto do
-                piso de WCAG 1.4.11 para objetos gráficos). */}
-            <span
-              aria-hidden="true"
-              className="absolute inset-y-0 block w-0.5 -translate-x-1/2"
-              style={{
-                left: `${tickLeft}%`,
-                backgroundColor: corResolvida,
-                boxShadow: "0 0 0 1px var(--color-bg)",
-              }}
-              data-testid="thermometer-tick"
-            />
-          </>
+          <span
+            aria-hidden="true"
+            className="absolute inset-y-0 block w-0.5 -translate-x-1/2"
+            style={{
+              left: `${tickLeft}%`,
+              backgroundColor: corResolvida,
+              boxShadow: "0 0 0 1px var(--surface-card)",
+            }}
+            data-testid="thermometer-tick"
+          />
         )}
       </div>
 
@@ -349,22 +424,38 @@ export function ProjectionThermometer({
       {!aguardando && atual !== null && (
         <div
           aria-hidden="true"
-          className="relative h-2.5 w-full"
+          className="relative w-full"
+          style={{ height: 8, marginTop: -4 }}
           data-testid="thermometer-apurado-track"
         >
           <span
             className="absolute top-0 block h-2 w-2 -translate-x-1/2 rotate-45 border"
             style={{
               left: `${atualLeft}%`,
-              backgroundColor: "var(--color-bg)",
-              borderColor: "var(--color-text)",
+              backgroundColor: "var(--surface-card)",
+              borderColor: "var(--text-primary)",
             }}
             data-testid="thermometer-apurado"
           />
         </div>
       )}
 
-      <p className="text-xs tabular-nums" style={{ color: "var(--color-text-muted)" }}>
+      {/* Rodapé em SANS, não em `--type-data` (mono): a linha inteira —
+          "IC95 [41,8; 44,6] · apurado 43,2% · % dos votos a votáveis" — tem
+          ~57 caracteres e, em mono de 11px, passa de 376px numa coluna de
+          398px em 430px: quebra em duas linhas e custa 15px por termômetro,
+          90px na tela (medido em 2026-09-08). O mono do kit fica onde ele
+          paga por si — nos algarismos do `<Figure>`; aqui os números já
+          entram com `tabular-nums`, que é o que impede a coluna de dançar
+          entre atualizações. */}
+      <p
+        style={{
+          font: "var(--type-body-sm)",
+          fontSize: "var(--text-xs)",
+          fontVariantNumeric: "tabular-nums",
+          color: "var(--text-secondary)",
+        }}
+      >
         {aguardando ? (
           <>aguardando projeção · {label}</>
         ) : (
@@ -375,5 +466,51 @@ export function ProjectionThermometer({
         )}
       </p>
     </div>
+  );
+}
+
+/**
+ * Um dos dois algarismos do par "Parcial / Projeção" (ADR-0029 § 2).
+ *
+ * Os dois são renderizados no servidor; a cascata de `app/globals.css` decide
+ * qual aparece, a partir de `data-view` no `<html>`. Zero JavaScript novo — o
+ * único componente client do par é o `<ViewModeSwitch>` da barra do topo, que
+ * já existe.
+ *
+ * `data-view-only` mora neste `<span>`, e nunca no `<Figure>`: o `Figure`
+ * escreve `display: grid` **inline**, e declaração inline vence qualquer folha
+ * de autor — a regra `[data-view-only] { display: none }` seria simplesmente
+ * ignorada, e os dois números apareceriam juntos. O `<span>` não declara
+ * display, então a regra pega; e como ele é item de um contêiner flex, o
+ * `display: revert` do estado ativo (que computa `inline`) é blocificado de
+ * volta para bloco, sem efeito colateral de layout.
+ */
+function Numero({
+  cor,
+  rotulo,
+  size,
+  valor,
+  view,
+}: {
+  cor: string;
+  rotulo: string;
+  size: "lg" | "md";
+  valor: number | null;
+  view: "proj" | "parcial";
+}) {
+  return (
+    <span
+      data-view-only={view}
+      data-testid={view === "proj" ? "thermometer-numero" : "thermometer-numero-parcial"}
+      style={{ color: cor }}
+    >
+      <Figure
+        align="right"
+        color={cor}
+        label={rotulo}
+        size={size}
+        value={valor === null ? "—" : formatPercent(valor, 1)}
+      />
+    </span>
   );
 }

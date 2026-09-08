@@ -454,6 +454,47 @@ describe("<ProjectionThermometers />", () => {
     expect(origem?.textContent).toContain("sem urna desta UF ainda");
   });
 
+  it("(m) o 'Apurado' agregado é um `<Figure>` do kit, e some quando não há medida", () => {
+    // ADR-0029 § 6: "`Figure` para o 'Apurado' agregado". O mesmo número que a
+    // linha de origem cita por extenso, promovido ao átomo de número-manchete
+    // do kit — mono, na mesma família dos seis algarismos abaixo.
+    const doc = parse(
+      <ProjectionThermometers candidatos={onzeCandidatos()} participacao={participacaoCompleta} />,
+    );
+    // Escopo no cabeçalho do bloco: cada termômetro também usa `<Figure>`
+    // para o próprio algarismo, então uma busca no documento inteiro pegaria
+    // o primeiro por ordem, não o do cabeçalho — e o teste continuaria
+    // "passando" se o do cabeçalho sumisse.
+    const cabecalho = doc.querySelector("#projecao-termometros-heading")?.parentElement;
+    const fig = cabecalho?.querySelector('[data-testid="figure"]');
+    expect(fig?.querySelector('[data-testid="figure-label"]')?.textContent).toBe("Apurado");
+    expect(fig?.querySelector('[data-testid="figure-value"]')?.textContent).toBe("23,4%");
+    // Mono, não serifa — é o ponto do restyle.
+    expect(
+      fig?.querySelector('[data-testid="figure-value"]')?.getAttribute("style") ?? "",
+    ).toContain("var(--type-figure");
+
+    // Sem `metodo` não há apuração medida. Imprimir "0,0%" afirmaria apuração
+    // zerada, que é outra coisa; o `<Figure>` simplesmente não entra.
+    const semMetodo = parse(<ProjectionThermometers candidatos={onzeCandidatos()} />);
+    expect(
+      semMetodo
+        .querySelector("#projecao-termometros-heading")
+        ?.parentElement?.querySelector('[data-testid="figure"]'),
+    ).toBeNull();
+  });
+
+  it("(n) o `<h2>` do bloco usa a composição do kit, não escala crua", () => {
+    // Ponto 6 do restyle: `text-xl md:text-2xl` + `font-serif` cru dava um
+    // título que não existia na escala tipográfica do design system.
+    const doc = parse(
+      <ProjectionThermometers candidatos={onzeCandidatos()} participacao={participacaoCompleta} />,
+    );
+    const h2 = doc.querySelector("#projecao-termometros-heading");
+    expect(h2?.getAttribute("style") ?? "").toContain("var(--type-title)");
+    expect(h2?.getAttribute("class") ?? "").not.toMatch(/text-(xl|2xl)/);
+  });
+
   it("(l) RF-062: sem `metodo` → 'Aguardando primeira apuração' (inclusive participacao-only)", () => {
     const semMetodo = parse(<ProjectionThermometers candidatos={onzeCandidatos()} />);
     const origem = semMetodo.querySelector('[data-testid="projecao-origem"]');

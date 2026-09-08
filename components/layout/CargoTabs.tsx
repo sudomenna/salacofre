@@ -96,7 +96,19 @@ const ITEMS = [
   { value: "sen", label: "Senador", disabled: true, disabledReason: EM_BREVE },
   {
     value: "dep",
-    label: "Deputado Federal",
+    // "Deputado Federal" não cabe numa coluna de 1/4 de 430px: quebrava em
+    // duas linhas e esticava a barra inteira (o defeito que o ADR-0029 § 3
+    // atribuía à posição da navegação, mas que sobrevive à mudança de
+    // posição). O kit resolve com o rótulo curto — `TabBar.jsx` do protótipo
+    // usa "Deputado". Aqui o visível é "Deputado" e o " Federal" continua no
+    // DOM em `sr-only`, então o NOME ACESSÍVEL segue sendo "Deputado Federal"
+    // — o rótulo visível é prefixo do acessível, que é o que a WCAG 2.5.3
+    // (Label in Name) exige.
+    label: (
+      <>
+        Deputado<span className="sr-only"> Federal</span>
+      </>
+    ),
     disabled: true,
     disabledReason: EM_BREVE,
   },

@@ -14,8 +14,8 @@
 .row {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: 0 var(--space-4) var(--space-3);
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-2);
 }
 
 .controls {
@@ -29,9 +29,21 @@
 /* Os dois controles dividem a largura em telas estreitas — é o layout do
  * protótipo (`full` no mobile). `min-width: 0` porque ambos têm filhos com
  * `white-space: nowrap`, que sem isto impediriam o flex item de encolher
- * abaixo da largura do conteúdo. */
+ * abaixo da largura do conteúdo.
+ *
+ * `display: flex` e NÃO `block`: esta classe é aplicada a dois alvos de
+ * natureza diferente — um `<span>` neutro (que envolve o `<ViewModeSwitch>`)
+ * e a RAIZ do `<TurnoSwitch>`, que já se declara `inline-flex` por utilitária
+ * do Tailwind. Como `.control` e `.inline-flex` têm a mesma especificidade e o
+ * CSS Module entra depois na cascata, `display: block` vencia e **desmontava a
+ * fila do TurnoSwitch**: os dois `<span>` de turno, cada um com
+ * `min-height: var(--tap-min)`, passavam a ser blocos empilhados — 90px de
+ * altura em duas linhas, contra os 46px de uma. Era daí que vinham os 155px da
+ * barra do topo em 430px (medido em 2026-09-08). `flex` serve aos dois alvos:
+ * mantém a fila do turno e não altera o `<span>` neutro, cujo único filho é o
+ * segmentado com `width: 100%`. */
 .control {
-  display: block;
+  display: flex;
   flex: 1 1 0;
   min-width: 0;
 }
