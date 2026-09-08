@@ -12,6 +12,8 @@ date: 2026-05-17
 Aceito.
 
 > **Nota 2026-09-07 — Emenda**: Este ADR continua vigente e seu princípio central (Postgres fora do read path) permanece intacto. Porém, a partir de [ADR-0026](0026-cargos-senador-deputado-ingestao-e-read-path.md) (2026-09-07), o read path deixa de ser **exclusivamente** Edge Config para incluir **Vercel Blob** como um segundo mecanismo, restrito ao drill-down de UF de Deputado Federal — cargo que gera volume incompatível com o limite de 512KB do Edge Config. O princípio de "Postgres fora do read path" subsiste: o read path passa a ser uma union {Edge Config, Vercel Blob}, mas nunca Postgres.
+>
+> **Nota 2026-09-08 — Emenda ([ADR-0032](0032-detalhe-municipal-vercel-blob.md))**: dois números acima ficaram desatualizados. (1) O limite real do Edge Config — produto renomeado pela Vercel para "Global Config" — é **1 MB por store inteiro**, não 512 KB. (2) O Vercel Blob deixa de ser exclusivo do drill-down de Deputado Federal: o ADR-0032 generaliza o mesmo mecanismo para o detalhe municipal e as séries temporais por UF de Presidente/Governador (`EdgePayloadUf.municipios` / `.series_temporais`), pelo mesmo motivo de volume. O princípio central deste ADR-0001 permanece intacto: Postgres nunca entra no read path.
 
 ## Contexto
 

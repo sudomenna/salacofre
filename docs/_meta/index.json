@@ -228,6 +228,15 @@
       "amends": "0024",
       "note": "acrescenta gate de separação mútua entre as 31 cores da paleta (PARTY_SEPARATION_FLOOR=12) e gate de colapso de croma no nível 5 (LEVEL5_CHROMA_RATIO_FLOOR=0.6); propõe emenda ao § 2 (1.4 → 1.5), pendente de aprovação do usuário",
       "path": "docs/architecture/adrs/0031-piso-separacao-entre-partidos.md"
+    },
+    {
+      "id": "0032",
+      "title": "Detalhe municipal e séries por UF em Vercel Blob, não no store do Edge Config — resumo por UF permanece, com correção do limite real (1 MB) e guarda de store inteiro",
+      "status": "accepted",
+      "date": "2026-09-08",
+      "amends": ["0001", "0026"],
+      "note": "generaliza a exceção Vercel Blob do ADR-0026 (antes só Deputado Federal) para o campo municipios/series_temporais de EdgePayloadUf; corrige o limite de Edge Config citado em ADR-0001/ADR-0026 de 512KB (errado) para 1MB (real, produto renomeado Global Config); pré-requisito do usuário para o simulado 1 (15-17/09)",
+      "path": "docs/architecture/adrs/0032-detalhe-municipal-vercel-blob.md"
     }
   ],
   "nfr": {

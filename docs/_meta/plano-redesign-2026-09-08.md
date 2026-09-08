@@ -54,6 +54,48 @@ Diferença de altura em 430px: **6.808px** contra 3.147px do protótipo. Metade 
 que o protótipo não tem (IC, denominador, os 9 candidatos que ele esconde atrás do botão que o
 ADR-0029 rejeitou, e oito blocos abaixo do painel). **Não perseguir o número.**
 
+## ⚠️ Reordenação de 08/09 — P0 entrou na frente
+
+Duas descobertas desta tarde mudam a ordem. Ambas medidas, nenhuma estimada.
+
+### P0.1 — O payload não cabe no Global Config (decisão: municípios vão para o Blob, antes do simulado 1)
+
+- A Vercel renomeou **Edge Config → Global Config** e documenta (2026-07-29) **1 MB por store**,
+  em todos os planos, **do store inteiro**, com escrita **recusada** ao exceder. Até 3 stores por projeto.
+- `lib/edge-config/writer.ts:171` afirma **512 KB** (errado) e valida **por requisição** — o store
+  nunca é somado. **Não existe guarda contra o limite real.**
+- Medido contra o banco: 5.572 municípios em 27 UFs; a ~206 B por município (custo medido no
+  payload real de MG), os arrays somam **1,10 MB** para um cargo e **2,19 MB** com Presidente +
+  Governador. MG sozinho é 171,8 KB — 17% do store.
+- A cobertura municipal hoje é de 2.180 de 5.572. **O payload cresce conforme a cobertura melhora**:
+  a escrita passa a ser recusada exatamente quando o dado fica completo, na noite da apuração.
+- **Decisão do usuário (08/09)**: detalhe por município vai para o **Vercel Blob** (estendendo a
+  fronteira que o ADR-0026 já abriu para o Deputado), resumo por UF continua no Global Config, e
+  isso entra **antes do simulado 1** — o simulado passa a testar a arquitetura definitiva.
+
+### P0.2 — A tabela `eleitorado` está errada duas vezes, e alimenta o modelo
+
+Achado ao tentar publicar eleitorado por município (o agente **parou em vez de publicar dado errado**):
+
+1. **Não é desagregável por município.** A tabela é chaveada por zona e o importador guarda "o
+   primeiro município visto" — mas **1.640 de 2.648 zonas (62%) cobrem de 2 a 8 municípios**.
+   Somando pelo banco, Água Comprida (~2.000 habitantes) apareceria como 8º maior colégio de MG,
+   com 172.857 eleitores, e Montes Claros e Uberaba sumiriam. Só 2.154 dos 5.572 municípios têm
+   qualquer eleitorado atribuído.
+2. **Está inflada em 21,8%, de forma desigual por UF.** O CSV do TSE tem `NR_TURNO` e o importador
+   não filtra: município que teve 2º turno em 2024 conta duas vezes. Banco 189.907.728 contra
+   155.910.528 reais. **SP fator 1,454 · AM 1,526 · MG 1,135 · BA 1,018 · seis UFs 1,000.**
+3. **DF ausente** da tabela (26 UFs), apesar de ter snapshots.
+
+**Por que isso é P0 e não cosmético**: `eleitorado` alimenta o peso de zona, os estratos, o
+denominador de `pct_apurado` e **o peso de cada UF na agregação nacional** (`api/model/project.py`).
+O peso relativo de SP contra BA está errado em 43%. **É candidato a causa do gate OT-4, que reprova
+desde 07/09** — e nunca foi investigado nessa direção. Consertar exige reimportar com filtro de
+turno, o que muda o modelo: pede `model-validator` medindo antes/depois.
+
+**Ordem P0**: guarda de tamanho no writer → ADR da fronteira Blob → migração → só então retomar o
+redesign (dark mode, painel de chances completo, rótulos de mapa).
+
 ## Ordem até 04/10
 
 ### Bloco 2 — as outras rotas + chances (agora → 10/09)
