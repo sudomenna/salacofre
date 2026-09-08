@@ -10,7 +10,7 @@ depends_on: [002-modelo-estatistico]
 apis: []
 components: [ExtrapolationIllustration, ConfidenceBandIllustration, NeedleIllustration]
 nfr: [RNF-022, RNF-027, RNF-030]
-adrs: [0005, 0006, 0021]
+adrs: [0005, 0006, 0021, 0025]
 shipped_with_carry_overs:
   - ilustracoes-SVG-inline-3-NYT-style-MVP-NeedleIllustration-mockup-estatico
   - link-ADR-0006-externo-GitHub-em-vez-de-rota-interna-docs

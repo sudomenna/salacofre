@@ -16,7 +16,7 @@ source: PRD.md § 10
 | Runtime principal | Node.js (Fluid Compute) | 24 LTS | Padrão Vercel, single-instance multiplexing |
 | Runtime modelo | Python (Fluid Compute) | 3.14 | NumPy/SciPy para bootstrap eficiente |
 | Linguagem | TypeScript | 5.6+ | Type safety end-to-end |
-| Styling | Tailwind CSS | 4.0+ | ⚠️ **S07 planejado**: `@theme static { ... }` em `app/globals.css`; `tailwind.config.ts` será removido (morto desde migração v3→v4) |
+| Styling | Tailwind CSS | 4.0+ | **S07 Bloco 0 ✓**: `@theme static { ... }` em `app/globals.css`; `tailwind.config.ts` removido (morto desde migração v3→v4) |
 | Tipografia | next/font (Source Serif Pro + Inter) | latest | NYT-like via Google Fonts |
 | Estado cliente | Zustand | 5+ | Mais leve que Redux, ideal para hover store |
 | Fetcher cliente | SWR | 2+ | Polling, dedup, revalidação |
@@ -24,8 +24,8 @@ source: PRD.md § 10
 | Mapa tiles | PMTiles | 4+ | Single-file vector tiles, range-requests |
 | Tile converter | tippecanoe | latest | shapefile → PMTiles |
 | Tipografia | next/font/google | latest | ⚠️ **S07 planejado**: Spectral 400/600 (display), Archivo 400/500/600 (corpo), JetBrains Mono 400/500 (números); substitui Source Serif Pro + Inter via Google Fonts com `@theme static` Tailwind v4 |
-| Animações | Framer Motion | 12+ | ⚠️ **S07 planejado a remover**: zero imports reais hoje, substituída por CSS puro com `prefers-reduced-motion` |
-| Charts | D3 (selecionado) + custom SVG | 7+ | ⚠️ **S07 planejado a remover**: zero imports reais hoje, módulos `d3-array`/`d3-scale`/`d3-shape` sairão de `package.json` |
+| Animações | CSS puro + `prefers-reduced-motion` | — | **S07 Bloco 0 ✓**: Framer Motion removido (zero imports reais); transições via Tailwind `transition-*` + global RNF-026 guard |
+| Charts | Custom SVG | — | **S07 Bloco 0 ✓**: D3 removido (`d3-array`/`d3-scale`/`d3-shape`; zero imports reais) |
 | DB | Neon Postgres (Marketplace) | 16+ | Serverless, branching, ramp gratuito |
 | ORM | Drizzle | latest | Type-safe, mais leve que Prisma |
 | Estado quente | Vercel Edge Config | latest | Replicado nos PoPs, <15ms; limite 512KB total (ADR-0001, emendado ADR-0026) |
@@ -63,10 +63,6 @@ source: PRD.md § 10
     "swr": "^2.4.0",
     "maplibre-gl": "^5.0.0",
     "pmtiles": "^4.0.0",
-    "framer-motion": "^12.0.0",
-    "d3-scale": "^4.0.0",
-    "d3-shape": "^3.0.0",
-    "d3-array": "^3.2.0",
     "zod": "^4.0.0",
     "@next/mdx": "^16.0.0"
   },
@@ -82,11 +78,11 @@ source: PRD.md § 10
 
 ## Notas sobre bundle size
 
-A stack inclui bibliotecas pesadas — em particular **MapLibre GL** (~200KB gzipped), **Framer Motion** (~35KB), **D3 selecionado** (~25KB combinado). Para respeitar [RNF-007a](../nfr/performance.md) (bundle above-the-fold <150KB):
+A stack inclui a biblioteca pesada **MapLibre GL** (~200KB gzipped). Para respeitar [RNF-007a](../nfr/performance.md) (bundle above-the-fold <150KB):
 
 - **MapLibre** carrega via `next/dynamic({ ssr: false })` após first paint — ver [ADR-0010](./adrs/0010-mapa-dynamic-import.md).
-- **Framer Motion** pode ser importado seletivamente (`framer-motion` → `framer-motion/m` minimal) para componentes acima da dobra (agulha) e completo só nos chunks lazy.
-- **D3** é importado por módulo (`d3-scale`, `d3-shape`, `d3-array`) — nunca `import * from 'd3'` (puxaria 80KB+).
+- **Framer Motion** foi removida em S07 Bloco 0 (zero imports reais). Animações agora usam CSS puro com transições Tailwind.
+- **D3** foi removida em S07 Bloco 0 (zero imports reais). Charts continuam como SVG customizado.
 - **PMTiles client** acompanha MapLibre no chunk lazy.
 
 ## Notas sobre dependências transitivas

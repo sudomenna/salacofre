@@ -7,25 +7,33 @@ source: PRD.md § 14.1
 
 # Design Tokens
 
-> **Onde cada token mora de verdade** (verificado em 2026-09-05):
-> as **cores** e `--max-width` são custom properties em `app/globals.css`;
-> `--font-sans` e `--font-serif` são injetadas no `<html>` por `next/font`
-> (`app/layout.tsx`), só `--font-mono` está no `:root`; a **escala tipográfica**,
-> o **espaçamento** e os **breakpoints** não são custom properties — vivem em
-> `tailwind.config.ts` (`theme.extend.fontSize/spacing/screens/maxWidth`) e são
-> consumidos pelas classes utilitárias (`text-xl`, `p-4`, `md:`). O bloco abaixo
-> está anotado por origem.
+> **Onde cada token mora de verdade** (verificado em 2026-09-07, Bloco 0 do redesign):
+> **Cores, layout e fontes** são custom properties em `app/globals.css`, organizadas em um bloco
+> `@theme static { … }` do Tailwind v4 (ADR-0025). O `static` é **obrigatório**: sem ele,
+> o Tailwind descarta variáveis que não aparecem em nenhuma classe utilitária. `lib/utils/cand-color.ts`
+> lê os tokens por `getComputedStyle` para alimentar o MapLibre em hex, e a maioria desses tokens
+> só existe em `style` inline — sem `static`, o mapa fica cinza em silêncio.
+>
+> **Fora do `@theme static`**: `--font-mono`, `--trilha-accent`/`--trilha-accent-soft` (cascata
+> condicional), `--max-width` (legado, mantido em `:root` por backward compat).
+>
+> A **escala tipográfica**, o **espaçamento** e os **breakpoints** seguem o default do Tailwind v4
+> — nenhuma customização (o `tailwind.config.ts`, formato v3, nunca chegou a ser carregado pelo
+> build v4 e foi deletado no Bloco 0). Nas classes que o app usa hoje isso vai de `text-xs` (12px)
+> a `text-4xl` (**36px**, não 48px como o config morto afirmava).
+> O bloco abaixo está anotado por origem.
 
 ```css
-/* app/globals.css */
-:root {
-  /* Tipografia — --font-sans/--font-serif vêm de next/font no <html> */
-  --font-mono: "JetBrains Mono", monospace;
+/* app/globals.css — o bloco abaixo é o `@theme static` (ADR-0025);
+   os três tokens listados no rodapé ficam em `:root` puro. */
+@theme static {
+  /* Tipografia — `--font-sans`/`--font-serif` são mapeadas em `@theme inline`
+   * para as variáveis que o next/font injeta no <html>
+   * (`--font-sans-src`/`--font-serif-src`, ver app/layout.tsx). */
 
-  /* Escala tipográfica — NÃO são custom properties.
-   * Definidas em tailwind.config.ts › theme.extend.fontSize:
+  /* Escala tipográfica — default do Tailwind v4 (nenhuma customização).
    *   xs 12px · sm 14px · base 16px · lg 18px
-   *   xl 22px · 2xl 28px · 3xl 36px · 4xl 48px */
+   *   xl 20px · 2xl 24px · 3xl 30px · 4xl 36px · etc. */
 
   /* Cores neutras */
   --color-bg: #ffffff;
@@ -88,10 +96,6 @@ source: PRD.md § 14.1
   --color-part-abstencao: #24504d;
   --color-part-abstencao-band: #cfe0de;
 
-  /* Identidade de trilha (S07/Fase 2) — default neutro no :root */
-  --trilha-accent: var(--color-text);
-  --trilha-accent-soft: var(--color-bg-muted);
-
   /* Status */
   --color-success: #2c8e4a;
   --color-warning: #d97706;
@@ -103,17 +107,35 @@ source: PRD.md § 14.1
   --color-warning-strong: #b45309;
   --color-success-strong: #166534;
 
-  /* Espaçamento — NÃO são custom properties.
-   * tailwind.config.ts › theme.extend.spacing:
-   *   1 4px · 2 8px · 3 12px · 4 16px · 5 24px · 6 32px · 8 48px */
+  /* Espaçamento — default do Tailwind v4 (nenhuma customização).
+   * `--spacing: 0.25rem` e cada passo é `calc(var(--spacing) * n)`:
+   *   1 4px · 2 8px · 3 12px · 4 16px · 5 20px · 6 24px · 8 32px
+   * ATENÇÃO: 5/6/8 NÃO valem 24/32/48px. Esses eram os valores do
+   * `tailwind.config.ts`, que nunca foi carregado pelo build v4 — o que está
+   * na tela sempre foi a escala default. Verificado no CSS emitido em
+   * 2026-09-07. */
 
-  /* Breakpoints — NÃO são custom properties.
-   * tailwind.config.ts › theme.extend.screens:
+  /* Breakpoints — default do Tailwind v4 (nenhuma customização).
    *   sm 640px · md 768px · lg 1024px · xl 1280px */
 
-  /* Layout */
-  --max-width: 1280px;
+  /* Layout — `--container-page` vive no `@theme static` e é o que gera a
+   * utilitária `max-w-page`, usada pelos 7 wrappers <main> do app. */
+  --container-page: 1280px;
 }
+
+/* Fora do @theme (`:root` puro) — ver a nota do topo:
+ *   --font-mono: "JetBrains Mono", monospace;
+ *                                      (a fonte ainda não é carregada; entra
+ *                                       no Bloco 1 via next/font)
+ *   --max-width: 1280px                (legado, sem consumidor hoje)
+ *   --trilha-accent: var(--color-text);
+ *   --trilha-accent-soft: var(--color-bg-muted);
+ *                                      ADR-0019 — default neutro, redefinidos
+ *                                      por main[data-trilha="pres"|"gov"] logo
+ *                                      abaixo. Ficam fora do @theme porque são
+ *                                      cascata condicional por página, não
+ *                                      token de tema global.
+ */
 
 /* Trilhas (S07/Fase 2) — ver § "Participação e trilhas" */
 main[data-trilha="pres"] { --trilha-accent: #17365c; --trilha-accent-soft: #dbe3ee; }
@@ -179,9 +201,8 @@ payload; componentes consomem `c.cor` direto.
 
 - **`--color-pt-band` / `--color-pl-band` estão invertidos entre si**:
   `--color-pt-band` é `#c8d4ed` (azul claro) e `--color-pl-band` é `#f0c9c8`
-  (rosa claro) — o oposto da cor-base de cada um. `tailwind.config.ts` traz o
-  par **correto** (`pt.band: #f0c9c8`, `pl.band: #c8d4ed`), então as classes
-  Tailwind e as custom properties discordam.
+  (rosa claro) — o oposto da cor-base de cada um. Este é um defeito conhecido
+  (não corrigido de propósito — ver abaixo).
 - Até 2026-09-05, `--color-cand-band-1/2` aliasavam esses dois tokens e
   herdavam a inversão — invisível enquanto o IC era só texto, evidente quando
   `<ProjectionThermometer />` passou a **desenhar** a faixa (candidato vermelho

@@ -2,10 +2,25 @@
 
 /* Tokens canônicos — espelha docs/design-system/tokens.md.
  * Cores partidárias NYT-like (constituição § 2): PT=vermelho, PL=azul.
- * Nunca cores oficiais de partido. */
-:root {
-  /* Tipografia (next/font injeta --font-sans e --font-serif no <html>) */
-  --font-mono: "JetBrains Mono", monospace;
+ * Nunca cores oficiais de partido.
+ *
+ * ADR-0025 / Bloco 0 do redesign Atlas Menna (2026-09-07): os tokens saíram de
+ * `:root` puro para `@theme static` do Tailwind v4, com os MESMOS valores — a
+ * migração é behavior-neutral por construção, e o único efeito colateral
+ * desejado é que classes utilitárias derivadas dos tokens (`max-w-page`,
+ * `bg-bg-muted`) passam a emitir CSS (antes `tailwind.config.ts`, escrito no
+ * formato v3, nunca era carregado e essas classes eram no-ops silenciosos).
+ *
+ * `static` é OBRIGATÓRIO: sem ele o Tailwind v4 descarta as variáveis que não
+ * aparecem em nenhuma classe do bundle, e `lib/utils/cand-color.ts` — que lê os
+ * tokens por `getComputedStyle` para alimentar o MapLibre em hex — receberia
+ * string vazia. O mapa ficaria cinza em silêncio. Há teste de guarda em
+ * `tests/unit/design-system/globals-theme.test.ts`. */
+@theme static {
+  /* Layout — `--container-*` é o namespace do Tailwind v4 para `max-w-*`,
+   * então `--container-page` gera a classe `max-w-page` usada pelos 7
+   * wrappers <main>. */
+  --container-page: 1280px;
 
   /* Cores neutras */
   --color-bg: #ffffff;
@@ -94,16 +109,6 @@
   --color-part-abstencao: #24504d;
   --color-part-abstencao-band: #cfe0de;
 
-  /* Identidade de trilha (S07/Fase 2 — `main[data-trilha]`).
-   * Accent institucional por trilha de cargo, consumido por kicker,
-   * borda-topo do header, tab ativa e LiveBadge. NÃO são cores de
-   * candidato nem de partido (constituição § 2) — são cores de
-   * *navegação*, estáveis durante toda a noite.
-   * Default no :root = neutro (páginas sem `data-trilha` não herdam
-   * identidade presidencial por acidente). */
-  --trilha-accent: var(--color-text);
-  --trilha-accent-soft: var(--color-bg-muted);
-
   /* Bandas de probabilidade da agulha (spec 003 + spec 004).
    * Mapeiam `NeedleBand` em lib/edge-config/types.ts — usadas pelo
    * `<Needle />` para colorir o arco de fundo e por blocks que querem
@@ -152,6 +157,36 @@
    *     tokens.md § Participação). Hue difere 35°; risco de confusão baixo. */
   --color-warning-strong: #b45309;
   --color-success-strong: #166534;
+}
+
+/* Fontes do `next/font` — ADR-0025 § 4.
+ * O `next/font` injeta as variáveis numa classe do <html>; os nomes finais
+ * (`--font-sans`, `--font-serif`) são declarados pelo Tailwind via
+ * `@theme inline`, que resolve o valor direto na utilitária e evita a colisão
+ * entre a variável do tema e a classe injetada. Consumidores por
+ * `style={{ fontFamily: "var(--font-serif)" }}` continuam funcionando porque a
+ * variável segue emitida em `:root`. */
+@theme inline {
+  --font-sans: var(--font-sans-src);
+  --font-serif: var(--font-serif-src);
+}
+
+:root {
+  /* Mono ainda não é carregada por `next/font` (entra no Bloco 1 com JetBrains
+   * Mono). Fica fora do `@theme` de propósito: declarar `--font-mono` no tema
+   * trocaria a stack da utilitária `font-mono` do Tailwind por uma família não
+   * carregada — mudança visual, que o Bloco 0 não pode ter. */
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Identidade de trilha (S07/Fase 2 — `main[data-trilha]`).
+   * Accent institucional por trilha de cargo, consumido por kicker,
+   * borda-topo do header, tab ativa e LiveBadge. NÃO são cores de
+   * candidato nem de partido (constituição § 2) — são cores de
+   * *navegação*, estáveis durante toda a noite.
+   * Default no :root = neutro (páginas sem `data-trilha` não herdam
+   * identidade presidencial por acidente). */
+  --trilha-accent: var(--color-text);
+  --trilha-accent-soft: var(--color-bg-muted);
 
   /* Layout */
   --max-width: 1280px;

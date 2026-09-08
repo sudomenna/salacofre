@@ -315,15 +315,18 @@ Passos operacionais transcritos do plano. Registrar tudo em [`../testing/tse-sim
 Plano aprovado pelo usuário em 07/09; handoff em
 [`../_meta/handoff-2026-09-07-redesign.md`](../_meta/handoff-2026-09-07-redesign.md).
 Decisão do usuário: entra **direto nesta branch**, para o simulado 1 rodar na UI nova.
-ADRs [0024](../architecture/adrs/0024-paleta-editorial-por-partido.md) (`proposed` — bloqueia
-código de cor até a emenda ao § 2 ser aprovada) e
+ADRs [0024](../architecture/adrs/0024-paleta-editorial-por-partido.md) (**`accepted` em 07/09**,
+com a constituição em **1.3** — cor por partido liberada) e
 [0025](../architecture/adrs/0025-design-system-atlas-menna-restyle-in-place.md) (`accepted`).
+O [ADR-0013](../architecture/adrs/0013-tokens-multi-candidato-por-rank.md) virou `superseded`.
 
-- [ ] **Bloco 0** (behavior-neutral): tokens em Tailwind v4 `@theme static` com valores atuais,
+- [x] **Bloco 0** (behavior-neutral): tokens em Tailwind v4 `@theme static` com valores atuais,
       `--container-page` + `max-w-page` nos 7 wrappers, deletar `tailwind.config.ts`, remover
       `framer-motion` e `d3-*`, `tests/e2e/perf-budget.spec.ts` com a baseline de RNF-007a/b/c
-- [ ] **Aprovação do usuário** ao texto da emenda ao § 2 (constituição 1.2 → 1.3) e ao encaminhamento
-      do "corrida ativa única" de `lib/config/calendar.ts`
+- [x] **Aprovação do usuário** ao texto da emenda ao § 2 — dada em 07/09; `constitution.md` 1.2 → 1.3,
+      ADR-0024 `accepted`, ADR-0013 `superseded`
+- [ ] **Encaminhamento do "corrida ativa única"** de `lib/config/calendar.ts` — pergunta aberta com o
+      usuário em 07/09; pré-requisito das specs 016/017, não do Bloco 1
 - [ ] **Bloco 1**: tokens do design, `party-color.ts` + `gen-party-scale.ts`, fontes, atoms novos
       (`Panel`, `Figure`, `Button`, `VoteBar`, `ProbabilityMeter`, `PartyTag`, `MapLegend`, `TopBar`,
       `TabBar`, `ThemeToggle`, `Sheet`, `HoverCard`), shell, home recomposta, 27 arquivos de teste

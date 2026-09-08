@@ -228,10 +228,7 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
 
   if (!payload) {
     return (
-      <main
-        data-trilha="gov"
-        className="mx-auto flex min-h-screen max-w-[1280px] flex-col px-5 py-6"
-      >
+      <main data-trilha="gov" className="mx-auto flex min-h-screen max-w-page flex-col px-5 py-6">
         {govBreadcrumb(sigla)}
         <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
           Governador {sigla} — Aguardando dados
@@ -287,7 +284,7 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
   return (
     <main
       data-trilha="gov"
-      className="mx-auto flex min-h-screen max-w-[1280px] flex-col gap-6 px-5 py-6"
+      className="mx-auto flex min-h-screen max-w-page flex-col gap-6 px-5 py-6"
     >
       <RaceHeader
         trilha="gov"

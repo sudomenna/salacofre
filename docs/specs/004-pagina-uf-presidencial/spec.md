@@ -10,7 +10,7 @@ depends_on: [001-ingestao-tse, 002-modelo-estatistico, 008-interatividade-brushi
 apis: [GET /api/projection?uf=<sigla>]
 components: [WinnerBanner, CandidateRow, NewsClippingPlaceholder, ChoroplethMapUF, BubbleMap, SwingArrowMap, MunicipioTable, UFMapDuo, UfMapsLazy, Needle, TimeSeriesChart, ProbabilityOverTime, TurnoutAreaChart, ForecastTransparency, InsightCard, UFBreadcrumb, Footer, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-008, RNF-022, RNF-023, RNF-024, RNF-025, RNF-027]
-adrs: [0001, 0003, 0004, 0007, 0010, 0013, 0014, 0015, 0017, 0018, 0019]
+adrs: [0001, 0003, 0004, 0007, 0010, 0013, 0014, 0015, 0017, 0018, 0019, 0025]
 shipped_with_carry_overs:
   - NewsClippingPlaceholder-sem-RF-formal-clipping-midias-BR-virara-spec-em-F4b-F5
   - chunk-MapLibre-287KB-acima-RNF-007b-pendente-ADR-aumentar-meta-300KB

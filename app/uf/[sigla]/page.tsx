@@ -250,10 +250,7 @@ export default async function UFPage({ params }: UFPageProps) {
   // Pré-eleição absoluta OR Edge Config vazio. UX gentil (constituição § 3).
   if (!payload) {
     return (
-      <main
-        data-trilha="pres"
-        className="mx-auto flex min-h-screen max-w-[1280px] flex-col px-5 py-6"
-      >
+      <main data-trilha="pres" className="mx-auto flex min-h-screen max-w-page flex-col px-5 py-6">
         <UFBreadcrumb trilha="pres" items={[{ label: "Brasil", href: "/" }, { label: sigla }]} />
         <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
           {sigla} — Aguardando dados
@@ -289,7 +286,7 @@ export default async function UFPage({ params }: UFPageProps) {
   return (
     <main
       data-trilha="pres"
-      className="mx-auto flex min-h-screen max-w-[1280px] flex-col gap-6 px-5 py-6"
+      className="mx-auto flex min-h-screen max-w-page flex-col gap-6 px-5 py-6"
     >
       <RaceHeader
         trilha="pres"

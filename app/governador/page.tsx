@@ -195,7 +195,7 @@ export default async function GovernadorGridPage({ searchParams }: PageProps) {
   return (
     <main
       data-trilha="gov"
-      className="mx-auto flex max-w-container flex-col gap-6 px-4 py-6 md:px-6 md:py-10"
+      className="mx-auto flex max-w-page flex-col gap-6 px-4 py-6 md:px-6 md:py-10"
     >
       {/* Breaking news no topo — só renderiza se há chamadas */}
       {chamadas_recentes.length > 0 && <BreakingNewsTicker chamadas={chamadas_recentes} />}

@@ -1,7 +1,8 @@
 ---
 id: ADR-0013
 title: Tokens visuais de candidato por rank de apuração, não por partido
-status: accepted
+status: superseded
+superseded_by: ADR-0024
 date: 2026-05-17
 ---
 
@@ -9,7 +10,14 @@ date: 2026-05-17
 
 ## Status
 
-Aceito.
+**Superseded pelo [ADR-0024](./0024-paleta-editorial-por-partido.md) em 2026-09-07**, junto com a
+emenda ao § 2 da constituição (v1.2 → 1.3) que ela exigiu. A cor de candidato deixa de vir do rank
+de apuração e passa a vir do partido/federação.
+
+Os tokens `--color-cand-1..6` (+ `-other`, `-strong`, bandas) **continuam existindo** como
+fallback até depois do 2º turno (25/10/2026), para o caso de `partido` ausente ou não mapeado —
+a remoção é limpeza pós-D2. Enquanto isso, o conteúdo abaixo descreve o mecanismo antigo e deve
+ser lido como histórico, não como regra vigente.
 
 ## Contexto
 

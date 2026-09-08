@@ -2,8 +2,8 @@
 title: SalaCofre — Constituição do Produto
 description: Princípios não-negociáveis que governam toda decisão de produto, design e engenharia
 status: stable
-version: 1.2
-last_updated: 2026-09-05
+version: 1.3
+last_updated: 2026-09-07
 ---
 
 # Constituição do SalaCofre
@@ -28,10 +28,12 @@ A norma vigente é a **Resolução TSE nº 23.751/2026**, que trata da divulgaç
 
 ## 2. Neutralidade política
 
-- Cores partidárias seguem padrão NYT-like (azul/vermelho), **nunca** cores oficiais de partido.
+- Cores partidárias seguem uma **paleta editorial própria do SalaCofre** — uma cor por partido/federação, documentada com hex exato em `docs/design-system/tokens.md` — **nunca** as cores oficiais de partido. Toda cor de partido deve ter **ΔE76 ≥ 10** em relação ao hex oficial documentado do partido (manual de marca ou uso reiterado em material oficial), critério auditável e verificável por qualquer agente ou revisor. A cor de cada partido é **estável durante toda a noite de apuração** e entre as duas noites do pleito (1º e 2º turnos): não muda por rank, por ordem de apuração, por margem ou por qualquer evento da corrida — apenas a **intensidade** (claro↔saturado) pode variar com a margem projetada, nunca a matiz.
 - Nomes de candidatos e siglas partidárias aparecem **sempre na mesma ordem** dentro de uma mesma corrida (sem favorecimento por ordem de leitura).
 - Insights gerados por templates **não emitem julgamento** ("Lula consolida vitória" é OK; "vitória esmagadora" não é).
 - Quando há ambiguidade na atribuição de bloco político 2022→2026, exibir disclaimer explícito.
+
+> **Mudança 1.2 → 1.3 (2026-09-07).** A versão 1.2 (e todas as anteriores) exigiam cor partidária "NYT-like (azul/vermelho)", e o [ADR-0013](./architecture/adrs/0013-tokens-multi-candidato-por-rank.md) foi além do texto ao atribuir cor por **rank de apuração**, não por sigla — uma escolha de implementação que evitava até a associação cor↔partido. Essa leitura deixou de servir quando o produto passou a exibir corridas em que a pergunta editorial é "qual partido", não "quem lidera esta tela": o grid de 27 governadores pinta 27 líderes de partidos diferentes com a mesma cor de rank 1; o Senado 2026 tem **duas** vagas por UF, onde "rank 1" e "rank 2" são os dois eleitos e não líder e perseguidor; e o Deputado Federal é proporcional por legenda, sem leitura visual coerente por candidato individual. A 1.3 substitui a regra por uma **paleta editorial própria por partido/federação**, com o limiar objetivo ΔE76 ≥ 10 contra o hex oficial — o que o § 2 sempre proibiu (a cor oficial do partido) continua proibido, agora com critério mensurável em vez de julgamento subjetivo. O risco assumido está nomeado no ADR: cor fixa por sigla, ano após ano, aproxima-se mais da identidade que o próprio partido cultiva do que uma cor por rank. Justificativa completa em [ADR-0024](./architecture/adrs/0024-paleta-editorial-por-partido.md), que supersede o ADR-0013. Os demais parágrafos do § 2 e todos os outros princípios (§§ 1, 3–10) ficam inalterados.
 
 ## 3. Performance percebida
 

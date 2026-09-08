@@ -22,7 +22,8 @@
       "!**/playwright-report",
       "!**/test-results",
       "!**/drizzle",
-      "!**/coverage"
+      "!**/coverage",
+      "!docs/design-system/atlas-menna"
     ]
   },
   "formatter": {
@@ -35,6 +36,11 @@
     "enabled": true,
     "rules": {
       "recommended": true
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
     }
   },
   "javascript": {

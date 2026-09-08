@@ -1,7 +1,7 @@
 ---
 id: ADR-0024
 title: Paleta editorial própria por partido/federação, não tokens por rank de apuração
-status: proposed
+status: accepted
 date: 2026-09-07
 supersedes: ADR-0013
 ---
@@ -10,14 +10,13 @@ supersedes: ADR-0013
 
 ## Status
 
-**Proposto.** Este ADR só passa a `accepted` depois que o usuário aprovar o texto de emenda ao § 2 da constituição reproduzido abaixo — a decisão muda um princípio invariante às vésperas do 1º turno (04/10/2026), e o preâmbulo da constituição (`docs/constitution.md:11`) exige justificativa em ADR **e** atualização versionada explícita, não silenciosa. Enquanto o status permanecer `proposed`, nenhum código deve ser alterado com base neste documento.
+**Aceito em 2026-09-07.** O usuário aprovou o texto da emenda ao § 2 reproduzido abaixo, e a
+`docs/constitution.md` foi atualizada de 1.2 para 1.3 com a nota de cabeçalho correspondente —
+cumprindo o preâmbulo, que exige justificativa em ADR **e** versionamento explícito para mudar um
+princípio invariante. A partir daqui, código de cor por partido está liberado.
 
-Se aprovado, este ADR **supersede o ADR-0013** ("Tokens visuais de candidato por rank de apuração, não por partido"). Sugestão de texto para o frontmatter do ADR-0013, a aplicar quando (e se) este ADR for aceito — não editado aqui:
-
-```
-status: superseded
-superseded_by: ADR-0024
-```
+Este ADR **supersede o ADR-0013** ("Tokens visuais de candidato por rank de apuração, não por partido"). O frontmatter do ADR-0013 foi atualizado para `status: superseded` / `superseded_by: ADR-0024` na
+mesma data.
 
 ## Contexto
 
@@ -35,7 +34,7 @@ O § 2 da constituição diz: "Cores partidárias seguem padrão NYT-like (azul/
 
 ## Decisão
 
-A UI adota uma **paleta editorial própria por partido/federação**, estável durante toda a noite de apuração (e entre as duas noites do pleito, 04/10 e 25/10), com hexes pré-computados documentados em `docs/design-system/tokens.md` e definidos como custom properties em `app/globals.css` (tokens `--party-<sigla>`, mais `--party-<sigla>-1..5` para as intensidades por margem de PT e PL, em versões light e `[data-theme="dark"]`). **Nunca** os hexes oficiais de partido — critério objetivo e auditável: **ΔE76 (CIE76 delta-E) ≥ 10** entre o hex editorial do SalaCofre e o hex oficial documentado do partido (manual de marca do partido ou uso reiterado em material oficial). O kit Atlas Menna já traz 25 hexes prontos (`docs/design-system/atlas-menna/tokens/colors.css:37-76`): `--party-pt` `#C0223B`, `--party-pl` `#2247B8`, e os 23 demais listados no Contexto acima. `docs/design-system/tokens.md` precisa **formalizar o cálculo de ΔE76** contra o hex oficial de cada partido antes deste ADR ser aceito, e **definir os hexes que faltam**: PDT, PSDB, PCdoB, PV, Solidariedade, PMB e as federações partidárias registradas para 2026 (a checar contra o registro do TSE) não têm token no kit hoje.
+A UI adota uma **paleta editorial própria por partido/federação**, estável durante toda a noite de apuração (e entre as duas noites do pleito, 04/10 e 25/10), com hexes pré-computados documentados em `docs/design-system/tokens.md` e definidos como custom properties em `app/globals.css` (tokens `--party-<sigla>`, mais `--party-<sigla>-1..5` para as intensidades por margem de PT e PL, em versões light e `[data-theme="dark"]`). **Nunca** os hexes oficiais de partido — critério objetivo e auditável: **ΔE76 (CIE76 delta-E) ≥ 10** entre o hex editorial do SalaCofre e o hex oficial documentado do partido (manual de marca do partido ou uso reiterado em material oficial). O kit Atlas Menna já traz 25 hexes prontos (`docs/design-system/atlas-menna/tokens/colors.css:37-76`): `--party-pt` `#C0223B`, `--party-pl` `#2247B8`, e os 23 demais listados no Contexto acima. `docs/design-system/tokens.md` precisa **formalizar o cálculo de ΔE76** contra o hex oficial de cada partido e **definir os hexes que faltam** — não como pré-condição do aceite (dado em 2026-09-07), mas como **gate do Bloco 1**: nenhum componente pode ir ao ar com cor por partido antes disso estar escrito e auditável. Faltam hoje: PDT, PSDB, PCdoB, PV, Solidariedade, PMB e as federações partidárias registradas para 2026 (a checar contra o registro do TSE) não têm token no kit hoje.
 
 Federação usa a cor do partido-líder da federação (o partido com mais votos/cadeiras dentro da federação na corrida em questão) — não uma cor própria de federação, para não multiplicar a paleta com identidades que mudam a cada eleição conforme a composição de federações se reconfigura. Partido sem token definido (sigla nova, erro de mapeamento, ou processamento incompleto) cai em `--party-outros` (`#9AA0A8`), nunca em erro visual ou cor ausente.
 

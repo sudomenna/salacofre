@@ -6,13 +6,13 @@ import "./globals.css";
 // Tokens em docs/design-system/tokens.md.
 const sans = Inter({
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-sans-src",
   display: "swap",
 });
 
 const serif = Source_Serif_4({
   subsets: ["latin"],
-  variable: "--font-serif",
+  variable: "--font-serif-src",
   display: "swap",
 });
 

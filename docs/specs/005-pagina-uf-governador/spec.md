@@ -11,7 +11,7 @@ depends_on: [001-ingestao-tse, 002-modelo-estatistico, 004-pagina-uf-presidencia
 apis: [GET /api/projection?cargo=governador&uf=<sigla>]
 components: [WinnerBanner, CandidateRow, ChoroplethMap, BubbleMap, MunicipioTable, MunicipioWaffleGrid, UFMapDuo, Needle, TimeSeriesChart, ProbabilityOverTime, TurnoutAreaChart, ForecastTransparency, InsightCard, UFBreadcrumb, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-008, RNF-022, RNF-023, RNF-024, RNF-025, RNF-027]
-adrs: [0001, 0003, 0004, 0007, 0010, 0012, 0013, 0015, 0016, 0017, 0018, 0019]
+adrs: [0001, 0003, 0004, 0007, 0010, 0012, 0013, 0015, 0016, 0017, 0018, 0019, 0025]
 ---
 
 # Spec 005 — Página de UF (Governador)

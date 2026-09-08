@@ -172,7 +172,7 @@ export default async function HomePage() {
   return (
     <main
       data-trilha="pres"
-      className="mx-auto flex max-w-container flex-col gap-8 px-4 py-6 md:px-6 md:py-10"
+      className="mx-auto flex max-w-page flex-col gap-8 px-4 py-6 md:px-6 md:py-10"
     >
       {/* Header compartilhado (ADR-0019). O `<h1>` só é emitido em multi-1t:
           em binary ele continua vindo do `<HeadlineScore />` (ADR-0017), e
