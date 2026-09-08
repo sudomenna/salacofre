@@ -244,34 +244,28 @@ describe("UFGovernadorPage (integration / smoke)", () => {
     );
   });
 
-  it("(b) renderiza waffle grid com SVG e legend", async () => {
+  // 2026-09-08 — a grade de quadrados (`<MunicipioWaffleGrid>`) saiu desta
+  // rota: não existe no protótipo do kit. O teste (b) que a exercitava foi
+  // removido; a cobertura do componente segue em
+  // `tests/unit/components/MunicipioWaffleGrid.test.tsx`.
+  it("(b) a grade de quadrados NÃO está mais na página", async () => {
     mockUf({ municipios: 25, withMesorregioes: false });
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("Cada quadrado é um município");
-    expect(html).toContain('data-testid="waffle-svg"');
-    expect(html).toContain('data-testid="waffle-legend"');
-    // Tarcísio aparece na legend (líder de municípios pares)
-    expect(html).toMatch(/Tarcísio[\s\S]*?mun\./);
+    expect(html).not.toContain('data-testid="waffle-svg"');
+    expect(html).not.toContain("Cada quadrado é um município");
   });
 
-  it("(c) bloco mesorregião renderiza quando populado", async () => {
+  // 2026-09-08 — o bloco "Apuração por mesorregião" saiu: não tem contraparte
+  // no protótipo do kit. O teste (c), que fixava seu conteúdo com
+  // `withMesorregioes: true`, foi removido. O que sobra é a invariante do
+  // corte: nem com `mesorregioes` populado o bloco volta.
+  it("(d) bloco mesorregião AUSENTE mesmo com `mesorregioes` populado", async () => {
     mockUf({ municipios: 20, withMesorregioes: true });
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("Apuração por mesorregião");
-    expect(html).toContain("Metropolitana de São Paulo");
-    expect(html).toContain("São José do Rio Preto");
-    // delta_vs_2022 = +2.4 para uma; "—" para outra
-    expect(html).toContain("+2.4pp");
-    expect(html).toContain("—");
-  });
-
-  it("(d) bloco mesorregião AUSENTE quando lista vazia/undefined (degrade gracioso)", async () => {
-    mockUf({ municipios: 20, withMesorregioes: false });
-    const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
-    const html = renderToStaticMarkup(node);
     expect(html).not.toContain("Apuração por mesorregião");
+    expect(html).not.toContain('data-testid="mesorregioes-table"');
   });
 
   it("(e) MunicipioTable mode='top-by-eleitorado' renderiza (header)", async () => {
@@ -341,8 +335,9 @@ describe("UFGovernadorPage (integration / smoke)", () => {
     const segundoTurno = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const html = renderToStaticMarkup(segundoTurno);
     expect(html).not.toContain('id="termometro-');
-    // Layout de 2T preservado: agulha estadual continua lá.
-    expect(html).toContain("Forecast ao vivo — Governador SP");
+    // A agulha estadual saiu em 2026-09-08 (não está no protótipo); o que
+    // resta como leitura da corrida em 2T são as linhas de candidato.
+    expect(html).toContain('data-testid="candidate-result-row"');
   });
 
   it("(k) trilha gov: main[data-trilha=gov] + kicker 'GOVERNADOR · SP'", async () => {
@@ -411,16 +406,13 @@ describe("UFGovernadorPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
     expect(linhas[0]?.querySelector('[data-view-cell="proj"]')).not.toBeNull();
   });
 
-  it("(p) a grade está ligada à folha do município — cada quadrado carrega seu cod_ibge", async () => {
+  it("(p) sem a grade, a folha do município começa fechada e a tabela é o único caminho", async () => {
     const doc = await renderGov();
 
-    // A grade é o caminho de ponteiro: o handler do `<svg role="img">` lê o
-    // `data-cod` do `<rect>` que recebeu o toque.
-    const svg = doc.querySelector('[data-testid="waffle-svg"]');
-    expect(svg?.getAttribute("style")).toContain("cursor:pointer");
-    const rects = [...doc.querySelectorAll('[data-testid="waffle-svg"] rect')];
-    expect(rects).toHaveLength(12);
-    expect(rects.every((r) => r.getAttribute("data-cod"))).toBe(true);
+    // 2026-09-08 — a grade de quadrados saiu (não está no protótipo). Ela era
+    // o caminho de PONTEIRO para abrir a folha; o caminho acessível sempre
+    // foi a tabela, que permanece.
+    expect(doc.querySelector('[data-testid="waffle-svg"]')).toBeNull();
 
     // ACHADO PRÉ-EXISTENTE (não introduzido aqui): a tabela desta rota é
     // `mode="top-by-eleitorado"`, que filtra `eleitorado != null` — e
@@ -438,20 +430,28 @@ describe("UFGovernadorPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
   it("(q) nenhum <Panel> fica vazio (filete órfão)", async () => {
     const doc = await renderGov();
     const panels = [...doc.querySelectorAll('[data-testid="panel"]')];
-    expect(panels.length).toBeGreaterThanOrEqual(6);
+    // Eram >= 6 até 2026-09-08; os cortes para o protótipo deixaram mapa,
+    // projeção, municípios e metodologia.
+    expect(panels.length).toBeGreaterThanOrEqual(4);
     for (const p of panels) {
       expect((p.textContent ?? "").trim().length).toBeGreaterThan(0);
     }
   });
 
-  it("(r) mesorregiões, waffle, maiores municípios, agulha e séries seguem na página", async () => {
+  // 2026-09-08 — o teste (r) fixava que mesorregiões, waffle, agulha e séries
+  // seguiam na página. Todos saíram (não estão no protótipo do kit); ele agora
+  // fixa o CORTE, mais o que a constituição obriga a manter.
+  it("(r) sobraram maiores municípios e metodologia; mesorregiões, waffle, agulha e séries saíram", async () => {
     const texto = (await renderGov()).body.textContent ?? "";
-    expect(texto).toContain("Apuração por mesorregião");
-    expect(texto).toContain("Cada quadrado é um município");
     expect(texto).toContain("Maiores municípios por eleitorado");
-    expect(texto).toContain("Forecast ao vivo — Governador SP");
-    expect(texto).toContain("Margem ao longo do tempo");
+    // Constituição § 8 — o bloco de transparência fica em toda página com
+    // projeção, esteja ou não no protótipo.
     expect(texto).toContain("O que está movendo o forecast");
+
+    expect(texto).not.toContain("Apuração por mesorregião");
+    expect(texto).not.toContain("Cada quadrado é um município");
+    expect(texto).not.toContain("Forecast ao vivo — Governador SP");
+    expect(texto).not.toContain("Margem ao longo do tempo");
   });
 });
 
@@ -480,18 +480,21 @@ describe("UFGovernadorPage — degradação do detalhe municipal (ADR-0032)", ()
       url: "https://exemplo.test/municipios/uf/SP/gov/t1.json",
     });
 
-    const painelMunicipios = doc.querySelector("#waffle-heading");
+    // `#waffle-heading` virou `#municipios-heading` quando a grade saiu
+    // (2026-09-08) e o painel passou a se chamar "Maiores colégios
+    // eleitorais".
+    const painelMunicipios = doc.querySelector("#municipios-heading");
     expect(painelMunicipios).not.toBeNull();
     const estados = [...doc.querySelectorAll('[data-testid="detail-unavailable"]')];
     expect(estados.map((e) => e.getAttribute("data-reason"))).toContain("not_found");
     expect(doc.body.textContent).toContain("O detalhe por município está indisponível");
 
-    // Resumo e mesorregiões vêm da OUTRA fonte e seguem inteiros.
+    // O resumo vem da OUTRA fonte e segue inteiro. (A tabela de mesorregiões
+    // que este teste também checava saiu da página em 2026-09-08.)
     expect(doc.querySelectorAll('[data-testid="candidate-result-row"]').length).toBeGreaterThan(0);
-    expect(doc.querySelector('[data-testid="mesorregioes-table"]')).not.toBeNull();
   });
 
-  it("(t) com detalhe, o waffle volta e a idade própria do Blob é exibida", async () => {
+  it("(t) com detalhe, some o estado de falha e a idade própria do Blob é exibida", async () => {
     const doc = await renderComDetalhe({
       status: "ok",
       url: "https://exemplo.test/municipios/uf/SP/gov/t1.json",
@@ -500,6 +503,7 @@ describe("UFGovernadorPage — degradação do detalhe municipal (ADR-0032)", ()
 
     expect(doc.querySelector('[data-testid="detail-unavailable"]')).toBeNull();
     expect(doc.querySelector('[data-testid="detail-freshness"]')).not.toBeNull();
-    expect(doc.querySelectorAll('[data-testid="waffle-svg"] rect')).toHaveLength(12);
+    // A asserção sobre os 12 `<rect>` do waffle saiu com a grade (2026-09-08).
+    expect(doc.querySelector('[data-testid="waffle-svg"]')).toBeNull();
   });
 });

@@ -23,13 +23,16 @@
  * Fallback: quando reader retorna `null` (pré-eleição / Edge Config vazio),
  * renderiza mensagem "Aguardando dados" — UX não quebra (constituição § 3).
  *
- * RFs cobertos:
+ * RFs cobertos (após os cortes de 2026-09-08 — ver a seção do protótipo no
+ * fim deste bloco):
  *   RF-031 (breadcrumb), RF-032 (winner banner), RF-033 (candidate rows),
- *   RF-034 (choropleth UF), RF-035 (bubble map), RF-036 (estimate map),
- *   RF-037 (municipios table), RF-038 (swing arrows), RF-039 (state needle),
- *   RF-040 (margem timeseries), RF-041 (prob timeseries),
- *   RF-042 (turnout area), RF-043 (forecast transparency),
- *   RF-044 (insight card).
+ *   RF-034 (choropleth UF), RF-037 (municipios table),
+ *   RF-043 (forecast transparency).
+ *
+ * DEIXARAM de ter implementação nesta rota: RF-035, RF-036 (mapas duo),
+ * RF-038 (swing arrows), RF-039 (agulha estadual), RF-040, RF-041, RF-042
+ * (séries) e RF-044 (insight). A spec 004 regride — sincronização de
+ * traceability/status é tarefa separada.
  *
  * S07/Fase 2
  *   - Dispatch de modo idêntico ao da home: `binary` quando `turno === 2`
@@ -57,8 +60,22 @@
  *      parcial e projeção lado a lado, ADR-0029 § 7. O leitor passa a poder
  *      conferir a coluna "parcial" contra o boletim do TSE (constituição § 8).
  *   4. Cada seção virou um `<Panel>` com filete e kicker (ADR-0025).
- *   5. Novo: `<ChancesPanel>` (primeiro consumidor do `<ProbabilityMeter>`) e
- *      `<MunicipioExplorer>` — tocar num município abre a folha no `<Sheet>`.
+ *   5. Novo: `<MunicipioExplorer>` — tocar num município abre a folha no
+ *      `<Sheet>`. (O `<ChancesPanel>` também entrou aqui no Bloco 2, mas saiu
+ *      em 2026-09-08 — ver abaixo.)
+ *
+ * ===== 2026-09-08 — a rota passa a seguir o protótipo do kit =====
+ * Decisão do usuário: corta-se desta página tudo que não está em
+ * `docs/design-system/atlas-menna/ui_kits/atlas-menna/App.jsx`. Saíram:
+ * `<ChancesPanel>` (no protótipo é NACIONAL, `App.jsx:350` — migrou para
+ * `app/page.tsx`), `<InsightCard>`, o `<Panel>` "Volume e estimativa"
+ * (`UfMapDuoLazy`), o `<Panel>` "Comparação" (`UfSwingArrowMapLazy`), o
+ * `<Panel>` "Forecast" (`<Needle>`), o `<Panel>` "Ao longo da noite" (os três
+ * charts) e o `<NewsClippingPlaceholder>`.
+ *
+ * Duas exceções que NÃO são cortadas apesar de não estarem no protótipo:
+ * `<ForecastTransparency>` (constituição § 8 — toda página com projeção) e
+ * `<Footer>` (constituição § 1 — "Não oficial. Fonte: TSE.").
  *
  * A rota é pré-renderizada estática (27 UFs × 2 trilhas): nada aqui pode ler
  * `searchParams`, `cookies()` ou `headers()`.
@@ -67,32 +84,20 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
-import { NewsClippingPlaceholder } from "@/components/atoms/banners/NewsClippingPlaceholder";
 import { WinnerBanner } from "@/components/atoms/banners/WinnerBanner";
-import { ProbabilityOverTime } from "@/components/atoms/charts/ProbabilityOverTime";
-import { TimeSeriesChart } from "@/components/atoms/charts/TimeSeriesChart";
-import { TurnoutAreaChart } from "@/components/atoms/charts/TurnoutAreaChart";
 import { Figure } from "@/components/atoms/data/Figure";
 import { TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
 import { UFBreadcrumb } from "@/components/atoms/nav/UFBreadcrumb";
-import { Needle } from "@/components/atoms/needle/Needle";
 import { DetailFreshness, DetailUnavailable } from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { CandidateResultRow } from "@/components/atoms/tables/CandidateResultRow";
-import { ChancesPanel } from "@/components/blocks/ChancesPanel";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
-import { InsightCard } from "@/components/blocks/InsightCard";
 import { MunicipioExplorer } from "@/components/blocks/MunicipioExplorer";
 import type { MunicipioRow } from "@/components/blocks/MunicipioTable";
 import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
-import { UfLeaderMapLazy, UfMapDuoLazy, UfSwingArrowMapLazy } from "@/components/blocks/UfMapsLazy";
+import { UfLeaderMapLazy } from "@/components/blocks/UfMapsLazy";
 import { Footer } from "@/components/layout/Footer";
-import {
-  municipiosFrom,
-  readUfDetail,
-  seriesFrom,
-  type UfDetailResult,
-} from "@/lib/blob/uf-detail";
+import { municipiosFrom, readUfDetail, type UfDetailResult } from "@/lib/blob/uf-detail";
 import { currentRace } from "@/lib/config/calendar";
 import { readUfProjection } from "@/lib/edge-config/reader";
 import type {
@@ -349,7 +354,6 @@ export default async function UFPage({ params }: UFPageProps) {
 
   const sortedCandidatos = sortByLeader(payload.candidatos);
   const lider = sortedCandidatos[0];
-  const segundo = sortedCandidatos[1];
   const pVitoriaLider = leaderProbability(payload.needle_position);
 
   // Mesma regra da home (S07/Fase 2): 2T ou duelo → binary; 1T
@@ -368,7 +372,6 @@ export default async function UFPage({ params }: UFPageProps) {
   // Detalhe do Blob. `municipiosFrom`/`seriesFrom` coalescem para vazio quando
   // indisponível — o estado explícito é decidido logo abaixo, não aqui.
   const municipios = municipiosFrom(detalhe);
-  const series = seriesFrom(detalhe);
   const municipioReason = municipioDetailReason(detalhe, municipios.length);
 
   const municipioRows = toMunicipioRows(municipios, candidateColor, candidateShortName);
@@ -521,26 +524,7 @@ export default async function UFPage({ params }: UFPageProps) {
         </div>
       </Panel>
 
-      {/* Seção 3 — chances (ADR-0029, painel do kit). `EdgePayloadUf` não traz
-          `p_segundo_turno_overall` nem `p_fecha_1t`; o que existe é a
-          probabilidade do líder derivada de `needle_position`, a MESMA que
-          alimenta a agulha mais abaixo. Ver o cabeçalho de `ChancesPanel`. */}
-      {lider && (
-        <ChancesPanel
-          liderNome={lider.nome}
-          liderPVitoria={pVitoriaLider}
-          liderPctProjetado={lider.pct_projetado}
-          pctApurado={payload.pct_apurado}
-          escopo={sigla}
-        />
-      )}
-
-      {/* RF-044: insight textual. EdgePayloadUf ainda não traz `insights`; com
-          `frases=[]` o bloco retorna null — por isso fica fora de `<Panel>`,
-          que desenharia um filete de seção vazia. */}
-      <InsightCard frases={[]} variant="uf" />
-
-      {/* Seção 4 — RF-037: municípios. Tocar num município abre a folha
+      {/* Seção 3 — RF-037: municípios. Tocar num município abre a folha
           (`<Sheet>`) com os números dele (S07/Bloco 2).
 
           O `<Panel>` NÃO some mais quando não há município: desde o ADR-0032 a
@@ -565,153 +549,12 @@ export default async function UFPage({ params }: UFPageProps) {
         )}
       </Panel>
 
-      {/* Seção 5 — RF-035 + RF-036: mapas duo (bolhas + estimativa). Também
-          alimentada pelo Blob: quando o detalhe não chega, os mapas ficam sem
-          feição e o estado explícito diz por quê. */}
-      <Panel kicker="Volume e estimativa">
-        {municipioReason !== null && (
-          <DetailUnavailable
-            label="O mapa de volume por município"
-            reason={municipioReason}
-            style={{ borderTop: "none", paddingTop: 0, marginBottom: "var(--space-3)" }}
-          />
-        )}
-        <UfMapDuoLazy
-          ufSigla={sigla}
-          bubbles={municipios.map((m) => ({
-            cod_ibge: m.cod_ibge,
-            nome: m.nome,
-            centro: [0, 0] as [number, number],
-            votos: m.lider.votos,
-            lider: m.lider.candidato_id,
-            liderCor: candidateColor[m.lider.candidato_id] ?? "var(--color-tossup)",
-          }))}
-          choropleth={choropleth}
-          height={320}
-        />
-      </Panel>
-
-      {/* Seção 6 — RF-038: swing arrows (Should). */}
-      <Panel kicker="Comparação" title="Como os votos se comparam com 2022" titleId="swing-heading">
-        <UfSwingArrowMapLazy ufSigla={sigla} arrows={[]} height={320} />
-      </Panel>
-
-      {/* Seção 7 — RF-039: agulha estadual + margem estimada. */}
-      {lider && segundo && (
-        <Panel
-          kicker="Forecast"
-          title={`Forecast ao vivo de ${sigla}`}
-          titleId="state-needle-heading"
-        >
-          <div className="flex flex-col items-center" style={{ gap: "var(--space-2)" }}>
-            <Needle
-              needlePosition={payload.needle_position}
-              needleBand={payload.needle_band}
-              pVitoria={pVitoriaLider}
-              candidatoA={lider.nome}
-              candidatoB={segundo.nome}
-              variant="uf"
-            />
-            <p
-              className="tabular-nums"
-              style={{ font: "var(--type-body-sm)", color: "var(--text-muted)" }}
-            >
-              Margem estimada: {lider.nome.split(" ")[0]} +
-              {(lider.pct_projetado - segundo.pct_projetado).toFixed(1)}pp (CI95{" "}
-              {lider.ci95.lower.toFixed(1)} – {lider.ci95.upper.toFixed(1)})
-            </p>
-          </div>
-        </Panel>
-      )}
-
-      {/* Seção 8 — RF-040, RF-041, RF-042: charts (Should). Séries vazias caem
-          no placeholder "Série insuficiente" — nunca quebram. */}
-      <Panel kicker="Ao longo da noite">
-        {/* As três séries vêm do Blob (ADR-0032), não do resumo. Falha de fonte
-            é dita explicitamente aqui; série vazia continua caindo no
-            placeholder gentil de cada chart. */}
-        {detalhe.status !== "ok" && (
-          <DetailUnavailable
-            label="A evolução ao longo da noite"
-            reason={detalhe.reason}
-            style={{ borderTop: "none", paddingTop: 0, marginBottom: "var(--space-3)" }}
-          />
-        )}
-        <div
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-          style={{ gap: "var(--space-6)" }}
-        >
-          <div className="flex flex-col" style={{ gap: "var(--space-2)" }}>
-            <h3
-              style={{
-                margin: 0,
-                font: "var(--type-kicker)",
-                letterSpacing: "var(--tracking-caps)",
-                textTransform: "uppercase",
-                color: "var(--text-secondary)",
-              }}
-            >
-              Margem ao longo do tempo
-            </h3>
-            <TimeSeriesChart
-              points={(series?.margem ?? []).map((pt) => ({
-                ts: pt.ts,
-                margemPp: pt.margem_pp,
-              }))}
-              liderNome={lider?.nome ?? "Líder"}
-              liderCor={lider?.cor ?? "var(--color-text)"}
-            />
-          </div>
-          <div className="flex flex-col" style={{ gap: "var(--space-2)" }}>
-            <h3
-              style={{
-                margin: 0,
-                font: "var(--type-kicker)",
-                letterSpacing: "var(--tracking-caps)",
-                textTransform: "uppercase",
-                color: "var(--text-secondary)",
-              }}
-            >
-              Probabilidade ao longo do tempo
-            </h3>
-            <ProbabilityOverTime
-              points={(series?.p_vitoria ?? []).map((pt) => ({
-                ts: pt.ts,
-                pVitoria: pt.p,
-              }))}
-              liderNome={lider?.nome ?? "Líder"}
-              liderCor={lider?.cor ?? "var(--color-text)"}
-            />
-          </div>
-          <div className="flex flex-col" style={{ gap: "var(--space-2)" }}>
-            <h3
-              style={{
-                margin: 0,
-                font: "var(--type-kicker)",
-                letterSpacing: "var(--tracking-caps)",
-                textTransform: "uppercase",
-                color: "var(--text-secondary)",
-              }}
-            >
-              Turnout cumulativo
-            </h3>
-            <TurnoutAreaChart
-              points={(series?.turnout ?? []).map((pt) => ({
-                ts: pt.ts,
-                pctApurado: pt.pct_apurado,
-              }))}
-            />
-          </div>
-        </div>
-      </Panel>
-
-      {/* Seção 9 — RF-043: forecast transparency. */}
+      {/* Seção 4 — RF-043: forecast transparency. Constituição § 8 exige o
+          bloco em toda página com projeção — fica mesmo não estando no
+          protótipo. */}
       <Panel kicker="Metodologia">
         <ForecastTransparency pctApurado={payload.pct_apurado} variant="uf" />
       </Panel>
-
-      {/* Slot "Repercussão na imprensa" (decisão kickoff S04, sem RF formal) */}
-      <NewsClippingPlaceholder />
 
       <Footer />
     </main>

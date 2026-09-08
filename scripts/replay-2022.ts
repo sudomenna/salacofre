@@ -348,6 +348,51 @@ function computeMae(
 }
 
 // ---------------------------------------------------------------------------
+// INSTRUMENTAÇÃO ad hoc (model-validator, 2026-09-08) — breakdown por UF.
+// NÃO faz parte do contrato oficial de ReplayReport; escrito num arquivo
+// separado em build/ só para diagnosticar a causa remanescente do gate
+// OT-4 (MAE@1h) depois do fix de eleitorado (2a6298a). Não usado por
+// nenhum consumidor downstream — seguro de remover depois da investigação.
+// ---------------------------------------------------------------------------
+
+interface UfErrorRow {
+  uf: string;
+  candidato_id: string;
+  err_pp: number;
+  pct_projetado_pp: number;
+  truth_pp: number;
+  pct_apurado: number;
+}
+
+function computeUfBreakdown(
+  results: TimestepResult[],
+  groundTruth: Record<string, Record<string, number>>,
+): Record<Bucket, UfErrorRow[]> {
+  const out: Record<Bucket, UfErrorRow[]> = {
+    "15min": [],
+    "30min": [],
+    "1h": [],
+    "2h": [],
+    final: [],
+  };
+  for (const r of results) {
+    for (const u of r.uf_projections) {
+      const truth = groundTruth[u.uf]?.[String(u.candidato_id)];
+      if (truth === undefined) continue;
+      out[r.bucket].push({
+        uf: u.uf,
+        candidato_id: String(u.candidato_id),
+        err_pp: (u.pct_projetado - truth) * 100,
+        pct_projetado_pp: u.pct_projetado * 100,
+        truth_pp: truth * 100,
+        pct_apurado: u.pct_apurado,
+      });
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Cobertura do IC95 — OT-4 redefinido (Fase 5, plano § E): além do MAE, o
 // intervalo [lower, upper] devolvido pelo bootstrap precisa CONTER o valor
 // real de 2022 em >= 90% dos pares (UF, candidato) — senão o CI está
@@ -551,6 +596,13 @@ async function main(): Promise<void> {
   await mkdir(outDir, { recursive: true });
   const outPath = resolve(outDir, "report.json");
   await writeFile(outPath, JSON.stringify(report, null, 2), "utf8");
+
+  // Instrumentação ad hoc (model-validator, 2026-09-08) — ver nota acima
+  // de computeUfBreakdown. Arquivo à parte, fora do contrato oficial.
+  const ufBreakdown = computeUfBreakdown(response.results, payload.ground_truth);
+  const breakdownPath = resolve(outDir, "uf-breakdown.json");
+  await writeFile(breakdownPath, JSON.stringify(ufBreakdown, null, 2), "utf8");
+  console.log(`[replay-2022] uf-breakdown: ${breakdownPath}`);
 
   console.log(`[replay-2022] report: ${outPath} (${(wallMs / 1000).toFixed(1)}s)`);
   console.log(`[replay-2022] MAE@15min: ${JSON.stringify(mae["15min"])}`);

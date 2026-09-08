@@ -19,21 +19,16 @@
  * ===== S07/Bloco 1 — gramática editorial (ADR-0025) =====
  * A página deixou de ser uma pilha de cards e passou a ser uma sequência de
  * seções separadas por filete. Cada seção é um `<Panel>`: filete duplo no
- * topo, kicker em caixa alta, título em serifa. **Nenhum bloco saiu da
- * página** — todos os blocos RF-bound viraram conteúdo de `Panel` (decisão D3
- * do usuário: shell novo, blocos atuais restilizados).
+ * topo, kicker em caixa alta, título em serifa. Nenhum bloco saiu da página
+ * no Bloco 1 — todos os blocos RF-bound viraram conteúdo de `Panel` (decisão
+ * D3 do usuário: shell novo, blocos atuais restilizados). Os cortes vieram
+ * depois, em 2026-09-08; ver a seção do protótipo mais abaixo.
  *
  * Regra de composição usada aqui: quando o bloco já emite o próprio `<h2>`
- * (`ProjectionThermometers`, `RunoffScenarios`, `HomeClientShell`,
- * `DecisiveUFsGrid`, `StateGroupedTable`), o `Panel` recebe **só o kicker** —
- * dois títulos para a mesma seção seriam ruído visual e outline duplicado no
- * leitor de tela. Quando o bloco não tem heading próprio, o `Panel` fornece
- * `title` + `titleId`.
- *
- * Blocos que se auto-anulam (`RunoffScenarios`) não podem ser envolvidos às
- * cegas: o `Panel` desenharia filete e cabeçalho de uma seção vazia. Por isso
- * o gate é consultado aqui via `selectRunoffScenarios()` — a mesma função que
- * o bloco usa internamente, para os dois nunca divergirem.
+ * (`ProjectionThermometers`, `HomeClientShell`, `StateGroupedTable`), o
+ * `Panel` recebe **só o kicker** — dois títulos para a mesma seção seriam
+ * ruído visual e outline duplicado no leitor de tela. Quando o bloco não tem
+ * heading próprio, o `Panel` fornece `title` + `titleId`.
  *
  * ===== S07/Bloco 2 — mapa primeiro (ADR-0029) =====
  * O usuário comparou esta página com o protótipo do kit em 430px e mediu oito
@@ -72,16 +67,33 @@
  *   │   brancos-nulos/abstenção)                     RF-022, RF-023
  *   ├── MinorCandidatesList "Composição de Outros"
  *   │   (rank >= 4, sempre no DOM — ADR-0017)        RF-030.8
- *   └── TwoRoundIndicator (P(2T) global)             RF-030.7
- *   BulletinPanel                                    RF-026, RF-044
- *   Panel "Cenários" → RunoffScenarios               RF-030.9
+ *   ChancesPanel (P(2T) global — RF-030.7)           App.jsx:350
  *   StrongholdsPanel                                 RF-024, RF-030.6
  *   RemainingPanel                                   RF-024, RF-026
- *   Panel "Unidades federativas" → DecisiveUFsGrid   RF-024
+ *   BulletinPanel                                    RF-026, RF-044
  *   Panel "Placar por estado" → StateGroupedTable    RF-030.6
  *   Panel "Metodologia" → ForecastTransparency       RF-043
  *   Panel "Leitura do modelo" → InsightCard          RF-044
  *   Footer                                           constituição § 1
+ *
+ * ===== 2026-09-08 — a home passa a seguir o protótipo do kit =====
+ * Decisão do usuário: a ordem dos painéis é a de
+ * `docs/design-system/atlas-menna/ui_kits/atlas-menna/App.jsx:349-355` —
+ * Result → Chances → Strongholds → Remaining → Bulletin. O que não está no
+ * protótipo saiu, com três exceções declaradas:
+ *
+ *   - "Placar por estado" (`StateGroupedTable`) FICA, por decisão explícita
+ *     do usuário, reposicionado ao fim da sequência.
+ *   - "Composição de Outros" (`MinorCandidatesList`) FICA: cortá-la apagaria
+ *     os candidatos de rank >= 4 do DOM, o que o ADR-0017 proíbe.
+ *   - `ForecastTransparency` e `Footer` FICAM em toda página com projeção —
+ *     constituição § 8 e § 1, respectivamente.
+ *
+ * Saíram: `TwoRoundIndicator` (duplicava P(2T) do ChancesPanel), `Panel "Cenários"` → `<RunoffScenarios />` (RF-030.9)
+ * e `Panel "Unidades federativas"` → `<DecisiveUFsGrid />` (RF-024). Os dois
+ * componentes continuam no repositório, sem call site nesta rota. Entrou:
+ * `<ChancesPanel />`, que era exclusivo das rotas de UF e no protótipo é
+ * NACIONAL.
  *
  * A ordem acima vale para os DOIS breakpoints: o ADR-0029 rejeitou
  * explicitamente o grid de duas colunas que o protótipo usa no desktop. O que
@@ -115,7 +127,7 @@ import { Panel } from "@/components/atoms/surfaces/Panel";
 import { ApuracaoMeta } from "@/components/blocks/ApuracaoMeta";
 import { BreakingNewsTicker } from "@/components/blocks/BreakingNewsTicker";
 import { BulletinPanel } from "@/components/blocks/BulletinPanel";
-import { DecisiveUFsGrid } from "@/components/blocks/DecisiveUFsGrid";
+import { ChancesPanel } from "@/components/blocks/ChancesPanel";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { HeadlineScore } from "@/components/blocks/HeadlineScore";
 import { InsightCard } from "@/components/blocks/InsightCard";
@@ -123,11 +135,9 @@ import { NationalNeedle } from "@/components/blocks/NationalNeedle";
 import { NationalWinnerBanner } from "@/components/blocks/NationalWinnerBanner";
 import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
 import { RemainingPanel } from "@/components/blocks/RemainingPanel";
-import { RunoffScenarios, selectRunoffScenarios } from "@/components/blocks/RunoffScenarios";
 import { StateGroupedTable } from "@/components/blocks/StateGroupedTable";
 import { StrongholdsPanel } from "@/components/blocks/StrongholdsPanel";
 import { TurnoOneRecap } from "@/components/blocks/TurnoOneRecap";
-import { TwoRoundIndicator } from "@/components/blocks/TwoRoundIndicator";
 import { Footer } from "@/components/layout/Footer";
 import { readArchivedProjection, readNationalProjection } from "@/lib/edge-config/reader";
 import type { EdgePayload } from "@/lib/edge-config/types";
@@ -276,13 +286,6 @@ export default async function HomePage() {
   // `<CandidateRanking />`) e 3 (rank 7+), já que rank 3 subiu para o hero.
   const outrosCandidatos = national.candidatos.filter((c, i) => (c.rank ?? i + 1) >= 4);
 
-  // Gate do `<RunoffScenarios />` consultado ANTES de montar o `<Panel>` — ver
-  // o cabeçalho deste arquivo. Mesma função que o bloco usa internamente.
-  const temCenarios2t =
-    mode === "multi-1t" &&
-    turno !== 2 &&
-    selectRunoffScenarios(national, national.candidatos).length > 0;
-
   return (
     <main
       data-trilha="pres"
@@ -424,22 +427,51 @@ export default async function HomePage() {
             </>
           )}
 
-          {/* Em multi-1t: TwoRoundIndicator dentro da seção da projeção
-              (substitui o ThresholdMarker50 antigo, agora interno ao
-              HeadlineScore binary). Em 2T não faz sentido (já passou). */}
-          {mode === "multi-1t" && turno !== 2 && lider && (
-            <TwoRoundIndicator
-              pSegundoTurno={national.p_segundo_turno_overall}
-              liderPct={lider.pct_projetado}
-              liderNome={lider.nome}
-              liderCor={lider.cor}
-            />
-          )}
+          {/* O `TwoRoundIndicator` vivia aqui e saiu em 08/09 (ADR-0033, D19).
+              Ele exibia `p_segundo_turno_overall` — exatamente a métrica do
+              primeiro medidor do `ChancesPanel` logo abaixo, então a home
+              mostrava o mesmo número duas vezes, a dois blocos de distância.
+              O protótipo não tem esse indicador: a leitura de 2º turno é o
+              `ChancesPanel` (`App.jsx:350`), e é só ela. RF-030.7 passa a ser
+              coberto pelo `ChancesPanel`. */}
         </div>
       </Panel>
 
-      {/* Seção 3 — boletim do momento (S07/Bloco 1). Templates
-          determinísticos, nunca LLM (ADR-0005). */}
+      {/* Seção 3 — chances (`ChancesPanel` do protótipo, 2º painel de
+          conteúdo em `App.jsx:350`). Aqui, ao contrário das rotas de UF, o
+          payload nacional TEM as duas probabilidades prontas do bootstrap:
+          `p_segundo_turno_overall` e o `p_fecha_1t` do líder. Nada é
+          recalculado na UI (constituição § 6).
+
+          Gate `multi-1t && turno !== 2` — o mesmo do `<TwoRoundIndicator />`
+          logo acima: em 2T `p_fecha_1t` é sempre 0.0 por construção ("vazio
+          de semântica", `lib/edge-config/types.ts`) e o painel exibiria 0%
+          como se fosse leitura do modelo. */}
+      {mode === "multi-1t" && turno !== 2 && (
+        <ChancesPanel
+          title="Segundo turno?"
+          pSegundoTurno={national.p_segundo_turno_overall}
+          liderNome={lider?.nome}
+          liderPFecha1t={lider?.p_fecha_1t}
+          liderPctProjetado={lider?.pct_projetado}
+          pctApurado={pct_apurado_total}
+        />
+      )}
+
+      {/* Seção 4 — redutos por candidato (S07/Bloco 1). */}
+      <StrongholdsPanel candidatos={national.candidatos} rows={por_uf} />
+
+      {/* Seção 5 — o que falta apurar (S07/Bloco 1). */}
+      <RemainingPanel
+        rows={por_uf}
+        candidatos={national.candidatos}
+        pctApuradoTotal={pct_apurado_total}
+        ufsApuradas={ufs_apuradas}
+      />
+
+      {/* Seção 6 — boletim do momento (S07/Bloco 1). Templates
+          determinísticos, nunca LLM (ADR-0005). Último painel de conteúdo do
+          protótipo (`App.jsx:355`). */}
       <BulletinPanel
         national={national}
         rows={por_uf}
@@ -449,36 +481,9 @@ export default async function HomePage() {
         turno={turno}
       />
 
-      {/* Seção 4 — cenários de 2T. `temCenarios2t` replica o gate do bloco
-          via `selectRunoffScenarios()` para o Panel não sobrar vazio. */}
-      {temCenarios2t && (
-        <Panel kicker="Cenários">
-          <RunoffScenarios national={national} candidatos={national.candidatos} />
-        </Panel>
-      )}
-
-      {/* O bloco de mapa que ficava aqui subiu para o topo da página
-          (ADR-0029 § 1). */}
-
-      {/* Seção 5 — redutos por candidato (S07/Bloco 1). */}
-      <StrongholdsPanel candidatos={national.candidatos} rows={por_uf} />
-
-      {/* Seção 6 — o que falta apurar (S07/Bloco 1). */}
-      <RemainingPanel
-        rows={por_uf}
-        candidatos={national.candidatos}
-        pctApuradoTotal={pct_apurado_total}
-        ufsApuradas={ufs_apuradas}
-      />
-
-      <Panel kicker="Unidades federativas">
-        <DecisiveUFsGrid
-          rows={por_uf}
-          rankByLider={rankByLider}
-          candidatoAId={national.candidato_a_id}
-        />
-      </Panel>
-
+      {/* Seção 7 — placar por estado. NÃO existe no protótipo; é acréscimo
+          desta implementação, mantido por decisão do usuário. Por isso vem
+          depois de toda a sequência do kit, antes da metodologia. */}
       <Panel kicker="Placar por estado">
         <StateGroupedTable
           rows={por_uf}

@@ -3,24 +3,29 @@
  *
  * Server Component. `generateStaticParams` lista as 27 UFs.
  *
- * Herda ~70% da `app/uf/[sigla]/page.tsx` (presidencial) mas com cargo=gov,
- * adicionando 3 blocos NYT-style decididos no kickoff S06:
+ * Herda ~70% da `app/uf/[sigla]/page.tsx` (presidencial) mas com cargo=gov.
+ * Dos 3 blocos NYT-style decididos no kickoff S06, nenhum sobreviveu:
  *
  *   1. (removido em S07/Fase 5) K-1 disclaimer — ver ADR-0021, que supersede
  *      o ADR-0015: sem 2022 no cálculo, não há "prior limitado" a declarar.
- *   2. `<MunicipioWaffleGrid>` — Print 3 NYT (1 quadrado = 1 município).
- *      Desde o ADR-0032 os municípios (e as séries) chegam pelo Vercel Blob, em
- *      `readUfDetail` disparado EM PARALELO com `readUfProjection` — dois read
- *      paths que falham de forma independente, com degradação por seção
- *      (`<DetailUnavailable>`, sempre no DOM — ADR-0017).
- *   3. Bloco "Apuração por mesorregião" — só renderiza se `mesorregioes?`
- *      vier populado (degrade gracioso conforme Fase 2 — IBGE seed pode
- *      estar pendente).
+ *   2. (removido em 2026-09-08) `<MunicipioWaffleGrid>` — Print 3 NYT
+ *      (1 quadrado = 1 município). Não existe no protótipo do kit.
+ *   3. (removido em 2026-09-08) Bloco "Apuração por mesorregião" — também sem
+ *      contraparte no protótipo. `payload.mesorregioes` segue no schema, sem
+ *      consumidor nesta rota.
  *
- * Cobertura
- *   - RFs 031–044 (idênticos à spec 004 — Open question 005 resolvida:
- *     página existe mesmo sem mapping 2022 — que, desde o ADR-0021, deixou
- *     de ser um caso especial: a projeção não consulta 2022).
+ * Os municípios (e as séries) chegam pelo Vercel Blob desde o ADR-0032, em
+ * `readUfDetail` disparado EM PARALELO com `readUfProjection` — dois read
+ * paths que falham de forma independente, com degradação por seção
+ * (`<DetailUnavailable>`, sempre no DOM — ADR-0017).
+ *
+ * Cobertura (após os cortes de 2026-09-08)
+ *   - RF-031 (breadcrumb), RF-032 (winner banner), RF-033 (candidate rows),
+ *     RF-034 (choropleth UF), RF-037 (municipios table),
+ *     RF-043 (forecast transparency).
+ *   - DEIXARAM de ter implementação aqui: RF-035/036 (mapas duo), RF-039
+ *     (agulha), RF-040/041/042 (séries), RF-044 (insight). A spec 005
+ *     regride — sincronização de traceability/status é tarefa separada.
  *   - ADR-0001/0010/0012/0013/0017/0021.
  *   - Constituição § 2 (cores via tokens, paleta multi-partido),
  *     § 3 (degrade gracioso), § 8 (transparência metodológica).
@@ -38,11 +43,22 @@
  * painel de resultado (alternando "Resultado parcial" / "Projeção Atlas
  * Menna" por cascata); linhas de candidato em `<CandidateResultRow>` com
  * parcial e projeção lado a lado (ADR-0029 § 7); cada seção num `<Panel>`.
- * **Nenhum bloco RF-bound saiu** — waffle, mesorregiões, maiores municípios,
- * agulha, séries e transparência continuam todos aqui, em `<Panel>`.
  *
- * Novo nesta rota: `<MunicipioExplorer>`, que costura a grade de quadrados e
- * a tabela ao `<Sheet>` — tocar num município abre a folha dele.
+ * Novo nesta rota: `<MunicipioExplorer>`, que costura a tabela ao `<Sheet>` —
+ * tocar num município abre a folha dele.
+ *
+ * ===== 2026-09-08 — a rota passa a seguir o protótipo do kit =====
+ * Decisão do usuário: corta-se desta página tudo que não está em
+ * `docs/design-system/atlas-menna/ui_kits/atlas-menna/App.jsx`. Saíram:
+ * `<ChancesPanel>` (no protótipo é NACIONAL — migrou para `app/page.tsx`),
+ * `<InsightCard>`, o `<Panel>` "Volume e estimativa" (`UfMapDuoLazy`), a
+ * grade de quadrados (`waffleCandidatos` → `<MunicipioWaffleGrid>`), o
+ * `<Panel>` "Regiões" (mesorregiões), o `<Panel>` "Forecast" (`<Needle>`) e o
+ * `<Panel>` "Ao longo da noite" (os três charts).
+ *
+ * Duas exceções que NÃO são cortadas apesar de não estarem no protótipo:
+ * `<ForecastTransparency>` (constituição § 8 — toda página com projeção) e
+ * `<Footer>` (constituição § 1 — "Não oficial. Fonte: TSE.").
  *
  * A rota é pré-renderizada estática (27 UFs): nada aqui pode ler
  * `searchParams`, `cookies()` ou `headers()`.
@@ -54,30 +70,19 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { WinnerBanner } from "@/components/atoms/banners/WinnerBanner";
-import { ProbabilityOverTime } from "@/components/atoms/charts/ProbabilityOverTime";
-import { TimeSeriesChart } from "@/components/atoms/charts/TimeSeriesChart";
-import { TurnoutAreaChart } from "@/components/atoms/charts/TurnoutAreaChart";
 import { Figure } from "@/components/atoms/data/Figure";
 import { TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
 import { UFBreadcrumb } from "@/components/atoms/nav/UFBreadcrumb";
-import { Needle } from "@/components/atoms/needle/Needle";
 import { DetailFreshness, DetailUnavailable } from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { CandidateResultRow } from "@/components/atoms/tables/CandidateResultRow";
-import { ChancesPanel } from "@/components/blocks/ChancesPanel";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
-import { InsightCard } from "@/components/blocks/InsightCard";
 import { MunicipioExplorer } from "@/components/blocks/MunicipioExplorer";
 import type { MunicipioRow } from "@/components/blocks/MunicipioTable";
 import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
-import { UfLeaderMapLazy, UfMapDuoLazy } from "@/components/blocks/UfMapsLazy";
+import { UfLeaderMapLazy } from "@/components/blocks/UfMapsLazy";
 import { Footer } from "@/components/layout/Footer";
-import {
-  municipiosFrom,
-  readUfDetail,
-  seriesFrom,
-  type UfDetailResult,
-} from "@/lib/blob/uf-detail";
+import { municipiosFrom, readUfDetail, type UfDetailResult } from "@/lib/blob/uf-detail";
 import { readUfProjection } from "@/lib/edge-config/reader";
 import type {
   EdgePayload,
@@ -307,7 +312,6 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
 
   const sortedCandidatos = sortByLeader(payload.candidatos);
   const lider = sortedCandidatos[0];
-  const segundo = sortedCandidatos[1];
   const pVitoriaLider = leaderProbability(payload.needle_position);
 
   const candidateColor: Record<number, string> = {};
@@ -319,36 +323,13 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
 
   // Detalhe do Blob. Coalesce para vazio; o estado explícito é decidido abaixo.
   const municipios = municipiosFrom(detalhe);
-  const series = seriesFrom(detalhe);
   const municipioReason = municipioDetailReason(detalhe, municipios.length);
 
   const municipioRows = toMunicipioRows(municipios, candidateColor, candidateShortName);
 
-  // Adapta candidatos UF → EdgeCandidate-like pra <MunicipioWaffleGrid> /
-  // <RaceStatsCards>. Como faltam alguns campos (`p_vitoria`, `rank`,
-  // `p_passa_2t`, `p_fecha_1t`), preenchemos com defaults seguros.
-  const candidatosForGrid = payload.candidatos.map((c, i) => ({
-    id: c.id,
-    nome: c.nome,
-    partido: c.partido,
-    cor: c.cor,
-    votos_atuais: c.votos_atuais,
-    votos_projetados: c.votos_projetados,
-    pct_atual: c.pct_atual,
-    pct_projetado: c.pct_projetado,
-    pct_projetado_lower: c.ci95.lower,
-    pct_projetado_upper: c.ci95.upper,
-    p_vitoria: 0,
-    rank: i + 1,
-    p_passa_2t: 0,
-    p_fecha_1t: 0,
-  }));
-
   // Mesma regra de dispatch da home e da UF presidencial (S07/Fase 2).
   const mode: "binary" | "multi-1t" =
     payload.turno === 2 || payload.candidatos.length === 2 ? "binary" : "multi-1t";
-
-  const mesorregioes = payload.mesorregioes ?? [];
 
   const choropleth = municipios.map((m) => ({
     cod_ibge: m.cod_ibge,
@@ -491,60 +472,19 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
         </div>
       </Panel>
 
-      {/* Seção 3 — chances. Ver o cabeçalho de `ChancesPanel`: o payload de UF
-          não traz `p_fecha_1t`, então o medidor sai da probabilidade do líder
-          derivada de `needle_position` — a mesma da agulha. */}
-      {lider && (
-        <ChancesPanel
-          liderNome={lider.nome}
-          liderPVitoria={pVitoriaLider}
-          liderPctProjetado={lider.pct_projetado}
-          pctApurado={payload.pct_apurado}
-          escopo={sigla}
-        />
-      )}
+      {/* Seção 3 — maiores municípios, ligados à folha do município
+          (`<Sheet>`). É o `BiggestPanel` do protótipo (`App.jsx:353`).
 
-      {/* `frases=[]` → o bloco retorna null; por isso fica fora de `<Panel>`. */}
-      <InsightCard frases={[]} variant="uf" />
+          A grade de quadrados (`<MunicipioWaffleGrid>` via `waffleCandidatos`)
+          saiu em 2026-09-08: não existe no protótipo. A tabela permanece — e
+          era ela, não a grade, o caminho acessível para abrir cada município.
 
-      {/* Seção 4 — mapas duo (líder + bolhas). Alimentada pelo Blob: sem
-          detalhe, os mapas ficam sem feição e o estado explícito diz por quê. */}
-      <Panel kicker="Volume e estimativa">
-        {municipioReason !== null && (
-          <DetailUnavailable
-            label="O mapa de volume por município"
-            reason={municipioReason}
-            style={{ borderTop: "none", paddingTop: 0, marginBottom: "var(--space-3)" }}
-          />
-        )}
-        <UfMapDuoLazy
-          ufSigla={sigla}
-          bubbles={municipios.map((m) => ({
-            cod_ibge: m.cod_ibge,
-            nome: m.nome,
-            centro: [0, 0] as [number, number],
-            votos: m.lider.votos,
-            lider: m.lider.candidato_id,
-            liderCor: candidateColor[m.lider.candidato_id] ?? "var(--color-tossup)",
-          }))}
-          choropleth={choropleth}
-          height={320}
-        />
-      </Panel>
-
-      {/* Seção 5 — Print 3 NYT: waffle + maiores municípios, os dois ligados à
-          folha do município (`<Sheet>`). Cada quadrado = 1 município.
-
-          O `<Panel>` deixou de sumir quando não há município: a fonte agora é o
-          Vercel Blob (ADR-0032), que falha independentemente do resumo, e um
-          bloco ausente diria "não existe" onde a verdade é "não chegou". */}
-      <Panel kicker="Municípios" title="Cada quadrado é um município" titleId="waffle-heading">
+          O `<Panel>` não some quando não há município: a fonte é o Vercel Blob
+          (ADR-0032), que falha independentemente do resumo, e um bloco ausente
+          diria "não existe" onde a verdade é "não chegou". */}
+      <Panel kicker="Municípios" title="Maiores colégios eleitorais" titleId="municipios-heading">
         {municipioReason === null ? (
           <div className="flex flex-col" style={{ gap: "var(--space-3)" }}>
-            <p style={{ margin: 0, font: "var(--type-data)", color: "var(--text-muted)" }}>
-              Mosaico de {municipios.length.toLocaleString("pt-BR")} municípios — cor pelo líder.
-              Toque num município para ver os números dele.
-            </p>
             {detalhe.status === "ok" && (
               <DetailFreshness ts={detalhe.detail.ts} resumoTs={payload.ts} />
             )}
@@ -553,7 +493,6 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
               municipios={municipios}
               rows={municipioRows}
               candidatos={payload.candidatos}
-              waffleCandidatos={candidatosForGrid}
               tableMode="top-by-eleitorado"
               topN={15}
             />
@@ -563,209 +502,9 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
         )}
       </Panel>
 
-      {/* Seção 6 — apuração por mesorregião. Degrade gracioso (Fase 2): só
-          renderiza se o orchestrator anexou `mesorregioes`. */}
-      {mesorregioes.length > 0 && (
-        <Panel kicker="Regiões" title="Apuração por mesorregião" titleId="meso-heading">
-          <table className="w-full border-collapse" data-testid="mesorregioes-table">
-            <thead
-              style={{
-                backgroundColor: "var(--color-bg-muted)",
-                color: "var(--color-text-muted)",
-                borderBottom: "1px solid var(--color-border)",
-              }}
-            >
-              <tr>
-                <th
-                  scope="col"
-                  className="px-3 py-2 text-left text-xs uppercase tracking-wide font-normal"
-                >
-                  Mesorregião
-                </th>
-                <th
-                  scope="col"
-                  className="px-3 py-2 text-right text-xs uppercase tracking-wide font-normal"
-                >
-                  % apurado
-                </th>
-                <th
-                  scope="col"
-                  className="px-3 py-2 text-left text-xs uppercase tracking-wide font-normal"
-                >
-                  Líder
-                </th>
-                <th
-                  scope="col"
-                  className="px-3 py-2 text-right text-xs uppercase tracking-wide font-normal"
-                >
-                  Margem
-                </th>
-                <th
-                  scope="col"
-                  className="px-3 py-2 text-right text-xs uppercase tracking-wide font-normal"
-                >
-                  Δ vs 2022
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {mesorregioes.map((meso) => {
-                const liderMeso = candidatosForGrid.find((c) => c.id === meso.lider_candidato_id);
-                const delta = meso.delta_vs_2022;
-                const deltaLabel =
-                  delta == null ? "—" : `${delta > 0 ? "+" : ""}${delta.toFixed(1)}pp`;
-                return (
-                  <tr
-                    key={meso.cod}
-                    style={{ borderBottom: "1px solid var(--color-border)" }}
-                    data-cod={meso.cod}
-                  >
-                    <td className="px-3 py-2 text-sm" style={{ color: "var(--color-text)" }}>
-                      {meso.nome}
-                    </td>
-                    <td
-                      className="px-3 py-2 text-right text-sm tabular-nums"
-                      style={{ color: "var(--color-text-muted)" }}
-                    >
-                      {meso.pct_apurado.toFixed(1)}%
-                    </td>
-                    <td
-                      className="px-3 py-2 text-sm"
-                      style={{ color: liderMeso?.cor ?? "var(--color-text)", fontWeight: 500 }}
-                    >
-                      {liderMeso?.nome ?? `Cand ${meso.lider_candidato_id}`}{" "}
-                      <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                        ({liderMeso?.partido ?? "?"})
-                      </span>
-                    </td>
-                    <td
-                      className="px-3 py-2 text-right text-sm tabular-nums"
-                      style={{ color: "var(--color-text)" }}
-                    >
-                      +{meso.margem.toFixed(1)}pp
-                    </td>
-                    <td
-                      className="px-3 py-2 text-right text-sm tabular-nums"
-                      style={{ color: "var(--color-text-muted)" }}
-                    >
-                      {deltaLabel}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </Panel>
-      )}
-
-      {/* Seção 7 — agulha + margem estimada. */}
-      {lider && segundo && (
-        <Panel
-          kicker="Forecast"
-          title={`Forecast ao vivo — Governador ${sigla}`}
-          titleId="state-needle-heading"
-        >
-          <div className="flex flex-col items-center" style={{ gap: "var(--space-2)" }}>
-            <Needle
-              needlePosition={payload.needle_position}
-              needleBand={payload.needle_band}
-              pVitoria={pVitoriaLider}
-              candidatoA={lider.nome}
-              candidatoB={segundo.nome}
-              variant="uf"
-            />
-            <p
-              className="tabular-nums"
-              style={{ font: "var(--type-body-sm)", color: "var(--text-muted)" }}
-            >
-              Margem estimada: {lider.nome.split(" ")[0]} +
-              {(lider.pct_projetado - segundo.pct_projetado).toFixed(1)}pp (CI95{" "}
-              {lider.ci95.lower.toFixed(1)} – {lider.ci95.upper.toFixed(1)})
-            </p>
-          </div>
-        </Panel>
-      )}
-
-      {/* Seção 8 — séries temporais. Vêm do Blob (ADR-0032), não do resumo:
-          falha de fonte é dita explicitamente; série vazia continua caindo no
-          placeholder gentil de cada chart. */}
-      <Panel kicker="Ao longo da noite">
-        {detalhe.status !== "ok" && (
-          <DetailUnavailable
-            label="A evolução ao longo da noite"
-            reason={detalhe.reason}
-            style={{ borderTop: "none", paddingTop: 0, marginBottom: "var(--space-3)" }}
-          />
-        )}
-        <div
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-          style={{ gap: "var(--space-6)" }}
-        >
-          <div className="flex flex-col" style={{ gap: "var(--space-2)" }}>
-            <h3
-              style={{
-                margin: 0,
-                font: "var(--type-kicker)",
-                letterSpacing: "var(--tracking-caps)",
-                textTransform: "uppercase",
-                color: "var(--text-secondary)",
-              }}
-            >
-              Margem ao longo do tempo
-            </h3>
-            <TimeSeriesChart
-              points={(series?.margem ?? []).map((pt) => ({
-                ts: pt.ts,
-                margemPp: pt.margem_pp,
-              }))}
-              liderNome={lider?.nome ?? "Líder"}
-              liderCor={lider?.cor ?? "var(--color-text)"}
-            />
-          </div>
-          <div className="flex flex-col" style={{ gap: "var(--space-2)" }}>
-            <h3
-              style={{
-                margin: 0,
-                font: "var(--type-kicker)",
-                letterSpacing: "var(--tracking-caps)",
-                textTransform: "uppercase",
-                color: "var(--text-secondary)",
-              }}
-            >
-              Probabilidade ao longo do tempo
-            </h3>
-            <ProbabilityOverTime
-              points={(series?.p_vitoria ?? []).map((pt) => ({
-                ts: pt.ts,
-                pVitoria: pt.p,
-              }))}
-              liderNome={lider?.nome ?? "Líder"}
-              liderCor={lider?.cor ?? "var(--color-text)"}
-            />
-          </div>
-          <div className="flex flex-col" style={{ gap: "var(--space-2)" }}>
-            <h3
-              style={{
-                margin: 0,
-                font: "var(--type-kicker)",
-                letterSpacing: "var(--tracking-caps)",
-                textTransform: "uppercase",
-                color: "var(--text-secondary)",
-              }}
-            >
-              Turnout cumulativo
-            </h3>
-            <TurnoutAreaChart
-              points={(series?.turnout ?? []).map((pt) => ({
-                ts: pt.ts,
-                pctApurado: pt.pct_apurado,
-              }))}
-            />
-          </div>
-        </div>
-      </Panel>
-
-      {/* Seção 9 — transparência metodológica (RF-043). */}
+      {/* Seção 4 — transparência metodológica (RF-043). Constituição § 8
+          exige o bloco em toda página com projeção — fica mesmo não estando
+          no protótipo. */}
       <Panel kicker="Metodologia">
         <ForecastTransparency pctApurado={payload.pct_apurado} variant="uf" />
       </Panel>

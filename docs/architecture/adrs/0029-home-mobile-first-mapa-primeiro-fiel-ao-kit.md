@@ -13,6 +13,18 @@ Aceito. Este ADR **emenda parcialmente** o ADR-0018 (só a **posição** do hero
 
 > **Nota de processo.** Por restrição desta sessão, quem escreveu este ADR não edita `0017-transparencia-total-3-camadas.md` nem `0018-termometros-hero-1t.md`. O texto exato de frontmatter e da nota em `## Status` a aplicar em cada um está reproduzido ao final da seção Decisão, para aplicação manual após revisão.
 
+> **Nota 2026-09-08 (D17, [ADR-0033](0033-navegacao-moldura-persistente-paineis-home-calibracao-ot4.md)).**
+> A exceção aberta pelo item 6 da Decisão abaixo — manter o conteúdo do hero (seis termômetros,
+> ADR-0018) e apenas **reposicioná-lo** para abaixo do bloco de mapa, em vez de adotar a composição
+> de hero do próprio protótipo (mapa + `Figure` "Apurado" + `Figure` "Margem" + `VoteBar` + linhas de
+> candidato, descrita no Contexto acima) — foi **revogada** pelo usuário nesta data: o hero da home
+> volta a ser o do protótipo. O ADR-0033 registra esta reversão sem resolver, em nome do usuário, a
+> tensão entre ela e as quatro razões pelas quais o ADR-0018 rejeitou o duelo top-2 como hero do 1T
+> multi-candidato — razões que este próprio ADR-0029 reafirmou como vigentes um dia antes da
+> reversão (ver "O padrão do próprio protótipo reproduz exatamente o problema (i) e (ii)" na Decisão,
+> item 6). O restante desta Decisão — itens 1–5 e 7–9 — permanece integralmente vigente e não é
+> tocado por esta nota.
+
 ## Contexto
 
 Em 2026-09-07 o usuário rodou o protótipo do kit Atlas Menna (`docs/design-system/atlas-menna/ui_kits/atlas-menna/`, `viewport="430x900"` — um app de celular, não uma maquete de desktop) lado a lado com a home em produção, na mesma largura de 430px, e mediu oito diferenças estruturais:

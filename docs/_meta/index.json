@@ -210,6 +210,7 @@
       "status": "accepted",
       "date": "2026-09-07",
       "note": "emenda parcial ADR-0017 (formato de linha das Camadas 2/3) e ADR-0018 (posição do hero, conteúdo inalterado); não supersede nenhum dos dois — texto de frontmatter/Status a aplicar em ambos está reproduzido no próprio ADR-0029",
+      "amended_by": "0033",
       "path": "docs/architecture/adrs/0029-home-mobile-first-mapa-primeiro-fiel-ao-kit.md"
     },
     {
@@ -237,6 +238,15 @@
       "amends": ["0001", "0026"],
       "note": "generaliza a exceção Vercel Blob do ADR-0026 (antes só Deputado Federal) para o campo municipios/series_temporais de EdgePayloadUf; corrige o limite de Edge Config citado em ADR-0001/ADR-0026 de 512KB (errado) para 1MB (real, produto renomeado Global Config); pré-requisito do usuário para o simulado 1 (15-17/09)",
       "path": "docs/architecture/adrs/0032-detalhe-municipal-vercel-blob.md"
+    },
+    {
+      "id": "0033",
+      "title": "Moldura persistente para o mapa entre rotas de UF, não SPA do protótipo nem troca de página inteira — conjunto de painéis da home fiel ao protótipo e calibração do OT-4 com dado real, não ajuste do fixture sintético",
+      "status": "accepted",
+      "date": "2026-09-08",
+      "amends": "0029",
+      "note": "3 decisões da sessão de 08/09: (1) navegação por moldura persistente ('jeito C') — mapa vive em layout.tsx compartilhado entre home/UF do mesmo cargo, endereço continua mudando, mapa não desmonta; (2) home adota ordem de painéis do protótipo (Resultado→Chances→Redutos→Falta apurar→Boletim) com Placar por estado mantido e Cenários/UFs decisivas removidos; (3) gate OT-4 não é calibrado ajustando REGIONAL_DELAY do fixture sintético — aguarda pesquisa de dado real de 2022, que pode não existir. Emenda o ADR-0029 (nota de Status, D17: reversão da posição/exceção do hero) sem tocar seu corpo.",
+      "path": "docs/architecture/adrs/0033-navegacao-moldura-persistente-paineis-home-calibracao-ot4.md"
     }
   ],
   "nfr": {

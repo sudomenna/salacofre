@@ -101,10 +101,13 @@ describe("HomePage (integration / smoke)", () => {
     expect(html).not.toContain("Forecast nacional");
   });
 
-  it("(d) contém UFs decisivas e tabela agrupada por margem", async () => {
+  // 2026-09-08 — o painel "Unidades federativas" (`<DecisiveUFsGrid>`) saiu da
+  // home: não existe no protótipo do kit. A tabela agrupada ("Placar por
+  // estado") ficou, por decisão explícita do usuário, e desceu para depois do
+  // boletim. A asserção de "UFs decisivas" foi removida com o bloco.
+  it("(d) contém a tabela agrupada por margem", async () => {
     const node = await HomePage();
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("UFs decisivas");
     expect(html).toContain("Resultados por estado");
     // siglas conhecidas do fixture
     expect(html).toContain(">SP<");
@@ -162,15 +165,19 @@ describe("HomePage (integration / smoke)", () => {
     expect(html).toMatch(/Disputa entre \d+ candidatos/);
   });
 
-  it("(j) TwoRoundIndicator renderiza com P(2T)=65% (fixture)", async () => {
+  it("(j) P(2T)=65% é lida no ChancesPanel, e o TwoRoundIndicator não volta", async () => {
     const node = await HomePage();
     const html = renderToStaticMarkup(node);
-    // Fixture: p_segundo_turno_overall = 0.65 → 65%, fora do gate trivial
-    // (|0.65 − 0.5| > 0.1), então o medidor renderiza.
-    expect(html).toContain("65% de chance de ir a 2º turno");
-    // `role="meter"` com aria-valuenow=65
+    // 2026-09-08 (ADR-0033, D19): o `TwoRoundIndicator` saiu da home. Ele
+    // exibia `p_segundo_turno_overall` — a MESMA métrica do primeiro medidor
+    // do `ChancesPanel`, que o protótipo (`App.jsx:350`) põe logo abaixo. A
+    // home mostrava 65% duas vezes, a dois blocos de distância.
+    // O dado continua na página, agora num lugar só.
     expect(html).toContain('role="meter"');
     expect(html).toContain('aria-valuenow="65"');
+    expect(html).toContain("Chance de ir ao 2º turno");
+    // A frase do indicador removido não pode reaparecer.
+    expect(html).not.toContain("65% de chance de ir a 2º turno");
   });
 
   it("(k) hero 1T = seis termômetros na ordem canônica (ADR-0018)", async () => {

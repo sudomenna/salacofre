@@ -190,7 +190,11 @@ describe("UFPage SSR (S07/Fase 2 — ADR-0018 + ADR-0019)", () => {
     expect(meter?.getAttribute("aria-valuenow")).toBe("41");
   });
 
-  it("(c) 2º turno (duelo) → sem termômetros, agulha estadual preservada", async () => {
+  // 2026-09-08 — o `<Panel>` "Forecast" (`<Needle>` + "Margem estimada") saiu
+  // desta rota: não existe no protótipo do kit. O que este teste ainda fixa é
+  // o dispatch de modo — em 2T não há termômetros, e as linhas de candidato
+  // continuam sendo a leitura da corrida.
+  it("(c) 2º turno (duelo) → sem termômetros", async () => {
     readUfProjectionMock.mockResolvedValueOnce(
       buildUfPayload({ turno: 2, candidatos: oitoCandidatos.slice(0, 2) }),
     );
@@ -198,8 +202,7 @@ describe("UFPage SSR (S07/Fase 2 — ADR-0018 + ADR-0019)", () => {
     const doc = parse(node);
 
     expect(doc.querySelector('[id^="termometro-"]')).toBeNull();
-    expect(doc.body.textContent).toContain("Forecast ao vivo de SP");
-    expect(doc.body.textContent).toContain("Margem estimada");
+    expect(doc.querySelectorAll('[data-testid="candidate-result-row"]')).toHaveLength(2);
   });
 
   // O kicker carrega só o rótulo da trilha; a profundidade da navegação é do
@@ -324,21 +327,18 @@ describe("UFPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
   it("(k) nenhum <Panel> fica vazio (filete órfão)", async () => {
     const doc = await renderUF();
     const panels = [...doc.querySelectorAll('[data-testid="panel"]')];
-    expect(panels.length).toBeGreaterThanOrEqual(6);
+    // Eram >= 6 até 2026-09-08; os cortes para o protótipo deixaram mapa,
+    // projeção, municípios e metodologia.
+    expect(panels.length).toBeGreaterThanOrEqual(4);
     for (const p of panels) {
       expect((p.textContent ?? "").trim().length).toBeGreaterThan(0);
     }
   });
 
-  it("(l) `<ChancesPanel>` consome a probabilidade do líder — o átomo tem consumidor", async () => {
-    const doc = await renderUF();
-    const painel = doc.querySelector('[data-testid="chances-panel-meters"]');
-    expect(painel).not.toBeNull();
-    const meter = painel?.querySelector('[role="meter"]');
-    // `needle_position` do fixture é 0.3 → p do líder = 0.65.
-    expect(meter?.getAttribute("aria-valuenow")).toBe("65");
-    expect(meter?.getAttribute("aria-label")).toBe("Candidato A vence em SP");
-  });
+  // (l) removido em 2026-09-08: o `<ChancesPanel>` saiu desta rota — no
+  // protótipo do kit ele é NACIONAL (`App.jsx:350`) e migrou para a home. A
+  // cobertura do componente em si segue em
+  // `tests/unit/components/ChancesPanel.test.tsx`.
 });
 
 // ---------------------------------------------------------------------------
@@ -462,7 +462,10 @@ describe("UFPage — degradação do detalhe municipal (ADR-0032)", () => {
       e.getAttribute("data-reason"),
     );
     expect(razoes.every((r) => r === "fetch_error")).toBe(true);
-    expect(doc.body.textContent).toContain("A evolução ao longo da noite está indisponível");
+    // A asserção sobre "A evolução ao longo da noite" saiu com o `<Panel>` dos
+    // três charts (cortes de 2026-09-08). O estado de falha do Blob continua
+    // sendo declarado pelas seções de município que restaram.
+    expect(razoes.length).toBeGreaterThan(0);
   });
 
   it("(q) Blob OK e vazio é `empty`, não `not_found` — são notícias diferentes", async () => {
