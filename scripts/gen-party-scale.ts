@@ -9,11 +9,17 @@
  *   pnpm gen:party-scale --report     # + tabela L*, C*, h, ΔE76 de auditoria
  *   pnpm gen:party-scale --check      # não escreve; falha se o arquivo estiver
  *                                     # fora de sincronia com a tabela-fonte
+ *   pnpm gen:party-scale --suggest    # não escreve; calcula o conjunto MÍNIMO
+ *                                     # de hexes a mudar quando dois partidos
+ *                                     # colidem (seção 7c)
  *
- * Sai com código ≠ 0 (em qualquer modo) se algum token — base, chip ou nível —
- * ficar a menos de `DELTA_E_FLOOR` de um hex oficial de partido, se algum par
- * `-chip`/`-ink` ficar abaixo de `CHIP_CONTRAST_FLOOR`, ou se a rampa de algum
- * partido deixar de ser estritamente decrescente em L*.
+ * Sai com código ≠ 0 (em qualquer modo de geração) se algum token — base, chip,
+ * text ou nível — ficar a menos de `DELTA_E_FLOOR` de um hex oficial de
+ * partido, se algum par `-chip`/`-ink` ou algum `-text` ficar abaixo de 4,5:1,
+ * se a rampa de algum partido deixar de ser estritamente decrescente em L*, se
+ * o nível 5 de alguém perder mais de 40% do croma do nível 4, **ou se dois
+ * partidos diferentes ficarem a menos de `PARTY_SEPARATION_FLOOR` um do outro**
+ * (seção 7b — o gate acrescentado em 2026-09-08).
  *
  * ---------------------------------------------------------------------------
  * Por que um gerador, e não CSS escrito à mão
@@ -98,6 +104,43 @@ import path from "node:path";
 // Com isso a paleta cobre os 30 partidos registrados para 2026. Note que
 // **PMB não existe mais**: o TSE homologou a renomeação para DEMOCRATA em
 // 02/12/2025 (nº 35), e MOBILIZA é o antigo PMN.
+//
+// ---------------------------------------------------------------------------
+// Seis correções de 2026-09-08 — distância entre os NOSSOS partidos
+// ---------------------------------------------------------------------------
+// Até aqui, todo hex desta tabela tinha sido medido contra o **lado de fora**
+// (a marca do partido) e nunca contra os outros 30 hexes da própria tabela. O
+// kit chegou com cinco pares indistinguíveis a olho nu — `dc` × `pp` a ΔE76
+// 2,52, `pco` × `pstu` a 3,55 — e uma rampa quebrada (o nível 5 do PP em cinza).
+// A seção 7b passou a gatear isso; estes seis hexes são a resposta, calculada
+// por `pnpm gen:party-scale --suggest` sob o critério da seção 7c (menos hexes
+// primeiro, menor deslocamento total no desempate, ordem alfabética por último
+// — nenhuma das três regras olha para quem é o partido):
+//
+//   --party-avante  #7A4FB3 → #794CAE   ΔE 1,64  (colidia com PRD a 11,69)
+//   --party-mdb     #2E8B57 → #408A50   ΔE 5,35  (colidia com PSD a 9,54)
+//   --party-pco     #A1332B → #9D4227   ΔE 9,79  (triângulo PCB/PCO/PSTU)
+//   --party-pp      #2C6FB0 → #0F60B3   ΔE 13,49 (rampa colapsada + DC a 2,52)
+//   --party-psb     #C9A227 → #B6A92A   ΔE 12,10 (o `-text` colidia com PSOL
+//                                                 a 2,51 — dois ouros que viram
+//                                                 o mesmo marrom ao escurecer)
+//   --party-pstu    #9E2B2B → #97272B   ΔE 3,31  (triângulo PCB/PCO/PSTU)
+//
+// Note quem **não** mudou e por quê, porque é o teste do critério: o DC ficou
+// parado embora estivesse na pior colisão da paleta (2,52 com o PP) — o PP
+// mudava de qualquer forma por causa da própria rampa, e mover os dois violaria
+// a regra 1. No triângulo vermelho PCB/PCO/PSTU, três arestas exigem dois
+// vértices; o PCB ficou parado por ser a escolha de menor deslocamento total.
+// PSD, PSOL e PRD ficaram parados pelo mesmo motivo em seus pares.
+//
+// O PP é o único caso em que o hex mudou de **matiz** de propósito (272,3° →
+// 280,9°): seus três hexes oficiais (#133D6D, #54B8EA, #234F74) põem dois azuis
+// na ponta escura da coluna, e o corredor que sobrava era estreito demais para
+// o nível 5 — que saía com C* 15,0 contra C* 43,8 do nível 4 (razão 0,34,
+// enquanto os outros 30 partidos ficavam entre 0,71 e 1,02). Girar a matiz abre
+// o corredor: o nível 4 sobe para C* 53,9 e o nível 5 para C* 43,9 — razão
+// **0,81**, exatamente o recuo que o kit desenhou (0,80) — e a distância do
+// pior hex oficial do PP sobe de ΔE 20,5 para 24,4 de quebra.
 
 interface PartyEntry {
   /** Slug do token: `--party-<slug>`. Minúsculo, sem acento, sem separador. */
@@ -128,24 +171,24 @@ const PARTY_BASE: readonly PartyEntry[] = [
   // Demais partidos com token no kit.
   { slug: "psd", base: "#2F8F6B", nome: "PSD" },
   { slug: "novo", base: "#E07B1D", nome: "NOVO" },
-  { slug: "avante", base: "#7A4FB3", nome: "Avante" },
+  { slug: "avante", base: "#794CAE", nome: "Avante" },
   { slug: "missao", base: "#1E7F8C", nome: "Missão" },
   { slug: "prtb", base: "#6B7A2C", nome: "PRTB" },
   { slug: "up", base: "#8C2F5C", nome: "UP" },
-  { slug: "pco", base: "#A1332B", nome: "PCO" },
+  { slug: "pco", base: "#9D4227", nome: "PCO" },
   { slug: "dc", base: "#3B6FB0", nome: "DC" },
-  { slug: "pstu", base: "#9E2B2B", nome: "PSTU" },
+  { slug: "pstu", base: "#97272B", nome: "PSTU" },
   { slug: "pcb", base: "#B63A2E", nome: "PCB" },
   { slug: "democrata", base: "#4B5563", nome: "Democrata (ex-PMB)" },
   { slug: "republicanos", base: "#2A548A", nome: "Republicanos" },
-  { slug: "psb", base: "#C9A227", nome: "PSB" },
+  { slug: "psb", base: "#B6A92A", nome: "PSB" },
   { slug: "rede", base: "#3D8F3D", nome: "Rede" },
-  { slug: "pp", base: "#2C6FB0", nome: "PP" },
+  { slug: "pp", base: "#0F60B3", nome: "PP" },
   { slug: "pode", base: "#2E9C8F", nome: "Podemos" },
   { slug: "cidadania", base: "#C46A9C", nome: "Cidadania" },
   { slug: "agir", base: "#7C6E5B", nome: "Agir" },
   { slug: "psol", base: "#D6A400", nome: "PSOL" },
-  { slug: "mdb", base: "#2E8B57", nome: "MDB" },
+  { slug: "mdb", base: "#408A50", nome: "MDB" },
   { slug: "uniao", base: "#124287", nome: "União Brasil" },
   { slug: "prd", base: "#6A5ACD", nome: "PRD" },
   // Incluídos em 2026-09-07 — hexes escolhidos com ΔE76 ≥ 25 contra toda a
@@ -851,6 +894,176 @@ function buildChip(
 }
 
 // ===========================================================================
+// 5c. O TOKEN DE TEXTO — a cor do partido **carregando** texto sobre o papel
+// ===========================================================================
+// **O problema que este bloco resolve.** O par `-chip`/`-ink` da seção 5b
+// resolve "rótulo em cima da cor do partido". O caso simétrico — **a cor do
+// partido como tinta, em cima do papel** — não tinha token nenhum, e é o caso
+// mais comum da tela: o número grande do `<ProjectionThermometer />`, o nome do
+// líder numa lista, qualquer valor colorido por identidade.
+//
+// Medido em 2026-09-07 no CSS commitado, contra `--surface-page` (#f3f4f6), a
+// superfície onde esse texto de fato cai, quatro bases reprovam o piso de 4,5:1
+// da constituição § 4 — PSOL 2,08:1, PSB 2,20:1, o fallback cinza 2,39:1 e NOVO
+// 2,72:1. Uma base que serve de contorno, ponto e legenda **não** serve
+// automaticamente de tinta: são eixos diferentes (área grande de cor sólida
+// contra traço fino de texto), e é exatamente a distinção que o § 4 cobra.
+//
+// **Por que não reusar `-chip`.** O chip é escolhido para contrastar com uma das
+// duas tintas do kit (#14171b ou #fbfbfc), o que em 19 dos 31 partidos
+// significa uma cor **clara** — o oposto do que um texto sobre papel claro
+// precisa. `--party-psol-chip` é o próprio #d6a400 (7,85:1 contra a tinta
+// escura, e 2,08:1 contra o papel). São dois problemas com duas respostas.
+//
+// **A saída é a mesma do chip: escurecer preservando a matiz.** O § 2 v1.3
+// permite variar intensidade e proíbe variar matiz; escurecer em CIE LCh com h
+// fixo e C* reclampado ao gamut é o que o resto deste gerador já faz. O token
+// de texto continua sendo a cor do partido — uma intensidade dela.
+//
+// **As duas guardas que valem aqui igualzinho ao chip.**
+//   1. escurecer move o ponto em Lab e pode empurrá-lo *para dentro* de um
+//      disco proibido de hex oficial (foi assim que `--party-pp` nível 5 caiu a
+//      ΔE 8,3 do azul do PP): só aceitamos candidato com ΔE76 ≥ `DELTA_E_FLOOR`
+//      contra **todos** os oficiais do partido, medido no hex final;
+//   2. o gate de contraste abaixo **falha a geração** se algum `-text` sobrar
+//      abaixo de 4,5:1 em qualquer das duas superfícies de papel.
+//
+// **Por que duas superfícies e não uma.** O mesmo número aparece dentro de um
+// card (`--surface-card`, #fbfbfc) e direto sobre o fundo da página
+// (`--surface-page`, #f3f4f6). Exigir as duas é exigir a mais escura das duas,
+// que é a página — mas medir as duas deixa o número no comentário do CSS e
+// impede que uma futura troca de papel (um `--surface-sunken` mais escuro, por
+// exemplo) passe despercebida.
+
+/**
+ * Superfícies de papel do kit sobre as quais um texto de partido pode cair —
+ * `--surface-page` e `--surface-card` em `app/globals.css`. Hex literal pelo
+ * mesmo motivo das tintas do chip: o token precisa ser auditável no diff.
+ */
+const TEXT_SURFACES: ReadonlyArray<{ token: string; hex: string }> = [
+  { token: "--surface-page", hex: "#f3f4f6" },
+  { token: "--surface-card", hex: "#fbfbfc" },
+];
+
+/** Mínimo de contraste de texto da constituição § 4 (WCAG 2.1 AA, SC 1.4.3). */
+export const TEXT_CONTRAST_FLOOR = 4.5;
+
+/** Passo da varredura em L* ao escurecer. O mesmo do chip, pelo mesmo motivo. */
+const TEXT_L_STEP = 0.25;
+
+interface GeneratedText {
+  /** A tinta. Igual à base, ou uma intensidade mais escura dela. */
+  hex: string;
+  /** Contraste contra cada superfície de `TEXT_SURFACES`, na mesma ordem. */
+  contrasts: number[];
+  /** O pior dos contrastes acima — é ele que precisa passar de 4,5:1. */
+  worstContrast: number;
+  worstSurface: string;
+  /** `true` quando a base reprovava como texto e a tinta precisou escurecer. */
+  darkened: boolean;
+  /** Pior contraste que a **base** alcançava, entre as superfícies. */
+  baseWorstContrast: number;
+  /** L* da base e da tinta (contínuos, pré-arredondamento 8-bit). */
+  baseL: number;
+  textL: number;
+  /** ΔE76 entre a base e a tinta — 0 quando a tinta é a própria base. */
+  deltaEFromBase: number;
+  /** Pior ΔE76 da tinta contra os hexes oficiais (`Infinity` se não há). */
+  worstDeltaE: number;
+  worstAgainst: OfficialHex | null;
+}
+
+/** Contraste de `hex` contra cada superfície de papel, e o pior deles. */
+function surfaceContrasts(hex: string): {
+  contrasts: number[];
+  worst: number;
+  worstSurface: string;
+} {
+  const contrasts = TEXT_SURFACES.map((s) => contrastRatio(hex, s.hex));
+  let worst = Number.POSITIVE_INFINITY;
+  let worstSurface = "";
+  for (const [i, c] of contrasts.entries()) {
+    // `<` estrito: empatou, fica a primeira da lista (determinismo, § 6).
+    if (c < worst) {
+      worst = c;
+      worstSurface = TEXT_SURFACES[i]?.token ?? "";
+    }
+  }
+  return { contrasts, worst, worstSurface };
+}
+
+/**
+ * Resolve `--party-<slug>-text`.
+ *
+ * Caminho curto: se a base já passa de 4,5:1 nas **duas** superfícies, a tinta
+ * **é** a base — a identidade do partido chega intacta ao componente.
+ *
+ * Caminho longo: desce L* em passos de `TEXT_L_STEP` a partir da base, com C*
+ * reclampado ao gamut da matiz a cada passo (h intocada), e para no **primeiro**
+ * ponto que satisfaz as duas restrições ao mesmo tempo — contraste ≥ 4,5:1 em
+ * toda superfície e ΔE76 ≥ `DELTA_E_FLOOR` contra todos os oficiais do partido.
+ * Escurecer só aumenta o contraste contra papel claro, então o primeiro ponto
+ * que passa é também o mais próximo possível da identidade.
+ *
+ * Devolve `null` quando nem o preto absoluto resolve — o que só aconteceria se a
+ * matiz estivesse cercada pela paleta oficial do partido em toda a coluna de L*.
+ */
+function buildText(
+  entry: PartyEntry,
+  baseLch: Lch,
+  officials: readonly OfficialHex[],
+): GeneratedText | null {
+  const base = entry.base.toLowerCase();
+  const fromBase = surfaceContrasts(base);
+
+  if (fromBase.worst >= TEXT_CONTRAST_FLOOR) {
+    const { delta, official } = worstAgainstOfficials(base, officials);
+    return {
+      hex: base,
+      contrasts: fromBase.contrasts,
+      worstContrast: fromBase.worst,
+      worstSurface: fromBase.worstSurface,
+      darkened: false,
+      baseWorstContrast: fromBase.worst,
+      baseL: baseLch.L,
+      textL: baseLch.L,
+      deltaEFromBase: 0,
+      worstDeltaE: delta,
+      worstAgainst: official,
+    };
+  }
+
+  // Índice inteiro em vez de `L -= passo` acumulado: mesmo resultado bit a bit
+  // em qualquer máquina, sem erro de ponto flutuante somando ao longo da busca.
+  const steps = Math.floor(baseLch.L / TEXT_L_STEP);
+  for (let k = 1; k <= steps; k++) {
+    const L = baseLch.L - k * TEXT_L_STEP;
+    const C = Math.min(baseLch.C, maxChroma(L, baseLch.h));
+    const hex = lchToHex(L, C, baseLch.h);
+    const sc = surfaceContrasts(hex);
+    if (sc.worst < TEXT_CONTRAST_FLOOR) continue;
+    const { delta, official } = worstAgainstOfficials(hex, officials);
+    // A tinta escurecida é medida contra os oficiais como qualquer outro token:
+    // escurecer pode empurrar a cor para dentro de um disco proibido.
+    if (delta < DELTA_E_FLOOR) continue;
+    return {
+      hex,
+      contrasts: sc.contrasts,
+      worstContrast: sc.worst,
+      worstSurface: sc.worstSurface,
+      darkened: true,
+      baseWorstContrast: fromBase.worst,
+      baseL: baseLch.L,
+      textL: L,
+      deltaEFromBase: deltaE76(base, hex),
+      worstDeltaE: delta,
+      worstAgainst: official,
+    };
+  }
+  return null;
+}
+
+// ===========================================================================
 // 6. GERAÇÃO
 // ===========================================================================
 
@@ -883,6 +1096,8 @@ interface GeneratedParty {
   levels: GeneratedLevel[];
   /** Par de fundo/tinta do chip sólido — ver seção 5b. */
   chip: GeneratedChip;
+  /** Cor do partido como **tinta sobre o papel** — ver seção 5c. */
+  text: GeneratedText;
   officials: OfficialHex[];
   baseDeltaE: number;
   baseAgainst: OfficialHex | null;
@@ -997,12 +1212,24 @@ function buildRamp(entry: PartyEntry, officials: readonly OfficialHex[]): Genera
     );
   }
 
+  const text = buildText(entry, baseLch, officials);
+  if (text === null) {
+    throw new Error(
+      `--party-${entry.slug}-text: nenhuma intensidade da matiz ${h.toFixed(1)}° chega a ` +
+        `${TEXT_CONTRAST_FLOOR.toFixed(1)}:1 contra ${TEXT_SURFACES.map((s) => s.hex).join(" e ")} ` +
+        `sem cair a menos de ΔE76 ${DELTA_E_FLOOR} de um hex oficial de ${entry.nome}.\n` +
+        `A matiz base ${entry.base} está cercada pela paleta oficial do partido em toda a coluna ` +
+        "de L*: escolha outro hex base em PARTY_BASE.",
+    );
+  }
+
   const base = worstAgainstOfficials(entry.base.toLowerCase(), officials);
   return {
     entry,
     baseLch,
     levels,
     chip,
+    text,
     officials: [...officials],
     baseDeltaE: base.delta,
     baseAgainst: base.official,
@@ -1040,6 +1267,10 @@ function deltaEViolations(parties: readonly GeneratedParty[]): Violation[] {
     // branco do kit, não uma cor de partido — medi-lo contra a paleta oficial
     // seria uma pergunta sem sentido.
     check(`--party-${p.entry.slug}-chip`, p.chip.hex);
+    // Mesma regra para a tinta de texto (seção 5c): quando ela diverge da base,
+    // é uma cor nova de partido, e escurecer pode empurrá-la para dentro de um
+    // disco proibido exatamente como acontecia com o chip e com os níveis.
+    check(`--party-${p.entry.slug}-text`, p.text.hex);
     for (const lv of p.levels) check(`--party-${p.entry.slug}-${lv.level}`, lv.hex);
   }
   return out;
@@ -1084,6 +1315,48 @@ function formatContrastViolations(
     "`buildChip` escurece o fundo (matiz preservada) até a tinta clara passar; se ele parou\n" +
       "antes, foi o piso de ΔE76 contra os hexes oficiais do partido que bloqueou a descida.\n" +
       "Nesse caso o hex base precisa mudar em PARTY_BASE — não relaxe nenhum dos dois pisos.",
+  );
+  return lines.join("\n");
+}
+
+/**
+ * Gate de legibilidade da constituição § 4 para a tinta de texto: todo
+ * `--party-<slug>-text` precisa dar ≥ 4,5:1 contra **cada** superfície de papel
+ * de `TEXT_SURFACES`. `buildText` já só devolve tintas que passam — este gate
+ * existe para que uma mudança futura em `PARTY_BASE`, nas superfícies, ou no
+ * próprio `buildText` não consiga emitir um texto ilegível em silêncio.
+ */
+function textContrastViolations(
+  parties: readonly GeneratedParty[],
+): Array<{ party: GeneratedParty; contrast: number }> {
+  return parties
+    .filter((p) => p.text.worstContrast < TEXT_CONTRAST_FLOOR)
+    .map((p) => ({ party: p, contrast: p.text.worstContrast }));
+}
+
+function formatTextContrastViolations(
+  violations: ReadonlyArray<{ party: GeneratedParty; contrast: number }>,
+): string {
+  const lines = [
+    `${violations.length} token(s) -text abaixo de ${TEXT_CONTRAST_FLOOR.toFixed(1)}:1 — ` +
+      "o número/rótulo ficaria ilegível sobre o papel.",
+    "Isso viola a constituição § 4 (WCAG 2.1 AA, SC 1.4.3: contraste mínimo de texto 4.5:1).",
+    "",
+  ];
+  for (const { party, contrast } of violations) {
+    const t = party.text;
+    lines.push(`  --party-${party.entry.slug}-text: ${t.hex} (${party.entry.nome})`);
+    for (const [i, s] of TEXT_SURFACES.entries()) {
+      lines.push(`    ${(t.contrasts[i] ?? 0).toFixed(2)}:1 contra ${s.token} ${s.hex}`);
+    }
+    lines.push(`    pior: ${contrast.toFixed(2)}:1 em ${t.worstSurface}`);
+  }
+  lines.push("");
+  lines.push(
+    "`buildText` escurece a tinta (matiz preservada) até as duas superfícies passarem; se ele\n" +
+      "parou antes, foi o piso de ΔE76 contra os hexes oficiais do partido que bloqueou a\n" +
+      "descida. Nesse caso o hex base precisa mudar em PARTY_BASE — não relaxe nenhum dos dois\n" +
+      "pisos.",
   );
   return lines.join("\n");
 }
@@ -1159,6 +1432,666 @@ function formatViolations(violations: readonly Violation[]): string {
 }
 
 // ===========================================================================
+// 7b. SEPARAÇÃO ENTRE PARTIDOS — a distância que o kit nunca mediu
+// ===========================================================================
+// **O problema que este bloco resolve.** Todos os gates acima medem a paleta
+// contra o **lado de fora**: ΔE76 ≥ 12 do hex oficial do partido (§ 2), 4,5:1
+// de contraste (§ 4). Nenhum media a paleta contra **ela mesma**. Medido em
+// 2026-09-08 sobre o CSS commitado, os 465 pares das 31 bases traziam cinco
+// colisões indistinguíveis a olho nu:
+//
+//   --party-dc  #3b6fb0 × --party-pp   #2c6fb0 → ΔE76  2,52
+//   --party-pco #a1332b × --party-pstu #9e2b2b → ΔE76  3,55
+//   --party-pcb #b63a2e × --party-pco  #a1332b → ΔE76  8,25
+//   --party-mdb #2e8b57 × --party-psd  #2f8f6b → ΔE76  9,54
+//   --party-pcb #b63a2e × --party-pstu #9e2b2b → ΔE76  9,98
+//
+// Isso vem do kit: o designer mediu cada cor contra a marca do partido, nunca
+// contra as outras 30 cores da própria paleta. Uma paleta que existe para
+// responder "**qual** partido" e entrega a mesma cor para dois deles não cumpre
+// o § 2 — a distinguibilidade é o serviço, não um efeito colateral.
+//
+// ---------------------------------------------------------------------------
+// Por que o piso é 12 — o mesmo número do gate contra os oficiais
+// ---------------------------------------------------------------------------
+// Medido sobre os 465 pares de partidos (a distância de um par é a **menor**
+// entre os três papéis), quantos pares reprovariam em cada candidato de piso,
+// quantos partidos ficariam envolvidos, e quantos hexes precisariam mudar para
+// o piso passar (cobertura mínima do grafo de conflito, com o PP já contado —
+// ele muda de qualquer forma, ver o bloco do colapso de croma):
+//
+//   piso | pares reprovados | partidos envolvidos | hexes a mudar (mínimo)
+//   -----|------------------|---------------------|-----------------------
+//     10 |                6 |                   9 |   5
+//     12 |                7 |                  11 |   6
+//     14 |               14 |                  19 |   9
+//     16 |               15 |                  20 |  10
+//     18 |               20 |                  24 |  10
+//     20 |               25 |                  25 |  14
+//     25 |               41 |                  30 |  16
+//
+// **12** é o escolhido, por três razões, nesta ordem:
+//
+//   1. **É o número que o repositório já opera.** `DELTA_E_FLOOR` = 12 é a
+//      distância mínima que uma cor nossa mantém do hex oficial de um partido.
+//      Se 12 é o bastante para dizer "esta cor **não é** a do PT", é o bastante
+//      para dizer "esta cor não é a do PSTU". Um segundo número exigiria
+//      justificar por que a mesma pergunta perceptual tem duas respostas — e a
+//      resposta seria "nenhuma".
+//   2. **12 cai dentro de um vão do próprio dado.** Ordenados, os pares vão
+//      2,51 · 2,52 · 3,55 · 8,25 · 9,36 · 9,98 · **11,69** ··· **12,09** ·
+//      12,13 · 12,35 — há um salto vazio entre 11,69 e 12,09. O piso separa
+//      dois grupos que já existem, em vez de cortar no meio de um. Um piso de
+//      10 cortaria rente: deixaria PCB × PSTU passar por 0,02 e absolveria
+//      Avante × PRD (11,69), dois violetas. E 10 é justamente o mínimo
+//      constitucional sem folga nenhuma — a mesma razão pela qual o gate contra
+//      os oficiais opera em 12 e não em 10.
+//   3. **Acima de 12 o custo deixa de ser "corrigir" e vira "redesenhar".** O
+//      salto de 12 para 14 dobra os pares (7 → 14), quase dobra os partidos
+//      envolvidos (11 → 19) e vai de 6 para 9 hexes; em 25 são 30 dos 31
+//      partidos. E os pares que 14 compraria são azuis institucionais que já se
+//      distinguem lado a lado (DC × Republicanos 12,13, PP × Republicanos
+//      12,35, Republicanos × União 13,31): pagar-se-ia meia paleta para
+//      resolver confusão que ninguém tem.
+//
+// ---------------------------------------------------------------------------
+// Quais papéis entram — e por que os níveis 1..5 NÃO podem entrar
+// ---------------------------------------------------------------------------
+// Entram os três tokens que **são a cor de um partido** e aparecem sem rótulo
+// que os desambigue: `--party-<slug>` (contorno, ponto, preenchimento),
+// `--party-<slug>-chip` (fundo sólido) e `--party-<slug>-text` (a identidade
+// como tinta). São exatamente os mesmos três que o gate contra os oficiais já
+// cobre — `-ink` fica de fora nos dois pelo mesmo motivo: é preto ou branco do
+// kit, não cor de partido.
+//
+// Medir `-text` não é opcional: **escurecer comprime distâncias**. PSB e PSOL
+// distam ΔE 10,51 nas bases (#c9a227 × #d6a400) e **2,51** nas tintas
+// (#896c00 × #8d6b00) — dois ouros que viram o mesmo marrom no lugar em que a
+// confusão é mais cara, que é um número escrito. Gatear só as bases deixaria
+// essa colisão viva.
+//
+// Os **níveis 1..5 não entram, e não é omissão**: eles são alvos absolutos de
+// L* / C* iguais para todos os partidos (`RAMP_L` / `RAMP_C`), então o nível 1
+// de todo mundo mora no círculo L* 90 / C* 10. Trinta e um pontos distribuídos
+// nesse círculo ficam, no melhor caso possível, a 2·10·sen(180°/31) ≈ **2,02**
+// de ΔE76 um do outro. Exigir 12 ali é aritmeticamente impossível — e não
+// precisa ser exigido: o nível comunica **margem**, não identidade; quem
+// responde "qual partido" é a base, o chip e a tinta.
+
+/**
+ * Piso de ΔE76 **entre partidos diferentes**, no mesmo papel visual. Ver a
+ * tabela de medições e as três razões no comentário acima. Deliberadamente
+ * igual a `DELTA_E_FLOOR`: é a mesma pergunta perceptual ("estas duas cores são
+ * a mesma?"), feita contra a paleta oficial num caso e contra nós mesmos no
+ * outro.
+ */
+export const PARTY_SEPARATION_FLOOR = 12;
+
+/**
+ * Papéis medidos par a par. Os mesmos três tokens que o gate contra os hexes
+ * oficiais cobre — e pelo mesmo critério: são as cores que **identificam** um
+ * partido, sem rótulo que as desambigue. Níveis ficam de fora por
+ * impossibilidade aritmética (ver comentário acima), `-ink` por não ser cor de
+ * partido.
+ */
+const SEPARATED_ROLES = ["base", "chip", "text"] as const;
+type SeparatedRole = (typeof SEPARATED_ROLES)[number];
+
+function roleHex(p: GeneratedParty, role: SeparatedRole): string {
+  if (role === "base") return p.entry.base.toLowerCase();
+  if (role === "chip") return p.chip.hex;
+  return p.text.hex;
+}
+
+function roleToken(slug: string, role: SeparatedRole): string {
+  return role === "base" ? `--party-${slug}` : `--party-${slug}-${role}`;
+}
+
+interface SeparationPair {
+  role: SeparatedRole;
+  slugA: string;
+  nomeA: string;
+  hexA: string;
+  slugB: string;
+  nomeB: string;
+  hexB: string;
+  deltaE: number;
+}
+
+/**
+ * Todos os pares (i < j) × todos os papéis, ordenados por ΔE76 crescente.
+ * Ordenação total explícita (ΔE, papel, slugA, slugB) para que a saída de
+ * `--report` seja byte-idêntica em qualquer máquina (§ 6).
+ */
+function separationPairs(parties: readonly GeneratedParty[]): SeparationPair[] {
+  const out: SeparationPair[] = [];
+  for (let i = 0; i < parties.length; i++) {
+    for (let j = i + 1; j < parties.length; j++) {
+      const a = parties[i];
+      const b = parties[j];
+      if (!a || !b) continue;
+      for (const role of SEPARATED_ROLES) {
+        const hexA = roleHex(a, role);
+        const hexB = roleHex(b, role);
+        out.push({
+          role,
+          slugA: a.entry.slug,
+          nomeA: a.entry.nome,
+          hexA,
+          slugB: b.entry.slug,
+          nomeB: b.entry.nome,
+          hexB,
+          deltaE: deltaE76(hexA, hexB),
+        });
+      }
+    }
+  }
+  out.sort((x, y) => {
+    if (x.deltaE !== y.deltaE) return x.deltaE - y.deltaE;
+    if (x.role !== y.role) return x.role < y.role ? -1 : 1;
+    if (x.slugA !== y.slugA) return x.slugA < y.slugA ? -1 : 1;
+    return x.slugA === y.slugA ? (x.slugB < y.slugB ? -1 : 1) : 0;
+  });
+  return out;
+}
+
+function separationViolations(
+  parties: readonly GeneratedParty[],
+  floor: number = PARTY_SEPARATION_FLOOR,
+): SeparationPair[] {
+  return separationPairs(parties).filter((p) => p.deltaE < floor);
+}
+
+/**
+ * As duas linhas que descrevem **uma** colisão: qual par de tokens, com que
+ * hexes, a que ΔE76, contra qual piso, e quanto falta.
+ *
+ * Exportada de propósito — é o contrato que `party-separation.test.ts` trava.
+ * Uma mensagem que diga só "a paleta tem colisões" transfere para quem for
+ * corrigir todo o trabalho de descobrir onde; num arquivo com 31 partidos e 465
+ * pares, isso é a diferença entre um gate útil e um gate que se contorna.
+ */
+export function separationFailureMessage(
+  a: { token: string; hex: string; nome: string },
+  b: { token: string; hex: string; nome: string },
+  deltaE: number,
+  floor: number = PARTY_SEPARATION_FLOOR,
+): string {
+  return (
+    `  ${a.token} ${a.hex} (${a.nome})  ×  ${b.token} ${b.hex} (${b.nome})\n` +
+    `    ΔE76 ${deltaE.toFixed(2)} — piso ${floor} (faltam ${(floor - deltaE).toFixed(2)})`
+  );
+}
+
+function formatSeparationViolations(violations: readonly SeparationPair[]): string {
+  const lines = [
+    `${violations.length} par(es) de partidos a menos de ΔE76 ${PARTY_SEPARATION_FLOOR} ` +
+      "entre si — dois partidos com a mesma cor.",
+    "A paleta editorial existe para responder QUAL partido (constituição § 2); duas cores",
+    "indistinguíveis não respondem nada.",
+    "",
+  ];
+  for (const v of violations) {
+    lines.push(
+      separationFailureMessage(
+        { token: roleToken(v.slugA, v.role), hex: v.hexA, nome: v.nomeA },
+        { token: roleToken(v.slugB, v.role), hex: v.hexB, nome: v.nomeB },
+        v.deltaE,
+      ),
+    );
+  }
+  lines.push("");
+  lines.push(
+    "Rode `pnpm gen:party-scale --suggest`: ele calcula o conjunto MÍNIMO de hexes a mudar\n" +
+      "em PARTY_BASE (menos hexes primeiro, menor deslocamento total no desempate) e imprime\n" +
+      "as linhas prontas. Não relaxe o piso.",
+  );
+  return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Colapso de croma no nível 5
+// ---------------------------------------------------------------------------
+// O nível 5 é o "decisivo" — a cor mais carregada da escala de margem. O alvo
+// do kit recua o croma de propósito (C* 53 sobre C* 66 do nível 4 = 0,80), o
+// que mantém o nível 5 reconhecível como **a cor do partido**, só mais densa.
+//
+// O empurrão de ΔE76 pode destruir isso sem que nada reclame: quando um hex
+// oficial escuro fica exatamente no caminho, o solver escapa **reduzindo o
+// croma**, que é a saída mais barata no custo `(2·ΔL)² + ΔC²`. Foi o que
+// acontecia com `--party-pp`, cujos três oficiais (#133D6D, #54B8EA, #234F74)
+// põem dois azuis na ponta escura da coluna: o nível 5 saía com C* 15,0 contra
+// C* 43,8 do nível 4 — razão **0,34**, um cinza-ardósia onde deveria estar o
+// azul mais forte do PP. Medidos os 31 partidos, todos os outros ficavam entre
+// 0,71 e 1,02.
+//
+// O piso de 0,60 fica no meio do vão vazio entre 0,34 (o defeito) e 0,71 (o
+// pior caso legítimo, `--party-pl`, limitado pelo gamut do azul): pega o
+// colapso e não encosta em nenhuma rampa que o gamut aperta honestamente.
+
+/** Fração mínima do croma do nível 4 que o nível 5 precisa conservar. */
+export const LEVEL5_CHROMA_RATIO_FLOOR = 0.6;
+
+interface ChromaCollapse {
+  party: GeneratedParty;
+  c4: number;
+  c5: number;
+  ratio: number;
+}
+
+function chromaCollapses(parties: readonly GeneratedParty[]): ChromaCollapse[] {
+  const out: ChromaCollapse[] = [];
+  for (const p of parties) {
+    if (p.entry.neutral) continue; // rampa acromática por construção: C* = 0.
+    const c4 = p.levels[3]?.measured.C ?? 0;
+    const c5 = p.levels[4]?.measured.C ?? 0;
+    if (c4 <= 0) continue;
+    const ratio = c5 / c4;
+    if (ratio < LEVEL5_CHROMA_RATIO_FLOOR) out.push({ party: p, c4, c5, ratio });
+  }
+  return out;
+}
+
+function formatChromaCollapses(collapses: readonly ChromaCollapse[]): string {
+  const lines = [
+    `${collapses.length} rampa(s) com colapso de croma no nível 5 — o "decisivo" perde a cor`,
+    `do partido e lê como cinza. Mínimo: C*₅ ≥ ${LEVEL5_CHROMA_RATIO_FLOOR} × C*₄ ` +
+      "(o kit recua 0,80).",
+    "",
+  ];
+  for (const c of collapses) {
+    lines.push(
+      `  --party-${c.party.entry.slug}-5: ${c.party.levels[4]?.hex} (${c.party.entry.nome})`,
+    );
+    lines.push(
+      `    C* ${c.c5.toFixed(1)} contra C* ${c.c4.toFixed(1)} do nível 4 — razão ` +
+        `${c.ratio.toFixed(2)}`,
+    );
+  }
+  lines.push("");
+  lines.push(
+    "O croma some porque escapar dos hexes oficiais do partido custa menos em C* que em L*\n" +
+      "nessa matiz: a coluna está cercada. A saída é **girar a matiz do hex base** em\n" +
+      "PARTY_BASE — `pnpm gen:party-scale --suggest` procura a rotação mínima que resolve.",
+  );
+  return lines.join("\n");
+}
+
+// ===========================================================================
+// 7c. O SOLVER DE COLISÃO — qual conjunto mínimo de hexes precisa mudar
+// ===========================================================================
+// **Este bloco não roda na geração.** Ele é o modo `--suggest`, e existe para
+// que a resposta à pergunta "de quem é a culpa quando dois partidos colidem?"
+// seja **calculada**, não escolhida — a próxima pessoa que mexer em
+// `PARTY_BASE` não pode ficar com a impressão de que a cor do partido X mudou
+// porque alguém achou o partido Y mais importante. Num produto eleitoral isso
+// não é detalhe de engenharia: é a neutralidade política do § 2.
+//
+// ---------------------------------------------------------------------------
+// O critério, em três regras lexicográficas
+// ---------------------------------------------------------------------------
+//   1. **Menos hexes alterados.** Se um par colide e nenhum dos dois se move, o
+//      par continua colidindo — então o conjunto de partidos que mudam precisa
+//      tocar todo par em conflito. Isso é, literalmente, uma **cobertura de
+//      vértices** do grafo cujas arestas são as colisões. Minimizar o número de
+//      hexes alterados = achar a cobertura mínima. Enumerada por força bruta,
+//      componente conexa por componente conexa (elas têm 2 a 4 vértices).
+//   2. **Menor deslocamento total.** Entre coberturas mínimas empatadas em
+//      tamanho, vence a que soma o menor ΔE76 entre hex antigo e novo. É o que
+//      decide, por exemplo, qual dos três vermelhos do triângulo PCB/PCO/PSTU
+//      fica parado.
+//   3. **Ordem alfabética de slug**, se as duas primeiras empatarem. Desempate
+//      cego a qualquer atributo do partido — tamanho de bancada, espectro,
+//      relevância eleitoral. É o ponto em que a neutralidade fica explícita.
+//
+// Nenhuma das três olha para quem é o partido. A entrada do solver é a paleta e
+// a tabela de hexes oficiais; ele não conhece bancada, ideologia nem histórico.
+//
+// ---------------------------------------------------------------------------
+// Partidos "forçados": quem muda mesmo sem colidir com ninguém
+// ---------------------------------------------------------------------------
+// Um partido pode precisar de hex novo por um defeito **próprio**, não por
+// colisão — hoje o caso é `--party-pp`, cuja matiz está tão cercada pelos
+// próprios hexes oficiais que o nível 5 colapsa em cinza. Esses entram no
+// conjunto antes da cobertura, e as arestas que eles tocam já saem cobertas de
+// graça: o PP muda de qualquer jeito, então o DC (que só colidia com ele) não
+// precisa mudar. Regra 1 respeitada sem exceção.
+//
+// ---------------------------------------------------------------------------
+// Como cada cor nova é escolhida
+// ---------------------------------------------------------------------------
+// Varredura em grade **fixa** de CIE LCh em volta do hex atual (h ±60° em
+// passos de 1°, L* ±15 e C* ±20 em passos de 1), candidatos ordenados por ΔE76
+// crescente do hex antigo, e **o primeiro que passa em TODAS as regras vence**:
+//
+//   - ΔE76 ≥ `DELTA_E_FLOOR` de todo hex oficial daquele partido, medido na
+//     base, no chip, na tinta e nos 5 níveis (o gate do § 2 já existente);
+//   - rampa construível, L* estritamente decrescente, sem colapso de croma;
+//   - chip/tinta ≥ 4,5:1 e `-text` ≥ 4,5:1 nas duas superfícies (§ 4);
+//   - ΔE76 ≥ `PARTY_SEPARATION_FLOOR` de todo outro partido, nos três papéis.
+//
+// "O primeiro que passa, na ordem de ΔE76" é exatamente a regra 2 aplicada a um
+// partido só. Quando há mais de um partido a mover na mesma componente, eles
+// são colocados **em ordem alfabética**, cada um enxergando os já colocados —
+// regra 3 outra vez, no único ponto em que a ordem poderia importar.
+
+/** Amplitude e passo da grade de candidatos, em CIE LCh. Fixos (§ 6). */
+const SUGGEST_H_SPAN = 60;
+const SUGGEST_H_STEP = 1;
+const SUGGEST_L_SPAN = 15;
+const SUGGEST_L_STEP = 1;
+const SUGGEST_C_SPAN = 20;
+const SUGGEST_C_STEP = 1;
+
+/** Teto de avaliações completas por partido. Rede de segurança, nunca atingido. */
+const SUGGEST_MAX_EVALS = 4000;
+
+/**
+ * Folga usada **na busca**, não na verificação — o mesmo papel (e o mesmo
+ * espírito) do `SEARCH_MARGIN` do solver de ΔE76 contra os oficiais.
+ *
+ * Sem ela o solver faz o mínimo literal: em 2026-09-08 ele resolvia
+ * Avante × PRD movendo o Avante de #7a4fb3 para #7a4fb2 — **um bit** no canal
+ * azul, deslocamento ΔE76 0,56, e o par pousava em 12,00. Passa no gate e não
+ * resolve nada: o piso existe para que ninguém confunda os dois, e um par
+ * encostado nele volta a violar com qualquer arredondamento, qualquer correção
+ * de hex oficial, qualquer ajuste de superfície de papel.
+ *
+ * Buscando com 13 e conferindo com 12, o gate continua sendo exatamente o
+ * número documentado — nenhuma tolerância escondida na verificação — e a
+ * paleta emitida nasce com uma unidade de folga.
+ */
+const SEPARATION_SEARCH_MARGIN = 1;
+
+/** A grade só depende do hex de origem — 6 bases, não 144 chamadas. */
+const candidateCache = new Map<string, Array<{ hex: string; deltaE: number }>>();
+
+/** Cache de `maxChroma` da varredura — a grade repete milhares de (L, h). */
+const chromaCache = new Map<string, number>();
+function maxChromaCached(L: number, h: number): number {
+  const key = `${L.toFixed(4)}|${h.toFixed(4)}`;
+  const hit = chromaCache.get(key);
+  if (hit !== undefined) return hit;
+  const v = maxChroma(L, h);
+  chromaCache.set(key, v);
+  return v;
+}
+
+/** Candidatos em gamut, sem repetição de hex, ordenados por ΔE76 do hex atual. */
+function candidateHexes(base: string): Array<{ hex: string; deltaE: number }> {
+  const cached = candidateCache.get(base);
+  if (cached !== undefined) return cached;
+  const { L: L0, C: C0, h: h0 } = hexToLch(base);
+  const seen = new Set<string>();
+  const out: Array<{ hex: string; deltaE: number }> = [];
+  for (let dh = -SUGGEST_H_SPAN; dh <= SUGGEST_H_SPAN; dh += SUGGEST_H_STEP) {
+    const h = (((h0 + dh) % 360) + 360) % 360;
+    for (let dL = -SUGGEST_L_SPAN; dL <= SUGGEST_L_SPAN; dL += SUGGEST_L_STEP) {
+      const L = L0 + dL;
+      if (L <= 1 || L >= 99) continue;
+      const cMax = maxChromaCached(L, h);
+      for (let dC = -SUGGEST_C_SPAN; dC <= SUGGEST_C_SPAN; dC += SUGGEST_C_STEP) {
+        const C = C0 + dC;
+        if (C < 0 || C > cMax) continue;
+        const hex = lchToHex(L, C, h);
+        if (seen.has(hex)) continue;
+        seen.add(hex);
+        out.push({ hex, deltaE: deltaE76(base, hex) });
+      }
+    }
+  }
+  // Ordenação total (ΔE, hex) — determinismo bit a bit da sugestão.
+  out.sort((a, b) => (a.deltaE !== b.deltaE ? a.deltaE - b.deltaE : a.hex < b.hex ? -1 : 1));
+  candidateCache.set(base, out);
+  return out;
+}
+
+/** Todo gate que depende de **um** partido só. `null` = passa. */
+function selfViolation(p: GeneratedParty): string | null {
+  const [v] = deltaEViolations([p]);
+  if (v) return `${v.token} a ΔE76 ${v.deltaE.toFixed(2)} de ${v.official.hex}`;
+  if (p.chip.contrast < CHIP_CONTRAST_FLOOR) {
+    return `chip a ${p.chip.contrast.toFixed(2)}:1 (mínimo ${CHIP_CONTRAST_FLOOR})`;
+  }
+  if (p.text.worstContrast < TEXT_CONTRAST_FLOOR) {
+    return `text a ${p.text.worstContrast.toFixed(2)}:1 (mínimo ${TEXT_CONTRAST_FLOOR})`;
+  }
+  const [m] = monotonicityViolations([p]);
+  if (m) return m;
+  const [c] = chromaCollapses([p]);
+  if (c) return `croma do nível 5 a ${c.ratio.toFixed(2)} do nível 4`;
+  return null;
+}
+
+/** `true` se `p` fica a ≥ `floor` de todos os `others` nos três papéis. */
+function separatedFrom(
+  p: GeneratedParty,
+  others: readonly GeneratedParty[],
+  floor: number,
+): boolean {
+  for (const o of others) {
+    for (const role of SEPARATED_ROLES) {
+      if (deltaE76(roleHex(p, role), roleHex(o, role)) < floor) return false;
+    }
+  }
+  return true;
+}
+
+interface Placement {
+  hex: string;
+  party: GeneratedParty;
+  deltaE: number;
+}
+
+/**
+ * A cor nova de um partido: o candidato de menor ΔE76 do hex atual que passa em
+ * todas as regras (ver o comentário do bloco). `null` = a grade não tem saída.
+ */
+function placeParty(
+  entry: PartyEntry,
+  officials: readonly OfficialHex[],
+  others: readonly GeneratedParty[],
+  floor: number,
+): Placement | null {
+  let evals = 0;
+  for (const cand of candidateHexes(entry.base)) {
+    // Rejeição barata primeiro: base contra oficiais e contra as bases alheias.
+    if (worstAgainstOfficials(cand.hex, officials).delta < DELTA_E_FLOOR) continue;
+    let clashes = false;
+    for (const o of others) {
+      if (deltaE76(cand.hex, roleHex(o, "base")) < floor) {
+        clashes = true;
+        break;
+      }
+    }
+    if (clashes) continue;
+    if (++evals > SUGGEST_MAX_EVALS) return null;
+
+    let built: GeneratedParty;
+    try {
+      built = buildRamp({ ...entry, base: cand.hex }, officials);
+    } catch {
+      continue; // rampa insolúvel nessa matiz — candidato descartado.
+    }
+    if (selfViolation(built) !== null) continue;
+    if (!separatedFrom(built, others, floor)) continue;
+    return { hex: cand.hex, party: built, deltaE: cand.deltaE };
+  }
+  return null;
+}
+
+/** Componentes conexas do grafo de conflito, cada uma com slugs ordenados. */
+function conflictComponents(
+  slugs: readonly string[],
+  edges: ReadonlyArray<[string, string]>,
+): string[][] {
+  const adj = new Map<string, Set<string>>();
+  for (const s of slugs) adj.set(s, new Set());
+  for (const [a, b] of edges) {
+    adj.get(a)?.add(b);
+    adj.get(b)?.add(a);
+  }
+  const seen = new Set<string>();
+  const out: string[][] = [];
+  for (const s of [...slugs].sort()) {
+    if (seen.has(s) || (adj.get(s)?.size ?? 0) === 0) continue;
+    const stack = [s];
+    const comp: string[] = [];
+    seen.add(s);
+    while (stack.length > 0) {
+      const cur = stack.pop() as string;
+      comp.push(cur);
+      for (const n of adj.get(cur) ?? []) {
+        if (seen.has(n)) continue;
+        seen.add(n);
+        stack.push(n);
+      }
+    }
+    out.push(comp.sort());
+  }
+  return out;
+}
+
+/** Todas as coberturas de vértices de tamanho mínimo. Força bruta (n ≤ ~12). */
+function minimumVertexCovers(
+  vertices: readonly string[],
+  edges: ReadonlyArray<[string, string]>,
+): string[][] {
+  const n = vertices.length;
+  for (let k = 0; k <= n; k++) {
+    const found: string[][] = [];
+    const combine = (start: number, acc: string[]) => {
+      if (acc.length === k) {
+        const set = new Set(acc);
+        if (edges.every(([a, b]) => set.has(a) || set.has(b))) found.push([...acc]);
+        return;
+      }
+      for (let i = start; i < n; i++) combine(i + 1, [...acc, vertices[i] as string]);
+    };
+    combine(0, []);
+    if (found.length > 0) return found;
+  }
+  return [];
+}
+
+interface Fix {
+  slug: string;
+  nome: string;
+  from: string;
+  to: string;
+  deltaE: number;
+}
+
+/**
+ * O conjunto mínimo de hexes a mudar em `PARTY_BASE`, pelas três regras
+ * lexicográficas do comentário do bloco. `null` = nenhuma combinação resolve
+ * dentro da grade de busca.
+ */
+function suggestFixes(
+  entries: readonly PartyEntry[],
+  official: Record<string, OfficialEntry>,
+  floor: number,
+): Fix[] | null {
+  const officialsOf = (slug: string) => official[`--party-${slug}`]?.official ?? [];
+  const built = new Map<string, GeneratedParty>();
+  for (const e of entries) built.set(e.slug, buildRamp(e, officialsOf(e.slug)));
+  const all = [...built.values()];
+
+  // (a) forçados — defeito próprio, mudam independente de colisão.
+  const forced = entries
+    .filter((e) => selfViolation(built.get(e.slug) as GeneratedParty) !== null)
+    .map((e) => e.slug)
+    .sort();
+  const forcedSet = new Set(forced);
+
+  // (b) arestas de colisão que sobram depois dos forçados.
+  const edges: Array<[string, string]> = [];
+  const pairSeen = new Set<string>();
+  for (const v of separationViolations(all, floor)) {
+    if (forcedSet.has(v.slugA) || forcedSet.has(v.slugB)) continue;
+    const key = `${v.slugA}|${v.slugB}`;
+    if (pairSeen.has(key)) continue;
+    pairSeen.add(key);
+    edges.push([v.slugA, v.slugB]);
+  }
+
+  // (c) cobertura mínima, componente a componente; combinações = produto.
+  const slugs = entries.map((e) => e.slug);
+  const components = conflictComponents(slugs, edges);
+  const perComponent = components.map((comp) => {
+    const inner = edges.filter(([a, b]) => comp.includes(a) && comp.includes(b));
+    return minimumVertexCovers(comp, inner);
+  });
+
+  let combos: string[][] = [[]];
+  for (const options of perComponent) {
+    const next: string[][] = [];
+    for (const acc of combos) for (const opt of options) next.push([...acc, ...opt]);
+    combos = next;
+  }
+
+  // (d) avalia cada combinação; guarda a de menor deslocamento total.
+  let best: { fixes: Fix[]; total: number } | null = null;
+  for (const combo of combos) {
+    const movers = [...new Set([...forced, ...combo])].sort();
+    const placed = new Map(built);
+    const fixes: Fix[] = [];
+    let ok = true;
+    for (const slug of movers) {
+      const entry = entries.find((e) => e.slug === slug);
+      if (!entry) continue;
+      placed.delete(slug);
+      const r = placeParty(
+        entry,
+        officialsOf(slug),
+        [...placed.values()],
+        floor + SEPARATION_SEARCH_MARGIN,
+      );
+      if (r === null) {
+        ok = false;
+        break;
+      }
+      placed.set(slug, r.party);
+      fixes.push({
+        slug,
+        nome: entry.nome,
+        from: entry.base.toLowerCase(),
+        to: r.hex,
+        deltaE: r.deltaE,
+      });
+    }
+    if (!ok) continue;
+    const total = fixes.reduce((s, f) => s + f.deltaE, 0);
+    const key = fixes.map((f) => f.slug).join(",");
+    if (
+      best === null ||
+      total < best.total - 1e-9 ||
+      (Math.abs(total - best.total) <= 1e-9 && key < best.fixes.map((f) => f.slug).join(","))
+    ) {
+      best = { fixes, total };
+    }
+  }
+  return best?.fixes ?? null;
+}
+
+function formatFixes(fixes: readonly Fix[]): string {
+  const lines = [
+    "",
+    `Conjunto mínimo: ${fixes.length} hex(es) a mudar em PARTY_BASE ` +
+      `(deslocamento total ΔE76 ${fixes.reduce((s, f) => s + f.deltaE, 0).toFixed(2)}).`,
+    "Critério: menos hexes primeiro; empatou, menor deslocamento total; empatou, ordem",
+    "alfabética de slug. Nenhuma das três regras olha para quem é o partido.",
+    "",
+  ];
+  for (const f of fixes) {
+    lines.push(
+      `  ${f.slug.padEnd(15)} ${f.from} → ${f.to}   (ΔE76 ${f.deltaE.toFixed(2)} · ${f.nome})`,
+    );
+  }
+  return lines.join("\n");
+}
+
+// ===========================================================================
 // 8. EMISSÃO DO CSS
 // ===========================================================================
 
@@ -1212,6 +2145,25 @@ const HEADER = `/* =============================================================
  * chip diverge da base, o comentário na linha diz de quanto e por quê.
  *
  * Em React, o par vem pronto de \`partyChipInk(sigla)\` em \`lib/utils/party-color.ts\`.
+ *
+ * -----------------------------------------------------------------------------
+ * \`-text\` — a cor do partido ESCREVENDO sobre o papel
+ * -----------------------------------------------------------------------------
+ * O caso simétrico do chip. \`--party-<sigla>\` é área de cor (contorno, ponto,
+ * preenchimento de barra); quando a mesma identidade precisa virar **texto** —
+ * o número grande de um termômetro, o nome do líder numa lista — o token é
+ * \`--party-<sigla>-text\`, medido aqui em ≥ 4,5:1 contra as duas superfícies de
+ * papel do kit (\`--surface-page\` #f3f4f6 e \`--surface-card\` #fbfbfc).
+ *
+ * Não dá para reusar a base: medido contra #f3f4f6, PSOL dá 2,08:1, PSB 2,20:1,
+ * o fallback cinza 2,39:1 e NOVO 2,72:1 — texto ilegível pelo § 4. Nem dá para
+ * reusar o \`-chip\`, que em 19 dos 31 partidos é uma cor **clara** (ele foi
+ * escolhido para contrastar com uma tinta, não com o papel). Onde a base já
+ * passa, \`-text\` **é** a base; onde não passa, é a base escurecida na mesma
+ * matiz (§ 2 v1.3 permite variar intensidade, nunca matiz), e o comentário na
+ * linha diz de quanto e por quê.
+ *
+ * Em React: \`textForParty(sigla)\` em \`lib/utils/party-color.ts\`.
  *
  * -----------------------------------------------------------------------------
  * Duas regras que este arquivo não pode quebrar
@@ -1268,6 +2220,28 @@ function emitCss(parties: readonly GeneratedParty[]): string {
       `  --party-${entry.slug}-ink: ${c.ink}; ` +
         `/* ${tinta} sobre o chip — ${c.contrast.toFixed(2)}:1 (§ 4 exige 4.5:1) */`,
     );
+
+    // Tinta de texto — o caso simétrico do chip: a cor do partido ESCREVENDO
+    // sobre o papel, em vez de servindo de fundo para uma tinta.
+    const t = party.text;
+    const medidos = TEXT_SURFACES.map(
+      (s, i) => `${(t.contrasts[i] ?? 0).toFixed(2)}:1 em ${s.hex}`,
+    ).join(" · ");
+    if (t.darkened) {
+      // Sem hex oficial localizado (DEMOCRATA, MOBILIZA) não há distância a
+      // declarar — dizer isso é mais honesto que imprimir "Infinity".
+      const deTexto = Number.isFinite(t.worstDeltaE)
+        ? `${t.worstDeltaE.toFixed(1)} de ${t.worstAgainst?.hex}`
+        : "sem hex oficial conhecido";
+      out.push(
+        `  --party-${entry.slug}-text: ${t.hex}; ` +
+          `/* base escurecida L* ${t.baseL.toFixed(1)} → ${t.textL.toFixed(1)} (matiz intacta): ` +
+          `a base parava em ${t.baseWorstContrast.toFixed(2)}:1 sobre o papel · ` +
+          `agora ${medidos} · ΔE76 ${t.deltaEFromBase.toFixed(1)} da base, ${deTexto} */`,
+      );
+    } else {
+      out.push(`  --party-${entry.slug}-text: ${t.hex}; /* = base · ${medidos} */`);
+    }
 
     for (const lv of party.levels) {
       const notes: string[] = [];
@@ -1332,6 +2306,14 @@ function report(parties: readonly GeneratedParty[]): string {
             `${c.deltaEFromBase.toFixed(1)} · ΔE76 ${c.worstDeltaE.toFixed(2)} do oficial)`
           : "  (= base)"),
     );
+    const t = p.text;
+    rows.push(
+      `  text   ${t.hex} → ${TEXT_SURFACES.map((s, i) => `${(t.contrasts[i] ?? 0).toFixed(2)}:1 (${s.hex})`).join("  ")}` +
+        (t.darkened
+          ? `  (base dava ${t.baseWorstContrast.toFixed(2)}:1 · escurecida ΔE76 ` +
+            `${t.deltaEFromBase.toFixed(1)} · ΔE76 ${t.worstDeltaE.toFixed(2)} do oficial)`
+          : "  (= base)"),
+    );
     rows.push("  nível  hex        L*      C*      h       ΔE76   contra    nota");
     for (const lv of p.levels) {
       const notes = [
@@ -1359,6 +2341,43 @@ function report(parties: readonly GeneratedParty[]): string {
     }
     rows.push("");
   }
+
+  // Separação entre partidos — o gate da seção 7b, com número. É esta tabela
+  // que a documentação (`docs/design-system/tokens.md`) cita: os pares que
+  // sobraram apertados precisam estar escritos em algum lugar, com o valor, ou
+  // a próxima revisão da paleta reintroduz a colisão sem perceber.
+  const pairs = separationPairs(parties);
+  rows.push(
+    `Separação entre partidos — ${pairs.length} comparações ` +
+      `(${SEPARATED_ROLES.length} papéis × ${(parties.length * (parties.length - 1)) / 2} pares). ` +
+      `Piso ${PARTY_SEPARATION_FLOOR}.`,
+  );
+  rows.push("Os 10 pares mais próximos:");
+  rows.push("  ΔE76   papel   token A                     token B");
+  for (const p of pairs.slice(0, 10)) {
+    rows.push(
+      `  ${p.deltaE.toFixed(2).padStart(5)}  ${p.role.padEnd(6)}  ` +
+        `${`${roleToken(p.slugA, p.role)} ${p.hexA}`.padEnd(27)} ` +
+        `${roleToken(p.slugB, p.role)} ${p.hexB}`,
+    );
+  }
+  rows.push("");
+  rows.push(
+    "Razão C*₅ / C*₄ por partido (piso " +
+      `${LEVEL5_CHROMA_RATIO_FLOOR}; o alvo do kit recua 0,80):`,
+  );
+  const ratios = parties
+    .filter((p) => !p.entry.neutral)
+    .map((p) => ({
+      slug: p.entry.slug,
+      ratio: (p.levels[4]?.measured.C ?? 0) / (p.levels[3]?.measured.C ?? 1),
+    }))
+    .sort((a, b) => (a.ratio !== b.ratio ? a.ratio - b.ratio : a.slug < b.slug ? -1 : 1));
+  for (const r of ratios.slice(0, 5)) {
+    rows.push(`  ${r.ratio.toFixed(2)}  --party-${r.slug}`);
+  }
+  rows.push(`  … maior: ${(ratios.at(-1)?.ratio ?? 0).toFixed(2)} --party-${ratios.at(-1)?.slug}`);
+  rows.push("");
   return rows.join("\n");
 }
 
@@ -1366,8 +2385,34 @@ function main(): void {
   const argv = process.argv.slice(2);
   const wantReport = argv.includes("--report");
   const checkOnly = argv.includes("--check");
+  const wantSuggest = argv.includes("--suggest");
 
   const official = loadOfficialHexes();
+
+  // `--suggest` roda ANTES dos gates: ele existe justamente para quando eles
+  // reprovam. Ver a seção 7c para o critério.
+  if (wantSuggest) {
+    const fixes = suggestFixes(PARTY_BASE, official, PARTY_SEPARATION_FLOOR);
+    if (fixes === null) {
+      console.error(
+        "Nenhuma combinação de hexes dentro da grade de busca resolve todos os conflitos.\n" +
+          "Amplie SUGGEST_H_SPAN / SUGGEST_L_SPAN / SUGGEST_C_SPAN, ou reveja a tabela de\n" +
+          "hexes oficiais — pode haver um partido com a matiz inteiramente cercada.",
+      );
+      process.exitCode = 1;
+      return;
+    }
+    if (fixes.length === 0) {
+      console.log(
+        `Nada a mudar: os 31 partidos já ficam a ΔE76 ≥ ${PARTY_SEPARATION_FLOOR} entre si ` +
+          "nos três papéis, e nenhuma rampa tem defeito próprio.",
+      );
+      return;
+    }
+    console.log(formatFixes(fixes));
+    return;
+  }
+
   const parties = PARTY_BASE.map((entry) =>
     buildRamp(entry, official[`--party-${entry.slug}`]?.official ?? []),
   );
@@ -1385,6 +2430,12 @@ function main(): void {
     process.exitCode = 1;
     return;
   }
+  const lowTextContrast = textContrastViolations(parties);
+  if (lowTextContrast.length > 0) {
+    console.error(formatTextContrastViolations(lowTextContrast));
+    process.exitCode = 1;
+    return;
+  }
   const monotonic = monotonicityViolations(parties);
   if (monotonic.length > 0) {
     console.error(
@@ -1392,6 +2443,18 @@ function main(): void {
         "ficaria fora de ordem (o nível mais 'decisivo' não seria o mais escuro):",
     );
     for (const m of monotonic) console.error(`  ${m}`);
+    process.exitCode = 1;
+    return;
+  }
+  const collapses = chromaCollapses(parties);
+  if (collapses.length > 0) {
+    console.error(formatChromaCollapses(collapses));
+    process.exitCode = 1;
+    return;
+  }
+  const tooClose = separationViolations(parties);
+  if (tooClose.length > 0) {
+    console.error(formatSeparationViolations(tooClose));
     process.exitCode = 1;
     return;
   }
@@ -1425,8 +2488,8 @@ function main(): void {
     `app/tokens-party.css gerado — ${parties.length} partidos × 5 níveis + ${STATE_TOKENS.length} estados.`,
   );
   console.log(
-    `ΔE76 ≥ ${DELTA_E_FLOOR} contra todo hex oficial: OK em ${parties.length * 7} tokens ` +
-      "(base + chip + 5 níveis por partido; `-ink` é preto/branco do kit, não cor de partido).",
+    `ΔE76 ≥ ${DELTA_E_FLOOR} contra todo hex oficial: OK em ${parties.length * 8} tokens ` +
+      "(base + chip + text + 5 níveis por partido; `-ink` é preto/branco do kit, não cor de partido).",
   );
   console.log(`${clamped.length} nível(is) com croma reduzido ao gamut sRGB (matiz preservada).`);
 
@@ -1453,6 +2516,59 @@ function main(): void {
       );
     }
   }
+  const darkenedTexts = parties.filter((p) => p.text.darkened);
+  const worstText = parties.reduce((a, b) =>
+    a.text.worstContrast <= b.text.worstContrast ? a : b,
+  );
+  console.log(
+    `Tinta de texto ≥ ${TEXT_CONTRAST_FLOOR.toFixed(1)}:1 sobre ${TEXT_SURFACES.map((s) => s.hex).join(" e ")} ` +
+      `(§ 4): OK em ${parties.length} partidos — pior: --party-${worstText.entry.slug}-text ` +
+      `${worstText.text.worstContrast.toFixed(2)}:1 em ${worstText.text.worstSurface}.`,
+  );
+  if (darkenedTexts.length === 0) {
+    console.log(
+      "Nenhuma tinta de texto precisou escurecer — todas as bases já liam sobre o papel.",
+    );
+  } else {
+    console.log(
+      `${darkenedTexts.length} tinta(s) de texto escurecida(s) porque a base reprovava sobre o papel:`,
+    );
+    for (const p of darkenedTexts) {
+      const t = p.text;
+      // DEMOCRATA e MOBILIZA não têm hex oficial localizado: não há do que se
+      // afastar, e imprimir "Infinity" faria parecer defeito onde é ausência.
+      const de = Number.isFinite(t.worstDeltaE)
+        ? `${t.worstDeltaE.toFixed(2)} do oficial`
+        : "sem hex oficial conhecido";
+      console.log(
+        `  --party-${p.entry.slug}-text: ${p.entry.base.toLowerCase()} → ${t.hex} ` +
+          `(${t.baseWorstContrast.toFixed(2)}:1 → ${t.worstContrast.toFixed(2)}:1, ` +
+          `ΔE76 ${t.deltaEFromBase.toFixed(1)} da base, ${de})`,
+      );
+    }
+  }
+
+  const closest = separationPairs(parties)[0];
+  console.log(
+    `Separação entre partidos ≥ ${PARTY_SEPARATION_FLOOR} (§ 2): OK em ` +
+      `${(parties.length * (parties.length - 1) * SEPARATED_ROLES.length) / 2} comparações ` +
+      `(base, chip e text de cada par) — par mais próximo: ${roleToken(closest?.slugA ?? "", closest?.role ?? "base")} ` +
+      `× ${roleToken(closest?.slugB ?? "", closest?.role ?? "base")} a ${closest?.deltaE.toFixed(2)}.`,
+  );
+  const worstRatio = parties
+    .filter((p) => !p.entry.neutral)
+    .reduce((a, b) => {
+      const ra = (a.levels[4]?.measured.C ?? 0) / (a.levels[3]?.measured.C ?? 1);
+      const rb = (b.levels[4]?.measured.C ?? 0) / (b.levels[3]?.measured.C ?? 1);
+      return ra <= rb ? a : b;
+    });
+  console.log(
+    `Croma do nível 5 ≥ ${LEVEL5_CHROMA_RATIO_FLOOR} × nível 4: OK — pior razão ` +
+      `${(
+        (worstRatio.levels[4]?.measured.C ?? 0) / (worstRatio.levels[3]?.measured.C ?? 1)
+      ).toFixed(2)} em --party-${worstRatio.entry.slug}.`,
+  );
+
   if (pushed.length === 0) {
     console.log("Nenhum nível precisou de empurrão por ΔE76.");
   } else {

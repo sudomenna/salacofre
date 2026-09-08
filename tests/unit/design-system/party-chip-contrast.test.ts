@@ -22,6 +22,13 @@
  *     (#2e8b57: 4,23:1 contra o preto, 4,10:1 contra o branco) e Rede
  *     (#3d8f3d: 4,45:1 e 3,91:1) — daí o chip poder ser a base escurecida.
  *
+ * Os hexes acima são **os de 07/09**, preservados porque descrevem o defeito que
+ * motivou o gate. Em 08/09 seis bases mudaram para resolver colisões entre
+ * partidos (ver `party-separation.test.ts`): a divisão hoje é 21 tinta clara /
+ * 10 escura, e o MDB é `#408a50` (4,25:1 e 4,09:1) — mesma conclusão, números
+ * atualizados em `docs/design-system/tokens.md`. O teste mede o CSS commitado,
+ * não estes números.
+ *
  * **A colorimetria é reimplementada aqui de propósito**, sem importar
  * `scripts/gen-party-scale.ts`: um teste que reusa a função do gerador não
  * verifica o gerador, verifica a si mesmo. Se as duas implementações

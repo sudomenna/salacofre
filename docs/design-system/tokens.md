@@ -3,7 +3,7 @@ title: Design Tokens
 description: Design system Atlas Menna — tipografia (Spectral/Archivo/JetBrains Mono), primitivos do kit (papel/tinta), accent ocre, cores de status, cores de partido/federação (paleta editorial), espaçamento, layout
 status: stable
 source: Bloco 1 do redesign (ADR-0024, ADR-0025)
-last_updated: 2026-09-07
+last_updated: 2026-09-08
 ---
 
 # Design Tokens
@@ -222,7 +222,10 @@ h1, h2, h3 { font-family: var(--font-serif); font-weight: 600; }
 > ΔE76 ≥ 12 contra todo hex documentado do partido (limiar operacional: 12, não 10).
 > Matiz **fixa a noite inteira** (pior erro perceptual seria associar a cor a um rival se ela
 > vibrasse durante a campanha); só intensidade varia com margem projetada.
-> Validação em runtime: `scripts/gen-party-scale.ts` e gate `tests/unit/design-system/party-delta-e.test.ts`.
+> **Desde 2026-09-08**, a paleta também é medida **contra ela mesma**: ΔE76 ≥ 12 entre partidos
+> diferentes (ver "Distância entre os nossos partidos", abaixo).
+> Validação em runtime: `scripts/gen-party-scale.ts` e gates
+> `tests/unit/design-system/party-delta-e.test.ts` e `.../party-separation.test.ts`.
 
 **31 partidos registrados em 2026-09-07.** A tabela abaixo foi **medida** a partir do
 `app/tokens-party.css` commitado e de `scripts/data/party-official-hexes.json` — não digitada.
@@ -231,29 +234,29 @@ Para regerar: `pnpm gen:party-scale --report`.
 | Partido | Token base | Hex | ΔE76 mínimo contra oficial | Contraste sobre papel | Uso seguro |
 |---|---|---|---|---|---|
 | AGIR | `--party-agir` | `#7c6e5b` | 73.08 vs `#F2295B` | 4.50:1 | texto e preenchimento |
-| AVANTE | `--party-avante` | `#7a4fb3` | 43.20 vs `#BF247F` | 5.31:1 | texto e preenchimento |
+| AVANTE | `--party-avante` | `#794cae` | 42.18 vs `#BF247F` | 5.52:1 | texto e preenchimento |
 | CIDADANIA | `--party-cidadania` | `#c46a9c` | 34.74 vs `#CA0088` | 3.24:1 | preenchimento com traço |
 | DC | `--party-dc` | `#3b6fb0` | 14.72 vs `#0666BE` | 4.67:1 | texto e preenchimento |
 | DEMOCRATA | `--party-democrata` | `#4b5563` | — (sem fonte oficial) | 6.87:1 | texto e preenchimento |
-| MDB | `--party-mdb` | `#2e8b57` | 15.24 vs `#0A9246` | 3.86:1 | preenchimento com traço |
+| MDB | `--party-mdb` | `#408a50` | 15.44 vs `#0A9246` | 3.84:1 | preenchimento com traço |
 | MISSAO | `--party-missao` | `#1e7f8c` | 102.14 vs `#FCBE26` | 4.27:1 | preenchimento com traço |
 | MOBILIZA | `--party-mobiliza` | `#3e89f9` | — (sem fonte oficial) | 3.10:1 | preenchimento com traço |
 | NOVO | `--party-novo` | `#e07b1d` | 12.29 vs `#F17021` | 2.72:1 | **só preenchimento com traço** (reprova 3:1) |
 | OUTROS | `--party-outros` | `#9aa0a8` | — (sem fonte oficial) | 2.39:1 | **só preenchimento com traço** (reprova 3:1) |
 | PCB | `--party-pcb` | `#b63a2e` | 25.27 vs `#C20000` | 5.25:1 | texto e preenchimento |
 | PCDOB | `--party-pcdob` | `#6b4b7d` | 25.25 vs `#0A4C8F` | 6.52:1 | texto e preenchimento |
-| PCO | `--party-pco` | `#a1332b` | 19.68 vs `#A10005` | 6.31:1 | texto e preenchimento |
+| PCO | `--party-pco` | `#9d4227` | 24.18 vs `#A10005` | 5.89:1 | texto e preenchimento |
 | PDT | `--party-pdt` | `#784b02` | 55.35 vs `#176939` | 6.80:1 | texto e preenchimento |
 | PL | `--party-pl` | `#2247b8` | 13.54 vs `#2A3591` | 7.17:1 | texto e preenchimento |
 | PODE | `--party-pode` | `#2e9c8f` | 92.38 vs `#602D91` | 3.04:1 | preenchimento com traço |
-| PP | `--party-pp` | `#2c6fb0` | 20.46 vs `#234F74` | 4.76:1 | texto e preenchimento |
+| PP | `--party-pp` | `#0f60b3` | 24.36 vs `#133D6D` | 5.71:1 | texto e preenchimento |
 | PRD | `--party-prd` | `#6a5acd` | 28.49 vs `#0E509E` | 4.82:1 | texto e preenchimento |
 | PRTB | `--party-prtb` | `#6b7a2c` | 40.86 vs `#01A64A` | 4.29:1 | preenchimento com traço |
-| PSB | `--party-psb` | `#c9a227` | 42.08 vs `#FFF200` | 2.20:1 | **só preenchimento com traço** (reprova 3:1) |
+| PSB | `--party-psb` | `#b6a92a` | 39.60 vs `#FFF200` | 2.19:1 | **só preenchimento com traço** (reprova 3:1) |
 | PSD | `--party-psd` | `#2f8f6b` | 49.30 vs `#7FC341` | 3.63:1 | preenchimento com traço |
 | PSDB | `--party-psdb` | `#c37b61` | 46.05 vs `#F7941E` | 3.02:1 | preenchimento com traço |
 | PSOL | `--party-psol` | `#d6a400` | 15.55 vs `#FFC200` | 2.08:1 | **só preenchimento com traço** (reprova 3:1) |
-| PSTU | `--party-pstu` | `#9e2b2b` | 35.80 vs `#CC0000` | 6.73:1 | texto e preenchimento |
+| PSTU | `--party-pstu` | `#97272b` | 38.68 vs `#CC0000` | 7.23:1 | texto e preenchimento |
 | PT | `--party-pt` | `#c62e49` | 12.01 vs `#B9142C` | 4.91:1 | texto e preenchimento |
 | PV | `--party-pv` | `#ac2c92` | 108.04 vs `#146332` | 5.41:1 | texto e preenchimento |
 | REDE | `--party-rede` | `#3d8f3d` | 37.12 vs `#379E8D` | 3.67:1 | preenchimento com traço |
@@ -268,6 +271,106 @@ Tailwind, que não é identidade de marca) e `--party-mobiliza` (ex-PMN — `mob
 `pmn.org.br` com TLS expirado). O validador **não reprova** por ausência de oficial (não há do que se
 afastar), mas o gerador avisa.
 
+### Distância entre os nossos partidos (gate novo, 2026-09-08)
+
+Até 07/09 toda cor desta paleta era medida contra o **lado de fora** — o hex oficial do partido
+(§ 2) e o contraste sobre papel (§ 4). Nenhuma medida olhava para a paleta **contra ela mesma**, e
+o kit chegou com cinco pares que ninguém distingue:
+
+| Par | ΔE76 (antes) |
+|---|---|
+| `--party-dc` `#3b6fb0` × `--party-pp` `#2c6fb0` | **2,52** |
+| `--party-pco` `#a1332b` × `--party-pstu` `#9e2b2b` | **3,55** |
+| `--party-pcb` `#b63a2e` × `--party-pco` `#a1332b` | **8,25** |
+| `--party-mdb` `#2e8b57` × `--party-psd` `#2f8f6b` | **9,54** |
+| `--party-pcb` `#b63a2e` × `--party-pstu` `#9e2b2b` | **9,98** |
+
+E uma sexta que só aparecia nas **tintas**: PSB e PSOL distavam 10,51 como base e **2,51** como
+`-text` (`#896c00` × `#8d6b00`), porque escurecer para alcançar 4,5:1 comprime distâncias — uma
+correção de a11y tinha criado uma colisão de identidade.
+
+**O gate.** `PARTY_SEPARATION_FLOOR = 12` no gerador: todo par de partidos, nos **três papéis que
+identificam** (`--party-<slug>`, `-chip`, `-text`), precisa de ΔE76 ≥ 12 — 1395 medições
+(465 pares × 3). Falha com código ≠ 0 e é refeito sobre o CSS commitado por
+`tests/unit/design-system/party-separation.test.ts`.
+
+- **Por que 12**: é o mesmo `DELTA_E_FLOOR` que já vale contra os hexes oficiais — a mesma pergunta
+  perceptual ("estas duas cores são a mesma?") não pode ter duas respostas. E 12 cai dentro de um
+  vão do próprio dado: ordenados, os pares do kit iam 9,98 · **11,69** ··· **12,09** · 12,13. Custo
+  por piso, medido: 10 → 6 pares reprovados / 5 hexes a mudar; **12 → 7 pares / 6 hexes**;
+  14 → 14 pares / 9 hexes; 18 → 20 pares / 10 hexes; 25 → 41 pares / 16 hexes. Acima de 12 deixa de
+  ser correção e vira redesenho, para resolver confusão que ninguém tem (os pares entre 12 e 14 são
+  azuis institucionais que se distinguem lado a lado).
+- **Por que os níveis 1..5 ficam fora**: são alvos absolutos de L\*/C\* iguais para todos, então o
+  nível 1 de todo mundo mora no círculo L\* 90 / C\* 10 — 31 pontos ali ficam, no melhor arranjo
+  possível, a **2,02** um do outro. Exigir 12 seria exigir o impossível, e é desnecessário: o nível
+  comunica **margem**; quem responde "qual partido" são os três papéis gateados.
+- **Por que `-ink` fica fora**: é preto ou branco do kit, não cor de partido.
+
+**Como as colisões foram resolvidas — e por que este conjunto.** O critério está implementado em
+`pnpm gen:party-scale --suggest` (gerador, seção 7c), em três regras lexicográficas, nenhuma delas
+olhando para quem é o partido: (1) **menos hexes alterados** — o conjunto de quem muda precisa tocar
+todo par em conflito, o que é uma cobertura mínima de vértices do grafo de colisão; (2) empatado,
+**menor deslocamento total** (soma dos ΔE76 entre hex antigo e novo); (3) empatado, **ordem
+alfabética de slug**. Toda cor nova continua obedecendo todas as regras antigas (ΔE ≥ 12 dos
+oficiais daquele partido, rampa monotônica, matiz constante, chip/tinta e `-text` ≥ 4,5:1).
+
+| Partido | De | Para | ΔE76 do deslocamento | Por quê |
+|---|---|---|---|---|
+| `--party-avante` | `#7a4fb3` | `#794cae` | 1,64 | colidia com PRD (11,69) |
+| `--party-pstu` | `#9e2b2b` | `#97272b` | 3,31 | triângulo PCB/PCO/PSTU |
+| `--party-mdb` | `#2e8b57` | `#408a50` | 5,35 | colidia com PSD (9,54) |
+| `--party-pco` | `#a1332b` | `#9d4227` | 9,79 | triângulo PCB/PCO/PSTU |
+| `--party-psb` | `#c9a227` | `#b6a92a` | 12,10 | o `-text` colidia com PSOL (2,51) |
+| `--party-pp` | `#2c6fb0` | `#0f60b3` | 13,49 | rampa colapsada + DC (2,52) |
+
+Quem **não** mudou é o teste do critério: o **DC ficou parado** apesar de estar na pior colisão da
+paleta — o PP mudava de qualquer forma por causa da própria rampa (abaixo), então mover os dois
+violaria a regra 1. No triângulo vermelho, três arestas exigem dois vértices e o **PCB** ficou
+parado por ser a escolha de menor deslocamento total. PSD, PSOL e PRD ficaram parados pelo mesmo
+motivo em seus pares.
+
+**Os pares mais próximos que sobraram** (saída de `pnpm gen:party-scale --report`; nada abaixo de
+12, mas estes são os que a próxima revisão da paleta precisa não piorar):
+
+| ΔE76 | Papel | Par |
+|---|---|---|
+| 12,09 | `text` | `--party-democrata-text` `#4b5563` × `--party-outros-text` `#6b7078` |
+| 12,13 | `base` | `--party-dc` `#3b6fb0` × `--party-republicanos` `#2a548a` |
+| 12,13 | `chip` | `--party-dc-chip` `#3b6fb0` × `--party-republicanos-chip` `#2a548a` |
+| 12,13 | `text` | `--party-dc-text` `#3b6fb0` × `--party-republicanos-text` `#2a548a` |
+| 13,00 | `base` | `--party-rede` `#3d8f3d` × `--party-mdb` `#408a50` |
+| 13,06 | `text` | `--party-rede-text` `#2c802f` × `--party-mdb-text` `#347e45` |
+| 13,07 | `chip` | `--party-rede-chip` `#318433` × `--party-mdb-chip` `#388249` |
+| 13,09 | `text` | `--party-psd-text` `#1a7f5c` × `--party-mdb-text` `#347e45` |
+| 13,13 | `text` | `--party-psb-text` `#7a7200` × `--party-psol-text` `#8d6b00` |
+| 13,15 | `base` | `--party-avante` `#794cae` × `--party-prd` `#6a5acd` |
+
+O par mais apertado da paleta é o único que **não** passou pelo solver:
+`--party-democrata-text` × `--party-outros-text`, a 12,09 — o cinza-azulado do Democrata contra o
+cinza do fallback, ambos escurecidos para alcançar 4,5:1 sobre o papel. Passa o piso e por isso
+ficou parado (regra 1), mas tem 0,09 de folga: qualquer mexida nas superfícies de papel ou no hex
+do fallback reabre o caso.
+
+### O nível 5 não pode virar cinza
+
+Gate irmão, no mesmo commit: **C\*₅ ≥ 0,60 × C\*₄**. O nível 5 é o "decisivo" — a cor mais carregada
+da escala — e o alvo do kit recua o croma de propósito (C\* 53 sobre 66 = 0,80), o que o mantém
+reconhecível como a cor do partido, só mais densa.
+
+O empurrão de ΔE76 destruía isso em silêncio: quando um hex oficial escuro fica no caminho, escapar
+**reduzindo o croma** é a saída mais barata no custo do solver. `--party-pp` saía com **C\* 15,0
+contra C\* 43,8** do nível 4 — razão **0,34**, um cinza-ardósia onde deveria estar o azul mais forte
+do PP — enquanto os outros 30 partidos ficavam entre 0,71 e 1,02. Causa: o PP tem **três** hexes
+oficiais (`#133D6D`, `#54B8EA`, `#234F74`) e dois deles ficam na ponta escura, estreitando o
+corredor.
+
+A correção foi **girar a matiz do hex base**: `#2c6fb0` → `#0f60b3`, de 272,3° para 280,9°. O nível
+4 sobe para C\* 53,9 e o nível 5 para **C\* 43,9** — razão **0,81**, exatamente o recuo desenhado no
+kit — e a distância do pior hex oficial do PP sobe de ΔE 20,5 para **24,4** de quebra. O piso de
+0,60 fica no vão entre 0,34 (o defeito) e 0,71 (o pior caso legítimo, `--party-pl`, limitado pelo
+gamut do azul).
+
 ### Os 5 níveis são escala de MARGEM, não escala de UI
 
 `--party-<sigla>-1..5` mapeia **margem projetada**, não intensidade decorativa: **1 = disputa
@@ -279,16 +382,17 @@ o nível 5 não é uma quinta banda — corresponde ao estado de corrida chamada
 carrega em campo próprio.
 
 Invariantes garantidas por teste (`tests/unit/design-system/party-delta-e.test.ts`) e verificadas
-por mim de forma independente em 2026-09-07: **L\* estritamente decrescente do nível 1 ao 5 nos 31
-partidos** e **matiz constante** (maior desvio: 1,6° com croma 10,5 = 0,29 unidade Lab, abaixo do
-limiar de percepção).
+por mim de forma independente em 2026-09-07 e refeitas em 2026-09-08: **L\* estritamente
+decrescente do nível 1 ao 5 nos 31 partidos**, **matiz constante** (maior desvio: 2,7° em
+`--party-pco`, com croma 9,9 = 0,47 unidade Lab, abaixo do limiar de percepção) e **croma do nível 5
+≥ 60% do nível 4** (ver "O nível 5 não pode virar cinza").
 
 ### Contraste — o que estes tokens podem carregar
 
 Medido sobre `--surface-page` (`#F3F4F6`) em 2026-09-07:
 
 - **Quatro bases reprovam o piso de 3:1 de objeto gráfico já no tema claro**: `--party-psol`
-  (2,08:1), `--party-psb` (2,20:1), `--party-outros` (2,39:1) e `--party-novo` (2,72:1) — os
+  (2,08:1), `--party-psb` (2,19:1), `--party-outros` (2,39:1) e `--party-novo` (2,72:1) — os
   amarelos e laranjas. Elas **só podem** aparecer como preenchimento delimitado por traço
   (`--map-stroke` no mapa, borda no chip), **nunca** atrás de texto nem como preenchimento solto.
 - **Para texto existe token próprio: `--party-<slug>-text`**, gerado e medido, com **≥ 4,5:1 sobre
@@ -302,29 +406,32 @@ Medido sobre `--surface-page` (`#F3F4F6`) em 2026-09-07:
 - Os níveis **1 e 2** de qualquer partido são claros por construção (L\* 90 e 76): decorativos,
   jamais com texto por cima.
 - Chip preenchido tem par próprio: **`--party-<slug>-chip`** (fundo) e **`--party-<slug>-ink`**
-  (tinta), gerados e medidos. Nenhuma tinta fixa serviria — 19 bases pedem tinta clara e 12 pedem
-  escura. Em **dois** partidos nenhuma das duas alcança 4,5:1 (MDB `#2e8b57`: 4,23 com preto e 4,10
+  (tinta), gerados e medidos. Nenhuma tinta fixa serviria — 21 bases pedem tinta clara e 10 pedem
+  escura. Em **dois** partidos nenhuma das duas alcança 4,5:1 (MDB `#408a50`: 4,25 com preto e 4,09
   com branco; REDE `#3d8f3d`: 4,45 e 3,91), então o chip **escurece preservando a matiz** —
-  MDB `#268451` (ΔE 2,65 da base) e REDE `#318433` (ΔE 4,17), ambos ainda a ΔE76 ≥ 12 dos hexes
+  MDB `#388249` (ΔE 3,05 da base) e REDE `#318433` (ΔE 4,17), ambos ainda a ΔE76 ≥ 12 dos hexes
   oficiais. O pior par da paleta é `--party-psd`, em 4,5048:1. Use `partyChipInk(sigla)`; **nunca**
   monte o chip com `colorForParty()`, que devolve a base e reintroduz a falha exatamente nesses dois.
 
 **Dark mode ainda não existe para estes tokens** (é o Bloco 2). Medido contra os fundos escuros do
-kit (`#1C1F24` / `#14171B`), **12 das 31 bases reprovariam o piso de 3:1**: `avante`, `democrata`,
-`pcb`, `pcdob`, `pco`, `pdt`, `pl`, `pstu`, `pv`, `republicanos`, `uniao`, `up`. O kit só traz
+kit (`#1C1F24` / `#14171B`), **13 das 31 bases reprovariam o piso de 3:1**: `avante`, `democrata`,
+`pcb`, `pcdob`, `pco`, `pdt`, `pl`, `pp`, `pstu`, `pv`, `republicanos`, `uniao`, `up`. O kit só traz
 variante escura para PT e PL, então o Bloco 2 precisa gerar as demais — não é ajuste fino, é
 paleta faltando.
 
 ### Geração e consumo
 
 ```bash
-pnpm gen:party-scale            # regenera app/tokens-party.css (188 tokens)
+pnpm gen:party-scale            # regenera app/tokens-party.css (281 tokens)
 pnpm gen:party-scale --check    # prova determinismo: saída byte-idêntica
-pnpm gen:party-scale --report   # tabela ΔE76 / L* / C* / h por partido
+pnpm gen:party-scale --report   # tabela ΔE76 / L* / C* / h + os 10 pares mais próximos
+pnpm gen:party-scale --suggest  # conjunto MÍNIMO de hexes a mudar quando dois partidos colidem
 ```
 
-O gerador **falha com código ≠ 0** se algum token violar ΔE76 < 12 contra um hex oficial ou se L\*
-deixar de ser estritamente decrescente. `app/tokens-party.css` é importado por `app/globals.css` na
+O gerador **falha com código ≠ 0** se algum token violar ΔE76 < 12 contra um hex oficial, se dois
+partidos ficarem a ΔE76 < 12 entre si em qualquer dos três papéis identificadores, se um par
+`-chip`/`-ink` ou um `-text` cair abaixo de 4,5:1, se L\* deixar de ser estritamente decrescente, ou
+se o nível 5 de alguém perder mais de 40% do croma do nível 4. `app/tokens-party.css` é importado por `app/globals.css` na
 linha 4 — `@import` precisa vir antes de qualquer outra regra.
 
 API de consumo (`lib/utils/party-color.ts`, exports reais):

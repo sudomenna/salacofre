@@ -333,6 +333,35 @@ describe("a rampa de margem ordena", () => {
     }
   });
 
+  it("o nível 5 conserva pelo menos 60% do croma do nível 4", () => {
+    // O nível 5 é o "decisivo": a cor mais carregada da escala. O kit recua o
+    // croma de propósito (C* 53 sobre 66 = 0,80), o que mantém o nível 5
+    // reconhecível como a cor do partido, só mais densa.
+    //
+    // O empurrão de ΔE76 destruía isso em silêncio: quando um hex oficial
+    // escuro fica no caminho, escapar reduzindo o croma é a saída mais barata
+    // no custo do solver. `--party-pp` saía com C* 15,0 contra C* 43,8 do nível
+    // 4 — razão 0,34, um cinza-ardósia onde deveria estar o azul mais forte do
+    // PP — e nada reclamava. Corrigido em 2026-09-08 girando a matiz do hex
+    // base (#2c6fb0 → #0f60b3, 272,3° → 280,9°), que abre o corredor entre os
+    // três hexes oficiais do partido.
+    //
+    // O piso de 0,60 fica no vão entre 0,34 (o defeito) e 0,71 (o pior caso
+    // legítimo, `--party-pl`, limitado pelo gamut do azul).
+    for (const slug of PARTY_SLUGS) {
+      if (slug === "outros") continue; // acromático por construção: C* = 0.
+      const c4 = chroma(TOKENS.get(`${slug}-4`) as string);
+      const c5 = chroma(TOKENS.get(`${slug}-5`) as string);
+      expect(
+        c5 / c4,
+        `--party-${slug}-5 (${TOKENS.get(`${slug}-5`)}) tem C* ${c5.toFixed(1)} contra ` +
+          `C* ${c4.toFixed(1)} do nível 4 — o "decisivo" perdeu a cor do partido e lê como\n` +
+          "cinza. A matiz do hex base está cercada pelos hexes oficiais do partido: gire-a em\n" +
+          "PARTY_BASE (`pnpm gen:party-scale --suggest` procura a rotação mínima).",
+      ).toBeGreaterThanOrEqual(0.6);
+    }
+  });
+
   it("o croma sobe até o nível 4 (com as exceções que o ΔE76 impõe)", () => {
     // Formato do kit: C* cresce do nível 1 ao 4 e recua no 5. Onde o empurrão
     // de ΔE76 desfaz isso, é porque a matiz do partido está cercada pela

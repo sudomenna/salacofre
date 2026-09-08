@@ -21,6 +21,13 @@
  *     (foi escolhido para contrastar com uma tinta, não com o papel).
  *     `--party-psol-chip` é o próprio #d6a400.
  *
+ * Os números acima são **os de 07/09**, preservados porque descrevem o defeito
+ * que motivou o gate. Em 08/09 seis bases mudaram para resolver colisões entre
+ * partidos (ver `party-separation.test.ts`): PSB passou a `#b6a92a` (2,19:1) e o
+ * chip é claro em 21 dos 31 — mesma conclusão, números atualizados em
+ * `docs/design-system/tokens.md`. O teste mede o CSS commitado, não estes
+ * números.
+ *
  * O gate mede **duas** superfícies, não uma. O mesmo número aparece dentro de um
  * card (`--surface-card`, #fbfbfc) e direto sobre o fundo da página
  * (`--surface-page`, #f3f4f6). A página é a mais escura das duas e portanto a

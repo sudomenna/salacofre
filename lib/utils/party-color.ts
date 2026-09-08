@@ -218,7 +218,7 @@ export function colorForParty(sigla: string | null | undefined): PartyColorVar {
  * fallback cinza (2,55:1) abaixo do mínimo de 4,5:1 da constituição § 4.
  *
  * **Por que `background` não é sempre `colorForParty`.** Dois verdes de
- * meio-tom — MDB (#2e8b57: 4,23:1 contra o preto, 4,10:1 contra o branco) e
+ * meio-tom — MDB (#408a50: 4,25:1 contra o preto, 4,09:1 contra o branco) e
  * Rede (#3d8f3d: 4,45:1 e 3,91:1) — reprovam com as **duas** tintas. Para esses,
  * `--party-<slug>-chip` é a base escurecida na mesma matiz (o § 2 v1.3 permite
  * variar intensidade, nunca matiz), e o gerador mede o par resultante. Para os
