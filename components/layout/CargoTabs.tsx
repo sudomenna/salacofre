@@ -35,6 +35,30 @@
  * (WCAG 1.4.1): há sublinhado E texto.
  *
  * Server Component puro — sem `"use client"`, sem hook, sem evento.
+ *
+ * ## S07/Bloco 2 (ADR-0029 § 3) — duas posições, uma por breakpoint
+ *
+ * `placement="bottom"` é a barra fixa no rodapé do mobile (<960px), zona de
+ * alcance do polegar e convenção de app — é a posição que resolve o bug de
+ * "Deputado Federal" quebrando em duas linhas no topo em 430px.
+ * `placement="top"` continua no `<TopBar>`, mas só a partir de 960px, com a
+ * moldura de `SegmentedControl` que o protótipo usa nesse breakpoint
+ * (`ui_kits/atlas-menna/App.jsx:330`).
+ *
+ * O layout renderiza **as duas** e deixa o CSS escolher por media query. Os
+ * dois `<nav aria-label="Cargos">` nunca coexistem na árvore de
+ * acessibilidade: o escondido está em `display: none`, que o remove da
+ * árvore e da ordem de tabulação — não há landmark duplicado nem parada de
+ * teclado fantasma em nenhum breakpoint. Escolher a posição no servidor
+ * exigiria saber a largura da viewport, o que só o cliente sabe.
+ *
+ * O ADR pede literalmente um `<SegmentedControl>` no topo do desktop. Aqui
+ * ele é um `<TabBar>` **com a aparência** de segmented control, e a
+ * divergência é deliberada: `SegmentedControl` é Client Component com
+ * `onChange`, e cargo é **rota** (`/`, `/governador`), não estado client
+ * (ADR-0025 § 6). Trocar `<Link>` por `onChange` somaria JS acima da dobra em
+ * todas as rotas e quebraria a navegação sem JS. O que o ADR descreve é a
+ * forma; a semântica de navegação é a de link.
  */
 
 import { TabBar } from "@/components/layout/TabBar";
@@ -78,11 +102,21 @@ const ITEMS = [
   },
 ] as const;
 
-export function CargoTabs() {
+export interface CargoTabsProps {
+  /**
+   * `"bottom"` (default) — barra fixa no rodapé, visível só abaixo de 960px.
+   * `"top"` — faixa dentro do `<TopBar>`, visível só a partir de 960px.
+   */
+  placement?: "top" | "bottom";
+}
+
+export function CargoTabs({ placement = "bottom" }: CargoTabsProps) {
+  const top = placement === "top";
+
   return (
     <TabBar
       ariaLabel="Cargos"
-      className={styles.cargoTabs}
+      className={`${styles.cargoTabs} ${top ? styles.top : styles.bottom}`}
       items={ITEMS}
       // Sentinela deliberada: nenhum item casa com `""`, então o `<TabBar>`
       // não escolhe ativo no servidor — quem escolhe é o CSS, a partir de
@@ -92,7 +126,19 @@ export function CargoTabs() {
       // safe-area). No topo, dentro do `<TopBar>`, ele é uma faixa em fluxo
       // normal. `style` é o último spread no componente, então vence os
       // defaults dele — `className` não venceria o `paddingBottom` inline.
-      style={{ position: "static", paddingBottom: 0 }}
+      // `gridTemplateColumns` é inline no `<TabBar>` (`repeat(4, 1fr)`), e
+      // folha de estilo não vence inline: no topo do desktop as quatro abas
+      // devem ter a largura do rótulo, não um quarto da tela cada.
+      style={
+        top
+          ? {
+              position: "static",
+              paddingBottom: 0,
+              borderTop: 0,
+              gridTemplateColumns: "repeat(4, auto)",
+            }
+          : undefined
+      }
     />
   );
 }

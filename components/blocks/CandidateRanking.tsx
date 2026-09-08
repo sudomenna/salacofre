@@ -2,16 +2,24 @@
  * components/blocks/CandidateRanking.tsx
  *
  * Camada 2 do hero multi-candidato (ADR-0017 — transparência total).
- * Lista vertical compacta dos candidatos rank 3..6: dot de cor + nome +
- * partido + pct_projetado + mini-barra horizontal.
  *
  * O CALLER filtra qual subset entra aqui (tipicamente rank 3..6). Este
  * componente é "burro": só recebe os candidatos a exibir e renderiza.
  *
+ * S07/Bloco 2 (ADR-0029 § 7) — a linha deixou de ser "pct projetado + mini
+ * barra" e passou a ser `<CandidateResultRow>`: parcial e projeção lado a
+ * lado, com delta. É o formato do `CandidateRow` do kit Atlas Menna, e dá a
+ * esta camada o mesmo nível de transparência que a Camada 1 já tinha
+ * (constituição § 8). O botão "Mostrar todos os N candidatos" que o kit traz
+ * no componente equivalente **não** é adotado: ele violaria a regra central
+ * do ADR-0017 (todas as camadas sempre no DOM, sem collapsible), e o próprio
+ * ADR-0029 o rejeita explicitamente.
+ *
  * Cobertura
  *   - RF-030.8 (ranking multi-camada — S05/F4c, ADR-0017).
  *
- * Server Component puro — sem 'use client'.
+ * Server Component puro — sem 'use client'. A reação ao controle
+ * "Parcial / Projeção" do shell é CSS (ver `CandidateResultRow`), não JS.
  *
  * Ordem visual
  *   - Renderiza na ordem do array (caller já passa em rank ASC).
@@ -19,11 +27,15 @@
  * A11y
  *   - `<ul>` + `<li>` semânticos (role implícito; biome regra
  *     `noRedundantRoles` proíbe `role="list"/"listitem"` explícito).
- *   - Cada `<li>` tem `aria-label` completo (nome + pct), assim leitor
- *     de tela não precisa concatenar nodes; texto visível continua para
- *     leitor visual.
+ *   - Cada `<li>` tem `aria-label` com as DUAS bases, na mesma ordem em que
+ *     aparecem na tela — leitor de tela não precisa concatenar nodes nem
+ *     adivinhar qual número é qual.
  */
 
+import {
+  CandidateResultRow,
+  candidateResultRowProps,
+} from "@/components/atoms/tables/CandidateResultRow";
 import type { EdgeCandidate } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
 
@@ -36,43 +48,17 @@ export interface CandidateRankingProps {
 export function CandidateRanking({ candidatos, className }: CandidateRankingProps) {
   if (!candidatos || candidatos.length === 0) return null;
 
-  const containerClass = ["flex flex-col gap-3", className].filter(Boolean).join(" ");
-
   return (
-    <ul className={containerClass}>
-      {candidatos.map((c) => {
-        const pctSafe = Number.isFinite(c.pct_projetado)
-          ? Math.max(0, Math.min(100, c.pct_projetado))
-          : 0;
-        const pctLabel = formatPercent(pctSafe, 1);
-        const ariaLabel = `${c.nome} ${pctLabel}`;
+    <ul className={["flex flex-col", className].filter(Boolean).join(" ")}>
+      {candidatos.map((c, i) => {
+        const props = candidateResultRowProps(c, i + 1);
+        const ariaLabel =
+          `${c.nome} (${c.partido}): ${formatPercent(props.pctAtual, 1)} apurado, ` +
+          `${formatPercent(props.pctProjetado, 1)} projetado`;
 
         return (
-          <li key={c.id} aria-label={ariaLabel} className="flex flex-col gap-1">
-            <div className="flex items-baseline justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <span
-                  aria-hidden="true"
-                  className="inline-block h-2 w-2 shrink-0 rounded-full"
-                  style={{ background: c.cor }}
-                />
-                <span className="truncate text-sm font-medium">
-                  {c.nome}{" "}
-                  <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                    ({c.partido})
-                  </span>
-                </span>
-              </div>
-              <span className="shrink-0 text-sm font-semibold tabular-nums">{pctLabel}</span>
-            </div>
-            {/* Mini-barra horizontal — proporcional ao pct_projetado */}
-            <div
-              aria-hidden="true"
-              className="h-1 w-full overflow-hidden rounded-sm"
-              style={{ backgroundColor: "var(--color-bg-muted)" }}
-            >
-              <div className="h-full" style={{ width: `${pctSafe}%`, background: c.cor }} />
-            </div>
+          <li aria-label={ariaLabel} key={c.id}>
+            <CandidateResultRow {...props} />
           </li>
         );
       })}

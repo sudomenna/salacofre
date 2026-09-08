@@ -98,6 +98,68 @@ describe("<ProjectionThermometer />", () => {
     expect(tickNeutro?.getAttribute("style") ?? "").toContain("var(--color-cand-other)");
   });
 
+  it("(e2) o número NUNCA usa a cor de preenchimento, nem quando só `cor` vem", () => {
+    // Este é o defeito que o axe-core pegou na home em 2026-09-07 (violação
+    // `serious`, desktop e mobile): o número grande saía pintado com `cor`, a
+    // cor de PREENCHIMENTO do candidato. Em rank 3 isso é `--color-cand-3`
+    // (#c97c1f) sobre `--surface-page` (#f3f4f6) = 2,99:1 — abaixo até do piso
+    // de 3:1 de texto grande, e muito abaixo dos 4,5:1 do § 4.
+    //
+    // As três formas de um caller chegar aqui, todas cobertas:
+    //   1. `cor` + `rank` (o caminho de <ProjectionThermometers />);
+    //   2. só `cor`, no formato do payload (`EdgeCandidate.cor`);
+    //   3. nem `cor` nem `rank`.
+    const numero = (doc: Document) =>
+      doc.querySelector('[data-testid="thermometer-numero"]')?.getAttribute("style") ?? "";
+
+    const comRank = render({ cor: "var(--color-cand-3)", corBand: undefined, rank: 3 });
+    expect(numero(comRank)).toContain("var(--color-cand-3-strong)");
+    expect(numero(comRank)).not.toContain("color:var(--color-cand-3)");
+
+    // Só `cor`: o rank é recuperado de dentro da própria string do payload
+    // (`rankFromColorVar`), então nem esse caller cai no preenchimento.
+    const soCor = render({ cor: "var(--color-cand-3)", corBand: undefined });
+    expect(numero(soCor)).toContain("var(--color-cand-3-strong)");
+
+    // Sem nada: neutro medido (#6e6e6e, 4,63:1 sobre --surface-page).
+    const semNada = render({ cor: undefined, corBand: undefined });
+    expect(numero(semNada)).toContain("var(--color-cand-other)");
+
+    // O preenchimento continua sendo `cor` — a correção é no texto, não na
+    // identidade visual da faixa/tick.
+    expect(
+      comRank.querySelector('[data-testid="thermometer-tick"]')?.getAttribute("style"),
+    ).toContain("var(--color-cand-3)");
+  });
+
+  it("(e3) o caso do axe: rank 3 sem `cor` no payload resolve para a variante -strong", () => {
+    // `<ProjectionThermometers />` passa `cor={c.cor ?? colorForRank(rank)}`;
+    // quando o payload vem sem `cor`, é este o caminho.
+    const doc = render({ cor: undefined, corBand: undefined, rank: 3, pctProjetado: 4.5 });
+    const style =
+      doc.querySelector('[data-testid="thermometer-numero"]')?.getAttribute("style") ?? "";
+    expect(style).toContain("var(--color-cand-3-strong)");
+    expect(doc.body.textContent ?? "").toContain("4,5%");
+  });
+
+  it("(e4) corTexto explícito vence, e a sigla do partido é o fallback do ADR-0024", () => {
+    const explicito = render({
+      cor: "var(--color-cand-2)",
+      rank: 2,
+      corTexto: "var(--color-text)",
+    });
+    expect(
+      explicito.querySelector('[data-testid="thermometer-numero"]')?.getAttribute("style") ?? "",
+    ).toContain("var(--color-text)");
+
+    // Sem rank e sem corTexto, a sigla resolve pela paleta de partido — que tem
+    // token de texto próprio, medido em ≥ 4,5:1 sobre o papel.
+    const porPartido = render({ cor: undefined, corBand: undefined, partido: "PSOL" });
+    expect(
+      porPartido.querySelector('[data-testid="thermometer-numero"]')?.getAttribute("style") ?? "",
+    ).toContain("var(--party-psol-text)");
+  });
+
   it("(f) faz clamp de valores fora de [0, scaleMax]", () => {
     const doc = render({ scaleMax: 50, pctProjetado: 130, pctLower: -20, pctUpper: 400 });
     const meter = doc.querySelector('[role="meter"]');

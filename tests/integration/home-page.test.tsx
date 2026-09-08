@@ -13,6 +13,16 @@
  * com nomes específicos (fixture S05 usa "Candidato PT" / "Candidato PL"
  * em vez dos nomes históricos S04 "Lula"/"Bolsonaro").
  *
+ * S07/Bloco 2 (ADR-0029) — "mapa primeiro"
+ *   - A ordem dos blocos mudou; o CONTEÚDO não. O teste (v) fixa a nova
+ *     ordem, e o (r) continua fixando as duas invariantes estruturais
+ *     (`Footer` dentro do `<main data-trilha>`).
+ *   - O `<h1>` deixou de ser "Apuração Presidencial 2026" acima da dobra e
+ *     passou a ser o título do painel de resultado ("Projeção Atlas Menna" /
+ *     "Resultado parcial"), na escala das outras seções. Continua único.
+ *   - O `<LiveBadge>` da página saiu: o selo agora mora no `<TopBar>` do
+ *     shell e é alimentado pela custom property que a página publica.
+ *
  * S07/Fase 2 (ADR-0018 + ADR-0019)
  *   - 1T (fixture default, 11 candidatos): hero são os seis termômetros;
  *     `HeadlineScore`, `CandidateRanking` e a agulha `national-1t` saem.
@@ -53,18 +63,29 @@ afterEach(() => {
 });
 
 describe("HomePage (integration / smoke)", () => {
-  it("(a) renderiza o h1 da corrida e os candidatos top-2 da fixture", async () => {
+  it("(a) o h1 é o título do painel de resultado, e os top-2 da fixture aparecem", async () => {
     // Server Component async — chamamos manualmente
     const node = await HomePage();
     const html = renderToStaticMarkup(node);
 
-    expect(html).toContain("Apuração Presidencial 2026");
     expect(html).toContain(NOME_TOP1);
     expect(html).toContain(NOME_TOP2);
-    // Em multi-1t o <h1> vem do RaceHeader (o HeadlineScore saiu do hero) —
-    // e continua havendo exatamente um.
+
+    // ADR-0029 § 5: em multi-1t o <h1> é o título do PAINEL de resultado, não
+    // mais um título gigante acima da dobra — e continua havendo exatamente
+    // um. Os dois textos ficam no DOM; `data-view-only` (cascata do shell)
+    // revela o da base ativa.
     const doc = parse(html);
-    expect(doc.querySelectorAll("h1")).toHaveLength(1);
+    const h1s = doc.querySelectorAll("h1");
+    expect(h1s).toHaveLength(1);
+    expect(h1s[0]?.getAttribute("id")).toBe("resultado-heading");
+    expect(h1s[0]?.textContent).toContain("Projeção Atlas Menna");
+    expect(h1s[0]?.textContent).toContain("Resultado parcial");
+    expect(
+      [...h1s[0]!.querySelectorAll("[data-view-only]")].map((s) =>
+        s.getAttribute("data-view-only"),
+      ),
+    ).toEqual(["parcial", "proj"]);
   });
 
   it("(b) contém o footer constitucional § 1", async () => {
@@ -103,10 +124,22 @@ describe("HomePage (integration / smoke)", () => {
     expect(html).toContain("/27");
   });
 
-  it("(g) LiveBadge presente", async () => {
+  it("(g) publica o rótulo de apuração que alimenta o selo do TopBar (ADR-0029 § 4)", async () => {
+    // O selo migrou para o `<TopBar>`, que é do layout e não lê dado. A ponte
+    // é uma custom property em `:root` — ver `components/layout/ShellLiveBadge.tsx`.
     const node = await HomePage();
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("AO VIVO");
+
+    // React NÃO escapa entidades dentro de `<style>` (verificado no markup
+    // gerado) — se algum dia passar a escapar, `&quot;` chegaria ao CSS como
+    // seis caracteres literais e a regra inteira quebraria em silêncio. Daí a
+    // asserção ser sobre o literal exato, com aspas.
+    const m = html.match(/--live-pct-label:"([^"]*)"/);
+    expect(m, "a página precisa publicar --live-pct-label para o selo do TopBar").not.toBeNull();
+    // Fixture: 23,4% apurado.
+    expect(m?.[1]).toBe("23,4% apurado");
+    // E o valor sanitizado nunca pode fechar o literal CSS.
+    expect(m?.[1]).not.toMatch(/["\\]/);
   });
 
   // -------------------------------------------------------------------------
@@ -271,6 +304,78 @@ describe("HomePage (integration / smoke)", () => {
       (k) => k.textContent,
     );
     expect(kickers[0]).toBe("Projeção Atlas Menna · não oficial");
+  });
+
+  // -------------------------------------------------------------------------
+  // S07/Bloco 2 (ADR-0029) — mapa primeiro.
+  // -------------------------------------------------------------------------
+
+  it("(v) a ordem dos blocos é a do ADR-0029: ticker, mapa, banner, painel de resultado", async () => {
+    const node = await HomePage();
+    const doc = parse(renderToStaticMarkup(node));
+    const main = doc.querySelector("main[data-trilha]");
+    expect(main).not.toBeNull();
+
+    // Índice de cada marcador na ordem do DOM dentro do <main>.
+    const html = main?.innerHTML ?? "";
+    const at = (marcador: string) => {
+      const i = html.indexOf(marcador);
+      expect(i, `marcador ausente: ${marcador}`).toBeGreaterThanOrEqual(0);
+      return i;
+    };
+
+    const mapa = at("Mapa coroplético do Brasil");
+    const kicker = at("data-trilha-kicker");
+    const painel = at("Projeção Atlas Menna · não oficial");
+    const termometros = at("projecao-termometros-heading");
+    const rodape = at("Não oficial. Fonte:");
+
+    // 1. O mapa é o primeiro bloco de conteúdo — antes do painel de resultado
+    //    e, portanto, antes dos termômetros (que continuam existindo,
+    //    ADR-0029 § 6: mudaram de posição, não de conteúdo).
+    expect(mapa).toBeLessThan(painel);
+    expect(mapa).toBeLessThan(termometros);
+    // 2. TrilhaKicker imediatamente acima do painel que carrega o <h1>
+    //    (ADR-0019 preservado dentro da nova ordem).
+    expect(mapa).toBeLessThan(kicker);
+    expect(kicker).toBeLessThan(painel);
+    // 3. O rodapé constitucional continua fechando a página.
+    expect(termometros).toBeLessThan(rodape);
+  });
+
+  it("(w) o mapa hero reserva a altura de viewport, e o esqueleto reserva a MESMA", async () => {
+    // Se o esqueleto reservasse 420px fixos e o mapa `clamp(400px, 52vh, ...)`,
+    // o chunk do MapLibre chegando empurraria a página inteira (CLS).
+    const node = await HomePage();
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("clamp(400px, 52vh, 520px)");
+    expect(html).toContain("--map-height");
+  });
+
+  it("(x) os seis termômetros do ADR-0018 continuam abaixo do mapa, intactos", async () => {
+    const node = await HomePage();
+    const doc = parse(renderToStaticMarkup(node));
+    // Mesma asserção do teste (k), repetida aqui de propósito: a recomposição
+    // do ADR-0029 é a mudança mais provável de derrubar o hero por acidente.
+    expect(termometros(doc)).toHaveLength(6);
+    expect(doc.querySelector("#termometro-brancos-nulos")).not.toBeNull();
+    expect(doc.querySelector("#termometro-abstencao")).not.toBeNull();
+  });
+
+  it("(y) 'Composição de Outros' traz parcial E projeção por candidato (ADR-0029 § 7)", async () => {
+    const node = await HomePage();
+    const doc = parse(renderToStaticMarkup(node));
+    const linhas = [...doc.querySelectorAll("[data-testid='candidate-result-row']")];
+
+    expect(linhas.length).toBeGreaterThan(0);
+    for (const linha of linhas) {
+      const celulas = [...linha.querySelectorAll("[data-view-cell]")].map((c) =>
+        c.getAttribute("data-view-cell"),
+      );
+      expect(celulas).toEqual(["parcial", "proj"]);
+    }
+    // E nada de collapsible entrou junto com o formato do kit (ADR-0017).
+    expect(doc.querySelector("main details")).toBeNull();
   });
 
   // -------------------------------------------------------------------------

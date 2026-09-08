@@ -14,6 +14,9 @@
  *   - rótulo de origem RF-062 lido de `participacao.metodo`.
  */
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -110,6 +113,47 @@ const participacaoComComparecimento: EdgeParticipacao = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Contraste do número — o gate de a11y que virou defeito real em 2026-09-07
+// ---------------------------------------------------------------------------
+
+const ROOT = path.resolve(import.meta.dirname, "../../..");
+/** Todos os tokens de cor do produto, resolvidos para hex. */
+const HEXES: Map<string, string> = (() => {
+  const map = new Map<string, string>();
+  for (const file of ["app/globals.css", "app/tokens-party.css"]) {
+    const css = readFileSync(path.join(ROOT, file), "utf8");
+    for (const m of css.matchAll(/(--[a-z0-9-]+)\s*:\s*(#[0-9a-fA-F]{6})\s*;/g)) {
+      if (m[1] && m[2] && !map.has(m[1])) map.set(m[1], m[2].toLowerCase());
+    }
+  }
+  return map;
+})();
+
+/** `--surface-page` → `--paper-1` em `app/globals.css`. O papel do hero. */
+const SURFACE_PAGE = "#f3f4f6";
+
+function relativeLuminance(hex: string): number {
+  const channel = (i: number) => {
+    const c = Number.parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2);
+}
+
+function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/** `color:var(--x)` do atributo `style` → nome do token. */
+function corDoNumero(el: Element): string {
+  const style = el.getAttribute("style") ?? "";
+  const m = style.match(/color:\s*var\((--[a-z0-9-]+)\)/);
+  return m?.[1] ?? "";
+}
+
 function titulos(doc: Document): string[] {
   return Array.from(doc.querySelectorAll('[role="meter"]')).map(
     (m) => (m.getAttribute("aria-label") ?? "").split(":")[0]?.trim() ?? "",
@@ -148,6 +192,44 @@ describe("<ProjectionThermometers />", () => {
     expect(texto).toContain("% dos votos a votáveis");
     expect(texto).toContain("% do comparecimento");
     expect(texto).toContain("% dos eleitores das seções instaladas");
+  });
+
+  it("(a2) os seis números passam 4,5:1 sobre o papel (§ 4) — o achado do axe", () => {
+    // A violação `serious` de 2026-09-07, em desktop e mobile na home: o
+    // número do 3º colocado saía em `--color-cand-3` (#c97c1f) sobre
+    // `--surface-page` (#f3f4f6) = 2,99:1. O bloco repassava `c.cor` do payload
+    // — que é cor de PREENCHIMENTO — para o número, que é texto.
+    //
+    // Este teste mede o resultado final: resolve o token que cada número usa
+    // contra o CSS commitado e cobra o piso do § 4. É o gate que impede
+    // qualquer caminho de volta (novo caller, novo candidato, nova cor).
+    const doc = parse(
+      <ProjectionThermometers candidatos={onzeCandidatos()} participacao={participacaoCompleta} />,
+    );
+    const numeros = Array.from(doc.querySelectorAll('[data-testid="thermometer-numero"]'));
+    expect(numeros.length).toBe(6);
+
+    for (const el of numeros) {
+      const token = corDoNumero(el);
+      const hex = HEXES.get(token);
+      expect(
+        hex,
+        `número "${el.textContent}" usa ${token || "(sem token)"}, ausente no CSS`,
+      ).toBeDefined();
+      const ratio = contrastRatio(hex as string, SURFACE_PAGE);
+      expect(
+        ratio,
+        `o número "${el.textContent}" usa ${token} (${hex}) = ${ratio.toFixed(2)}:1 sobre ` +
+          `${SURFACE_PAGE}. A constituição § 4 exige 4.5:1 — e este é exatamente o defeito ` +
+          "que o axe apontou (`--color-cand-3`, 2,99:1).",
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+
+    // E nenhum deles é a cor de preenchimento crua da paleta por rank.
+    const preenchimentos = ["--color-cand-1", "--color-cand-2", "--color-cand-3"];
+    for (const el of numeros) {
+      expect(preenchimentos, `número "${el.textContent}"`).not.toContain(corDoNumero(el));
+    }
   });
 
   it("(b) sem `participacao` → ainda 6 meters no DOM (ADR-0017)", () => {

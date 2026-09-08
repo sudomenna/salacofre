@@ -1,0 +1,59 @@
+/*
+ * components/layout/ShellControls.module.css
+ *
+ * Segunda linha do `<TopBar>`: navegação de cargo (desktop) + os dois
+ * controles globais. Ver o cabeçalho de `ShellControls.tsx` para o porquê de
+ * a visibilidade dos controles ser resolvida por CSS a partir de
+ * `main[data-trilha]`.
+ *
+ * Seletores de elemento e de atributo não são hasheados por CSS Modules; só
+ * `.row`, `.controls` e `.control` são locais, e toda regra carrega um deles,
+ * como o modo `pure` exige.
+ */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Os dois controles dividem a largura em telas estreitas — é o layout do
+ * protótipo (`full` no mobile). `min-width: 0` porque ambos têm filhos com
+ * `white-space: nowrap`, que sem isto impediriam o flex item de encolher
+ * abaixo da largura do conteúdo. */
+.control {
+  display: block;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Rota sem corrida (`/sobre-o-modelo`, futuras páginas editoriais): sem
+ * `main[data-trilha]` no DOM, os controles não têm o que controlar. Some o
+ * grupo inteiro — `display: none` também o tira da árvore de acessibilidade e
+ * da ordem de tabulação, que é o ponto. A navegação de cargo (irmã, fora
+ * de `.controls`) continua visível. */
+body:not(:has(main[data-trilha])) .controls {
+  display: none;
+}
+
+/* Desktop: cargo à esquerda, controles encostados à direita, todos na
+ * largura natural — a linha do protótipo em `App.jsx:330-332`. */
+@media (min-width: 960px) {
+  .controls {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
+  .control {
+    flex: 0 0 auto;
+  }
+}

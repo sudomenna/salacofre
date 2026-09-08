@@ -429,3 +429,75 @@ a:hover {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ============================================================================
+ * ADR-0029 § 2 — ênfase "Parcial / Projeção"
+ *
+ * O controle do shell (`<ViewModeSwitch>`) escreve `data-view` no `<html>`;
+ * daqui para baixo é só cascata. Duas consequências que valem o bloco inteiro:
+ *
+ *   1. Nenhum componente de dado precisa ser Client Component para reagir ao
+ *      controle — as linhas de candidato, o `<h1>` do painel e os rótulos
+ *      seguem RSC, custo zero em JS acima da dobra (RNF-007a). O único lugar
+ *      que assina o valor em JavaScript é o mapa, porque repintar o
+ *      choropleth é imperativo (MapLibre `setPaintProperty`).
+ *   2. O servidor já renderiza `<html data-view="proj">`, então o primeiro
+ *      paint sai na base certa: sem flash, sem esperar hidratação.
+ *
+ * Dois contratos distintos, de propósito:
+ *
+ *   `data-view-cell`  — os DOIS números continuam no DOM e visíveis; só muda
+ *                       o peso visual. É o que o ADR-0017 exige (nada sai da
+ *                       tela) e o que o ADR-0029 § 7 pede (parcial e projeção
+ *                       lado a lado).
+ *   `data-view-only`  — exclusivo: só o da base ativa aparece. Reservado para
+ *                       onde exibir os dois seria ilegível (o preenchimento da
+ *                       barra) ou incoerente (o título do painel).
+ * ========================================================================= */
+
+[data-view-cell] {
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+/* Base não enfatizada: recua, mas continua legível. `opacity: 0.55` sobre
+ * `--text-primary` (#14171b em --paper-1) mede ~6,4:1 — acima de 4,5:1
+ * (RNF-022), então o número secundário nunca vira texto de baixo contraste. */
+:root[data-view="proj"] [data-view-cell="parcial"],
+:root[data-view="parcial"] [data-view-cell="proj"] {
+  opacity: 0.55;
+}
+
+:root[data-view="proj"] [data-view-cell="proj"],
+:root[data-view="parcial"] [data-view-cell="parcial"] {
+  opacity: 1;
+}
+
+/* Exclusivo. `display: none` (e não opacidade) porque isto também precisa
+ * tirar o elemento da árvore de acessibilidade: o `<h1>` do painel não pode
+ * ter dois textos concorrentes, e o leitor de tela deve ouvir só o título da
+ * base ativa. */
+[data-view-only] {
+  display: none;
+}
+
+:root[data-view="proj"] [data-view-only="proj"],
+:root[data-view="parcial"] [data-view-only="parcial"] {
+  display: revert;
+}
+
+/* ============================================================================
+ * ADR-0029 § 3 — folga para a barra de cargos fixa no rodapé (mobile)
+ *
+ * `<CargoTabs placement="bottom">` é `position: sticky`, então no fim da
+ * rolagem ela assenta no fluxo e não cobre nada. Durante a rolagem, porém,
+ * ela flutua sobre o conteúdo — e o último bloco de cada página é o `<Footer>`
+ * constitucional (§ 1). Reservar a altura da barra no `<main>` garante que o
+ * rodapé regulatório nunca fique parcialmente coberto, em nenhum ponto da
+ * rolagem. `env(safe-area-inset-bottom)` acompanha o que a própria barra
+ * adiciona em telas com notch.
+ * ========================================================================= */
+@media (max-width: 959.98px) {
+  main[data-trilha] {
+    padding-bottom: calc(var(--space-12) + 52px + env(safe-area-inset-bottom));
+  }
+}

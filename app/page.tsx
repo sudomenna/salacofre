@@ -35,28 +35,58 @@
  * o gate é consultado aqui via `selectRunoffScenarios()` — a mesma função que
  * o bloco usa internamente, para os dois nunca divergirem.
  *
- * Layout em modo `multi-1t` (ADR-0018 — hero de seis termômetros)
- *   [shell: TopBar + CargoTabs vêm do layout]        RF-029, ADR-0025 § 2
- *   RaceHeader (kicker + h1 + badges)                ADR-0019
- *   BreakingNewsTicker                               S06/F4d
+ * ===== S07/Bloco 2 — mapa primeiro (ADR-0029) =====
+ * O usuário comparou esta página com o protótipo do kit em 430px e mediu oito
+ * diferenças estruturais; o ADR-0029 resolveu sete delas. Para esta página, a
+ * mudança é de ORDEM, não de conteúdo: **nenhum bloco RF-bound saiu**.
+ *
+ *   1. O mapa passou de meio da página para PRIMEIRO conteúdo, com altura de
+ *      viewport (`variant="hero"`). O leitor vê o elemento de maior valor
+ *      informativo imediato antes de qualquer texto.
+ *   2. `BreakingNewsTicker` virou faixa fina entre o shell e o mapa;
+ *      `NationalWinnerBanner` (condicional) desceu para logo abaixo do mapa.
+ *   3. O `<RaceHeader>` com `<h1>` grande saiu da primeira dobra. O `<h1>`
+ *      continua existindo e continua único — virou o TÍTULO DO PAINEL de
+ *      resultado, na escala de qualquer outra seção (ADR-0029 § 5), com o
+ *      `<TrilhaKicker>` (ADR-0019) logo acima e os badges de estado ao lado.
+ *   4. Os seis termômetros do ADR-0018 PERMANECEM, com o mesmo conteúdo, os
+ *      mesmos três denominadores e o mesmo IC — só mudaram de posição, para
+ *      logo abaixo do mapa (ADR-0029 § 6). O duelo top-2 do protótipo foi
+ *      rejeitado pelas mesmas quatro razões do ADR-0018.
+ *   5. `<MinorCandidatesList>` passou ao formato parcial+projeção lado a lado
+ *      (ADR-0029 § 7), **sem** o botão "Mostrar todos" do kit — que violaria
+ *      o ADR-0017.
+ *
+ * Layout em modo `multi-1t` (ADR-0018 + ADR-0029)
+ *   [shell: TopBar + controles + CargoTabs vêm do layout]  RF-029, ADR-0025 § 2
+ *   <style> --live-pct-label (alimenta o selo do TopBar)    ADR-0029 § 4
+ *   BreakingNewsTicker (faixa fina)                  S06/F4d
+ *   Panel (sem filete) → HomeClientShell hero        RF-030.1-4, ADR-0029 § 1
  *   NationalWinnerBanner                             S06/F4d
+ *   TrilhaKicker                                     ADR-0019
  *   Panel "Projeção Atlas Menna · não oficial"       constituição § 1
+ *   ├── <h1> "Resultado parcial" / "Projeção Atlas Menna"  ADR-0029 § 5
+ *   ├── badges (TurnoBadge · RaceTypeIndicator)      RF-028
  *   ├── ApuracaoMeta                                 RF-026
  *   ├── ProjectionThermometers (1º/2º/3º/outros/
  *   │   brancos-nulos/abstenção)                     RF-022, RF-023
  *   ├── MinorCandidatesList "Composição de Outros"
  *   │   (rank >= 4, sempre no DOM — ADR-0017)        RF-030.8
  *   └── TwoRoundIndicator (P(2T) global)             RF-030.7
- *   BulletinPanel                            [NOVO]  RF-026, RF-044
+ *   BulletinPanel                                    RF-026, RF-044
  *   Panel "Cenários" → RunoffScenarios               RF-030.9
- *   Panel "Mapa" → HomeClientShell                   RF-030.1-4
- *   StrongholdsPanel                         [NOVO]  RF-024, RF-030.6
- *   RemainingPanel                           [NOVO]  RF-024, RF-026
+ *   StrongholdsPanel                                 RF-024, RF-030.6
+ *   RemainingPanel                                   RF-024, RF-026
  *   Panel "Unidades federativas" → DecisiveUFsGrid   RF-024
  *   Panel "Placar por estado" → StateGroupedTable    RF-030.6
  *   Panel "Metodologia" → ForecastTransparency       RF-043
  *   Panel "Leitura do modelo" → InsightCard          RF-044
  *   Footer                                           constituição § 1
+ *
+ * A ordem acima vale para os DOIS breakpoints: o ADR-0029 rejeitou
+ * explicitamente o grid de duas colunas que o protótipo usa no desktop. O que
+ * muda por breakpoint é só a posição da navegação de cargo (shell) e a altura
+ * máxima do mapa.
  *
  * ADR-0018 substitui, **apenas em `multi-1t`**, o trio `HeadlineScore` +
  * `CandidateRanking` + `NationalNeedle variant="national-1t"` pelos
@@ -78,7 +108,9 @@
 import type { Metadata } from "next";
 
 import { RaceTypeIndicator } from "@/components/atoms/badges/RaceTypeIndicator";
+import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { MinorCandidatesList } from "@/components/atoms/lists/MinorCandidatesList";
+import { TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { ApuracaoMeta } from "@/components/blocks/ApuracaoMeta";
 import { BreakingNewsTicker } from "@/components/blocks/BreakingNewsTicker";
@@ -97,9 +129,9 @@ import { StrongholdsPanel } from "@/components/blocks/StrongholdsPanel";
 import { TurnoOneRecap } from "@/components/blocks/TurnoOneRecap";
 import { TwoRoundIndicator } from "@/components/blocks/TwoRoundIndicator";
 import { Footer } from "@/components/layout/Footer";
-import { RaceHeader } from "@/components/layout/RaceHeader";
 import { readArchivedProjection, readNationalProjection } from "@/lib/edge-config/reader";
 import type { EdgePayload } from "@/lib/edge-config/types";
+import { formatPercent } from "@/lib/utils/format";
 import nationalFixture from "@/tests/fixtures/edge-config/projection-current.json" with {
   type: "json",
 };
@@ -148,6 +180,46 @@ function fixturePayload(): EdgePayload {
   const variant = process.env.FIXTURE_VARIANT;
   const fixture = variant === "t2" ? nationalFixtureT2 : nationalFixture;
   return fixture as unknown as EdgePayload;
+}
+
+/**
+ * Publica o rótulo do selo de apuração do `<TopBar>` (ADR-0029 § 4).
+ *
+ * O shell não pode ler dado — `app/layout.tsx` é irmão anterior de
+ * `{children}` e qualquer leitura ali tiraria a home e as 54 páginas de UF do
+ * pré-render estático (ADR-0025 § 2 e § 5). A ponte é uma custom property em
+ * `:root`, que herda para o documento inteiro, inclusive para trás, para a
+ * barra do topo. Ver `components/layout/ShellLiveBadge.tsx`.
+ *
+ * O valor de uma custom property usada em `content` precisa ser uma string
+ * CSS **com aspas**; elas fazem parte do valor. Aspas e contrabarras são
+ * removidas do texto antes de entrar — `formatPercent` só produz dígitos,
+ * vírgula e `%`, mas isto aqui vira CSS, e sanitizar na fronteira é mais
+ * barato que confiar no formatador para sempre.
+ */
+function LivePctLabelStyle({ pctApurado }: { pctApurado: number }) {
+  const texto = pctApurado > 0 ? `${formatPercent(pctApurado, 1)} apurado` : "ao vivo";
+  const seguro = texto.replace(/["\\]/g, "");
+  return <style>{`:root{--live-pct-label:"${seguro}"}`}</style>;
+}
+
+/**
+ * Título do painel de resultado — e, em `multi-1t`, o `<h1>` da página
+ * (ADR-0029 § 5).
+ *
+ * Os dois títulos ficam no HTML; `data-view-only` (cascata em
+ * `app/globals.css`) revela o da base ativa e esconde o outro com
+ * `display: none`, que também o tira da árvore de acessibilidade — o leitor
+ * de tela ouve um título, não dois. Alternar em JavaScript exigiria tornar o
+ * `<h1>` client, o que custaria bundle acima da dobra por um texto.
+ */
+function ResultTitle() {
+  return (
+    <>
+      <span data-view-only="parcial">Resultado parcial</span>
+      <span data-view-only="proj">Projeção Atlas Menna</span>
+    </>
+  );
 }
 
 /** Polling SWR é gerenciado pelo `HomeClientShell`; o RSC fornece o estado inicial. */
@@ -217,32 +289,38 @@ export default async function HomePage() {
       className="mx-auto flex max-w-page flex-col px-4 py-6 md:px-6 md:py-10"
       style={{ gap: "var(--space-12)" }}
     >
-      {/* Header compartilhado (ADR-0019). O `<h1>` só é emitido em multi-1t:
-          em binary ele continua vindo do `<HeadlineScore />` (ADR-0017), e
-          duas <h1> na mesma página seriam regressão de a11y. */}
-      <RaceHeader
-        trilha="pres"
-        crumbs={["Brasil"]}
-        titulo={mode === "multi-1t" ? "Apuração Presidencial 2026" : undefined}
-        subtitulo={
-          mode === "multi-1t"
-            ? "Projeção do resultado final a partir dos boletins do TSE. Não oficial."
-            : undefined
-        }
-        liveActive={pct_apurado_total > 0}
-        turno={turno}
-        extras={<RaceTypeIndicator candidatos={national.candidatos} turno={turno} />}
-      />
+      {/* Alimenta o selo "23,4% APURADO" do `<TopBar>` (ADR-0029 § 4). */}
+      <LivePctLabelStyle pctApurado={pct_apurado_total} />
 
-      {/* S06/F4d — Breaking news ticker no topo. Renderiza só se há chamadas. */}
+      {/* S06/F4d — Breaking news ticker. ADR-0029 § 1: faixa fina entre o
+          shell e o mapa. É conteúdo ambiente, não hero — por isso continua
+          fora de `<Panel>` e acima de tudo. Renderiza só se há chamadas. */}
       {(national.chamadas_recentes ?? []).length > 0 && (
         <BreakingNewsTicker chamadas={national.chamadas_recentes ?? []} />
       )}
 
+      {/* Seção 1 — o MAPA (ADR-0029 § 1). Primeiro conteúdo da página, com
+          altura de viewport. `rule="none"` e sem kicker: o filete duplo e o
+          cabeçalho editorial abririam a página com cromo em vez de com o
+          mapa, que é o ponto da recomposição. Continua sendo um `<Panel>`
+          (portanto uma `<section>`) para não abrir exceção na gramática da
+          página. `rankByLider` segue como fallback de cor e `candidatos`
+          habilita cor por partido (ADR-0024) + HoverCard + legenda. */}
+      <Panel rule="none">
+        <HomeClientShell
+          rows={por_uf}
+          candidatoAId={national.candidato_a_id}
+          rankByLider={rankByLider}
+          candidatos={national.candidatos}
+          variant="hero"
+        />
+      </Panel>
+
       {/* S06/F4d — Banner "ELEITO" nacional. Aparece quando threshold de
           chamada final atingido (p_vitoria >= 0.99 ou apurado >= 99%). Fica
           fora de `<Panel>`: é uma faixa de estado, não uma seção editorial —
-          e se auto-anula, o que deixaria um filete órfão. */}
+          e se auto-anula, o que deixaria um filete órfão. ADR-0029 § 1: logo
+          abaixo do mapa, antes do painel de resultado. */}
       <NationalWinnerBanner
         national={national}
         candidatos={national.candidatos}
@@ -251,11 +329,36 @@ export default async function HomePage() {
         vaiA2t={vaiA2tNacional}
       />
 
-      {/* Seção 1 — a projeção. O kicker carrega o rótulo "não oficial"
+      {/* Kicker de trilha (ADR-0019). Fica FORA do `<Panel>` e imediatamente
+          acima dele porque a regra do ADR é "TrilhaKicker acima do `<h1>`" —
+          e o `<h1>` agora é o título do painel (ADR-0029 § 5). O `<Panel>`
+          não tem slot antes do próprio cabeçalho. */}
+      <TrilhaKicker trilha="pres" crumbs={["Brasil"]} className="-mb-8" />
+
+      {/* Seção 2 — a projeção. O kicker carrega o rótulo "não oficial"
           exigido pela constituição § 1 já no topo da primeira seção de dado.
-          Sem `title`: o hero (termômetros em multi-1t, HeadlineScore em
-          binary) traz o próprio heading. */}
-      <Panel kicker="Projeção Atlas Menna · não oficial">
+          Em multi-1t o `title` é o `<h1>` da página, na escala de qualquer
+          outra seção (ADR-0029 § 5). Em binary o `<h1>` continua vindo do
+          `<HeadlineScore />` (ADR-0017 intocado para 2T) e o painel fica sem
+          título, como antes — duas `<h1>` seriam regressão de a11y. */}
+      <Panel
+        // `rule="none"`: o filete desta seção é o do `<TrilhaKicker>` logo
+        // acima (3px sólido, na cor da trilha — ADR-0019). O filete duplo
+        // padrão do `<Panel>` desenharia uma segunda régua a 16px da
+        // primeira, e o cabeçalho da página abriria com duas linhas
+        // paralelas em vez de uma.
+        rule="none"
+        kicker="Projeção Atlas Menna · não oficial"
+        title={mode === "multi-1t" ? <ResultTitle /> : undefined}
+        titleId={mode === "multi-1t" ? "resultado-heading" : undefined}
+        headingLevel={1}
+        action={
+          <div className="flex flex-wrap items-center" style={{ gap: "var(--space-2)" }}>
+            <TurnoBadge turno={turno} />
+            <RaceTypeIndicator candidatos={national.candidatos} turno={turno} />
+          </div>
+        }
+      >
         <div className="flex flex-col" style={{ gap: "var(--space-8)" }}>
           <ApuracaoMeta pctApurado={pct_apurado_total} ufsApuradas={ufs_apuradas} ts={ts} />
 
@@ -320,7 +423,7 @@ export default async function HomePage() {
         </div>
       </Panel>
 
-      {/* Seção 2 — boletim do momento (S07/Bloco 1). Templates
+      {/* Seção 3 — boletim do momento (S07/Bloco 1). Templates
           determinísticos, nunca LLM (ADR-0005). */}
       <BulletinPanel
         national={national}
@@ -331,7 +434,7 @@ export default async function HomePage() {
         turno={turno}
       />
 
-      {/* Seção 3 — cenários de 2T. `temCenarios2t` replica o gate do bloco
+      {/* Seção 4 — cenários de 2T. `temCenarios2t` replica o gate do bloco
           via `selectRunoffScenarios()` para o Panel não sobrar vazio. */}
       {temCenarios2t && (
         <Panel kicker="Cenários">
@@ -339,17 +442,8 @@ export default async function HomePage() {
         </Panel>
       )}
 
-      {/* Seção 4 — mapa. `<HomeClientShell>` é o único caminho client da
-          página; `rankByLider` continua como fallback de cor e `candidatos`
-          habilita a coloração por partido (ADR-0024) + HoverCard + legenda. */}
-      <Panel kicker="Mapa · Brasil">
-        <HomeClientShell
-          rows={por_uf}
-          candidatoAId={national.candidato_a_id}
-          rankByLider={rankByLider}
-          candidatos={national.candidatos}
-        />
-      </Panel>
+      {/* O bloco de mapa que ficava aqui subiu para o topo da página
+          (ADR-0029 § 1). */}
 
       {/* Seção 5 — redutos por candidato (S07/Bloco 1). */}
       <StrongholdsPanel candidatos={national.candidatos} rows={por_uf} />

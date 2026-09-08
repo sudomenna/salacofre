@@ -22,11 +22,13 @@
  */
 
 import dynamic from "next/dynamic";
+import type { CSSProperties } from "react";
 
 import type { MapView } from "@/components/atoms/controls/MapViewToggle";
 import { MapLegend } from "@/components/atoms/maps/MapLegend";
 import { MapSkeleton } from "@/components/atoms/maps/MapSkeleton";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
+import type { ViewMode } from "@/lib/state/view-mode";
 import { intensityForParty, type PartyIntensity } from "@/lib/utils/party-color";
 
 export interface NationalChoroplethMapProps {
@@ -58,8 +60,18 @@ export interface NationalChoroplethMapProps {
    * (`rankByLider` + `cand-color.ts`), nunca fica sem cor.
    */
   candidatos?: EdgeCandidate[];
-  /** Altura do mapa em px. */
-  height?: number;
+  /**
+   * Base de leitura do choropleth (ADR-0029 § 2) — `"proj"` (default) pinta a
+   * projeção, `"parcial"` pinta o apurado. Vem do controle do shell via
+   * `app/HomeClientShell.tsx`; zero requisição nova, os dois números já estão
+   * no mesmo `EdgeUfRow`.
+   */
+  viewMode?: ViewMode;
+  /**
+   * Altura do mapa. Número → px. String → qualquer comprimento CSS — o mapa
+   * hero da home usa `clamp(400px, 52vh, ...)` desde o ADR-0029 § 1.
+   */
+  height?: number | string;
   className?: string;
 }
 
@@ -70,6 +82,15 @@ const VIEW_LABEL: Record<MapView, string> = {
   turnout: "% apurado",
 };
 
+/**
+ * O esqueleto precisa reservar a MESMA altura que o mapa vai ocupar, senão o
+ * chunk do MapLibre chegando empurra o resto da página (CLS) — e desde o
+ * ADR-0029 § 1 essa altura é variável (`clamp(400px, 52vh, ...)` no hero da
+ * home), não mais a constante 420. Como `next/dynamic` não repassa props para
+ * o `loading`, a altura viaja por custom property: o wrapper a publica em
+ * `--map-height` e o esqueleto a lê, com 420px de fallback para quem não
+ * passa `height`.
+ */
 const NationalChoroplethMapImpl = dynamic(
   () =>
     import("@/components/blocks/_NationalChoroplethMapImpl").then(
@@ -77,7 +98,7 @@ const NationalChoroplethMapImpl = dynamic(
     ),
   {
     ssr: false,
-    loading: ({ error }) => (error ? null : <MapSkeleton height={420} />),
+    loading: ({ error }) => (error ? null : <MapSkeleton height="var(--map-height, 420px)" />),
   },
 );
 
@@ -122,6 +143,7 @@ export function NationalChoroplethMap({
   view,
   rankByLider,
   candidatos,
+  viewMode = "proj",
   height = 420,
   className,
 }: NationalChoroplethMapProps) {
@@ -132,6 +154,9 @@ export function NationalChoroplethMap({
       role="region"
       aria-label={`Mapa coroplético do Brasil — modo ${VIEW_LABEL[view]}`}
       className={["relative w-full", className].filter(Boolean).join(" ")}
+      style={
+        { "--map-height": typeof height === "number" ? `${height}px` : height } as CSSProperties
+      }
     >
       <NationalChoroplethMapImpl
         rows={rows}
@@ -139,6 +164,7 @@ export function NationalChoroplethMap({
         view={view}
         rankByLider={rankByLider}
         candidatos={candidatos}
+        viewMode={viewMode}
         height={height}
       />
       {legend ? (

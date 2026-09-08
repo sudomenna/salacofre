@@ -60,3 +60,50 @@ body:has(main[data-trilha="pres"]) .cargoTabs [data-value="pres"] .flag,
 body:has(main[data-trilha="gov"]) .cargoTabs [data-value="gov"] .flag {
   display: inline;
 }
+
+/* ---------------------------------------------------------------------------
+ * ADR-0029 § 3 — duas posições, uma por breakpoint.
+ *
+ * As duas instâncias existem no HTML; o CSS escolhe qual entra. `display:
+ * none` (e não `visibility`/opacidade) porque só ele tira o `<nav>` escondido
+ * da árvore de acessibilidade e da ordem de tabulação — sem isso o documento
+ * teria dois landmarks "Cargos" e oito paradas de teclado para quatro cargos.
+ * ------------------------------------------------------------------------ */
+
+/* Faixa dentro do `<TopBar>`: só no desktop, com a moldura de segmented
+ * control do protótipo (`App.jsx:330`). Continua sendo `<Link>` — cargo é
+ * rota, não estado client (ver o cabeçalho do .tsx). */
+.cargoTabs.top {
+  display: none;
+}
+
+/* Barra fixa no rodapé: o padrão de app do protótipo, e o que resolve
+ * "Deputado Federal" em duas linhas a 430px. */
+.cargoTabs.bottom {
+  display: grid;
+}
+
+@media (min-width: 960px) {
+  .cargoTabs.top {
+    display: inline-grid;
+    width: auto;
+    grid-auto-flow: column;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--surface-card);
+  }
+
+  .cargoTabs.top > * {
+    height: var(--tap-min);
+    padding: 0 var(--space-4);
+  }
+
+  .cargoTabs.top > * + * {
+    border-left: 1px solid var(--border-strong);
+  }
+
+  .cargoTabs.bottom {
+    display: none;
+  }
+}

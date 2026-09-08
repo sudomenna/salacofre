@@ -152,13 +152,38 @@ describe("<CargoTabs /> — abas de cargo do shell global", () => {
 });
 
 describe("shell global — app/layout.tsx (ADR-0025 § 2)", () => {
-  it("(h) monta TopBar + CargoTabs acima de {children}", () => {
+  it("(h) monta TopBar + as duas posições de CargoTabs em torno de {children}", () => {
     const src = codeOf("app/layout.tsx");
 
     expect(src).toContain("<TopBar");
-    expect(src).toContain("<CargoTabs />");
     expect(src).toContain("{children}");
-    expect(src.indexOf("<CargoTabs />")).toBeLessThan(src.indexOf("{children}"));
+    // ADR-0029 § 3: a navegação de cargo passou a ter duas posições — dentro
+    // do `<TopBar>` (visível só no desktop) e fixa no rodapé (só no mobile).
+    // Ordem no documento: a do topo antes de `{children}`, a do rodapé depois.
+    expect(src).toContain('<CargoTabs placement="top" />');
+    expect(src).toContain('<CargoTabs placement="bottom" />');
+    expect(src.indexOf('placement="top"')).toBeLessThan(src.indexOf("{children}"));
+    expect(src.indexOf("{children}")).toBeLessThan(src.indexOf('placement="bottom"'));
+  });
+
+  it("(h2) as duas posições existem no HTML; o CSS escolhe uma por breakpoint", () => {
+    // Renderizar as duas é deliberado: escolher no servidor exigiria saber a
+    // largura da viewport. O que impede dois landmarks "Cargos" simultâneos é
+    // `display: none` no escondido — que também o tira da árvore de
+    // acessibilidade e da ordem de tabulação.
+    const top = parse(<CargoTabs placement="top" />);
+    const bottom = parse(<CargoTabs placement="bottom" />);
+
+    for (const doc of [top, bottom]) {
+      expect(doc.querySelector("[data-testid='tab-bar']")?.getAttribute("aria-label")).toBe(
+        "Cargos",
+      );
+    }
+
+    const css = readFileSync("components/layout/CargoTabs.module.css", "utf8");
+    expect(css).toMatch(/\.cargoTabs\.top\s*\{[^}]*display:\s*none/);
+    expect(css).toMatch(/@media\s*\(min-width:\s*960px\)/);
+    expect(css).toMatch(/\.cargoTabs\.bottom\s*\{[^}]*display:\s*none/);
   });
 
   it("(i) o layout não lê nada por requisição — as 54 páginas de UF seguem estáticas", () => {

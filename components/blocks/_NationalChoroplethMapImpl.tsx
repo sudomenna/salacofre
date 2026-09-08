@@ -39,6 +39,7 @@ import type { MapView } from "@/components/atoms/controls/MapViewToggle";
 import { HoverCard, type HoverCardRow } from "@/components/atoms/overlays/HoverCard";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { useHoverStore } from "@/lib/state/hover-store";
+import type { ViewMode } from "@/lib/state/view-mode";
 import { colorForRank, resolveBandHex, resolveCandHex } from "@/lib/utils/cand-color";
 import {
   colorForParty,
@@ -71,7 +72,14 @@ export interface NationalChoroplethMapImplProps {
    * `NationalChoroplethMap.tsx`.
    */
   candidatos?: EdgeCandidate[];
-  height?: number;
+  /**
+   * Base de leitura do choropleth (ADR-0029 § 2). `"proj"` (default) pinta a
+   * projeção; `"parcial"` pinta o apurado de agora. Não muda a requisição —
+   * os dois números já vêm no mesmo `EdgeUfRow`.
+   */
+  viewMode?: ViewMode;
+  /** Número → px; string → qualquer comprimento CSS (ADR-0029 § 1). */
+  height?: number | string;
 }
 
 interface TooltipState {
@@ -172,9 +180,22 @@ function resolveColor(
   view: MapView,
   rankByLider: Record<number, number> | undefined,
   candidatosById: Map<number, EdgeCandidate>,
+  viewMode: ViewMode = "proj",
 ): string {
-  const rank = rankFor(row.lider, rankByLider);
-  const partido = candidatosById.get(row.lider)?.partido;
+  const parcial = viewMode === "parcial";
+  // Em "Parcial" a UF sem nenhum boletim não tem líder apurado — pintar o
+  // líder projetado sob o rótulo "parcial" seria mostrar um número de outro
+  // universo. `--map-uncounted` é a resposta honesta (mesma cor do fallback
+  // de UF sem row).
+  if (parcial && row.pct_apurado === 0) return getCssVar("--map-uncounted") || "#e1e4e8";
+  // `row.lider` é o líder APURADO ("líder no momento", ver
+  // `lib/edge-config/types.ts`); `top_candidatos[0]` é o topo por
+  // `pct_projetado`. São bases diferentes e o controle do shell escolhe qual
+  // delas o mapa pinta (ADR-0029 § 2).
+  const liderId = parcial ? row.lider : (row.top_candidatos?.[0]?.id ?? row.lider);
+  const margem = parcial ? row.margem_atual : row.margem_projetada;
+  const rank = rankFor(liderId, rankByLider);
+  const partido = candidatosById.get(liderId)?.partido;
   const useParty = partidoIsMapped(partido);
   switch (view) {
     case "winner":
@@ -184,8 +205,8 @@ function resolveColor(
       return useParty ? resolvePartyHex(partido) : resolveCandHex(rank);
     case "margin":
       return useParty
-        ? resolvePartyHex(partido, intensityLevelForMargin(row.margem_projetada))
-        : marginToRankColor(row.margem_projetada, rank);
+        ? resolvePartyHex(partido, intensityLevelForMargin(margem))
+        : marginToRankColor(margem, rank);
     case "swing":
       // `swing_vs_2022` aceita null desde S07/Fase 2 (UF/candidato sem
       // número em 2022). Sem comparação, a UF fica na cor neutra do meio da
@@ -217,13 +238,14 @@ function applyColors(
   view: MapView,
   rankByLider: Record<number, number> | undefined,
   candidatosById: Map<number, EdgeCandidate>,
+  viewMode: ViewMode = "proj",
 ) {
   if (rows.length === 0) return;
   const fallback = getCssVar("--map-uncounted") || "#e1e4e8";
   // ["match", ["get", "SIGLA_UF"], "SP", "#...", "RJ", "#...", ..., fallback]
   const expression: (string | number | unknown[])[] = ["match", ["get", "SIGLA_UF"]];
   for (const row of rows) {
-    expression.push(row.sigla, resolveColor(row, view, rankByLider, candidatosById));
+    expression.push(row.sigla, resolveColor(row, view, rankByLider, candidatosById, viewMode));
   }
   expression.push(fallback);
   map.setPaintProperty("ufs-fill", "fill-color", expression as unknown as string);
@@ -269,6 +291,7 @@ export function NationalChoroplethMapImpl({
   view,
   rankByLider,
   candidatos,
+  viewMode = "proj",
   height = 420,
 }: NationalChoroplethMapImplProps) {
   // Backward-compat: caller pré-S05 só passa `candidatoAId`; sintetizamos um
@@ -389,6 +412,7 @@ export function NationalChoroplethMapImpl({
         viewRef.current,
         rankByLiderRef.current,
         candidatosByIdRef.current,
+        viewModeRef.current,
       );
     });
 
@@ -454,20 +478,22 @@ export function NationalChoroplethMapImpl({
 
   // Refs for view/rankByLider/candidatosById used in load handler
   const viewRef = useRef(view);
+  const viewModeRef = useRef(viewMode);
   const rankByLiderRef = useRef(effectiveRankByLider);
   const candidatosByIdRef = useRef(candidatosById);
   useEffect(() => {
     viewRef.current = view;
+    viewModeRef.current = viewMode;
     rankByLiderRef.current = effectiveRankByLider;
     candidatosByIdRef.current = candidatosById;
-  }, [view, effectiveRankByLider, candidatosById]);
+  }, [view, viewMode, effectiveRankByLider, candidatosById]);
 
   // Recolor when view, rows, rankByLider or candidatos change (zero re-fetch)
   useEffect(() => {
     const map = mapRef.current;
     if (!map?.loaded()) return;
-    applyColors(map, rows, view, effectiveRankByLider, candidatosById);
-  }, [view, rows, effectiveRankByLider, candidatosById]);
+    applyColors(map, rows, view, effectiveRankByLider, candidatosById, viewMode);
+  }, [view, viewMode, rows, effectiveRankByLider, candidatosById]);
 
   return (
     <div style={{ position: "relative" }}>

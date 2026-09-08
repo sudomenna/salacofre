@@ -39,6 +39,8 @@
  *     `tests/unit/design-system/party-delta-e.test.ts`
  *   - Gate de contraste do par chip/tinta (§ 4):
  *     `tests/unit/design-system/party-chip-contrast.test.ts`
+ *   - Gate de contraste da tinta de texto sobre o papel (§ 4):
+ *     `tests/unit/design-system/party-text-contrast.test.ts`
  *   - ADR: `docs/architecture/adrs/0024-paleta-editorial-por-partido.md`
  */
 
@@ -240,6 +242,40 @@ export function partyChipInk(sigla: string | null | undefined): {
     background: `var(--party-${slug}-chip)`,
     ink: `var(--party-${slug}-ink)`,
   };
+}
+
+/**
+ * Cor do partido para **escrever texto sobre o papel** — o número grande de um
+ * termômetro, o nome do líder numa lista, qualquer valor colorido por
+ * identidade que seja texto e não área.
+ *
+ * **Por que não é `colorForParty`.** Aquela é a cor de *preenchimento*: serve de
+ * contorno, ponto, barra e legenda, onde o que vale é a área. Como tinta sobre
+ * `--surface-page` (#f3f4f6) quatro bases reprovam o piso de 4,5:1 da
+ * constituição § 4 — PSOL 2,08:1, PSB 2,20:1, o fallback cinza 2,39:1 e NOVO
+ * 2,72:1. Pintar texto com a base é a mesma classe de defeito que o
+ * `a11y-perf-auditor` encontrou em `<ProjectionThermometer />` (o número em
+ * `--color-cand-3`, 2,99:1), só que pelo eixo do partido.
+ *
+ * **Por que não é `partyChipInk().background`.** O chip é escolhido para
+ * contrastar com uma das duas tintas do kit, e em 19 dos 31 partidos ele é uma
+ * cor **clara** — o oposto do que serve como texto sobre papel claro.
+ * `--party-psol-chip` é o próprio #d6a400.
+ *
+ * Onde a base já lê sobre o papel (17 dos 31), `--party-<slug>-text` **é** a
+ * base. Nos outros 14 é a base escurecida na mesma matiz (§ 2 v1.3 permite
+ * variar intensidade, nunca matiz), com o valor medido no comentário do CSS
+ * gerado. O gate numérico está em
+ * `tests/unit/design-system/party-text-contrast.test.ts`, que remede o CSS
+ * commitado contra as duas superfícies.
+ *
+ * Sigla desconhecida, vazia ou de federação → o token de `outros`.
+ *
+ *   textForParty("PT")   === "var(--party-pt-text)"
+ *   textForParty("XYZ")  === "var(--party-outros-text)"
+ */
+export function textForParty(sigla: string | null | undefined): PartyColorVar {
+  return `var(--party-${normalizePartySlug(sigla)}-text)`;
 }
 
 /**

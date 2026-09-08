@@ -35,15 +35,31 @@ export type PanelRule = "double" | "single" | "none";
 export interface PanelProps {
   /** Linha em caixa alta acima do título — ex. "Presidente · Brasil". */
   kicker?: string;
-  /** Título da seção, em serifa. */
-  title?: string;
+  /**
+   * Título da seção, em serifa. `ReactNode` (e não `string`) desde o
+   * ADR-0029 § 5: o título do painel de resultado alterna entre "Resultado
+   * parcial" e "Projeção Atlas Menna" conforme o controle do shell, e faz
+   * isso com dois `<span data-view-only>` resolvidos por CSS — o que exige
+   * poder passar elementos, não só texto.
+   */
+  title?: ReactNode;
   /** Slot à direita do título (tipicamente um `<Button size="sm" variant="ghost" />`). */
   action?: ReactNode;
   children?: ReactNode;
   /** `double` abre seção maior; `single`, subseção; `none` remove o filete. */
   rule?: PanelRule;
-  /** Nível do heading do título. Default 2 — ajuste para não furar o outline da página. */
-  headingLevel?: 2 | 3 | 4;
+  /**
+   * Nível do heading do título. Default 2 — ajuste para não furar o outline
+   * da página.
+   *
+   * `1` existe por causa do ADR-0029 § 5: na home o `<h1>` deixou de ser um
+   * título gigante acima da dobra e passou a ser o título do PRIMEIRO painel
+   * de resultado, na mesma escala tipográfica de qualquer outra seção. Use
+   * com cuidado — dois `Panel headingLevel={1}` na mesma página produzem dois
+   * `<h1>`, que é regressão de a11y (constituição § 4). Os testes de
+   * integração das páginas contam `<h1>` exatamente por isso.
+   */
+  headingLevel?: 1 | 2 | 3 | 4;
   /** `id` do heading. Quando presente, vira o `aria-labelledby` da `<section>`. */
   titleId?: string;
   className?: string;
@@ -67,7 +83,7 @@ export function Panel({
   className,
   style,
 }: PanelProps) {
-  const Heading = `h${headingLevel}` as "h2" | "h3" | "h4";
+  const Heading = `h${headingLevel}` as "h1" | "h2" | "h3" | "h4";
   const hasHeader = Boolean(kicker || title || action);
 
   return (
@@ -84,7 +100,10 @@ export function Panel({
     >
       {hasHeader ? (
         <header
-          className="flex items-end justify-between"
+          // `flex-wrap`: em 430px o título do painel de resultado divide a
+          // linha com os badges de estado (ADR-0029 § 5), e sem quebra o
+          // título seria espremido em duas letras por linha.
+          className="flex flex-wrap items-end justify-between"
           style={{ gap: "var(--space-3)", marginBottom: "var(--space-3)" }}
         >
           <div className="min-w-0">

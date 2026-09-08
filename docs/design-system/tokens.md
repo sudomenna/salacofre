@@ -291,6 +291,14 @@ Medido sobre `--surface-page` (`#F3F4F6`) em 2026-09-07:
   (2,08:1), `--party-psb` (2,20:1), `--party-outros` (2,39:1) e `--party-novo` (2,72:1) — os
   amarelos e laranjas. Elas **só podem** aparecer como preenchimento delimitado por traço
   (`--map-stroke` no mapa, borda no chip), **nunca** atrás de texto nem como preenchimento solto.
+- **Para texto existe token próprio: `--party-<slug>-text`**, gerado e medido, com **≥ 4,5:1 sobre
+  `--surface-page` e sobre `--surface-card`**. Catorze dos 31 partidos precisaram escurecer para
+  alcançá-lo — `--party-psol` vai de `#d6a400` (2,08:1) para `#8d6b00` (4,51:1), o maior
+  deslocamento da paleta (ΔE 30,1). Os escurecidos continuam a ΔE76 ≥ 12 dos hexes oficiais e com
+  a matiz intacta. Consuma por `textForParty(sigla)`; **nunca** pinte número ou rótulo com
+  `colorForParty()`, que devolve a cor de identidade — foi exatamente esse erro que produziu a
+  única violação `serious` de axe da auditoria de 07/09 (número do 3º colocado a 2,99:1).
+  O pior par da coluna de texto é `--party-agir`, em 4,5021:1.
 - Os níveis **1 e 2** de qualquer partido são claros por construção (L\* 90 e 76): decorativos,
   jamais com texto por cima.
 - Chip preenchido tem par próprio: **`--party-<slug>-chip`** (fundo) e **`--party-<slug>-ink`**

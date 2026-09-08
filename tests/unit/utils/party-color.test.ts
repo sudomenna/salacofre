@@ -37,6 +37,7 @@ import {
   type PartyIntensity,
   partyChipInk,
   resolvePartyHex,
+  textForParty,
 } from "@/lib/utils/party-color";
 
 // ---------------------------------------------------------------------------
@@ -148,6 +149,36 @@ describe("colorForParty", () => {
     // nem em que contexto — é a invariante "estável a noite inteira" do § 2.
     expect(colorForParty("PT")).toBe(colorForParty("pt"));
     expect(colorForParty("MDB")).toBe(colorForParty(" mdb "));
+  });
+});
+
+describe("textForParty", () => {
+  it("retorna o token de tinta de texto do partido", () => {
+    expect(textForParty("PT")).toBe("var(--party-pt-text)");
+    expect(textForParty("psol")).toBe("var(--party-psol-text)");
+    expect(textForParty("Missão")).toBe("var(--party-missao-text)");
+  });
+
+  it("sigla desconhecida, vazia ou de federação cai no fallback", () => {
+    expect(textForParty("XYZ")).toBe("var(--party-outros-text)");
+    expect(textForParty("")).toBe("var(--party-outros-text)");
+    expect(textForParty(undefined)).toBe("var(--party-outros-text)");
+    expect(textForParty("PT/PCdoB/PV")).toBe("var(--party-outros-text)");
+  });
+
+  it("não é colorForParty — nos 14 partidos que escurecem, o token é outro", () => {
+    // Se alguém "simplificar" `textForParty` para devolver a base, é aqui que
+    // PSOL (2,08:1) e companhia voltam a reprovar o § 4 como texto.
+    for (const sigla of ["PSOL", "PSB", "NOVO", "XYZ"]) {
+      expect(textForParty(sigla)).not.toBe(colorForParty(sigla));
+      expect(TOKENS.get(`${normalizePartySlug(sigla)}-text`)).not.toBe(
+        TOKENS.get(normalizePartySlug(sigla)),
+      );
+    }
+  });
+
+  it("é determinístico e independente de rank (constituição § 6, ADR-0024)", () => {
+    expect(textForParty("PT")).toBe(textForParty("  pt "));
   });
 });
 
@@ -275,6 +306,14 @@ describe("sincronia com app/tokens-party.css", () => {
     }
   });
 
+  it("todo slug conhecido tem a tinta de texto do § 4", () => {
+    // Sem `-text`, `textForParty()` emite `var()` para um token inexistente e o
+    // número herda a cor do pai — silenciosamente, sem erro nenhum.
+    for (const slug of KNOWN_PARTY_SLUGS) {
+      expect(TOKENS.has(`${slug}-text`), `--party-${slug}-text ausente`).toBe(true);
+    }
+  });
+
   it("partyChipInk devolve o par de tokens que existe no CSS", () => {
     for (const [sigla, slug] of [
       ["PT", "pt"],
@@ -308,7 +347,7 @@ describe("sincronia com app/tokens-party.css", () => {
     // Estados de corrida não são partidos e não têm rampa.
     const estados = new Set(["tie", "none"]);
     for (const name of TOKENS.keys()) {
-      const slug = name.replace(/-(?:[1-5]|chip|ink)$/, "");
+      const slug = name.replace(/-(?:[1-5]|chip|ink|text)$/, "");
       if (estados.has(slug)) continue;
       expect(
         KNOWN_PARTY_SLUGS.has(slug),
@@ -405,9 +444,15 @@ describe("constituição § 2 — matiz constante no chip e nos 5 níveis", () =
   // tinta clara nem a escura chegam a 4,5:1 (§ 4). Escurecer é variar
   // intensidade, o que o § 2 v1.3 permite; o que ele proíbe é variar matiz, e é
   // isso que este teste cobra também do chip.
-  const SUFIXOS = ["chip", "1", "2", "3", "4", "5"] as const;
+  //
+  // `text` entra pela mesma porta e é o caso mais numeroso: em 14 dos 31
+  // partidos a base não lê como texto sobre o papel (§ 4) e a tinta é a base
+  // escurecida. A correção de contraste tinha que ser feita **na intensidade**;
+  // se alguém a fizer trocando de matiz — puxando o amarelo do PSOL para um
+  // marrom mais "legível", por exemplo — é aqui que aparece.
+  const SUFIXOS = ["chip", "text", "1", "2", "3", "4", "5"] as const;
 
-  it.each(derivados)("--party-%s mantém a matiz no chip e nos 5 níveis", (slug) => {
+  it.each(derivados)("--party-%s mantém a matiz no chip, no text e nos 5 níveis", (slug) => {
     const base = TOKENS.get(slug);
     expect(base, `--party-${slug} ausente`).toBeDefined();
     const hBase = hue(base as string);

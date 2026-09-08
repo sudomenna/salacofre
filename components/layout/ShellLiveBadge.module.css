@@ -1,0 +1,53 @@
+/*
+ * components/layout/ShellLiveBadge.module.css
+ *
+ * Ver o cabeçalho de `ShellLiveBadge.tsx`: o texto do selo vem de
+ * `--live-pct-label`, uma custom property que a página de corrida publica em
+ * `:root`. O fallback do `var()` é o estado genérico "ao vivo".
+ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font: var(--type-kicker);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-live);
+  animation: salacofre-shell-pulse 1.6s var(--ease-out) infinite;
+}
+
+.label::after {
+  content: var(--live-pct-label, "ao vivo");
+}
+
+@keyframes salacofre-shell-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Constituição § 4 / RNF-024 — nenhuma animação essencial para entender o
+ * estado; quem pediu menos movimento recebe o ponto estático. */
+@media (prefers-reduced-motion: reduce) {
+  .dot {
+    animation: none;
+  }
+}

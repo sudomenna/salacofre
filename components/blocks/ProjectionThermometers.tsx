@@ -297,6 +297,11 @@ export function ProjectionThermometers({
               titulo={c.nome}
               subtitulo={c.partido}
               base={base}
+              // `cor` é preenchimento (faixa + tick). O número grande NÃO usa
+              // esta cor: o átomo deriva a tinta de texto do `rank` via
+              // `strongForRank` (ver o docblock de `<ProjectionThermometer />`).
+              // Era daqui que vinha a violação `serious` do axe de 2026-09-07 —
+              // `c.cor` do payload chega como `var(--color-cand-3)`, 2,99:1.
               cor={c.cor ?? colorForRank(rank)}
               corBand={bandForRank(rank)}
               rank={rank}
@@ -319,6 +324,11 @@ export function ProjectionThermometers({
             base={base}
             cor="var(--color-cand-other)"
             corBand="var(--color-cand-band-other)"
+            // O neutro serve às duas coisas — e por medição, não por acaso:
+            // #6e6e6e dá 4,63:1 sobre --surface-page e 4,93:1 sobre
+            // --surface-card. Declarado aqui para que a igualdade com `cor`
+            // seja uma decisão medida e não a omissão que o axe pegou.
+            corTexto="var(--color-cand-other)"
             pctProjetado={outros?.pct ?? 0}
             pctLower={outros?.lower ?? 0}
             pctUpper={outros?.upper ?? 0}
@@ -328,12 +338,18 @@ export function ProjectionThermometers({
           />
         )}
 
+        {/* As duas cores de participação são das poucas que servem de
+            preenchimento E de texto: #565656 mede 6,67:1 e #24504d mede 8,19:1
+            sobre --surface-page (o comentário em globals.css traz as medidas).
+            Por isso `corTexto` é declarado igual a `cor` aqui — explicitamente,
+            porque é uma medição, não uma coincidência. */}
         <ParticipacaoTermometro
           id="termometro-brancos-nulos"
           titulo="Brancos e nulos"
           base="comparecimento"
           cor="var(--color-part-brancos-nulos)"
           corBand="var(--color-part-brancos-nulos-band)"
+          corTexto="var(--color-part-brancos-nulos)"
           metric={participacao?.brancos_nulos}
         />
 
@@ -343,6 +359,7 @@ export function ProjectionThermometers({
           base="eleitores_instalados"
           cor="var(--color-part-abstencao)"
           corBand="var(--color-part-abstencao-band)"
+          corTexto="var(--color-part-abstencao)"
           metric={participacao?.abstencao}
         />
       </div>
@@ -391,6 +408,7 @@ function ParticipacaoTermometro({
   base,
   cor,
   corBand,
+  corTexto,
   metric,
 }: {
   id: string;
@@ -398,6 +416,9 @@ function ParticipacaoTermometro({
   base: ThermometerBase;
   cor: string;
   corBand: string;
+  /** Obrigatório aqui de propósito: participação não tem rank nem sigla, então
+   *  o átomo não teria de onde derivar a tinta e cairia no neutro. */
+  corTexto: string;
   metric?: EdgeParticipacaoMetric;
 }) {
   return (
@@ -407,6 +428,7 @@ function ParticipacaoTermometro({
       base={base}
       cor={cor}
       corBand={corBand}
+      corTexto={corTexto}
       pctProjetado={metric?.pct_projetado ?? 0}
       pctLower={metric?.lower ?? 0}
       pctUpper={metric?.upper ?? 0}

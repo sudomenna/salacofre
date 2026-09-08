@@ -18,8 +18,14 @@
 
 export interface MapSkeletonProps {
   className?: string;
-  /** Altura em px. Default 400 (proporção brasileira ~1.1:1). */
-  height?: number;
+  /**
+   * Altura do placeholder. Número → px. String → qualquer comprimento CSS,
+   * necessário desde o ADR-0029 § 1, em que o mapa da home passou a ocupar
+   * altura de viewport (`clamp(400px, 52vh, ...)`) em vez de uma constante —
+   * o esqueleto tem que reservar exatamente o mesmo espaço, senão o mapa
+   * entra empurrando o conteúdo (CLS).
+   */
+  height?: number | string;
 }
 
 export function MapSkeleton({ className, height = 400 }: MapSkeletonProps) {

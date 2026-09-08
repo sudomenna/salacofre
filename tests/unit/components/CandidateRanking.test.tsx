@@ -51,6 +51,7 @@ describe("<CandidateRanking />", () => {
     expect(text).toContain("Tebet");
     expect(text).toContain("Ciro");
     expect(text).toContain("4,5%");
+    expect(doc.querySelectorAll("[data-testid='candidate-result-row']")).toHaveLength(4);
   });
 
   it("(b) array vazio → retorna null", () => {
@@ -59,33 +60,70 @@ describe("<CandidateRanking />", () => {
     expect(doc.querySelectorAll("ul > li").length).toBe(0);
   });
 
-  it("(c) cores aplicadas via prop c.cor (style.background)", () => {
+  it("(c) a cor do candidato entra no preenchimento da barra, nunca no texto", () => {
     const cands: EdgeCandidate[] = [
       makeCand({
         id: 10,
         nome: "Tebet",
         partido: "MDB",
         rank: 3,
+        pct_atual: 4.1,
         pct_projetado: 4.5,
         cor: "var(--color-cand-3)",
       }),
     ];
-    const doc = parse(<CandidateRanking candidatos={cands} />);
-    // Procura o color-dot — span com border-radius full e style.background contendo o token.
-    const dots = doc.querySelectorAll("span[aria-hidden='true']");
-    const styles = Array.from(dots).map((d) => d.getAttribute("style") ?? "");
-    expect(styles.some((s) => s.includes("var(--color-cand-3)"))).toBe(true);
+    const html = renderToStaticMarkup(<CandidateRanking candidatos={cands} />);
+    expect(html).toContain("var(--color-cand-3)");
+    // Cor de partido/candidato em TEXTO reprova contraste em quatro bases da
+    // paleta; enquanto `--party-<slug>-text` não existe, número é --text-*.
+    expect(html).not.toMatch(/color\s*:\s*var\(--color-cand-/);
   });
 
-  it("(d) aria-labels corretos por candidato", () => {
+  it("(d) aria-labels anunciam as DUAS bases (ADR-0029 § 7)", () => {
     const cands: EdgeCandidate[] = [
-      makeCand({ id: 1, nome: "Tebet", partido: "MDB", rank: 3, pct_projetado: 4.5 }),
-      makeCand({ id: 2, nome: "Ciro", partido: "PDT", rank: 4, pct_projetado: 3.0 }),
+      makeCand({
+        id: 1,
+        nome: "Tebet",
+        partido: "MDB",
+        rank: 3,
+        pct_atual: 4.1,
+        pct_projetado: 4.5,
+      }),
+      makeCand({
+        id: 2,
+        nome: "Ciro",
+        partido: "PDT",
+        rank: 4,
+        pct_atual: 3.3,
+        pct_projetado: 3.0,
+      }),
     ];
     const doc = parse(<CandidateRanking candidatos={cands} />);
-    const items = Array.from(doc.querySelectorAll("ul > li"));
-    const labels = items.map((el) => el.getAttribute("aria-label") ?? "");
-    expect(labels).toContain("Tebet 4,5%");
-    expect(labels).toContain("Ciro 3,0%");
+    const labels = [...doc.querySelectorAll("ul > li")].map(
+      (el) => el.getAttribute("aria-label") ?? "",
+    );
+    expect(labels).toContain("Tebet (MDB): 4,1% apurado, 4,5% projetado");
+    expect(labels).toContain("Ciro (PDT): 3,3% apurado, 3,0% projetado");
+  });
+
+  it("(e) parcial e projeção ficam AMBOS no DOM, cada um com sua célula de ênfase", () => {
+    const cands: EdgeCandidate[] = [
+      makeCand({
+        id: 1,
+        nome: "Tebet",
+        partido: "MDB",
+        rank: 3,
+        pct_atual: 4.1,
+        pct_projetado: 4.5,
+      }),
+    ];
+    const doc = parse(<CandidateRanking candidatos={cands} />);
+    const celulas = [...doc.querySelectorAll("[data-view-cell]")].map((el) =>
+      el.getAttribute("data-view-cell"),
+    );
+    expect(celulas).toEqual(["parcial", "proj"]);
+    const texto = doc.body.textContent ?? "";
+    expect(texto).toContain("4,1%");
+    expect(texto).toContain("4,5%");
   });
 });

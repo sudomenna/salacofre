@@ -137,18 +137,18 @@ const TOKENS = parseTokens(TOKENS_CSS);
 /** Estados de corrida: não são partido, não têm rampa, não têm oficial. */
 const STATE_TOKENS = new Set(["tie", "none"]);
 
-/** Slugs de partido presentes no CSS (base, sem os sufixos `-1..5`/`-chip`/`-ink`). */
+/** Slugs de partido no CSS (base, sem os sufixos `-1..5`/`-chip`/`-ink`/`-text`). */
 const PARTY_SLUGS = [
   ...new Set(
     [...TOKENS.keys()]
-      .map((n) => n.replace(/-(?:[1-5]|chip|ink)$/, ""))
+      .map((n) => n.replace(/-(?:[1-5]|chip|ink|text)$/, ""))
       .filter((s) => !STATE_TOKENS.has(s)),
   ),
 ].sort();
 
 /**
  * Todo token de um partido que **é uma cor de partido**: o base, o fundo do chip
- * sólido e os 5 níveis da rampa.
+ * sólido, a tinta de texto e os 5 níveis da rampa.
  *
  * `--party-<slug>-ink` fica de fora de propósito. Ele é uma das duas tintas do
  * kit (#14171b ou #fbfbfc), escolhida por contraste WCAG — não é uma cor
@@ -160,6 +160,13 @@ const PARTY_SLUGS = [
  * que escurecem porque nenhuma tinta serve sobre a base), é uma cor nova de
  * partido, e escurecer pode empurrar a cor para dentro do raio proibido de um
  * hex oficial exatamente como o empurrão da rampa já podia.
+ *
+ * `--party-<slug>-text` entra pelo mesmo motivo, e em 14 dos 31 partidos ele é
+ * uma cor nova: onde a base reprova 4,5:1 sobre o papel (PSOL 2,08:1, PSB
+ * 2,20:1, o fallback cinza 2,39:1, NOVO 2,72:1...), a tinta é a base escurecida
+ * — e escurecer aproxima do fim do gradiente escuro que vários manuais de
+ * partido publicam. Ficar de fora deste gate era a forma óbvia de a correção de
+ * a11y reintroduzir uma violação do § 2.
  */
 function tokensOf(slug: string): Array<{ token: string; hex: string }> {
   const out: Array<{ token: string; hex: string }> = [];
@@ -167,6 +174,8 @@ function tokensOf(slug: string): Array<{ token: string; hex: string }> {
   if (base) out.push({ token: `--party-${slug}`, hex: base });
   const chip = TOKENS.get(`${slug}-chip`);
   if (chip) out.push({ token: `--party-${slug}-chip`, hex: chip });
+  const text = TOKENS.get(`${slug}-text`);
+  if (text) out.push({ token: `--party-${slug}-text`, hex: text });
   for (const level of [1, 2, 3, 4, 5]) {
     const hex = TOKENS.get(`${slug}-${level}`);
     if (hex) out.push({ token: `--party-${slug}-${level}`, hex });
@@ -243,16 +252,16 @@ describe("scripts/data/party-official-hexes.json", () => {
 // ---------------------------------------------------------------------------
 
 describe("constituição § 2 — ΔE76 contra o hex oficial de cada partido", () => {
-  it("mede todos os 30 partidos + fallback: base, chip e 5 níveis", () => {
+  it("mede todos os 30 partidos + fallback: base, chip, text e 5 níveis", () => {
     expect(PARTY_SLUGS.length).toBe(31);
     for (const slug of PARTY_SLUGS) {
-      expect(tokensOf(slug), `--party-${slug}`).toHaveLength(7);
+      expect(tokensOf(slug), `--party-${slug}`).toHaveLength(8);
     }
   });
 
   it.each(
     PARTY_SLUGS,
-  )("--party-%s: base, chip e 5 níveis ficam a ΔE76 ≥ 10 de todo hex oficial", (slug) => {
+  )("--party-%s: base, chip, text e 5 níveis ficam a ΔE76 ≥ 10 de todo hex oficial", (slug) => {
     const entry = OFFICIAL[`--party-${slug}`];
     const officials = entry?.official ?? [];
     // Sem hex oficial não há do que se afastar. É o caso declarado de

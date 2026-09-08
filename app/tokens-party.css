@@ -50,6 +50,25 @@
  * Em React, o par vem pronto de `partyChipInk(sigla)` em `lib/utils/party-color.ts`.
  *
  * -----------------------------------------------------------------------------
+ * `-text` — a cor do partido ESCREVENDO sobre o papel
+ * -----------------------------------------------------------------------------
+ * O caso simétrico do chip. `--party-<sigla>` é área de cor (contorno, ponto,
+ * preenchimento de barra); quando a mesma identidade precisa virar **texto** —
+ * o número grande de um termômetro, o nome do líder numa lista — o token é
+ * `--party-<sigla>-text`, medido aqui em ≥ 4,5:1 contra as duas superfícies de
+ * papel do kit (`--surface-page` #f3f4f6 e `--surface-card` #fbfbfc).
+ *
+ * Não dá para reusar a base: medido contra #f3f4f6, PSOL dá 2,08:1, PSB 2,20:1,
+ * o fallback cinza 2,39:1 e NOVO 2,72:1 — texto ilegível pelo § 4. Nem dá para
+ * reusar o `-chip`, que em 19 dos 31 partidos é uma cor **clara** (ele foi
+ * escolhido para contrastar com uma tinta, não com o papel). Onde a base já
+ * passa, `-text` **é** a base; onde não passa, é a base escurecida na mesma
+ * matiz (§ 2 v1.3 permite variar intensidade, nunca matiz), e o comentário na
+ * linha diz de quanto e por quê.
+ *
+ * Em React: `textForParty(sigla)` em `lib/utils/party-color.ts`.
+ *
+ * -----------------------------------------------------------------------------
  * Duas regras que este arquivo não pode quebrar
  * -----------------------------------------------------------------------------
  * 1. `@theme static` — sem `static`, o Tailwind v4 descarta variáveis que não
@@ -68,6 +87,7 @@
   --party-pt: #c62e49;
   --party-pt-chip: #c62e49; /* = base · 5.22:1 com a tinta abaixo */
   --party-pt-ink: #fbfbfc; /* tinta clara sobre o chip — 5.22:1 (§ 4 exige 4.5:1) */
+  --party-pt-text: #c62e49; /* = base · 4.91:1 em #f3f4f6 · 5.22:1 em #fbfbfc */
   --party-pt-1: #f7dcdc;
   --party-pt-2: #edabac;
   --party-pt-3: #d96871;
@@ -78,6 +98,7 @@
   --party-pl: #2247b8;
   --party-pl-chip: #2247b8; /* = base · 7.63:1 com a tinta abaixo */
   --party-pl-ink: #fbfbfc; /* tinta clara sobre o chip — 7.63:1 (§ 4 exige 4.5:1) */
+  --party-pl-text: #2247b8; /* = base · 7.17:1 em #f3f4f6 · 7.63:1 em #fbfbfc */
   --party-pl-1: #e3e0f4;
   --party-pl-2: #bab7e7;
   --party-pl-3: #8283d8;
@@ -88,6 +109,7 @@
   --party-psd: #2f8f6b;
   --party-psd-chip: #2f8f6b; /* = base · 4.50:1 com a tinta abaixo */
   --party-psd-ink: #14171b; /* tinta escura sobre o chip — 4.50:1 (§ 4 exige 4.5:1) */
+  --party-psd-text: #1a7f5c; /* base escurecida L* 53.3 → 47.3 (matiz intacta): a base parava em 3.63:1 sobre o papel · agora 4.51:1 em #f3f4f6 · 4.80:1 em #fbfbfc · ΔE76 6.1 da base, 51.9 de #7FC341 */
   --party-psd-1: #d1e8dd;
   --party-psd-2: #8cc8ad;
   --party-psd-3: #3f9b77; /* C* alinhado ao nível seguinte (38.1) */
@@ -98,6 +120,7 @@
   --party-novo: #e07b1d;
   --party-novo-chip: #e07b1d; /* = base · 6.01:1 com a tinta abaixo */
   --party-novo-ink: #14171b; /* tinta escura sobre o chip — 6.01:1 (§ 4 exige 4.5:1) */
+  --party-novo-text: #ae5900; /* base escurecida L* 61.7 → 47.2 (matiz intacta): a base parava em 2.72:1 sobre o papel · agora 4.51:1 em #f3f4f6 · 4.80:1 em #fbfbfc · ΔE76 16.3 da base, 22.4 de #F17021 */
   --party-novo-1: #f3dfd2;
   --party-novo-2: #e0b292;
   --party-novo-3: #c27b41;
@@ -108,6 +131,7 @@
   --party-avante: #7a4fb3;
   --party-avante-chip: #7a4fb3; /* = base · 5.65:1 com a tinta abaixo */
   --party-avante-ink: #fbfbfc; /* tinta clara sobre o chip — 5.65:1 (§ 4 exige 4.5:1) */
+  --party-avante-text: #7a4fb3; /* = base · 5.31:1 em #f3f4f6 · 5.65:1 em #fbfbfc */
   --party-avante-1: #e8dff1;
   --party-avante-2: #c9b3e0;
   --party-avante-3: #a07bcc;
@@ -118,6 +142,7 @@
   --party-missao: #1e7f8c;
   --party-missao-chip: #1e7f8c; /* = base · 4.54:1 com a tinta abaixo */
   --party-missao-ink: #fbfbfc; /* tinta clara sobre o chip — 4.54:1 (§ 4 exige 4.5:1) */
+  --party-missao-text: #177b88; /* base escurecida L* 48.7 → 47.2 (matiz intacta): a base parava em 4.27:1 sobre o papel · agora 4.52:1 em #f3f4f6 · 4.81:1 em #fbfbfc · ΔE76 1.6 da base, 102.6 de #FCBE26 */
   --party-missao-1: #cbe8ed;
   --party-missao-2: #76c8d5; /* C* alinhado ao nível seguinte (25.9) */
   --party-missao-3: #4297a4; /* C* 48.0 → 25.9 (gamut sRGB) */
@@ -128,6 +153,7 @@
   --party-prtb: #6b7a2c;
   --party-prtb-chip: #6b7a2c; /* = base · 4.57:1 com a tinta abaixo */
   --party-prtb-ink: #fbfbfc; /* tinta clara sobre o chip — 4.57:1 (§ 4 exige 4.5:1) */
+  --party-prtb-text: #677628; /* base escurecida L* 48.5 → 47.0 (matiz intacta): a base parava em 4.29:1 sobre o papel · agora 4.54:1 em #f3f4f6 · 4.84:1 em #fbfbfc · ΔE76 1.6 da base, 41.4 de #01A64A */
   --party-prtb-1: #e2e4d1;
   --party-prtb-2: #b9c08f;
   --party-prtb-3: #82933a;
@@ -138,6 +164,7 @@
   --party-up: #8c2f5c;
   --party-up-chip: #8c2f5c; /* = base · 7.59:1 com a tinta abaixo */
   --party-up-ink: #fbfbfc; /* tinta clara sobre o chip — 7.59:1 (§ 4 exige 4.5:1) */
+  --party-up-text: #8c2f5c; /* = base · 7.13:1 em #f3f4f6 · 7.59:1 em #fbfbfc */
   --party-up-1: #f5dce5;
   --party-up-2: #e7abc2;
   --party-up-3: #d36898;
@@ -148,6 +175,7 @@
   --party-pco: #a1332b;
   --party-pco-chip: #a1332b; /* = base · 6.72:1 com a tinta abaixo */
   --party-pco-ink: #fbfbfc; /* tinta clara sobre o chip — 6.72:1 (§ 4 exige 4.5:1) */
+  --party-pco-text: #a1332b; /* = base · 6.31:1 em #f3f4f6 · 6.72:1 em #fbfbfc */
   --party-pco-1: #f7ddd8;
   --party-pco-2: #ebaca2;
   --party-pco-3: #d66d5f;
@@ -158,6 +186,7 @@
   --party-dc: #3b6fb0;
   --party-dc-chip: #3b6fb0; /* = base · 4.97:1 com a tinta abaixo */
   --party-dc-ink: #fbfbfc; /* tinta clara sobre o chip — 4.97:1 (§ 4 exige 4.5:1) */
+  --party-dc-text: #3b6fb0; /* = base · 4.67:1 em #f3f4f6 · 4.97:1 em #fbfbfc */
   --party-dc-1: #dbe3f5;
   --party-dc-2: #a4bceb;
   --party-dc-3: #4e8ddd; /* C* alinhado ao nível seguinte (47.0) */
@@ -168,6 +197,7 @@
   --party-pstu: #9e2b2b;
   --party-pstu-chip: #9e2b2b; /* = base · 7.16:1 com a tinta abaixo */
   --party-pstu-ink: #fbfbfc; /* tinta clara sobre o chip — 7.16:1 (§ 4 exige 4.5:1) */
+  --party-pstu-text: #9e2b2b; /* = base · 6.73:1 em #f3f4f6 · 7.16:1 em #fbfbfc */
   --party-pstu-1: #f7ddd9;
   --party-pstu-2: #ecaca4;
   --party-pstu-3: #d76c63;
@@ -178,6 +208,7 @@
   --party-pcb: #b63a2e;
   --party-pcb-chip: #b63a2e; /* = base · 5.59:1 com a tinta abaixo */
   --party-pcb-ink: #fbfbfc; /* tinta clara sobre o chip — 5.59:1 (§ 4 exige 4.5:1) */
+  --party-pcb-text: #b63a2e; /* = base · 5.25:1 em #f3f4f6 · 5.59:1 em #fbfbfc */
   --party-pcb-1: #f7ddd8;
   --party-pcb-2: #ebada1;
   --party-pcb-3: #d56e5d;
@@ -188,6 +219,7 @@
   --party-democrata: #4b5563;
   --party-democrata-chip: #4b5563; /* = base · 7.31:1 com a tinta abaixo */
   --party-democrata-ink: #fbfbfc; /* tinta clara sobre o chip — 7.31:1 (§ 4 exige 4.5:1) */
+  --party-democrata-text: #4b5563; /* = base · 6.87:1 em #f3f4f6 · 7.31:1 em #fbfbfc */
   --party-democrata-1: #d8e3f5;
   --party-democrata-2: #9bbeeb;
   --party-democrata-3: #4b90d0; /* C* alinhado ao nível seguinte (39.5) */
@@ -198,6 +230,7 @@
   --party-republicanos: #2a548a;
   --party-republicanos-chip: #2a548a; /* = base · 7.43:1 com a tinta abaixo */
   --party-republicanos-ink: #fbfbfc; /* tinta clara sobre o chip — 7.43:1 (§ 4 exige 4.5:1) */
+  --party-republicanos-text: #2a548a; /* = base · 6.98:1 em #f3f4f6 · 7.43:1 em #fbfbfc */
   --party-republicanos-1: #dbe2f5;
   --party-republicanos-2: #a6bceb;
   --party-republicanos-3: #508ddf;
@@ -208,6 +241,7 @@
   --party-psb: #c9a227;
   --party-psb-chip: #c9a227; /* = base · 7.43:1 com a tinta abaixo */
   --party-psb-ink: #14171b; /* tinta escura sobre o chip — 7.43:1 (§ 4 exige 4.5:1) */
+  --party-psb-text: #896c00; /* base escurecida L* 68.3 → 47.1 (matiz intacta): a base parava em 2.20:1 sobre o papel · agora 4.53:1 em #f3f4f6 · 4.82:1 em #fbfbfc · ΔE76 23.6 da base, 61.1 de #C41D23 */
   --party-psb-1: #ebe1cf;
   --party-psb-2: #cfb98c;
   --party-psb-3: #a68833;
@@ -218,6 +252,7 @@
   --party-rede: #3d8f3d;
   --party-rede-chip: #318433; /* base escurecida L* 52.9 → 48.9 (matiz intacta): a base parava em 4.45:1 com as duas tintas · agora 4.53:1 · ΔE76 4.2 da base, 38.0 de #379E8D */
   --party-rede-ink: #fbfbfc; /* tinta clara sobre o chip — 4.53:1 (§ 4 exige 4.5:1) */
+  --party-rede-text: #2c802f; /* base escurecida L* 52.9 → 47.2 (matiz intacta): a base parava em 3.67:1 sobre o papel · agora 4.50:1 em #f3f4f6 · 4.79:1 em #fbfbfc · ΔE76 5.7 da base, 38.6 de #379E8D */
   --party-rede-1: #d8e6d6;
   --party-rede-2: #a1c59c;
   --party-rede-3: #579b53;
@@ -228,6 +263,7 @@
   --party-pp: #2c6fb0;
   --party-pp-chip: #2c6fb0; /* = base · 5.07:1 com a tinta abaixo */
   --party-pp-ink: #fbfbfc; /* tinta clara sobre o chip — 5.07:1 (§ 4 exige 4.5:1) */
+  --party-pp-text: #2c6fb0; /* = base · 4.76:1 em #f3f4f6 · 5.07:1 em #fbfbfc */
   --party-pp-1: #dae3f5;
   --party-pp-2: #a1bdeb;
   --party-pp-3: #4d8ed7; /* C* alinhado ao nível seguinte (43.7) */
@@ -238,6 +274,7 @@
   --party-pode: #2e9c8f;
   --party-pode-chip: #2e9c8f; /* = base · 5.37:1 com a tinta abaixo */
   --party-pode-ink: #14171b; /* tinta escura sobre o chip — 5.37:1 (§ 4 exige 4.5:1) */
+  --party-pode-text: #007e72; /* base escurecida L* 58.4 → 47.1 (matiz intacta): a base parava em 3.04:1 sobre o papel · agora 4.51:1 em #f3f4f6 · 4.80:1 em #fbfbfc · ΔE76 11.3 da base, 88.7 de #602D91 */
   --party-pode-1: #cde8e3;
   --party-pode-2: #7ec9be;
   --party-pode-3: #40998e; /* C* 48.0 → 29.6 (gamut sRGB) */
@@ -248,6 +285,7 @@
   --party-cidadania: #c46a9c;
   --party-cidadania-chip: #c46a9c; /* = base · 5.04:1 com a tinta abaixo */
   --party-cidadania-ink: #14171b; /* tinta escura sobre o chip — 5.04:1 (§ 4 exige 4.5:1) */
+  --party-cidadania-text: #a95183; /* base escurecida L* 56.5 → 47.0 (matiz intacta): a base parava em 3.24:1 sobre o papel · agora 4.55:1 em #f3f4f6 · 4.84:1 em #fbfbfc · ΔE76 9.6 da base, 32.6 de #CA0088 */
   --party-cidadania-1: #f3dce8;
   --party-cidadania-2: #e4abc8;
   --party-cidadania-3: #ce6aa2;
@@ -258,6 +296,7 @@
   --party-agir: #7c6e5b;
   --party-agir-chip: #7c6e5b; /* = base · 4.79:1 com a tinta abaixo */
   --party-agir-ink: #fbfbfc; /* tinta clara sobre o chip — 4.79:1 (§ 4 exige 4.5:1) */
+  --party-agir-text: #7c6e5b; /* = base · 4.50:1 em #f3f4f6 · 4.79:1 em #fbfbfc */
   --party-agir-1: #eee1d0;
   --party-agir-2: #d5b78c;
   --party-agir-3: #af8436;
@@ -268,6 +307,7 @@
   --party-psol: #d6a400;
   --party-psol-chip: #d6a400; /* = base · 7.85:1 com a tinta abaixo */
   --party-psol-ink: #14171b; /* tinta escura sobre o chip — 7.85:1 (§ 4 exige 4.5:1) */
+  --party-psol-text: #8d6b00; /* base escurecida L* 70.1 → 47.3 (matiz intacta): a base parava em 2.08:1 sobre o papel · agora 4.51:1 em #f3f4f6 · 4.79:1 em #fbfbfc · ΔE76 30.1 da base, 45.6 de #FFC200 */
   --party-psol-1: #ece1d0;
   --party-psol-2: #d1b88c;
   --party-psol-3: #aa8734;
@@ -278,6 +318,7 @@
   --party-mdb: #2e8b57;
   --party-mdb-chip: #268451; /* base escurecida L* 51.5 → 49.0 (matiz intacta): a base parava em 4.23:1 com as duas tintas · agora 4.51:1 · ΔE76 2.7 da base, 16.0 de #0A9246 */
   --party-mdb-ink: #fbfbfc; /* tinta clara sobre o chip — 4.51:1 (§ 4 exige 4.5:1) */
+  --party-mdb-text: #1f7f4c; /* base escurecida L* 51.5 → 47.0 (matiz intacta): a base parava em 3.86:1 sobre o papel · agora 4.55:1 em #f3f4f6 · 4.84:1 em #fbfbfc · ΔE76 4.6 da base, 16.3 de #0A9246 */
   --party-mdb-1: #d4e7d9;
   --party-mdb-2: #95c7a5;
   --party-mdb-3: #3f9d66; /* C* alinhado ao nível seguinte (45.5) */
@@ -288,6 +329,7 @@
   --party-uniao: #124287;
   --party-uniao-chip: #124287; /* = base · 9.42:1 com a tinta abaixo */
   --party-uniao-ink: #fbfbfc; /* tinta clara sobre o chip — 9.42:1 (§ 4 exige 4.5:1) */
+  --party-uniao-text: #124287; /* = base · 8.86:1 em #f3f4f6 · 9.42:1 em #fbfbfc */
   --party-uniao-1: #dfe1f5;
   --party-uniao-2: #b0b9e9;
   --party-uniao-3: #6a88dc;
@@ -298,6 +340,7 @@
   --party-prd: #6a5acd;
   --party-prd-chip: #6a5acd; /* = base · 5.13:1 com a tinta abaixo */
   --party-prd-ink: #fbfbfc; /* tinta clara sobre o chip — 5.13:1 (§ 4 exige 4.5:1) */
+  --party-prd-text: #6a5acd; /* = base · 4.82:1 em #f3f4f6 · 5.13:1 em #fbfbfc */
   --party-prd-1: #e5e0f3;
   --party-prd-2: #c1b5e4;
   --party-prd-3: #917fd3;
@@ -308,6 +351,7 @@
   --party-pdt: #784b02;
   --party-pdt-chip: #784b02; /* = base · 7.24:1 com a tinta abaixo */
   --party-pdt-ink: #fbfbfc; /* tinta clara sobre o chip — 7.24:1 (§ 4 exige 4.5:1) */
+  --party-pdt-text: #784b02; /* = base · 6.80:1 em #f3f4f6 · 7.24:1 em #fbfbfc */
   --party-pdt-1: #eadfd5; /* L* 90.0 → 89.5, C* 10.0 → 6.8 p/ ΔE76 13.0 de #FFF4D4 */
   --party-pdt-2: #dab58e;
   --party-pdt-3: #b78039;
@@ -318,6 +362,7 @@
   --party-psdb: #c37b61;
   --party-psdb-chip: #c37b61; /* = base · 5.42:1 com a tinta abaixo */
   --party-psdb-ink: #14171b; /* tinta escura sobre o chip — 5.42:1 (§ 4 exige 4.5:1) */
+  --party-psdb-text: #a25e45; /* base escurecida L* 58.6 → 47.1 (matiz intacta): a base parava em 3.02:1 sobre o papel · agora 4.52:1 em #f3f4f6 · 4.81:1 em #fbfbfc · ΔE76 11.5 da base, 49.9 de #F7941E */
   --party-psdb-1: #f6ddd5;
   --party-psdb-2: #e8ae9a;
   --party-psdb-3: #cf7251;
@@ -328,6 +373,7 @@
   --party-pcdob: #6b4b7d;
   --party-pcdob-chip: #6b4b7d; /* = base · 6.94:1 com a tinta abaixo */
   --party-pcdob-ink: #fbfbfc; /* tinta clara sobre o chip — 6.94:1 (§ 4 exige 4.5:1) */
+  --party-pcdob-text: #6b4b7d; /* = base · 6.52:1 em #f3f4f6 · 6.94:1 em #fbfbfc */
   --party-pcdob-1: #eadef0;
   --party-pcdob-2: #ceb1dd;
   --party-pcdob-3: #aa77c7;
@@ -338,6 +384,7 @@
   --party-pv: #ac2c92;
   --party-pv-chip: #ac2c92; /* = base · 5.75:1 com a tinta abaixo */
   --party-pv-ink: #fbfbfc; /* tinta clara sobre o chip — 5.75:1 (§ 4 exige 4.5:1) */
+  --party-pv-text: #ac2c92; /* = base · 5.41:1 em #f3f4f6 · 5.75:1 em #fbfbfc */
   --party-pv-1: #f1ddea;
   --party-pv-2: #deadd0;
   --party-pv-3: #c56daf;
@@ -348,6 +395,7 @@
   --party-solidariedade: #eb4784;
   --party-solidariedade-chip: #eb4784; /* = base · 4.94:1 com a tinta abaixo */
   --party-solidariedade-ink: #14171b; /* tinta escura sobre o chip — 4.94:1 (§ 4 exige 4.5:1) */
+  --party-solidariedade-text: #d0296e; /* base escurecida L* 55.9 → 47.2 (matiz intacta): a base parava em 3.31:1 sobre o papel · agora 4.52:1 em #f3f4f6 · 4.81:1 em #fbfbfc · ΔE76 8.8 da base, 65.4 de #F37021 */
   --party-solidariedade-1: #f6dce2;
   --party-solidariedade-2: #eaaaba;
   --party-solidariedade-3: #d8668a;
@@ -358,6 +406,7 @@
   --party-mobiliza: #3e89f9;
   --party-mobiliza-chip: #3e89f9; /* = base · 5.27:1 com a tinta abaixo */
   --party-mobiliza-ink: #14171b; /* tinta escura sobre o chip — 5.27:1 (§ 4 exige 4.5:1) */
+  --party-mobiliza-text: #006ed7; /* base escurecida L* 57.8 → 47.1 (matiz intacta): a base parava em 3.10:1 sobre o papel · agora 4.53:1 em #f3f4f6 · 4.82:1 em #fbfbfc · ΔE76 10.9 da base, sem hex oficial conhecido */
   --party-mobiliza-1: #dee2f5;
   --party-mobiliza-2: #adbaea;
   --party-mobiliza-3: #648add;
@@ -368,6 +417,7 @@
   --party-outros: #9aa0a8;
   --party-outros-chip: #9aa0a8; /* = base · 6.82:1 com a tinta abaixo */
   --party-outros-ink: #14171b; /* tinta escura sobre o chip — 6.82:1 (§ 4 exige 4.5:1) */
+  --party-outros-text: #6b7078; /* base escurecida L* 65.6 → 47.1 (matiz intacta): a base parava em 2.39:1 sobre o papel · agora 4.53:1 em #f3f4f6 · 4.82:1 em #fbfbfc · ΔE76 18.6 da base, sem hex oficial conhecido */
   --party-outros-1: #e2e2e2;
   --party-outros-2: #bbbbbb;
   --party-outros-3: #8b8b8b;

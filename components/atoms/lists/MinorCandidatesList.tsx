@@ -1,33 +1,44 @@
 /**
  * components/atoms/lists/MinorCandidatesList.tsx
  *
- * Camada 3 do hero multi-candidato (ADR-0017 — transparência total).
- * Lista horizontal compacta dos candidatos "minoritários" (rank 7+ ou
- * pct < 1% — caller decide o filtro): cor dot + nome + pct, separados
- * por middle dot "·". Não é collapsible — em 1T todos candidatos
- * permanecem visíveis (princípio transparência total).
+ * Camada 3 do hero multi-candidato (ADR-0017 — transparência total). Lista
+ * dos candidatos "minoritários" (rank 7+, ou rank 4+ quando a Camada 1 são os
+ * seis termômetros do ADR-0018 — o caller decide o filtro).
+ *
+ * Não é collapsible, e nunca será: em 1T todos os candidatos permanecem
+ * visíveis (ADR-0017; o botão "Mostrar todos" do kit Atlas Menna foi
+ * explicitamente rejeitado pelo ADR-0029 § 7).
+ *
+ * S07/Bloco 2 (ADR-0029 § 7) — a lista horizontal separada por `·` virou uma
+ * pilha de `<CandidateResultRow compact>`: parcial e projeção lado a lado.
+ * O formato antigo cabia mais nomes por linha, mas só conseguia mostrar UM
+ * número por candidato, e era o projetado — justamente a base que o leitor
+ * não pode conferir contra o boletim do TSE. Com as duas colunas, a Camada 3
+ * passa a ter a mesma transparência das outras (constituição § 8).
+ * `compact` mantém a densidade que o ADR-0017 pede para esta camada em telas
+ * estreitas.
  *
  * Cobertura
  *   - RF-030.8 (ranking multi-camada — S05/F4c, ADR-0017).
  *
- * Server Component puro — sem 'use client'.
- *
- * Layout
- *   - `flex-wrap` para quebrar em múltiplas linhas em mobile.
- *   - Separadores `·` aparecem ENTRE itens, nunca no final.
+ * Server Component puro — sem 'use client'. A reação ao controle
+ * "Parcial / Projeção" do shell é CSS (ver `CandidateResultRow`), não JS.
  *
  * A11y
  *   - `<ul>` + `<li>` semânticos (biome `noRedundantRoles` proíbe
  *     `role="list"/"listitem"` explícito — o role é implícito da tag).
- *   - Cada `<li>` tem `aria-label="<nome> <pct>"`.
- *   - Separador `·` é decorativo (`aria-hidden="true"`).
+ *   - Cada `<li>` tem `aria-label` com as duas bases rotuladas.
  */
 
+import {
+  CandidateResultRow,
+  candidateResultRowProps,
+} from "@/components/atoms/tables/CandidateResultRow";
 import type { EdgeCandidate } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
 
 export interface MinorCandidatesListProps {
-  /** Candidatos a exibir — caller filtra (ex. rank 7+, pct < 1%). */
+  /** Candidatos a exibir — caller filtra (ex. rank 4+, rank 7+, pct < 1%). */
   candidatos: EdgeCandidate[];
   className?: string;
 }
@@ -35,38 +46,17 @@ export interface MinorCandidatesListProps {
 export function MinorCandidatesList({ candidatos, className }: MinorCandidatesListProps) {
   if (!candidatos || candidatos.length === 0) return null;
 
-  const containerClass = ["flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]", className]
-    .filter(Boolean)
-    .join(" ");
-
   return (
-    <ul className={containerClass} style={{ color: "var(--color-text-muted)" }}>
+    <ul className={["flex flex-col", className].filter(Boolean).join(" ")}>
       {candidatos.map((c, i) => {
-        const pctSafe = Number.isFinite(c.pct_projetado)
-          ? Math.max(0, Math.min(100, c.pct_projetado))
-          : 0;
-        const pctLabel = formatPercent(pctSafe, 1);
-        const isLast = i === candidatos.length - 1;
+        const props = candidateResultRowProps(c, i + 1, true);
+        const ariaLabel =
+          `${c.nome} (${c.partido}): ${formatPercent(props.pctAtual, 1)} apurado, ` +
+          `${formatPercent(props.pctProjetado, 1)} projetado`;
 
         return (
-          <li
-            key={c.id}
-            aria-label={`${c.nome} ${pctLabel}`}
-            className="inline-flex items-center gap-1"
-          >
-            <span
-              aria-hidden="true"
-              className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-              style={{ background: c.cor }}
-            />
-            <span className="tabular-nums">
-              {c.nome} {pctLabel}
-            </span>
-            {!isLast && (
-              <span aria-hidden="true" className="ml-1">
-                ·
-              </span>
-            )}
+          <li aria-label={ariaLabel} key={c.id}>
+            <CandidateResultRow {...props} />
           </li>
         );
       })}
