@@ -71,9 +71,36 @@ import {
 import type { EdgeCandidate } from "@/lib/edge-config/types";
 import { formatPp, formatVotesCompact } from "@/lib/utils/format";
 
+/**
+ * O que o painel lê de um candidato — o subconjunto comum a `EdgeCandidate`
+ * (payload nacional) e `EdgeUfCandidate` (drill-down de UF).
+ *
+ * Ele existe porque as três rotas de UF passaram a usar ESTE painel em
+ * 2026-09-09 e o payload de UF **não tem `rank`** (ver
+ * `CandidateResultRowSource` em `components/atoms/tables/CandidateResultRow.tsx`,
+ * que documenta o mesmo subconjunto do lado da linha). Sem o alargamento, a
+ * alternativa seria uma segunda variante do painel para UF — que é exatamente
+ * o que não se quer.
+ *
+ * Consequência para quem chama: com `rank` ausente, o rank exibido é o índice
+ * do array + 1. A ORDEM que o caller passa É o ranking; ver o comentário de
+ * `candidatos` abaixo.
+ */
+export type ResultPanelCandidate = Pick<
+  EdgeCandidate,
+  "id" | "nome" | "partido" | "cor" | "votos_atuais" | "pct_atual" | "pct_projetado"
+> & { rank?: number };
+
 export interface ResultPanelProps {
-  /** Candidatos do escopo, na ordem do ranking (o array do payload já vem assim). */
-  candidatos: EdgeCandidate[];
+  /**
+   * Candidatos do escopo, **na ordem do ranking**.
+   *
+   * O payload nacional já vem assim e ainda carrega `rank` explícito. O
+   * payload de UF não tem `rank`: lá a ordem deste array é a única fonte do
+   * número exibido na linha, e também de quem é o líder e o 2º colocado nas
+   * derivações de margem e da barra de maioria (`candidatos[0]`/`[1]`).
+   */
+  candidatos: ResultPanelCandidate[];
   /** `pct_apurado_total` do escopo (0–100). */
   pctApurado: number;
   /** Nota de rodapé do painel — a metodologia em uma frase. */
@@ -116,8 +143,8 @@ function ppSemUnidade(valor: number): string {
 
 /** Três segmentos: líder · Outros · 2º, na base pedida. */
 function segmentos(
-  lider: EdgeCandidate,
-  segundo: EdgeCandidate,
+  lider: ResultPanelCandidate,
+  segundo: ResultPanelCandidate,
   base: "atual" | "projetado",
 ): VoteBarSegment[] {
   const a = base === "atual" ? lider.pct_atual : lider.pct_projetado;

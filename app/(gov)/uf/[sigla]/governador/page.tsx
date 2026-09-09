@@ -19,13 +19,14 @@
  * paths que falham de forma independente, com degradação por seção
  * (`<DetailUnavailable>`, sempre no DOM — ADR-0017).
  *
- * Cobertura (após os cortes de 2026-09-08)
- *   - RF-031 (breadcrumb), RF-032 (winner banner), RF-033 (candidate rows),
- *     RF-034 (choropleth UF), RF-037 (municipios table),
- *     RF-043 (forecast transparency).
- *   - DEIXARAM de ter implementação aqui: RF-035/036 (mapas duo), RF-039
- *     (agulha), RF-040/041/042 (séries), RF-044 (insight). A spec 005
- *     regride — sincronização de traceability/status é tarefa separada.
+ * Cobertura (após os cortes de 2026-09-08 e 2026-09-09)
+ *   - RF-033 (candidate rows, agora dentro do `<ResultPanel>`),
+ *     RF-037 (municipios table), RF-043 (forecast transparency).
+ *   - DEIXARAM de ter implementação aqui: RF-031 (breadcrumb) e RF-032
+ *     (winner banner), cortados em 09/09; RF-035/036 (mapas duo), RF-039
+ *     (agulha), RF-040/041/042 (séries), RF-044 (insight), cortados antes. A
+ *     spec 005 regride — sincronização de traceability/status é tarefa
+ *     separada (`spec-syncer`).
  *   - ADR-0001/0010/0012/0013/0017/0021.
  *   - Constituição § 2 (cores via tokens, paleta multi-partido),
  *     § 3 (degrade gracioso), § 8 (transparência metodológica).
@@ -60,6 +61,30 @@
  * `<ForecastTransparency>` (constituição § 8 — toda página com projeção) e
  * `<Footer>` (constituição § 1 — "Não oficial. Fonte: TSE.").
  *
+ * ===== 2026-09-09 — a projeção vira o `<ResultPanel>` do kit (decisão D23) =====
+ * Espelho exato da rota presidencial de UF, pelo mesmo motivo: com o shell de
+ * duas colunas (ADR-0033 § 1) a coluna de painéis mede `--container-sidebar`
+ * (400px), e os seis termômetros do ADR-0018 — desenhados para a página
+ * inteira — sobrepunham os próprios números e truncavam os rótulos ali dentro.
+ * O painel que entra é o MESMO componente da home
+ * (`components/blocks/ResultPanel.tsx`), não uma variante.
+ *
+ * Saíram: `<UFBreadcrumb>` (RF-031), `<WinnerBanner>` (RF-032),
+ * `<TrilhaKicker>` (ADR-0019), `<ProjectionThermometers>` (ADR-0018), as duas
+ * `<Figure>` "Apurado"/"Última atualização" e a `<section
+ * aria-labelledby="candidates-heading">` montada à mão — as três últimas
+ * porque o `<ResultPanel>` as resolve.
+ *
+ * Consequência declarada: brancos, nulos e abstenção saem DESTA TELA. O dado
+ * segue em `EdgePayloadUf.participacao` e o bloco continua íntegro em
+ * `/governador`, onde o ADR-0022 o torna obrigatório. Isto emenda de fato o
+ * ADR-0018 nesta rota; a formalização é trabalho de `adr-author`.
+ *
+ * Ficam, contra o protótipo e por regra de nível mais alto:
+ * `<MunicipioExplorer>`/`<MunicipioTable>` (constituição § 4 — lista textual
+ * paralela ao mapa municipal), `<ForecastTransparency>` (§ 8) e `<Footer>`
+ * (§ 1).
+ *
  * A rota é pré-renderizada estática (27 UFs): nada aqui pode ler
  * `searchParams`, `cookies()` ou `headers()`.
  *
@@ -69,17 +94,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
-import { WinnerBanner } from "@/components/atoms/banners/WinnerBanner";
-import { Figure } from "@/components/atoms/data/Figure";
-import { TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
-import { UFBreadcrumb } from "@/components/atoms/nav/UFBreadcrumb";
 import { DetailFreshness, DetailUnavailable } from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
-import { CandidateResultRow } from "@/components/atoms/tables/CandidateResultRow";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { MunicipioExplorer } from "@/components/blocks/MunicipioExplorer";
 import type { MunicipioRow } from "@/components/blocks/MunicipioTable";
-import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
+import { ResultPanel } from "@/components/blocks/ResultPanel";
 import { Footer } from "@/components/layout/Footer";
 import { municipiosFrom, readUfDetail, type UfDetailResult } from "@/lib/blob/uf-detail";
 import { readUfProjection } from "@/lib/edge-config/reader";
@@ -89,8 +109,6 @@ import type {
   EdgeUfCandidate,
   EdgeUfMunicipio,
 } from "@/lib/edge-config/types";
-import { rankFromColorVar } from "@/lib/utils/cand-color";
-import { formatPercent, formatTimeHMS } from "@/lib/utils/format";
 import govFixture from "@/tests/fixtures/edge-config/gov-current.json" with { type: "json" };
 
 export const revalidate = 60;
@@ -165,16 +183,25 @@ export async function generateMetadata({ params }: UFGovernadorPageProps): Promi
   };
 }
 
-function sortByLeader(candidatos: readonly EdgeUfCandidate[]): EdgeUfCandidate[] {
+/**
+ * DERIVAÇÃO DO RANK — a ordem deste array É o rank exibido. Espelho exato de
+ * `rankByParcial` em `app/(pres)/uf/[sigla]/page.tsx`, onde o raciocínio está
+ * escrito por extenso.
+ *
+ * Resumo: `EdgeUfCandidate` (`lib/edge-config/types.ts:570-588`) não tem
+ * `rank` — o `<ResultPanel>` cai no índice do array e lê `candidatos[0]`/`[1]`
+ * como líder e 2º. Ordena-se por `pct_atual` desc (o apurado, que é o que o
+ * protótipo ordena e o que o leitor confere contra o boletim do TSE), com
+ * `pct_projetado` desc como desempate — sem ele, antes da primeira zona
+ * apurada todos os `pct_atual` são 0 e o "líder" sairia arbitrário — e `id`
+ * asc como desempate estável final.
+ */
+function rankByParcial(candidatos: readonly EdgeUfCandidate[]): EdgeUfCandidate[] {
   return [...candidatos].sort((a, b) => {
+    if (b.pct_atual !== a.pct_atual) return b.pct_atual - a.pct_atual;
     if (b.pct_projetado !== a.pct_projetado) return b.pct_projetado - a.pct_projetado;
     return a.id - b.id;
   });
-}
-
-function leaderProbability(needlePosition: number): number {
-  const probA = (needlePosition + 1) / 2;
-  return Math.max(probA, 1 - probA);
 }
 
 function toMunicipioRows(
@@ -232,8 +259,10 @@ function synthesizeGovUfFromFixture(sigla: string): EdgePayloadUf | null {
     turno: fixture.turno,
     pct_apurado: row.pct_apurado,
     candidatos,
-    // Dev-only: a participação nacional da fixture serve de stand-in; em
-    // produção o payload da UF traz o bloco das zonas da própria UF.
+    // Dev-only. Desde os cortes de 09/09 esta rota não tem mais consumidor
+    // para `participacao` (os termômetros do ADR-0018 saíram); o campo
+    // permanece porque `EdgePayloadUf` o declara e a fixture sintetizada deve
+    // ter a mesma forma do payload real.
     participacao: fixture.national.participacao,
     needle_position: 0.3,
     needle_band: "lean_a",
@@ -254,15 +283,9 @@ function municipioDetailReason(
   return quantidade === 0 ? "empty" : null;
 }
 
-/** Breadcrumb da trilha governador — sem nó nacional (ADR-0019). */
-function govBreadcrumb(sigla: string) {
-  return (
-    <UFBreadcrumb
-      trilha="gov"
-      items={[{ label: "Governadores", href: "/governador" }, { label: sigla }]}
-    />
-  );
-}
+/* O `govBreadcrumb()` saiu em 2026-09-09 (D23) junto com o `<UFBreadcrumb>`:
+ * o protótipo não tem breadcrumb, e a volta para a grade das 27 corridas fica
+ * com o `<CargoTabs>` do shell. */
 
 export default async function UFGovernadorPage({ params }: UFGovernadorPageProps) {
   const { sigla: raw } = await params;
@@ -294,7 +317,6 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
   if (!payload) {
     return (
       <main data-trilha="gov" className="mx-auto flex min-h-screen max-w-page flex-col px-5 py-6">
-        {govBreadcrumb(sigla)}
         <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
           Governador {sigla} — Aguardando dados
         </h1>
@@ -306,9 +328,8 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
     );
   }
 
-  const sortedCandidatos = sortByLeader(payload.candidatos);
-  const lider = sortedCandidatos[0];
-  const pVitoriaLider = leaderProbability(payload.needle_position);
+  // A ordem deste array é o rank exibido — ver `rankByParcial` acima.
+  const rankedCandidatos = rankByParcial(payload.candidatos);
 
   const candidateColor: Record<number, string> = {};
   const candidateShortName: Record<number, string> = {};
@@ -323,9 +344,8 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
 
   const municipioRows = toMunicipioRows(municipios, candidateColor, candidateShortName);
 
-  // Mesma regra de dispatch da home e da UF presidencial (S07/Fase 2).
-  const mode: "binary" | "multi-1t" =
-    payload.turno === 2 || payload.candidatos.length === 2 ? "binary" : "multi-1t";
+  // O dispatch `binary` | `multi-1t` saiu com os termômetros (D23): o
+  // `<ResultPanel>` é o mesmo nos dois turnos — em 2T a lista tem duas linhas.
 
   return (
     <main
@@ -333,9 +353,6 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
       className="mx-auto flex min-h-screen max-w-page flex-col px-4 py-6 md:px-6 md:py-10"
       style={{ gap: "var(--space-8)" }}
     >
-      {/* "Onde estou", com links reais — acima do mapa (ADR-0029 § 1). */}
-      {govBreadcrumb(sigla)}
-
       {/* O coroplético "{sigla} · quem lidera cada município" (RF-034) MUDOU
           DE ENDEREÇO em 2026-09-09 (map-builder): não vive mais aqui — vive
           na coluna do mapa (`<PersistentMapFrame>`, ADR-0033 § 1), que agora
@@ -352,90 +369,23 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
           § 8 v1.2). `model_fallback_tier` segue no schema como @deprecated,
           sem consumidor. */}
 
-      {/* WinnerBanner — a chamada é factual (>=99% apurado), independente da
-          confiança do modelo. Fora de `<Panel>`: se auto-anula. */}
-      {lider && pVitoriaLider >= 0.95 && (
-        <WinnerBanner
-          candidato={lider.nome}
-          partido={lider.partido}
-          ufSigla={sigla}
-          cor={lider.cor}
-          rank={rankFromColorVar(lider.cor)}
-        />
-      )}
-
-      {/* ADR-0019 — kicker de trilha acima do `<h1>`. `crumbs={[sigla]}`
-          mesmo com breadcrumb presente: os textos não coincidem 1:1
-          ("GOVERNADOR · SP" vs. "Governadores › SP"), e um teste de
-          integração fixa esse comportamento. */}
-      <TrilhaKicker trilha="gov" crumbs={[sigla]} className="-mb-4" />
-
-      {/* Seção 2 — a projeção. */}
-      <Panel
-        rule="none"
+      {/* Seção 1 — a projeção, no `<ResultPanel>` do kit (o MESMO componente
+          da home e da rota presidencial de UF). Primeiro conteúdo da coluna de
+          painéis, e por isso com o filete duplo padrão do `<Panel>`: o
+          `rule="none"` da home existe porque lá o `<TrilhaKicker>` desenha o
+          filete, e aqui ele saiu (D23). */}
+      <ResultPanel
+        action={<TurnoBadge turno={payload.turno} />}
+        candidatos={rankedCandidatos}
+        headingLevel={1}
         kicker="Projeção Atlas Menna · não oficial"
+        note="Projeção por regra de três: votos apurados ÷ % apurado em cada município, somados na UF."
+        pctApurado={payload.pct_apurado}
         title={<ResultTitle sigla={sigla} />}
         titleId="resultado-heading"
-        headingLevel={1}
-        action={<TurnoBadge turno={payload.turno} />}
-      >
-        <div className="flex flex-col" style={{ gap: "var(--space-6)" }}>
-          <div className="grid grid-cols-2" style={{ gap: "var(--space-6)" }}>
-            <Figure label="Apurado" value={formatPercent(payload.pct_apurado, 1)} size="md" />
-            <Figure label="Última atualização" value={formatTimeHMS(payload.ts)} size="md" />
-          </div>
+      />
 
-          {/* Hero 1T — seis termômetros (ADR-0018). Em 2T (mode binary) a
-              corrida é literalmente binária e este bloco sai. */}
-          {mode === "multi-1t" && (
-            <ProjectionThermometers
-              candidatos={sortedCandidatos}
-              participacao={payload.participacao}
-              heading={`Projeção do 1º turno — Governador ${sigla}`}
-            />
-          )}
-
-          {/* Linhas de candidato no formato do ADR-0029 § 7. */}
-          <section
-            aria-labelledby="candidates-heading"
-            className="flex flex-col"
-            style={{
-              gap: "var(--space-2)",
-              borderTop: "1px solid var(--border-hairline)",
-              paddingTop: "var(--space-4)",
-            }}
-          >
-            <h2
-              id="candidates-heading"
-              style={{
-                margin: 0,
-                font: "var(--type-kicker)",
-                letterSpacing: "var(--tracking-caps)",
-                textTransform: "uppercase",
-                color: "var(--text-secondary)",
-              }}
-            >
-              Candidatos a governador
-            </h2>
-            <div>
-              {sortedCandidatos.map((c, i) => (
-                <CandidateResultRow
-                  key={c.id}
-                  rank={i + 1}
-                  nome={c.nome}
-                  partido={c.partido}
-                  cor={c.cor}
-                  pctAtual={c.pct_atual}
-                  pctProjetado={c.pct_projetado}
-                  votos={c.votos_atuais ?? null}
-                />
-              ))}
-            </div>
-          </section>
-        </div>
-      </Panel>
-
-      {/* Seção 3 — maiores municípios, ligados à folha do município
+      {/* Seção 2 — maiores municípios, ligados à folha do município
           (`<Sheet>`). É o `BiggestPanel` do protótipo (`App.jsx:353`).
 
           A grade de quadrados (`<MunicipioWaffleGrid>` via `waffleCandidatos`)
@@ -465,7 +415,7 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
         )}
       </Panel>
 
-      {/* Seção 4 — transparência metodológica (RF-043). Constituição § 8
+      {/* Seção 3 — transparência metodológica (RF-043). Constituição § 8
           exige o bloco em toda página com projeção — fica mesmo não estando
           no protótipo. */}
       <Panel kicker="Metodologia">

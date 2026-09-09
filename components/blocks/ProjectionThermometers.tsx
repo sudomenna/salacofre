@@ -260,10 +260,21 @@ export function ProjectionThermometers({
 
   // `participacao-only` só renderiza 2 termômetros (brancos/nulos +
   // abstenção): numa grid de 3 colunas sobrava uma coluna vazia em
-  // `/governador` (achado a11y-perf-auditor 2026-09-05). 2 colunas no
-  // desktop preenche a linha sem deixar buraco; `full` mantém 3 (6 itens =
-  // 2 linhas cheias).
-  const gridColsClass = soCandidatos ? "md:grid-cols-3" : "md:grid-cols-2";
+  // `/governador` (achado a11y-perf-auditor 2026-09-05).
+  //
+  // 2026-09-09 — o `md:grid-cols-2` daquela correção SAIU. `md:` mede a
+  // VIEWPORT, e desde o ADR-0033 § 1 o único call site desta variante
+  // (`/governador`) não vive mais na viewport: vive na coluna de painéis do
+  // `<AppShellSplit>`, que mede `--container-sidebar` (400px) fixos —
+  // 336px de conteúdo. Numa janela de 1280px o `md:` disparava, dava 156px
+  // por coluna e o rótulo "Brancos e nulos" saía truncado em "Brancos e…"
+  // (medido em 1280×900: `scrollWidth` 107 contra `clientWidth` 81). Coluna
+  // única: cada termômetro recebe os 336px e o rótulo cabe inteiro.
+  //
+  // `full` mantém as 3 colunas. Não porque esteja certo naquele contexto, mas
+  // porque a variante não tem nenhum call site desde os cortes de 09/09 —
+  // mudá-la aqui seria alterar um caminho que nenhuma tela exercita.
+  const gridColsClass = soCandidatos ? "md:grid-cols-3" : "";
 
   return (
     <section
@@ -308,7 +319,7 @@ export function ProjectionThermometers({
       </p>
 
       <div
-        className={`grid grid-cols-1 ${gridColsClass}`}
+        className={["grid grid-cols-1", gridColsClass].filter(Boolean).join(" ")}
         style={{ gap: "var(--space-5) var(--space-6)" }}
       >
         {top3.map((c, i) => {

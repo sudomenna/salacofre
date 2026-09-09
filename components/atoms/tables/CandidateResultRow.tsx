@@ -153,7 +153,18 @@ export function CandidateResultRow({
       </span>
 
       <div className="min-w-0">
-        <div className="flex min-w-0 items-center" style={{ gap: "var(--space-2)" }}>
+        {/* `flex-wrap` (2026-09-09): a sigla é `flex-none` e come largura fixa
+            do nome. Na coluna de 400px do `<AppShellSplit>` (ADR-0033 § 1) o
+            nome recebe ~166px, e uma sigla longa — REPUBLICANOS, PODEMOS,
+            SOLIDARIEDADE, todas reais em 2026 — não deixava nem isso: medido
+            em `/uf/RS/governador` a 1280×900, "Gov RS REPUBLICANOS" precisava
+            de 174px e recebia 49px, virando "Gov …".
+
+            Com a quebra, a sigla desce para a segunda linha SÓ quando as duas
+            não cabem juntas; enquanto couberem, a linha é idêntica à de antes
+            — a home, onde as siglas são curtas, não muda em nenhuma linha. É
+            um alívio condicional, não um layout novo. */}
+        <div className="flex min-w-0 flex-wrap items-center" style={{ gap: "var(--space-2)" }}>
           <span
             className="truncate"
             style={{
@@ -244,13 +255,37 @@ export function CandidateResultRow({
 }
 
 /**
+ * O que este adaptador realmente lê de um candidato.
+ *
+ * É o subconjunto comum a `EdgeCandidate` (payload nacional) e a
+ * `EdgeUfCandidate` (drill-down de UF): o segundo é, por definição do
+ * `lib/edge-config/types.ts`, um subset do primeiro — não tem `p_vitoria`,
+ * `p_passa_2t`, `p_fecha_1t`, os limites do CI nem **`rank`**. Nenhum desses
+ * campos é usado aqui.
+ *
+ * Declarar o subconjunto (em vez de exigir `EdgeCandidate`) é o que permite as
+ * rotas de UF reaproveitarem `<ResultPanel>` sem uma segunda variante do
+ * painel. `rank` fica opcional exatamente porque a UF não o tem — daí o
+ * `fallbackRank` abaixo deixar de ser um caso de payload legado e passar a ser
+ * o caminho normal daquelas rotas.
+ */
+export type CandidateResultRowSource = Pick<
+  EdgeCandidate,
+  "nome" | "partido" | "cor" | "pct_atual" | "pct_projetado" | "votos_atuais"
+> & { rank?: number };
+
+/**
  * Adaptador para o shape do payload — evita repetir o mesmo mapeamento em
- * `<CandidateRanking>` e `<MinorCandidatesList>`. `rank` cai para
- * `fallbackRank` em payloads pré-S05, que não trazem a chave (o array já vem
- * ordenado por `pct_projetado` desc desde a S04).
+ * `<CandidateRanking>`, `<MinorCandidatesList>` e `<ResultPanel>`.
+ *
+ * `rank` cai para `fallbackRank` em dois casos: payloads nacionais pré-S05,
+ * que não traziam a chave (o array já vinha ordenado por `pct_projetado` desc
+ * desde a S04), e o payload de UF, que **nunca** a traz. Nos dois, quem chama
+ * é responsável por passar o array já na ordem do ranking — o índice + 1 É o
+ * rank exibido.
  */
 export function candidateResultRowProps(
-  candidato: EdgeCandidate,
+  candidato: CandidateResultRowSource,
   fallbackRank: number,
   compact = false,
 ): CandidateResultRowProps {

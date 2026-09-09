@@ -233,15 +233,10 @@ describe("UFGovernadorPage (integration / smoke)", () => {
     expect(h1).toHaveLength(1);
     expect(h1[0]?.textContent).toContain("Governador SP — Resultado parcial");
     expect(h1[0]?.textContent).toContain("Governador SP — Projeção Atlas Menna");
-    // ADR-0019: breadcrumb passa a mostrar a profundidade real da trilha
-    // governador (que não tem nó nacional), preservando o link de volta.
-    const crumbs = [...doc.querySelectorAll('nav[aria-label="Breadcrumb"] li')].map((li) =>
-      li.textContent?.replace(/[\s›]+/g, " ").trim(),
-    );
-    expect(crumbs).toEqual(["Governadores", "SP"]);
-    expect(doc.querySelector('nav[aria-label="Breadcrumb"] a')?.getAttribute("href")).toBe(
-      "/governador",
-    );
+    // 2026-09-09 (decisão D23): o `<UFBreadcrumb>` (RF-031) saiu — não existe
+    // no protótipo do kit. A volta para a grade das 27 corridas fica com o
+    // `<CargoTabs>` do shell (`app/layout.tsx`), que este teste não monta.
+    expect(doc.querySelector('nav[aria-label="Breadcrumb"]')).toBeNull();
   });
 
   // 2026-09-08 — a grade de quadrados (`<MunicipioWaffleGrid>`) saiu desta
@@ -302,7 +297,13 @@ describe("UFGovernadorPage (integration / smoke)", () => {
   // S07/Fase 2 — ADR-0018 (hero 1T) + ADR-0019 (trilha gov).
   // -------------------------------------------------------------------------
 
-  it("(i) 1T com mais de dois candidatos → seis termômetros", async () => {
+  // 2026-09-09 (decisão D23): os seis termômetros do ADR-0018 SAÍRAM desta
+  // rota — na coluna de 400px do `<AppShellSplit>` eles sobrepunham os
+  // próprios números. Entrou o `<ResultPanel>` do kit, o MESMO componente da
+  // home. Consequência declarada e aceita: brancos, nulos e abstenção saem
+  // desta tela; o bloco continua obrigatório (ADR-0022) em `/governador`, onde
+  // é testado.
+  it("(i) 1T com mais de dois candidatos → `<ResultPanel>`, sem termômetros", async () => {
     mockUf({
       municipios: 10,
       withMesorregioes: false,
@@ -312,13 +313,20 @@ describe("UFGovernadorPage (integration / smoke)", () => {
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
 
-    const bloco = doc.querySelector('section[aria-labelledby="projecao-termometros-heading"]');
-    expect(bloco?.querySelectorAll('[role="meter"]')).toHaveLength(6);
-    expect(doc.body.textContent).toContain("Projeção do 1º turno — Governador SP");
-    // Top 3 da corrida estadual, não do nacional.
-    expect(doc.querySelector("#termometro-cand-1")).not.toBeNull();
-    expect(doc.querySelector("#termometro-cand-3")).not.toBeNull();
-    expect(doc.querySelector("#termometro-cand-4")).toBeNull();
+    expect(doc.querySelector('section[aria-labelledby="projecao-termometros-heading"]')).toBeNull();
+    expect(doc.querySelectorAll('[id^="termometro-"]')).toHaveLength(0);
+    expect(doc.body.textContent).not.toContain("Projeção do 1º turno — Governador SP");
+
+    // O painel do kit: `<Figure>` "Apurado" + margem do líder, e uma linha por
+    // candidato da corrida ESTADUAL.
+    const figuras = [...doc.querySelectorAll('[data-testid="figure-label"]')].map(
+      (f) => f.textContent,
+    );
+    expect(figuras).toContain("Apurado");
+    expect(doc.querySelector('[data-testid="result-margem-parcial"]')).not.toBeNull();
+    expect(
+      doc.querySelectorAll('[data-testid="candidate-result-row"]').length,
+    ).toBeGreaterThanOrEqual(3);
   });
 
   it("(j) duelo (2 candidatos) e 2º turno → sem termômetros", async () => {
@@ -340,15 +348,17 @@ describe("UFGovernadorPage (integration / smoke)", () => {
     expect(html).toContain('data-testid="candidate-result-row"');
   });
 
-  it("(k) trilha gov: main[data-trilha=gov] + kicker 'GOVERNADOR · SP'", async () => {
+  // 2026-09-09 (D23): o `<TrilhaKicker>` (ADR-0019) saiu — não existe no
+  // protótipo. Resta a identidade da trilha no `<main>`, que o CSS usa, e o
+  // `<h1>` do painel, que nomeia cargo e UF.
+  it("(k) trilha gov: main[data-trilha=gov], sem kicker de trilha", async () => {
     mockUf({ municipios: 10, withMesorregioes: false });
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
     const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
 
     expect(doc.querySelector("main")?.getAttribute("data-trilha")).toBe("gov");
-    expect(
-      doc.querySelector("[data-trilha-kicker]")?.textContent?.replace(/\s+/g, " ").trim(),
-    ).toBe("GOVERNADOR · SP");
+    expect(doc.querySelector("[data-trilha-kicker]")).toBeNull();
+    expect(doc.querySelector("h1")?.textContent).toContain("Governador SP");
   });
 
   it("(h) pré-eleição (payload null) renderiza fallback gentil", async () => {
@@ -380,25 +390,21 @@ describe("UFGovernadorPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
     expect(doc.querySelectorAll("footer")).toHaveLength(1);
   });
 
-  it("(m) o breadcrumb é o primeiro conteúdo, antes do painel de resultado — o mapa saiu desta página", async () => {
+  it("(m) o `<ResultPanel>` é o primeiro conteúdo — o mapa e o breadcrumb saíram desta página", async () => {
     // 2026-09-09 (map-builder): o coroplético "{sigla} · quem lidera cada
     // município" (`section[aria-labelledby="leader-map-heading"]`) MUDOU DE
     // ENDEREÇO — foi para a coluna do mapa (`<PersistentMapFrame>`,
     // ADR-0033 § 1), que não é renderizada por este teste (ele monta só
-    // `<UFGovernadorPage>`, não o `layout.tsx` que hospeda a moldura). Esta
-    // página não deve mais conter aquele `<section>`.
+    // `<UFGovernadorPage>`, não o `layout.tsx` que hospeda a moldura).
+    //
+    // 2026-09-09 (D23): o `<UFBreadcrumb>` saiu, e com ele o que este teste
+    // fixava como "primeiro conteúdo". O primeiro conteúdo passa a ser o
+    // painel de resultado.
     const doc = await renderGov();
-    const mapa = doc.querySelector('section[aria-labelledby="leader-map-heading"]');
-    const breadcrumb = doc.querySelector('nav[aria-label="Breadcrumb"]');
-    const painel = doc.querySelector("#resultado-heading");
-    expect(mapa).toBeNull();
-    expect(breadcrumb).not.toBeNull();
-    expect(painel).not.toBeNull();
-    expect(
-      breadcrumb &&
-        painel &&
-        breadcrumb.compareDocumentPosition(painel) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(doc.querySelector('section[aria-labelledby="leader-map-heading"]')).toBeNull();
+    expect(doc.querySelector('nav[aria-label="Breadcrumb"]')).toBeNull();
+    const paineis = [...doc.querySelectorAll('[data-testid="panel"]')];
+    expect(paineis[0]?.getAttribute("aria-labelledby")).toBe("resultado-heading");
   });
 
   it("(n) exatamente um <h1>, e ele é o título do painel de resultado", async () => {

@@ -39,10 +39,10 @@
 
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { Protocol } from "pmtiles";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { MapView } from "@/components/atoms/controls/MapViewToggle";
+import { registerPmtilesProtocolOnce, resetPmtilesProtocol } from "@/components/atoms/maps/_pmtiles-protocol";
 import { HoverCard, type HoverCardRow } from "@/components/atoms/overlays/HoverCard";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { useHoverStore } from "@/lib/state/hover-store";
@@ -297,7 +297,13 @@ function buildHoverRows(
   });
 }
 
-let protocolRegistered = false;
+/**
+ * Prazo pra `map.isStyleLoaded()` virar `true` antes de tratarmos o mapa
+ * como travado e acionar o self-heal (`resetPmtilesProtocol`). 10s é
+ * generoso pra um fetch de header de ~500KB (ufs.pmtiles) mesmo em rede
+ * ruim — ver docstring de `_pmtiles-protocol.ts` pra causa raiz.
+ */
+const STYLE_LOAD_TIMEOUT_MS = 10_000;
 
 export function NationalChoroplethMapImpl({
   rows,
@@ -338,12 +344,9 @@ export function NationalChoroplethMapImpl({
   // mapa é "ilha React" e não remonta a cada mudança de prop.
   useEffect(() => {
     if (!containerRef.current) return;
+    const container = containerRef.current;
 
-    if (!protocolRegistered) {
-      const protocol = new Protocol();
-      maplibregl.addProtocol("pmtiles", protocol.tile);
-      protocolRegistered = true;
-    }
+    registerPmtilesProtocolOnce();
 
     // A11y RNF-026: respeita prefers-reduced-motion (constituição § 4).
     // Anula a transição de fill-color que anima trocas de view (winner→margin etc).
@@ -354,134 +357,178 @@ export function NationalChoroplethMapImpl({
       ? { duration: 0, delay: 0 }
       : { duration: 600, delay: 0 };
 
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: {
-        version: 8,
-        glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-        sources: {
-          ufs: {
-            type: "vector",
-            url: `pmtiles://${PMTILES_BASE}/ufs.pmtiles`,
+    let hangTimer: number | undefined;
+    let attempt = 0;
+    let cancelled = false;
+
+    // Self-heal (2026-09-09, ver `_pmtiles-protocol.ts`): pmtiles@4.4.1
+    // cacheia pra sempre uma Promise de header/diretório que falhe ou nunca
+    // assente, e o `Protocol` registrado por `registerPmtilesProtocolOnce`
+    // vive pela sessão inteira da aba — uma única falha de rede na 1ª vez
+    // que ALGUM mapa pediu `ufs.pmtiles` nessa aba trava esse mapa (e
+    // qualquer outro que reuse a mesma URL) pra sempre, sem emitir `error`.
+    // `mount()` é reentrante: se o estilo não carregar em
+    // `STYLE_LOAD_TIMEOUT_MS`, descartamos o `Protocol` poluído e tentamos
+    // de novo (uma única vez) com cache limpo.
+    function mount(): maplibregl.Map {
+      attempt += 1;
+      const map = new maplibregl.Map({
+        container,
+        style: {
+          version: 8,
+          glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+          sources: {
+            ufs: {
+              type: "vector",
+              url: `pmtiles://${PMTILES_BASE}/ufs.pmtiles`,
+            },
           },
+          layers: [
+            {
+              id: "ufs-fill",
+              type: "fill",
+              source: "ufs",
+              "source-layer": "ufs",
+              paint: {
+                // Cor inicial "sem apuração" (S07/Bloco 1: era --color-tossup,
+                // semântica errada pro estado "ainda sem dado"); applyColors
+                // substitui via setPaintProperty com expression
+                // `["match", ["get", "SIGLA_UF"], ...]` assim que `rows` chega.
+                "fill-color": getCssVar("--map-uncounted") || "#e1e4e8",
+                "fill-color-transition": fillTransition,
+                "fill-opacity": 0.88,
+              },
+            },
+            {
+              id: "ufs-stroke",
+              type: "line",
+              source: "ufs",
+              "source-layer": "ufs",
+              paint: {
+                // Traço cor de papel do design system Atlas Menna (S07/Bloco 1).
+                "line-color": getCssVar("--map-stroke") || "#fbfbfc",
+                "line-width": 0.8,
+              },
+            },
+            {
+              id: "ufs-stroke-hover",
+              type: "line",
+              source: "ufs",
+              "source-layer": "ufs",
+              paint: {
+                "line-color": getCssVar("--map-stroke-focus") || "#14171b",
+                "line-width": 2.5,
+              },
+              filter: ["==", "SIGLA_UF", ""],
+            },
+          ],
         },
-        layers: [
-          {
-            id: "ufs-fill",
-            type: "fill",
-            source: "ufs",
-            "source-layer": "ufs",
-            paint: {
-              // Cor inicial "sem apuração" (S07/Bloco 1: era --color-tossup,
-              // semântica errada pro estado "ainda sem dado"); applyColors
-              // substitui via setPaintProperty com expression
-              // `["match", ["get", "SIGLA_UF"], ...]` assim que `rows` chega.
-              "fill-color": getCssVar("--map-uncounted") || "#e1e4e8",
-              "fill-color-transition": fillTransition,
-              "fill-opacity": 0.88,
-            },
-          },
-          {
-            id: "ufs-stroke",
-            type: "line",
-            source: "ufs",
-            "source-layer": "ufs",
-            paint: {
-              // Traço cor de papel do design system Atlas Menna (S07/Bloco 1).
-              "line-color": getCssVar("--map-stroke") || "#fbfbfc",
-              "line-width": 0.8,
-            },
-          },
-          {
-            id: "ufs-stroke-hover",
-            type: "line",
-            source: "ufs",
-            "source-layer": "ufs",
-            paint: {
-              "line-color": getCssVar("--map-stroke-focus") || "#14171b",
-              "line-width": 2.5,
-            },
-            filter: ["==", "SIGLA_UF", ""],
-          },
-        ],
-      },
-      bounds: [-73.99, -33.75, -28.84, 5.27],
-      fitBoundsOptions: { padding: 20 },
-      attributionControl: false,
-      dragRotate: false,
-      touchPitch: false,
-      // UX: scroll do mouse na página NÃO deve dar zoom no mapa embedded —
-      // usuário rolando vê página rolar, não mapa ampliar. Pinch em mobile
-      // continua funcionando via touchZoom (default true).
-      scrollZoom: false,
-    });
+        bounds: [-73.99, -33.75, -28.84, 5.27],
+        fitBoundsOptions: { padding: 20 },
+        attributionControl: false,
+        dragRotate: false,
+        touchPitch: false,
+        // UX: scroll do mouse na página NÃO deve dar zoom no mapa embedded —
+        // usuário rolando vê página rolar, não mapa ampliar. Pinch em mobile
+        // continua funcionando via touchZoom (default true).
+        scrollZoom: false,
+      });
 
-    mapRef.current = map;
+      mapRef.current = map;
 
-    map.on("load", () => {
-      // Use latest refs at load time
-      applyColors(
-        map,
-        Array.from(rowsMapRef.current.values()),
-        viewRef.current,
-        rankByLiderRef.current,
-        candidatosByIdRef.current,
-        viewModeRef.current,
-      );
-    });
-
-    // Hover: highlight + tooltip (RF-030.3) + brushing (hover-store producer,
-    // `type: "uf"` — S07/Bloco 1). Throttle: mesmo padrão de ChoroplethMapUF.tsx.
-    const onMouseMove = throttle(
-      (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
-        const feature = e.features?.[0];
-        if (!feature) return;
-        const sigla = feature.properties?.SIGLA_UF as string | undefined;
-        if (!sigla) return;
-
-        useHoverStore.getState().setHovered({ type: "uf", sigla }, "map");
-        map.setFilter("ufs-stroke-hover", ["==", "SIGLA_UF", sigla]);
-        const row = rowsMapRef.current.get(sigla);
-        if (row) {
-          const rect = containerRef.current?.getBoundingClientRect();
-          const x = e.originalEvent.clientX - (rect?.left ?? 0);
-          const y = e.originalEvent.clientY - (rect?.top ?? 0);
-          setTooltip({
-            x,
-            y,
-            // Vira o cartão pra esquerda perto da borda direita do mapa.
-            flip: rect ? x > rect.width / 2 : false,
-            sigla,
-            row,
-          });
+      hangTimer = window.setTimeout(() => {
+        if (cancelled || map.isStyleLoaded()) return;
+        if (attempt >= 2) {
+          console.error(
+            "[NationalChoroplethMap] estilo pmtiles não carregou após retry — ver components/atoms/maps/_pmtiles-protocol.ts",
+          );
+          return;
         }
-        map.getCanvas().style.cursor = "pointer";
-      },
-      16,
-    );
-    map.on("mousemove", "ufs-fill", onMouseMove);
+        console.warn(
+          "[NationalChoroplethMap] estilo não carregou em " +
+            `${STYLE_LOAD_TIMEOUT_MS}ms — reinicializando protocolo pmtiles (retry ${attempt})`,
+        );
+        resetPmtilesProtocol();
+        map.remove();
+        mount();
+      }, STYLE_LOAD_TIMEOUT_MS);
 
-    map.on("mouseleave", "ufs-fill", () => {
-      useHoverStore.getState().clear();
-      map.setFilter("ufs-stroke-hover", ["==", "SIGLA_UF", ""]);
-      setTooltip(null);
-      map.getCanvas().style.cursor = "";
-    });
+      map.on("load", () => {
+        window.clearTimeout(hangTimer);
+        // Use latest refs at load time
+        applyColors(
+          map,
+          Array.from(rowsMapRef.current.values()),
+          viewRef.current,
+          rankByLiderRef.current,
+          candidatosByIdRef.current,
+          viewModeRef.current,
+        );
+      });
 
-    // Click: abre a folha de resumo da UF (RF-030.3, decisão 2026-09-08 — ver
-    // docstring do topo do arquivo). Também emite pro hover-store (mesmo
-    // padrão de tap-to-select do ChoroplethMapUF.tsx) — em touch não há
-    // mousemove antes do tap. `onSelectUfRef` porque este efeito roda só na
-    // montagem (mesmo padrão de `routerRef` antes dele).
-    map.on("click", "ufs-fill", (e) => {
-      const sigla = e.features?.[0]?.properties?.SIGLA_UF as string | undefined;
-      if (!sigla) return;
-      useHoverStore.getState().setHovered({ type: "uf", sigla }, "map");
-      onSelectUfRef.current?.(sigla);
-    });
+      // Hover: highlight + tooltip (RF-030.3) + brushing (hover-store producer,
+      // `type: "uf"` — S07/Bloco 1). Throttle: mesmo padrão de ChoroplethMapUF.tsx.
+      const onMouseMove = throttle(
+        (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+          const feature = e.features?.[0];
+          if (!feature) return;
+          const sigla = feature.properties?.SIGLA_UF as string | undefined;
+          if (!sigla) return;
 
+          useHoverStore.getState().setHovered({ type: "uf", sigla }, "map");
+          map.setFilter("ufs-stroke-hover", ["==", "SIGLA_UF", sigla]);
+          const row = rowsMapRef.current.get(sigla);
+          if (row) {
+            const rect = container.getBoundingClientRect();
+            const x = e.originalEvent.clientX - rect.left;
+            const y = e.originalEvent.clientY - rect.top;
+            setTooltip({
+              x,
+              y,
+              // Vira o cartão pra esquerda perto da borda direita do mapa.
+              flip: x > rect.width / 2,
+              sigla,
+              row,
+            });
+          }
+          map.getCanvas().style.cursor = "pointer";
+        },
+        16,
+      );
+      map.on("mousemove", "ufs-fill", onMouseMove);
+
+      map.on("mouseleave", "ufs-fill", () => {
+        useHoverStore.getState().clear();
+        map.setFilter("ufs-stroke-hover", ["==", "SIGLA_UF", ""]);
+        setTooltip(null);
+        map.getCanvas().style.cursor = "";
+      });
+
+      // Click: abre a folha de resumo da UF (RF-030.3, decisão 2026-09-08 — ver
+      // docstring do topo do arquivo). Também emite pro hover-store (mesmo
+      // padrão de tap-to-select do ChoroplethMapUF.tsx) — em touch não há
+      // mousemove antes do tap. `onSelectUfRef` porque este efeito roda só na
+      // montagem (mesmo padrão de `routerRef` antes dele).
+      map.on("click", "ufs-fill", (e) => {
+        const sigla = e.features?.[0]?.properties?.SIGLA_UF as string | undefined;
+        if (!sigla) return;
+        useHoverStore.getState().setHovered({ type: "uf", sigla }, "map");
+        onSelectUfRef.current?.(sigla);
+      });
+
+      return map;
+    }
+
+    mount();
+
+    // `mapRef.current` (não a variável local do 1º `mount()`) porque um
+    // retry do self-heal troca a instância viva sem que este cleanup saiba —
+    // remover a instância antiga (já destruída dentro do próprio retry)
+    // seria um `map.remove()` duplicado.
     return () => {
-      map.remove();
+      cancelled = true;
+      window.clearTimeout(hangTimer);
+      mapRef.current?.remove();
       mapRef.current = null;
     };
   }, []);

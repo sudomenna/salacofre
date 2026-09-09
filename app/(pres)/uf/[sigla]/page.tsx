@@ -23,16 +23,16 @@
  * Fallback: quando reader retorna `null` (pré-eleição / Edge Config vazio),
  * renderiza mensagem "Aguardando dados" — UX não quebra (constituição § 3).
  *
- * RFs cobertos (após os cortes de 2026-09-08 — ver a seção do protótipo no
- * fim deste bloco):
- *   RF-031 (breadcrumb), RF-032 (winner banner), RF-033 (candidate rows),
- *   RF-034 (choropleth UF), RF-037 (municipios table),
- *   RF-043 (forecast transparency).
+ * RFs cobertos (após os cortes de 2026-09-08 e os de 2026-09-09 — ver as duas
+ * seções do protótipo no fim deste bloco):
+ *   RF-033 (candidate rows, agora dentro do `<ResultPanel>`),
+ *   RF-037 (municipios table), RF-043 (forecast transparency).
  *
- * DEIXARAM de ter implementação nesta rota: RF-035, RF-036 (mapas duo),
- * RF-038 (swing arrows), RF-039 (agulha estadual), RF-040, RF-041, RF-042
- * (séries) e RF-044 (insight). A spec 004 regride — sincronização de
- * traceability/status é tarefa separada.
+ * DEIXARAM de ter implementação nesta rota: RF-031 (breadcrumb) e RF-032
+ * (winner banner), cortados em 09/09; RF-035, RF-036 (mapas duo), RF-038
+ * (swing arrows), RF-039 (agulha estadual), RF-040, RF-041, RF-042 (séries) e
+ * RF-044 (insight), cortados antes. A spec 004 regride — sincronização de
+ * traceability/status é tarefa separada (`spec-syncer`).
  *
  * S07/Fase 2
  *   - Dispatch de modo idêntico ao da home: `binary` quando `turno === 2`
@@ -77,6 +77,43 @@
  * `<ForecastTransparency>` (constituição § 8 — toda página com projeção) e
  * `<Footer>` (constituição § 1 — "Não oficial. Fonte: TSE.").
  *
+ * ===== 2026-09-09 — a projeção vira o `<ResultPanel>` do kit (decisão D23) =====
+ * Esta rota recebe o MESMO painel que a home já usa desde `b7c1bbb`
+ * (`components/blocks/ResultPanel.tsx`), e não uma segunda variante dele. O
+ * motivo imediato foi de layout: com o shell de duas colunas (ADR-0033 § 1), a
+ * coluna de painéis mede `--container-sidebar` (400px), e os seis termômetros
+ * do ADR-0018 — desenhados para a página inteira — passaram a se sobrepor e a
+ * truncar os próprios rótulos ali dentro.
+ *
+ * Saíram desta rota (decisão D23 do usuário — o que o protótipo não tem):
+ *
+ *   - `<UFBreadcrumb>` (RF-031) — o protótipo não tem breadcrumb; a
+ *     orientação "onde estou" fica com o `<CargoTabs>` do shell e com o
+ *     título do painel, que nomeia a UF.
+ *   - `<WinnerBanner>` (RF-032) — sem contraparte no protótipo.
+ *   - `<TrilhaKicker>` (ADR-0019) — idem. Com ele fora, o `<ResultPanel>`
+ *     volta ao filete duplo padrão do `<Panel>` (era `rule="none"` porque o
+ *     kicker desenhava o filete da seção).
+ *   - `<ProjectionThermometers>` (ADR-0018) — dá lugar ao `<ResultPanel>`.
+ *     Consequência declarada, a mesma que a home aceitou em 09/09: brancos,
+ *     nulos e abstenção saem DESTA TELA. O dado segue em
+ *     `EdgePayloadUf.participacao`, e o bloco continua íntegro em
+ *     `/governador` (onde o ADR-0022 o torna obrigatório). Isto emenda de fato
+ *     o ADR-0018 nesta rota; a formalização é trabalho de `adr-author`.
+ *   - As duas `<Figure>` "Apurado" e "Última atualização" e a `<section
+ *     aria-labelledby="candidates-heading">` montada à mão — o `<ResultPanel>`
+ *     resolve as três: "Apurado" com a nota "X de Y votos válidos", "Margem
+ *     <líder>" no lugar do relógio, e a lista de candidatos com `variant="kit"`.
+ *
+ * Ficam, contra o protótipo e por regra de nível mais alto:
+ * `<MunicipioExplorer>`/`<MunicipioTable>` (constituição § 4 — é a lista
+ * textual paralela do mapa municipal, que no protótipo seria "Maiores colégios
+ * eleitorais"), `<ForecastTransparency>` (§ 8) e `<Footer>` (§ 1).
+ *
+ * O `<h1>` continua único e continua sendo o título do painel de resultado
+ * (ADR-0029 § 5), alternando "Resultado parcial" / "Projeção Atlas Menna" por
+ * CASCATA (`data-view-only`), nunca por estado React.
+ *
  * A rota é pré-renderizada estática (27 UFs × 2 trilhas): nada aqui pode ler
  * `searchParams`, `cookies()` ou `headers()`.
  */
@@ -84,17 +121,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
-import { WinnerBanner } from "@/components/atoms/banners/WinnerBanner";
-import { Figure } from "@/components/atoms/data/Figure";
-import { TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
-import { UFBreadcrumb } from "@/components/atoms/nav/UFBreadcrumb";
 import { DetailFreshness, DetailUnavailable } from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
-import { CandidateResultRow } from "@/components/atoms/tables/CandidateResultRow";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { MunicipioExplorer } from "@/components/blocks/MunicipioExplorer";
 import type { MunicipioRow } from "@/components/blocks/MunicipioTable";
-import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
+import { ResultPanel } from "@/components/blocks/ResultPanel";
 import { Footer } from "@/components/layout/Footer";
 import { municipiosFrom, readUfDetail, type UfDetailResult } from "@/lib/blob/uf-detail";
 import { currentRace } from "@/lib/config/calendar";
@@ -105,8 +137,6 @@ import type {
   EdgeUfCandidate,
   EdgeUfMunicipio,
 } from "@/lib/edge-config/types";
-import { rankFromColorVar } from "@/lib/utils/cand-color";
-import { formatPercent, formatTimeHMS } from "@/lib/utils/format";
 import nationalFixture from "@/tests/fixtures/edge-config/projection-current.json" with {
   type: "json",
 };
@@ -198,26 +228,36 @@ export async function generateMetadata({ params }: UFPageProps): Promise<Metadat
 }
 
 /**
- * Ordena candidatos por `pct_projetado` desc, tie-breaker por `id` asc.
- * Mesma convenção do nacional (carry-over F0.1 S04). Quando o EdgePayloadUf
- * for enriquecido com `candidato_a_id`/`candidato_b_id`, podemos pegar
- * direto do payload — por ora derivamos.
+ * DERIVAÇÃO DO RANK — a ordem deste array É o rank exibido.
+ *
+ * `EdgeUfCandidate` (`lib/edge-config/types.ts:570-588`) é, por definição, um
+ * subset do `EdgeCandidate` nacional: tem `votos_atuais`, `pct_atual`,
+ * `pct_projetado` e `ci95`, mas **não tem `rank`**. O `<ResultPanel>` cai no
+ * índice do array quando a chave está ausente (`candidateResultRowProps(c, i +
+ * 1)`), e lê `candidatos[0]`/`[1]` como líder e 2º colocado para a figura de
+ * margem e para a barra de maioria. Ou seja: ordenar aqui é derivar o rank.
+ *
+ * Critério primário: **`pct_atual` desc** — o resultado APURADO, que é o
+ * número que o leitor confere contra o boletim do TSE, e é sobre `pct` que o
+ * protótipo ordena (`ui_kits/atlas-menna/App.jsx:22`, `rows[0]`/`rows[1]`).
+ *
+ * Dois desempates, e nenhum é cosmético:
+ *
+ *   1. `pct_projetado` desc. Antes da primeira zona apurada TODOS os
+ *      `pct_atual` valem 0 e o critério primário não separa ninguém; sem este
+ *      desempate a ordem cairia na do array de origem e a página abriria a
+ *      noite eleitoral com um "líder" arbitrário — na numeração, na margem e
+ *      na barra. `pct_projetado` carrega o prior pré-eleitoral e é a única
+ *      leitura disponível nesse instante. (Era o critério primário até 09/09.)
+ *   2. `id` asc — desempate estável final, a mesma convenção do payload
+ *      nacional (`EdgeNational.candidatos`).
  */
-function sortByLeader(candidatos: readonly EdgeUfCandidate[]): EdgeUfCandidate[] {
+function rankByParcial(candidatos: readonly EdgeUfCandidate[]): EdgeUfCandidate[] {
   return [...candidatos].sort((a, b) => {
+    if (b.pct_atual !== a.pct_atual) return b.pct_atual - a.pct_atual;
     if (b.pct_projetado !== a.pct_projetado) return b.pct_projetado - a.pct_projetado;
     return a.id - b.id;
   });
-}
-
-/**
- * Computa probabilidade do líder a partir de `needle_position` em [-1, 1].
- *   probA = (position + 1) / 2  → líder favorito quando >= 0.5.
- * p_vitoria_lider = max(probA, 1 - probA).
- */
-function leaderProbability(needlePosition: number): number {
-  const probA = (needlePosition + 1) / 2;
-  return Math.max(probA, 1 - probA);
 }
 
 /**
@@ -247,10 +287,10 @@ function synthesizeUfFromNational(sigla: string): EdgePayloadUf | null {
       pct_projetado: c.pct_projetado,
       ci95: { lower: c.pct_projetado_lower, upper: c.pct_projetado_upper },
     })),
-    // Dev-only: reaproveita o bloco `participacao` nacional para que os
-    // termômetros de brancos/nulos e abstenção rendam algo em `pnpm dev`
-    // sem Edge Config. Em produção o payload da UF traz o bloco calculado
-    // sobre as zonas da própria UF.
+    // Dev-only. Desde os cortes de 09/09 esta rota não tem mais consumidor
+    // para `participacao` (os termômetros do ADR-0018 saíram, ver o cabeçalho
+    // do arquivo); o campo continua aqui porque `EdgePayloadUf` o declara e a
+    // fixture sintetizada deve ter a mesma forma do payload real.
     participacao: national.national.participacao,
     needle_position: row.lider === national.national.candidato_a_id ? 0.4 : -0.4,
     needle_band: "lean_a",
@@ -336,7 +376,9 @@ export default async function UFPage({ params }: UFPageProps) {
   if (!payload) {
     return (
       <main data-trilha="pres" className="mx-auto flex min-h-screen max-w-page flex-col px-5 py-6">
-        <UFBreadcrumb trilha="pres" items={[{ label: "Brasil", href: "/" }, { label: sigla }]} />
+        {/* O `<UFBreadcrumb>` saiu daqui junto com o da página cheia (D23):
+            manter a navegação só no caminho de erro deixaria duas gramáticas
+            para a mesma rota. Quem volta usa o `<CargoTabs>` do shell. */}
         <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
           {sigla} — Aguardando dados
         </h1>
@@ -348,14 +390,12 @@ export default async function UFPage({ params }: UFPageProps) {
     );
   }
 
-  const sortedCandidatos = sortByLeader(payload.candidatos);
-  const lider = sortedCandidatos[0];
-  const pVitoriaLider = leaderProbability(payload.needle_position);
+  // A ordem deste array é o rank exibido — ver `rankByParcial` acima.
+  const rankedCandidatos = rankByParcial(payload.candidatos);
 
-  // Mesma regra da home (S07/Fase 2): 2T ou duelo → binary; 1T
-  // multi-candidato → multi-1t (hero de termômetros, ADR-0018).
-  const mode: "binary" | "multi-1t" =
-    payload.turno === 2 || payload.candidatos.length === 2 ? "binary" : "multi-1t";
+  // O dispatch `binary` | `multi-1t` saiu com os termômetros (D23): o
+  // `<ResultPanel>` é o mesmo nos dois turnos — em 2T a corrida tem dois
+  // candidatos e a lista simplesmente tem duas linhas.
 
   // Maps de id → cor / nome curto para os componentes de mapa+tabela.
   const candidateColor: Record<number, string> = {};
@@ -380,13 +420,6 @@ export default async function UFPage({ params }: UFPageProps) {
       // separação editorial é feita pelo filete e pelo kicker do `<Panel>`.
       style={{ gap: "var(--space-8)" }}
     >
-      {/* RF-031 — "onde estou", com links reais. Fica acima do mapa: é uma
-          linha, e o mapa sem ela abriria a página sem nenhuma âncora de
-          navegação. O `<TrilhaKicker>` mais abaixo carrega só o rótulo da
-          trilha, sem repetir "Brasil › SP" (achado 2 do a11y-perf-auditor,
-          2026-09-05). */}
-      <UFBreadcrumb trilha="pres" items={[{ label: "Brasil", href: "/" }, { label: sigla }]} />
-
       {/* O coroplético "{sigla} · quem lidera cada município" (RF-034)
           MUDOU DE ENDEREÇO em 2026-09-09 (map-builder): não vive mais aqui —
           vive na coluna do mapa (`<PersistentMapFrame>`, ADR-0033 § 1), que
@@ -395,96 +428,27 @@ export default async function UFPage({ params }: UFPageProps) {
           desta seção não tinha nada além do mapa e do aviso de indisponível
           — os dois migraram juntos; nada ficou órfão. */}
 
-      {/* RF-032: Winner banner quando p_vitoria_lider >= 0.95.
-          S06/F4d — em mode 2T (`payload.turno === 2`) o threshold continua
-          válido; a UF "chama" o vencedor estadual da disputa 2T. Fora de
-          `<Panel>`: é uma faixa de estado que se auto-anula, e um Panel aqui
-          deixaria filete órfão quando ela não renderiza. */}
-      {lider && pVitoriaLider >= 0.95 && (
-        <WinnerBanner
-          candidato={lider.nome}
-          partido={lider.partido}
-          ufSigla={sigla}
-          cor={lider.cor}
-          rank={rankFromColorVar(lider.cor)}
-        />
-      )}
+      {/* Seção 1 — a projeção, no `<ResultPanel>` do kit (o MESMO componente
+          da home). Primeiro conteúdo da coluna de painéis, e por isso com o
+          filete duplo padrão do `<Panel>` — o `rule="none"` da home existe
+          porque lá o `<TrilhaKicker>` desenha o filete, e aqui ele saiu (D23).
 
-      {/* ADR-0019 — kicker de trilha imediatamente acima do `<h1>`, que agora
-          é o título do painel de resultado. `-mb-4` cola os dois: vale metade
-          do `gap` entre seções. */}
-      <TrilhaKicker trilha="pres" crumbs={[]} className="-mb-4" />
-
-      {/* Seção 2 — a projeção. O kicker carrega o rótulo "não oficial" exigido
-          pela constituição § 1 no topo da primeira seção de dado. `rule="none"`
-          porque o filete desta seção é o do `<TrilhaKicker>` acima. */}
-      <Panel
-        rule="none"
+          O kicker carrega o "não oficial" da constituição § 1; o título é o
+          `<h1>` único da página (ADR-0029 § 5), alternando por cascata. O
+          `<TurnoBadge>` fica no slot `action`, como os badges de estado da
+          home. */}
+      <ResultPanel
+        action={<TurnoBadge turno={payload.turno} />}
+        candidatos={rankedCandidatos}
+        headingLevel={1}
         kicker="Projeção Atlas Menna · não oficial"
+        note="Projeção por regra de três: votos apurados ÷ % apurado em cada município, somados na UF."
+        pctApurado={payload.pct_apurado}
         title={<ResultTitle sigla={sigla} />}
         titleId="resultado-heading"
-        headingLevel={1}
-        action={<TurnoBadge turno={payload.turno} />}
-      >
-        <div className="flex flex-col" style={{ gap: "var(--space-6)" }}>
-          <div className="grid grid-cols-2" style={{ gap: "var(--space-6)" }}>
-            <Figure label="Apurado" value={formatPercent(payload.pct_apurado, 1)} size="md" />
-            <Figure label="Última atualização" value={formatTimeHMS(payload.ts)} size="md" />
-          </div>
+      />
 
-          {/* Hero 1T — seis termômetros com o IC de `ci95` (ADR-0018). Em 2T
-              (mode binary) a corrida é binária e este bloco sai. */}
-          {mode === "multi-1t" && (
-            <ProjectionThermometers
-              candidatos={sortedCandidatos}
-              participacao={payload.participacao}
-              heading={`Projeção do 1º turno em ${sigla}`}
-            />
-          )}
-
-          {/* RF-033 — linhas de candidato no formato do ADR-0029 § 7: parcial
-              (tinta) e projeção (ocre) lado a lado, com a seta do movimento.
-              Nenhuma linha sai do DOM (ADR-0017). */}
-          <section
-            aria-labelledby="candidates-heading"
-            className="flex flex-col"
-            style={{
-              gap: "var(--space-2)",
-              borderTop: "1px solid var(--border-hairline)",
-              paddingTop: "var(--space-4)",
-            }}
-          >
-            <h2
-              id="candidates-heading"
-              style={{
-                margin: 0,
-                font: "var(--type-kicker)",
-                letterSpacing: "var(--tracking-caps)",
-                textTransform: "uppercase",
-                color: "var(--text-secondary)",
-              }}
-            >
-              Candidatos
-            </h2>
-            <div>
-              {sortedCandidatos.map((c, i) => (
-                <CandidateResultRow
-                  key={c.id}
-                  rank={i + 1}
-                  nome={c.nome}
-                  partido={c.partido}
-                  cor={c.cor}
-                  pctAtual={c.pct_atual}
-                  pctProjetado={c.pct_projetado}
-                  votos={c.votos_atuais ?? null}
-                />
-              ))}
-            </div>
-          </section>
-        </div>
-      </Panel>
-
-      {/* Seção 3 — RF-037: municípios. Tocar num município abre a folha
+      {/* Seção 2 — RF-037: municípios. Tocar num município abre a folha
           (`<Sheet>`) com os números dele (S07/Bloco 2).
 
           O `<Panel>` NÃO some mais quando não há município: desde o ADR-0032 a
@@ -509,7 +473,7 @@ export default async function UFPage({ params }: UFPageProps) {
         )}
       </Panel>
 
-      {/* Seção 4 — RF-043: forecast transparency. Constituição § 8 exige o
+      {/* Seção 3 — RF-043: forecast transparency. Constituição § 8 exige o
           bloco em toda página com projeção — fica mesmo não estando no
           protótipo. */}
       <Panel kicker="Metodologia">

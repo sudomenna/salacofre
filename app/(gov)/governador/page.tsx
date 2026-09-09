@@ -60,19 +60,54 @@
  *      `--tap-min` (44px), o mínimo que o design system fixou. Continuam
  *      sendo links GET — a página segue RSC pura.
  *
+ * ===== 2026-09-09 (decisão D23) — o que mudou e o que NÃO mudou =====
+ * Saíram:
+ *   - `<TrilhaKicker>` (ADR-0019) — sem contraparte no protótipo. Com ele
+ *     fora, o painel de resultado volta ao filete duplo padrão do `<Panel>`.
+ *   - `<RaceStatsCards>` — idem. O componente segue no repositório, sem call
+ *     site: esta era a única rota que o montava.
+ *
+ * A grade de 27 `<GovernorCard>` FICA, por ordem explícita do usuário: ela é o
+ * conteúdo próprio desta rota, e o protótipo não tem equivalente só porque a
+ * maquete carrega candidaturas estaduais apenas de São Paulo
+ * (`ui_kits/atlas-menna/App.jsx`, nota do seletor de UF). Cortá-la deixaria a
+ * página sem conteúdo. O que mudou nela é a contagem de colunas — ver o
+ * comentário no ponto de uso.
+ *
+ * `<ProjectionThermometers variant="participacao-only">` também FICA: o
+ * ADR-0022 obriga o bloco de participação de governador a nunca sair do DOM.
+ * É a única das quatro rotas em que os termômetros sobreviveram aos cortes de
+ * 09/09.
+ *
+ * ## Por que esta rota NÃO recebeu o `<ResultPanel>` do kit
+ *
+ * As outras três rotas trocaram o hero pelo `<ResultPanel>`. Aqui isso não é
+ * possível sem afirmar o que é falso. O painel lê uma lista de candidatos
+ * ordenada como UM ranking, e deriva dela a "Margem <líder>" e uma barra de
+ * maioria com marcador em 50%. Em `cargo="gov"`, `national.candidatos` não é
+ * uma corrida: é a concatenação das 27 corridas estaduais (na fixture, 81
+ * candidatos, com `rank` reiniciando a cada UF). Um `<ResultPanel>` sobre esse
+ * array publicaria "1º Gov AC MDB, 2º Gov AC PT, ... 4º Gov AL PDT" como se
+ * fosse um placar nacional, e uma margem nacional que na verdade compara dois
+ * candidatos do Acre. Não há corrida nacional de governador para nomear —
+ * é o mesmo fato que o bloco de participação explica em texto logo abaixo.
+ *
+ * Constituição § 8 (transparência metodológica) e § 6 (determinismo: a UI não
+ * inventa número) barram a alternativa. O painel de resultado desta rota
+ * continua sendo o `<Panel>` com o `<h1>` "Governadores 2026", o parágrafo que
+ * declara as 27 disputas e a participação agregada.
+ *
  * ISR: cadência de 60s (ADR-0011) — `revalidate = 60`.
  */
 
 import type { Metadata } from "next";
 
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
-import { TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { BreakingNewsTicker } from "@/components/blocks/BreakingNewsTicker";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { GovernorCard } from "@/components/blocks/GovernorCard";
 import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
-import { RaceStatsCards } from "@/components/blocks/RaceStatsCards";
 import { Footer } from "@/components/layout/Footer";
 import { readProjection } from "@/lib/edge-config/reader";
 import type { EdgePayload, EdgeUfRow } from "@/lib/edge-config/types";
@@ -220,14 +255,18 @@ export default async function GovernadorGridPage({ searchParams }: PageProps) {
           `app/(gov)/layout.tsx`. Ele sobrevive à navegação para
           `/uf/[sigla]/governador` e de volta. */}
 
-      {/* ADR-0019 — kicker de trilha imediatamente acima do `<h1>`. */}
-      <TrilhaKicker trilha="gov" crumbs={["Brasil (27 UFs)"]} className="-mb-4" />
+      {/* O `<TrilhaKicker>` (ADR-0019) saiu em 2026-09-09 (D23): não existe no
+          protótipo. Com ele fora, este painel volta ao filete duplo padrão do
+          `<Panel>` — era `rule="none"` justamente porque o filete da seção era
+          o do kicker de trilha. */}
 
       {/* Seção 2 — o placar das 27 corridas. O `<h1>` é o título deste painel
           (ADR-0029 § 5) e não alterna Parcial/Projeção: não há um resultado
-          único a nomear. O kicker carrega o "não oficial" da constituição § 1. */}
+          único a nomear. O kicker carrega o "não oficial" da constituição § 1.
+
+          Esta rota NÃO recebeu o `<ResultPanel>` do kit — ver o bloco
+          "2026-09-09" no cabeçalho deste arquivo. */}
       <Panel
-        rule="none"
         kicker="Projeção Atlas Menna · não oficial"
         title="Governadores 2026"
         titleId="resultado-heading"
@@ -289,8 +328,12 @@ export default async function GovernadorGridPage({ searchParams }: PageProps) {
             </section>
           )}
 
-          {/* Stats cards — eleitos / vai a 2T / em apuração. */}
-          <RaceStatsCards rows={por_uf} />
+          {/* `<RaceStatsCards>` (eleitos / vai a 2T / em apuração) saiu em
+              2026-09-09 (D23): não tem contraparte no protótipo. O componente
+              continua no repositório, sem call site — esta era a única rota
+              que o montava. A contagem por status não sumiu da tela: os
+              filtros da seção seguinte nomeiam os mesmos quatro estados e a
+              linha "N corridas — <filtro>" dá o número de cada um. */}
         </div>
       </Panel>
 
@@ -349,7 +392,17 @@ export default async function GovernadorGridPage({ searchParams }: PageProps) {
                 {ufsFiltradas.length} {ufsFiltradas.length === 1 ? "corrida" : "corridas"} —{" "}
                 {FILTER_LABELS[status].toLowerCase()}.
               </p>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {/* UMA coluna, sem breakpoints. Os `sm:`/`lg:`/`xl:` que havia
+                  aqui medem a VIEWPORT, e desde o ADR-0033 § 1 esta grade não
+                  vive mais na viewport: ela está dentro da coluna de painéis
+                  do `<AppShellSplit>`, que mede `--container-sidebar` (400px)
+                  fixos no desktop e no máximo `--container-mobile` (430px) no
+                  mobile. Numa janela de 1280px o `xl:grid-cols-4` disparava e
+                  dava ~79px por card — menos que a soma das partes fixas de um
+                  `<GovernorCard>` (16px de rank + 64px de barra + 40px de
+                  percentual + 24px de padding + gaps), deixando largura
+                  NEGATIVA para o nome do candidato. Medido em 1280×900. */}
+              <div className="grid grid-cols-1 gap-3">
                 {ufsFiltradas.map((uf) => (
                   <GovernorCard key={uf.sigla} uf={uf} candidatos={national.candidatos} />
                 ))}

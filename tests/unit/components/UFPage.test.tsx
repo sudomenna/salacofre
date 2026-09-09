@@ -4,9 +4,14 @@
  *
  * Duas camadas:
  *   1. Composição dos blocos (histórico) — garante que o wireframe monta.
- *   2. SSR do `app/(pres)/uf/[sigla]/page.tsx` com o reader mockado (S07/Fase 2) —
- *      cobre o dispatch `binary` | `multi-1t`, o hero de termômetros
- *      (ADR-0018) e a identidade da trilha presidencial (ADR-0019).
+ *   2. SSR do `app/(pres)/uf/[sigla]/page.tsx` com o reader mockado.
+ *
+ * 2026-09-09 (decisão D23): a camada 2 mudou de objeto. O hero desta rota
+ * deixou de ser o dispatch `binary` | `multi-1t` com os seis termômetros do
+ * ADR-0018 e passou a ser o `<ResultPanel>` do kit — o MESMO componente da
+ * home. Os testes que fixavam os termômetros, o `<TrilhaKicker>` (ADR-0019) e
+ * o `<UFBreadcrumb>` (RF-031) passaram a fixar a AUSÊNCIA deles e a presença
+ * do painel; a cobertura própria de cada componente segue nos seus arquivos.
  */
 
 import { renderToStaticMarkup } from "react-dom/server";
@@ -159,35 +164,66 @@ describe("UFPage SSR (S07/Fase 2 — ADR-0018 + ADR-0019)", () => {
     makeCand(5, "Candidato E", 3),
   ];
 
-  it("(a) 1T multi-candidato → seis termômetros acima da lista de candidatos", async () => {
+  // 2026-09-09 (decisão D23): os seis termômetros do ADR-0018 SAÍRAM desta
+  // rota — na coluna de 400px do `<AppShellSplit>` eles sobrepunham os
+  // próprios números. O hero passou a ser o `<ResultPanel>` do kit, o MESMO
+  // componente da home. O que (a) e (b) fixavam sobre os termômetros passa a
+  // ser fixado sobre o painel que os substituiu; a cobertura do componente em
+  // si segue em `tests/unit/components/ProjectionThermometers.test.tsx`.
+  it("(a) 1T multi-candidato → `<ResultPanel>` no lugar dos seis termômetros", async () => {
     readUfProjectionMock.mockResolvedValueOnce(
       buildUfPayload({ turno: 1, candidatos: oitoCandidatos, comParticipacao: true }),
     );
     const node = await UFPage({ params: Promise.resolve({ sigla: "SP" }) });
     const doc = parse(node);
 
-    const bloco = doc.querySelector('section[aria-labelledby="projecao-termometros-heading"]');
-    expect(bloco).not.toBeNull();
-    expect(bloco?.querySelectorAll('[role="meter"]')).toHaveLength(6);
-    expect(doc.body.textContent).toContain("Projeção do 1º turno em SP");
+    expect(doc.querySelector('section[aria-labelledby="projecao-termometros-heading"]')).toBeNull();
+    // Nenhum termômetro. (Os `role="meter"` que sobram na página são as três
+    // barras de composição do `<ForecastTransparency>`, que a constituição § 8
+    // mantém aqui — por isso a contagem é dos `#termometro-*`, não global.)
+    expect(doc.querySelectorAll('[id^="termometro-"]')).toHaveLength(0);
+    expect(doc.body.textContent).not.toContain("Projeção do 1º turno em SP");
 
-    // Ordem: o hero vem antes da seção "Candidatos" (lista de CandidateRow).
-    const heading = doc.querySelector("#candidates-heading");
-    expect(
-      bloco && heading && bloco.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    // O painel do kit: as duas `<Figure>` do topo e uma linha por candidato.
+    const figuras = [...doc.querySelectorAll('[data-testid="figure-label"]')].map(
+      (f) => f.textContent,
+    );
+    expect(figuras).toContain("Apurado");
+    expect(figuras).toContain("Margem Candidato");
+    expect(doc.querySelectorAll('[data-testid="candidate-result-row"]')).toHaveLength(
+      oitoCandidatos.length,
+    );
   });
 
-  it("(b) IC dos termômetros vem de `ci95` (payload de UF)", async () => {
+  // O rank exibido nas rotas de UF é DERIVADO: `EdgeUfCandidate` não tem a
+  // chave `rank` do payload nacional, então a ordem do array que a página
+  // passa ao `<ResultPanel>` é o ranking. O critério é `pct_atual` desc, com
+  // `pct_projetado` desc como desempate — ver `rankByParcial` na página.
+  it("(b) o rank vem de `pct_atual` desc, com `pct_projetado` como desempate", async () => {
+    // `makeCand` produz `pct_atual = pct - 1`. Aqui o array chega FORA de
+    // ordem e com dois empates em `pct_atual` (20 e 20), que só `pct_projetado`
+    // separa.
+    const foraDeOrdem: EdgeUfCandidate[] = [
+      { ...makeCand(3, "Terceiro", 21), pct_atual: 20, pct_projetado: 21 },
+      makeCand(1, "Primeiro", 41),
+      { ...makeCand(4, "Quarto", 19), pct_atual: 20, pct_projetado: 19 },
+      makeCand(2, "Segundo", 33),
+    ];
     readUfProjectionMock.mockResolvedValueOnce(
-      buildUfPayload({ turno: 1, candidatos: oitoCandidatos, comParticipacao: true }),
+      buildUfPayload({ turno: 1, candidatos: foraDeOrdem, comParticipacao: true }),
     );
-    const node = await UFPage({ params: Promise.resolve({ sigla: "SP" }) });
-    const doc = parse(node);
-    const meter = doc.querySelector('#termometro-cand-1 [role="meter"]');
-    // ci95 do líder: 39–43 com projeção 41.
-    expect(meter?.getAttribute("aria-label")).toContain("39,0% a 43,0%");
-    expect(meter?.getAttribute("aria-valuenow")).toBe("41");
+    const doc = parse(await UFPage({ params: Promise.resolve({ sigla: "SP" }) }));
+
+    const nomes = [...doc.querySelectorAll('[data-testid="candidate-result-row"]')].map(
+      (l) => l.querySelector("span.truncate")?.textContent,
+    );
+    expect(nomes).toEqual(["Primeiro", "Segundo", "Terceiro", "Quarto"]);
+
+    // E a margem do painel é derivada do 1º sobre o 2º nessa mesma ordem:
+    // 40,0 − 32,0 = 8,0pp na parcial.
+    expect(doc.querySelector('[data-testid="result-margem-parcial"]')?.textContent).toContain(
+      "8,0",
+    );
   });
 
   // 2026-09-08 — o `<Panel>` "Forecast" (`<Needle>` + "Margem estimada") saiu
@@ -205,11 +241,10 @@ describe("UFPage SSR (S07/Fase 2 — ADR-0018 + ADR-0019)", () => {
     expect(doc.querySelectorAll('[data-testid="candidate-result-row"]')).toHaveLength(2);
   });
 
-  // O kicker carrega só o rótulo da trilha; a profundidade da navegação é do
-  // breadcrumb, que tem links reais. Antes os dois repetiam "Brasil › SP"
-  // (achado 2 do a11y-perf-auditor, 2026-09-05) e este teste fixava a
-  // duplicação como esperada.
-  it("(d) trilha presidencial: main[data-trilha=pres], kicker sem crumbs, breadcrumb Brasil › SP", async () => {
+  // 2026-09-09 (D23): `<TrilhaKicker>` (ADR-0019) e `<UFBreadcrumb>` (RF-031)
+  // saíram — nenhum dos dois existe no protótipo do kit. O que resta desta
+  // invariante é a identidade da trilha no `<main>`, que o CSS usa.
+  it("(d) trilha presidencial: main[data-trilha=pres], sem kicker de trilha e sem breadcrumb", async () => {
     readUfProjectionMock.mockResolvedValueOnce(
       buildUfPayload({ turno: 1, candidatos: oitoCandidatos, comParticipacao: true }),
     );
@@ -217,32 +252,26 @@ describe("UFPage SSR (S07/Fase 2 — ADR-0018 + ADR-0019)", () => {
     const doc = parse(node);
 
     expect(doc.querySelector("main")?.getAttribute("data-trilha")).toBe("pres");
-    expect(
-      doc.querySelector("[data-trilha-kicker]")?.textContent?.replace(/\s+/g, " ").trim(),
-    ).toBe("PRESIDÊNCIA");
-
-    const crumbs = [...doc.querySelectorAll('nav[aria-label="Breadcrumb"] li')].map((li) =>
-      li.textContent?.replace(/[\s›]+/g, " ").trim(),
-    );
-    expect(crumbs).toEqual(["Brasil", "SP"]);
-    expect(doc.querySelector('nav[aria-label="Breadcrumb"] a')?.getAttribute("href")).toBe("/");
+    expect(doc.querySelector("[data-trilha-kicker]")).toBeNull();
+    expect(doc.querySelector('nav[aria-label="Breadcrumb"]')).toBeNull();
+    // A UF continua nomeada — pelo `<h1>` do painel de resultado.
+    expect(doc.querySelector("h1")?.textContent).toContain("SP");
   });
 
-  it("(e) sem `participacao` os termômetros de participação ficam no DOM, 'aguardando' (ADR-0017)", async () => {
+  // 2026-09-09 (D23): consequência declarada e aceita do corte dos termômetros
+  // — brancos, nulos e abstenção SAEM desta tela, exatamente como saíram da
+  // home em 09/09. O dado segue em `EdgePayloadUf.participacao`, e o bloco
+  // continua obrigatório (ADR-0022) em `/governador`, onde é testado.
+  it("(e) a participação do eleitorado não é mais renderizada nesta rota", async () => {
     readUfProjectionMock.mockResolvedValueOnce(
-      buildUfPayload({ turno: 1, candidatos: oitoCandidatos, comParticipacao: false }),
+      buildUfPayload({ turno: 1, candidatos: oitoCandidatos, comParticipacao: true }),
     );
     const node = await UFPage({ params: Promise.resolve({ sigla: "SP" }) });
     const doc = parse(node);
 
-    expect(doc.querySelector("#termometro-brancos-nulos")?.getAttribute("data-estado")).toBe(
-      "aguardando",
-    );
-    expect(doc.querySelector("#termometro-abstencao")?.getAttribute("data-estado")).toBe(
-      "aguardando",
-    );
-    // "Outros" cai no resto aritmético, com nota de IC indisponível.
-    expect(doc.querySelector("#termometro-outros")?.textContent).toContain("IC indisponível");
+    expect(doc.querySelector("#termometro-brancos-nulos")).toBeNull();
+    expect(doc.querySelector("#termometro-abstencao")).toBeNull();
+    expect(doc.querySelector("#termometro-outros")).toBeNull();
   });
 });
 
@@ -285,33 +314,31 @@ describe("UFPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
     expect(h1s[0]?.getAttribute("id")).toBe("resultado-heading");
     expect(h1s[0]?.textContent).toContain("SP — Resultado parcial");
     expect(h1s[0]?.textContent).toContain("SP — Projeção Atlas Menna");
-    // O `<TrilhaKicker>` fica imediatamente acima do `<h1>` (ADR-0019).
-    const kicker = doc.querySelector("[data-trilha-kicker]");
-    const h1 = h1s[0];
-    expect(
-      kicker && h1 && kicker.compareDocumentPosition(h1) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    // O `<TrilhaKicker>` acima do `<h1>` (ADR-0019) saiu em 09/09 (D23) — o
+    // `<h1>` agora abre a página. A alternância continua sendo por cascata:
+    // os dois textos ficam no DOM, marcados por `data-view-only`.
+    const bases = [...h1s[0]!.querySelectorAll("[data-view-only]")].map((s) =>
+      s.getAttribute("data-view-only"),
+    );
+    expect(bases).toEqual(["parcial", "proj"]);
   });
 
-  it("(h) o breadcrumb é o primeiro conteúdo, antes do painel de resultado — o mapa saiu desta página", async () => {
+  it("(h) o `<ResultPanel>` é o primeiro conteúdo — o mapa e o breadcrumb saíram desta página", async () => {
     // 2026-09-09 (map-builder): o coroplético "{sigla} · quem lidera cada
     // município" (`section[aria-labelledby="leader-map-heading"]`) MUDOU DE
     // ENDEREÇO — foi para a coluna do mapa (`<PersistentMapFrame>`,
     // ADR-0033 § 1), que não é renderizada por este teste (ele monta só
-    // `<UFPage>`, não o `layout.tsx` que hospeda a moldura). Esta página não
-    // deve mais conter aquele `<section>`.
+    // `<UFPage>`, não o `layout.tsx` que hospeda a moldura).
+    //
+    // 2026-09-09 (D23): o `<UFBreadcrumb>` saiu, e com ele o que este teste
+    // fixava como "primeiro conteúdo". O primeiro conteúdo passa a ser o
+    // painel de resultado.
     const doc = await renderUF();
-    const mapa = doc.querySelector('section[aria-labelledby="leader-map-heading"]');
-    const breadcrumb = doc.querySelector('nav[aria-label="Breadcrumb"]');
-    const painel = doc.querySelector("#resultado-heading");
-    expect(mapa).toBeNull();
-    expect(breadcrumb).not.toBeNull();
-    expect(painel).not.toBeNull();
-    expect(
-      breadcrumb &&
-        painel &&
-        breadcrumb.compareDocumentPosition(painel) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(doc.querySelector('section[aria-labelledby="leader-map-heading"]')).toBeNull();
+    expect(doc.querySelector('nav[aria-label="Breadcrumb"]')).toBeNull();
+
+    const paineis = [...doc.querySelectorAll('[data-testid="panel"]')];
+    expect(paineis[0]?.getAttribute("aria-labelledby")).toBe("resultado-heading");
   });
 
   it("(i) as linhas de candidato trazem parcial e projeção lado a lado (ADR-0029 § 7)", async () => {

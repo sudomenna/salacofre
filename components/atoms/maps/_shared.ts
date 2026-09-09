@@ -90,6 +90,51 @@ export function municipiosTotalFor(sigla: string): number {
   return MUNICIPIOS_POR_UF[sigla.toUpperCase()] ?? 0;
 }
 
+/**
+ * Código IBGE de UF (2 dígitos) — os 2 primeiros dígitos de qualquer código
+ * de município de 7 dígitos (`CD_MUN`) da UF. Tabela oficial IBGE, estável.
+ *
+ * Usado pelo filtro de `ChoroplethMapUF` (Bloco 2, 2026-09-09): o protótipo
+ * (`docs/design-system/atlas-menna/ui_kits/atlas-menna/MapView.jsx:29`) filtra
+ * `Math.floor(f.id / 100000) === level`, onde `level` é este código — aqui a
+ * mesma lógica vira uma expression MapLibre (`floor(CD_MUN / 100000) === N`)
+ * pra desenhar só os municípios da UF aberta, não os 5.570 do Brasil inteiro.
+ */
+export const UF_CODIGO_IBGE: Record<string, number> = {
+  RO: 11,
+  AC: 12,
+  AM: 13,
+  RR: 14,
+  PA: 15,
+  AP: 16,
+  TO: 17,
+  MA: 21,
+  PI: 22,
+  CE: 23,
+  RN: 24,
+  PB: 25,
+  PE: 26,
+  AL: 27,
+  SE: 28,
+  BA: 29,
+  MG: 31,
+  ES: 32,
+  RJ: 33,
+  SP: 35,
+  PR: 41,
+  SC: 42,
+  RS: 43,
+  MS: 50,
+  MT: 51,
+  GO: 52,
+  DF: 53,
+};
+
+/** Código IBGE de UF (2 dígitos), ou `undefined` se a sigla não é reconhecida. */
+export function ufCodigoIbge(sigla: string): number | undefined {
+  return UF_CODIGO_IBGE[sigla.toUpperCase()];
+}
+
 /** Centro geográfico aproximado da UF (lon, lat). */
 export function ufCenter(sigla: string): [number, number] {
   const box = UF_BBOX[sigla];

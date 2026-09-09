@@ -196,16 +196,25 @@ describe("GovernadorGridPage (integration / smoke)", () => {
     expect(html).not.toContain("Assembleias");
   });
 
-  it("(c) RaceStatsCards com counts batendo (9/14/4)", async () => {
+  // 2026-09-09 (decisão D23): `<RaceStatsCards>` saiu desta rota — não tem
+  // contraparte no protótipo do kit. O componente segue no repositório e sua
+  // cobertura própria segue em `tests/unit/components/RaceStatsCards.test.tsx`;
+  // esta era a única página que o montava. O que este smoke passa a garantir é
+  // que a contagem por status NÃO sumiu da tela: os filtros nomeiam os mesmos
+  // estados e a linha logo abaixo diz quantas corridas cada um tem.
+  it("(c) os stats cards saíram; a contagem por status fica com os filtros", async () => {
     const node = await GovernadorGridPage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);
-    // 3 cards visíveis: Eleitos, 2T, Em apuração
-    expect(html).toContain("Eleitos no 1º turno");
-    expect(html).toContain("Em 2º turno");
-    expect(html).toContain("Em apuração");
-    expect(html).toMatch(/data-testid="stat-eleitos"[\s\S]*?>9</);
-    expect(html).toMatch(/data-testid="stat-2t"[\s\S]*?>14</);
-    expect(html).toMatch(/data-testid="stat-em-apuracao"[\s\S]*?>4</);
+
+    expect(html).not.toContain('data-testid="stat-eleitos"');
+    expect(html).not.toContain('data-testid="stat-2t"');
+    expect(html).not.toContain('data-testid="stat-em-apuracao"');
+    expect(html).not.toContain("Eleitos no 1º turno");
+
+    expect(html).toContain("Decididos no 1º turno");
+    expect(html).toContain("Vão a 2º turno");
+    // 27 UFs na fixture, sem filtro aplicado.
+    expect(html).toContain("27 corridas");
   });
 
   // ADR-0033 § 1: o `<HexCartogramBrasil>` saiu desta página e virou a coluna
@@ -265,17 +274,19 @@ describe("GovernadorGridPage (integration / smoke)", () => {
   // S07/Fase 2 — ADR-0018 (participação) + ADR-0019 (trilha gov).
   // -------------------------------------------------------------------------
 
-  it("(i) trilha governador: main[data-trilha=gov] + kicker 'GOVERNADOR · Brasil (27 UFs)'", async () => {
+  // 2026-09-09 (D23): o `<TrilhaKicker>` (ADR-0019) saiu — não existe no
+  // protótipo. Resta a identidade da trilha no `<main>`, que o CSS usa, e o
+  // `<h1>` que nomeia a corrida.
+  it("(i) trilha governador: main[data-trilha=gov], sem kicker de trilha", async () => {
     const node = await GovernadorGridPage({ searchParams: Promise.resolve({}) });
     const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
 
     expect(doc.querySelector("main")?.getAttribute("data-trilha")).toBe("gov");
-    expect(
-      doc.querySelector("[data-trilha-kicker]")?.textContent?.replace(/\s+/g, " ").trim(),
-    ).toBe("GOVERNADOR · Brasil (27 UFs)");
+    expect(doc.querySelector("[data-trilha-kicker]")).toBeNull();
+    expect(doc.querySelector("h1")?.textContent).toBe("Governadores 2026");
   });
 
-  it("(j) com `participacao` renderiza só os dois termômetros de participação, acima dos stats", async () => {
+  it("(j) com `participacao` renderiza só os dois termômetros de participação, acima da grade", async () => {
     const node = await GovernadorGridPage({ searchParams: Promise.resolve({}) });
     const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
 
@@ -289,9 +300,12 @@ describe("GovernadorGridPage (integration / smoke)", () => {
     expect(doc.querySelector('[id^="termometro-cand-"]')).toBeNull();
     expect(doc.querySelector("#termometro-outros")).toBeNull();
 
-    const stats = doc.querySelector('[data-testid="stat-eleitos"]');
+    // Posição: dentro do painel de resultado, portanto ANTES da seção das 27
+    // corridas. O ponto de referência era `stat-eleitos` até 09/09; com os
+    // stats cards cortados (D23), é a barra de filtros que abre aquela seção.
+    const grade = doc.querySelector('nav[aria-label="Filtros por status"]');
     expect(
-      bloco && stats && bloco.compareDocumentPosition(stats) & Node.DOCUMENT_POSITION_FOLLOWING,
+      bloco && grade && bloco.compareDocumentPosition(grade) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
@@ -322,13 +336,14 @@ describe("GovernadorGridPage (integration / smoke)", () => {
     expect(texto).toContain("primeira zona eleitoral for apurada");
     expect(texto).not.toMatch(/aguardando|em breve|carregando|%/i);
 
-    // Mesma posição do termômetro: acima dos stats cards.
-    const stats = doc.querySelector('[data-testid="stat-eleitos"]');
+    // Mesma posição do termômetro: dentro do painel de resultado, acima da
+    // seção das 27 corridas (que abre com a barra de filtros).
+    const grade = doc.querySelector('nav[aria-label="Filtros por status"]');
     expect(
-      bloco && stats && bloco.compareDocumentPosition(stats) & Node.DOCUMENT_POSITION_FOLLOWING,
+      bloco && grade && bloco.compareDocumentPosition(grade) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
-    // Os cards seguem lá. (O cartograma saiu para a moldura — ADR-0033 § 1.)
+    // Os cards de UF seguem lá. (O cartograma saiu para a moldura — ADR-0033 § 1.)
     expect(doc.body.textContent).toContain("São Paulo");
   });
 
