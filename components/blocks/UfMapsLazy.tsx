@@ -62,7 +62,11 @@ export interface UfMapsLazyProps {
   height?: number;
 }
 
-/** RF-034 — choropleth simples por município (líder). */
+/**
+ * RF-034 — choropleth simples por município (líder). `height` aceita
+ * `"100%"` desde ADR-0033 § 1 (moldura persistente do mapa) — ver
+ * `ChoroplethMapUFProps.height`.
+ */
 export function UfLeaderMapLazy({
   ufSigla,
   choropleth,
@@ -70,7 +74,7 @@ export function UfLeaderMapLazy({
 }: {
   ufSigla: string;
   choropleth: ChoroplethMunicipio[];
-  height?: number;
+  height?: number | string;
 }) {
   return (
     <ChoroplethMapUF ufSigla={ufSigla} municipios={choropleth} mode="leader" height={height} />

@@ -58,7 +58,12 @@ const HERO_HEIGHT = "clamp(400px, 52vh, 520px)";
  * de cartão, com filete fino. Usada no `variant="frame"` pelo rótulo de
  * escopo e pelo link de volta.
  */
-const CHIP_STYLE: CSSProperties = {
+/**
+ * Exportado desde ADR-0033 § 1: `PersistentMapFrame` reaproveita o MESMO
+ * estilo para o chip do coroplético municipal (nível UF) — mesma moldura
+ * visual, chip diferente (mapa diferente).
+ */
+export const CHIP_STYLE: CSSProperties = {
   font: "var(--type-kicker)",
   letterSpacing: "var(--tracking-caps)",
   textTransform: "uppercase",

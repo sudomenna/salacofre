@@ -56,6 +56,9 @@ import type {
   EdgeUfSeriesTemporais,
   UfPayloadInput,
 } from "@/lib/edge-config/types";
+import municipiosPresT1Fixture from "@/tests/fixtures/blob/uf-municipios-pres-t1.json" with {
+  type: "json",
+};
 
 import { blobUrlFor, ufDetailBlobPathname } from "./paths";
 
@@ -223,6 +226,58 @@ export async function readUfDetail(
   if (!isUfDetailBlob(body, sigla)) return { status: "unavailable", reason: "invalid", url };
 
   return { status: "ok", detail: body, url };
+}
+
+// ---------------------------------------------------------------------------
+// Fallback de DEV — carry-over do map-builder, 2026-09-09
+// ---------------------------------------------------------------------------
+
+/**
+ * Fixture municipal versionada, dev/preview-only — o Blob do ADR-0032 nunca
+ * recebeu escrita real (o pipeline de publicação não rodou ainda; ver o
+ * relatório do map-builder de 2026-09-09). Sem ela, `/uf/SP` não tem como
+ * exercitar o coroplético municipal em `pnpm dev`, e a moldura persistente
+ * (`components/layout/PersistentMapFrame.tsx`) e as páginas de UF ficam
+ * condenadas ao estado "detalhe indisponível" mesmo com o banco tendo dado
+ * real.
+ *
+ * Gerada por um script one-off (não commitado — não faz parte do pipeline)
+ * a partir do Postgres de dev real: `cargo=1, turno=1`, as 27 UFs, 2.180
+ * municípios com apuração (mesma contagem que o Postgres reporta hoje via
+ * `snapshots`). Candidatos remapeados 10/20/30 → 1001/1002/1003 — os únicos
+ * três códigos TSE presentes no dado sintético de Presidente — para casar
+ * com os ids que `tests/fixtures/edge-config/projection-current.json` já
+ * usa (e que `synthesizeUfFromNational`, em `app/(pres)/uf/[sigla]/page.tsx`,
+ * já emprega para montar `payload.candidatos` nesta mesma rota). Assim
+ * `candidateColor[m.lider.candidato_id]` resolve para a cor real do
+ * candidato em vez de cair no cinza `--color-tossup`.
+ *
+ * Só cobre `cargo="pres", turno=1` — é o que o dado de partida do bug
+ * report pedia (`/uf/SP` presidencial). Governador continua honestamente
+ * "detalhe indisponível" (não há fixture equivalente: o esquema de
+ * candidatos de Governador é POR UF — 3 ids distintos por estado — e o
+ * Postgres de dev só tem 2 candidatos sintéticos por corrida estadual,
+ * então o remapeamento não é 1:1 direto; não foi feito por não ser o alvo
+ * do bug reportado).
+ *
+ * **NUNCA usado em produção.** Todo chamador deve fazer o gate
+ * `process.env.NODE_ENV !== "production"` ANTES de chamar esta função — ela
+ * própria não faz esse gate para não silenciar, por engano, um ambiente de
+ * teste que precise inspecionar o valor bruto. `readUfDetail` (acima)
+ * continua sendo SEMPRE tentado primeiro pelos chamadores; isto é usado só
+ * como último recurso quando ele já devolveu "unavailable" — a fonte real
+ * (Blob) nunca é substituída silenciosamente, apenas complementada em dev.
+ */
+type UfMunicipiosFixtureFile = Record<string, UfDetailBlob>;
+
+export function devMunicipiosFixtureFor(
+  sigla: string,
+  cargo: Cargo,
+  turno: Turno,
+): UfDetailBlob | null {
+  if (cargo !== "pres" || turno !== 1) return null;
+  const file = municipiosPresT1Fixture as unknown as UfMunicipiosFixtureFile;
+  return file[sigla.toUpperCase()] ?? null;
 }
 
 // ---------------------------------------------------------------------------

@@ -80,7 +80,6 @@ import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { MunicipioExplorer } from "@/components/blocks/MunicipioExplorer";
 import type { MunicipioRow } from "@/components/blocks/MunicipioTable";
 import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
-import { UfLeaderMapLazy } from "@/components/blocks/UfMapsLazy";
 import { Footer } from "@/components/layout/Footer";
 import { municipiosFrom, readUfDetail, type UfDetailResult } from "@/lib/blob/uf-detail";
 import { readUfProjection } from "@/lib/edge-config/reader";
@@ -95,9 +94,6 @@ import { formatPercent, formatTimeHMS } from "@/lib/utils/format";
 import govFixture from "@/tests/fixtures/edge-config/gov-current.json" with { type: "json" };
 
 export const revalidate = 60;
-
-/** Altura do mapa hero (ADR-0029 § 1). `ChoroplethMapUF.height` é `number`. */
-const HERO_MAP_HEIGHT = 440;
 
 /** Título do painel de resultado — e o `<h1>` da página (ADR-0029 § 5). */
 function ResultTitle({ sigla }: { sigla: string }) {
@@ -331,12 +327,6 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
   const mode: "binary" | "multi-1t" =
     payload.turno === 2 || payload.candidatos.length === 2 ? "binary" : "multi-1t";
 
-  const choropleth = municipios.map((m) => ({
-    cod_ibge: m.cod_ibge,
-    cor: candidateColor[m.lider.candidato_id] ?? "var(--color-tossup)",
-    pctApurado: m.pct_apurado,
-  }));
-
   return (
     <main
       data-trilha="gov"
@@ -346,40 +336,13 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
       {/* "Onde estou", com links reais — acima do mapa (ADR-0029 § 1). */}
       {govBreadcrumb(sigla)}
 
-      {/* Seção 1 — o MAPA. Primeiro conteúdo da página, altura de hero. */}
-      <Panel rule="none">
-        <section
-          aria-labelledby="leader-map-heading"
-          className="flex flex-col"
-          style={{ gap: "var(--space-2)" }}
-        >
-          <h2
-            id="leader-map-heading"
-            style={{
-              margin: 0,
-              font: "var(--type-kicker)",
-              letterSpacing: "var(--tracking-caps)",
-              textTransform: "uppercase",
-              color: "var(--text-secondary)",
-            }}
-          >
-            {sigla} · quem lidera cada município
-          </h2>
-          <UfLeaderMapLazy ufSigla={sigla} choropleth={choropleth} height={HERO_MAP_HEIGHT} />
-          {/* O coroplético é alimentado pelo Blob (ADR-0032). Sem detalhe ele
-              desenha o contorno da UF sem nenhuma feição colorida — o que, sem
-              este aviso, o leitor interpretaria como "ninguém apurou ainda".
-              Fica ABAIXO do mapa para não empurrar a primeira dobra
-              (ADR-0029 § 1), mas está no DOM em todos os casos. */}
-          {municipioReason !== null && (
-            <DetailUnavailable
-              label="A cor por município deste mapa"
-              reason={municipioReason}
-              style={{ borderTop: "none", paddingTop: 0 }}
-            />
-          )}
-        </section>
-      </Panel>
+      {/* O coroplético "{sigla} · quem lidera cada município" (RF-034) MUDOU
+          DE ENDEREÇO em 2026-09-09 (map-builder): não vive mais aqui — vive
+          na coluna do mapa (`<PersistentMapFrame>`, ADR-0033 § 1), que agora
+          desce para o nível município quando a rota é de UF (nas duas
+          corridas, Presidente e Governador). Manter os dois seria duplicação
+          — o conteúdo desta seção não tinha nada além do mapa e do aviso de
+          indisponível, e os dois migraram juntos. */}
 
       {/* O disclaimer de K-1 (ADR-0015) foi REMOVIDO em S07/Fase 5. O ADR-0021
           supersede o ADR-0015: a projeção não usa mais 2022 como insumo, então

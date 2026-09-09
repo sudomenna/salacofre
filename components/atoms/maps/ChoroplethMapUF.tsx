@@ -22,7 +22,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { Protocol } from "pmtiles";
 import { useEffect, useRef } from "react";
 
-import { UF_BBOX } from "@/components/atoms/maps/_shared";
+import { resolveCssColor, UF_BBOX } from "@/components/atoms/maps/_shared";
 import { useHoverStore } from "@/lib/state/hover-store";
 
 const PMTILES_BASE = "https://jbtu251tioj3y57z.public.blob.vercel-storage.com";
@@ -39,7 +39,13 @@ export interface ChoroplethMapUFProps {
   ufSigla: string;
   municipios: ChoroplethMunicipio[];
   mode: "leader" | "estimate";
-  height?: number;
+  /**
+   * `number` (px) nas páginas de UF (hero fixo, ADR-0029 § 1). `"100%"` na
+   * moldura persistente (`PersistentMapFrame`, ADR-0033 § 1), que preenche a
+   * coluna do mapa inteira — mesmo padrão que `NationalChoroplethMap.height`
+   * já aceita para o variant `frame`.
+   */
+  height?: number | string;
 }
 
 /** Throttle helper — evita flood de eventos mousemove */
@@ -99,6 +105,16 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
           municipios: {
             type: "vector",
             url: `pmtiles://${PMTILES_BASE}/municipios.pmtiles`,
+            // `promoteId` é obrigatório para o `setFeatureState` abaixo
+            // funcionar. Os tiles carregam o código IBGE na PROPRIEDADE
+            // `CD_MUN` (é por ela que o hover filtra, mais abaixo), mas não
+            // têm `id` de feature — e `setFeatureState({ id })` casa pelo id,
+            // não por propriedade. Sem esta linha toda chamada de
+            // `setFeatureState` é silenciosamente descartada, o
+            // `["feature-state", "color"]` nunca resolve, e o `coalesce` pinta
+            // o estado inteiro com o cinza de fallback. Medido em 2026-09-09
+            // em `/uf/SP`: 269 municípios com dado, nenhum pintado.
+            promoteId: "CD_MUN",
           },
         },
         layers: [
@@ -148,12 +164,28 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
 
     mapRef.current = map;
 
+    // A11y (RNF-025 / docs/mapas/acessibilidade.md): MapLibre atribui
+    // `aria-label="Map"` fixo ao `<canvas>` interno, e o canvas nasce
+    // focável (`tabindex="0"`) — um leitor de tela chega a ele com um rótulo
+    // genérico que ignora o `aria-label` real do container (`label`,
+    // abaixo). O container já é `role="img"` com o rótulo correto; o canvas
+    // não deve competir com ele por atenção do leitor de tela. `aria-hidden`
+    // remove o canvas da árvore de acessibilidade — a alternativa textual
+    // (lista paralela / tabela de municípios, spec 004) é o caminho de
+    // teclado e leitor de tela, não o canvas em si.
+    const canvas = map.getCanvas();
+    canvas.setAttribute("aria-hidden", "true");
+    canvas.removeAttribute("aria-label");
+    canvas.tabIndex = -1;
+
     map.on("load", () => {
-      // Aplica cores iniciais
+      // Aplica cores iniciais. `resolveCssColor` é obrigatório: `m.cor` chega
+      // como token (`var(--color-cand-1)`) e o MapLibre não lê variável CSS —
+      // sem resolver, todo município cai no cinza do `coalesce` acima.
       for (const m of municipiosRef.current) {
         map.setFeatureState(
           { source: "municipios", sourceLayer: "municipios", id: m.cod_ibge },
-          { color: m.cor },
+          { color: resolveCssColor(m.cor) },
         );
       }
     });
@@ -204,7 +236,7 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
     for (const m of municipios) {
       map.setFeatureState(
         { source: "municipios", sourceLayer: "municipios", id: m.cod_ibge },
-        { color: m.cor },
+        { color: resolveCssColor(m.cor) },
       );
     }
   }, [municipios]);

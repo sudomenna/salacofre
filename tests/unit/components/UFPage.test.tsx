@@ -293,14 +293,24 @@ describe("UFPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
     ).toBeTruthy();
   });
 
-  it("(h) o mapa é o primeiro conteúdo, antes do painel de resultado", async () => {
+  it("(h) o breadcrumb é o primeiro conteúdo, antes do painel de resultado — o mapa saiu desta página", async () => {
+    // 2026-09-09 (map-builder): o coroplético "{sigla} · quem lidera cada
+    // município" (`section[aria-labelledby="leader-map-heading"]`) MUDOU DE
+    // ENDEREÇO — foi para a coluna do mapa (`<PersistentMapFrame>`,
+    // ADR-0033 § 1), que não é renderizada por este teste (ele monta só
+    // `<UFPage>`, não o `layout.tsx` que hospeda a moldura). Esta página não
+    // deve mais conter aquele `<section>`.
     const doc = await renderUF();
     const mapa = doc.querySelector('section[aria-labelledby="leader-map-heading"]');
+    const breadcrumb = doc.querySelector('nav[aria-label="Breadcrumb"]');
     const painel = doc.querySelector("#resultado-heading");
-    expect(mapa).not.toBeNull();
+    expect(mapa).toBeNull();
+    expect(breadcrumb).not.toBeNull();
     expect(painel).not.toBeNull();
     expect(
-      mapa && painel && mapa.compareDocumentPosition(painel) & Node.DOCUMENT_POSITION_FOLLOWING,
+      breadcrumb &&
+        painel &&
+        breadcrumb.compareDocumentPosition(painel) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
@@ -327,9 +337,10 @@ describe("UFPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
   it("(k) nenhum <Panel> fica vazio (filete órfão)", async () => {
     const doc = await renderUF();
     const panels = [...doc.querySelectorAll('[data-testid="panel"]')];
-    // Eram >= 6 até 2026-09-08; os cortes para o protótipo deixaram mapa,
-    // projeção, municípios e metodologia.
-    expect(panels.length).toBeGreaterThanOrEqual(4);
+    // Eram >= 6 até 2026-09-08 (mapa, projeção, municípios, metodologia); em
+    // 2026-09-09 o `<Panel>` do mapa saiu desta página (ver teste (h)) —
+    // restam projeção, municípios e metodologia.
+    expect(panels.length).toBeGreaterThanOrEqual(3);
     for (const p of panels) {
       expect((p.textContent ?? "").trim().length).toBeGreaterThan(0);
     }

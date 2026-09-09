@@ -47,6 +47,49 @@ export const UF_BBOX: Record<string, [number, number, number, number]> = {
   TO: [-50.74, -13.47, -45.69, -5.17],
 };
 
+/**
+ * Total de municípios por UF — contagem IBGE, estável (não muda com a
+ * eleição). Soma 5.570, o total nacional oficial. Usado pelo chip que a
+ * moldura persistente do mapa sobrepõe ao coroplético municipal
+ * (`components/layout/PersistentMapFrame.tsx`, ADR-0033 § 1) — mesmo texto
+ * do protótipo (`App.jsx:314`, `sigla + ' · ' + n + ' mun.'`), onde `n` é o
+ * total de municípios da UF, não quantos têm dado apurado.
+ */
+export const MUNICIPIOS_POR_UF: Record<string, number> = {
+  AC: 22,
+  AL: 102,
+  AM: 62,
+  AP: 16,
+  BA: 417,
+  CE: 184,
+  DF: 1,
+  ES: 78,
+  GO: 246,
+  MA: 217,
+  MG: 853,
+  MS: 79,
+  MT: 141,
+  PA: 144,
+  PB: 223,
+  PE: 185,
+  PI: 224,
+  PR: 399,
+  RJ: 92,
+  RN: 167,
+  RO: 52,
+  RR: 15,
+  RS: 497,
+  SC: 295,
+  SE: 75,
+  SP: 645,
+  TO: 139,
+};
+
+/** Total de municípios da UF, ou `0` se a sigla não é reconhecida. */
+export function municipiosTotalFor(sigla: string): number {
+  return MUNICIPIOS_POR_UF[sigla.toUpperCase()] ?? 0;
+}
+
 /** Centro geográfico aproximado da UF (lon, lat). */
 export function ufCenter(sigla: string): [number, number] {
   const box = UF_BBOX[sigla];
@@ -63,3 +106,49 @@ export function ufCenter(sigla: string): [number, number] {
  * formaliza o tipo do retorno.
  */
 export type CandidateColorMap = Record<number, string>;
+
+/**
+ * Cinza de "sem cor resolvível" — o mesmo `#d9d9d9` que os mapas já usam como
+ * fallback de `fill-color`, para que um token ausente não vire uma cor
+ * inventada.
+ */
+const UNRESOLVED_FILL = "#d9d9d9";
+
+/**
+ * Resolve `var(--token)` para o hex literal do `:root` em runtime.
+ *
+ * **Por que existe** (bug medido em 2026-09-09): o payload entrega cor de
+ * candidato como token — `cor: "var(--color-cand-1)"` — porque a constituição
+ * § 2 proíbe hex partidário oficial cravado no código. Mas o MapLibre **não
+ * interpreta variável CSS**: `setFeatureState({ color: "var(--x)" })` produz um
+ * valor que a expressão `fill-color` não consegue ler, e o `coalesce` cai no
+ * cinza de fallback. O sintoma é um estado inteiro com os municípios
+ * desenhados e nenhum pintado — foi exatamente isso que apareceu em
+ * `/uf/SP`.
+ *
+ * O mapa nacional já resolvia por conta própria (`_NationalChoroplethMapImpl`,
+ * `getCssVar`); o de município não. Este helper é o ponto único, para os dois
+ * não divergirem de novo.
+ *
+ * Aceita as três formas que aparecem no payload: hex literal (devolve como
+ * está), `var(--token)` e `var(--token, #fallback)`.
+ */
+export function resolveCssColor(value: string | undefined | null): string {
+  const raw = (value ?? "").trim();
+  if (!raw) return UNRESOLVED_FILL;
+  if (!raw.startsWith("var(")) return raw;
+
+  const inner = raw.slice(4, raw.lastIndexOf(")"));
+  const comma = inner.indexOf(",");
+  const token = (comma === -1 ? inner : inner.slice(0, comma)).trim();
+  const declaredFallback = comma === -1 ? "" : inner.slice(comma + 1).trim();
+
+  // SSR: não há `:root` para consultar. O fallback declarado é melhor que nada.
+  if (typeof window === "undefined") return declaredFallback || UNRESOLVED_FILL;
+
+  const resolved = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+
+  // Um token pode resolver para outro token (encadeamento de temas).
+  if (resolved.startsWith("var(")) return resolveCssColor(resolved);
+  return resolved || declaredFallback || UNRESOLVED_FILL;
+}
