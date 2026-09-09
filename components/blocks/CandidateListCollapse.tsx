@@ -1,0 +1,108 @@
+"use client";
+
+/**
+ * components/blocks/CandidateListCollapse.tsx
+ *
+ * O colapso **puramente visual** da lista de candidatos do `<ResultPanel>`
+ * (decisão D21 do usuário, 2026-09-09).
+ *
+ * ## O que este componente é, e o que ele não é
+ *
+ * Ele **não decide o que renderizar**. As linhas chegam prontas, como
+ * `children` já renderizados pelo Server Component pai — todas elas, as 6
+ * primeiras e as excedentes, na mesma `<ol>`. O que este componente faz é
+ * escrever `data-collapsed` na lista e manter o `aria-expanded` do botão
+ * honesto. Quem clipa é a cascata de `ResultPanel.module.css`.
+ *
+ * Isso importa por duas razões:
+ *
+ *   1. **ADR-0017 / ADR-0029 § 7 / ADR-0033 § 2.** O que aqueles ADRs
+ *      rejeitam no botão do kit é a REMOÇÃO de nós (`rows.slice(0, limit)`,
+ *      `ui_kits/atlas-menna/App.jsx:39`). A decisão D21 mantém o botão e
+ *      descarta a remoção: nenhum candidato sai do DOM, da árvore de
+ *      acessibilidade ou da busca da página em nenhum estado do botão.
+ *   2. **RNF-007a.** Como as linhas entram por `children`, elas continuam
+ *      sendo Server Components — `<CandidateResultRow>`, `<PartyTag>` e o
+ *      payload inteiro ficam fora do bundle do cliente. O que vai para o
+ *      cliente é este arquivo mais o `<Button>`.
+ *
+ * ## `aria-expanded` num conteúdo que nunca some
+ *
+ * O estado ainda é real e ainda merece ser anunciado: colapsada, a lista
+ * mostra 6 nomes e esconde visualmente o resto; expandida, mostra todos. Um
+ * usuário de leitor de tela que percorre a narrativa linear encontra os 13 de
+ * qualquer forma (é o que o ADR-0017 protege); o `aria-expanded` existe para
+ * quem usa o leitor de tela COM a tela, e para quem navega por elementos
+ * interativos. `aria-controls` aponta para a `<ol>` que muda de estado.
+ */
+
+import { useId, useState } from "react";
+
+import { Button } from "@/components/atoms/controls/Button";
+
+import styles from "./ResultPanel.module.css";
+
+export interface CandidateListCollapseProps {
+  /**
+   * TODAS as linhas, já renderizadas no servidor, como `<li>`. As excedentes
+   * precisam carregar `className={resultPanelExtraRowClass}` — quem monta a
+   * lista é o `<ResultPanel>`, que conhece o `limit`.
+   */
+  children: React.ReactNode;
+  /** Quantidade total de candidatos — entra no rótulo do botão. */
+  total: number;
+}
+
+/** Classe que marca uma linha como excedente. Exportada para o `<ResultPanel>`. */
+export const resultPanelExtraRowClass = styles.extra;
+
+/** Chevron do kit (`App.jsx:16`), decorativo — o rótulo já diz o estado. */
+function Chevron({ dir }: { dir: "up" | "down" }) {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height="14"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      style={{ transform: dir === "up" ? "rotate(90deg)" : "rotate(-90deg)" }}
+      viewBox="0 0 24 24"
+      width="14"
+    >
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+  );
+}
+
+export function CandidateListCollapse({ children, total }: CandidateListCollapseProps) {
+  const [aberto, setAberto] = useState(false);
+  const listaId = useId();
+
+  return (
+    <>
+      <ol className={styles.list} data-collapsed={aberto ? "false" : "true"} id={listaId}>
+        {children}
+      </ol>
+      <Button
+        aria-controls={listaId}
+        aria-expanded={aberto}
+        full
+        onClick={() => setAberto((v) => !v)}
+        // `md` (44px = `--tap-min`) e não o `sm` do kit (`App.jsx:39`, 32px):
+        // este é alvo de toque primário no mobile, e o próprio `<Button>`
+        // documenta que `sm` "fica ABAIXO de --tap-min: use só em densidade de
+        // painel no desktop, nunca como alvo primário de toque no mobile".
+        // Doze pixels a mais de altura contra a fidelidade ao kit é uma troca
+        // que a constituição § 4 já decidiu.
+        size="md"
+        style={{ marginTop: "var(--space-2)" }}
+        variant="ghost"
+      >
+        {aberto ? "Mostrar menos" : `Todos os ${total} candidatos`}
+        <Chevron dir={aberto ? "up" : "down"} />
+      </Button>
+    </>
+  );
+}

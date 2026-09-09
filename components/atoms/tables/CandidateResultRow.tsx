@@ -41,8 +41,9 @@
  */
 
 import type { CSSProperties } from "react";
+import { PartyTag } from "@/components/atoms/data/PartyTag";
 import type { EdgeCandidate } from "@/lib/edge-config/types";
-import { formatPercent, formatVotesCompact } from "@/lib/utils/format";
+import { formatPercent, formatVotes, formatVotesCompact } from "@/lib/utils/format";
 
 export interface CandidateResultRowProps {
   /** Posição exibida à esquerda. Normalmente `candidato.rank`. */
@@ -59,6 +60,33 @@ export interface CandidateResultRowProps {
   votos?: number | null;
   /** Densidade reduzida — usada na Camada 3 em telas estreitas (ADR-0017). */
   compact?: boolean;
+  /**
+   * Como a linha se apresenta. Um eixo, não três flags — as três diferenças
+   * andam sempre juntas porque são a mesma decisão: "esta é a lista PRINCIPAL
+   * da tela" ou "esta é uma camada de apoio".
+   *
+   *   `"densa"` (default) — o formato desde o ADR-0029 § 7: sigla em texto
+   *     puro, votos abreviados ("15,2 mi"), percentuais em
+   *     `--type-figure-sm`. É o que as Camadas 2 e 3 do ADR-0017
+   *     (`<CandidateRanking>`, `<MinorCandidatesList>`) e as duas rotas de UF
+   *     usam hoje.
+   *   `"kit"` — o `CandidateRow` do protótipo, medido contra ele em
+   *     2026-09-09: `<PartyTag size="sm">` no lugar do texto puro, votos por
+   *     extenso ("15.240.321 votos") e percentuais em 18px
+   *     (`CandidateRow.jsx:17,20`). Usado pela lista do `<ResultPanel>`.
+   *
+   * O default fica em `"densa"` de propósito: trocá-lo mudaria quatro telas
+   * que não estão no escopo desta passada.
+   *
+   * `compact` continua sendo o eixo de DENSIDADE e vale nas duas variantes —
+   * no kit, uma linha compacta também volta para `--type-figure-sm`.
+   *
+   * A `<PartyTag>` entra na variante de **contorno**, que é segura em qualquer
+   * cor: o rótulo é `--text-primary` (≥ 15:1 sobre papel) e só a borda e o
+   * ponto recebem a cor do candidato — nenhum dos quatro tokens que reprovam
+   * como texto (PSOL 2,08 · PSB 2,20 · Outros 2,39 · NOVO 2,72) vira tinta.
+   */
+  variant?: "densa" | "kit";
 }
 
 const KICKER: CSSProperties = {
@@ -90,12 +118,23 @@ export function CandidateResultRow({
   pctProjetado,
   votos,
   compact = false,
+  variant = "densa",
 }: CandidateResultRowProps) {
   const atual = clampPct(pctAtual);
   const projetado = clampPct(pctProjetado);
   const atualLabel = formatPercent(atual, 1);
   const projLabel = formatPercent(projetado, 1);
   const glyph = deltaGlyph(projetado - atual);
+  const kit = variant === "kit";
+
+  // `CandidateRow.jsx:20` — 18px na linha normal, `--type-figure-sm` na
+  // compacta. Medido contra o protótipo em 09/09: a linha densa desta base
+  // saía a 13px onde o kit tem 18px, e era a única diferença tipográfica
+  // restante entre as duas telas.
+  const numeroStyle: CSSProperties =
+    kit && !compact
+      ? { font: "var(--type-figure)", fontSize: 18 }
+      : { font: "var(--type-figure-sm)" };
 
   return (
     <div
@@ -124,13 +163,19 @@ export function CandidateResultRow({
           >
             {nome}
           </span>
-          <span className="flex-none" style={{ ...KICKER, color: "var(--text-secondary)" }}>
-            {partido}
-          </span>
+          {kit ? (
+            <span className="flex-none">
+              <PartyTag color={cor} sigla={partido} size="sm" />
+            </span>
+          ) : (
+            <span className="flex-none" style={{ ...KICKER, color: "var(--text-secondary)" }}>
+              {partido}
+            </span>
+          )}
         </div>
         {votos != null && !compact ? (
           <div style={{ font: "var(--type-data)", color: "var(--text-muted)", marginTop: 2 }}>
-            {formatVotesCompact(votos)} votos
+            {kit ? formatVotes(votos) : formatVotesCompact(votos)} votos
           </div>
         ) : null}
       </div>
@@ -143,12 +188,7 @@ export function CandidateResultRow({
             coluna inativa TROCANDO A COR, com contraste medido. Recuar por
             `opacity` (a primeira tentativa, 2026-09-08) compõe com a cor do
             filho e derrubou o rótulo para 2,27:1 — o axe pegou em 16 nós. */}
-        <div
-          style={{
-            font: "var(--type-figure-sm)",
-            color: "var(--cell-ink, var(--text-primary))",
-          }}
-        >
+        <div style={{ ...numeroStyle, color: "var(--cell-ink, var(--text-primary))" }}>
           {atualLabel}
         </div>
         <div style={{ ...KICKER, color: "var(--cell-kicker, var(--text-muted))", marginTop: 3 }}>
@@ -157,9 +197,7 @@ export function CandidateResultRow({
       </div>
 
       <div className="text-right" data-view-cell="proj" style={{ minWidth: "3.5rem" }}>
-        <div
-          style={{ font: "var(--type-figure-sm)", color: "var(--cell-ink, var(--accent-text))" }}
-        >
+        <div style={{ ...numeroStyle, color: "var(--cell-ink, var(--accent-text))" }}>
           {projLabel}
         </div>
         <div style={{ ...KICKER, color: "var(--cell-kicker, var(--accent-text))", marginTop: 3 }}>

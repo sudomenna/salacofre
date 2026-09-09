@@ -52,21 +52,20 @@
  *      (ADR-0029 § 7), **sem** o botão "Mostrar todos" do kit — que violaria
  *      o ADR-0017.
  *
- * Layout em modo `multi-1t` (ADR-0018 + ADR-0029)
+ * Layout em modo `multi-1t` (ADR-0018 + ADR-0029 + o ResultPanel de 09/09)
  *   [shell: TopBar + controles + CargoTabs vêm do layout]  RF-029, ADR-0025 § 2
  *   <style> --live-pct-label (alimenta o selo do TopBar)    ADR-0029 § 4
  *   BreakingNewsTicker (faixa fina)                  S06/F4d
  *   [o mapa saiu para app/(pres)/layout.tsx]         RF-030.1-4, ADR-0033 § 1
  *   NationalWinnerBanner                             S06/F4d
  *   TrilhaKicker                                     ADR-0019
- *   Panel "Projeção Atlas Menna · não oficial"       constituição § 1
+ *   ResultPanel "Projeção Atlas Menna · não oficial" constituição § 1
  *   ├── <h1> "Resultado parcial" / "Projeção Atlas Menna"  ADR-0029 § 5
  *   ├── badges (TurnoBadge · RaceTypeIndicator)      RF-028
- *   ├── ApuracaoMeta                                 RF-026
- *   ├── ProjectionThermometers (1º/2º/3º/outros/
- *   │   brancos-nulos/abstenção)                     RF-022, RF-023
- *   ├── MinorCandidatesList "Composição de Outros"
- *   │   (rank >= 4, sempre no DOM — ADR-0017)        RF-030.8
+ *   ├── Figure "Apurado" + Figure "Margem <líder>"   RF-026, RF-023
+ *   ├── VoteBar com marcador em 50%                  RF-022, RF-023
+ *   ├── lista COMPLETA de candidatos, 6 visíveis     RF-022, RF-023, RF-030.8
+ *   │   e o resto clipado por CSS (D21 — nada sai do DOM, ADR-0017)
  *   ChancesPanel (P(2T) global — RF-030.7)           App.jsx:350
  *   StrongholdsPanel                                 RF-024, RF-030.6
  *   RemainingPanel                                   RF-024, RF-026
@@ -85,7 +84,10 @@
  *   - "Placar por estado" (`StateGroupedTable`) FICA, por decisão explícita
  *     do usuário, reposicionado ao fim da sequência.
  *   - "Composição de Outros" (`MinorCandidatesList`) FICA: cortá-la apagaria
- *     os candidatos de rank >= 4 do DOM, o que o ADR-0017 proíbe.
+ *     os candidatos de rank >= 4 do DOM, o que o ADR-0017 proíbe. (Em
+ *     09/09 o bloco deixou de existir como seção: os mesmos candidatos
+ *     continuam no DOM, agora como linhas da lista do `<ResultPanel>` — ver
+ *     mais abaixo.)
  *   - `ForecastTransparency` e `Footer` FICAM em toda página com projeção —
  *     constituição § 8 e § 1, respectivamente.
  *
@@ -100,10 +102,38 @@
  * muda por breakpoint é só a posição da navegação de cargo (shell) e a altura
  * máxima do mapa.
  *
- * ADR-0018 substitui, **apenas em `multi-1t`**, o trio `HeadlineScore` +
+ * ===== 2026-09-09 — o hero de `multi-1t` vira o `<ResultPanel>` do kit =====
+ * Ordem explícita do usuário: o hero da home passa a ser o `ResultPanel` do
+ * protótipo (`App.jsx:20-43`), campo a campo. Saem daqui, **só nesta rota e
+ * só em `multi-1t`**, três blocos que o protótipo resolve dentro do mesmo
+ * painel:
+ *
+ *   - `<ApuracaoMeta>`   → vira a `<Figure>` "Apurado", com a nota "X de Y
+ *                          votos válidos". Continua em `binary`.
+ *   - `<ProjectionThermometers>` (ADR-0018) → sai. Continua nas três outras
+ *                          rotas (`/governador`, `/uf/[sigla]`,
+ *                          `/uf/[sigla]/governador`), intocado.
+ *   - "Composição de Outros" (`<MinorCandidatesList>`) → sai como bloco
+ *                          separado: os candidatos de rank >= 4 passam a ser
+ *                          linhas da MESMA lista, que é como o kit faz.
+ *
+ * Consequência declarada e aceita pelo usuário: **brancos/nulos e abstenção
+ * saem da tela da home** — o dado segue em `EdgeParticipacao`, e os
+ * termômetros seguem existindo nas outras rotas. Isto emenda de fato o
+ * ADR-0018 nesta rota; a formalização é trabalho de `adr-author`.
+ *
+ * Decisão D21 do usuário sobre o botão "Todos os N candidatos": ele FICA,
+ * mas como colapso **puramente visual**. Os ADRs 0017, 0029 § 7 e 0033 § 2
+ * rejeitam o botão do kit porque lá ele REMOVE nós (`rows.slice(0, limit)`);
+ * aqui nenhum candidato sai do DOM, da árvore de acessibilidade ou da busca
+ * da página em nenhum estado — ver `components/blocks/ResultPanel.module.css`.
+ * Também isto precisa de emenda formal nos três ADRs (`adr-author`).
+ *
+ * O que ADR-0018 dizia sobre `multi-1t` — substituir `HeadlineScore` +
  * `CandidateRanking` + `NationalNeedle variant="national-1t"` pelos
- * termômetros. Um duelo top-2 em uma corrida de 11 candidatos é leitura
- * enganosa, e abstenção/brancos/nulos ficavam fora da tela.
+ * termômetros — continua valendo para as outras rotas. A agulha `national-1t`
+ * segue fora desta página, e por isso `<NationalNeedle>` só aparece em
+ * `binary`.
  *
  * Layout em modo `binary` (2T ou 1T com 2 cands): comportamento S04/S06
  * preservado **integralmente** — HeadlineScore como camada 1, recap do 1T
@@ -121,7 +151,6 @@ import type { Metadata } from "next";
 
 import { RaceTypeIndicator } from "@/components/atoms/badges/RaceTypeIndicator";
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
-import { MinorCandidatesList } from "@/components/atoms/lists/MinorCandidatesList";
 import { TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { ApuracaoMeta } from "@/components/blocks/ApuracaoMeta";
@@ -133,8 +162,8 @@ import { HeadlineScore } from "@/components/blocks/HeadlineScore";
 import { InsightCard } from "@/components/blocks/InsightCard";
 import { NationalNeedle } from "@/components/blocks/NationalNeedle";
 import { NationalWinnerBanner } from "@/components/blocks/NationalWinnerBanner";
-import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
 import { RemainingPanel } from "@/components/blocks/RemainingPanel";
+import { ResultPanel } from "@/components/blocks/ResultPanel";
 import { StateGroupedTable } from "@/components/blocks/StateGroupedTable";
 import { StrongholdsPanel } from "@/components/blocks/StrongholdsPanel";
 import { TurnoOneRecap } from "@/components/blocks/TurnoOneRecap";
@@ -278,10 +307,14 @@ export default async function HomePage() {
   const lider = national.candidatos.find((c) => (c.rank ?? -1) === 1) ?? national.candidatos[0];
   const segundo = national.candidatos.find((c) => (c.rank ?? -1) === 2) ?? national.candidatos[1];
 
-  // ADR-0018 — "Composição de Outros": os candidatos que o termômetro
-  // agregado resume (rank >= 4). Substitui as antigas camadas 2 (rank 3..6,
-  // `<CandidateRanking />`) e 3 (rank 7+), já que rank 3 subiu para o hero.
-  const outrosCandidatos = national.candidatos.filter((c, i) => (c.rank ?? i + 1) >= 4);
+  // Badges de estado ao lado do título do painel de resultado (RF-028). São
+  // os mesmos nos dois modos — por isso saíram do JSX de cada ramo.
+  const badgesDeEstado = (
+    <div className="flex flex-wrap items-center" style={{ gap: "var(--space-2)" }}>
+      <TurnoBadge turno={turno} />
+      <RaceTypeIndicator candidatos={national.candidatos} turno={turno} />
+    </div>
+  );
 
   // O mapa não está mais nesta página (ADR-0033 § 1): quem o monta é
   // `app/(pres)/layout.tsx`, na coluna persistente do `<AppShellSplit>`. Esta
@@ -343,87 +376,53 @@ export default async function HomePage() {
           outra seção (ADR-0029 § 5). Em binary o `<h1>` continua vindo do
           `<HeadlineScore />` (ADR-0017 intocado para 2T) e o painel fica sem
           título, como antes — duas `<h1>` seriam regressão de a11y. */}
-      <Panel
-        // `rule="none"`: o filete desta seção é o do `<TrilhaKicker>` logo
-        // acima (3px sólido, na cor da trilha — ADR-0019). O filete duplo
-        // padrão do `<Panel>` desenharia uma segunda régua a 16px da
-        // primeira, e o cabeçalho da página abriria com duas linhas
-        // paralelas em vez de uma.
-        rule="none"
-        kicker="Projeção Atlas Menna · não oficial"
-        title={mode === "multi-1t" ? <ResultTitle /> : undefined}
-        titleId={mode === "multi-1t" ? "resultado-heading" : undefined}
-        headingLevel={1}
-        action={
-          <div className="flex flex-wrap items-center" style={{ gap: "var(--space-2)" }}>
-            <TurnoBadge turno={turno} />
-            <RaceTypeIndicator candidatos={national.candidatos} turno={turno} />
-          </div>
-        }
-      >
-        {/* `--space-6` dentro do painel: 24px separa sub-blocos de uma MESMA
-            seção; 32px é a medida entre seções (o `gap` do `<main>`). Ter as
-            duas iguais fazia o interior do painel de resultado ler como se
-            fosse uma pilha de seções independentes. */}
-        <div className="flex flex-col" style={{ gap: "var(--space-6)" }}>
-          <ApuracaoMeta pctApurado={pct_apurado_total} ufsApuradas={ufs_apuradas} ts={ts} />
+      {/* `rule="none"` nos dois ramos: o filete desta seção é o do
+          `<TrilhaKicker>` logo acima (3px sólido, na cor da trilha —
+          ADR-0019). O filete duplo padrão do `<Panel>` desenharia uma segunda
+          régua a 16px da primeira, e o cabeçalho da página abriria com duas
+          linhas paralelas em vez de uma. */}
+      {mode === "multi-1t" ? (
+        /* O painel de resultado do protótipo (`App.jsx:20-43`), inteiro:
+           "Apurado" + "Margem <líder>" como as duas figuras do topo, barra de
+           maioria com marcador em 50%, e UMA lista com TODOS os candidatos —
+           é assim que o kit trata os candidatos menores, em vez de um bloco
+           "Composição de Outros" à parte. O `<h1>` da página é o título deste
+           painel (ADR-0029 § 5) e continua único. */
+        <ResultPanel
+          action={badgesDeEstado}
+          candidatos={national.candidatos}
+          headingLevel={1}
+          kicker="Projeção Atlas Menna · não oficial"
+          note="Projeção por regra de três: votos apurados ÷ % apurado em cada município, somados por UF e país."
+          pctApurado={pct_apurado_total}
+          rule="none"
+          title={<ResultTitle />}
+          titleId="resultado-heading"
+        />
+      ) : (
+        <Panel
+          action={badgesDeEstado}
+          headingLevel={1}
+          kicker="Projeção Atlas Menna · não oficial"
+          rule="none"
+        >
+          {/* `--space-6` dentro do painel: 24px separa sub-blocos de uma MESMA
+              seção; 32px é a medida entre seções (o `gap` do `<main>`). */}
+          <div className="flex flex-col" style={{ gap: "var(--space-6)" }}>
+            <ApuracaoMeta pctApurado={pct_apurado_total} ufsApuradas={ufs_apuradas} ts={ts} />
 
-          {/* Camada 1 (hero).
-              - binary (2T): `<HeadlineScore />` intocado — com `recap` do 1T
-                injetado acima (ADR-0016).
-              - multi-1t: seis termômetros (ADR-0018). O `<HeadlineScore />` e o
-                `<CandidateRanking />` saem do fluxo; rank >= 4 continua no DOM
-                logo abaixo, como "Composição de Outros" (ADR-0017). */}
-          {mode === "binary" ? (
+            {/* Camada 1 do 2T: `<HeadlineScore />` intocado, com o recap do 1T
+                injetado acima (ADR-0016). O ADR-0017 vale aqui sem nenhuma
+                alteração, e o `<h1>` desta rota continua vindo dele. */}
             <HeadlineScore
               candidatos={national.candidatos}
               mode={mode}
               turno={turno}
               recap={turno === 2 ? <TurnoOneRecap recap={recap1T} /> : null}
             />
-          ) : (
-            <>
-              <ProjectionThermometers
-                candidatos={national.candidatos}
-                participacao={national.participacao}
-              />
-              {outrosCandidatos.length > 0 && (
-                <section
-                  aria-labelledby="composicao-outros-heading"
-                  className="flex flex-col"
-                  style={{
-                    gap: "var(--space-3)",
-                    borderTop: "1px solid var(--border-hairline)",
-                    paddingTop: "var(--space-4)",
-                  }}
-                >
-                  <h3
-                    id="composicao-outros-heading"
-                    style={{
-                      margin: 0,
-                      font: "var(--type-kicker)",
-                      letterSpacing: "var(--tracking-caps)",
-                      textTransform: "uppercase",
-                      color: "var(--text-secondary)",
-                    }}
-                  >
-                    Composição de Outros
-                  </h3>
-                  <MinorCandidatesList candidatos={outrosCandidatos} />
-                </section>
-              )}
-            </>
-          )}
-
-          {/* O `TwoRoundIndicator` vivia aqui e saiu em 08/09 (ADR-0033, D19).
-              Ele exibia `p_segundo_turno_overall` — exatamente a métrica do
-              primeiro medidor do `ChancesPanel` logo abaixo, então a home
-              mostrava o mesmo número duas vezes, a dois blocos de distância.
-              O protótipo não tem esse indicador: a leitura de 2º turno é o
-              `ChancesPanel` (`App.jsx:350`), e é só ela. RF-030.7 passa a ser
-              coberto pelo `ChancesPanel`. */}
-        </div>
-      </Panel>
+          </div>
+        </Panel>
+      )}
 
       {/* Seção 3 — chances (`ChancesPanel` do protótipo, 2º painel de
           conteúdo em `App.jsx:350`). Aqui, ao contrário das rotas de UF, o

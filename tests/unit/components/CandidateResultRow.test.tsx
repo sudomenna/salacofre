@@ -136,4 +136,39 @@ describe("<CandidateResultRow />", () => {
       compact: true,
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // 2026-09-09 — `variant="kit"` entrou para a lista do `<ResultPanel>`.
+  // O que estes dois testes protegem é o DEFAULT: quatro telas fora do escopo
+  // daquela mudança (Camadas 2 e 3 do ADR-0017 e as duas rotas de UF) usam
+  // esta linha, e um default trocado por descuido as mudaria em silêncio.
+  // ---------------------------------------------------------------------------
+
+  it("(i) o default `variant='densa'` não mudou: texto puro, votos abreviados, 13px", () => {
+    const doc = parse(<CandidateResultRow {...BASE} />);
+
+    expect(doc.querySelector('[data-testid="party-tag"]')).toBeNull();
+    expect(doc.body.textContent).toContain("1,2 mi votos");
+    const numero = doc.querySelector("[data-view-cell='parcial']")?.firstElementChild;
+    expect(numero?.getAttribute("style")).not.toContain("font-size");
+    expect(numero?.getAttribute("style")).toContain("var(--type-figure-sm)");
+  });
+
+  it("(j) `variant='kit'` traz PartyTag, votos por extenso e 18px — mas só fora de `compact`", () => {
+    const doc = parse(<CandidateResultRow {...BASE} variant="kit" />);
+
+    expect(doc.querySelector('[data-testid="party-tag"][data-sigla="MDB"]')).not.toBeNull();
+    expect(doc.body.textContent).toContain("1.234.567 votos");
+    expect(
+      doc.querySelector("[data-view-cell='parcial']")?.firstElementChild?.getAttribute("style"),
+    ).toContain("font-size:18px");
+
+    // Compacta volta ao algarismo pequeno, como no kit (`CandidateRow.jsx:20`).
+    const compacta = parse(<CandidateResultRow {...BASE} compact variant="kit" />);
+    expect(
+      compacta
+        .querySelector("[data-view-cell='parcial']")
+        ?.firstElementChild?.getAttribute("style"),
+    ).not.toContain("font-size:18px");
+  });
 });

@@ -48,6 +48,15 @@ export interface ButtonProps {
   onClick?: MouseEventHandler<HTMLButtonElement>;
   /** Obrigatório quando o botão é só ícone (sem `children` textual). */
   "aria-label"?: string;
+  /**
+   * Estado de um controle de expansão. Só faz sentido junto de
+   * `aria-controls`; o par entrou com o colapso da lista de candidatos do
+   * `<ResultPanel>` (`CandidateListCollapse`, decisão D21) — a interface deste
+   * átomo é fechada, então o passthrough tem que ser declarado.
+   */
+  "aria-expanded"?: boolean;
+  /** `id` do elemento cujo estado este botão controla. */
+  "aria-controls"?: string;
   className?: string;
   style?: CSSProperties;
 }
@@ -93,6 +102,8 @@ export function Button({
   type = "button",
   onClick,
   "aria-label": ariaLabel,
+  "aria-expanded": ariaExpanded,
+  "aria-controls": ariaControls,
   className,
   style,
 }: ButtonProps) {
@@ -102,6 +113,8 @@ export function Button({
       disabled={disabled}
       onClick={onClick}
       aria-label={ariaLabel}
+      aria-expanded={ariaExpanded}
+      aria-controls={ariaControls}
       data-testid="button"
       data-variant={variant}
       data-size={size}

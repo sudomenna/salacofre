@@ -29,6 +29,13 @@ import { formatPercent } from "@/lib/utils/format";
 export const VOTE_BAR_FALLBACK_COLOR = "var(--party-outros, var(--color-cand-other))";
 
 export interface VoteBarSegment {
+  /**
+   * Identidade estável do segmento — id do candidato, ou um literal como
+   * `"outros"`. Só serve de chave React; não é exibida. Opcional porque
+   * chamadores antigos passam só `label`, mas passe sempre que houver id:
+   * o rótulo é o primeiro nome e pode repetir entre candidatos.
+   */
+  id?: string | number;
   /** Nome exibido no tooltip e no texto alternativo. */
   label: string;
   /** Participação em 0–100. */
@@ -84,9 +91,16 @@ export function VoteBar({
       >
         {segments.map((s, i) => (
           <div
-            // O rótulo é a identidade do segmento — não há dois "Outros" numa
-            // mesma barra de votos.
-            key={s.label}
+            // A identidade do segmento é o `id`, com o rótulo só como reserva.
+            //
+            // O rótulo NÃO serve como chave: ele é o primeiro nome do candidato
+            // (`nome.split(" ")[0]`), e dois candidatos podem compartilhá-lo —
+            // "José Silva" e "José Almeida" na mesma corrida colidiriam.
+            // Medido em 09/09 com a fixture ("Candidato PT" e "Candidato PL"):
+            // o React acusou duas chaves `Candidato` e avisou que pode duplicar
+            // ou omitir filhos. O protótipo tem o mesmo defeito
+            // (`App.jsx:35`) — não copiar.
+            key={s.id ?? `${i}:${s.label}`}
             data-testid="vote-bar-segment"
             data-label={s.label}
             title={`${s.label} ${formatPercent(s.pct)}`}

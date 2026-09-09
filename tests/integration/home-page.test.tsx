@@ -49,13 +49,23 @@ function parse(html: string): Document {
 }
 
 /** Termômetros do hero — meters dentro da seção do bloco (não os de outros
- * blocos, como o medidor de P(2T) do `<TwoRoundIndicator />`). */
+ * blocos, como o medidor de P(2T) do `<ChancesPanel />`).
+ *
+ * Desde 2026-09-09 o hero de `multi-1t` é o `<ResultPanel>` do kit e esta
+ * função devolve zero na home; ela fica porque os testes de 2T ainda precisam
+ * provar que os termômetros também NÃO aparecem lá.
+ */
 function termometros(doc: Document): Element[] {
   return [
     ...doc.querySelectorAll(
       'section[aria-labelledby="projecao-termometros-heading"] [role="meter"]',
     ),
   ];
+}
+
+/** As linhas de candidato do painel de resultado, na ordem do DOM. */
+function linhasDeCandidato(doc: Document): Element[] {
+  return [...doc.querySelectorAll('[data-testid="candidate-result-row"]')];
 }
 
 afterEach(() => {
@@ -120,11 +130,20 @@ describe("HomePage (integration / smoke)", () => {
     expect(html).toContain("O que está movendo o forecast");
   });
 
-  it("(f) ApuracaoMeta — timestamp + ufs apuradas", async () => {
+  // 2026-09-09 — em `multi-1t` o `<ApuracaoMeta>` deixou de ser um bloco: o
+  // percentual apurado virou a `<Figure>` "Apurado" do `<ResultPanel>`, com a
+  // nota "X de Y votos válidos" do kit. O par "UFs apuradas Y/27" e o
+  // "HH:MM:SS" saíram deste painel; o horário continua na página, no
+  // `<BulletinPanel>`, e o `<ApuracaoMeta>` continua íntegro no modo `binary`.
+  it("(f) a figura 'Apurado' traz o percentual e o par apurado/projetado de votos", async () => {
     const node = await HomePage();
-    const html = renderToStaticMarkup(node);
-    expect(html).toContain("Apurado");
-    expect(html).toContain("/27");
+    const doc = parse(renderToStaticMarkup(node));
+    const texto = doc.body.textContent ?? "";
+
+    expect(texto).toContain("Apurado");
+    // Fixture: 23,4% apurado, Σ votos_atuais = 33.475.321 → 143,1 mi projetados.
+    expect(texto).toContain("23,4");
+    expect(texto).toContain("33,5 mi de 143,1 mi votos válidos");
   });
 
   it("(g) publica o rótulo de apuração que alimenta o selo do TopBar (ADR-0029 § 4)", async () => {
@@ -180,48 +199,66 @@ describe("HomePage (integration / smoke)", () => {
     expect(html).not.toContain("65% de chance de ir a 2º turno");
   });
 
-  it("(k) hero 1T = seis termômetros na ordem canônica (ADR-0018)", async () => {
+  // -------------------------------------------------------------------------
+  // 2026-09-09 — o hero de `multi-1t` é o `<ResultPanel>` do kit (App.jsx:20).
+  // Os seis termômetros do ADR-0018 saíram DESTA rota (seguem nas três outras)
+  // e, com eles, brancos/nulos e abstenção — consequência declarada e aceita
+  // pelo usuário. O que substitui os testes (k)/(k2)/(l) é a prova de que o
+  // painel novo mostra a corrida inteira, com o colapso sendo só visual.
+  // -------------------------------------------------------------------------
+
+  it("(k) hero 1T = painel de resultado do kit, sem termômetros nesta rota", async () => {
     const node = await HomePage();
     const doc = parse(renderToStaticMarkup(node));
 
-    expect(doc.body.textContent).toContain("Projeção do 1º turno");
-    expect(termometros(doc)).toHaveLength(6);
+    expect(termometros(doc)).toHaveLength(0);
+    expect(doc.querySelector('[id^="termometro-"]')).toBeNull();
 
-    // Rank 1..3 pelo id do candidato na fixture + os três agregados.
-    const ids = [1, 2, 3].map((r) => FIXTURE_CANDIDATOS[r - 1]?.id);
-    for (const id of ids) {
-      expect(doc.querySelector(`#termometro-cand-${id}`)).not.toBeNull();
-    }
-    expect(doc.querySelector("#termometro-outros")).not.toBeNull();
-    expect(doc.querySelector("#termometro-brancos-nulos")).not.toBeNull();
-    expect(doc.querySelector("#termometro-abstencao")).not.toBeNull();
+    // Duas figuras no topo do painel: "Apurado" e "Margem <primeiro nome>".
+    const texto = doc.body.textContent ?? "";
+    expect(texto).toContain("Apurado");
+    expect(texto).toContain(`Margem ${NOME_TOP1.split(" ")[0]}`);
+    // Barra de maioria com marcador em 50%, uma por base.
+    expect(doc.querySelectorAll('[data-testid="vote-bar-marker"]')).toHaveLength(2);
   });
 
-  it("(k2) fixture traz participacao → nenhum termômetro em 'aguardando'", async () => {
+  it("(k2) as duas bases da margem ficam no HTML; a cascata revela a ativa", async () => {
     const node = await HomePage();
     const doc = parse(renderToStaticMarkup(node));
-    const estados = termometros(doc).map(
-      (m) => m.parentElement?.getAttribute("data-estado") ?? "?",
-    );
-    expect(estados).toEqual(Array(6).fill("projetado"));
 
-    // Denominador misto rotulado (D3): as três bases aparecem no bloco.
-    const bases = [
-      `#termometro-cand-${FIXTURE_CANDIDATOS[0]?.id}`,
-      "#termometro-brancos-nulos",
-      "#termometro-abstencao",
-    ].map((sel) => doc.querySelector(sel)?.getAttribute("data-base"));
-    expect(bases).toEqual(["votaveis", "comparecimento", "eleitores_instalados"]);
+    const parcial = doc.querySelector('[data-testid="result-margem-parcial"]');
+    const proj = doc.querySelector('[data-testid="result-margem-proj"]');
+    expect(parcial).not.toBeNull();
+    expect(proj).not.toBeNull();
+    // Fixture: 43,5 − 38,2 = 5,3 pp parcial; 43,2 − 38,0 = 5,2 pp projetado.
+    expect(parcial?.textContent).toContain("+5,3");
+    expect(parcial?.textContent).toContain("projeção +5,2 pp");
+    expect(proj?.textContent).toContain("+5,2");
   });
 
-  it("(l) 'Composição de Outros' lista os candidatos de rank >= 4 (ADR-0017 — sempre no DOM)", async () => {
+  it("(l) TODOS os 11 candidatos da fixture ficam no DOM (ADR-0017 + D21)", async () => {
     const node = await HomePage();
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("Composição de Outros");
-    // Fixture rank 4..11: PDT, UNIÃO, NOVO, PTB, UP, PCB, PSTU, DC.
-    expect(html).toContain("Candidato PDT");
-    expect(html).toContain("Candidato NOVO");
-    expect(html).toContain("Candidato DC");
+    const doc = parse(html);
+
+    // Uma linha por candidato — inclusive os oito de rank >= 4, que antes
+    // viviam num bloco "Composição de Outros" separado.
+    expect(linhasDeCandidato(doc)).toHaveLength(FIXTURE_CANDIDATOS.length);
+    for (const c of FIXTURE_CANDIDATOS) {
+      expect(html).toContain(c.nome);
+    }
+
+    // O colapso do kit é aceito como efeito VISUAL (decisão D21) e só isso: as
+    // linhas excedentes seguem no DOM, sem `hidden`, sem `<details>` e sem
+    // `display: none` — o que os ADRs 0017 / 0029 § 7 / 0033 § 2 proíbem é a
+    // remoção de nós, que é o que o kit faz (`rows.slice(0, limit)`).
+    const botao = doc.querySelector('main [data-testid="button"][aria-expanded]');
+    expect(botao?.textContent).toContain(`Todos os ${FIXTURE_CANDIDATOS.length} candidatos`);
+    expect(doc.querySelector("main details")).toBeNull();
+    expect(doc.querySelector("main [hidden]")).toBeNull();
+    expect(doc.querySelectorAll("main [data-extra-row]")).toHaveLength(
+      FIXTURE_CANDIDATOS.length - 6,
+    );
   });
 
   it("(m) em 1T o HeadlineScore e o CandidateRanking saem do fluxo (ADR-0018)", async () => {
@@ -344,25 +381,30 @@ describe("HomePage (integration / smoke)", () => {
 
     const kicker = at("data-trilha-kicker");
     const painel = at("Projeção Atlas Menna · não oficial");
-    const termometros = at("projecao-termometros-heading");
+    // 2026-09-09: o marcador de "primeiro conteúdo do painel" deixou de ser o
+    // heading dos termômetros e passou a ser a primeira linha de candidato.
+    const listaDeCandidatos = at("candidate-result-row");
     const rodape = at("Não oficial. Fonte:");
 
     // TrilhaKicker imediatamente acima do painel que carrega o <h1>
     // (ADR-0019 preservado dentro da nova ordem).
     expect(kicker).toBeLessThan(painel);
-    expect(painel).toBeLessThan(termometros);
+    expect(painel).toBeLessThan(listaDeCandidatos);
     // O rodapé constitucional continua fechando a página.
-    expect(termometros).toBeLessThan(rodape);
+    expect(listaDeCandidatos).toBeLessThan(rodape);
   });
 
-  it("(x) os seis termômetros do ADR-0018 seguem no painel de resultado, intactos", async () => {
+  it("(x) o painel de resultado é o PRIMEIRO conteúdo da coluna que rola", async () => {
     const node = await HomePage();
     const doc = parse(renderToStaticMarkup(node));
-    // Mesma asserção do teste (k), repetida aqui de propósito: a recomposição
-    // do ADR-0029 é a mudança mais provável de derrubar o hero por acidente.
-    expect(termometros(doc)).toHaveLength(6);
-    expect(doc.querySelector("#termometro-brancos-nulos")).not.toBeNull();
-    expect(doc.querySelector("#termometro-abstencao")).not.toBeNull();
+    // O painel de resultado abre a página: é o bloco de maior valor
+    // informativo, e a recomposição de 09/09 é a mudança mais provável de o
+    // empurrar para baixo por acidente.
+    const primeiro = doc.querySelector('main [data-testid="panel"]');
+    expect(primeiro?.querySelector('[data-testid="panel-kicker"]')?.textContent).toBe(
+      "Projeção Atlas Menna · não oficial",
+    );
+    expect(primeiro?.querySelector("h1")?.getAttribute("id")).toBe("resultado-heading");
   });
 
   it("(y) 'Composição de Outros' traz parcial E projeção por candidato (ADR-0029 § 7)", async () => {

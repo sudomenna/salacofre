@@ -1,0 +1,47 @@
+/**
+ * components/blocks/ResultPanel.module.css
+ *
+ * A única coisa que este módulo existe para resolver é o colapso da lista de
+ * candidatos do `<ResultPanel>` (decisão D21 do usuário, 2026-09-09) SEM tirar
+ * um único candidato do DOM.
+ *
+ * ## Por que um arquivo de CSS e não `style` inline
+ *
+ * O colapso é um seletor de descendência — "quando a lista está colapsada,
+ * clipe as linhas excedentes". `style` inline não expressa relação entre dois
+ * elementos, e `app/globals.css` está fora do escopo desta tarefa. Módulo CSS
+ * é o mecanismo que o repositório já usa para exatamente isto
+ * (`AppShellSplit.module.css`, `CargoTabs.module.css`).
+ *
+ * ## A técnica, e por que não é `display: none`
+ *
+ * O ADR-0017 proíbe literalmente o botão "Mostrar todos os N candidatos" do
+ * kit (`ui_kits/atlas-menna/App.jsx:39`), e a razão declarada não é o botão em
+ * si — é que no kit ele **remove nós**: `rows.slice(0, limit)` simplesmente
+ * não renderiza o resto. A decisão D21 mantém o botão e descarta a remoção.
+ *
+ * Aqui as 13 linhas são renderizadas sempre, no mesmo `<ol>`, na ordem do
+ * ranking. Colapsada, cada linha excedente vira uma caixa de altura zero com
+ * `overflow: hidden` — o conteúdo continua com layout próprio (só é clipado),
+ * que é a mesma mecânica do padrão `sr-only` e portanto **continua exposto à
+ * árvore de acessibilidade e à busca da página**. É o oposto de
+ * `display: none` / `hidden` / `<details>`, que removem o nó da árvore.
+ *
+ * Sem `transition`: não há como animar de `0` para `auto`, e uma altura fixa
+ * arbitrária cortaria linhas em telas estreitas, onde o nome do candidato
+ * quebra em duas linhas.
+ */
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+
+/* Cada linha é um `<li>`; a linha em si (borda inferior inclusive) mora no
+ * filho, então o clip apaga também o filete — sem sobrar régua órfã. */
+.list[data-collapsed="true"] > .extra {
+  height: 0;
+  overflow: hidden;
+}

@@ -102,6 +102,21 @@ describe("<Button />", () => {
     ).toBe("Fechar");
   });
 
+  it("(h2) o par aria-expanded/aria-controls passa adiante (colapso do <ResultPanel>)", () => {
+    // A interface deste átomo é fechada — sem passthrough de props arbitrárias.
+    // O par entrou junto com `CandidateListCollapse`, e sem ele o botão de
+    // "Todos os N candidatos" seria um controle mudo para leitor de tela.
+    const b = btn(
+      parse(
+        <Button aria-controls="lista-cands" aria-expanded={false} size="sm" variant="ghost">
+          Todos os 11 candidatos
+        </Button>,
+      ),
+    );
+    expect(b?.getAttribute("aria-expanded")).toBe("false");
+    expect(b?.getAttribute("aria-controls")).toBe("lista-cands");
+  });
+
   it("(i) o arquivo NÃO é Client Component — hover é CSS, não useState", () => {
     const src = codeOf("components/atoms/controls/Button.tsx");
     expect(src).not.toContain('"use client"');
