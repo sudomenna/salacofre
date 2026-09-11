@@ -45,7 +45,11 @@
 //
 //   Resultado esperado: MAE@1h MAIOR que os 0,998pp tautológicos — isso é o
 //   gate ficando honesto, não o modelo piorando. Não ajustar os parâmetros
-//   de viés/ruído abaixo para "melhorar" o MAE artificialmente.
+//   de viés/ruído abaixo para "melhorar" o MAE artificialmente. A variação
+//   de `REGIONAL_DELAY` por `REPLAY_REGIONAL_DELAY` (ver abaixo) existe
+//   estritamente para produzir a FAIXA de sensibilidade decidida em
+//   ADR-0033 § "3. Calibração do gate OT-4" (`scripts/replay-sensitivity.ts`)
+//   — nunca para escolher o valor que faz o gate oficial (delay=3) passar.
 //
 // Contrato (lido de scripts/replay-2022.ts — T20):
 //
@@ -104,11 +108,13 @@
 // Uso:
 //   set -a && . ./.env.local && set +a
 //   pnpm tsx scripts/build-replay-fixtures.ts
+//   REPLAY_REGIONAL_DELAY=<0..6> pnpm tsx scripts/build-replay-fixtures.ts --out <path>
 //
-// Saída: 2 arquivos em tests/fixtures/replay-2022/. Sai com exit 0.
+// Saída: 2 arquivos (default tests/fixtures/replay-2022/{snapshots,ground-truth}.json,
+// ou o path de --out + par derivado — ver parseArgs). Sai com exit 0.
 
 import { mkdir, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { getPool } from "../data-pipeline/_tse-common.ts";
 
 const SEED_HEX = "5A1AC0F2E2026"; // documentado acima
@@ -124,12 +130,27 @@ const VB_RATE = 0.0159; // brancos / c
 const TVN_RATE = 0.0298; // nulos / c
 const ABSTENCAO_RATE = 0.2095; // a / te
 
+/** Lê `REPLAY_REGIONAL_DELAY` (inteiro 0–6, default 3). Existe só para a
+ * faixa de sensibilidade do OT-4 (ADR-0033 D3, `replay-sensitivity.ts`) —
+ * nunca para escolher o valor que faz o gate oficial passar. */
+function parseRegionalDelay(raw: string | undefined): number {
+  if (raw === undefined) return 3;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0 || n > 6) {
+    console.error(
+      `[build-replay-fixtures] REPLAY_REGIONAL_DELAY inválido: "${raw}" — precisa ser um inteiro entre 0 e 6 (default 3).`,
+    );
+    process.exit(1);
+  }
+  return n;
+}
+
 // Cronograma de apuração enviesado.
 const BASE_MAX_T = 24; // faixa de T_base antes do delay regional
-const REGIONAL_DELAY = 3; // Norte/Nordeste relatam 3 timesteps mais tarde
+const REGIONAL_DELAY = parseRegionalDelay(process.env.REPLAY_REGIONAL_DELAY); // Norte/Nordeste relatam N timesteps mais tarde (default 3)
 const JITTER_SCALE = 0.6; // espalha o rank sem apagar o viés
 const INTRA_ZONA_FRACOES = [0.25, 0.5, 0.75, 1.0] as const; // offsets 0..3 de T_zona
-const MAX_TIMESTEP = BASE_MAX_T + REGIONAL_DELAY + (INTRA_ZONA_FRACOES.length - 1); // 30
+const MAX_TIMESTEP = BASE_MAX_T + REGIONAL_DELAY + (INTRA_ZONA_FRACOES.length - 1); // derivado
 
 const NORTE = new Set(["AC", "AP", "AM", "PA", "RO", "RR", "TO"]);
 const NORDESTE = new Set(["AL", "BA", "CE", "MA", "PB", "PE", "PI", "RN", "SE"]);
@@ -278,9 +299,16 @@ async function fetchAll(): Promise<{
       ),
       pool.query<EleitoradoRowDb>(
         `
-          SELECT uf, cod_zona, eleitores_aptos
+          -- SOMA obrigatória: desde a migration 0006 a PK de \`eleitorado\` é
+          -- (ano, uf, cod_municipio_tse, cod_zona), então a mesma zona tem uma
+          -- linha por município que ela cobre (62,5% das zonas cobrem 2–8).
+          -- Sem o GROUP BY, o \`Map.set\` abaixo ficava com a ÚLTIMA fatia em vez
+          -- do total da zona — erro silencioso que inflou o MAE@1h de 2,3623pp
+          -- para 3,4636pp em 2026-09-11 antes de ser identificado.
+          SELECT uf, cod_zona, SUM(eleitores_aptos)::bigint AS eleitores_aptos
           FROM eleitorado
           WHERE ano = $1 AND uf <> 'ZZ'
+          GROUP BY uf, cod_zona
           ORDER BY uf, cod_zona
         `,
         [ELEITORADO_ANO],
@@ -439,14 +467,34 @@ function buildSnapshotAt(z: ZoneModel, bucketTimestep: number): SnapshotOut | nu
 }
 
 // ---------------------------------------------------------------------------
+// CLI args
+// ---------------------------------------------------------------------------
+
+interface CliArgs {
+  outPath: string | null; // path do snapshots.json de saída (default: tests/fixtures/replay-2022/snapshots.json)
+}
+
+function parseArgs(argv: string[]): CliArgs {
+  const out: CliArgs = { outPath: null };
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--out") {
+      i += 1;
+      out.outPath = argv[i] ?? null;
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
   const t0 = Date.now();
+  const args = parseArgs(process.argv.slice(2));
   console.log("[build-replay-fixtures] T21/Fase-5 — dataset replay 2022 (não-tautológico)");
   console.log(
-    `  cargo=${CARGO} turno=${TURNO} ano=${ANO} max_timestep=${MAX_TIMESTEP} seed=0x${SEED_HEX}`,
+    `  cargo=${CARGO} turno=${TURNO} ano=${ANO} max_timestep=${MAX_TIMESTEP} seed=0x${SEED_HEX} regional_delay=${REGIONAL_DELAY}`,
   );
 
   // 1. DB
@@ -546,12 +594,23 @@ async function main(): Promise<void> {
     timesteps,
   };
 
-  // 7. Persistência.
+  // 7. Persistência. Default: tests/fixtures/replay-2022/{snapshots,ground-truth}.json.
+  // `--out <path>` grava o snapshots.json em `<path>` e deriva o ground-truth
+  // ao lado (substituindo "snapshots" por "ground-truth" no nome do arquivo;
+  // sem esse token, usa "ground-truth.json" no mesmo diretório) — usado pela
+  // faixa de sensibilidade (ADR-0033 D3, `scripts/replay-sensitivity.ts`) para
+  // gravar fora de tests/fixtures/ sem sobrescrever o fixture-padrão.
   console.log("[6/6] gravando fixtures …");
-  const outDir = resolve(process.cwd(), "tests/fixtures/replay-2022");
+  const snapshotsPath = args.outPath
+    ? resolve(process.cwd(), args.outPath)
+    : resolve(process.cwd(), "tests/fixtures/replay-2022", "snapshots.json");
+  const outDir = dirname(snapshotsPath);
   await mkdir(outDir, { recursive: true });
-  const snapshotsPath = resolve(outDir, "snapshots.json");
-  const groundPath = resolve(outDir, "ground-truth.json");
+  const snapshotsBasename = basename(snapshotsPath);
+  const groundBasename = snapshotsBasename.includes("snapshots")
+    ? snapshotsBasename.replace("snapshots", "ground-truth")
+    : "ground-truth.json";
+  const groundPath = resolve(outDir, groundBasename);
 
   const datasetBody = JSON.stringify(dataset);
   const groundBody = JSON.stringify(groundTruth, null, 2);
@@ -575,6 +634,7 @@ async function main(): Promise<void> {
   console.log(`   Candidatos:          ${candCount}`);
   console.log(`   Zonas úteis:         ${zoneModels.length}`);
   console.log(`   Timestep máximo:     ${MAX_TIMESTEP}`);
+  console.log(`   Atraso regional:     ${REGIONAL_DELAY} (REPLAY_REGIONAL_DELAY)`);
   console.log(`   Buckets:             ${BUCKETS.map((b) => b.bucket).join(", ")}`);
   console.log(`   Seed:                0x${SEED_HEX}`);
   console.log(`   Eleitorado proxy:    ${ELEITORADO_ANO}`);
