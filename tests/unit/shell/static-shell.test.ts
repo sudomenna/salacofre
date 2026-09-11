@@ -18,7 +18,7 @@
  * O sinal negativo é fraco sozinho, então o teste também fixa os dois
  * mecanismos POSITIVOS que substituem as APIs dinâmicas:
  *
- *   - turno vem de `currentTurno()`, função pura do calendário (ADR-0012);
+ *   - turno vem de `currentPresidentialTurno()`, função pura do calendário (ADR-0012);
  *   - "Parcial / Projeção" vem de `data-view` no `<html>`, escrito
  *     estaticamente pelo layout a partir de `VIEW_MODE_DEFAULT` e trocado no
  *     cliente pela store.
@@ -88,7 +88,7 @@ describe("shell estático (ADR-0029 § 2 — restrição dura)", () => {
 
   it("(b) o seletor de turno sai do calendário (função pura), não de requisição", () => {
     const code = stripComments(read("components/layout/TurnoSwitch.tsx"));
-    expect(code).toContain("currentTurno");
+    expect(code).toContain("currentPresidentialTurno");
     expect(code).toContain('from "@/lib/config/calendar"');
     // `lib/config/calendar.ts` é o contrato: nenhum I/O, só o relógio.
     const calendario = read("lib/config/calendar.ts");

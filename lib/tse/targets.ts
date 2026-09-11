@@ -35,6 +35,7 @@
  */
 
 import { eq } from "drizzle-orm";
+import { CARGOS_TSE, type CargoTse, cargoInfo, isCargoTse } from "@/lib/config/cargos";
 import { db, schema } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
@@ -54,7 +55,7 @@ export type TargetNivel = "zona" | "uf" | "br";
 
 export interface Target {
   uf: string;
-  cargo: 1 | 3;
+  cargo: CargoTse;
   nivel: TargetNivel;
   /** Sentinel 0 quando `nivel !== "zona"` — ver comentário em `listIngestTargets`. */
   codMunicipioTse: number;
@@ -134,7 +135,7 @@ function formatEleicaoSuffix(codEleicao: string): string {
   return numericPart.padStart(6, "0");
 }
 
-function formatCargo(cargo: 1 | 3): string {
+function formatCargo(cargo: CargoTse): string {
   return String(cargo).padStart(4, "0");
 }
 
@@ -162,7 +163,7 @@ export function buildEA20UrlZona(args: {
   uf: string;
   codMunicipioTse: number;
   codZona: number;
-  cargo: 1 | 3;
+  cargo: CargoTse;
   baseUrl?: string;
 }): string {
   const baseUrl = args.baseUrl ?? getTseBaseUrl();
@@ -184,7 +185,7 @@ export function buildEA20UrlMunicipio(args: {
   codEleicao: string;
   uf: string;
   codMunicipioTse: number;
-  cargo: 1 | 3;
+  cargo: CargoTse;
   baseUrl?: string;
 }): string {
   const baseUrl = args.baseUrl ?? getTseBaseUrl();
@@ -204,7 +205,7 @@ export function buildEA20UrlMunicipio(args: {
 export function buildEA20UrlUf(args: {
   codEleicao: string;
   uf: string;
-  cargo: 1 | 3;
+  cargo: CargoTse;
   baseUrl?: string;
 }): string {
   const baseUrl = args.baseUrl ?? getTseBaseUrl();
@@ -223,7 +224,7 @@ export function buildEA20UrlUf(args: {
  */
 export function buildEA20UrlBr(args: {
   codEleicao: string;
-  cargo: 1 | 3;
+  cargo: CargoTse;
   baseUrl?: string;
 }): string {
   const baseUrl = args.baseUrl ?? getTseBaseUrl();
@@ -270,7 +271,7 @@ export function buildEA20Url(
   uf: string,
   codMunicipioTse: number,
   codZona: number,
-  cargo: 1 | 3,
+  cargo: CargoTse,
   baseUrl: string = getTseBaseUrl(),
 ): string {
   return buildEA20UrlZona({ codEleicao, uf, codMunicipioTse, codZona, cargo, baseUrl });
@@ -318,7 +319,9 @@ export function getCodEleicao(): string {
 // Cargos ativos (env-configurável)
 // ---------------------------------------------------------------------------
 
-const VALID_CARGOS = [1, 3] as const;
+// Deriva da tabela canônica (`lib/config/cargos.ts`) em vez de repetir a lista:
+// acrescentar um cargo lá passa a bastar, e não há como os dois divergirem.
+const VALID_CARGOS = CARGOS_TSE;
 
 /**
  * getActiveCargos — lê `TSE_CARGOS` do ambiente (default: "1,3").
@@ -332,24 +335,30 @@ const VALID_CARGOS = [1, 3] as const;
  * tanto por `buildProductionTargets` quanto pelo model-trigger em
  * `app/api/ingest/route.ts`.
  */
-export function getActiveCargos(): Array<1 | 3> {
+export function getActiveCargos(): Array<CargoTse> {
+  // Default deliberadamente NÃO é "todos os cargos cobertos". Senador (5) e
+  // Deputado Federal (6) têm crons próprios, com cadência distinta (ADR-0026
+  // item 1); se entrassem no ciclo genérico de 60 s, um único ciclo pediria
+  // 6.110 + 6.110 + 27 + 27 = 12.274 arquivos, que a 40 rps são ~307 s — acima
+  // do `maxDuration` de 300 s. Quem quer 5/6 pede pelo segmento de rota
+  // (`/api/ingest/senador`), e aí `filterCargos` honra o pedido.
   const DEFAULT_CARGOS = "1,3";
   const raw = (process.env.TSE_CARGOS ?? DEFAULT_CARGOS).trim() || DEFAULT_CARGOS;
 
-  const result: Array<1 | 3> = [];
+  const result: Array<CargoTse> = [];
   for (const token of raw.split(",")) {
     const trimmed = token.trim();
     if (!trimmed) continue;
 
     const num = Number(trimmed);
-    if (!VALID_CARGOS.includes(num as 1 | 3)) {
+    if (!isCargoTse(num)) {
       console.warn(
-        `[targets] Cargo inválido "${trimmed}" em TSE_CARGOS — apenas 1 (Presidente) e 3 (Governador) são suportados. Token ignorado.`,
+        `[targets] Cargo inválido "${trimmed}" em TSE_CARGOS — suportados: ${VALID_CARGOS.join(", ")}. Token ignorado.`,
       );
       continue;
     }
-    if (!result.includes(num as 1 | 3)) {
-      result.push(num as 1 | 3);
+    if (!result.includes(num)) {
+      result.push(num);
     }
   }
 
@@ -396,12 +405,19 @@ export type TseGranularidade = (typeof VALID_GRANULARIDADES)[number];
  * colisão. Essa é uma decisão pragmática de curto prazo — recomenda-se ADR
  * formal (coluna `nivel` dedicada) no hardening pós-simulado; ver relatório.
  */
-export function getGranularidade(): TseGranularidade {
+export function getGranularidade(cargo?: CargoTse): TseGranularidade {
   // Default `zona` desde 2026-09-05 (decisão E4 do plano de projeção por regra
   // de três): o modelo precisa de dado por zona, e o modo `uf` está quebrado no
   // modelo (`eleitorado` não tem linha `(uf, 0)` → peso 0). `uf` segue aceito
   // como opt-in explícito para ciclos leves de diagnóstico.
-  const raw = (process.env.TSE_GRANULARIDADE ?? "zona").trim().toLowerCase();
+  //
+  // Desde 2026-09-11 (ADR-0026 item 1) o default é **por cargo**, não global:
+  // Senador e Deputado Federal nascem em `uf` (27 GETs/ciclo), porque quatro
+  // cargos em zona passariam de 24 mil GETs por ciclo. `TSE_GRANULARIDADE`
+  // continua sobrepondo TUDO — é escotilha de diagnóstico, e por isso vem antes.
+  const envRaw = process.env.TSE_GRANULARIDADE?.trim().toLowerCase();
+  const padraoDoCargo = cargo !== undefined ? cargoInfo(cargo).granularidade : "zona";
+  const raw = envRaw || padraoDoCargo;
   if ((VALID_GRANULARIDADES as readonly string[]).includes(raw)) {
     return raw as TseGranularidade;
   }
@@ -460,11 +476,11 @@ const TODAS_UFS = [
  *
  * Se a variável estiver ausente ou inválida, usa o default "SP:1".
  */
-function parseWhitelist(raw: string | undefined): Array<{ uf: string; cargo: 1 | 3 }> {
+function parseWhitelist(raw: string | undefined): Array<{ uf: string; cargo: CargoTse }> {
   const DEFAULT_WHITELIST = "SP:1";
   const input = (raw ?? DEFAULT_WHITELIST).trim() || DEFAULT_WHITELIST;
 
-  const result: Array<{ uf: string; cargo: 1 | 3 }> = [];
+  const result: Array<{ uf: string; cargo: CargoTse }> = [];
 
   for (const token of input.split(",")) {
     const trimmed = token.trim();
@@ -521,8 +537,8 @@ function cacheKey(
   env: "preview" | "production",
   codEleicao: string,
   baseUrl: string,
-  granularidade: TseGranularidade,
-  cargoFiltro: 1 | 3 | undefined,
+  granularidade: string,
+  cargoFiltro: CargoTse | undefined,
 ): string {
   return `${env}|${codEleicao}|${baseUrl}|${granularidade}|${cargoFiltro ?? "all"}`;
 }
@@ -554,7 +570,7 @@ export interface ListIngestTargetsOptions {
    * o outro. Quando `cargo` não está entre os cargos ativos (`TSE_CARGOS`),
    * o resultado é uma lista vazia — não há fallback silencioso para "todos".
    */
-  cargo?: 1 | 3;
+  cargo?: CargoTse;
 }
 
 /**
@@ -578,9 +594,15 @@ export async function listIngestTargets(
 ): Promise<Target[]> {
   const codEleicao = getCodEleicao();
   const baseUrl = getTseBaseUrl();
-  const granularidade = getGranularidade();
   const cargoFiltro = opts.cargo;
-  const key = cacheKey(env, codEleicao, baseUrl, granularidade, cargoFiltro);
+
+  // Cada cargo tem sua granularidade (ADR-0026 item 1): Presidente e Governador
+  // em zona, Senador e Deputado Federal em UF. O ciclo é montado cargo a cargo e
+  // concatenado — um ciclo de `/api/ingest` com `TSE_CARGOS=1,3,5,6` produz
+  // 6.110 + 6.110 + 27 + 27 alvos, não um modo único para todos.
+  const cargosDoCiclo = filterCargos(getActiveCargos(), cargoFiltro);
+  const assinaturaGranularidade = cargosDoCiclo.map((c) => `${c}:${getGranularidade(c)}`).join(",");
+  const key = cacheKey(env, codEleicao, baseUrl, assinaturaGranularidade, cargoFiltro);
 
   const now = Date.now();
   const cached = cache.get(key);
@@ -588,18 +610,22 @@ export async function listIngestTargets(
     return cached.targets;
   }
 
-  let targets: Target[];
-
-  if (env === "preview") {
-    targets =
-      granularidade === "zona"
-        ? await buildPreviewTargetsZona(codEleicao, baseUrl, cargoFiltro)
-        : buildPreviewTargetsUf(codEleicao, baseUrl, cargoFiltro);
-  } else {
-    targets =
-      granularidade === "zona"
-        ? await buildProductionTargetsZona(codEleicao, baseUrl, cargoFiltro)
-        : buildProductionTargetsUf(codEleicao, baseUrl, cargoFiltro);
+  const targets: Target[] = [];
+  for (const cargo of cargosDoCiclo) {
+    const granularidade = getGranularidade(cargo);
+    if (env === "preview") {
+      targets.push(
+        ...(granularidade === "zona"
+          ? await buildPreviewTargetsZona(codEleicao, baseUrl, cargo)
+          : buildPreviewTargetsUf(codEleicao, baseUrl, cargo)),
+      );
+    } else {
+      targets.push(
+        ...(granularidade === "zona"
+          ? await buildProductionTargetsZona(codEleicao, baseUrl, cargo)
+          : buildProductionTargetsUf(codEleicao, baseUrl, cargo)),
+      );
+    }
   }
 
   cache.set(key, { targets, expiresAt: now + CACHE_TTL_MS });
@@ -610,7 +636,7 @@ export async function listIngestTargets(
 // Targets — granularidade "uf" (opt-in; default é "zona")
 // ---------------------------------------------------------------------------
 
-function buildUfTarget(uf: string, cargo: 1 | 3, codEleicao: string, baseUrl: string): Target {
+function buildUfTarget(uf: string, cargo: CargoTse, codEleicao: string, baseUrl: string): Target {
   return {
     uf,
     cargo,
@@ -622,7 +648,7 @@ function buildUfTarget(uf: string, cargo: 1 | 3, codEleicao: string, baseUrl: st
   };
 }
 
-function buildBrTarget(cargo: 1 | 3, codEleicao: string, baseUrl: string): Target {
+function buildBrTarget(cargo: CargoTse, codEleicao: string, baseUrl: string): Target {
   return {
     uf: "BR",
     cargo,
@@ -635,24 +661,45 @@ function buildBrTarget(cargo: 1 | 3, codEleicao: string, baseUrl: string): Targe
 }
 
 /**
- * filterCargos — aplica o filtro opcional de cargo a uma lista de cargos
- * ativos. `cargoFiltro === undefined` devolve a lista inalterada (ciclo de
- * todos); caso contrário, restringe a esse único cargo (lista vazia se o
- * cargo pedido não está entre os ativos — sem fallback silencioso).
+ * filterCargos — resolve quais cargos um ciclo cobre.
+ *
+ * `cargoFiltro === undefined` é o ciclo genérico (`/api/ingest`): devolve os
+ * cargos ativos como estão. O default de `TSE_CARGOS` é `"1,3"` de propósito —
+ * ver `getActiveCargos`.
+ *
+ * `cargoFiltro` definido é o ciclo por cargo (`/api/ingest/[cargo]`, o caminho
+ * do cron de produção desde ADR-0035 D3). Aí **o próprio segmento de rota é a
+ * autorização**: pedir `/api/ingest/senador` já diz qual cargo ingerir, e exigir
+ * que ele também estivesse em `TSE_CARGOS` faria o cron de Senador rodar e não
+ * ingerir nada, em silêncio — exatamente o modo de falha que esta base já pagou
+ * caro três vezes.
+ *
+ * `TSE_CARGOS` continua valendo como **chave de desligamento**: quando definida
+ * explicitamente no ambiente, um cargo fora dela é barrado mesmo que a rota o
+ * peça. É como se desliga um cargo em produção sem mexer em `vercel.ts`.
  */
 function filterCargos(
-  cargosAtivos: ReadonlyArray<1 | 3>,
-  cargoFiltro: 1 | 3 | undefined,
-): Array<1 | 3> {
+  cargosAtivos: ReadonlyArray<CargoTse>,
+  cargoFiltro: CargoTse | undefined,
+): Array<CargoTse> {
   if (cargoFiltro === undefined) return [...cargosAtivos];
-  return cargosAtivos.filter((c) => c === cargoFiltro);
+
+  const killSwitchAtivo = (process.env.TSE_CARGOS ?? "").trim() !== "";
+  if (killSwitchAtivo) {
+    return cargosAtivos.filter((c) => c === cargoFiltro);
+  }
+  return [cargoFiltro];
 }
 
 /**
  * Preview, granularidade "uf": 1 target por (uf, cargo) da whitelist — sem
  * tocar o DB (a lista de UFs vem literalmente da whitelist, não de `zonas`).
  */
-function buildPreviewTargetsUf(codEleicao: string, baseUrl: string, cargoFiltro?: 1 | 3): Target[] {
+function buildPreviewTargetsUf(
+  codEleicao: string,
+  baseUrl: string,
+  cargoFiltro?: CargoTse,
+): Target[] {
   const whitelist = parseWhitelist(process.env.TSE_TARGETS_WHITELIST).filter(
     ({ cargo }) => cargoFiltro === undefined || cargo === cargoFiltro,
   );
@@ -667,7 +714,7 @@ function buildPreviewTargetsUf(codEleicao: string, baseUrl: string, cargoFiltro?
 function buildProductionTargetsUf(
   codEleicao: string,
   baseUrl: string,
-  cargoFiltro?: 1 | 3,
+  cargoFiltro?: CargoTse,
 ): Target[] {
   const cargosAtivos = filterCargos(getActiveCargos(), cargoFiltro);
   const targets: Target[] = [];
@@ -692,7 +739,7 @@ function buildProductionTargetsUf(
 async function buildPreviewTargetsZona(
   codEleicao: string,
   baseUrl: string,
-  cargoFiltro?: 1 | 3,
+  cargoFiltro?: CargoTse,
 ): Promise<Target[]> {
   const whitelist = parseWhitelist(process.env.TSE_TARGETS_WHITELIST).filter(
     ({ cargo }) => cargoFiltro === undefined || cargo === cargoFiltro,
@@ -741,7 +788,7 @@ async function buildPreviewTargetsZona(
 async function buildProductionTargetsZona(
   codEleicao: string,
   baseUrl: string,
-  cargoFiltro?: 1 | 3,
+  cargoFiltro?: CargoTse,
 ): Promise<Target[]> {
   const cargosAtivos = filterCargos(getActiveCargos(), cargoFiltro);
 

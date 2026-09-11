@@ -24,6 +24,7 @@
 
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { CARGOS, parseCargoSegment } from "@/lib/config/cargos";
 import { runIngestCycle } from "@/lib/tse/ingest-handler";
 
 export const runtime = "nodejs";
@@ -33,18 +34,6 @@ export const maxDuration = 300;
 
 interface RouteContext {
   params: Promise<{ cargo: string }>;
-}
-
-/**
- * parseCargoSegment — mapeia o segmento de rota para o cargo TSE (1|3).
- *
- * `null` sinaliza segmento não reconhecido — o chamador responde 400.
- */
-function parseCargoSegment(raw: string): 1 | 3 | null {
-  const normalized = raw.trim().toLowerCase();
-  if (normalized === "1" || normalized === "presidente") return 1;
-  if (normalized === "3" || normalized === "governador") return 3;
-  return null;
 }
 
 async function handle(req: NextRequest, context: RouteContext): Promise<NextResponse> {
@@ -57,7 +46,7 @@ async function handle(req: NextRequest, context: RouteContext): Promise<NextResp
         error: "invalid_cargo",
         detail:
           `Segmento de cargo inválido: "${rawCargo}". ` +
-          'Use "1"/"presidente" (Presidente) ou "3"/"governador" (Governador).',
+          `Use o código ou o slug: ${CARGOS.map((c) => `"${c.cd}"/"${c.slug}"`).join(", ")}.`,
       },
       { status: 400 },
     );

@@ -5,7 +5,7 @@ import { CargoTabs } from "@/components/layout/CargoTabs";
 import { ShellControls } from "@/components/layout/ShellControls";
 import { ShellLiveBadge } from "@/components/layout/ShellLiveBadge";
 import { TopBar } from "@/components/layout/TopBar";
-import { currentTurno } from "@/lib/config/calendar";
+import { currentPresidentialTurno } from "@/lib/config/calendar";
 import { THEME_INIT_SCRIPT } from "@/lib/state/theme";
 import { VIEW_MODE_DEFAULT } from "@/lib/state/view-mode";
 import "./globals.css";
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
  *   - não lê `cookies()`, `headers()` nem `searchParams` — qualquer um deles
  *     tornaria dinâmicas as 54 páginas de UF hoje pré-renderizadas estáticas
  *     (ADR-0025 § 2 e § 5). Vale também para os dois controles novos: o
- *     seletor de turno sai de `currentTurno()` (função pura do calendário,
+ *     seletor de turno sai de `currentPresidentialTurno()` (função pura do calendário,
  *     ADR-0012) e o "Parcial / Projeção" é estado de cliente espelhado em
  *     `data-view` no `<html>` — nenhum dos dois passa por requisição;
  *   - não lê Edge Config. O percentual do `<ShellLiveBadge>` chega por
@@ -97,7 +97,7 @@ export const metadata: Metadata = {
  * O wordmark não é `<h1>`: cada página emite o seu.
  */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const turno = currentTurno();
+  const turno = currentPresidentialTurno();
 
   return (
     <html

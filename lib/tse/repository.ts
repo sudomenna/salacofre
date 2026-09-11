@@ -32,6 +32,7 @@
  */
 
 import { and, desc, eq } from "drizzle-orm";
+import type { CargoTse } from "@/lib/config/cargos";
 import { db, schema } from "@/lib/db";
 import type { EA20 } from "./ea20-schema";
 import { IngestError } from "./errors";
@@ -330,7 +331,7 @@ const LAST_INGEST_RUN_SCAN_LIMIT = 10;
  *
  * @throws IngestError('persist', ...) em erro de banco (não em notes malformado).
  */
-export async function getLastIngestRun(cargo?: 1 | 3): Promise<LastIngestRun | null> {
+export async function getLastIngestRun(cargo?: CargoTse): Promise<LastIngestRun | null> {
   try {
     const rows = await db
       .select({ ts: schema.ingestLog.ts, notes: schema.ingestLog.notes })

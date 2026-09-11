@@ -6,7 +6,7 @@
  * ## Isto é navegação, não um botão de "fingir turno"
  *
  * O turno corrente NÃO é escolhido pelo visitante: sai do calendário
- * (`lib/config/calendar.currentTurno()`, ADR-0012), e é ele que decide qual
+ * (`lib/config/calendar.currentPresidentialTurno()`, ADR-0012), e é ele que decide qual
  * corrida está **ao vivo** — badge, polling e alias do Edge Config. O que
  * este controle faz é oferecer o turno **arquivado** como destino de
  * navegação, exatamente o mecanismo que já alimenta o `<TurnoOneRecap />`
@@ -15,7 +15,7 @@
  *
  * ## Server Component, zero JS, rota continua estática
  *
- * `currentTurno()` é pura (só lê o relógio, sem I/O — ver o cabeçalho de
+ * `currentPresidentialTurno()` é pura (só lê o relógio, sem I/O — ver o cabeçalho de
  * `lib/config/calendar.ts`), então o controle é resolvido no render sem
  * `searchParams`, `cookies()` nem `headers()`: as 54 páginas de UF e a home
  * seguem pré-renderizadas estáticas (ADR-0025 § 2 e § 5). O turno ativo vira
@@ -42,7 +42,7 @@
 
 import Link from "next/link";
 import type { CSSProperties } from "react";
-import { currentTurno, type Turno } from "@/lib/config/calendar";
+import { currentPresidentialTurno, type Turno } from "@/lib/config/calendar";
 
 const TURNOS: readonly Turno[] = [1, 2];
 
@@ -58,7 +58,7 @@ const SEM_ARQUIVO: Record<Turno, string> = {
 
 export interface TurnoSwitchProps {
   /**
-   * Turno corrente. Default: `currentTurno()` (calendário, ADR-0012). A prop
+   * Turno corrente. Default: `currentPresidentialTurno()` (calendário, ADR-0012). A prop
    * existe para teste e para preview — não para o visitante.
    */
   turno?: Turno;
@@ -93,7 +93,7 @@ function itemStyle(active: boolean, disabled: boolean, index: number): CSSProper
 }
 
 export function TurnoSwitch({ turno, hrefByTurno, className }: TurnoSwitchProps) {
-  const atual = turno ?? currentTurno();
+  const atual = turno ?? currentPresidentialTurno();
 
   return (
     // `role="group"` e não `nav`: o documento já tem um landmark de navegação

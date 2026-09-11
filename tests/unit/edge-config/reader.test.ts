@@ -26,7 +26,7 @@
  * importa aqui, não o valor.
  *
  * O relógio é fixado em 2026-09-08 (`vi.setSystemTime`) porque
- * `currentRace()` decide qual corrida é a "ativa", e a existência dos
+ * `currentPresidentialRace()` decide qual corrida é a "ativa", e a existência dos
  * aliases legados no fallback depende disso. Sem fixar, o teste passaria a
  * significar outra coisa depois de 04/10.
  */

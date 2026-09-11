@@ -1,8 +1,8 @@
 /**
  * lib/config/calendar.ts
  *
- * Calendário canônico das corridas eleitorais 2026. Single source of truth
- * para "qual cargo/turno é o ATIVO hoje" — alimenta:
+ * Calendário canônico da corrida PRESIDENCIAL 2026. Single source of truth
+ * para "em que turno está a corrida presidencial neste instante" — alimenta:
  *
  *   - O alias dinâmico de `projection-current` no Global Config (ADR-0012, separador corrigido em 08/09).
  *     Antes de 04/10 → resolve para `(pres, 1)`; entre 04/10 e 25/10
@@ -14,14 +14,42 @@
  * Adicionado em S05/F4c (ADR-0012). Substitui a constante implícita
  * `cargo=1, turno=1` espalhada por orchestrator, writer e reader.
  *
+ * ## Não existe "a" corrida ativa (ADR-0028, implementado em 2026-09-11)
+ *
+ * Até 2026-09-11 este módulo exportava `currentRace()`/`currentCargo()` com a
+ * semântica de "qual corrida está ativa", e o read path
+ * (`lib/edge-config/reader.ts`) usava o `cargo` devolvido como DEFAULT quando o
+ * caller não passava um. Isso só funcionava porque havia dois cargos e o
+ * `CALENDAR_2026` só tem entradas `pres`: um caller que esquecesse o cargo
+ * recebia silenciosamente o payload presidencial, com forma válida e conteúdo
+ * errado. Com quatro cargos (Presidente, Governador, Senador, Deputado Federal
+ * — ADR-0026) isso vira um defeito à espera de acontecer.
+ *
+ * O ADR-0028 resolveu por **corrida explícita por rota**: quem lê declara o
+ * cargo, sempre; o calendário responde só pelo TURNO presidencial. Daí os nomes
+ * `currentPresidentialRace`/`currentPresidentialTurno`, e a remoção de
+ * `currentCargo()` — que era redundante por construção (`CALENDAR_2026` não tem
+ * entrada que não seja `pres`).
+ *
  * Constituição § 9 (stack Vercel): nenhum I/O aqui — datas hardcoded da
  * resolução TSE 2026. Se TSE publicar mudança de calendário, atualizar
  * `CALENDAR_2026` (e abrir ADR se for grande). Determinismo § 6: a
- * função `currentRace(now)` é pura, mesmo input → mesmo output.
+ * função `currentPresidentialRace(now)` é pura, mesmo input → mesmo output.
  */
 
-/** Cargo TSE. 1 = Presidente, 3 = Governador. */
-export type Cargo = "pres" | "gov";
+/**
+ * Token de cargo para **namespacing de chave** do Global Config / Blob
+ * (ADR-0012) — não é o código numérico do TSE.
+ *
+ * Mapeamento para o código do TSE (`lib/edge-config/types.ts`):
+ * `pres` = 1, `gov` = 3, `sen` = 5, `dep` = 6.
+ *
+ * Os dois tipos `Cargo` do repositório continuam **deliberadamente separados**
+ * (ADR-0026 item 2, ADR-0028 item 2): este nomeia chaves, o numérico espelha o
+ * TSE. Não fundir; a conversão explícita entre os dois é `cargoToken`
+ * (`lib/edge-config/keys.ts`).
+ */
+export type Cargo = "pres" | "gov" | "sen" | "dep";
 
 /** Turno eleitoral. */
 export type Turno = 1 | 2;
@@ -31,8 +59,12 @@ export type Turno = 1 | 2;
  * ATIVA — geralmente o "dia da apuração" das 7h BRT. A corrida continua
  * ativa até `start` da próxima corrida.
  *
+ * Só existem entradas `cargo: "pres"` aqui, por desenho (ADR-0028 item 1): os
+ * demais cargos não têm calendário próprio — Governador acompanha o
+ * presidencial, e Senador e Deputado Federal se decidem em turno único.
+ *
  * `start` aceita `Date` ou string ISO 8601 — convertido in-place pelo
- * helper `currentRace`. Mantemos string nas constantes pra facilitar
+ * helper `currentPresidentialRace`. Mantemos string nas constantes pra facilitar
  * grep/diff sem precisar montar `new Date(2026, 9, 4, ...)`.
  */
 export interface Race {
@@ -51,10 +83,11 @@ export interface Race {
  * (preview / pré-apuração / dev local) — não é apuração de verdade, mas
  * o consumer precisa de uma chave determinística pra ler.
  *
- * Governador segue o mesmo calendário do presidente em 2026 (eleição
- * geral). Como o read path SOMA por sigla via `projection-uf-<SIGLA>`,
- * não há ambiguidade gerencial — UF apurada de governador alimenta a
- * mesma chave de UF, mas o consumidor passa `cargo="gov"` no reader.
+ * Governador segue o mesmo calendário do presidente em 2026 (eleição geral);
+ * Senador e Deputado Federal se decidem em **turno único**, em 04/10 — não há
+ * 2º turno para eles (ADR-0026). Nenhum dos três tem entrada aqui: quem lê
+ * declara o cargo (ADR-0028), e este calendário só responde pelo turno
+ * presidencial.
  */
 export const CALENDAR_2026: Race[] = [
   // Pré-apuração — alias default antes do 1T.
@@ -70,20 +103,26 @@ export const CALENDAR_2026: Race[] = [
 ];
 
 /**
- * Resolve a corrida ATIVA no instante `now`. Default: `Date.now()`.
+ * Resolve em que **turno da corrida presidencial** o instante `now` cai.
+ * Default: `Date.now()`.
+ *
+ * **Não** responde "qual cargo está ativo" — essa pergunta não tem resposta
+ * única desde que o produto passou a cobrir quatro cargos simultâneos
+ * (ADR-0028). O `cargo` do `Race` devolvido é sempre `"pres"`; quem precisa de
+ * outro cargo passa o seu explicitamente ao reader.
  *
  * Algoritmo: encontra a Race com maior `start` <= `now`. Se nenhuma
  * (now anterior a TODAS as datas — improvável dado o sentinel
  * 2026-01-01), retorna a primeira do calendário (default `pres t1`).
  *
  * @example
- * currentRace(new Date("2026-09-15"))
+ * currentPresidentialRace(new Date("2026-09-15"))
  * // → { cargo: "pres", turno: 1, start: "2026-01-01T..." }
  *
- * currentRace(new Date("2026-11-01"))
+ * currentPresidentialRace(new Date("2026-11-01"))
  * // → { cargo: "pres", turno: 2, start: "2026-10-25T..." }
  */
-export function currentRace(now: Date = new Date()): Race {
+export function currentPresidentialRace(now: Date = new Date()): Race {
   const t = now.getTime();
   // Ordena por start ASC e pega a última cujo start <= now.
   const sorted = [...CALENDAR_2026].sort((a, b) => {
@@ -105,12 +144,18 @@ export function currentRace(now: Date = new Date()): Race {
   return active ?? sorted[0] ?? { start: "2026-01-01T00:00:00-03:00", cargo: "pres", turno: 1 };
 }
 
-/** Shortcut: turno ativo (1 ou 2). */
-export function currentTurno(now?: Date): Turno {
-  return currentRace(now).turno;
+/**
+ * Shortcut: turno da corrida presidencial (1 ou 2).
+ *
+ * É o único dado do calendário que a moldura global precisa — o `<TurnoSwitch>`
+ * e o `layout.tsx` usam isto para saber que turno destacar, sem consultar
+ * cargo nenhum.
+ */
+export function currentPresidentialTurno(now?: Date): Turno {
+  return currentPresidentialRace(now).turno;
 }
 
-/** Shortcut: cargo ativo ("pres" ou "gov"). */
-export function currentCargo(now?: Date): Cargo {
-  return currentRace(now).cargo;
-}
+// `currentCargo()` existiu até 2026-09-11 e foi REMOVIDA (ADR-0028 item 4):
+// devolvia sempre `"pres"` por construção, e todo call site que a usasse
+// estaria perguntando algo que não tem resposta única. Não recriar — quem
+// precisa de um cargo passa o seu explicitamente.

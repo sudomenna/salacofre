@@ -89,10 +89,14 @@ const config: VercelProjectConfig = {
   //   `/api/sync-slack-team/T0CAQ10TZ` e `/api/sync-slack-team/T4BOE34OP`.
   // O header `x-vercel-cron-schedule` só ajuda a distinguir crons de
   // HORÁRIOS diferentes — inútil aqui, porque presidente e governador rodam
-  // no mesmo minuto. Por isso cada janela abaixo vira DUAS entradas — uma
-  // por cargo — apontando para `/api/ingest/presidente` e
-  // `/api/ingest/governador` (app/api/ingest/[cargo]/route.ts), não para
-  // `/api/ingest?cargo=`.
+  // no mesmo minuto. Por isso cada janela abaixo vira UMA ENTRADA POR CARGO,
+  // apontando para `/api/ingest/<slug>` (app/api/ingest/[cargo]/route.ts,
+  // slugs em `lib/config/cargos.ts`), não para `/api/ingest?cargo=`.
+  //
+  // Nota 2026-09-11: isto **emenda o ADR-0026 item 1**, que previa
+  // `?cargos=5` / `?cargos=6` por query string para Senador e Deputado. Aquele
+  // mecanismo não existe na Vercel; o correto é o segmento de rota, e é o que
+  // está abaixo.
   //
   // - Cron de apuração: a cada minuto na janela 17h–04h BRT (UTC-3 sem DST).
   //   17h BRT = 20h UTC; 04h BRT = 07h UTC. Em cron UTC: hours 20-23,0-7.
@@ -127,6 +131,37 @@ const config: VercelProjectConfig = {
     {
       path: "/api/ingest/governador",
       schedule: "* 12-20 * * *",
+    },
+    // ── Senador (cargo 5) e Deputado Federal (cargo 6) — ADR-0026 item 1 ──
+    // Cadência própria e MENOR que a de 60 s dos majoritários: Senador a cada
+    // 5 min, Deputado a cada 15 min. Ambos em granularidade UF
+    // (`lib/config/cargos.ts`), 27 GETs por ciclo cada — triviais frente ao
+    // teto do TSE mesmo somados ao pico dos outros dois crons.
+    //
+    // Deputado a 15 min é decisão de produto, não limitação técnica: é o cargo
+    // com menos urgência editorial e o payload mais pesado. A UI precisa dizer
+    // "atualizado a cada 15 min" quando exibir Deputado (ADR-0026 item 5,
+    // constituição § 8) — nunca um "atualizado às" único numa tela que mistura
+    // cargos de cadências diferentes.
+    //
+    // Mesmas duas janelas dos demais: apuração (20-23,0-7 UTC = 17h-04h BRT) e
+    // simulado (12-20 UTC = 9h-17h BRT). `INGEST_WINDOW` decide qual vale em
+    // cada ambiente — fora dela o handler responde `{skipped}` sem custo.
+    {
+      path: "/api/ingest/senador",
+      schedule: "*/5 20-23,0-7 * * *",
+    },
+    {
+      path: "/api/ingest/deputado-federal",
+      schedule: "*/15 20-23,0-7 * * *",
+    },
+    {
+      path: "/api/ingest/senador",
+      schedule: "*/5 12-20 * * *",
+    },
+    {
+      path: "/api/ingest/deputado-federal",
+      schedule: "*/15 12-20 * * *",
     },
     {
       path: "/api/ingest",

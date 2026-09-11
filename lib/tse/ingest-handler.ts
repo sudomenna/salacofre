@@ -38,6 +38,7 @@
 
 import type { NextRequest } from "next/server";
 import { after, NextResponse } from "next/server";
+import type { CargoTse } from "@/lib/config/cargos";
 import type { AcompanhamentoPrevious } from "@/lib/tse/acompanhamento";
 import { detectChangedUfs } from "@/lib/tse/acompanhamento";
 import { notifySlack } from "@/lib/tse/alerts";
@@ -283,7 +284,7 @@ export interface RunIngestCycleOptions {
    * model-trigger a um único cargo — usado por `/api/ingest/[cargo]`
    * (caminho do cron real, ADR-0035 D3).
    */
-  cargo?: 1 | 3;
+  cargo?: CargoTse;
 }
 
 /**
@@ -758,7 +759,7 @@ export async function runIngestCycle(
       const baseUrl = resolveInternalBaseUrl();
       const triggerTs = new Date().toISOString();
 
-      let activeCargos: Array<1 | 3>;
+      let activeCargos: Array<CargoTse>;
       if (cargoDoCiclo !== undefined) {
         activeCargos = [cargoDoCiclo];
       } else {

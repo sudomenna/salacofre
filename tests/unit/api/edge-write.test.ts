@@ -144,16 +144,33 @@ describe("POST /api/internal/edge-write — body validation", () => {
     expect(writeProjection).not.toHaveBeenCalled();
   });
 
-  it("retorna 400 quando payload tem cargo inválido (5 — não é 1 nem 3)", async () => {
-    const body = validBody();
-    // biome-ignore lint/suspicious/noExplicitAny: cast pra forçar cargo inválido no teste
-    (body.payload as any).cargo = 5;
-    const req = makeRequest(body, { "x-model-secret": "test-secret-xyz" });
+  it("retorna 400 quando payload tem cargo fora da tabela canônica (7 = Dep. Estadual)", async () => {
+    // Era o cargo 5 que este teste usava como inválido, até 2026-09-11: com a
+    // spec 016, Senador passou a ser suportado. O que segue inválido são os
+    // cargos que o produto deliberadamente NÃO cobre — 7/8 (assembleias
+    // estaduais/distrital) e os vices (2, 4), que não têm votação própria.
+    for (const cargoForaDoEscopo of [2, 4, 7, 8, 99]) {
+      const body = validBody();
+      // biome-ignore lint/suspicious/noExplicitAny: cast pra forçar cargo inválido no teste
+      (body.payload as any).cargo = cargoForaDoEscopo;
+      const res = await POST(makeRequest(body, { "x-model-secret": "test-secret-xyz" }));
 
-    const res = await POST(req);
-
-    expect(res.status).toBe(400);
+      expect(res.status, `cargo ${cargoForaDoEscopo} deveria dar 400`).toBe(400);
+    }
     expect(writeProjection).not.toHaveBeenCalled();
+  });
+
+  it("aceita os cargos novos 5 (Senador) e 6 (Deputado Federal)", async () => {
+    for (const cargo of [5, 6]) {
+      vi.mocked(writeProjection).mockClear();
+      const body = validBody();
+      // biome-ignore lint/suspicious/noExplicitAny: o tipo do fixture é o payload presidencial
+      (body.payload as any).cargo = cargo;
+      const res = await POST(makeRequest(body, { "x-model-secret": "test-secret-xyz" }));
+
+      expect(res.status, `cargo ${cargo} deveria passar na validação`).toBe(200);
+      expect(writeProjection).toHaveBeenCalled();
+    }
   });
 
   it("retorna 400 quando uma sigla de por_uf não formaria chave válida", async () => {

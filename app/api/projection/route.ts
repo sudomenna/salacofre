@@ -37,6 +37,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { currentPresidentialTurno } from "@/lib/config/calendar";
 
 import { readNationalProjection, readProjection, readUfProjection } from "@/lib/edge-config/reader";
 import type { EdgePayload, EdgePayloadUf } from "@/lib/edge-config/types";
@@ -68,7 +69,12 @@ export async function GET(req: Request): Promise<Response> {
     if (!UF_REGEX.test(sigla)) {
       return NextResponse.json({ error: "invalid_uf" }, { status: 400 });
     }
-    const payload = await readUfProjection(sigla);
+    // Cargo explícito (ADR-0028): este ramo do endpoint é o presidencial —
+    // o de governador está mais abaixo, com `cargo: "gov"`.
+    const payload = await readUfProjection(sigla, {
+      cargo: "pres",
+      turno: currentPresidentialTurno(),
+    });
     if (!payload) {
       // Em dev, sintetiza UF a partir do fixture nacional para o /api/projection?uf=
       // funcionar sem precisar de fixtures per-UF separadas.

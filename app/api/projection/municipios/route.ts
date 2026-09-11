@@ -14,7 +14,7 @@
  *
  * `turno` não é parâmetro: as duas páginas de UF que hoje leem
  * `readUfDetail` resolvem turno da mesma forma que este endpoint replica —
- * Presidente via `currentRace()` (turno corrente), Governador fixo em 1
+ * Presidente via `currentPresidentialRace()` (turno corrente), Governador fixo em 1
  * (`app/(gov)/uf/[sigla]/governador/page.tsx`, ainda sem alternância 2T
  * nesta rota). Se um turno 2 de Governador existir antes deste endpoint
  * ganhar o parâmetro, ele devolverá o turno errado — mesmo risco que as
@@ -31,7 +31,7 @@ import { NextResponse } from "next/server";
 
 import { devMunicipiosFixtureFor, readUfDetail } from "@/lib/blob/uf-detail";
 import type { Cargo } from "@/lib/config/calendar";
-import { currentRace } from "@/lib/config/calendar";
+import { currentPresidentialRace } from "@/lib/config/calendar";
 
 const UF_REGEX = /^[A-Z]{2}$/;
 const CACHE_HEADERS = {
@@ -42,7 +42,7 @@ function resolveCargoETurno(cargoParam: string | null): { cargo: Cargo; turno: 1
   if (cargoParam === "gov") return { cargo: "gov", turno: 1 };
   // Default e único outro valor aceito: presidencial, mesma resolução de
   // turno que `app/(pres)/uf/[sigla]/page.tsx` usa.
-  const race = currentRace();
+  const race = currentPresidentialRace();
   return { cargo: "pres", turno: race.turno };
 }
 

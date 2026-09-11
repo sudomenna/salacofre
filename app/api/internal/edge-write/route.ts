@@ -58,6 +58,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { CARGOS_TSE, type CargoTse } from "@/lib/config/cargos";
 import { GLOBAL_CONFIG_KEY_PATTERN } from "@/lib/edge-config/keys";
 import { writeProjection } from "@/lib/edge-config/writer";
 import { logError, logInfo } from "@/lib/tse/log";
@@ -122,7 +123,16 @@ const bodySchema = z.object({
   payload: z
     .object({
       ts: z.string(),
-      cargo: z.union([z.literal(1), z.literal(3)]),
+      // Derivado da tabela canônica (`lib/config/cargos.ts`): acrescentar um
+      // cargo lá passa a bastar. Era `z.union([literal(1), literal(3)])`
+      // hardcoded até 2026-09-11.
+      cargo: z.union(
+        CARGOS_TSE.map((cd) => z.literal(cd)) as unknown as [
+          z.ZodLiteral<CargoTse>,
+          z.ZodLiteral<CargoTse>,
+          ...z.ZodLiteral<CargoTse>[],
+        ],
+      ),
       turno: z.union([z.literal(1), z.literal(2)]),
       pct_apurado_total: z.number(),
       ufs_apuradas: z.number(),

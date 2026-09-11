@@ -198,9 +198,31 @@ describe("rotas de ingestão — auth (Bearer/x-cron-secret) e cargo (segmento)"
       expect(body).toMatchObject({ error: "invalid_cargo" });
     });
 
+    it("segmento 'senador' → cargo 5, 200 ok:true", async () => {
+      // Este caso era um exemplo de LIXO até 2026-09-11 (ADR-0026 implementado):
+      // "senador" não resolvia e esperava-se 400. Virou cargo de verdade.
+      const res = await ingestCargoPost(buildReq("POST", legacyHeaders()), cargoContext("senador"));
+      expect(res.status).toBe(200);
+      expect((await res.json()).ok).toBe(true);
+    });
+
+    it("segmento 'deputado-federal' → cargo 6, 200 ok:true", async () => {
+      const res = await ingestCargoPost(
+        buildReq("POST", legacyHeaders()),
+        cargoContext("deputado-federal"),
+      );
+      expect(res.status).toBe(200);
+      expect((await res.json()).ok).toBe(true);
+    });
+
     it("segmento vazio/lixo → 400", async () => {
-      const res = await ingestCargoGet(buildReq("GET", bearerHeaders()), cargoContext("senador"));
-      expect(res.status).toBe(400);
+      // Cargos do TSE deliberadamente FORA do escopo do produto continuam 400:
+      // 7 = Deputado Estadual, 8 = Distrital, e os vices (2, 4) não têm votação
+      // própria. Ver `lib/config/cargos.ts`.
+      for (const lixo of ["", "  ", "vereador", "deputado-estadual", "7", "99"]) {
+        const res = await ingestCargoGet(buildReq("GET", bearerHeaders()), cargoContext(lixo));
+        expect(res.status, `segmento ${JSON.stringify(lixo)} deveria dar 400`).toBe(400);
+      }
     });
 
     it("segmento válido mas auth ausente → 401 (auth roda DEPOIS da validação de segmento)", async () => {

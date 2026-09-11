@@ -29,6 +29,7 @@
  *   "list-targets": "tsx scripts/list-targets.ts"
  */
 
+import { CARGOS, type CargoTse, parseCargoSegment } from "@/lib/config/cargos";
 import { listIngestTargets, type Target } from "@/lib/tse/targets";
 
 // ---------------------------------------------------------------------------
@@ -37,12 +38,12 @@ import { listIngestTargets, type Target } from "@/lib/tse/targets";
 
 interface CliArgs {
   env: "preview" | "production";
-  cargo?: 1 | 3;
+  cargo?: CargoTse;
 }
 
 function parseArgs(argv: string[]): CliArgs {
   let env: "preview" | "production" = "production";
-  let cargo: 1 | 3 | undefined;
+  let cargo: CargoTse | undefined;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -53,11 +54,16 @@ function parseArgs(argv: string[]): CliArgs {
       }
       env = value;
     } else if (arg === "--cargo") {
-      const value = Number(argv[++i]);
-      if (value !== 1 && value !== 3) {
-        throw new Error(`--cargo inválido: "${argv[i]}" — use 1 (Presidente) ou 3 (Governador).`);
+      const raw = argv[++i] ?? "";
+      // Aceita código ou slug, derivado da tabela canônica (`lib/config/cargos.ts`)
+      // — era `value !== 1 && value !== 3` hardcoded até 2026-09-11.
+      const parsed = parseCargoSegment(raw);
+      if (parsed === null) {
+        throw new Error(
+          `--cargo inválido: "${raw}" — use ${CARGOS.map((c) => `${c.cd} (${c.label})`).join(", ")}.`,
+        );
       }
-      cargo = value;
+      cargo = parsed;
     } else {
       console.warn(`[list-targets] flag desconhecida ignorada: ${arg}`);
     }

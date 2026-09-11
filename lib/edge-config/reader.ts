@@ -25,7 +25,7 @@
 
 import { get } from "@vercel/edge-config";
 
-import { type Cargo, currentRace, type Turno } from "@/lib/config/calendar";
+import { type Cargo, currentPresidentialTurno, type Turno } from "@/lib/config/calendar";
 import {
   archiveProjectionKey,
   currentProjectionKey,
@@ -64,7 +64,7 @@ async function getFirst<T>(keys: readonly string[]): Promise<T | null> {
 
 /**
  * Lê o payload nacional do Edge Config. Por default resolve a chave via
- * `lib/config/calendar.currentRace()` — em 2026 antes de 25/10 retorna
+ * `lib/config/calendar.currentPresidentialRace()` — em 2026 antes de 25/10 retorna
  * `pres t1`, depois `pres t2`.
  *
  * Backward-compat, em duas camadas, ambas só no caminho de miss:
@@ -85,19 +85,26 @@ async function getFirst<T>(keys: readonly string[]): Promise<T | null> {
  * dados".
  *
  * @param opts.cargo  Override do cargo ativo (útil pra preview de
- *                    governador / debug). Default: `currentCargo()`.
- * @param opts.turno  Override do turno ativo. Default: `currentTurno()`.
+ *                    governador / debug). Default: `"pres"` (ADR-0028 — o cargo nunca vem do calendário).
+ * @param opts.turno  Override do turno ativo. Default: `currentPresidentialTurno()`.
  */
 export async function readProjection(opts?: {
   cargo?: Cargo;
   turno?: Turno;
 }): Promise<EdgePayload | null> {
   if (!process.env.EDGE_CONFIG) return null;
-  const race = currentRace();
-  const cargo = opts?.cargo ?? race.cargo;
-  const turno = opts?.turno ?? race.turno;
+  // O calendário responde só pelo TURNO presidencial (ADR-0028). O cargo NUNCA
+  // sai dele: um default de cargo faria um caller distraído receber o payload
+  // presidencial com forma válida — silencioso e errado assim que existirem
+  // quatro cargos. `"pres"` aqui é o default histórico deste reader, explícito.
+  const turnoPresidencial = currentPresidentialTurno();
+  const cargo = opts?.cargo ?? "pres";
+  const turno = opts?.turno ?? turnoPresidencial;
 
-  const isActiveRace = cargo === race.cargo && turno === race.turno;
+  // O alias legado sem cargo (`projection-current`) só existiu para a corrida
+  // presidencial — comparar contra o literal, não contra o que o calendário
+  // devolve, para que ele nunca seja consultado em nome de outro cargo.
+  const isActiveRace = cargo === "pres" && turno === turnoPresidencial;
 
   try {
     return await getFirst<EdgePayload>([
@@ -118,13 +125,20 @@ export async function readProjection(opts?: {
 }
 
 /**
- * Backward-compat wrapper para consumers S04 que chamavam `readNationalProjection()`
- * sem args. Mantido durante S05–S07 para não quebrar callers existentes
- * (`app/api/projection/route.ts`, page handlers). Em S07 (polish) o objetivo
- * é migrar todos para `readProjection({...})` direto e remover este.
+ * Projeção nacional da corrida **presidencial**.
+ *
+ * Nasceu como wrapper backward-compat de S04 (`readProjection()` sem args) e,
+ * desde o ADR-0028 (2026-09-11), declara o cargo explicitamente em vez de
+ * herdar um default. O nome continua sem o cargo por compatibilidade com os
+ * callers; o que ele lê está fixado aqui, num lugar só.
+ *
+ * Presidente é o único cargo com arquivo agregado nacional no TSE
+ * (`lib/tse/targets.ts` — só cargo 1 gera alvo `br-`), então "projeção
+ * nacional" é, por construção, presidencial. Governador, Senador e Deputado
+ * Federal não têm equivalente: seus agregados nacionais são somas de UF.
  */
 export async function readNationalProjection(): Promise<EdgePayload | null> {
-  return readProjection();
+  return readProjection({ cargo: "pres", turno: currentPresidentialTurno() });
 }
 
 /**
@@ -152,7 +166,7 @@ export async function readNationalProjection(): Promise<EdgePayload | null> {
  *   // ... <TurnoOneRecap recap={recap} />
  *   ```
  *
- * @param opts.cargo  Cargo arquivado. Default: cargo ativo (`currentRace`).
+ * @param opts.cargo  Cargo arquivado. Default: `"pres"` (ADR-0028).
  * @param opts.turno  Turno arquivado. Default: turno ativo - 1 não faz
  *                    sentido aqui (caller passa explicitamente). Default
  *                    é turno ativo, que SÓ retornará algo se já houve
@@ -163,9 +177,9 @@ export async function readArchivedProjection(opts?: {
   turno?: Turno;
 }): Promise<EdgePayload | null> {
   if (!process.env.EDGE_CONFIG) return null;
-  const race = currentRace();
-  const cargo = opts?.cargo ?? race.cargo;
-  const turno = opts?.turno ?? race.turno;
+  // Ver a nota em `readProjection`: cargo nunca vem do calendário (ADR-0028).
+  const cargo = opts?.cargo ?? "pres";
+  const turno = opts?.turno ?? currentPresidentialTurno();
 
   try {
     return await getFirst<EdgePayload>([
@@ -200,11 +214,18 @@ export async function readUfProjection(
   opts?: { cargo?: Cargo; turno?: Turno },
 ): Promise<EdgePayloadUf | null> {
   if (!process.env.EDGE_CONFIG) return null;
-  const race = currentRace();
-  const cargo = opts?.cargo ?? race.cargo;
-  const turno = opts?.turno ?? race.turno;
+  // O calendário responde só pelo TURNO presidencial (ADR-0028). O cargo NUNCA
+  // sai dele: um default de cargo faria um caller distraído receber o payload
+  // presidencial com forma válida — silencioso e errado assim que existirem
+  // quatro cargos. `"pres"` aqui é o default histórico deste reader, explícito.
+  const turnoPresidencial = currentPresidentialTurno();
+  const cargo = opts?.cargo ?? "pres";
+  const turno = opts?.turno ?? turnoPresidencial;
 
-  const isActiveRace = cargo === race.cargo && turno === race.turno;
+  // O alias legado sem cargo (`projection-current`) só existiu para a corrida
+  // presidencial — comparar contra o literal, não contra o que o calendário
+  // devolve, para que ele nunca seja consultado em nome de outro cargo.
+  const isActiveRace = cargo === "pres" && turno === turnoPresidencial;
 
   try {
     return await getFirst<EdgePayloadUf>([

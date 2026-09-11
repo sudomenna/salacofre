@@ -5,7 +5,8 @@
  *
  * Pipeline:
  *   1. Lê, EM PARALELO, os dois read paths (ADR-0032):
- *        a. `readUfProjection(sigla)` — o RESUMO, no Global Config (ADR-0001).
+ *        a. `readUfProjection(sigla, { cargo: "pres", turno })` — o RESUMO,
+ *           no Global Config (ADR-0001).
  *        b. `readUfDetail(sigla, ...)` — o DETALHE (municípios + séries), no
  *           Vercel Blob. Nunca em série: a página não espera o Blob para
  *           renderizar o resumo.
@@ -129,7 +130,7 @@ import type { MunicipioRow } from "@/components/blocks/MunicipioTable";
 import { ResultPanel } from "@/components/blocks/ResultPanel";
 import { Footer } from "@/components/layout/Footer";
 import { municipiosFrom, readUfDetail, type UfDetailResult } from "@/lib/blob/uf-detail";
-import { currentRace } from "@/lib/config/calendar";
+import { currentPresidentialTurno } from "@/lib/config/calendar";
 import { readUfProjection } from "@/lib/edge-config/reader";
 import type {
   EdgePayload,
@@ -359,13 +360,14 @@ export default async function UFPage({ params }: UFPageProps) {
   // a página não espera o Blob para renderizar o resumo, e os dois falham de
   // forma independente.
   //
-  // `currentRace()` é a MESMA resolução que `readUfProjection()` faz por
-  // default — passar os literais aqui garante que o caminho do Blob e a chave
-  // do Global Config apontam para a mesma corrida.
-  const race = currentRace();
+  // Cargo e turno são declarados aqui e passados aos DOIS lados (ADR-0028): sem
+  // isso, `readUfProjection` cairia num default e o Blob viria de um literal —
+  // duas resoluções independentes que podem divergir em silêncio. O calendário
+  // responde só pelo turno; o cargo é desta rota, e esta rota é presidencial.
+  const turno = currentPresidentialTurno();
   const [payloadDoStore, detalhe] = await Promise.all([
-    readUfProjection(sigla),
-    readUfDetail(sigla, { cargo: race.cargo, turno: race.turno }),
+    readUfProjection(sigla, { cargo: "pres", turno }),
+    readUfDetail(sigla, { cargo: "pres", turno }),
   ]);
   let payload = payloadDoStore;
 

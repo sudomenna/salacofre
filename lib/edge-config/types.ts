@@ -55,13 +55,17 @@
  *     não admite dois-pontos. Nenhuma chave é montada à mão — todas vêm de
  *     `lib/edge-config/keys.ts`, que também valida.
  */
+import type { CargoTse } from "@/lib/config/cargos";
 
 // ---------------------------------------------------------------------------
 // Enums / unions (mantêm-se "magic-number-free" no resto do código)
 // ---------------------------------------------------------------------------
 
 /** Cargo TSE — só os 2 que o SalaCofre cobre (eleição geral 2026). */
-export type Cargo = 1 | 3; // 1 = Presidente, 3 = Governador
+// Reexporta o tipo canônico (`lib/config/cargos.ts`) em vez de redeclará-lo:
+// até 2026-09-11 esta linha era `1 | 3` e vivia dessincronizada de
+// `lib/tse/targets.ts`, que tinha a mesma união repetida 12 vezes.
+export type Cargo = CargoTse; // 1 = Presidente, 3 = Governador, 5 = Senador, 6 = Deputado Federal
 
 /** Turno eleitoral. */
 export type Turno = 1 | 2;
