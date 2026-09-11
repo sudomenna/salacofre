@@ -23,7 +23,9 @@
       "!**/test-results",
       "!**/drizzle",
       "!**/coverage",
-      "!docs/design-system/atlas-menna"
+      "!docs/design-system/atlas-menna",
+      "!tse_docs",
+      "!.claude/worktrees"
     ]
   },
   "formatter": {
