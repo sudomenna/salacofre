@@ -1,0 +1,2175 @@
+{
+  "ts": "2026-10-04T19:12:05-03:00",
+  "cargo": 5,
+  "turno": 1,
+  "pct_apurado_total": 59.7,
+  "ufs_apuradas": 25,
+  "national": {
+    "candidatos": [
+      {
+        "id": 5000,
+        "nome": "Senador AC PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 31104,
+        "votos_projetados": 172800,
+        "pct_atual": 39.4,
+        "pct_projetado": 40.0,
+        "pct_projetado_lower": 37.6,
+        "pct_projetado_upper": 42.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5001,
+        "nome": "Senador AC PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 23328,
+        "votos_projetados": 129600,
+        "pct_atual": 29.7,
+        "pct_projetado": 30.0,
+        "pct_projetado_lower": 27.6,
+        "pct_projetado_upper": 32.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5002,
+        "nome": "Senador AC MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 22550,
+        "votos_projetados": 125280,
+        "pct_atual": 29.0,
+        "pct_projetado": 29.0,
+        "pct_projetado_lower": 26.6,
+        "pct_projetado_upper": 31.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5003,
+        "nome": "Senador AC PSD",
+        "partido": "PSD",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 777,
+        "votos_projetados": 4320,
+        "pct_atual": 1.3,
+        "pct_projetado": 1.0,
+        "pct_projetado_lower": -1.4,
+        "pct_projetado_upper": 3.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5010,
+        "nome": "Senador AL PSD",
+        "partido": "PSD",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 148086,
+        "votos_projetados": 715392,
+        "pct_atual": 42.6,
+        "pct_projetado": 43.2,
+        "pct_projetado_lower": 40.8,
+        "pct_projetado_upper": 45.6,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5011,
+        "nome": "Senador AL PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 101466,
+        "votos_projetados": 490176,
+        "pct_atual": 29.3,
+        "pct_projetado": 29.6,
+        "pct_projetado_lower": 27.2,
+        "pct_projetado_upper": 32.0,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5012,
+        "nome": "Senador AL PSB",
+        "partido": "PSB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 93239,
+        "votos_projetados": 450432,
+        "pct_atual": 27.2,
+        "pct_projetado": 27.2,
+        "pct_projetado_lower": 24.8,
+        "pct_projetado_upper": 29.6,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5020,
+        "nome": "Senador AM UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 146865,
+        "votos_projetados": 624960,
+        "pct_atual": 30.4,
+        "pct_projetado": 31.0,
+        "pct_projetado_lower": 28.6,
+        "pct_projetado_upper": 33.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5021,
+        "nome": "Senador AM PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 132652,
+        "votos_projetados": 564480,
+        "pct_atual": 27.7,
+        "pct_projetado": 28.0,
+        "pct_projetado_lower": 25.6,
+        "pct_projetado_upper": 30.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5022,
+        "nome": "Senador AM PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 123177,
+        "votos_projetados": 524160,
+        "pct_atual": 26.0,
+        "pct_projetado": 26.0,
+        "pct_projetado_lower": 23.6,
+        "pct_projetado_upper": 28.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5023,
+        "nome": "Senador AM REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 71064,
+        "votos_projetados": 302400,
+        "pct_atual": 15.3,
+        "pct_projetado": 15.0,
+        "pct_projetado_lower": 12.6,
+        "pct_projetado_upper": 17.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5040,
+        "nome": "Senador BA PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 995121,
+        "votos_projetados": 3443328,
+        "pct_atual": 42.1,
+        "pct_projetado": 42.7,
+        "pct_projetado_lower": 40.3,
+        "pct_projetado_upper": 45.1,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5041,
+        "nome": "Senador BA PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 811012,
+        "votos_projetados": 2806272,
+        "pct_atual": 34.5,
+        "pct_projetado": 34.8,
+        "pct_projetado_lower": 32.4,
+        "pct_projetado_upper": 37.2,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5042,
+        "nome": "Senador BA MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 524361,
+        "votos_projetados": 1814400,
+        "pct_atual": 22.5,
+        "pct_projetado": 22.5,
+        "pct_projetado_lower": 20.1,
+        "pct_projetado_upper": 24.9,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5050,
+        "nome": "Senador CE PSD",
+        "partido": "PSD",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 450089,
+        "votos_projetados": 1419840,
+        "pct_atual": 28.4,
+        "pct_projetado": 29.0,
+        "pct_projetado_lower": 26.6,
+        "pct_projetado_upper": 31.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5051,
+        "nome": "Senador CE PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 419048,
+        "votos_projetados": 1321920,
+        "pct_atual": 26.7,
+        "pct_projetado": 27.0,
+        "pct_projetado_lower": 24.6,
+        "pct_projetado_upper": 29.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5052,
+        "nome": "Senador CE PSB",
+        "partido": "PSB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 388008,
+        "votos_projetados": 1224000,
+        "pct_atual": 25.0,
+        "pct_projetado": 25.0,
+        "pct_projetado_lower": 22.6,
+        "pct_projetado_upper": 27.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5053,
+        "nome": "Senador CE UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 294886,
+        "votos_projetados": 930240,
+        "pct_atual": 19.3,
+        "pct_projetado": 19.0,
+        "pct_projetado_lower": 16.6,
+        "pct_projetado_upper": 21.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5060,
+        "nome": "Senador DF UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 217958,
+        "votos_projetados": 633600,
+        "pct_atual": 39.4,
+        "pct_projetado": 40.0,
+        "pct_projetado_lower": 37.6,
+        "pct_projetado_upper": 42.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5061,
+        "nome": "Senador DF PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 163468,
+        "votos_projetados": 475200,
+        "pct_atual": 29.7,
+        "pct_projetado": 30.0,
+        "pct_projetado_lower": 27.6,
+        "pct_projetado_upper": 32.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5062,
+        "nome": "Senador DF PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 158019,
+        "votos_projetados": 459360,
+        "pct_atual": 29.0,
+        "pct_projetado": 29.0,
+        "pct_projetado_lower": 26.6,
+        "pct_projetado_upper": 31.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5063,
+        "nome": "Senador DF REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 5448,
+        "votos_projetados": 15840,
+        "pct_atual": 1.3,
+        "pct_projetado": 1.0,
+        "pct_projetado_lower": -1.4,
+        "pct_projetado_upper": 3.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5070,
+        "nome": "Senador ES REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 334647,
+        "votos_projetados": 902016,
+        "pct_atual": 42.6,
+        "pct_projetado": 43.2,
+        "pct_projetado_lower": 40.8,
+        "pct_projetado_upper": 45.6,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5071,
+        "nome": "Senador ES PSOL",
+        "partido": "PSOL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 229295,
+        "votos_projetados": 618048,
+        "pct_atual": 29.3,
+        "pct_projetado": 29.6,
+        "pct_projetado_lower": 27.2,
+        "pct_projetado_upper": 32.0,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5072,
+        "nome": "Senador ES NOVO",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 210704,
+        "votos_projetados": 567936,
+        "pct_atual": 27.2,
+        "pct_projetado": 27.2,
+        "pct_projetado_lower": 24.8,
+        "pct_projetado_upper": 29.6,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5080,
+        "nome": "Senador GO PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 417517,
+        "votos_projetados": 1049040,
+        "pct_atual": 30.4,
+        "pct_projetado": 31.0,
+        "pct_projetado_lower": 28.6,
+        "pct_projetado_upper": 33.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5081,
+        "nome": "Senador GO PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 377112,
+        "votos_projetados": 947520,
+        "pct_atual": 27.7,
+        "pct_projetado": 28.0,
+        "pct_projetado_lower": 25.6,
+        "pct_projetado_upper": 30.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5082,
+        "nome": "Senador GO MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 350176,
+        "votos_projetados": 879840,
+        "pct_atual": 26.0,
+        "pct_projetado": 26.0,
+        "pct_projetado_lower": 23.6,
+        "pct_projetado_upper": 28.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5083,
+        "nome": "Senador GO PSD",
+        "partido": "PSD",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 202024,
+        "votos_projetados": 507600,
+        "pct_atual": 15.3,
+        "pct_projetado": 15.0,
+        "pct_projetado_lower": 12.6,
+        "pct_projetado_upper": 17.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5090,
+        "nome": "Senador MA PSD",
+        "partido": "PSD",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 662515,
+        "votos_projetados": 1555200,
+        "pct_atual": 44.4,
+        "pct_projetado": 45.0,
+        "pct_projetado_lower": 42.6,
+        "pct_projetado_upper": 47.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5091,
+        "nome": "Senador MA PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 323896,
+        "votos_projetados": 760320,
+        "pct_atual": 21.7,
+        "pct_projetado": 22.0,
+        "pct_projetado_lower": 19.6,
+        "pct_projetado_upper": 24.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5092,
+        "nome": "Senador MA PSB",
+        "partido": "PSB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 309173,
+        "votos_projetados": 725760,
+        "pct_atual": 21.0,
+        "pct_projetado": 21.0,
+        "pct_projetado_lower": 18.6,
+        "pct_projetado_upper": 23.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5093,
+        "nome": "Senador MA UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 176670,
+        "votos_projetados": 414720,
+        "pct_atual": 12.3,
+        "pct_projetado": 12.0,
+        "pct_projetado_lower": 9.6,
+        "pct_projetado_upper": 14.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5100,
+        "nome": "Senador MG UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 2228325,
+        "votos_projetados": 4919040,
+        "pct_atual": 42.1,
+        "pct_projetado": 42.7,
+        "pct_projetado_lower": 40.3,
+        "pct_projetado_upper": 45.1,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5101,
+        "nome": "Senador MG PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 1816058,
+        "votos_projetados": 4008959,
+        "pct_atual": 34.5,
+        "pct_projetado": 34.8,
+        "pct_projetado_lower": 32.4,
+        "pct_projetado_upper": 37.2,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5102,
+        "nome": "Senador MG PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 1174175,
+        "votos_projetados": 2592000,
+        "pct_atual": 22.5,
+        "pct_projetado": 22.5,
+        "pct_projetado_lower": 20.1,
+        "pct_projetado_upper": 24.9,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5110,
+        "nome": "Senador MS REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 200448,
+        "votos_projetados": 417600,
+        "pct_atual": 28.4,
+        "pct_projetado": 29.0,
+        "pct_projetado_lower": 26.6,
+        "pct_projetado_upper": 31.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5111,
+        "nome": "Senador MS PSOL",
+        "partido": "PSOL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 186624,
+        "votos_projetados": 388800,
+        "pct_atual": 26.7,
+        "pct_projetado": 27.0,
+        "pct_projetado_lower": 24.6,
+        "pct_projetado_upper": 29.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5112,
+        "nome": "Senador MS NOVO",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 172800,
+        "votos_projetados": 360000,
+        "pct_atual": 25.0,
+        "pct_projetado": 25.0,
+        "pct_projetado_lower": 22.6,
+        "pct_projetado_upper": 27.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5113,
+        "nome": "Senador MS PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 131328,
+        "votos_projetados": 273600,
+        "pct_atual": 19.3,
+        "pct_projetado": 19.0,
+        "pct_projetado_lower": 16.6,
+        "pct_projetado_upper": 21.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5120,
+        "nome": "Senador MT PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 365760,
+        "votos_projetados": 720000,
+        "pct_atual": 39.4,
+        "pct_projetado": 40.0,
+        "pct_projetado_lower": 37.6,
+        "pct_projetado_upper": 42.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5121,
+        "nome": "Senador MT PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 274320,
+        "votos_projetados": 540000,
+        "pct_atual": 29.7,
+        "pct_projetado": 30.0,
+        "pct_projetado_lower": 27.6,
+        "pct_projetado_upper": 32.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5122,
+        "nome": "Senador MT MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 265176,
+        "votos_projetados": 522000,
+        "pct_atual": 29.0,
+        "pct_projetado": 29.0,
+        "pct_projetado_lower": 26.6,
+        "pct_projetado_upper": 31.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5123,
+        "nome": "Senador MT PSD",
+        "partido": "PSD",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 9144,
+        "votos_projetados": 18000,
+        "pct_atual": 1.3,
+        "pct_projetado": 1.0,
+        "pct_projetado_lower": -1.4,
+        "pct_projetado_upper": 3.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5130,
+        "nome": "Senador PA PSD",
+        "partido": "PSD",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 965157,
+        "votos_projetados": 1804032,
+        "pct_atual": 42.6,
+        "pct_projetado": 43.2,
+        "pct_projetado_lower": 40.8,
+        "pct_projetado_upper": 45.6,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5131,
+        "nome": "Senador PA PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 661311,
+        "votos_projetados": 1236096,
+        "pct_atual": 29.3,
+        "pct_projetado": 29.6,
+        "pct_projetado_lower": 27.2,
+        "pct_projetado_upper": 32.0,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5132,
+        "nome": "Senador PA PSB",
+        "partido": "PSB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 607691,
+        "votos_projetados": 1135872,
+        "pct_atual": 27.2,
+        "pct_projetado": 27.2,
+        "pct_projetado_lower": 24.8,
+        "pct_projetado_upper": 29.6,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5140,
+        "nome": "Senador PB UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 376315,
+        "votos_projetados": 669600,
+        "pct_atual": 30.4,
+        "pct_projetado": 31.0,
+        "pct_projetado_lower": 28.6,
+        "pct_projetado_upper": 33.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5141,
+        "nome": "Senador PB PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 339897,
+        "votos_projetados": 604800,
+        "pct_atual": 27.7,
+        "pct_projetado": 28.0,
+        "pct_projetado_lower": 25.6,
+        "pct_projetado_upper": 30.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5142,
+        "nome": "Senador PB PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 315619,
+        "votos_projetados": 561600,
+        "pct_atual": 26.0,
+        "pct_projetado": 26.0,
+        "pct_projetado_lower": 23.6,
+        "pct_projetado_upper": 28.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5143,
+        "nome": "Senador PB REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 182088,
+        "votos_projetados": 324000,
+        "pct_atual": 15.3,
+        "pct_projetado": 15.0,
+        "pct_projetado_lower": 12.6,
+        "pct_projetado_upper": 17.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5150,
+        "nome": "Senador PE REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 1319004,
+        "votos_projetados": 2235600,
+        "pct_atual": 44.4,
+        "pct_projetado": 45.0,
+        "pct_projetado_lower": 42.6,
+        "pct_projetado_upper": 47.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5151,
+        "nome": "Senador PE PSOL",
+        "partido": "PSOL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 644846,
+        "votos_projetados": 1092960,
+        "pct_atual": 21.7,
+        "pct_projetado": 22.0,
+        "pct_projetado_lower": 19.6,
+        "pct_projetado_upper": 24.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5152,
+        "nome": "Senador PE NOVO",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 615535,
+        "votos_projetados": 1043280,
+        "pct_atual": 21.0,
+        "pct_projetado": 21.0,
+        "pct_projetado_lower": 18.6,
+        "pct_projetado_upper": 23.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5153,
+        "nome": "Senador PE PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 351734,
+        "votos_projetados": 596160,
+        "pct_atual": 12.3,
+        "pct_projetado": 12.0,
+        "pct_projetado_lower": 9.6,
+        "pct_projetado_upper": 14.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5160,
+        "nome": "Senador PI PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 474226,
+        "votos_projetados": 768600,
+        "pct_atual": 42.1,
+        "pct_projetado": 42.7,
+        "pct_projetado_lower": 40.3,
+        "pct_projetado_upper": 45.1,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5161,
+        "nome": "Senador PI PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 386488,
+        "votos_projetados": 626399,
+        "pct_atual": 34.5,
+        "pct_projetado": 34.8,
+        "pct_projetado_lower": 32.4,
+        "pct_projetado_upper": 37.2,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5162,
+        "nome": "Senador PI MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 249885,
+        "votos_projetados": 405000,
+        "pct_atual": 22.5,
+        "pct_projetado": 22.5,
+        "pct_projetado_lower": 20.1,
+        "pct_projetado_upper": 24.9,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5170,
+        "nome": "Senador PR PSD",
+        "partido": "PSD",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 1116077,
+        "votos_projetados": 1733040,
+        "pct_atual": 28.4,
+        "pct_projetado": 29.0,
+        "pct_projetado_lower": 26.6,
+        "pct_projetado_upper": 31.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5171,
+        "nome": "Senador PR PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 1039106,
+        "votos_projetados": 1613520,
+        "pct_atual": 26.7,
+        "pct_projetado": 27.0,
+        "pct_projetado_lower": 24.6,
+        "pct_projetado_upper": 29.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5172,
+        "nome": "Senador PR PSB",
+        "partido": "PSB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 962136,
+        "votos_projetados": 1494000,
+        "pct_atual": 25.0,
+        "pct_projetado": 25.0,
+        "pct_projetado_lower": 22.6,
+        "pct_projetado_upper": 27.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5173,
+        "nome": "Senador PR UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 731223,
+        "votos_projetados": 1135440,
+        "pct_atual": 19.3,
+        "pct_projetado": 19.0,
+        "pct_projetado_lower": 16.6,
+        "pct_projetado_upper": 21.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5180,
+        "nome": "Senador RJ UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 2477260,
+        "votos_projetados": 3686400,
+        "pct_atual": 39.4,
+        "pct_projetado": 40.0,
+        "pct_projetado_lower": 37.6,
+        "pct_projetado_upper": 42.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5181,
+        "nome": "Senador RJ PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 1857945,
+        "votos_projetados": 2764800,
+        "pct_atual": 29.7,
+        "pct_projetado": 30.0,
+        "pct_projetado_lower": 27.6,
+        "pct_projetado_upper": 32.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5182,
+        "nome": "Senador RJ PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 1796014,
+        "votos_projetados": 2672640,
+        "pct_atual": 29.0,
+        "pct_projetado": 29.0,
+        "pct_projetado_lower": 26.6,
+        "pct_projetado_upper": 31.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5183,
+        "nome": "Senador RJ REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 61931,
+        "votos_projetados": 92160,
+        "pct_atual": 1.3,
+        "pct_projetado": 1.0,
+        "pct_projetado_lower": -1.4,
+        "pct_projetado_upper": 3.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5190,
+        "nome": "Senador RN REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 543542,
+        "votos_projetados": 777600,
+        "pct_atual": 42.6,
+        "pct_projetado": 43.2,
+        "pct_projetado_lower": 40.8,
+        "pct_projetado_upper": 45.6,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5191,
+        "nome": "Senador RN PSOL",
+        "partido": "PSOL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 372427,
+        "votos_projetados": 532800,
+        "pct_atual": 29.3,
+        "pct_projetado": 29.6,
+        "pct_projetado_lower": 27.2,
+        "pct_projetado_upper": 32.0,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5192,
+        "nome": "Senador RN NOVO",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 342230,
+        "votos_projetados": 489600,
+        "pct_atual": 27.2,
+        "pct_projetado": 27.2,
+        "pct_projetado_lower": 24.8,
+        "pct_projetado_upper": 29.6,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5200,
+        "nome": "Senador RO PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 210656,
+        "votos_projetados": 290160,
+        "pct_atual": 30.4,
+        "pct_projetado": 31.0,
+        "pct_projetado_lower": 28.6,
+        "pct_projetado_upper": 33.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5201,
+        "nome": "Senador RO PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 190270,
+        "votos_projetados": 262080,
+        "pct_atual": 27.7,
+        "pct_projetado": 28.0,
+        "pct_projetado_lower": 25.6,
+        "pct_projetado_upper": 30.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5202,
+        "nome": "Senador RO MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 176679,
+        "votos_projetados": 243360,
+        "pct_atual": 26.0,
+        "pct_projetado": 26.0,
+        "pct_projetado_lower": 23.6,
+        "pct_projetado_upper": 28.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5203,
+        "nome": "Senador RO PSD",
+        "partido": "PSD",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 101930,
+        "votos_projetados": 140400,
+        "pct_atual": 15.3,
+        "pct_projetado": 15.0,
+        "pct_projetado_lower": 12.6,
+        "pct_projetado_upper": 17.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5220,
+        "nome": "Senador RS UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 2040940,
+        "votos_projetados": 2613240,
+        "pct_atual": 42.1,
+        "pct_projetado": 42.7,
+        "pct_projetado_lower": 40.3,
+        "pct_projetado_upper": 45.1,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5221,
+        "nome": "Senador RS PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 1663342,
+        "votos_projetados": 2129759,
+        "pct_atual": 34.5,
+        "pct_projetado": 34.8,
+        "pct_projetado_lower": 32.4,
+        "pct_projetado_upper": 37.2,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5222,
+        "nome": "Senador RS PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 1075436,
+        "votos_projetados": 1377000,
+        "pct_atual": 22.5,
+        "pct_projetado": 22.5,
+        "pct_projetado_lower": 20.1,
+        "pct_projetado_upper": 24.9,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5230,
+        "nome": "Senador SC REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 927907,
+        "votos_projetados": 1148400,
+        "pct_atual": 28.4,
+        "pct_projetado": 29.0,
+        "pct_projetado_lower": 26.6,
+        "pct_projetado_upper": 31.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5231,
+        "nome": "Senador SC PSOL",
+        "partido": "PSOL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 863913,
+        "votos_projetados": 1069200,
+        "pct_atual": 26.7,
+        "pct_projetado": 27.0,
+        "pct_projetado_lower": 24.6,
+        "pct_projetado_upper": 29.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5232,
+        "nome": "Senador SC NOVO",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 799920,
+        "votos_projetados": 990000,
+        "pct_atual": 25.0,
+        "pct_projetado": 25.0,
+        "pct_projetado_lower": 22.6,
+        "pct_projetado_upper": 27.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5233,
+        "nome": "Senador SC PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 607939,
+        "votos_projetados": 752400,
+        "pct_atual": 19.3,
+        "pct_projetado": 19.0,
+        "pct_projetado_lower": 16.6,
+        "pct_projetado_upper": 21.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5240,
+        "nome": "Senador SE PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 408816,
+        "votos_projetados": 489600,
+        "pct_atual": 39.4,
+        "pct_projetado": 40.0,
+        "pct_projetado_lower": 37.6,
+        "pct_projetado_upper": 42.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5241,
+        "nome": "Senador SE PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 306612,
+        "votos_projetados": 367200,
+        "pct_atual": 29.7,
+        "pct_projetado": 30.0,
+        "pct_projetado_lower": 27.6,
+        "pct_projetado_upper": 32.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5242,
+        "nome": "Senador SE MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 296391,
+        "votos_projetados": 354960,
+        "pct_atual": 29.0,
+        "pct_projetado": 29.0,
+        "pct_projetado_lower": 26.6,
+        "pct_projetado_upper": 31.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5243,
+        "nome": "Senador SE PSD",
+        "partido": "PSD",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 10220,
+        "votos_projetados": 12240,
+        "pct_atual": 1.3,
+        "pct_projetado": 1.0,
+        "pct_projetado_lower": -1.4,
+        "pct_projetado_upper": 3.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5250,
+        "nome": "Senador SP PSD",
+        "partido": "PSD",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 9126535,
+        "votos_projetados": 10575360,
+        "pct_atual": 42.6,
+        "pct_projetado": 43.2,
+        "pct_projetado_lower": 40.8,
+        "pct_projetado_upper": 45.6,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5251,
+        "nome": "Senador SP PSDB",
+        "partido": "PSDB",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 6253367,
+        "votos_projetados": 7246080,
+        "pct_atual": 29.3,
+        "pct_projetado": 29.6,
+        "pct_projetado_lower": 27.2,
+        "pct_projetado_upper": 32.0,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5252,
+        "nome": "Senador SP PSB",
+        "partido": "PSB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 5746337,
+        "votos_projetados": 6658560,
+        "pct_atual": 27.2,
+        "pct_projetado": 27.2,
+        "pct_projetado_lower": 24.8,
+        "pct_projetado_upper": 29.6,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5260,
+        "nome": "Senador TO UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 218512,
+        "votos_projetados": 245520,
+        "pct_atual": 30.4,
+        "pct_projetado": 31.0,
+        "pct_projetado_lower": 28.6,
+        "pct_projetado_upper": 33.4,
+        "p_vitoria": 0.0,
+        "rank": 1,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5261,
+        "nome": "Senador TO PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 197366,
+        "votos_projetados": 221760,
+        "pct_atual": 27.7,
+        "pct_projetado": 28.0,
+        "pct_projetado_lower": 25.6,
+        "pct_projetado_upper": 30.4,
+        "p_vitoria": 0.0,
+        "rank": 2,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5262,
+        "nome": "Senador TO PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 183268,
+        "votos_projetados": 205920,
+        "pct_atual": 26.0,
+        "pct_projetado": 26.0,
+        "pct_projetado_lower": 23.6,
+        "pct_projetado_upper": 28.4,
+        "p_vitoria": 0.0,
+        "rank": 3,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      },
+      {
+        "id": 5263,
+        "nome": "Senador TO REPUBLICANOS",
+        "partido": "REPUBLICANOS",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 105732,
+        "votos_projetados": 118800,
+        "pct_atual": 15.3,
+        "pct_projetado": 15.0,
+        "pct_projetado_lower": 12.6,
+        "pct_projetado_upper": 17.4,
+        "p_vitoria": 0.0,
+        "rank": 4,
+        "p_passa_2t": 0.0,
+        "p_fecha_1t": 0.0
+      }
+    ],
+    "needle_position": 0.0,
+    "needle_band": "tossup",
+    "candidato_a_id": null,
+    "candidato_b_id": null,
+    "p_segundo_turno_overall": null,
+    "cenarios_2t": [],
+    "vai_a_2t_nacional": null,
+    "chamadas_recentes": []
+  },
+  "por_uf": [
+    {
+      "sigla": "AC",
+      "pct_apurado": 18.0,
+      "lider": 5000,
+      "margem_atual": 1.0,
+      "margem_projetada": 1.0,
+      "margem_projetada_ci": [-1.0, 3.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5000,
+          "pct": 40.0
+        },
+        {
+          "id": 5001,
+          "pct": 30.0
+        },
+        {
+          "id": 5002,
+          "pct": 29.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "AL",
+      "pct_apurado": 20.7,
+      "lider": 5010,
+      "margem_atual": 2.4,
+      "margem_projetada": 2.4,
+      "margem_projetada_ci": [0.4, 4.4],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5010,
+          "pct": 43.2
+        },
+        {
+          "id": 5011,
+          "pct": 29.6
+        },
+        {
+          "id": 5012,
+          "pct": 27.2
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "AM",
+      "pct_apurado": 23.5,
+      "lider": 5020,
+      "margem_atual": 2.0,
+      "margem_projetada": 2.0,
+      "margem_projetada_ci": [0.0, 4.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5020,
+          "pct": 31.0
+        },
+        {
+          "id": 5021,
+          "pct": 28.0
+        },
+        {
+          "id": 5022,
+          "pct": 26.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "BA",
+      "pct_apurado": 28.9,
+      "lider": 5040,
+      "margem_atual": 12.3,
+      "margem_projetada": 12.3,
+      "margem_projetada_ci": [10.3, 14.3],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5040,
+          "pct": 42.7
+        },
+        {
+          "id": 5041,
+          "pct": 34.8
+        },
+        {
+          "id": 5042,
+          "pct": 22.5
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "CE",
+      "pct_apurado": 31.7,
+      "lider": 5050,
+      "margem_atual": 2.0,
+      "margem_projetada": 2.0,
+      "margem_projetada_ci": [0.0, 4.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5050,
+          "pct": 29.0
+        },
+        {
+          "id": 5051,
+          "pct": 27.0
+        },
+        {
+          "id": 5052,
+          "pct": 25.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "DF",
+      "pct_apurado": 34.4,
+      "lider": 5060,
+      "margem_atual": 1.0,
+      "margem_projetada": 1.0,
+      "margem_projetada_ci": [-1.0, 3.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5060,
+          "pct": 40.0
+        },
+        {
+          "id": 5061,
+          "pct": 30.0
+        },
+        {
+          "id": 5062,
+          "pct": 29.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "ES",
+      "pct_apurado": 37.1,
+      "lider": 5070,
+      "margem_atual": 2.4,
+      "margem_projetada": 2.4,
+      "margem_projetada_ci": [0.4, 4.4],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5070,
+          "pct": 43.2
+        },
+        {
+          "id": 5071,
+          "pct": 29.6
+        },
+        {
+          "id": 5072,
+          "pct": 27.2
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "GO",
+      "pct_apurado": 39.8,
+      "lider": 5080,
+      "margem_atual": 2.0,
+      "margem_projetada": 2.0,
+      "margem_projetada_ci": [0.0, 4.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5080,
+          "pct": 31.0
+        },
+        {
+          "id": 5081,
+          "pct": 28.0
+        },
+        {
+          "id": 5082,
+          "pct": 26.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "MA",
+      "pct_apurado": 42.6,
+      "lider": 5090,
+      "margem_atual": 1.0,
+      "margem_projetada": 1.0,
+      "margem_projetada_ci": [-1.0, 3.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5090,
+          "pct": 45.0
+        },
+        {
+          "id": 5091,
+          "pct": 22.0
+        },
+        {
+          "id": 5092,
+          "pct": 21.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "MG",
+      "pct_apurado": 45.3,
+      "lider": 5100,
+      "margem_atual": 12.3,
+      "margem_projetada": 12.3,
+      "margem_projetada_ci": [10.3, 14.3],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5100,
+          "pct": 42.7
+        },
+        {
+          "id": 5101,
+          "pct": 34.8
+        },
+        {
+          "id": 5102,
+          "pct": 22.5
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "MS",
+      "pct_apurado": 48.0,
+      "lider": 5110,
+      "margem_atual": 2.0,
+      "margem_projetada": 2.0,
+      "margem_projetada_ci": [0.0, 4.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5110,
+          "pct": 29.0
+        },
+        {
+          "id": 5111,
+          "pct": 27.0
+        },
+        {
+          "id": 5112,
+          "pct": 25.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "MT",
+      "pct_apurado": 50.8,
+      "lider": 5120,
+      "margem_atual": 1.0,
+      "margem_projetada": 1.0,
+      "margem_projetada_ci": [-1.0, 3.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5120,
+          "pct": 40.0
+        },
+        {
+          "id": 5121,
+          "pct": 30.0
+        },
+        {
+          "id": 5122,
+          "pct": 29.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "PA",
+      "pct_apurado": 53.5,
+      "lider": 5130,
+      "margem_atual": 2.4,
+      "margem_projetada": 2.4,
+      "margem_projetada_ci": [0.4, 4.4],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5130,
+          "pct": 43.2
+        },
+        {
+          "id": 5131,
+          "pct": 29.6
+        },
+        {
+          "id": 5132,
+          "pct": 27.2
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "PB",
+      "pct_apurado": 56.2,
+      "lider": 5140,
+      "margem_atual": 2.0,
+      "margem_projetada": 2.0,
+      "margem_projetada_ci": [0.0, 4.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5140,
+          "pct": 31.0
+        },
+        {
+          "id": 5141,
+          "pct": 28.0
+        },
+        {
+          "id": 5142,
+          "pct": 26.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "PE",
+      "pct_apurado": 59.0,
+      "lider": 5150,
+      "margem_atual": 1.0,
+      "margem_projetada": 1.0,
+      "margem_projetada_ci": [-1.0, 3.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5150,
+          "pct": 45.0
+        },
+        {
+          "id": 5151,
+          "pct": 22.0
+        },
+        {
+          "id": 5152,
+          "pct": 21.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "PI",
+      "pct_apurado": 61.7,
+      "lider": 5160,
+      "margem_atual": 12.3,
+      "margem_projetada": 12.3,
+      "margem_projetada_ci": [10.3, 14.3],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5160,
+          "pct": 42.7
+        },
+        {
+          "id": 5161,
+          "pct": 34.8
+        },
+        {
+          "id": 5162,
+          "pct": 22.5
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "PR",
+      "pct_apurado": 64.4,
+      "lider": 5170,
+      "margem_atual": 2.0,
+      "margem_projetada": 2.0,
+      "margem_projetada_ci": [0.0, 4.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5170,
+          "pct": 29.0
+        },
+        {
+          "id": 5171,
+          "pct": 27.0
+        },
+        {
+          "id": 5172,
+          "pct": 25.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "RJ",
+      "pct_apurado": 67.2,
+      "lider": 5180,
+      "margem_atual": 1.0,
+      "margem_projetada": 1.0,
+      "margem_projetada_ci": [-1.0, 3.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5180,
+          "pct": 40.0
+        },
+        {
+          "id": 5181,
+          "pct": 30.0
+        },
+        {
+          "id": 5182,
+          "pct": 29.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "RN",
+      "pct_apurado": 69.9,
+      "lider": 5190,
+      "margem_atual": 2.4,
+      "margem_projetada": 2.4,
+      "margem_projetada_ci": [0.4, 4.4],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5190,
+          "pct": 43.2
+        },
+        {
+          "id": 5191,
+          "pct": 29.6
+        },
+        {
+          "id": 5192,
+          "pct": 27.2
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "RO",
+      "pct_apurado": 72.6,
+      "lider": 5200,
+      "margem_atual": 2.0,
+      "margem_projetada": 2.0,
+      "margem_projetada_ci": [0.0, 4.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5200,
+          "pct": 31.0
+        },
+        {
+          "id": 5201,
+          "pct": 28.0
+        },
+        {
+          "id": 5202,
+          "pct": 26.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "RS",
+      "pct_apurado": 78.1,
+      "lider": 5220,
+      "margem_atual": 12.3,
+      "margem_projetada": 12.3,
+      "margem_projetada_ci": [10.3, 14.3],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5220,
+          "pct": 42.7
+        },
+        {
+          "id": 5221,
+          "pct": 34.8
+        },
+        {
+          "id": 5222,
+          "pct": 22.5
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "SC",
+      "pct_apurado": 80.8,
+      "lider": 5230,
+      "margem_atual": 2.0,
+      "margem_projetada": 2.0,
+      "margem_projetada_ci": [0.0, 4.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5230,
+          "pct": 29.0
+        },
+        {
+          "id": 5231,
+          "pct": 27.0
+        },
+        {
+          "id": 5232,
+          "pct": 25.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "SE",
+      "pct_apurado": 83.5,
+      "lider": 5240,
+      "margem_atual": 1.0,
+      "margem_projetada": 1.0,
+      "margem_projetada_ci": [-1.0, 3.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5240,
+          "pct": 40.0
+        },
+        {
+          "id": 5241,
+          "pct": 30.0
+        },
+        {
+          "id": 5242,
+          "pct": 29.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "SP",
+      "pct_apurado": 86.3,
+      "lider": 5250,
+      "margem_atual": 2.4,
+      "margem_projetada": 2.4,
+      "margem_projetada_ci": [0.4, 4.4],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5250,
+          "pct": 43.2
+        },
+        {
+          "id": 5251,
+          "pct": 29.6
+        },
+        {
+          "id": 5252,
+          "pct": 27.2
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "TO",
+      "pct_apurado": 89.0,
+      "lider": 5260,
+      "margem_atual": 2.0,
+      "margem_projetada": 2.0,
+      "margem_projetada_ci": [0.0, 4.0],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 5260,
+          "pct": 31.0
+        },
+        {
+          "id": 5261,
+          "pct": 28.0
+        },
+        {
+          "id": 5262,
+          "pct": 26.0
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    }
+  ],
+  "insights": [],
+  "composition": {
+    "pre_election": 0.0,
+    "model": 1.0,
+    "actual_results": 0.0
+  },
+  "composicao_vagas": {
+    "vagas_em_disputa": 54,
+    "total_cadeiras": 81,
+    "vagas_por_uf": 2,
+    "ufs_projetadas": 25,
+    "ufs_aguardando": 2,
+    "vagas_projetadas": 50,
+    "por_partido": [
+      {
+        "partido": "PL",
+        "vagas": 7
+      },
+      {
+        "partido": "PP",
+        "vagas": 7
+      },
+      {
+        "partido": "PT",
+        "vagas": 7
+      },
+      {
+        "partido": "UNIÃO",
+        "vagas": 7
+      },
+      {
+        "partido": "PSD",
+        "vagas": 6
+      },
+      {
+        "partido": "PSDB",
+        "vagas": 6
+      },
+      {
+        "partido": "PSOL",
+        "vagas": 5
+      },
+      {
+        "partido": "REPUBLICANOS",
+        "vagas": 5
+      }
+    ]
+  }
+}

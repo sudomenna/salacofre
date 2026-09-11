@@ -40,6 +40,25 @@ export interface ForecastTransparencyProps {
    *   - 'uf'                 → "O que está movendo o forecast estadual"
    */
   variant?: "national" | "uf";
+  /**
+   * RF-108 (spec 016) — em que unidade a regra de três rodou, vindo de
+   * `EdgePayloadUf.granularidade` / `metodo.granularidade`.
+   *
+   * `"zona"` é o caso de Presidente e Governador, e o bloco não diz nada
+   * (é a granularidade que o leitor já supõe quando vê um mapa municipal).
+   * `"uf"` é Senador e Deputado Federal: ali a projeção nasce de **um**
+   * boletim agregado por estado, e omitir isso deixaria o leitor concluir
+   * que a corrida tem a mesma resolução das outras duas. A constituição § 8
+   * não pede só "explique o método" — pede que a explicação corresponda ao
+   * método que de fato rodou.
+   */
+  granularidade?: "uf" | "zona";
+  /**
+   * RF-108 / ADR-0026 item 5 — de quantos em quantos minutos esta corrida é
+   * atualizada. Senador é 5 (contra 1 de Presidente/Governador). Omitido ⇒
+   * nenhuma frase de cadência, que é melhor do que uma frase genérica.
+   */
+  cadenciaMinutos?: number;
   /** Classes adicionais para o container externo. */
   className?: string;
 }
@@ -118,6 +137,8 @@ function BarRow({ label, pct, color, ariaLabel }: BarRowProps) {
 export function ForecastTransparency({
   pctApurado,
   variant = "national",
+  granularidade,
+  cadenciaMinutos,
   className,
 }: ForecastTransparencyProps) {
   const pctReal = clampPercent(pctApurado);
@@ -151,6 +172,25 @@ export function ForecastTransparency({
           ariaLabel={`Apuração contribui ${formatPercent(pctReal)}`}
         />
       </div>
+      {/* RF-108 — os dois fatos que o leitor não tem como inferir da tela:
+          a resolução da projeção e a frequência com que ela muda. Texto,
+          não tooltip: "legível sem clique" é literal na aceitação. */}
+      {granularidade === "uf" || cadenciaMinutos ? (
+        <p
+          data-testid="forecast-cadencia"
+          className="mt-3 max-w-prose text-sm"
+          style={{ margin: "var(--space-3) 0 0", color: "var(--color-text-muted)" }}
+        >
+          {granularidade === "uf"
+            ? "Esta projeção é feita no nível do estado: o TSE publica um boletim agregado por unidade da federação para este cargo, e não um por zona eleitoral — ao contrário de Presidente e Governador. Por isso não há mapa de municípios aqui. "
+            : null}
+          {cadenciaMinutos
+            ? `Os números são atualizados a cada ${cadenciaMinutos} ${
+                cadenciaMinutos === 1 ? "minuto" : "minutos"
+              }.`
+            : null}
+        </p>
+      ) : null}
     </section>
   );
 }

@@ -6,9 +6,11 @@
  * S07/Bloco 1).
  *
  * O que estes testes travam:
- *   - as quatro abas de cargo (decisão D5, 2026-09-07), com Senador e
- *     Deputado Federal **desabilitados de forma acessível** — `aria-disabled`
- *     + a razão legível, nunca um `<a>` que levaria a 404;
+ *   - as quatro abas de cargo (decisão D5, 2026-09-07), com Deputado Federal
+ *     ainda **desabilitado de forma acessível** — `aria-disabled` + a razão
+ *     legível, nunca um `<a>` que levaria a 404. Senador saiu do modo
+ *     desabilitado em 2026-09-11 (spec 016), e passou a ser um link como
+ *     Presidente e Governador;
  *   - o shell inteiro é RSC: nenhum arquivo da cadeia
  *     `layout → TopBar → CargoTabs → TabBar` declara `"use client"` nem usa
  *     hook. Isso é orçamento, não estilo: o shell renderiza acima da dobra em
@@ -62,18 +64,18 @@ describe("<CargoTabs /> — abas de cargo do shell global", () => {
     ).toEqual(["pres", "gov", "sen", "dep"]);
   });
 
-  it("(b) Presidente e Governador são links reais (zero JS)", () => {
+  it("(b) Presidente, Governador e Senador são links reais (zero JS)", () => {
     const doc = parse(<CargoTabs />);
     const links = [...doc.querySelectorAll("a")];
 
-    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/", "/governador"]);
-    expect(links.map((a) => a.getAttribute("data-value"))).toEqual(["pres", "gov"]);
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/", "/governador", "/senador"]);
+    expect(links.map((a) => a.getAttribute("data-value"))).toEqual(["pres", "gov", "sen"]);
   });
 
-  it("(c) Senador e Deputado Federal não são links — são spans aria-disabled", () => {
+  it("(c) Deputado Federal não é link — é span aria-disabled", () => {
     const doc = parse(<CargoTabs />);
 
-    for (const value of ["sen", "dep"]) {
+    for (const value of ["dep"]) {
       const el = doc.querySelector(`[data-value='${value}']`);
       expect(el?.tagName).toBe("SPAN");
       expect(el?.getAttribute("href")).toBeNull();
@@ -83,15 +85,16 @@ describe("<CargoTabs /> — abas de cargo do shell global", () => {
 
   it("(d) o motivo da indisponibilidade é legível por leitor de tela, não só title", () => {
     const doc = parse(<CargoTabs />);
-    const sen = doc.querySelector("[data-value='sen']");
+    const dep = doc.querySelector("[data-value='dep']");
 
     // `title` cobre o hover do mouse...
-    expect(sen?.getAttribute("title")).toMatch(/ainda não coberto/i);
+    expect(dep?.getAttribute("title")).toMatch(/ainda não coberto/i);
     // ...mas `title` não é anunciado de forma confiável em modo de leitura,
     // então o mesmo texto existe como conteúdo visualmente escondido.
-    const sr = sen?.querySelector(".sr-only");
-    expect(sr?.textContent).toMatch(/ainda não coberto/i);
-    expect(sr?.textContent).toBe(sen?.getAttribute("title"));
+    const sr = [...(dep?.querySelectorAll(".sr-only") ?? [])].find((el) =>
+      /ainda não coberto/i.test(el.textContent ?? ""),
+    );
+    expect(sr?.textContent).toBe(dep?.getAttribute("title"));
   });
 
   it("(e) o rótulo visível continua sendo o nome do cargo", () => {
@@ -117,7 +120,7 @@ describe("<CargoTabs /> — abas de cargo do shell global", () => {
     // O portador do estado é um texto por aba navegável, que o
     // `CargoTabs.module.css` revela só sob `body:has(main[data-trilha=…])`.
     const flags = [...doc.querySelectorAll("a .sr-only")];
-    expect(flags.length).toBe(2);
+    expect(flags.length).toBe(3);
     for (const flag of flags) {
       expect(flag.textContent).toContain("página atual");
       // `sr-only` (geometria) + a classe local do módulo (display: none até a

@@ -5,9 +5,12 @@
  * `<TopBar>` em `app/layout.tsx`, portanto acima da dobra de TODAS as rotas.
  *
  * Quatro abas, decisão D5 do usuário (2026-09-07):
- *   Presidente `/` · Governador `/governador` · Senador · Deputado Federal.
- * As duas últimas aparecem **desabilitadas** até as specs 016/017 shipparem —
- * um `<span aria-disabled="true">` com a razão em `title` e em `sr-only`,
+ *   Presidente `/` · Governador `/governador` · Senador `/senador` ·
+ *   Deputado Federal.
+ *
+ * Senador saiu do modo desabilitado em 2026-09-11, com a implementação da
+ * spec 016: a rota existe e responde. Deputado Federal (spec 017) continua
+ * como `<span aria-disabled="true">` com a razão em `title` e em `sr-only`,
  * nunca um `<a>` que levaria a 404 (o `<TabBar>` implementa esse modo).
  *
  * ## Aba atual sem JS e sem tornar a rota dinâmica
@@ -93,7 +96,16 @@ const ITEMS = [
       </>
     ),
   },
-  { value: "sen", label: "Senador", disabled: true, disabledReason: EM_BREVE },
+  {
+    value: "sen",
+    href: "/senador",
+    label: (
+      <>
+        Senador
+        <CurrentFlag />
+      </>
+    ),
+  },
   {
     value: "dep",
     // "Deputado Federal" não cabe numa coluna de 1/4 de 430px: quebrava em

@@ -83,6 +83,36 @@ export interface ChancesPanelProps {
    * cai no caminho `liderPVitoria` — ex. `"SP"` produz "… vence em SP".
    */
   escopo?: string;
+  /**
+   * RF-103 (spec 016) — um medidor por candidato com a probabilidade de
+   * **se eleger**, isto é, de terminar entre as `vagas` primeiras posições.
+   *
+   * É a quarta linha da tabela acima, e a única que não fala de um líder: em
+   * corrida de duas vagas não existe "o líder vence" — existem dois eleitos,
+   * e a pergunta interessante é quem são. O valor vem pronto de
+   * `EdgeUfCandidate.p_eleito` (bootstrap do orchestrator); nada é
+   * recalculado aqui, pela mesma razão de sempre (constituição § 6).
+   *
+   * Quando presente, os medidores de `p_eleito` são os ÚNICOS exibidos: somar
+   * "chance de ir ao 2º turno" a uma corrida de turno único seria inventar um
+   * evento que não existe para o cargo.
+   *
+   * **Quem chama é responsável por não passar probabilidade degenerada.** Com
+   * o cargo ingerido em granularidade UF, o bootstrap não tem o que
+   * reamostrar e `p_eleito` sai 0 ou 1 — ver a nota em
+   * `EdgeUfCandidate.p_eleito`. Publicar "100%" às 19h seria uma afirmação
+   * que o modelo não sustenta.
+   */
+  eleitos?: ReadonlyArray<{
+    id: number;
+    nome: string;
+    /** `p_eleito` em [0, 1]. */
+    p: number;
+    /** `pct_projetado` (0–100) — entra na nota do medidor. */
+    pctProjetado?: number | null;
+  }>;
+  /** Cadeiras em disputa — entra no texto do medidor de `p_eleito`. */
+  vagas?: number;
   /** Título do painel. Default "Chances". */
   title?: string;
   className?: string;
@@ -107,9 +137,36 @@ export function ChancesPanel({
   liderPctProjetado,
   pctApurado,
   escopo,
+  eleitos,
+  vagas = 1,
   title = "Chances",
   className,
 }: ChancesPanelProps) {
+  const listaEleitos = (eleitos ?? []).filter((e) => has(e.p));
+  if (listaEleitos.length > 0) {
+    const apurado = `${formatPercent(pctApurado, 1)} apurado`;
+    const ondeVence = escopo ? ` em ${escopo}` : "";
+    return (
+      <Panel kicker="Modelo Atlas Menna" title={title} className={className}>
+        <div className="grid" style={{ gap: "var(--space-5)" }} data-testid="chances-panel-meters">
+          {listaEleitos.map((e) => (
+            <ProbabilityMeter
+              key={e.id}
+              label={`${e.nome.trim() || "Candidato"} se elege${ondeVence}`}
+              pct={toPct(e.p)}
+              note={
+                has(e.pctProjetado)
+                  ? `Projeção ${formatPercent(e.pctProjetado, 1)} · ${apurado}. ` +
+                    `Frequência das reamostragens do modelo em que este candidato termina entre os ${vagas} primeiros.`
+                  : `${apurado}. Frequência das reamostragens do modelo em que este candidato termina entre os ${vagas} primeiros.`
+              }
+            />
+          ))}
+        </div>
+      </Panel>
+    );
+  }
+
   const temSegundoTurno = has(pSegundoTurno);
   const temFecha1t = has(liderPFecha1t);
   // `p_vitoria` é fallback, não soma: exibir "vence no 1º turno" e "vence"

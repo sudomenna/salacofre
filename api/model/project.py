@@ -72,6 +72,13 @@ from typing import Any, TypedDict
 import numpy as np
 from pydantic import BaseModel, Field, ValidationError
 
+from api.model.cargos import (
+    Granularidade,
+    granularidade as cargo_granularidade,
+    total_cadeiras as cargo_total_cadeiras,
+    vagas_em_disputa as cargo_vagas_em_disputa,
+    vagas_por_uf as cargo_vagas_por_uf,
+)
 from api.model.extrapolation import (
     CandidatoEstimate,
     UfCandidatosEstimate,
@@ -80,7 +87,7 @@ from api.model.extrapolation import (
     estimate_uf_candidatos,
     impute_uf_from_national,
 )
-from api.model.p_vitoria import p_vitoria
+from api.model.p_vitoria import p_eleito, p_vitoria
 from api.model.turnout import (
     Metric as ParticipacaoMetric,
     ParticipacaoEstimate,
@@ -121,7 +128,18 @@ class ProjectRequest(BaseModel):
     mudaria o hash).
     """
 
-    cargo: int = Field(ge=1, le=99, description="1=Presidente, 3=Governador")
+    cargo: int = Field(
+        ge=1,
+        le=99,
+        description=(
+            "Código do cargo no TSE: 1=Presidente, 3=Governador, 5=Senador, "
+            "6=Deputado Federal (tabela canônica em `lib/config/cargos.ts`, "
+            "espelhada em `api/model/cargos.py`). A faixa 1..99 é deliberada: "
+            "um cargo fora da tabela não é recusado na borda, degrada para o "
+            "comportamento default (1 vaga, granularidade de zona) — o ciclo "
+            "de apuração nunca cai por um código inesperado."
+        ),
+    )
     turno: int = Field(ge=1, le=2)
     trigger_ts: str = Field(min_length=1, max_length=64)
 
@@ -1211,6 +1229,7 @@ def _uf_projection_row(
     pct_apurado_uf: float,
     est: UfCandidatosEstimate,
     metodo_tipo: str = "extrapolacao_apurado",
+    granularidade: Granularidade = "zona",
 ) -> dict[str, Any]:
     """Monta a linha `(uf, candidato)` a partir de `CandidatoEstimate`
     (regra de três, `api/model/extrapolation.py`) — usada tanto pelo
@@ -1245,6 +1264,14 @@ def _uf_projection_row(
             "tipo": metodo_tipo,
             "n_zonas": est["n_zonas"],
             "n_zonas_imputadas": est["n_zonas_imputadas"],
+            # RF-102 (spec 016) — a unidade em que a regra de três foi
+            # aplicada. `"zona"` em Presidente/Governador; `"uf"` em Senador e
+            # Deputado Federal, que o ADR-0026 item 1 ingere por UF (27 GETs
+            # por ciclo em vez de ~6.110). Não é detalhe interno: é a diferença
+            # que a tela precisa declarar ao leitor (RF-108), porque uma
+            # projeção feita sobre um único boletim agregado da UF não tem a
+            # mesma natureza da que agrega ~200 zonas independentes.
+            "granularidade": granularidade,
         },
     }
 
@@ -1378,7 +1405,24 @@ def compute_uf_projections(
       - cargo 3 (governador): não existe "nacional" por corrida estadual
         — a UF fica OMITIDA de `rows`/`estimates_by_uf` ("aguardando
         projeção" na UI).
+      - cargo 5 (senador): MESMA omissão do governador, e por um motivo
+        adicional e mais forte (RF-102, spec 016): a composição partidária
+        do Senado varia demais entre estados para que a proporção nacional
+        signifique alguma coisa num estado específico. Imputar ali não
+        seria uma estimativa fraca — seria uma afirmação sobre um estado
+        feita a partir de dado de outros 26. A UF sai `aguardando`.
+
+    Granularidade (RF-102): o `k = te/esi` é sempre o da UNIDADE INGERIDA.
+    Em cargo 1/3 a unidade é a zona (~6.110 pares por ciclo, somados de
+    volta a zonas por `merge_pairs_into_zonas`); em cargo 5/6 é a UF
+    inteira — o TSE publica um único EA20 por UF e `lib/tse/targets.ts`
+    grava a linha com o sentinela `cod_zona = 0`, que
+    `_resolve_zone_weight` pesa pelo eleitorado total da UF. Nenhum código
+    especial é preciso para isso: a mesma função roda com UMA "zona" que é
+    a UF. O que muda é o rótulo — `metodo.granularidade` — e a
+    consequência estatística, documentada em `_uf_projection_row`.
     """
+    granularidade = cargo_granularidade(int(cargo))
     snaps_by_uf: dict[str, list[LatestSnapshot]] = {}
     for s in snapshots:
         snaps_by_uf.setdefault(s["uf"], []).append(s)
@@ -1461,7 +1505,16 @@ def compute_uf_projections(
         }
         for cod, cand_est in est["por_candidato"].items():
             rows.append(
-                _uf_projection_row(cargo, turno, uf, cod, cand_est, uf_pct_apurado, est)
+                _uf_projection_row(
+                    cargo,
+                    turno,
+                    uf,
+                    cod,
+                    cand_est,
+                    uf_pct_apurado,
+                    est,
+                    granularidade=granularidade,
+                )
             )
 
     if pending_national_fallback and int(cargo) == 1 and estimates_by_uf:
@@ -1509,10 +1562,95 @@ def compute_uf_projections(
                         0.0,
                         est,
                         metodo_tipo="imputado_nacional",
+                        granularidade=granularidade,
                     )
                 )
 
     return rows, estimates_by_uf, estimates_c_by_uf, cand_by_uf
+
+
+def compute_p_eleito_by_uf(
+    estimates_by_uf: dict[str, dict[int, np.ndarray]],
+    vagas: int,
+) -> dict[str, dict[int, float]]:
+    """RF-103 (spec 016) — `p_eleito` por candidato, por UF.
+
+    Delega a `api.model.p_vitoria.p_eleito`, que já resolve a parte difícil
+    (contagem POR CENÁRIO, não por distribuição marginal) e tem cobertura
+    própria em `tests/unit/model/test_p_eleito.py`. O que esta função
+    acrescenta é só o laço sobre as 27 corridas — e a garantia de que a
+    pergunta feita ao bootstrap é a certa para o cargo.
+
+    Por que não reusar `p_vitoria`: em Senador a eleição não é ganha por quem
+    lidera, é ganha por quem termina entre os DOIS primeiros. `p_vitoria`
+    responderia com precisão a uma pergunta que não decide nada — o 2º
+    colocado de um estado é senador exatamente como o 1º.
+
+    A soma dos `p_eleito` de uma UF tende a `min(vagas, nº de candidatos)`,
+    não a 1. Isso é a assinatura de que o número certo foi calculado.
+
+    Zero sorteio novo: é função pura dos `estimates_by_uf` que
+    `compute_uf_projections` já produziu (mesma filosofia de
+    `compute_p_passa_2t` / `compute_p_fecha_1t` / `compute_outros_estimates`),
+    então o determinismo da constituição § 6 é herdado, não reconquistado.
+
+    Limitação conhecida, e ela é do DADO, não desta função: quando o cargo é
+    ingerido em granularidade UF (ADR-0026 item 1), a UF tem uma única
+    unidade de reamostragem — o bootstrap de zonas reamostra sempre a mesma
+    linha e as 1.000 réplicas saem idênticas. Com dispersão zero, `p_eleito`
+    degenera para 0 ou 1. O número continua correto ("dado o ponto estimado,
+    estes dois estão à frente"), mas não carrega incerteza amostral. Quem
+    exibe precisa olhar a largura do IC antes de chamar isso de "chance" —
+    ver `EdgeUfCandidate.p_eleito` em `lib/edge-config/types.ts`.
+    """
+    if vagas < 1:
+        raise ValueError(f"vagas deve ser >= 1, recebido {vagas}")
+    out: dict[str, dict[int, float]] = {}
+    for uf in sorted(estimates_by_uf):
+        cand_map = estimates_by_uf[uf]
+        if not cand_map:
+            continue
+        out[uf] = p_eleito(cand_map, vagas)
+    return out
+
+
+def extract_partido_by_cand(
+    snapshots: list[LatestSnapshot], cargo: int | None = None
+) -> dict[int, str]:
+    """`{cod_candidato: sigla do partido}` a partir dos snapshots do ciclo.
+
+    O EA20 carrega a sigla um nível ACIMA do candidato (`carg[] → agr[] →
+    par[].sg`), e `_iter_cands` já a anexa a cada candidato como
+    `partido_sg`. Até aqui ninguém colhia essa chave: `build_edge_payload`
+    escrevia `"partido": "—"` literal e `build_uf_payloads` lia o `partido`
+    das linhas nacionais, que `compute_national` nunca populou. O resultado
+    era um travessão em toda tela, em todos os cargos.
+
+    Isto vira pré-requisito com a spec 016: RF-107 pede a contagem das 54
+    vagas **por partido/federação**, e não existe contagem por partido sem
+    partido. A correção é do tamanho do problema — uma varredura sobre os
+    snapshots que o ciclo já leu, sem query nova.
+
+    Determinismo (§ 6): iteração na ordem dos snapshots (que
+    `fetch_snapshots` já ordena) e primeira sigla não-vazia vence. Um
+    candidato aparece em muitas zonas com a mesma sigla; divergência entre
+    zonas seria dado corrompido do TSE, e neste caso a primeira leitura é
+    tão defensável quanto qualquer outra — o que importa é que duas
+    execuções sobre o mesmo dado deem o mesmo resultado.
+    """
+    out: dict[int, str] = {}
+    for s in snapshots:
+        for c in _iter_cands(s.get("payload"), cargo=cargo):
+            try:
+                cod = int(c.get("n"))
+            except (TypeError, ValueError):
+                continue
+            if cod in out:
+                continue
+            sg = c.get("partido_sg")
+            if isinstance(sg, str) and sg.strip():
+                out[cod] = sg.strip()
+    return out
 
 
 def compute_p_passa_2t(
@@ -2398,6 +2536,9 @@ def build_uf_payloads(
     estimates_by_uf: dict[str, dict[int, np.ndarray]] | None = None,
     participacao_by_uf: dict[str, dict[str, ParticipacaoEstimate | None]] | None = None,
     estimates_c_by_uf: dict[str, dict[int, np.ndarray]] | None = None,
+    p_eleito_by_uf: dict[str, dict[int, float]] | None = None,
+    vagas: int | None = None,
+    partido_by_cand: dict[int, str] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Constrói payloads canônicos `EdgePayloadUf` por UF (S04/F2).
 
@@ -2420,6 +2561,19 @@ def build_uf_payloads(
         `compute_participacao`) — regra de três por UF.
     Ambos `None` (default, compat retroativa) → `uf_payload` não ganha a
     chave `participacao` (mesmo comportamento anterior à Fase 1a).
+
+    Spec 016 (Senador) acrescenta mais três parâmetros opcionais, todos
+    `None` por default e todos emitindo campos OPCIONAIS do contrato TS —
+    a mesma disciplina de `eleitores?`/`capital?` no ADR-0035 D2, para que
+    um Global Config já gravado e as fixtures existentes sigam válidos:
+      - `p_eleito_by_uf` (RF-103): `{uf: {cand: p}}` de
+        `compute_p_eleito_by_uf`. Vira `candidatos[].p_eleito`.
+      - `vagas` (RF-105/RF-106): quantas cadeiras a UF elege neste cargo.
+        Vira `EdgePayloadUf.vagas` — é o que permite a tela marcar DUAS
+        linhas de vaga sem hardcodar "2" na UI.
+      - `partido_by_cand` (RF-107): `{cand: sigla}` de
+        `extract_partido_by_cand`. Tem PRECEDÊNCIA sobre o `partido` das
+        linhas nacionais, que em produção nunca foi populado.
 
     Retorna `{uf_sigla: EdgePayloadUf}`. Cada payload tem ~5–10 KB em
     UF típica, podendo chegar a 30–40 KB em SP (645 municípios + 480
@@ -2523,10 +2677,16 @@ def build_uf_payloads(
             nat = national_by_id.get(cid, {})
             # S05/F4c (ADR-0013) — paleta visual por rank semântico.
             rank_cand = rank_by_cand.get(cid, len(candidatos) + 1)
+            # Spec 016 — a sigla lida do próprio EA20 (`par.sg`) vem primeiro;
+            # o `partido` da linha nacional fica como fallback para os callers
+            # de teste que o passam à mão.
+            partido_cand = (partido_by_cand or {}).get(cid) or str(
+                nat.get("partido", "—")
+            )
             candidato_payload: dict[str, Any] = {
                 "id": cid,
                 "nome": f"Candidato {cid}",
-                "partido": str(nat.get("partido", "—")),
+                "partido": partido_cand,
                 # CSS var literal — consumida direto em `style={{ background: c.cor }}`
                 # no front-end. Sem `var(...)` o browser ignora silenciosamente.
                 # Tokens canônicos definidos em app/globals.css (constituição § 2).
@@ -2553,6 +2713,13 @@ def build_uf_payloads(
                     "lower": comp.get("lower"),
                     "upper": comp.get("upper"),
                 }
+            # RF-103 — probabilidade de terminar entre os `vagas` primeiros.
+            # Só aparece quando foi de fato calculada: um `0.0` default diria
+            # "este candidato não se elege em cenário nenhum", que é uma
+            # afirmação, não uma ausência de dado.
+            p_el = (p_eleito_by_uf or {}).get(sigla, {}).get(cid)
+            if p_el is not None:
+                candidato_payload["p_eleito"] = float(p_el)
             candidatos.append(candidato_payload)
 
         # Fase 1a (RF-020.1, D3/D4/D5/D6) — bloco `participacao` da UF.
@@ -2749,6 +2916,16 @@ def build_uf_payloads(
                 "turnout": series_turnout,
             },
         }
+        # Spec 016 — quantas cadeiras esta UF elege no cargo (RF-105/RF-106) e
+        # em que unidade a regra de três rodou (RF-102/RF-108). Os dois campos
+        # são opcionais no contrato TS: sem eles, o consumidor cai no
+        # comportamento de 1 vaga e não afirma granularidade nenhuma.
+        if vagas is not None:
+            uf_payload["vagas"] = int(vagas)
+        granularidade_uf = (metodo_row or {}).get("granularidade")
+        if granularidade_uf:
+            uf_payload["granularidade"] = granularidade_uf
+
         # S06/F4d — só inclui `mesorregioes` quando há dado real
         # (≥ 1 mesorregião derivada). Campo é opcional em
         # `EdgePayloadUf`; omiti-lo quando vazio sinaliza "indisponível"
@@ -2780,8 +2957,29 @@ def build_edge_payload(
     participacao_nacional: dict[str, ParticipacaoEstimate | None] | None = None,
     outros_nacional: dict[str, Any] | None = None,
     national_estimates_comparecimento: dict[int, np.ndarray] | None = None,
+    partido_by_cand: dict[int, str] | None = None,
+    vagas: int | None = None,
+    vagas_em_disputa: int | None = None,
+    total_cadeiras: int | None = None,
 ) -> dict[str, Any]:
     """Monta o shape canônico `EdgePayload` (lib/edge-config/types.ts).
+
+    Spec 016 (Senador) acrescenta três parâmetros opcionais:
+      - `partido_by_cand` (RF-107) — `{cand: sigla}` lido do próprio EA20
+        por `extract_partido_by_cand`. Substitui o `"—"` literal que este
+        método escrevia em `national.candidatos[].partido` desde a S03.
+      - `vagas` (RF-105/RF-107) — cadeiras por UF neste cargo. Quando
+        `>= 2`, dispara o bloco `composicao_vagas`.
+      - `vagas_em_disputa` (RF-107) — quantas cadeiras a eleição renova
+        (54 no Senado em 2026). É um fato da eleição, declarado em
+        `api/model/cargos.py`, e NÃO uma contagem de UFs presentes no
+        ciclo: derivá-lo de `por_uf` faria o denominador encolher quando
+        um estado ainda não apurou, e o leitor veria "de 48 vagas" às 18h
+        e "de 54" às 22h.
+      - `total_cadeiras` (RF-107) — tamanho da casa legislativa inteira
+        (81 no Senado), para a tela poder distinguir as vagas EM DISPUTA
+        do total. Sem ele o bloco sai sem o denominador maior, nunca com
+        um número inventado.
 
     Fase 1a (RF-020.1, D3/D4/D5/D6) acrescenta 3 parâmetros opcionais,
     todos com default `None` (compat retroativa — sem eles o payload sai
@@ -2953,7 +3151,12 @@ def build_edge_payload(
         candidato_nat: dict[str, Any] = {
             "id": cid,
             "nome": f"Candidato {r['candidato_id']}",
-            "partido": "—",
+            # Spec 016 — a sigla vem do próprio EA20 (`par.sg`, colhido por
+            # `extract_partido_by_cand`). O `"—"` continua sendo o valor
+            # quando o snapshot não carrega a hierarquia de partido (payload
+            # achatado legado do replay 2022) ou quando o caller não passou o
+            # mapa — nunca um chute.
+            "partido": (partido_by_cand or {}).get(cid, "—"),
             # CSS var literal — consumida direto em `style={{ background: c.cor }}`
             # no front-end (sem resolução intermediária). Constituição § 2:
             # nunca hex partidário, sempre token canônico de app/globals.css.
@@ -3029,6 +3232,22 @@ def build_edge_payload(
         needle_position = 0.0
     needle_band = _needle_band(needle_position)
 
+    # RF-107 (spec 016) — composição das vagas EM DISPUTA por partido.
+    #
+    # Isto é **agregação**, não estimativa: é a contagem de quantas UFs têm um
+    # candidato daquele partido entre os `vagas` primeiros da projeção. Nenhum
+    # modelo novo roda aqui (constituição § 6 — a UI e o agregador não
+    # inventam número), e é por isso que o campo pode existir mesmo sem o TSE
+    # publicar um arquivo `br-` para o cargo (`temArquivoBr: false` em
+    # `lib/config/cargos.ts`; open question 2 da spec 016).
+    #
+    # `ufs_aguardando` não é decoração: uma UF sem nenhum boletim não aparece
+    # em `uf_rows` e portanto não entrega vaga nenhuma. Publicar só a contagem
+    # por partido faria a soma não fechar em 54 e o leitor concluir que faltam
+    # vagas, quando o que falta é apuração.
+    composicao_por_partido: dict[str, int] = {}
+    ufs_com_projecao = 0
+
     # por_uf — agrega por UF.
     por_uf: list[dict[str, Any]] = []
     for sigla in sorted(uf_by_sigla.keys()):
@@ -3041,6 +3260,17 @@ def build_edge_payload(
         margem = top_pct - second_pct
         ci_lower = float(top.get("pct_projetado_lower") or top_pct) - second_pct
         ci_upper = float(top.get("pct_projetado_upper") or top_pct) - second_pct
+
+        if vagas is not None and vagas >= 2:
+            ufs_com_projecao += 1
+            eleitos_da_uf = ordered[: int(vagas)]
+            for r_eleito in eleitos_da_uf:
+                sigla_partido = (partido_by_cand or {}).get(
+                    int(r_eleito["candidato_id"]), "—"
+                )
+                composicao_por_partido[sigla_partido] = (
+                    composicao_por_partido.get(sigla_partido, 0) + 1
+                )
 
         # S05/F4c (ADR-0017) — top-3 candidatos da UF, tie-break por id ASC.
         top_candidatos = [
@@ -3124,6 +3354,40 @@ def build_edge_payload(
     # Fase 1a (RF-020.1, D6) — `national.participacao?`. Omitido inteiro
     # se nenhuma das 3 métricas (abstenção/brancos-nulos/outros) tem dado
     # real (`build_participacao_payload` decide).
+    # RF-107 — o bloco só existe para cargo de mais de uma vaga por UF
+    # (Senador). `vagas_em_disputa` é 27 × `vagas` sempre, não a contagem do
+    # que já apurou: são as vagas que a eleição renova, e esse número não
+    # muda ao longo da noite. `total_cadeiras` é a casa inteira (81 no
+    # Senado) — omitido quando o caller não o informa, porque um default
+    # inventado ali seria um fato falso sobre a composição do Senado.
+    composicao_vagas: dict[str, Any] | None = None
+    if vagas is not None and vagas >= 2:
+        por_partido = sorted(
+            (
+                {"partido": sg, "vagas": n}
+                for sg, n in composicao_por_partido.items()
+            ),
+            # Ordem determinística (§ 6): mais vagas primeiro, sigla como
+            # desempate estável.
+            key=lambda d: (-int(d["vagas"]), str(d["partido"])),
+        )
+        ufs_total = (
+            vagas_em_disputa // vagas if vagas_em_disputa else len(uf_by_sigla)
+        )
+        composicao_vagas = {
+            "vagas_por_uf": int(vagas),
+            "ufs_projetadas": ufs_com_projecao,
+            "ufs_aguardando": max(0, ufs_total - ufs_com_projecao),
+            "vagas_projetadas": sum(composicao_por_partido.values()),
+            "por_partido": por_partido,
+            **(
+                {"vagas_em_disputa": int(vagas_em_disputa)}
+                if vagas_em_disputa
+                else {}
+            ),
+            **({"total_cadeiras": int(total_cadeiras)} if total_cadeiras else {}),
+        }
+
     _participacao_src = participacao_nacional or {}
     participacao_payload = build_participacao_payload(
         _participacao_src.get("abstencao"),
@@ -3166,6 +3430,8 @@ def build_edge_payload(
             "model": 1.0,
             "actual_results": 0.0,
         },
+        # RF-107 — presente só em cargo de 2+ vagas por UF (hoje, Senador).
+        **({"composicao_vagas": composicao_vagas} if composicao_vagas else {}),
     }
 
 
@@ -3481,6 +3747,22 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 eleitorado=eleitorado,
             )
 
+            # Spec 016 (RF-103) — `p_eleito` por candidato, por UF. Pura
+            # função dos `estimates_by_uf` já calculados; zero sorteio novo,
+            # zero query. Em cargo de 1 vaga (Presidente/Governador) responde
+            # à mesma pergunta que `p_vitoria` e não é publicado — só entra no
+            # payload de cargo com 2+ vagas, onde a pergunta muda de fato.
+            vagas_do_cargo = cargo_vagas_por_uf(req.cargo)
+            p_eleito_by_uf = (
+                compute_p_eleito_by_uf(estimates_by_uf, vagas_do_cargo)
+                if vagas_do_cargo >= 2
+                else None
+            )
+
+            # RF-107 — a sigla do partido, lida do próprio EA20 do ciclo.
+            # Sem ela a contagem "vagas por partido" não existe.
+            partido_by_cand = extract_partido_by_cand(snapshots, cargo=req.cargo)
+
             # Persistência append-only (constituição § 10).
             insert_projections(conn, uf_rows + national_rows)
             conn.commit()
@@ -3510,6 +3792,12 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 outros_nacional=outros_nacional,
                 # Plano § B (E2/E2b) — base comparecimento nacional.
                 national_estimates_comparecimento=national_estimates_comparecimento,
+                # Spec 016 — sigla real do partido (RF-107) e o bloco de
+                # composição das vagas, que só nasce em cargo de 2+ vagas.
+                partido_by_cand=partido_by_cand,
+                vagas=vagas_do_cargo if vagas_do_cargo >= 2 else None,
+                vagas_em_disputa=cargo_vagas_em_disputa(req.cargo),
+                total_cadeiras=cargo_total_cadeiras(req.cargo),
             )
             # S04/F2 — payloads UF ricos (candidatos com votos, municípios,
             # séries temporais). Envia junto do nacional; endpoint Node
@@ -3529,6 +3817,11 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 participacao_by_uf=participacao_by_uf,
                 # Plano § B (E2/E2b) — base comparecimento por UF.
                 estimates_c_by_uf=estimates_c_by_uf,
+                # Spec 016 — RF-103 (`p_eleito`), RF-105/RF-106 (`vagas`) e
+                # RF-107 (sigla do partido).
+                p_eleito_by_uf=p_eleito_by_uf,
+                vagas=vagas_do_cargo if vagas_do_cargo >= 2 else None,
+                partido_by_cand=partido_by_cand,
             )
             post_edge_write(edge_payload, payloads_uf=uf_payloads)
         except Exception as edge_exc:  # noqa: BLE001 — never block the response

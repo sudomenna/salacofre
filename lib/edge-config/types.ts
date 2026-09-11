@@ -544,6 +544,48 @@ export interface EdgePayload {
    */
   insights: string[];
   composition: EdgeComposition;
+  /**
+   * RF-107 (spec 016) — composição das vagas em disputa por partido.
+   * Presente só em cargo que elege mais de um por UF (hoje, Senador).
+   */
+  composicao_vagas?: EdgeComposicaoVagas;
+}
+
+/**
+ * RF-107 — quantas das vagas EM DISPUTA a projeção atribui a cada partido.
+ *
+ * É **agregação, não estimativa**: a contagem de quantas UFs têm um
+ * candidato daquele partido entre os `vagas_por_uf` primeiros da projeção
+ * estadual. Nenhum modelo nacional roda por trás — e é por isso que o bloco
+ * pode existir mesmo sem o TSE publicar arquivo agregado `br-` para o cargo
+ * (`temArquivoBr: false` em `lib/config/cargos.ts`; open question 2 da spec
+ * 016). A tela precisa dizer isso ao leitor: o número é soma nossa das 27
+ * corridas, não um dado nacional do TSE.
+ *
+ * Os dois denominadores existem porque confundi-los seria o erro de leitura
+ * mais provável desta tela: em 2026 o Senado renova **54** das suas **81**
+ * cadeiras. Uma contagem de vagas apresentada sobre 81 sugeriria que o
+ * Senado inteiro está sendo eleito.
+ */
+export interface EdgeComposicaoVagas {
+  /** Cadeiras que a eleição de 2026 renova. 54 no Senado. */
+  vagas_em_disputa?: number;
+  /** Tamanho da casa inteira. 81 no Senado — as 27 não renovadas seguem lá. */
+  total_cadeiras?: number;
+  /** Cadeiras por UF neste cargo (2 no Senado em 2026). */
+  vagas_por_uf: number;
+  /** UFs que já têm projeção — as que entregaram vaga a alguém. */
+  ufs_projetadas: number;
+  /**
+   * UFs sem nenhum boletim. Sem este número a soma de `por_partido` não
+   * fecharia com `vagas_em_disputa` e o leitor concluiria que sumiram vagas,
+   * quando o que falta é apuração.
+   */
+  ufs_aguardando: number;
+  /** Σ de `por_partido[].vagas` — `ufs_projetadas × vagas_por_uf`. */
+  vagas_projetadas: number;
+  /** Ordenado por vagas desc, sigla asc (determinismo — constituição § 6). */
+  por_partido: Array<{ partido: string; vagas: number }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -589,6 +631,33 @@ export interface EdgeUfCandidate {
    * seguem na base `votaveis`. Ver `EdgeBaseComparecimento`.
    */
   comparecimento?: EdgeBaseComparecimento;
+  /**
+   * RF-103 (spec 016) — probabilidade em [0, 1] de o candidato terminar
+   * entre os `EdgePayloadUf.vagas` primeiros, ou seja, de **se eleger**.
+   *
+   * Não é `p_vitoria` com outro nome. Numa corrida de duas vagas — o Senado
+   * em 2026 — liderar não decide nada: o 2º colocado é senador exatamente
+   * como o 1º. A frequência é medida POR CENÁRIO nas reamostras do bootstrap
+   * (`api/model/p_vitoria.py::p_eleito`), não por comparação de
+   * distribuições marginais, o que garante que a soma dos `p_eleito` da UF
+   * fecha em `vagas` e não em 1.
+   *
+   * **Opcional**, e por três motivos distintos:
+   *   1. payloads de Presidente/Governador não o trazem — lá a pergunta
+   *      certa continua sendo `p_vitoria`;
+   *   2. payloads gravados antes da spec 016 não o têm;
+   *   3. ausência ≠ zero. `0.0` afirmaria "não se elege em cenário nenhum",
+   *      que é um dado; a chave ausente diz "não foi calculado".
+   *
+   * ⚠️ **Leia junto com `ci95`.** Enquanto o cargo for ingerido em
+   * granularidade UF (ADR-0026 item 1), cada estado tem uma única unidade de
+   * reamostragem: o bootstrap devolve réplicas idênticas, o `ci95` sai com
+   * largura zero e este número degenera para 0 ou 1. Ele continua correto
+   * ("dado o ponto estimado, estes dois estão à frente") mas **não carrega
+   * incerteza amostral** — quem for exibi-lo como "chance" precisa checar
+   * `ci95.upper > ci95.lower` antes.
+   */
+  p_eleito?: number;
 }
 
 /**
@@ -740,6 +809,35 @@ export interface EdgePayloadUf {
   candidatos: EdgeUfCandidate[];
   needle_position: number; // [-1, 1]
   needle_band: NeedleBand;
+  /**
+   * RF-105/RF-106 (spec 016) — quantas cadeiras esta UF elege nesta corrida.
+   *
+   * Existe para que a tela não precise hardcodar "2". O número é uma
+   * propriedade da eleição, não do layout: em 2026 o Senado renova 2/3, o
+   * que são **duas** vagas por estado; em 2030 será uma. Com o campo no
+   * payload, a mudança é de dado.
+   *
+   * **Opcional**: Presidente e Governador elegem 1 e não emitem o campo;
+   * payloads pré-spec-016 também não o têm. Consumidor ausente ⇒ 1.
+   *
+   * A fonte do valor é `lib/config/cargos.ts` (`vagasPorUf`), espelhada em
+   * `api/model/cargos.py` com teste de sincronia.
+   */
+  vagas?: number;
+  /**
+   * RF-102/RF-108 (spec 016) — em que unidade a regra de três do ADR-0021
+   * foi aplicada nesta UF.
+   *
+   * `"zona"` em Presidente e Governador (a projeção agrega ~200 zonas
+   * independentes por estado); `"uf"` em Senador e Deputado Federal, que o
+   * ADR-0026 item 1 ingere por UF — ali a projeção nasce de um único
+   * boletim agregado do estado.
+   *
+   * Não é telemetria interna: a diferença muda o que a projeção significa, e
+   * a constituição § 8 obriga a tela a dizê-lo (RF-108). **Opcional** para
+   * payloads anteriores à spec 016.
+   */
+  granularidade?: "uf" | "zona";
   /**
    * `municipios` e `series_temporais` NÃO estão mais aqui — ADR-0032,
    * 2026-09-08. Os dois vivem no Vercel Blob, num objeto por UF/cargo/turno

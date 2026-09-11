@@ -11,7 +11,7 @@
  * (tornaria dinâmicas as 54 páginas de UF hoje pré-renderizadas estáticas) ou
  * um slot de parallel route (`app/@cargo/...`), que exigiria duplicar
  * `generateStaticParams` em segmentos dinâmicos de slot. Nenhuma é aceitável
- * aqui. A trilha, porém, JÁ está no DOM: `main[data-trilha="pres"|"gov"]`.
+ * aqui. A trilha, porém, JÁ está no DOM: `main[data-trilha="pres"|"gov"|"sen"]`.
  * `:has()` lê esse atributo de dentro do `<body>` e marca a aba — zero JS,
  * zero render dinâmico, sem duplicar informação.
  *
@@ -29,7 +29,8 @@
  * qualquer folha de estilo. O filho apenas herda essa cor, então uma regra
  * de autor sobre ele ganha sem precisar de `!important`. */
 body:has(main[data-trilha="pres"]) .cargoTabs [data-value="pres"] > span,
-body:has(main[data-trilha="gov"]) .cargoTabs [data-value="gov"] > span {
+body:has(main[data-trilha="gov"]) .cargoTabs [data-value="gov"] > span,
+body:has(main[data-trilha="sen"]) .cargoTabs [data-value="sen"] > span {
   color: var(--text-primary);
 }
 
@@ -37,7 +38,8 @@ body:has(main[data-trilha="gov"]) .cargoTabs [data-value="gov"] > span {
  * `value`, aqui via `::after` porque o item ativo não é conhecido no render.
  * O item já é `position: relative` (itemStyle do TabBar). */
 body:has(main[data-trilha="pres"]) .cargoTabs [data-value="pres"]::after,
-body:has(main[data-trilha="gov"]) .cargoTabs [data-value="gov"]::after {
+body:has(main[data-trilha="gov"]) .cargoTabs [data-value="gov"]::after,
+body:has(main[data-trilha="sen"]) .cargoTabs [data-value="sen"]::after {
   content: "";
   position: absolute;
   top: -1px;
@@ -57,7 +59,8 @@ body:has(main[data-trilha="gov"]) .cargoTabs [data-value="gov"]::after {
 }
 
 body:has(main[data-trilha="pres"]) .cargoTabs [data-value="pres"] .flag,
-body:has(main[data-trilha="gov"]) .cargoTabs [data-value="gov"] .flag {
+body:has(main[data-trilha="gov"]) .cargoTabs [data-value="gov"] .flag,
+body:has(main[data-trilha="sen"]) .cargoTabs [data-value="sen"] .flag {
   display: inline;
 }
 
