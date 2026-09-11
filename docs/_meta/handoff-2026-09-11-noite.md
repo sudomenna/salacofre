@@ -90,10 +90,20 @@ conhecimento de cargo estava em quatro lugares independentes, todos `1 | 3`.
 Agora: código TSE, token de chave, slug de rota, rótulo, vagas por UF, 2º turno,
 arquivo `br-`, proporcional, granularidade e teto de rps.
 
-**Ingestão**: 6.110 alvos para Presidente e Governador (zona), **27** para Senador
-e Deputado (UF), medido. Crons por segmento de rota — ⚠️ isso **emenda o ADR-0026
-item 1**, que previa `?cargos=5`; query string em `path` de cron não existe na
-Vercel.
+**Ingestão**, medido ao fim da sessão: **6.110 alvos** para Presidente,
+Governador **e Senador** (zona), **27** para Deputado Federal (UF). Crons por
+segmento de rota.
+
+⚠️ Duas emendas ao ADR-0026 item 1, ambas de hoje: **(a)** o mecanismo é segmento
+de rota, não `?cargos=5` — query string em `path` de cron não existe na Vercel;
+**(b)** Senador saiu de `uf` para `zona`, por decisão do usuário, porque com um
+boletim por estado o bootstrap ficava com uma única unidade de reamostragem e
+`p_eleito` degenerava para 0% ou 100%.
+
+**Custo da emenda (b), explícito**: com três cargos pesados, o teto por cargo caiu
+de 35 para **25 rps** (senão o agregado seria 110, acima do teto do TSE). O ciclo
+mais longo foi de ~175 s para **~244 s**, dentro do `maxDuration` de 300 s mas com
+menos folga — **medir `duration_ms` no simulado 1 deixou de ser opcional**.
 
 **`p_eleito`** (`api/model/p_vitoria.py`) — probabilidade de terminar entre as N
 vagas. Com 1º em 40%, 2º em 30% e 3º em 29%, `p_vitoria` dá ao terceiro **0,46%**
