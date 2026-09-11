@@ -302,6 +302,26 @@ fonte de verdade visual, com ajuste que o painel de resultado substitui os 6 ter
 - [ ] **E2E Playwright (Fase 5 de 05/09)** — ainda diferida para S08+. Smoke visual local OK em todas 4 rotas.
 - [ ] **Gates finais** — pendentes após modelo convergir (tentativa 3 OT-4 no simulado 1)
 
+### ⏳ Pendências abertas ao fim de 11/09 — entram no simulado 1 ou dependem do usuário
+
+Registrado em `docs/_meta/handoff-2026-09-11.md`. Nenhuma destas foi esquecida; todas têm dono.
+
+- [ ] **`rf-coverage-checker`** — nada bloqueia. Decide se a spec 001 pode fechar.
+- [ ] **`a11y-perf-auditor`** nas 2 rotas de UF — **bloqueado por dado**: o Blob nunca recebeu
+      escrita, o painel novo renderiza "detalhe indisponível". Destrava com o token do Edge Config.
+- [ ] **`EDGE_CONFIG_TOKEN`** (usuário) — escopo do time, não pessoal. Depois: `pnpm edge-config:smoke`.
+- [ ] **Chamado ao TSE** (usuário, prazo 12/09) — `pnpm tse:watch --once` segue sem sinal de 2026.
+- [ ] **Decisão: specs 016/017 (Senador, Deputado) continuam no escopo?** Nada avançou em 11/09.
+      Regra de desistência pré-acordada em 07/09 não foi acionada.
+- [ ] **Decisão: push dos 89 commits** para o GitHub — nunca saíram desta máquina.
+- [ ] **Boa Esperança do Norte (MT, cód. TSE 73709)** — município novo ausente de `municipios`,
+      hoje pulado por `--skip-orphans`. Precisa do código IBGE; não chutar.
+- [ ] **`psa = Σsa/Σsi` ou `Σsa/Σts`?** — implementado como `Σsa/Σsi`; fixtures sintéticas não
+      decidem. Resolve no Passo 0 do dia 15.
+- [ ] **Limitador coordenado entre invocações** — hoje 2 buckets independentes a 40 rps (agregado
+      80, teto do TSE 100). Garante a média, não o pico. Decidir com `rateLimited` medido.
+- [ ] **EA12 online no ciclo** — hoje é script offline; só vale se o diff EA12 × tabela der > 0.
+
 ### ⏳ Fase 4 — Simulado 1 (15–17/09) — protocolo
 
 Passos operacionais transcritos do plano. Registrar tudo em [`../testing/tse-simulados.md`](../testing/tse-simulados.md).
