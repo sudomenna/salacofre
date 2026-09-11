@@ -31,7 +31,10 @@ CREATE TABLE historical_results (
 );
 CREATE INDEX ix_hist_lookup ON historical_results (ano, turno, cargo, uf, cod_zona);
 
--- Eleitorado por zona (atualizado para 2026)
+-- Eleitorado por PAR (município × zona) — atualizado para 2026.
+-- ADR-0035 D1 / migration 0006: a PK era (ano, uf, cod_zona), o que forçava o
+-- importador a creditar a zona inteira a um município só. 62,5% das zonas
+-- cobrem de 2 a 8 municípios; o total por zona é SUM(...) GROUP BY uf, cod_zona.
 CREATE TABLE eleitorado (
   ano SMALLINT NOT NULL,
   uf CHAR(2) NOT NULL,
@@ -39,8 +42,17 @@ CREATE TABLE eleitorado (
   cod_zona INT NOT NULL,
   eleitores_aptos INT NOT NULL,
   comparecimento_pct_historico NUMERIC(5,4),
-  PRIMARY KEY (ano, uf, cod_zona)
+  PRIMARY KEY (ano, uf, cod_municipio_tse, cod_zona)
 );
+
+-- Mesorregiões IBGE (migration 0005) — dimensão entre UF e município.
+-- cod = 4 dígitos IBGE (UF[2] + meso[2]). Ex.: 3510 = SP / Itapeva.
+CREATE TABLE mesorregioes (
+  cod CHAR(4) PRIMARY KEY,
+  nome TEXT NOT NULL,
+  uf_sigla CHAR(2) NOT NULL
+);
+CREATE INDEX ix_meso_uf ON mesorregioes (uf_sigla);
 
 -- Mapeamento geográfico
 CREATE TABLE municipios (
@@ -49,16 +61,27 @@ CREATE TABLE municipios (
   uf CHAR(2) NOT NULL,
   nome TEXT NOT NULL,
   geo_centroid GEOGRAPHY(POINT),
-  populacao INT
+  populacao INT,
+  mesorregiao_cod CHAR(4) REFERENCES mesorregioes(cod) ON DELETE SET NULL, -- 0005
+  capital BOOLEAN NOT NULL DEFAULT false                                   -- 0006
 );
 CREATE INDEX ix_municipio_uf ON municipios (uf);
+CREATE INDEX ix_municipio_meso ON municipios (mesorregiao_cod);
 
+-- Pares (município × zona). O nome `zonas` é herdado: uma linha é um PAR.
+-- ADR-0035 D1 / migration 0006 (emenda o ADR-0002, que fixara (uf, cod_zona)):
+-- o TSE 2026 publica um EA20 por par, e enumerar alvos por zona pediria ~2.651
+-- dos ~6.085 arquivos — perdendo ~56% dos votos sem nenhum 404.
+-- Fonte primária: 'ea12' (arquivo de configuração de municípios, nacional) desde 15/09;
+-- fallback: 'csv' (eleitorado 2024 até o EA12 2026 existir).
 CREATE TABLE zonas (
-  cod_zona INT PRIMARY KEY,
-  cod_municipio_tse INT NOT NULL,
   uf CHAR(2) NOT NULL,
+  cod_municipio_tse INT NOT NULL,
+  cod_zona INT NOT NULL,
   nome TEXT,
-  FOREIGN KEY (cod_municipio_tse) REFERENCES municipios(cod_municipio_tse)
+  fonte TEXT NOT NULL DEFAULT 'csv',  -- 'ea12' | 'csv'
+  PRIMARY KEY (uf, cod_municipio_tse, cod_zona),
+  FOREIGN KEY (cod_municipio_tse) REFERENCES municipios(cod_municipio_tse) ON DELETE RESTRICT
 );
 CREATE INDEX ix_zona_uf ON zonas (uf);
 
@@ -69,6 +92,7 @@ CREATE TABLE snapshots (
   cargo SMALLINT NOT NULL,
   turno SMALLINT NOT NULL,
   uf CHAR(2) NOT NULL,
+  cod_municipio_tse INT NOT NULL DEFAULT 0, -- 0006; sentinel 0 = abrangência BR/UF
   cod_zona INT NOT NULL,
   etag TEXT,                        -- ETag do TSE para dedup
   pct_apurado NUMERIC(5,2),
@@ -77,6 +101,7 @@ CREATE TABLE snapshots (
   hash_payload CHAR(64) NOT NULL    -- SHA256 para detecção rápida de mudança
 );
 CREATE INDEX ix_snap_lookup ON snapshots (cargo, turno, uf, cod_zona, ts DESC);
+CREATE INDEX ix_snap_lookup_par ON snapshots (cargo, turno, uf, cod_municipio_tse, cod_zona, ts);
 CREATE INDEX ix_snap_ts ON snapshots (ts DESC);
 
 -- Cálculos de projeção (histórico do modelo)

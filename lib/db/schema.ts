@@ -7,6 +7,7 @@
 import {
   bigint,
   bigserial,
+  boolean,
   char,
   index,
   integer,
@@ -55,7 +56,16 @@ export const historicalResults = pgTable(
   ],
 );
 
-/** Eleitorado por zona (atualizado para 2026). */
+/**
+ * Eleitorado por **par (município × zona)** — atualizado para 2026.
+ *
+ * Migration 0006 (ADR-0035 D1): a PK era `(ano, uf, cod_zona)`, o que obrigava
+ * o importador a creditar a zona inteira a um único município. Como 62,5 % das
+ * zonas cobrem de 2 a 8 municípios, isso punha 26,1 % do eleitorado sob rótulo
+ * errado (`docs/_meta/diagnostico-colapso-zona-municipio-2026-09-10.md`).
+ * A chave passa a ser o par; o total por zona é `SUM(...) GROUP BY uf, cod_zona`
+ * e o total por município, `GROUP BY uf, cod_municipio_tse`.
+ */
 export const eleitorado = pgTable(
   "eleitorado",
   {
@@ -69,7 +79,25 @@ export const eleitorado = pgTable(
       scale: 4,
     }),
   },
-  (t) => [primaryKey({ columns: [t.ano, t.uf, t.codZona] })],
+  (t) => [primaryKey({ columns: [t.ano, t.uf, t.codMunicipioTse, t.codZona] })],
+);
+
+/**
+ * Mesorregiões IBGE — dimensão intermediária entre UF e município.
+ * Criada pela migration 0005; consumida por `aggregate_by_mesorregiao`
+ * (api/model/project.py) no bloco "Apuração por mesorregião" da página
+ * `/uf/[sigla]/governador` (spec 005).
+ *
+ * `cod` é o código IBGE de 4 dígitos (UF[2] + meso[2]). Ex.: 3510 = SP / Itapeva.
+ */
+export const mesorregioes = pgTable(
+  "mesorregioes",
+  {
+    cod: char("cod", { length: 4 }).primaryKey(),
+    nome: text("nome").notNull(),
+    ufSigla: char("uf_sigla", { length: 2 }).notNull(),
+  },
+  (t) => [index("ix_meso_uf").on(t.ufSigla)],
 );
 
 /**
@@ -86,21 +114,47 @@ export const municipios = pgTable(
     nome: text("nome").notNull(),
     geoCentroid: text("geo_centroid"), // PostGIS GEOGRAPHY(POINT) — ver nota acima
     populacao: integer("populacao"),
+    /** Migration 0005 — FK para `mesorregioes.cod`. NULL enquanto o CSV IBGE não chega. */
+    mesorregiaoCod: char("mesorregiao_cod", { length: 4 }).references(() => mesorregioes.cod),
+    /**
+     * Migration 0006 — capital da UF. Seed estático das 27 capitais por
+     * `cod_ibge`; `zonas-import.ts --ea12` reescreve a partir de `mu[].c` do
+     * EA12 quando o arquivo 2026 existir. Usado pela ordenação do painel
+     * "Maiores colégios eleitorais" (capital primeiro — decisão E4).
+     */
+    capital: boolean("capital").notNull().default(false),
   },
-  (t) => [index("ix_municipio_uf").on(t.uf)],
+  (t) => [index("ix_municipio_uf").on(t.uf), index("ix_municipio_meso").on(t.mesorregiaoCod)],
 );
 
+/**
+ * Tabela de **pares (município × zona)** — apesar do nome herdado, uma linha
+ * aqui é um par, não uma zona.
+ *
+ * Migration 0006 (ADR-0035 D1; emenda o ADR-0002, que fixara `(uf, cod_zona)`):
+ * o TSE 2026 publica um EA20 por par (`<uf><mun5>-z<zona4>-c<cargo>-…`), e
+ * enumerar alvos a partir de uma linha por zona pediria ~2.651 dos ~6.085
+ * arquivos — perdendo ~56 % dos votos sem nenhum 404. O nome da tabela foi
+ * mantido para não trocar `schema.zonas` em cinco lugares.
+ *
+ * `fonte` registra de onde o par veio: `'ea12'` (arquivo de configuração de
+ * municípios do TSE) ou `'csv'` (fallback derivado de `eleitorado`).
+ */
 export const zonas = pgTable(
   "zonas",
   {
-    codZona: integer("cod_zona").primaryKey(),
+    uf: char("uf", { length: 2 }).notNull(),
     codMunicipioTse: integer("cod_municipio_tse")
       .notNull()
       .references(() => municipios.codMunicipioTse),
-    uf: char("uf", { length: 2 }).notNull(),
+    codZona: integer("cod_zona").notNull(),
     nome: text("nome"),
+    fonte: text("fonte"),
   },
-  (t) => [index("ix_zona_uf").on(t.uf)],
+  (t) => [
+    primaryKey({ columns: [t.uf, t.codMunicipioTse, t.codZona] }),
+    index("ix_zona_uf").on(t.uf),
+  ],
 );
 
 /**
@@ -115,6 +169,13 @@ export const snapshots = pgTable(
     cargo: smallint("cargo").notNull(),
     turno: smallint("turno").notNull(),
     uf: char("uf", { length: 2 }).notNull(),
+    /**
+     * Migration 0006 (ADR-0035 D1) — município do par. Sentinel `0` para
+     * abrangências que não têm município (BR, UF), como já se faz com
+     * `cod_zona`. `ADD COLUMN ... NOT NULL DEFAULT 0` é só metadado no
+     * Postgres ≥ 11: nenhuma linha existente foi reescrita (§ 10).
+     */
+    codMunicipioTse: integer("cod_municipio_tse").notNull().default(0),
     codZona: integer("cod_zona").notNull(),
     etag: text("etag"), // ETag do TSE para dedup
     pctApurado: numeric("pct_apurado", { precision: 5, scale: 2 }),
@@ -123,7 +184,10 @@ export const snapshots = pgTable(
     hashPayload: char("hash_payload", { length: 64 }).notNull(), // SHA256
   },
   (t) => [
+    // Índice da chave antiga — mantido: consultas por zona inteira continuam
+    // existindo (o estimador é por zona, ADR-0021/0023).
     index("ix_snap_lookup").on(t.cargo, t.turno, t.uf, t.codZona, t.ts),
+    index("ix_snap_lookup_par").on(t.cargo, t.turno, t.uf, t.codMunicipioTse, t.codZona, t.ts),
     index("ix_snap_ts").on(t.ts),
   ],
 );
@@ -181,7 +245,9 @@ export const ingestLog = pgTable("ingest_log", {
 export type HistoricalResult = typeof historicalResults.$inferSelect;
 export type NewHistoricalResult = typeof historicalResults.$inferInsert;
 export type Eleitorado = typeof eleitorado.$inferSelect;
+export type Mesorregiao = typeof mesorregioes.$inferSelect;
 export type Municipio = typeof municipios.$inferSelect;
+/** Uma linha de `zonas` é um par (município × zona) desde a migration 0006. */
 export type Zona = typeof zonas.$inferSelect;
 export type Snapshot = typeof snapshots.$inferSelect;
 export type NewSnapshot = typeof snapshots.$inferInsert;
