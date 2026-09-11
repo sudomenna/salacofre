@@ -105,6 +105,31 @@ premissa registradas: os artigos estão no **Código Eleitoral**, não na Lei 9.
 como o ADR-0026 cita; e o **art. 111 foi declarado inconstitucional** (ADI 7228) —
 implementá-lo ao pé da letra dá resultado errado. Conferido no Planalto.
 
+## A prosa que ficou para trás — quatro vezes
+
+Padrão que apareceu quatro vezes hoje e merece nome próprio: **a mudança
+acontece na camada do dado, e a frase que explica o dado mora em outro arquivo.**
+Os testes passam, porque foram escritos junto com a frase antiga.
+
+1. `ForecastTransparency` afirmava que a projeção de Senador era "em nível de
+   estado" — falso no instante em que o cargo virou zona.
+2. As páginas fixavam `granularidade="uf"` em literal, e a fixture também, o que
+   mantinha a frase (1) na tela.
+3. O parágrafo substituto de chances dizia que "o TSE publica um único boletim
+   por estado para este cargo". Com ingestão por zona, a razão do IC degenerado
+   virou **transitória** — vale enquanto só uma zona do estado estiver apurada.
+4. E o pior: "o TSE publica um boletim agregado por UF para este cargo, e não um
+   por zona eleitoral" **é falso sobre o TSE, e sempre foi**. O documento oficial
+   (`tse_docs/txt/apresentacao-interessados-2026.txt:196`) declara
+   `6.083 (zonas) × 5 (cargos) = 30.415` arquivos. Ler o agregado de UF é
+   **escolha nossa**. Atribuir ao TSE uma limitação nossa é informação falsa
+   sobre a fonte oficial (§ 8) e faz o leitor achar que não há alternativa.
+
+**Contramedida aplicada**: as páginas derivam a granularidade de
+`lib/config/cargos.ts`, nunca de literal; e os testes agora **proíbem** as frases
+erradas, em vez de exigir as certas — asserção negativa não apodrece quando o
+texto muda de lugar.
+
 ## Lições desta sessão
 
 1. **Conferir o próprio trabalho, não só o dos agentes.** Dos cinco defeitos, dois
@@ -121,7 +146,13 @@ implementá-lo ao pé da letra dá resultado errado. Conferido no Planalto.
    mesmo working tree.** O guard fez `git stash`/`pop` durante o trabalho do
    `spec-implementer`. Nada se perdeu (conferido: stash vazio, sem marcadores de
    conflito, typecheck limpo), mas foi sorte.
-4. **`*/5` dentro de comentário JSDoc fecha o bloco.** Escrevi cadência de cron em
+4. **Derrubar o que você subiu.** O mock do TSE ficou de pé **1h06** na porta
+   8787 depois que o teste de ingestão acabou — o usuário é que notou. Zero CPU,
+   mas ocupando porta e escondendo o estado real da máquina.
+5. **Três outras sessões do Claude estavam abertas neste mesmo projeto** (4h, 7h
+   e 8h). Editar a mesma pasta de dois lugares é como o incidente do `git stash`
+   aconteceu.
+6. **`*/5` dentro de comentário JSDoc fecha o bloco.** Escrevi cadência de cron em
    comentário e o formatador destruiu dois blocos inteiros ao tentar formatar o
    código quebrado. Escrever em prosa.
 
