@@ -1,37 +1,44 @@
-# Prompt de abertura — próxima sessão do SalaCofre
-
-Copie o texto abaixo na primeira mensagem da sessão nova.
-
----
-
 Continuando o SalaCofre. Leia primeiro, nesta ordem:
 
-1. `docs/_meta/handoff-2026-09-08.md` — estado atual, comece por aqui
-2. `docs/_meta/plano-redesign-2026-09-08.md` — o plano vivo, com a seção "Reordenação de 08/09"
-3. `docs/constitution.md` — está em **1.4**; os §§ 2 e 3 mudaram em 07 e 08/09
-4. `docs/architecture/adrs/0032-detalhe-municipal-vercel-blob.md` — a próxima tarefa
-5. `docs/sprints/2026-S07-f6-simulado-hero-1t.md` — sprint ativa, Fases 7 e 7b
+1. `docs/_meta/handoff-2026-09-10.md` — estado atual, comece por aqui
+2. `docs/architecture/adrs/0034-resultpanel-colapso-visual-corte-fora-do-kit.md` — as decisões D21–D23
+3. `docs/architecture/adrs/0033-navegacao-moldura-persistente-paineis-home-calibracao-ot4.md` — navegação e a emenda do gate OT-4
+4. `docs/constitution.md` — está em 1.4
+5. `docs/sprints/2026-S07-f6-simulado-hero-1t.md` — sprint ativa
 
-Branch: `main` (a `s07/simulado-ready-hero-1t` foi mesclada). Hoje é 2026-09-08 — ajuste se for
-outro dia. Simulados do TSE em 15–17/09 e 22–24/09; 1º turno em 04/10.
+Branch: `main`, árvore limpa. Hoje é 2026-09-10 — ajuste se for outro dia.
+Simulados do TSE em 15–17/09 e 22–24/09; 1º turno em 04/10.
 
 Rodar testes exige: `set -a; . ./.env.local; set +a`
-Baseline: 1.175 vitest, 145 pytest (dentro de `.venv-model`), typecheck limpo, lint 0 erros,
-build limpo, axe 0 violações em 5 rotas × 2 viewports, orçamento de aplicação 4.019 B de 153.600.
+Baseline: 1.482 vitest, typecheck e lint limpos (2 erros e 3 avisos pré-existentes),
+build limpo, 54 páginas de UF ainda SSG, axe com 18 de 20 combinações limpas.
 
-**O que fazer primeiro, na ordem do handoff:**
+**Antes de tocar em qualquer coisa visual**, cheque se há servidor órfão na porta 3000:
+`lsof -ti:3000` e a idade do processo. Nesta última sessão um `pnpm dev` de 39 horas
+serviu build velho e me fez diagnosticar código que estava certo.
 
-1. **Migrar detalhe municipal e séries para o Vercel Blob** (ADR-0032). O payload mede 2,19 MB
-   contra 1 MB de limite e cresce conforme a cobertura melhora; a escrita seria recusada na noite
-   da apuração. Decisão do usuário: **antes do simulado 1**.
-2. **Investigar a tabela `eleitorado`** com `model-validator`: está inflada 21,8% de forma desigual
-   por UF porque o importador não filtra o turno, e alimenta o peso de cada UF na agregação
-   nacional. É a primeira hipótese para o gate OT-4, que reprova desde 07/09.
-3. Depois: dark mode (13 das 31 bases de partido reprovam 3:1 no escuro), rótulos de UF no mapa
-   (aprovados pelo usuário; exigem glyphs PBF), specs 016 e 017.
+**O que fazer, na ordem do handoff:**
 
-**Não reabra** as decisões D1–D16 listadas no handoff.
+1. **Eleitorado por município** — exige autorização do usuário para mexer no backend,
+   que na última sessão estava restrito a "só interface". Destrava o painel "Maiores
+   colégios eleitorais" e o número de eleitores na folha do município. A tabela colapsa
+   62% das zonas num único município; conserto medido em ~1 sessão.
+2. **`EDGE_CONFIG` sem token** — pede o usuário. Sem ele, a guarda de tamanho do store
+   e a renomeação de chaves nunca foram exercitadas, e o simulado 1 seria o primeiro
+   teste real desse caminho. Atenção ao `teamId` ausente na URL do writer.
+3. **Gate OT-4** — implementar a faixa de sensibilidade decidida no ADR-0033. O dado de
+   2022 para calibrar NÃO existe: verificado, a URL do PRD devolve 404 e o `ele-c.json`
+   oficial só lista `ele2024`. Não prometa calibração.
+4. **Preparação do simulado** — o chamado ao TSE tem prazo 12/09.
 
-**Antes de aceitar retorno de subagent, confira no disco.** Nesta última sessão, agentes reportaram
-lista errada de partidos, nomes de função inexistentes e contrastes calculados só para o caso mais
-favorável — tudo plausível, tudo falso. Recompute os números você mesmo.
+**Não reabra** D21, D22 e D23, nem as quatro exceções constitucionais que resistiram ao
+corte (elas estão nomeadas no handoff, com o parágrafo que as obriga).
+
+**Antes de aceitar retorno de subagent, confira no disco.** Nesta sessão um agente
+escreveu no documento da sprint que o dark mode fora "adiado para S08+" quando ele
+estava entregue e commitado; outro afirmou uma causa raiz que a evidência contradisse.
+Um terceiro me corrigiu, e estava certo. Recompute os números você mesmo.
+
+**Se o sintoma for visual e o código parecer certo, peça um print ao usuário.** O mapa
+aparecia em branco no meu visualizador e funcionava no navegador dele — gastei várias
+rodadas caçando um defeito que não existia.
