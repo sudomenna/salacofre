@@ -82,6 +82,64 @@ import { logError, logInfo, logWarn } from "@/lib/tse/log";
 const VERCEL_API_BASE = "https://api.vercel.com";
 
 /**
+ * Estado de processo do aviso de `VERCEL_TEAM_ID` ausente.
+ *
+ * O aviso vale UMA vez por processo: a ausência é uma propriedade do
+ * ambiente, não do request. Sem esta trava, um ciclo do cron (que grava
+ * 2 + 2N chaves e ainda mede o store) emitiria ~60 linhas idênticas e
+ * afogaria os avisos que de fato mudam de ciclo pra ciclo.
+ */
+let teamIdWarningEmitted = false;
+
+/**
+ * Monta uma URL da API REST da Vercel anexando `?teamId=` quando
+ * `VERCEL_TEAM_ID` está no ambiente.
+ *
+ * **Por que isto existe.** O token que grava no Global Config do SalaCofre é
+ * um token de escopo de TIME (`team_AqxGDYz4Zxs5wUBUDzIpcwBm`), porque o
+ * store `ecfg_*` pertence ao time e não à conta pessoal. A API da Vercel
+ * resolve o recurso no escopo PESSOAL do dono do token quando `teamId` não
+ * vem na query — e o store simplesmente não existe lá. O resultado é
+ * **403/404 em toda gravação**, não um erro de autenticação legível: o
+ * token está válido, só está olhando para o lugar errado.
+ *
+ * As três chamadas deste módulo (`PATCH .../items`, `GET /v1/edge-config/<id>`
+ * e `GET .../items`) passam por aqui. Nenhuma delas jamais rodou contra a
+ * API real — a `EDGE_CONFIG_TOKEN` não existia no ambiente até 11/09 e a
+ * suíte inteira roda com `fetch` mockado —, então este é exatamente o tipo
+ * de detalhe que só apareceria na noite da apuração. `scripts/edge-config-smoke.ts`
+ * é o contra-teste manual.
+ *
+ * Ausência de `VERCEL_TEAM_ID` **não** é erro: um token de escopo pessoal
+ * apontando para um store pessoal funciona sem a query. Por isso apenas
+ * avisamos (uma vez por processo, no formato estruturado do aviso de
+ * credencial acima) e devolvemos a URL nua.
+ *
+ * @param path Caminho absoluto na API, começando com `/` (ex.
+ *             `/v1/edge-config/ecfg_x/items`). Pode já carregar query
+ *             string — o separador correto (`?` ou `&`) é escolhido.
+ */
+export function vercelApiUrl(path: string): string {
+  const url = `${VERCEL_API_BASE}${path}`;
+  const teamId = process.env.VERCEL_TEAM_ID;
+
+  if (!teamId || teamId.length === 0) {
+    if (!teamIdWarningEmitted) {
+      teamIdWarningEmitted = true;
+      logWarn("global-config: VERCEL_TEAM_ID ausente — chamadas à API da Vercel sem teamId", {
+        note:
+          "Token de escopo de TIME recebe 403/404 sem ?teamId=. Se o token for pessoal e o " +
+          "store também, isto é esperado e inofensivo.",
+      });
+    }
+    return url;
+  }
+
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}teamId=${encodeURIComponent(teamId)}`;
+}
+
+/**
  * Lê o ID do Global Config diretamente da connection string que a Vercel
  * injeta como `EDGE_CONFIG`, OU de uma var explícita `EDGE_CONFIG_ID`.
  *
@@ -91,8 +149,13 @@ const VERCEL_API_BASE = "https://api.vercel.com";
  *
  * O SDK de leitura usa essa connection string direto; para o WRITE precisamos
  * só do `ecfg_*`, então parseamos.
+ *
+ * Exportado para `scripts/edge-config-smoke.ts` — o smoke precisa resolver o
+ * mesmo ID por onde o writer grava; reimplementar a regex no script criaria
+ * duas verdades e o smoke poderia passar contra um store que a produção não
+ * usa.
  */
-function resolveEdgeConfigId(): string | null {
+export function resolveEdgeConfigId(): string | null {
   const explicit = process.env.EDGE_CONFIG_ID;
   if (explicit && explicit.length > 0) return explicit;
 
@@ -147,7 +210,7 @@ export async function writeEdgePayload(key: string, value: unknown): Promise<voi
     return;
   }
 
-  const url = `${VERCEL_API_BASE}/v1/edge-config/${edgeConfigId}/items`;
+  const url = vercelApiUrl(`/v1/edge-config/${edgeConfigId}/items`);
   const body = JSON.stringify({
     items: [{ operation: "upsert", key, value }],
   });
@@ -227,7 +290,7 @@ export async function writeEdgePayload(key: string, value: unknown): Promise<voi
  * é truncamento nem degradação — é **recusa da escrita**. Em 04/10 isso
  * significa a projeção congelar no último payload que coube.
  */
-const GLOBAL_CONFIG_STORE_LIMIT_BYTES = 1_000_000;
+export const GLOBAL_CONFIG_STORE_LIMIT_BYTES = 1_000_000;
 
 /**
  * Limiar operacional de aviso: 780 KB = 78% do limite, 220 KB de folga.
@@ -372,12 +435,16 @@ function formatPct(part: number, whole: number): string {
  *
  * @throws Error se a credencial faltar, o HTTP falhar, ou a resposta não
  *   trouxer `sizeInBytes` numérico. Caller trata — a guarda degrada.
+ *
+ * Exportado para `scripts/edge-config-smoke.ts`: a guarda de tamanho nunca
+ * rodou contra a API real, e o smoke existe justamente para confrontar o
+ * `sizeInBytes` que a Vercel reporta com o limite de 1 MB assumido aqui.
  */
-async function measureStore(
+export async function measureStore(
   token: string,
   edgeConfigId: string,
 ): Promise<{ sizeInBytes: number; itemCount: number }> {
-  const response = await fetch(`${VERCEL_API_BASE}/v1/edge-config/${edgeConfigId}`, {
+  const response = await fetch(vercelApiUrl(`/v1/edge-config/${edgeConfigId}`), {
     method: "GET",
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(STORE_MEASURE_TIMEOUT_MS),
@@ -414,7 +481,7 @@ async function measureStore(
  *   contabilidade local.
  */
 async function fetchStoreKeySizes(token: string, edgeConfigId: string): Promise<KeySize[]> {
-  const response = await fetch(`${VERCEL_API_BASE}/v1/edge-config/${edgeConfigId}/items`, {
+  const response = await fetch(vercelApiUrl(`/v1/edge-config/${edgeConfigId}/items`), {
     method: "GET",
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(STORE_MEASURE_TIMEOUT_MS),

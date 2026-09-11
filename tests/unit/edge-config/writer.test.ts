@@ -30,7 +30,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EdgePayload, UfPayloadInput } from "@/lib/edge-config/types";
-import { writeEdgePayload, writeProjection } from "@/lib/edge-config/writer";
+import { vercelApiUrl, writeEdgePayload, writeProjection } from "@/lib/edge-config/writer";
 
 /**
  * ADR-0032: `writeProjection` passou a escrever TAMBÉM no Vercel Blob, um
@@ -55,13 +55,23 @@ vi.mock("@/lib/blob/write", () => ({
 // Env management
 // ---------------------------------------------------------------------------
 
-const ENV_KEYS = ["EDGE_CONFIG_TOKEN", "EDGE_CONFIG_ID", "EDGE_CONFIG"] as const;
+const ENV_KEYS = [
+  "EDGE_CONFIG_TOKEN",
+  "EDGE_CONFIG_ID",
+  "EDGE_CONFIG",
+  // `VERCEL_TEAM_ID` entra aqui porque `vercelApiUrl` anexa `?teamId=` quando
+  // ela existe. Quem roda a suíte depois de `. ./.env.local` a tem exportada,
+  // e sem esta limpeza as asserções de URL exata abaixo passariam ou
+  // quebrariam conforme o shell de quem rodou — o pior tipo de teste.
+  "VERCEL_TEAM_ID",
+] as const;
 
 /** Snapshot original das envs antes de cada teste. */
 const originalEnv: Record<(typeof ENV_KEYS)[number], string | undefined> = {
   EDGE_CONFIG_TOKEN: undefined,
   EDGE_CONFIG_ID: undefined,
   EDGE_CONFIG: undefined,
+  VERCEL_TEAM_ID: undefined,
 };
 
 beforeEach(() => {
@@ -124,8 +134,11 @@ function mockVercelApi(
 ) {
   const mock = vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
+    // Roteia pelo PATH, não pela string inteira: desde `vercelApiUrl` a URL
+    // pode carregar `?teamId=…`, e `endsWith("/items")` deixaria de casar.
+    const path = new URL(url).pathname;
 
-    if (method === "GET" && url.endsWith("/items")) {
+    if (method === "GET" && path.endsWith("/items")) {
       if (opts.itemsStatus !== undefined && opts.itemsStatus >= 400) {
         return Promise.resolve(new Response("nope", { status: opts.itemsStatus }));
       }
@@ -196,6 +209,107 @@ function captureErrorLines() {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+/**
+ * `vercelApiUrl` — escopo de time na URL.
+ *
+ * O store `ecfg_*` do SalaCofre pertence a um TIME. Um token de escopo de
+ * time que chama a API sem `?teamId=` é resolvido no escopo pessoal do dono
+ * do token, onde o store não existe: a resposta é 403/404, não um erro de
+ * autenticação legível. Como nenhuma das três chamadas do writer jamais
+ * rodou contra a API real (a suíte inteira usa `fetch` mockado), estes
+ * testes são a única guarda automatizada de que o parâmetro é anexado —
+ * `scripts/edge-config-smoke.ts` é a contraparte manual.
+ */
+describe("vercelApiUrl — escopo de time", () => {
+  it("anexa ?teamId= quando VERCEL_TEAM_ID está no ambiente", () => {
+    process.env.VERCEL_TEAM_ID = "team_AqxGDYz4Zxs5wUBUDzIpcwBm";
+
+    expect(vercelApiUrl("/v1/edge-config/ecfg_x/items")).toBe(
+      "https://api.vercel.com/v1/edge-config/ecfg_x/items?teamId=team_AqxGDYz4Zxs5wUBUDzIpcwBm",
+    );
+  });
+
+  it("devolve a URL nua quando VERCEL_TEAM_ID está ausente — token pessoal é caso legítimo", () => {
+    expect(vercelApiUrl("/v1/edge-config/ecfg_x")).toBe(
+      "https://api.vercel.com/v1/edge-config/ecfg_x",
+    );
+  });
+
+  it("trata VERCEL_TEAM_ID vazia como ausente, não como escopo vazio", () => {
+    process.env.VERCEL_TEAM_ID = "";
+
+    expect(vercelApiUrl("/v1/edge-config/ecfg_x/items")).toBe(
+      "https://api.vercel.com/v1/edge-config/ecfg_x/items",
+    );
+  });
+
+  it("usa & quando o path já carrega query string", () => {
+    process.env.VERCEL_TEAM_ID = "team_abc";
+
+    const url = vercelApiUrl("/v1/edge-config/ecfg_x/items?limit=10");
+
+    expect(url).toBe("https://api.vercel.com/v1/edge-config/ecfg_x/items?limit=10&teamId=team_abc");
+    // Uma única `?` — duas quebrariam o parse do lado da Vercel.
+    expect(url.match(/\?/g)).toHaveLength(1);
+  });
+
+  it("escapa o valor de VERCEL_TEAM_ID", () => {
+    process.env.VERCEL_TEAM_ID = "team a&b";
+
+    expect(vercelApiUrl("/v1/edge-config/ecfg_x")).toBe(
+      "https://api.vercel.com/v1/edge-config/ecfg_x?teamId=team%20a%26b",
+    );
+  });
+
+  it("as três chamadas do writer passam o teamId: PATCH de item, metadados e listagem", async () => {
+    process.env.EDGE_CONFIG_TOKEN = "tok";
+    process.env.EDGE_CONFIG_ID = "ecfg_proj";
+    process.env.VERCEL_TEAM_ID = "team_xyz";
+
+    // Store acima do limiar de 780 KB para forçar TAMBÉM a listagem de itens,
+    // que no caminho saudável nunca é chamada.
+    const fetchMock = mockVercelApi({
+      storeSizeInBytes: 800_000,
+      items: [{ key: "projection-archive-pres-t1", value: { filler: "x".repeat(20_000) } }],
+    });
+    captureErrorLines();
+
+    await writeProjection(buildPayload(["SP"]));
+
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(urls.length).toBeGreaterThan(0);
+    for (const url of urls) {
+      expect(new URL(url).searchParams.get("teamId")).toBe("team_xyz");
+    }
+
+    // E os três endpoints distintos foram de fato exercitados.
+    const paths = new Set(urls.map((url) => new URL(url).pathname));
+    expect(paths).toContain("/v1/edge-config/ecfg_proj");
+    expect(paths).toContain("/v1/edge-config/ecfg_proj/items");
+  });
+
+  it("avisa UMA única vez por processo quando VERCEL_TEAM_ID está ausente", async () => {
+    // O aviso é estado de módulo: a ausência é propriedade do ambiente, não
+    // do request. Um ciclo do cron grava 2+2N chaves e mede o store — sem a
+    // trava, seriam ~60 linhas idênticas afogando o log. `resetModules` dá um
+    // processo novo do ponto de vista do módulo.
+    vi.resetModules();
+    const fresh = await import("@/lib/edge-config/writer");
+    const logs = captureErrorLines();
+
+    fresh.vercelApiUrl("/v1/edge-config/ecfg_x");
+    fresh.vercelApiUrl("/v1/edge-config/ecfg_x/items");
+    fresh.vercelApiUrl("/v1/edge-config/ecfg_y");
+
+    const warnings = logs.lines().filter((line) => line.includes("VERCEL_TEAM_ID ausente"));
+    expect(warnings).toHaveLength(1);
+
+    const parsed = JSON.parse(warnings[0] as string) as { level: string; msg: string };
+    expect(parsed.level).toBe("warn");
+    expect(parsed.msg).toContain("teamId");
+  });
+});
 
 describe("writeEdgePayload — happy path", () => {
   it("envia PATCH com URL, headers e body corretos quando ambas credenciais estão setadas", async () => {
