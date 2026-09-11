@@ -23,7 +23,7 @@ Consumir o feed público de resultados do TSE (formato EA20) com cadência adequ
 
 **In**:
 - Polling agendado durante a janela de apuração.
-- Ingestão de arquivos EA20 por **par (UF, município, zona) × cargo** — o default de `TSE_GRANULARIDADE` é `zona`, que desde [ADR-0035](../../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md) D1 significa um alvo por par, ~6.109 por cargo. O modo `uf` (agregados de UF/Brasil, ~55 alvos) segue disponível como opt-in de diagnóstico, mas **está quebrado no modelo** (a zona-sentinela 0 não tem peso em `eleitorado`).
+- Ingestão de arquivos EA20 por **par (UF, município, zona) × cargo** — o default de `TSE_GRANULARIDADE` é `zona`, que desde [ADR-0035](../../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md) D1 significa um alvo por par, ~6.110 por cargo. O modo `uf` (agregados de UF/Brasil, ~55 alvos) segue disponível como opt-in de diagnóstico, mas **está quebrado no modelo** (a zona-sentinela 0 não tem peso em `eleitorado`).
 - Persistência de snapshots em Postgres (append-only), com o payload EA20 cru em JSONB. *(O dual-write para Vercel Blob previsto originalmente ficou em backlog — decisão D-3 em [tasks.md](./tasks.md).)*
 - Carga inicial de referências históricas (2018, 2022) e mapeamento geográfico.
 - Conformidade operacional com a **Res. TSE nº 23.751/2026, arts. 264–269** — sem cadastro

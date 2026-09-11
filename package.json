@@ -18,7 +18,7 @@
     "db:generate": "drizzle-kit generate",
     "db:push:DANGEROUS": "drizzle-kit push",
     "db:postgis": "node scripts/apply-postgis.mjs",
-    "db:migrate:0006": "node --experimental-strip-types data-pipeline/migrations/0006_pares_municipio_zona.ts && node --experimental-strip-types data-pipeline/eleitorado-import.ts && node --experimental-strip-types data-pipeline/zonas-import.ts --skip-orphans",
+    "db:migrate:0006": "node --experimental-strip-types data-pipeline/migrations/0006_pares_municipio_zona.ts && node --experimental-strip-types data-pipeline/migrations/0007_municipio_boa_esperanca_do_norte.ts && node --experimental-strip-types data-pipeline/eleitorado-import.ts && node --experimental-strip-types data-pipeline/zonas-import.ts",
     "edge-config:smoke": "tsx scripts/edge-config-smoke.ts",
     "list-targets": "tsx scripts/list-targets.ts",
     "tse:watch": "tsx scripts/tse-watch.ts",

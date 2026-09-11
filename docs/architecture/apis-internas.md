@@ -36,14 +36,14 @@ source: PRD.md § 17
 - **Auth**: header `Authorization: Bearer ${CRON_SECRET}` (Vercel Cron padrão) **ou** `x-cron-secret: ${CRON_SECRET}` (runbook manual)
 - **Rate limit**: N/A
 - **maxDuration**: 300s (Fluid Compute)
-- **Alvos**: ~6.109 arquivos por cargo = pares `(UF, município, zona)` (ADR-0035 D1)
+- **Alvos**: ~6.110 arquivos por cargo = pares `(UF, município, zona)` (ADR-0035 D1)
 
 ### Response 200
 
 ```json
 {
   "ok": true,
-  "files_fetched": 6109,
+  "files_fetched": 6110,
   "files_changed": 47,
   "duration_ms": 153000,
   "lag_ms": 8200,
@@ -66,7 +66,7 @@ source: PRD.md § 17
 - **Path param**: `[cargo]` = `presidente` | `governador` | `senador` | `deputado_federal` | `deputado_estadual` (ou código numérico `1`, `3`, etc.)
 - **Rate limit**: N/A
 - **maxDuration**: 300s (Fluid Compute)
-- **Alvos**: ~6.109 arquivos para o cargo especificado
+- **Alvos**: ~6.110 arquivos para o cargo especificado
 - **Lock anti-overlap**: por cargo, janela 6 min (≥ maxDuration; ADR-0035 D3)
 
 ### Response 200
@@ -75,7 +75,7 @@ source: PRD.md § 17
 {
   "ok": true,
   "cargo": "presidente",
-  "files_fetched": 6109,
+  "files_fetched": 6110,
   "files_changed": 17,
   "duration_ms": 153000,
   "lag_ms": 8200

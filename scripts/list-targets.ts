@@ -9,7 +9,7 @@
  * TSE (RF-001: nenhuma URL é requisitada aqui, só construída/contada).
  *
  * Imprime:
- *   1. Total de alvos para o (env, cargo) pedido — esperado ~6.109 (1 por
+ *   1. Total de alvos para o (env, cargo) pedido — esperado ~6.110 (1 por
  *      linha de `zonas`, já que produção usa 1 cargo por chamada aqui).
  *   2. Pares por UF (tabela UF | pares).
  *   3. As 5 zonas (uf, cod_zona) com mais municípios distintos.

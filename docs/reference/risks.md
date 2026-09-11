@@ -7,6 +7,18 @@ source: PRD.md § 22; ADR-0020 (revisão dos riscos TSE em 2026-09-05)
 
 # Riscos e Mitigações
 
+
+## Tarefas do usuário — dívidas abertas em 2026-09-11
+
+Não são risco técnico: são ações que só o dono da conta pode executar, e cada uma **bloqueia**
+trabalho que já está pronto do lado do código.
+
+| Tarefa | Prazo | O que destrava | Estado |
+|---|---|---|---|
+| **Abrir chamado no TSE** (`30308800.tse.jus.br`, descrição começando com `Resultados - Divulgação`) | **12/09** | As URLs do simulado. `pnpm tse:watch --once` segue sem sinal de 2026 — `ele-c.json` só lista `ele2024` e nenhum dos 9 leiautes mudou. | 🔴 aberto |
+| **Gerar `EDGE_CONFIG_TOKEN`** em `vercel.com/account/tokens`, **escopo do time** `team_AqxGDYz4Zxs5wUBUDzIpcwBm` (pessoal recebe 403). Colar no `.env.local` junto de `EDGE_CONFIG_ID=ecfg_mcoa3usgvm5dbqb27vae8ptmpdxl`. | antes de 15/09 | Três coisas de uma vez: (a) a gravação no Global Config, que **nunca rodou de verdade** — o simulado 1 seria o primeiro teste desse caminho; (b) o Blob, hoje vazio, o que faz o painel municipal renderizar "detalhe indisponível"; (c) com o Blob populado, o gate de a11y do painel novo e a conferência visual da tela pelo usuário. Depois: `pnpm edge-config:smoke`. | 🔴 aberto |
+
+
 ## Riscos ativos
 
 | Risco | Impacto | Probabilidade | Mitigação |

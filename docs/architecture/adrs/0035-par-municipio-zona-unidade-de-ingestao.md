@@ -254,7 +254,7 @@ qualquer outro processo no mesmo IP. Um bloqueio de 10 minutos na janela do simu
 é exatamente o que a norma manda evitar com margem, não com precisão de régua.
 
 **Decisão revista**: `TSE_MAX_RPS_DEFAULT` = **40** (`lib/tse/rate-limiter.ts:171`). Pior caso
-agregado **80 rps**, 20% abaixo do teto. Custo medido em tempo: 6.109 GETs a 40 rps ≈ **153 s** por
+agregado **80 rps**, 20% abaixo do teto. Custo medido em tempo: 6.110 GETs a 40 rps ≈ **153 s** por
 cargo, confortável dentro do `maxDuration` de 300 s. O `CEILING` fica em 50 para que uma janela
 **supervisionada** (simulado, com alguém lendo `rateLimited` ao vivo) possa subir deliberadamente via
 `TSE_MAX_RPS`; produção desassistida usa o default.

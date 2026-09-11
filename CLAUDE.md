@@ -373,7 +373,7 @@ TSE e ingestão:
 
 ```bash
 pnpm tse:watch --once          # config do TSE mudou? exit 0 = não, 2 = sim
-pnpm list-targets --env production --cargo 1   # esperado ~6.109 (um por par município×zona)
+pnpm list-targets --env production --cargo 1   # esperado ~6.110 (um por par município×zona)
 pnpm tse:mock --pares <csv>    # CDN falso que só responde a pares conhecidos
 ```
 

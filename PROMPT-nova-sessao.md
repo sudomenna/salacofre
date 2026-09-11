@@ -31,16 +31,20 @@ arquivos que não lê. Três também me corrigiram com razão. Recompute você m
 
 **O que fazer, na ordem:**
 
-1. **`rf-coverage-checker`** — nada bloqueia. É o que decide se a spec 001 pode fechar.
-2. **`a11y-perf-auditor`** nas duas rotas de UF — **bloqueado**: o Blob nunca recebeu escrita, o
-   painel novo mostra "detalhe indisponível" e não há o que auditar. Destrava com o item 3.
-3. **`EDGE_CONFIG_TOKEN`** (pede o usuário) — escopo do **time** `team_AqxGDYz4Zxs5wUBUDzIpcwBm`,
-   não pessoal. Com ele: `pnpm edge-config:smoke`. Destrava a gravação nunca exercitada, o Blob
-   vazio, o gate de a11y e o usuário conseguir ver a tela nova.
-4. **Chamado ao TSE** (pede o usuário, prazo 12/09) — o watch segue sem sinal de 2026.
-5. **Decisões pendentes do usuário**: Senador/Deputado (016/017) continuam no escopo? Push dos
-   **89 commits** para o GitHub? O código IBGE de Boa Esperança do Norte (MT)? Os dois arquivos
-   alheios em `tse_docs/`?
+1. **PRIMEIRA COISA: decidir se a spec 001 (ingestão TSE) fecha.** O `rf-coverage-checker` rodou em
+   11/09 — o resultado está no handoff, § "Gates". Leia, confronte com o disco, e leve a decisão de
+   promover (ou não) ao usuário. Promover spec é ato de gate, não de rotina.
+2. **Specs 016 (Senador) e 017 (Deputado Federal)** — o usuário decidiu em 11/09 que **entram nesta
+   sessão**. [ADR-0026](docs/architecture/adrs/0026-cargos-senador-deputado-ingestao-e-read-path.md)
+   fixa ingestão e read path. Há degradação pré-acordada em 07/09 que **não** deve ser reaberta: se o
+   módulo de cadeiras da 017 não passar nos golden de 2022, ela shippa parcial por partido, sem
+   projeção de cadeiras; se nem isso, a aba fica desabilitada e o cargo vai para 2030. Pré-requisito
+   de qualquer código: resolver "corrida ativa única" em `lib/config/calendar.ts`.
+3. **`a11y-perf-auditor`** — rodou em 11/09 com uma limitação conhecida (o painel municipal não
+   renderiza sem dado no Blob). Ver handoff. Refazer quando o Blob tiver conteúdo.
+4. **Tarefas do usuário** (ver `docs/reference/risks.md` § "Tarefas do usuário"): chamado ao TSE
+   (prazo 12/09) e `EDGE_CONFIG_TOKEN`. A segunda destrava o Blob, o gate de a11y e a conferência
+   visual da tela.
 
 **Não reabra**: ADR-0035 (D1 par como unidade de ingestão, D2 soma exata sem rateio com o modelo
 por zona, D3 cron por cargo), o recuo do `TSE_MAX_RPS` para 40, as 8 linhas com capital primeiro

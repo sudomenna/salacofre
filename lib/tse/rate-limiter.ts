@@ -154,7 +154,7 @@ export function createTokenBucket(opts: TokenBucketOptions): TokenBucket {
  * para qualquer outro processo no mesmo IP. A constituição § 1 exige teto
  * "**bem abaixo** do limite documentado" — e "exatamente no limite" não
  * satisfaz esse texto. Default 40 devolve margem real: pior caso agregado 80
- * rps, 20% abaixo do teto. Custo: 6.109 GETs a 40 rps ≈ 153 s por cargo,
+ * rps, 20% abaixo do teto. Custo: 6.110 GETs a 40 rps ≈ 153 s por cargo,
  * bem dentro do `maxDuration` de 300 s.
  *
  * O CEILING segue em 50 para que uma janela SUPERVISIONADA (simulado, com
