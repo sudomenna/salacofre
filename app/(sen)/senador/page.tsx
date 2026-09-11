@@ -16,7 +16,8 @@
  *
  * ## Por que esta rota não tem mapa
  *
- * O ADR-0026 item 1 ingere cargo 5 em granularidade UF: 27 arquivos por
+ * O cargo 5 é ingerido em granularidade ZONA desde 2026-09-11 (emenda (b) do
+ * ADR-0026). Antes eram 27 arquivos por
  * ciclo, um por estado, sem quebra por zona ou município. Quatro cargos em
  * zona passariam de 24 mil GETs por ciclo. A consequência assumida é que
  * Senador não tem mapa municipal nem "maiores colégios eleitorais" — não há
@@ -56,6 +57,14 @@ import { readProjection } from "@/lib/edge-config/reader";
 import type { EdgeCandidate, EdgePayload, EdgeUfRow } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
 import senFixture from "@/tests/fixtures/edge-config/sen-current.json" with { type: "json" };
+
+/** Código TSE do cargo desta rota. A granularidade e as vagas saem da tabela
+ * canônica (`lib/config/cargos.ts`), nunca de literal na página: em 2026-09-11
+ * o cargo 5 mudou de `uf` para `zona` e um `granularidade="uf"` hardcoded aqui
+ * teria feito a tela afirmar ao leitor que "o TSE publica um boletim agregado
+ * por UF para este cargo, e não um por zona" — falso desde a mudança, e
+ * constituição § 8 é sobre exatamente isso. */
+const CARGO_SENADOR = 5 as const;
 
 export const revalidate = 60;
 
@@ -373,7 +382,7 @@ export default async function SenadoPage() {
         <ForecastTransparency
           pctApurado={payload.pct_apurado_total}
           variant="national"
-          granularidade="uf"
+          granularidade={cargoInfo(CARGO_SENADOR).granularidade}
           cadenciaMinutos={CADENCIA_MIN}
         />
       </Panel>

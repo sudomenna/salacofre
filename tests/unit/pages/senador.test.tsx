@@ -282,13 +282,21 @@ describe("/senador (T-09)", () => {
     expect(sp).not.toContain("Célia Mota");
   });
 
-  it("(h) RF-108: nível de estado e cadência de 5 min, em texto", async () => {
+  it("(h) RF-108: cadência em texto, e SEM a afirmação de nível de estado", async () => {
+    // Até 2026-09-11 esta asserção era invertida: exigia o texto "esta projeção
+    // é feita no nível do estado — o TSE publica um boletim agregado por UF
+    // para este cargo, e não um por zona eleitoral". Isso deixou de ser verdade
+    // quando o cargo 5 passou a ser ingerido por ZONA (emenda (b) do ADR-0026),
+    // e uma tela que afirma isso mente sobre a própria metodologia
+    // (constituição § 8). A granularidade agora sai de `lib/config/cargos.ts`,
+    // não de literal na página — se alguém voltar a fixá-la, este teste cai.
     readProjectionMock.mockResolvedValue(nacional());
     const doc = await render(SenadoPage());
     const nota = doc.querySelector("[data-testid='forecast-cadencia']")?.textContent ?? "";
 
-    expect(nota).toMatch(/nível do estado/i);
     expect(nota).toContain("a cada 5 minutos");
+    expect(nota).not.toMatch(/nível do estado/i);
+    expect(nota).not.toMatch(/não um por zona eleitoral/i);
   });
 
   it("(i) trilha `sen` e exatamente um <h1> (a aba do shell depende do atributo)", async () => {
@@ -393,7 +401,7 @@ describe("/uf/[sigla]/senador (T-10)", () => {
     expect(doc.body.textContent).not.toContain("100%");
   });
 
-  it("(r) RF-108: nível de estado + 5 min, no bloco de metodologia", async () => {
+  it("(r) RF-108: cadência de 5 min no bloco de metodologia", async () => {
     readUfProjectionMock.mockResolvedValue(ufPayload());
     const doc = await render(UFSenadorPage(PARAMS_SP));
     const nota = doc.querySelector("[data-testid='forecast-cadencia']")?.textContent ?? "";

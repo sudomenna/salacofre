@@ -10,7 +10,10 @@
  *      1º e 2º, os dois são senadores —, troca a margem exibida para a do 2º
  *      sobre o 3º (RF-104) e larga a barra de maioria, cujo marcador de 50%
  *      não corta nada nesta corrida.
- *   2. **Sem municípios.** O cargo 5 é ingerido em granularidade UF
+ *   2. **Sem mapa municipal nesta janela.** O cargo 5 passou a ser ingerido em
+ *      granularidade ZONA em 2026-09-11, então o dado existe — mas as telas de
+ *      mapa e "maiores colégios" ficaram fora do escopo antes de 15/09
+ *      (spec 016 § Escopo/Fora). Historicamente, o cargo era ingerido por UF
  *      (ADR-0026 item 1): existe um boletim por estado, nenhum por
  *      município. Não há tabela de "maiores colégios" nem coroplético
  *      municipal porque não há dado — e um bloco vazio afirmando
@@ -54,6 +57,10 @@ import { cargoInfo } from "@/lib/config/cargos";
 import { readUfProjection } from "@/lib/edge-config/reader";
 import type { EdgePayloadUf, EdgeUfCandidate } from "@/lib/edge-config/types";
 import senUfFixture from "@/tests/fixtures/edge-config/sen-uf.json" with { type: "json" };
+
+/** Ver a nota em `app/(sen)/senador/page.tsx`: o fallback sai da tabela
+ * canônica, nunca de literal. */
+const CARGO_SENADOR = 5 as const;
 
 export const revalidate = 60;
 
@@ -277,7 +284,7 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
         <ForecastTransparency
           pctApurado={payload.pct_apurado}
           variant="uf"
-          granularidade={payload.granularidade ?? "uf"}
+          granularidade={payload.granularidade ?? cargoInfo(CARGO_SENADOR).granularidade}
           cadenciaMinutos={CADENCIA_MIN}
         />
       </Panel>

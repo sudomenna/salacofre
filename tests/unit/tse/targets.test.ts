@@ -372,6 +372,73 @@ function mockZonasRowsOnce(
   vi.mocked(db.select).mockReturnValueOnce({ from: () => awaitable } as never);
 }
 
+describe("listIngestTargets — granularidade por cargo (ADR-0026 + emenda (b))", () => {
+  beforeEach(() => {
+    vi.stubEnv("TSE_COD_ELEICAO", "ele2026/619");
+    // Sem `TSE_GRANULARIDADE`: é o ponto do teste — cada cargo cai no padrão da
+    // tabela canônica, e não num modo global.
+  });
+
+  // Lacuna apontada pelo `rf-coverage-checker` em 2026-09-11: existiam testes
+  // que USAVAM 6.110 como constante (o de `maxDuration` no rate limiter) mas
+  // nenhum que exigisse que a enumeração de fato produzisse um alvo por par.
+  // Um erro na montagem dos pares — na migration 0006 ou na query de `zonas` —
+  // passaria despercebido, que é exatamente o defeito de 10/09 (2.651 alvos em
+  // vez de 6.110, sem um único 404).
+  it.each([
+    { cargo: 1, nome: "Presidente" },
+    { cargo: 3, nome: "Governador" },
+    { cargo: 5, nome: "Senador" },
+  ] as const)("cargo $cargo ($nome) enumera UM alvo de zona por par, sem perder nenhum", async ({
+    cargo,
+  }) => {
+    const pares = [
+      { uf: "SP", codMunicipioTse: 71072, codZona: 1 },
+      { uf: "SP", codMunicipioTse: 12345, codZona: 1 },
+      { uf: "MG", codMunicipioTse: 40177, codZona: 4 },
+      { uf: "MG", codMunicipioTse: 49352, codZona: 4 },
+      { uf: "MG", codMunicipioTse: 41319, codZona: 4 },
+    ];
+    mockZonasRowsOnce(pares);
+
+    const targets = await listIngestTargets("production", { cargo });
+
+    // Um alvo por PAR — não por zona. Com a regra antiga (uma linha por zona)
+    // isto daria 2, e é assim que 56% dos votos sumiam em silêncio.
+    expect(targets).toHaveLength(pares.length);
+    expect(targets.every((t) => t.nivel === "zona" && t.cargo === cargo)).toBe(true);
+    expect(new Set(targets.map((t) => t.url)).size).toBe(pares.length);
+    expect(targets.map((t) => t.codMunicipioTse).sort()).toEqual(
+      pares.map((p) => p.codMunicipioTse).sort(),
+    );
+  });
+
+  it("cargo 6 (Deputado Federal) enumera 27 UFs e NÃO toca o banco", async () => {
+    const targets = await listIngestTargets("production", { cargo: 6 });
+
+    expect(targets).toHaveLength(27);
+    expect(targets.every((t) => t.nivel === "uf" && t.cargo === 6)).toBe(true);
+    // Granularidade UF não lê `zonas` — se ler, o ciclo de 15 min paga uma
+    // consulta ao Postgres por nada.
+    expect(vi.mocked(db.select)).not.toHaveBeenCalled();
+    // E não há arquivo agregado `br-` para este cargo (só Presidente tem).
+    expect(targets.some((t) => t.uf === "BR")).toBe(false);
+  });
+
+  it("cargo 5 saiu de UF para zona — a regressão seria silenciosa", async () => {
+    // Se alguém devolver o cargo 5 para `uf`, ele passa a enumerar 27 alvos em
+    // vez de um por par. Nada quebra: a tela continua renderizando, o modelo
+    // continua rodando, e `p_eleito` volta a degenerar para 0%/100% porque o
+    // bootstrap fica com uma única unidade de reamostragem por estado.
+    mockZonasRowsOnce([{ uf: "SP", codMunicipioTse: 71072, codZona: 1 }]);
+
+    const targets = await listIngestTargets("production", { cargo: 5 });
+
+    expect(targets.every((t) => t.nivel === "zona")).toBe(true);
+    expect(targets.some((t) => t.nivel === "uf")).toBe(false);
+  });
+});
+
 describe("listIngestTargets — pares (2 municípios na mesma zona)", () => {
   const PARES_MESMA_ZONA = [
     { uf: "SP", codMunicipioTse: 71072, codZona: 1 },

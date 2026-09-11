@@ -9,7 +9,8 @@
  *     vagas é outra pergunta, com outra resposta.
  *   - `<ForecastTransparency granularidade cadenciaMinutos>` — RF-108. Os
  *     dois fatos que o leitor não tem como inferir da tela: a projeção é em
- *     nível de estado (não zona a zona) e muda a cada 5 minutos.
+ *     a cadência de 5 minutos; e, no modo `uf` (hoje só Deputado Federal),
+ *     também que a projeção é em nível de estado.
  */
 
 import { renderToStaticMarkup } from "react-dom/server";
@@ -79,7 +80,11 @@ describe("<ChancesPanel eleitos /> — RF-103", () => {
 });
 
 describe("<ForecastTransparency /> — RF-108", () => {
-  it("(f) declara nível de estado e cadência, em texto e sem clique", () => {
+  it("(f) no MODO uf, declara nível de estado e cadência — sem clique", () => {
+    // Este caso exercita o componente com `granularidade="uf"`, que hoje é o
+    // modo de Deputado Federal. Senador saiu desse modo em 2026-09-11 (emenda
+    // (b) do ADR-0026) e não deve mais receber esta frase — ver o caso (h) de
+    // `tests/unit/pages/senador.test.tsx`, que proíbe o texto na tela real.
     const doc = parse(
       <ForecastTransparency cadenciaMinutos={5} granularidade="uf" pctApurado={40} variant="uf" />,
     );
