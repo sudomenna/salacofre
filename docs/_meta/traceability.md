@@ -117,6 +117,27 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-058.2 | Roteamento e redirect manutenção | M | [013](../specs/013-pagina-manutencao/) | (middleware) | unit |
 | RF-059 | Rolling release rollback | M | [010](../specs/010-operacao-monitoramento/) | — | manual |
 | RF-060 | Cron toggle via env var | M | [010](../specs/010-operacao-monitoramento/) | — | unit |
+| RF-100 | Ingestão do cargo 5 em granularidade de zona | M | [016](../specs/016-senador/) | — | unit (`tse/targets.test.ts`, um alvo por par + guarda contra volta a `uf`; `config/cargos.test.ts`) |
+| RF-101 | Suplentes preservados no snapshot | M | [016](../specs/016-senador/) | — | unit (`ea20-senador-suplentes.test.ts`) |
+| RF-102 | Projeção por regra de três, zona a zona | M | [016](../specs/016-senador/) | — | pytest (`test_senador.py`) |
+| RF-103 | `p_eleito` para duas vagas | M | [016](../specs/016-senador/) | — | pytest (`test_p_eleito.py`), unit (`ResultPanelVagas.test.tsx`) |
+| RF-104 | Margem relevante é a do 2º para o 3º | M | [016](../specs/016-senador/) | `<ResultPanel>` | integration (`senador.test.tsx`) |
+| RF-105 | Painel de resultado com duas vagas (T-10) | M | [016](../specs/016-senador/) | `<ResultPanel>` | integration (`senador.test.tsx`), unit (`ResultPanelVagas.test.tsx`) |
+| RF-106 | Rótulo explícito de duas vagas | M | [016](../specs/016-senador/) | `<RaceHeader />` | integration (`senador.test.tsx`) |
+| RF-107 | Composição nacional das 54 vagas (T-09) | M | [016](../specs/016-senador/) | `<ChancesPanel />` | integration (`senador.test.tsx`) |
+| RF-108 | Transparência de cadência | M | [016](../specs/016-senador/) | `<ForecastTransparency />` | integration (`senador.test.tsx`) |
+| RF-120 | Ingestão do cargo 6 a cada 15 minutos | M | [017](../specs/017-deputado-federal/) | — | — |
+| RF-121 | Votos de legenda preservados | M | [017](../specs/017-deputado-federal/) | — | — |
+| RF-122 | Federação conta como uma agremiação | M | [017](../specs/017-deputado-federal/) | — | — |
+| RF-123 | Quociente eleitoral com o arredondamento da lei | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_cadeiras.py::test_caso1_*`, 3 casos: 0,5 exato desce, sem erro de float) |
+| RF-124 | Número de vagas NUNCA hardcoded | M | [017](../specs/017-deputado-federal/) | — | — |
+| RF-125 | Distribuição em três fases, conforme ADR-0027 | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_cadeiras.py`) |
+| RF-125.1 | Cadeiras exibidas ≠ vagas obtidas para o denominador | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_cadeiras.py`) |
+| RF-126 | Testes golden contra 2022 | M | [017](../specs/017-deputado-federal/) | — | **— (lacuna declarada)** — `test_cadeiras.py` cobre os 9 casos de borda do ADR-0027, **não** o golden. Falta o dado: o CSV no disco é por partido e a fase 1 precisa por candidato. ⚠️ Gabarito tem de ser o **recalculado** pós-ADI 7228. Ver `risks.md`. |
+| RF-127 | Bancada projetada com incerteza explícita | M | [017](../specs/017-deputado-federal/) | `<ResultPanel>` | — |
+| RF-128 | Cadência de 15 minutos visível | M | [017](../specs/017-deputado-federal/) | `<ForecastTransparency />` | — |
+| RF-129 | Drill-down por UF vem do Blob | M | [017](../specs/017-deputado-federal/) | — | — |
+| RF-130 | Voto de legenda visível | M | [017](../specs/017-deputado-federal/) | — | — |
 
 ## RFs adicionados pelas specs (não estavam no PRD)
 
@@ -144,10 +165,31 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-030.9 | Cenários 2º turno | [003](../specs/003-home-nacional/) |
 | RF-061 | Hero seis termômetros 1T | [003](../specs/003-home-nacional/) |
 | RF-063 | Identidade visual por trilha | [003](../specs/003-home-nacional/) |
+| RF-100 | Ingestão do cargo 5 em granularidade de zona | [016](../specs/016-senador/) |
+| RF-101 | Suplentes preservados no snapshot | [016](../specs/016-senador/) |
+| RF-102 | Projeção por regra de três, zona a zona | [016](../specs/016-senador/) |
+| RF-103 | `p_eleito` para duas vagas | [016](../specs/016-senador/) |
+| RF-104 | Margem relevante é a do 2º para o 3º | [016](../specs/016-senador/) |
+| RF-105 | Painel de resultado com duas vagas | [016](../specs/016-senador/) |
+| RF-106 | Rótulo explícito de duas vagas | [016](../specs/016-senador/) |
+| RF-107 | Composição nacional das 54 vagas | [016](../specs/016-senador/) |
+| RF-108 | Transparência de cadência | [016](../specs/016-senador/) |
+| RF-120 | Ingestão do cargo 6 a cada 15 minutos | [017](../specs/017-deputado-federal/) |
+| RF-121 | Votos de legenda preservados | [017](../specs/017-deputado-federal/) |
+| RF-122 | Federação conta como uma agremiação | [017](../specs/017-deputado-federal/) |
+| RF-123 | Quociente eleitoral com arredondamento | [017](../specs/017-deputado-federal/) |
+| RF-124 | Número de vagas NUNCA hardcoded | [017](../specs/017-deputado-federal/) |
+| RF-125 | Distribuição em três fases | [017](../specs/017-deputado-federal/) |
+| RF-125.1 | Cadeiras exibidas ≠ vagas obtidas | [017](../specs/017-deputado-federal/) |
+| RF-126 | Testes golden contra 2022 | [017](../specs/017-deputado-federal/) |
+| RF-127 | Bancada projetada com incerteza | [017](../specs/017-deputado-federal/) |
+| RF-128 | Cadência de 15 minutos visível | [017](../specs/017-deputado-federal/) |
+| RF-129 | Drill-down por UF vem do Blob | [017](../specs/017-deputado-federal/) |
+| RF-130 | Voto de legenda visível | [017](../specs/017-deputado-federal/) |
 
 ## Cobertura
 
-**60 RFs originais do PRD** + 30 RFs adicionados nas specs (RF-005.1-4, RF-006.1-5, RF-012.1-2, RF-058.1-2, RF-010.1-6, RF-020.1-3, RF-030.7-9, RF-061-63) = **90 RFs no total**. Todos mapeados pra alguma spec.
+**60 RFs originais do PRD** + 42 RFs adicionados nas specs (RF-005.1-4, RF-006.1-5, RF-012.1-2, RF-058.1-2, RF-010.1-6, RF-020.1-3, RF-030.7-9, RF-061-63, RF-100-108, RF-120-130+125.1) = **102 RFs no total**. Todos mapeados pra alguma spec.
 
 ## RNFs
 
@@ -155,12 +197,16 @@ NFRs cobertos em [../nfr/](../nfr/) — 34 RNFs (RNF-001..RNF-034). Cada spec li
 
 ## ADRs
 
-26 ADRs em [../architecture/adrs/](../architecture/adrs/) — 25 `accepted`, 1 `proposed` (ADR-0024). Specs referenciam ADRs aplicáveis no frontmatter.
+35 ADRs em [../architecture/adrs/](../architecture/adrs/) — 34 `accepted`, 1 `proposed` (ADR-0024). Specs referenciam ADRs aplicáveis no frontmatter.
 
 **Novos em 2026-09-07**:
 - ADR-0024 (paleta editorial por partido) — `proposed`, supersede condicional de ADR-0013
 - ADR-0025 (design system Atlas Menna restyle-in-place) — `accepted`, afeta specs 003/004/005/006/011
 - ADR-0026 (Senador e Deputado Federal) — `accepted`, emenda ADR-0001 (Vercel Blob como exceção ao read path para Deputado)
+
+**Novos em 2026-09-11** (Fase 8, S07):
+- ADR-0027 (Conversão de votos em cadeiras para Deputado Federal) — `accepted`, fecha lacuna do ADR-0026
+- Specs 016 (Senador) e 017 (Deputado Federal) — ambas `draft`, implementadas em S07
 
 ## Como manter atualizado
 

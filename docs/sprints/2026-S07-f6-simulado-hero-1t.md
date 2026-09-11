@@ -470,16 +470,17 @@ pipeline (P0) e do redesign (P1).
       exigir que o cargo também estivesse em `TSE_CARGOS` faria o cron de Senador rodar e não
       ingerir nada, em silêncio.
 - [x] **Spec 016 — Senador** escrita (`docs/specs/016-senador/spec.md`, `draft`): RF-100 a RF-108.
-      Ingestão implementada e medida; falta modelo, payload e as 2 telas.
+      Ingestão implementada e medida em 11/09; modelo + payload + rotas T-09 e T-10 implementadas. Falta: gates de a11y/cobertura.
 - [x] **Spec 017 — Deputado Federal** escrita (`docs/specs/017-deputado-federal/spec.md`, `draft`):
-      RF-120 a RF-130, com a degradação pré-acordada transcrita e 3 open questions.
-- [ ] **ADR-0027** — método de conversão de votos em cadeiras. Citado como dependência pelo
-      ADR-0026 desde 07/09 e **nunca escrito** (a numeração pulava de 0026 para 0028).
-      ⚠️ Correção verificada no Planalto em 11/09: os artigos estão no **Código Eleitoral**, não na
-      Lei 9.504 como o ADR-0026 cita; e o **art. 111 foi declarado inconstitucional** (STF, ADI
-      7228) — implementá-lo ao pé da letra daria resultado errado.
-- [ ] **Modelo e telas** da 016 e da 017
-- [ ] **Gate G2** (24/09): 4 gates + `model-validator` para a 016
+      RF-120 a RF-130, com a degradação pré-acordada transcrita e 3 open questions. Módulo de cadeiras (`api/model/cadeiras.py`) implementado, com **21 testes dos casos de borda** do ADR-0027 — **não** o golden de 2022 (RF-126), que é o gate da degradação de 19/09 e **segue aberto**: falta o dado (o CSV no disco é por partido; a fase 1 precisa por candidato) e o gabarito tem de ser o **recalculado** pós-ADI 7228. Falta também: ingestão, payload e telas.
+- [x] **ADR-0027** (`accepted` 11/09) — método de conversão de votos em cadeiras. Citado como dependência pelo
+      ADR-0026 desde 07/09, formalizado em 11/09. ✅ Correção verificada no Planalto: os artigos estão no **Código Eleitoral (Lei 4.737/1965)**, não na
+      Lei 9.504 como o ADR-0026 cita; o **art. 111 foi declarado inconstitucional** (STF, ADI
+      7228/7263/7325) e substituído pelo art. 12-A da Res.-TSE 23.677/2021.
+- [x] **Modelo da 016** — `api/model/p_eleito.py` implementado com testes unit; projeção por zona (ADR-0021 reaproveitado).
+- [ ] **Telas de 016** — RF-105..108 e RF-104 (margem 2º↔3º)
+- [ ] **Telas de 017** — RF-127..130
+- [ ] **Gate G2** (24/09): 4 gates + `model-validator` para a 016; `rf-coverage-checker` para 017 (cobertura baixa esperada — specs em draft)
 
 > **Degradação pré-acordada da 017** (decidida em 07/09, não re-discutir): se em 19/09 o módulo
 > de cadeiras não passar nos golden de 2022, a spec shippa como "parcial por partido/federação,

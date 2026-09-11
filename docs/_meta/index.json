@@ -210,6 +210,7 @@
       "status": "accepted",
       "date": "2026-09-07",
       "amends": "0001",
+      "note": "emendado 2026-09-11 (ADR-0027): (1) citação legal errada — artigos 106–112 estão no Código Eleitoral (Lei 4.737/1965), não Lei 9.504/1997; art. 111 inconstitucional; (2b) Senador revertido de granularidade UF para ZONA — uma zona como unidade de reamostragem evita IC degenerado e `p_eleito` de 0%/100%; custo: TSE_MAX_RPS 30→25, cron 175s→244s (dentro de maxDuration 300s); Deputado mantém UF",
       "path": "docs/architecture/adrs/0026-cargos-senador-deputado-ingestao-e-read-path.md"
     },
     {
@@ -1229,6 +1230,143 @@
       "nfr": [],
       "adrs": [],
       "opens_after": "D1-04out2026"
+    },
+    {
+      "id": "016-senador",
+      "title": "Senador — corrida majoritária de 2 vagas por UF",
+      "status": "draft",
+      "priority": "M",
+      "personas": [
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "screens": [
+        "T-09",
+        "T-10"
+      ],
+      "requirements": [
+        "RF-100",
+        "RF-101",
+        "RF-102",
+        "RF-103",
+        "RF-104",
+        "RF-105",
+        "RF-106",
+        "RF-107",
+        "RF-108"
+      ],
+      "depends_on": [
+        "001-ingestao-tse",
+        "002-modelo-estatistico"
+      ],
+      "apis": [
+        "GET /api/ingest/senador",
+        "POST /api/ingest/senador",
+        "GET /api/projection?cargo=senador"
+      ],
+      "components": [
+        "ResultPanel",
+        "CandidateListCollapse",
+        "ChancesPanel",
+        "CargoTabs",
+        "RaceHeader",
+        "ForecastTransparency"
+      ],
+      "nfr": [
+        "RNF-001",
+        "RNF-002",
+        "RNF-003",
+        "RNF-006",
+        "RNF-022",
+        "RNF-023",
+        "RNF-024"
+      ],
+      "adrs": [
+        "0001",
+        "0012",
+        "0020",
+        "0021",
+        "0026",
+        "0028",
+        "0033",
+        "0034",
+        "0035"
+      ],
+      "opens_after": "2026-09-11"
+    },
+    {
+      "id": "017-deputado-federal",
+      "title": "Deputado Federal — corrida proporcional com projeção de cadeiras",
+      "status": "draft",
+      "priority": "M",
+      "personas": [
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "screens": [
+        "T-11",
+        "T-12"
+      ],
+      "requirements": [
+        "RF-120",
+        "RF-121",
+        "RF-122",
+        "RF-123",
+        "RF-124",
+        "RF-125",
+        "RF-125.1",
+        "RF-126",
+        "RF-127",
+        "RF-128",
+        "RF-129",
+        "RF-130"
+      ],
+      "depends_on": [
+        "001-ingestao-tse",
+        "002-modelo-estatistico",
+        "016-senador"
+      ],
+      "apis": [
+        "GET /api/ingest/deputado-federal",
+        "POST /api/ingest/deputado-federal",
+        "GET /api/projection?cargo=deputado-federal"
+      ],
+      "components": [
+        "ResultPanel",
+        "ChancesPanel",
+        "CargoTabs",
+        "RaceHeader",
+        "ForecastTransparency"
+      ],
+      "nfr": [
+        "RNF-001",
+        "RNF-002",
+        "RNF-003",
+        "RNF-006",
+        "RNF-007a",
+        "RNF-022",
+        "RNF-023",
+        "RNF-024"
+      ],
+      "adrs": [
+        "0001",
+        "0012",
+        "0020",
+        "0021",
+        "0026",
+        "0027",
+        "0028",
+        "0032",
+        "0034",
+        "0035"
+      ],
+      "ship_blocked_on": [
+        "modulo-cadeiras-golden-2022",
+        "tabela-cadeiras-por-uf"
+      ],
+      "opens_after": "2026-09-11"
     }
   ]
 }

@@ -27,7 +27,7 @@ Documentação Spec-Driven Development (SDD) do SalaCofre — plataforma web pú
 
 ---
 
-## Specs (13)
+## Specs (15)
 
 | # | Spec | Status | Prioridade | Telas |
 |---|---|---|---|---|
@@ -44,6 +44,8 @@ Documentação Spec-Driven Development (SDD) do SalaCofre — plataforma web pú
 | 011 | [Sobre o Modelo](./specs/011-sobre-o-modelo/) | shipped | M | T-06 |
 | 012 | [Dashboard /_status](./specs/012-dashboard-status/) | draft | M | T-07 |
 | 013 | [Página de Manutenção](./specs/013-pagina-manutencao/) | ready | M | T-08 |
+| 016 | [Senador](./specs/016-senador/) | draft | M | T-09, T-10 |
+| 017 | [Deputado Federal](./specs/017-deputado-federal/) | draft | M | T-11, T-12 |
 
 Cada spec contém `spec.md` (requirements em EARS) e `design.md` (decisões técnicas). `tasks.md` será adicionado no início da implementação de cada uma.
 
@@ -57,7 +59,7 @@ docs/
 ├── PRD.md                             # snapshot v0.1 (read-only)
 ├── constitution.md                    # princípios não-negociáveis
 ├── product/                           # vision, personas, use-cases, metrics, roadmap
-├── specs/                             # 11 capabilities
+├── specs/                             # 15 specs (4 superseded/deferred, 11 ativas)
 ├── architecture/                      # overview, stack, data, APIs, ADRs
 ├── design-system/                     # tokens, grid, components, animations
 ├── mapas/                             # PMTiles, MapLibre, brushing, mobile
@@ -84,6 +86,6 @@ Antes de criar/editar specs, ler [_meta/conventions.md](./_meta/conventions.md):
 
 ## Status atual
 
-- **Documentação**: completa (60 RFs do PRD + 30 RFs adicionados nas specs mapeados; 26 ADRs — 25 accepted + 1 proposed; 34 RNFs; 13 specs).
-- **Código**: greenfield (não iniciado em 2026-05-17).
-- **Próximo passo**: F1 (Fundação) — ver [roadmap](./product/roadmap.md).
+- **Documentação**: atualizada S07 Fase 8 (60 RFs do PRD + 42 RFs adicionados nas specs mapeados = 102 RFs totais; 35 ADRs — 34 accepted + 1 proposed; 34 RNFs; 15 specs com 13 ativas).
+- **Código**: Implementação em progresso (S07 Fase 8: specs 001–006 + 016 shipped/implementing, specs 002/008-013 em draft/ready, specs 014-015/017 diferidas).
+- **Próximo passo**: Simulado TSE 1 (15–17/09) — ver [roadmap](./product/roadmap.md) e [sprint S07 ativa](./sprints/2026-S07-f6-simulado-hero-1t.md).

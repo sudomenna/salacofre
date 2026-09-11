@@ -3,7 +3,7 @@ title: Catálogo de Componentes
 description: Catálogo de componentes com referência cruzada a RFs, arquivo real e teste
 status: stable
 source: PRD.md § 14.3
-last_updated: 2026-09-05
+last_updated: 2026-09-11
 ---
 
 # Catálogo de Componentes
@@ -86,7 +86,7 @@ Notas dos atoms não construídos:
 | `<MunicipioTable />` | ✅ S07 | RF-005.4, RF-037 | `components/blocks/MunicipioTable.tsx` | `tests/unit/components/MunicipioTable.test.tsx`, `MunicipioTable.topByEleitorado.test.tsx` (modo novo em S07: ordenação capital-primeiro, eleitorado desc, subtítulo `"N eleitores · X% apurado"`) |
 | `<MunicipioExplorer />` | ✅ S07 | (painel de folha de município com figura "Eleitores", novo em S07 ADR-0035) | `components/blocks/MunicipioExplorer.tsx` | `tests/unit/components/MunicipioExplorer.test.tsx` |
 | `<MunicipioWaffleGrid />` | ✅ S06 | RF-005.2 | `components/blocks/MunicipioWaffleGrid.tsx` | `tests/unit/components/MunicipioWaffleGrid.test.tsx` |
-| `<ForecastTransparency />` | ✅ | RF-043 | `components/blocks/ForecastTransparency.tsx` | `tests/unit/components/ForecastTransparency.test.tsx` |
+| `<ForecastTransparency />` | ✅ S07+ | RF-043, RF-108, RF-128 | `components/blocks/ForecastTransparency.tsx` | `tests/unit/components/ForecastTransparency.test.tsx` (S07: refator para props `granularidade` + `cadenciaMinutos` permitir cadência variável por cargo — 60s Presidente, 300s Senador, 900s Deputado) |
 | `<InsightCard />` | ✅ | RF-044 | `components/blocks/InsightCard.tsx` | `tests/unit/components/InsightCard.test.tsx` |
 | `<ApuracaoMeta />` | ✅ | RF-026 | `components/blocks/ApuracaoMeta.tsx` | `tests/unit/components/ApuracaoMeta.test.tsx` |
 | `<NationalWinnerBanner />` | ✅ | RF-032 (variante nacional) | `components/blocks/NationalWinnerBanner.tsx` | `tests/unit/components/NationalWinnerBanner.test.tsx` |
@@ -98,9 +98,9 @@ Notas dos atoms não construídos:
 | `<HexCartogramBrasil />` | ✅ S06 | RF-006.3 | `components/blocks/HexCartogramBrasil.tsx` | `tests/unit/components/HexCartogramBrasil.test.tsx` |
 | `<RaceStatsCards />` | ✅ S06 | RF-006.1 | `components/blocks/RaceStatsCards.tsx` | `tests/unit/components/RaceStatsCards.test.tsx` |
 | `<BreakingNewsTicker />` | ✅ S06 | RF-006.4 | `components/blocks/BreakingNewsTicker.tsx` | `tests/unit/components/BreakingNewsTicker.test.tsx` |
-| `<ResultPanel />` | ✅ S07 | RF-022, RF-023, RF-030.5, RF-030.6, RF-030.8 | `components/blocks/ResultPanel.tsx` | `tests/unit/components/ResultPanel.test.tsx` |
+| `<ResultPanel />` | ✅ S07+ | RF-022, RF-023, RF-030.5, RF-030.6, RF-030.8, RF-105, RF-127 | `components/blocks/ResultPanel.tsx` | `tests/unit/components/ResultPanel.test.tsx` (S07: refator para duas vagas em Senador com marcação visual de ocupantes + margem 2º↔3º em Senador e `eleitos` em Deputado; a altura de linha e spacing para destacar a 2ª vaga no Senador está definida em tokens e no componente via `role="region"` com `aria-label="Ocupantes das vagas"`) |
 | `<CandidateListCollapse />` | ✅ S07 | RF-030.8 (colapso visual preservando DOM, ADR-0034 D21) | `components/blocks/CandidateListCollapse.tsx` | coberto por `ResultPanel.test.tsx` |
-| `<ChancesPanel />` | ✅ S07 | RF-030.7 (migrado de `TwoRoundIndicator`, ADR-0034 D21) | `components/blocks/ChancesPanel.tsx` | `tests/unit/components/ChancesPanel.test.tsx` |
+| `<ChancesPanel />` | ✅ S07+ | RF-030.7, RF-107 (migrado de `TwoRoundIndicator`, ADR-0034 D21) | `components/blocks/ChancesPanel.tsx` | `tests/unit/components/ChancesPanel.test.tsx` (S07: refator para exibir composição de vagas projetadas por partido/federação em Senador nível nacional (54 vagas) e para Deputado também exibir `eleitos` por agremiação) |
 | `<NationalMapBlock />` | ✅ S07 | RF-030.1-4 (refator layout, ADR-0033) | `components/blocks/NationalMapBlock.tsx` | — (não tem componente separado de teste; coberto pelo smoke de home) |
 | `<UFForecastTable />` | 🕐 planejada | RF-025 (deferido desde S05) | *previsto*: `components/blocks/UFForecastTable.tsx` | — |
 | `<MaintenancePageMessage />` | 🕐 planejada | RF-058 | *previsto*: `components/blocks/MaintenancePageMessage.tsx` | — |
@@ -243,6 +243,18 @@ Componentes shipped **sem teste dedicado** (para o `rf-coverage-checker`):
 `<UfMapsLazy />`, `<MapPlaceholder />`, `<SWRProvider />` e as três ilustrações
 inline de `/sobre-o-modelo`. `traceability.md:76-80` declara "unit (mock MapLibre)"
 para os mapas de UF — não existe tal arquivo de teste hoje.
+
+## Rotas novas em S07 (specs 016 e 017)
+
+| Rota | Tela | Cargo | Spec |
+|---|---|---|---|
+| `app/(sen)/senador/page.tsx` | T-09 | Senador nacional (agregado) | [016](../specs/016-senador/) |
+| `app/(sen)/uf/[sigla]/senador/page.tsx` | T-10 | Senador por UF | [016](../specs/016-senador/) |
+| `app/(dep)/deputado-federal/page.tsx` | T-11 | Deputado Federal nacional (agregado) | [017](../specs/017-deputado-federal/) |
+| `app/(dep)/uf/[sigla]/deputado-federal/page.tsx` | T-12 | Deputado Federal por UF | [017](../specs/017-deputado-federal/) |
+
+Pasta `lib/config/cargos.ts` define tabela canônica de cargos com slugs e metadados (granularidade, cadência, `temArquivoBr`, etc.).
+Pasta `lib/config/private-folders.ts` define roteamento de private folders `(sen)` e `(dep)`.
 
 ## Cross-refs
 
