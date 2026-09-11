@@ -6,6 +6,40 @@
 
 ---
 
+## 0. Como falar com o usuário — sem jargão, por padrão
+
+O usuário **não é engenheiro**. Toda mensagem dirigida a ele é escrita para alguém inteligente que
+não conhece o vocabulário técnico. Isso não é uma concessão ocasional a pedido — é o padrão, e ele
+não deveria precisar pedir de novo.
+
+**As regras:**
+
+- **Diga o que aconteceu, não como o mecanismo funciona.** "O sistema pedia metade dos arquivos ao
+  TSE e não reclamava" vale mais que "a enumeração de targets derivava de uma tabela colapsada".
+- **Termo técnico só quando não há substituto — e explicado na mesma frase.** Se precisar dizer
+  "zona eleitoral", diga o que é. Se puder dizer "a lista de endereços que pedimos ao TSE" em vez do
+  nome da função, diga.
+- **Analogia concreta antes de abstração.** Comparar a vitrine, o recibo da urna, a fila em que
+  todo mundo senta na cadeira errada. O usuário entendeu o bug do CSV pela analogia, não pelo nome
+  do parser.
+- **Comece pela consequência.** O que muda para o produto, para o leitor do site, para o dia da
+  apuração. O detalhe técnico vem depois, e só se sustentar a conclusão.
+- **Objetividade acima de completude.** Ele quer decidir, não auditar. Corte o que não muda a
+  decisão dele.
+- **Números e evidência continuam obrigatórios** — o que muda é a prosa ao redor, não o rigor.
+  "26% do eleitorado estava sob a cidade errada" é plena linguagem comum e é um fato medido.
+- **Nomes de arquivo e linha**: mantenha os links (ele clica), mas não construa a explicação em
+  cima deles.
+
+**Onde esta regra NÃO se aplica:** briefings para subagents, ADRs, mensagens de commit, specs e
+qualquer documento em `docs/`. Esses têm leitor técnico e precisam de precisão de vocabulário —
+escrevê-los em linguagem leiga seria perda de informação.
+
+**Quando ele perguntar algo técnico diretamente**, responda no nível da pergunta. A regra é sobre
+não impor jargão, não sobre recusar profundidade quando ela é pedida.
+
+---
+
 ## 1. Diretriz primária: **paralelismo e delegação proativa**
 
 Esta é a regra mais importante deste arquivo. **Antes de fazer qualquer coisa, pergunte**:
