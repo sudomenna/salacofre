@@ -57,11 +57,11 @@ closed: 2026-05-17
   - ADRs: 0002.
   - Estimado: 1.5h.
 
-- [x] **T02 — Tabela de targets (UF × cargo × zona)**
+- [x] **T02 — Tabela de targets (UF × cargo × par município-zona)**
   - Cria `lib/tse/targets.ts` com função `listIngestTargets(env: 'preview'|'production'): Target[]`.
-  - `Target = { uf: string; cargo: 1|3; codMunicipioTse: number; codZona: number; url: string; codEleicao: string }`.
+  - `Target = { uf: string; cargo: 1|3; codMunicipioTse: number; codZona: number; url: string; codEleicao: string }` — cada target é um **par** (município, zona), não uma zona isolada ([ADR-0035 D1](../../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md)).
   - Em preview: lê whitelist de env var `TSE_TARGETS_WHITELIST` (default: SP, cargo 1) — resolve OQ-4.
-  - Em production: deriva de `zonas` × `cargos` ativos no Neon.
+  - Em production: deriva de `zonas` (tabela de pares) × `cargos` ativos no Neon.
   - URL builder: `https://resultados.tse.jus.br/oficial/{codEleicao}/dados/{uf}/{uf}{codMun}/{uf}{codMun}-c{cargo}-z{zona}-e{codEleicao}.json` (formato confirmado no design).
   - Cobre: **RF-001** (descoberta de endpoints).
   - Despacho: `tse-parser-builder` (conhece formato URL TSE).

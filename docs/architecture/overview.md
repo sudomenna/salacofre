@@ -14,13 +14,14 @@ source: PRD.md §§ 9.1, 9.2, 9.3
 │                        TSE — CDN Pública                          │
 │           resultados.tse.jus.br/oficial/...                       │
 └────────────────────────┬─────────────────────────────────────────┘
-                         │ ETag-aware GET a cada 15s
+                         │ ETag-aware GET (par: município, zona) a cada 60s
                          ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                     INGESTÃO (Vercel)                             │
 │ ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐    │
 │ │ Vercel Cron  │→ │ /api/ingest  │→ │ /api/model/project.py│    │
-│ │   */15 sec   │  │ Node 24      │  │ Python 3.14 + NumPy  │    │
+│ │    60s       │  │ /api/ingest/ │  │ + zona_merge.py      │    │
+│ │ (2 rotas)    │  │ [cargo] Node │  │ Python 3.14 + NumPy  │    │
 │ └──────────────┘  │ Fluid Compute│  │ Fluid Compute        │    │
 │                   └──────┬───────┘  └──────────┬───────────┘    │
 └──────────────────────────┼─────────────────────┼──────────────────┘
@@ -79,13 +80,15 @@ source: PRD.md §§ 9.1, 9.2, 9.3
 
 ## Fluxo de dados — Write path (ingest)
 
-1. **Vercel Cron** dispara `/api/ingest` a cada 15s (janela 17h–04h).
-2. Endpoint lê `comum/config/ele-c.json` (cacheado em memória da função por 60s).
-3. Para cada `(UF × cargo × zona)`, faz GET com `If-None-Match` para `resultados.tse.jus.br/.../EA20.json`.
-4. Se 200, persiste novo snapshot em Postgres (`snapshots`) e em Blob (raw archive).
+1. **Vercel Cron** dispara `/api/ingest` (todos os cargos) ou `/api/ingest/[cargo]` (Presidente/Governador isolados) a cada 60s (janela 17h–04h).
+2. Endpoint monta a lista de alvos a partir da tabela `zonas` (`listIngestTargets`, `lib/tse/targets.ts`) e do `TSE_COD_ELEICAO` do ambiente. **Não lê nenhum arquivo de configuração do TSE em runtime**: o `ele-c.json` só é consultado por `scripts/tse-watch.ts` (vigia, fora do ciclo) e o EA12 (`mun-e<n>-cm.json`) por `data-pipeline/zonas-import.ts` (script offline que popula `zonas`).
+3. Para cada par `(UF, município, zona, cargo)`, faz GET com `If-None-Match` para `resultados.tse.jus.br/.../EA20.json` — ~6.109 arquivos por cargo.
+4. Se 200 e o hash mudou, persiste novo snapshot em Postgres (`snapshots`, agora com `cod_municipio_tse`) — `insertSnapshot` é append-only e **só escreve em Postgres**; o Blob é escrito depois, pelo modelo, com o detalhe municipal (ADR-0032).
 5. Aciona `/api/model/project` (Python).
-6. Python recalcula projeção, persiste em Postgres (`projections`) e **escreve em Edge Config**.
-7. Edge Config propaga em ~5–10s globalmente.
+6. Python lê snapshots **por par** e executa `api/model/zona_merge.py` — soma os pares de volta em zona **em memória**, sem persistir (§ 1: o dado cru do TSE fica intocado). `check_zona_merge_sanity` confere, na mesma passagem, se o eleitorado somado dos pares bate com o da zona, e grita se a razão indicar multiplicação. O estimador continua operando **por zona** (ADR-0021/0023, inalterados).
+7. Python recalcula projeção, persiste em Postgres e **escreve em Edge Config**.
+8. Edge Config propaga em ~5–10s globalmente.
+9. Totais municipais são soma exata dos pares, sem rateio — `fetch_municipio_aggregates` lê do snapshot (novo `cod_municipio_tse`) em vez de re-derivar da zona.
 
 ## Fluxo de dados — Read path (cliente)
 

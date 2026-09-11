@@ -30,7 +30,8 @@ source: PRD.md § 10
 | ORM | Drizzle | latest | Type-safe, mais leve que Prisma |
 | Estado quente | Vercel Edge Config | latest | Replicado nos PoPs, <15ms; limite 512KB total (ADR-0001, emendado ADR-0026) |
 | Storage objeto | Vercel Blob | latest | PMTiles, raw archives; ⚠️ **S07 planejado**: drill-down de UF de Deputado Federal (`deputado:uf:<sigla>.json`, exceção ao ADR-0001) |
-| Cron | Vercel Cron | latest | Trigger do ingest; ⚠️ **S07 planejado**: 3 crons desacoplados (Pres/Gov 60s, Senador 5min, Deputado 15min) |
+| Cron | Vercel Cron | latest | Trigger do ingest em **duas rotas**: `/api/ingest` (todos os cargos, manual) e `/api/ingest/[cargo]` (Pres/Gov isolados, cron produção, 60s); futura expansão (S08): Senador 5min, Deputado 15min (ADR-0035 D3) |
+| Rate limit TSE | Python + Node.js | — | `TSE_MAX_RPS_DEFAULT` = **40 rps** (teto 50 rps por processo; pior caso 2×40=80 rps < 100 rps documentado; ADR-0035 D3 emendado) |
 | Config | `vercel.ts` (`@vercel/config`) | latest | TS-typed, dynamic |
 | MDX | `@next/mdx` | latest | Página `/sobre-o-modelo` |
 | Validação | Zod | latest | Schema do TSE, payloads de API |
@@ -84,6 +85,14 @@ A stack inclui a biblioteca pesada **MapLibre GL** (~200KB gzipped). Para respei
 - **Framer Motion** foi removida em S07 Bloco 0 (zero imports reais). Animações agora usam CSS puro com transições Tailwind.
 - **D3** foi removida em S07 Bloco 0 (zero imports reais). Charts continuam como SVG customizado.
 - **PMTiles client** acompanha MapLibre no chunk lazy.
+
+## Notas sobre ingestão e modelo
+
+**Unidade de ingestão**: par `(UF, município, zona)` em vez de zona sozinha (ADR-0035 D1). O TSE **declara 6.083** arquivos EA20 de zona por cargo (`tse_docs/txt/apresentacao-interessados-2026.txt:195-200`); nossa lista de alvos tem **6.109**, porque 6.084 vêm do CSV de eleitorado 2024 e **25 vêm do histórico de 2022** (19 do DF, que não aparece num CSV de pleito municipal, mais 5 do PI e 1 de SP). Esses 25 são inferência, não publicação confirmada do TSE: se algum par não existir em 2026, vira 404 — tolerado pelo pipeline, mas 404 conta no orçamento de requisições do TSE. O EA12 (`--ea12` em `zonas-import.ts`) elimina a inferência assim que existir, porque aí a lista vem do próprio TSE. `maxDuration` dos handlers `/api/ingest` e `/api/ingest/[cargo]` é **300 segundos** para acomodar o fan-out maior (~6.100 GETs por cargo a 40 rps ≈ 153 s).
+
+**Agregação**: `api/model/zona_merge.py` soma pares de volta em zona **em memória**, antes de alimentar o estimador (ADR-0035 D2). O modelo continua operando por zona (ADR-0021/0023 intactos). Totais municipais são suma exata dos pares, sem rateio.
+
+**Concorrência de cargo**: o lock anti-overlap de `/api/ingest` agora é **por cargo** — Presidente e Governador podem ingerir simultaneamente em processes isolados (Fluid Compute), cada um com seu próprio rate limiter singleton (40 rps default; teto 50). Pior caso agregado: 2×40=80 rps < 100 rps (teto TSE).
 
 ## Notas sobre dependências transitivas
 

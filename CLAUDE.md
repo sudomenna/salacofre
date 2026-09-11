@@ -346,19 +346,43 @@ Quando despacha um subagent que vai fazer várias coisas, o subagent tem seu pr�
 
 ## 12. Comandos úteis
 
-Greenfield em 2026-05-17 — `package.json` ainda não existe. Padronizar em F1:
+**Toda invocação que toca o banco exige `set -a; . ./.env.local; set +a` antes.**
 
 ```bash
-pnpm install
-pnpm dev                    # next dev :3000
+pnpm dev                       # next dev :3000
 pnpm build
-pnpm typecheck              # tsc --noEmit
-pnpm lint                   # biome check
-pnpm test                   # vitest
-pnpm test:e2e               # playwright
-pnpm replay-2022            # OT-4 gate (MAE@1h <2pp)
-pnpm load-test              # k6 contra preview
-ANALYZE=true pnpm build     # bundle analyzer (RNF-007a/b/c)
+pnpm typecheck                 # tsc --noEmit
+pnpm lint                      # biome check .
+pnpm test                      # vitest
+pnpm test:py                   # pytest — SÓ dentro de .venv-model/bin/python3.14
+pnpm test:e2e                  # playwright
+ANALYZE=true pnpm build        # bundle analyzer (RNF-007a/b/c)
+```
+
+Modelo e gate OT-4:
+
+```bash
+pnpm replay-2022 --dataset tests/fixtures/replay-2022/snapshots.json \
+                 --ground-truth tests/fixtures/replay-2022/ground-truth.json
+# ↑ exige os dois argumentos. Referência estável: MAE@1h PT 2,3623pp / cobertura 82,5%.
+#   Se mudar sem que o modelo tenha mudado, procure leitura de `eleitorado` sem SUM/GROUP BY.
+pnpm replay-2022:sensitivity   # faixa do ADR-0033 D3 (atraso 0..3); REGENERA o fixture do banco
+```
+
+TSE e ingestão:
+
+```bash
+pnpm tse:watch --once          # config do TSE mudou? exit 0 = não, 2 = sim
+pnpm list-targets --env production --cargo 1   # esperado ~6.109 (um por par município×zona)
+pnpm tse:mock --pares <csv>    # CDN falso que só responde a pares conhecidos
+```
+
+Banco — migrations são **manuais e numeradas**, nunca `drizzle-kit push`:
+
+```bash
+pnpm db:migrate:0006           # migration + eleitorado-import + zonas-import, nessa ordem
+pnpm db:push:DANGEROUS         # NÃO USE. Renomeado porque o push regride o banco
+pnpm edge-config:smoke         # grava/lê/apaga no Global Config — exige EDGE_CONFIG_TOKEN
 ```
 
 Validação de docs (sem deps):

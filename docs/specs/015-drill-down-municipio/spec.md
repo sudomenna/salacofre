@@ -36,7 +36,7 @@ Motivos pra diferimento:
 **In**:
 - Rota `app/uf/[sigla]/municipio/[cod_ibge]/page.tsx` (RSC + payload Edge dedicado).
 - API `GET /api/projection?municipio=<cod_ibge>` retornando `EdgePayloadMunicipio`.
-- Schema novo `EdgePayloadMunicipio` em `lib/edge-config/types.ts`.
+- Schema novo `EdgePayloadMunicipio` em `lib/edge-config/types.ts` — já ganhou campos novos em [ADR-0035 D2](../../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md): `eleitores?: number` (soma do eleitorado dos pares) e `capital?: boolean` (27 capitais marcadas estaticamente no banco). Ambos opcionais e no array `municipios` do Blob Edge Config.
 - Função Python `aggregate_by_zona(municipio_cod)` em `api/model/project.py`.
 - Componentes novos: `<MunicipioHero />`, `<ZonasBarChart />` (Print 2 "96 zonas ordenadas por margem"), `<BairrosComparativo />` (capitais — depende mapeamento bairro↔zona).
 - Painel `<DemographicBreakdown />` se spec 014 já estiver shipped.
@@ -49,9 +49,9 @@ Motivos pra diferimento:
 
 ## Requisitos Funcionais (placeholder — EARS a refinar pós-D1)
 
-**RF-075 — Drill-down município**
+**RF-075 — Drill-down município com soma exata de pares**
 
-WHEN o usuário acessa `/uf/<sigla>/municipio/<cod_ibge>`, the system SHALL renderizar payload `EdgePayloadMunicipio` com top-5 candidatos + delta vs 2022.
+WHEN o usuário acessa `/uf/<sigla>/municipio/<cod_ibge>`, the system SHALL renderizar página com projeção municipal agregada como **soma exata dos pares** (município, zona) que o TSE publica — não estimativa ou rateio ([ADR-0035 D2](../../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md)) — com top-5 candidatos + delta vs 2022. Antes de [ADR-0035](../../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md), **3.392 de 5.572 municípios brasileiros** eram estruturalmente invisíveis no mapa porque nenhum par de raiz (município, zona) correspondente era requisitado; com a mudança, todos os municípios que o TSE publica em seu EA20 ganham cobertura.
 
 **RF-076 — Bar chart de zonas**
 

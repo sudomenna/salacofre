@@ -23,7 +23,7 @@ source: PRD.md §§ 6.4, 18
 | TLS | Padrão Vercel (TLS 1.3 + HSTS) |
 | Headers | CSP, X-Frame-Options DENY, X-Content-Type-Options nosniff |
 | Secrets | Vercel Env Vars, escopo `production` |
-| Ingest auth | Header `x-cron-secret` + IP allowlist Vercel Cron |
+| Ingest auth | Header `x-cron-secret` (manual) **ou** `Authorization: Bearer <CRON_SECRET>` (Vercel Cron) + IP allowlist Vercel Cron ([ADR-0035 D3](../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md)) |
 | Rate limit `/api/projection` | 60 req/min por IP via Edge Middleware (cookie bucket) |
 | Bot detection | Vercel BotID em `/api/*` |
 | LGPD | Nenhum dado pessoal; analytics agregadas e anonimizadas |

@@ -29,20 +29,25 @@ source: PRD.md § 17
 
 ---
 
-## `POST /api/ingest`
+## `GET /api/ingest` e `POST /api/ingest`
 
-- **Auth**: header `x-cron-secret: ${CRON_SECRET}` + Vercel Cron-only (IP allowlist)
+**Dispara ciclo de ingestão para todos os cargos ativos** (uso manual, preview, runbook).
+
+- **Auth**: header `Authorization: Bearer ${CRON_SECRET}` (Vercel Cron padrão) **ou** `x-cron-secret: ${CRON_SECRET}` (runbook manual)
 - **Rate limit**: N/A
+- **maxDuration**: 300s (Fluid Compute)
+- **Alvos**: ~6.109 arquivos por cargo = pares `(UF, município, zona)` (ADR-0035 D1)
 
 ### Response 200
 
 ```json
 {
   "ok": true,
-  "files_fetched": 234,
-  "files_changed": 17,
-  "duration_ms": 4521,
-  "lag_ms": 8200
+  "files_fetched": 6109,
+  "files_changed": 47,
+  "duration_ms": 153000,
+  "lag_ms": 8200,
+  "cargos": ["presidente", "governador", "senador", "deputado_federal", "deputado_estadual"]
 }
 ```
 
@@ -53,9 +58,42 @@ source: PRD.md § 17
 
 ---
 
+## `GET /api/ingest/[cargo]` e `POST /api/ingest/[cargo]`
+
+**Dispara ciclo de ingestão para um cargo isolado** (cron de produção: Presidente e Governador em rotas separadas).
+
+- **Auth**: header `Authorization: Bearer ${CRON_SECRET}` (Vercel Cron) **ou** `x-cron-secret: ${CRON_SECRET}` (runbook manual)
+- **Path param**: `[cargo]` = `presidente` | `governador` | `senador` | `deputado_federal` | `deputado_estadual` (ou código numérico `1`, `3`, etc.)
+- **Rate limit**: N/A
+- **maxDuration**: 300s (Fluid Compute)
+- **Alvos**: ~6.109 arquivos para o cargo especificado
+- **Lock anti-overlap**: por cargo, janela 6 min (≥ maxDuration; ADR-0035 D3)
+
+### Response 200
+
+```json
+{
+  "ok": true,
+  "cargo": "presidente",
+  "files_fetched": 6109,
+  "files_changed": 17,
+  "duration_ms": 153000,
+  "lag_ms": 8200
+}
+```
+
+### Erros
+
+- `401` — secret ausente ou inválido
+- `503` — TSE indisponível após retries
+- `409` — ciclo anterior do mesmo cargo ainda em voo (lock overlap)
+
+---
+
 ## `POST /api/model/project` (Python)
 
 - **Auth**: chamada interna apenas (mesma origem, secret compartilhado)
+- **Operação**: lê snapshots por par `(uf, cod_municipio_tse, cod_zona)`, executa `api/model/zona_merge.py` (soma pares → zona em memória, sem persistência), alimenta estimador por zona (ADR-0021/0023 intactos), calcula projeção, escreve Edge Config
 
 ### Request body
 

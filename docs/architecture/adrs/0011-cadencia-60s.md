@@ -11,6 +11,13 @@ date: 2026-05-17
 
 Aceito.
 
+**Nota 2026-09-11 ([ADR-0035](0035-par-municipio-zona-unidade-de-ingestao.md) D3).** O cadenciamento em 60s conforme este ADR permanece válido; contudo, a implementação mudou:
+- Duas rotas agora: `/api/ingest` (todos os cargos, manual/preview) e `/api/ingest/[cargo]` (Pres/Gov isolados via cron de produção).
+- `maxDuration` subiu de 180s para **300s** (fan-out por par: ~6.109 arquivos por cargo; ~153s a 40 rps).
+- `TSE_MAX_RPS_DEFAULT` subiu de 30 para **40 rps** (com dois cargos concorrentes, pior caso agregado 80 rps, 20% abaixo do teto do TSE de 100 rps).
+- Lock anti-overlap agora é **por cargo** (janela 6 min ≥ maxDuration), permitindo Presidente e Governador em paralelo.
+- Ambas as rotas aceitam `Authorization: Bearer <CRON_SECRET>` (Vercel Cron padrão) ou `x-cron-secret` (runbook manual).
+
 ## Contexto
 
 O design original de `spec 001-ingestao-tse` previa cadência de **15s** para buscar novos arquivos no CDN do TSE durante a janela de apuração (17h–04h BRT do Dia D). Com o ambiente de produção definido em cima do **Vercel Pro**, o mínimo granular do Vercel Cron é **1 disparo por minuto**. Para atingir 15s, o handler teria de implementar um self-loop interno: um único disparo do cron executando 4 iterações sequenciais com `setTimeout` espaçadas 15s.

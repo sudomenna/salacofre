@@ -7,7 +7,7 @@ personas: []
 screens: []
 requirements: [RF-001, RF-002, RF-003, RF-004, RF-005, RF-006, RF-007, RF-008, RF-009, RF-010, RF-010.1, RF-010.2, RF-010.3, RF-010.4, RF-010.5, RF-010.6]
 depends_on: []
-apis: [POST /api/ingest]
+apis: [GET /api/ingest, POST /api/ingest, GET /api/ingest/[cargo], POST /api/ingest/[cargo]]
 components: []
 nfr: [RNF-006, RNF-009, RNF-011, RNF-012, RNF-016, RNF-031, RNF-032, RNF-033, RNF-034]
 adrs: [0001, 0002, 0008, 0011, 0012, 0020, 0035]
@@ -23,7 +23,7 @@ Consumir o feed público de resultados do TSE (formato EA20) com cadência adequ
 
 **In**:
 - Polling agendado durante a janela de apuração.
-- Ingestão de arquivos EA20 na granularidade configurada (`TSE_GRANULARIDADE`): agregados de UF/Brasil por cargo (default) ou zona × cargo × UF.
+- Ingestão de arquivos EA20 por **par (UF, município, zona) × cargo** — o default de `TSE_GRANULARIDADE` é `zona`, que desde [ADR-0035](../../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md) D1 significa um alvo por par, ~6.109 por cargo. O modo `uf` (agregados de UF/Brasil, ~55 alvos) segue disponível como opt-in de diagnóstico, mas **está quebrado no modelo** (a zona-sentinela 0 não tem peso em `eleitorado`).
 - Persistência de snapshots em Postgres (append-only), com o payload EA20 cru em JSONB. *(O dual-write para Vercel Blob previsto originalmente ficou em backlog — decisão D-3 em [tasks.md](./tasks.md).)*
 - Carga inicial de referências históricas (2018, 2022) e mapeamento geográfico.
 - Conformidade operacional com a **Res. TSE nº 23.751/2026, arts. 264–269** — sem cadastro
@@ -154,17 +154,21 @@ WHERE uma superfície pública exibe número derivado (projeção, intervalo de 
 - Given qualquer rota pública renderizada, when o HTML é inspecionado, then contém "Não oficial" e a atribuição de fonte ao TSE (constituição § 1; `components/layout/Footer.tsx`).
 - Given um bloco de projeção, when renderizado, then o valor projetado é rotulado como projeção, com o percentual **apurado** exibido em marcação visual distinta do projetado.
 
-**RF-010.3 — Rate limiter de saída obrigatório, com teto abaixo do limite do TSE**
+**RF-010.3 — Rate limiter de saída obrigatório, com restrições por invocação e agregadas**
 
-WHILE o pipeline emite requisições ao CDN do TSE, the system SHALL passar **cada tentativa** (inclusive retries) por um rate limiter de saída (token bucket, `lib/tse/rate-limiter.ts`), cuja taxa efetiva (`TSE_MAX_RPS`) SHALL ser **≤ 50 req/s** — teto de segurança bem abaixo do limite documentado do TSE de **100 req/s por IP**, cuja violação gera **bloqueio de 10 minutos, renovado** a cada nova violação durante o bloqueio.
+WHILE o pipeline emite requisições ao CDN do TSE, the system SHALL passar **cada tentativa** (inclusive retries) por um rate limiter de saída (token bucket, `lib/tse/rate-limiter.ts`). The system SHALL enforce **duas restrições de taxa simultâneas**, ambas bem abaixo do limite documentado do TSE de **100 req/s por IP** (cuja violação gera **bloqueio de 10 minutos, renovado** a cada nova violação durante o bloqueio):
+
+1. **Por invocação**: cada processo de ingestão (`/api/ingest/[cargo]` ou `/api/ingest` fan-out) SHALL manter `TSE_MAX_RPS` **≤ 40 req/s** (default) **e** **≤ 50 req/s** (ceiling supervisionado em simulado).
+2. **Agregada**: com dois cargos potencialmente em paralelo (Presidente + Governador, cada um em processo Fluid Compute isolado com seu próprio rate limiter singleton), o pior caso de **duas invocações simultâneas no mesmo IP** SHALL somar **≤ 80 req/s** (2 × 40) — **ainda bem abaixo do teto de 100 rps/IP do TSE** (constituição § 1, margem de segurança para retries e operações de monitoramento no mesmo IP) ([ADR-0035 D3](../../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md)).
 
 **Aceitação**:
-- Given `TSE_MAX_RPS` ausente, when o limiter é criado, then a taxa efetiva é 30 req/s.
-- Given `TSE_MAX_RPS` acima do teto de segurança, when o limiter é criado, then a taxa é clampada ao teto e nunca ultrapassa 50 req/s.
+- Given `TSE_MAX_RPS` ausente, when o limiter é criado, then a taxa efetiva por invocação é **40 req/s**.
+- Given `TSE_MAX_RPS` acima do teto de segurança de 50 req/s, when o limiter é criado, then a taxa é clampada a 50 req/s e nunca ultrapassa esse ceiling (modo supervisionado).
+- Given duas invocações de cargos diferentes no mesmo IP do TSE, when ambas emitem requisições em paralelo, then o agregado observado ≤ 80 req/s (cada uma limitada a 40 rps).
 - Given uma resposta 429 ou 503, when o cliente trata o erro, then a requisição é **retryável** e o `Retry-After` indicado é honrado (`max(backoff, retryAfterMs)`), em vez de derrubar o ciclo ou repetir imediatamente.
 - Given um ciclo completo, when os contadores são lidos, then `rateLimited` (429 observados) e `waitedMs` são reportados em `ingest_log` e disparam alerta quando `rateLimited > 0`.
 
-**Resolvido (2026-09-05)**: `lib/tse/rate-limiter.ts` clampava em 80 req/s (`TSE_MAX_RPS_CEILING`), acima do teto exigido aqui. O teto desceu para **50** e `tests/unit/tse/rate-limiter.test.ts` passou a asserir 50. Default segue 30.
+**Histórico**: em 2026-09-05 o ceiling era 80 req/s, acima do teto exigido aqui, e desceu para **50** com o default em 30. Em 2026-09-11 o cron passou a ser por cargo — duas invocações no mesmo IP — e o default subiu para 50, o que punha o agregado em exatamente 100. A auditoria constitucional do mesmo dia recusou esse valor (§ 1 exige teto "bem abaixo") e o default recuou para **40**, agregado 80. `lib/tse/rate-limiter.ts:171` e `tests/unit/tse/rate-limiter.test.ts` refletem isso.
 
 **RF-010.4 — Requisição condicional ciente de que 304 consome cota**
 

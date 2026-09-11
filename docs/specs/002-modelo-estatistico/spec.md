@@ -10,8 +10,8 @@ depends_on: [001-ingestao-tse]
 apis: [POST /api/model/project]
 components: []
 nfr: [RNF-006]
-adrs: [0006, 0007, 0012, 0014, 0018, 0020, 0021, 0023]
-ship_blocked_on: [simulado-tse-2026]
+adrs: [0006, 0007, 0012, 0014, 0018, 0020, 0021, 0023, 0035]
+ship_blocked_on: [simulado-tse-2026, gate-ot4-reprovando]
 ---
 
 # Spec 002 — Modelo estatístico
@@ -23,7 +23,7 @@ Transformar snapshots de apuração em **projeção do resultado final** com int
 ## Escopo
 
 **In**:
-- **Extrapolação do apurado por zona** — fator de escala `k(z) = te(z)/esi(z)` e votos projetados `V_c(z) = vap_c(z)·k(z)` ([ADR-0021](../../architecture/adrs/0021-extrapolacao-do-apurado-sem-2022.md)).
+- **Extrapolação do apurado por zona** — fator de escala `k(z) = te(z)/esi(z)` e votos projetados `V_c(z) = vap_c(z)·k(z)` ([ADR-0021](../../architecture/adrs/0021-extrapolacao-do-apurado-sem-2022.md)). **Nota**: a partir de [ADR-0035 D2](../../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md), a ingestão TSE recebe dados por **par** (município, zona) via `fetch_snapshots`; o módulo `api/model/zona_merge.py` soma os pares de volta em zona, **em memória**, antes do estimador (operação determinística, mantém o contrato zona-a-zona intacto — o gate OT-4 medido **idêntico** antes/depois). O método do estimador não muda.
 - Agregação por **razão de somas** — zona → UF → nacional, nas duas bases (`votáveis` e `comparecimento`).
 - Bootstrap não-paramétrico (1000 resamples) para CI95, com **um único sorteio de zonas por UF** compartilhado entre todos os candidatos e as duas bases.
 - Probabilidade de vitória P(>50%).
@@ -224,11 +224,12 @@ Fonte canônica da convenção: [`data-model.md` § "Escala de percentuais"](../
 
 ## Estado dos bloqueadores de ship
 
-`ship_blocked_on:` é mantido integralmente — a spec segue em `implementing`. Estado auditado em 2026-09-05 (Fase 3 da S07):
+`ship_blocked_on:` é mantido — a spec segue em `implementing`. Estado auditado em 2026-09-11:
 
 | Bloqueador | Estado | Evidência |
 |---|---|---|
-| `simulado-tse-2026` | **Aberto** | Simulados oficiais em 15–17/09 e 22–24/09/2026; nenhum ciclo executado até aqui. O gate OT-4 anterior (MAE@1h 0,998pp) era **tautológico** — o fixture de replay era construído a partir do próprio resultado de 2022, o que zerava o swing e fazia a projeção colapsar no gabarito (`docs/reference/risks.md:27`). Com o ADR-0021 o gate fica **suspenso** até o fixture ser regerado com apuração progressiva e ordem enviesada; espera-se MAE **maior** que 0,998pp — o gate ficando honesto, não regressão. |
+| `simulado-tse-2026` | **Aberto** | Simulados oficiais em 15–17/09 e 22–24/09/2026; nenhum ciclo executado contra o TSE real até aqui. O fixture de replay **já foi regerado** (Fase 5 da S07, 06–07/09): deixou de ser tautológico e o MAE subiu de 0,998pp para ~2,36pp, como se esperava. O que falta é dado real. |
+| `gate-ot4-reprovando` | **Aberto** | No ponto oficial (atraso regional de 3 timesteps): MAE@1h PT **2,3623pp** contra teto de 2, cobertura IC95 **82,5%** contra piso de 90%. A faixa medida passa em 0 e 1 timestep e reprova em 2 e 3 — ver `design.md` § Gate e [`docs/testing/replay-sensitivity.md`](../../testing/replay-sensitivity.md). **Calibrar com dado de 2022 não é caminho**: os timestamps zona a zona não existem em fonte pública (verificado 08/09), e o [ADR-0033](../../architecture/adrs/0033-navegacao-moldura-persistente-paineis-home-calibracao-ot4.md) D3 substituiu a calibração pelo reporte da faixa. O que pode estreitá-la é medir o atraso regional real de 2026 no simulado. |
 | `fix-p_vitoria-a-by-pct` | **Resolvido em S05, não removido aqui** | "A" passou a ser o líder por `pct_projetado`, não o menor `candidato_id`. Falta apenas a confirmação formal do gate para retirar o item — decisão do orquestrador, não desta passagem de docs. |
 | `fix-pct_validos-null-in-historical_results` | **Dissolvido pelo ADR-0021** | A projeção não consulta mais 2022, e a comparação descritiva pode usar `historical_results.votos` (`INT NOT NULL`) diretamente. O campo nulo deixou de bloquear qualquer caminho de cálculo. |
 | `sobre-o-modelo-page` | **Resolvido em S04, não removido aqui** | [Spec 011](../011-sobre-o-modelo/spec.md) está `shipped`. |

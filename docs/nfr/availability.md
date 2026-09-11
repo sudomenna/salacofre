@@ -18,7 +18,7 @@ source: PRD.md § 6.2
 
 - Edge Config replicado em todos os PoPs — falha de uma região não derruba.
 - Último payload conhecido persistido em Edge Config — banner amarelo "Reconectando" se TSE cair.
-- Retry com backoff exponencial em `/api/ingest` (3 tentativas).
+- Retry com backoff exponencial em `/api/ingest` e `/api/ingest/[cargo]` (3 tentativas cada) — dois endpoints em paralelo possível (Presidente + Governador em Fluid Compute isolado, cada um com seu próprio rate limiter e lock anti-overlap por cargo) ([ADR-0035 D3](../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md)).
 - Página de manutenção (`/manutencao`) como último recurso ([spec 013](../specs/013-pagina-manutencao/spec.md)).
 
 ## Cross-refs

@@ -17,6 +17,8 @@ Endpoint Python (`/api/model/project`) rodando em Vercel Fluid Compute (Python 3
 
 Módulo **irmão** de `turnout.py` (semânticas diferentes: aqui é razão de somas de contagens escaladas, lá é média ponderada de taxas). Não importa `historical_results`, não conhece `pct_validos` de 2022, não faz swing ([ADR-0021](../../architecture/adrs/0021-extrapolacao-do-apurado-sem-2022.md)).
 
+**Pré-processamento (zona_merge)**: O endpoint Python recebe snapshots já agregados de **par** (município, zona) por `api/model/zona_merge.py` (módulo novo em [ADR-0035 D2](../../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md)). Esse módulo soma os pares de volta em zona, em memória, antes de passar ao estimador — operação determinística que preserva o contrato zona-a-zona. O método do estimador (extrapolação + bootstrap) **não muda**. A mudança de unidade de ingestão (zona → par → zona novamente) foi medida e validada: o gate OT-4 rodado contra o mesmo fixture commitado antes e depois da mudança retornou **MAE@1h idêntico ao dígito** (PT 2,3623pp / cobertura IC95 82,5%).
+
 ```python
 def estimate_uf_candidatos(
     zonas: list[ZonaCandidatos],
@@ -101,7 +103,43 @@ Script `scripts/replay-2022.ts`:
 
 Critério de aceite: MAE em t=1h < 2pp (OT-4) **+** cobertura do IC95 em t=1h ≥ 90%.
 
-> **Gate suspenso (2026-09-05).** O fixture atual (`scripts/build-replay-fixtures.ts`) é construído a partir do próprio resultado de 2022 e grava `pct_apurado: 100` por zona — cada zona apura inteira num instante, então **não há nada a extrapolar** e a projeção colapsa no gabarito. O MAE de 0,998pp reportado em S03 mede essa tautologia, não o modelo. O gate volta a valer depois que o fixture for regerado com envelope EA20 sintético, ordem de apuração enviesada e apuração progressiva intra-zona (`f ∈ {0,25; 0,5; 0,75; 1}`) — e espera-se um MAE **maior**, que é o gate ficando honesto.
+> **Gate e faixa de sensibilidade (atualizado 2026-09-11).**
+>
+> O fixture de replay **deixou de ser tautológico** na Fase 5 da S07 (06–07/09). Antes ele gravava
+> `pct_apurado: 100` por zona — cada zona apurava inteira num instante, não havia nada a extrapolar
+> e a projeção colapsava no gabarito; era isso que os 0,998pp de S03 mediam. Hoje cada zona apura em
+> frações (`INTRA_ZONA_FRACOES`, `scripts/build-replay-fixtures.ts:152`) e o gate voltou a exercitar
+> o modelo de verdade — o MAE subir de 0,998 para ~2,36pp é o gate ficando honesto, não o modelo
+> piorando.
+>
+> **O parâmetro de sensibilidade é `REGIONAL_DELAY`** (`build-replay-fixtures.ts:150`, parametrizável
+> por `REPLAY_REGIONAL_DELAY`): quantos **timesteps** — não horas — as zonas de Norte e Nordeste
+> relatam depois do resto do país (`regionDelay(uf)`, `:158`). Não é um corte global de tempo; é um
+> viés **regional** de ordem de chegada, que é exatamente o que o replay foi reescrito para expor.
+>
+> Faixa medida com `pnpm replay-2022:sensitivity` ([ADR-0033](../../architecture/adrs/0033-navegacao-moldura-persistente-paineis-home-calibracao-ot4.md) D3,
+> implementado em 11/09; tabela viva em [`docs/testing/replay-sensitivity.md`](../../testing/replay-sensitivity.md)):
+>
+> | atraso regional | MAE@1h PT | cobertura IC95@1h | veredito |
+> |---|---|---|---|
+> | 0 timesteps | 1,3420pp | 93,3% | ✅ |
+> | 1 timestep | 1,5979pp | 90,2% | ✅ |
+> | 2 timesteps | 1,9510pp | 87,5% | ❌ |
+> | **3 timesteps (ponto oficial)** | **2,3623pp** | **82,5%** | ❌ |
+>
+> **O gate continua reprovando no ponto oficial, e a spec continua `implementing`.** O que mudou é
+> *como o gate é reportado* — faixa em vez de veredito único —, não o limiar (< 2pp e ≥ 90%, RNF-006)
+> nem qual ponto é o oficial.
+>
+> **Não há calibração possível com dado de 2022**: os timestamps de apuração zona a zona não existem
+> em nenhuma fonte pública verificável (verificado em 08/09 — a URL de zona documentada no PRD devolve
+> 404 e o config do TSE só lista `ele2024`). Os simulados de 15–17/09 e 22–24/09 permitem medir o
+> atraso regional **de 2026**, o que é evidência medida e pode estreitar a faixa — mas mede outra
+> coisa, não substitui a calibração perdida. O protocolo de coleta precisa cobrir as cinco regiões,
+> não só SP ([`docs/testing/tse-simulados.md`](../../testing/tse-simulados.md)).
+>
+> **`zona_merge` não afeta este gate**: medido antes e depois contra o fixture commitado, MAE@1h PT
+> 2,3623pp / cobertura 82,5% — dígitos idênticos (ADR-0035 D2).
 
 ## Contratos
 
