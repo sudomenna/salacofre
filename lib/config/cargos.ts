@@ -86,6 +86,36 @@ export interface CargoInfo {
    * é escotilha de diagnóstico, não configuração de produção.
    */
   readonly granularidade: "uf" | "zona";
+  /**
+   * Teto de requisições por segundo **deste cargo**, quando `TSE_MAX_RPS` não
+   * está definida no ambiente (constituição § 1).
+   *
+   * Por que é por cargo, e não um número só: os quatro crons podem disparar no
+   * MESMO minuto — as cadências de 5 e 15 minutos coincidem com a de 1 minuto
+   * de Presidente e Governador nos minutos 0, 15, 30 e 45. Cada invocação tem
+   * seu próprio bucket (o rate limiter é singleton **de processo**, e o Fluid
+   * Compute isola instâncias), então o que o TSE vê no IP é a **soma**.
+   *
+   * Medido em 2026-09-11, com todos em 40: pico de **160 rps** com quatro
+   * simultâneos e **120** com três — acima do teto documentado de 100, que
+   * bloqueia o IP por 10 minutos. O default de 40 tinha sido calibrado para
+   * DOIS cargos (2 x 40 = 80) e não sobreviveu à entrada de Senador e Deputado.
+   *
+   * Calibragem atual — pior caso agregado **80 rps**, 20% abaixo do teto:
+   *
+   *   | cargo      | alvos | rps | duração do ciclo |
+   *   |------------|-------|-----|------------------|
+   *   | Presidente | 6.110 |  35 | ~175 s           |
+   *   | Governador | 6.110 |  35 | ~175 s           |
+   *   | Senador    |    27 |   5 | ~5 s             |
+   *   | Deputado   |    27 |   5 | ~5 s             |
+   *
+   * Os cargos de granularidade UF pedem 27 arquivos: 5 rps os entrega em 5
+   * segundos, e gastar 40 rps neles seria comprar 0,7 s de latência ao preço de
+   * metade da margem de segurança do dia D. Os ~175 s dos pesados continuam
+   * dentro do `maxDuration` de 300 s.
+   */
+  readonly rpsMax: number;
 }
 
 /**
@@ -103,6 +133,7 @@ export const CARGOS: readonly CargoInfo[] = [
     temArquivoBr: true,
     proporcional: false,
     granularidade: "zona",
+    rpsMax: 35,
   },
   {
     cd: 3,
@@ -114,6 +145,7 @@ export const CARGOS: readonly CargoInfo[] = [
     temArquivoBr: false,
     proporcional: false,
     granularidade: "zona",
+    rpsMax: 35,
   },
   {
     cd: 5,
@@ -125,6 +157,7 @@ export const CARGOS: readonly CargoInfo[] = [
     temArquivoBr: false,
     proporcional: false,
     granularidade: "uf",
+    rpsMax: 5,
   },
   {
     cd: 6,
@@ -136,6 +169,7 @@ export const CARGOS: readonly CargoInfo[] = [
     temArquivoBr: false,
     proporcional: true,
     granularidade: "uf",
+    rpsMax: 5,
   },
 ] as const;
 
@@ -186,4 +220,32 @@ export function parseCargoSegment(raw: string): CargoTse | null {
   if (porSlug) return porSlug.cd;
   const n = Number(s);
   return Number.isInteger(n) && isCargoTse(n) ? n : null;
+}
+
+/**
+ * Pior caso agregado de requisições por segundo contra o IP do TSE: todos os
+ * cargos cobertos disparando ao mesmo tempo.
+ *
+ * Não é hipótese — os crons de `vercel.ts` coincidem nos minutos 0, 15, 30 e
+ * 45, porque as cadências de 5 e 15 minutos caem sobre a de 1 minuto dos
+ * majoritários. O teto documentado do TSE é 100 rps por IP, com bloqueio de
+ * 10 minutos, e a constituição § 1 exige margem **bem abaixo** disso, não
+ * "exatamente no limite".
+ */
+export function piorCasoAgregadoRps(): number {
+  return CARGOS.reduce((acc, c) => acc + c.rpsMax, 0);
+}
+
+/**
+ * Teto de rps de um ciclo que cobre VÁRIOS cargos no mesmo processo.
+ *
+ * O ciclo genérico (`/api/ingest`, sem segmento) percorre os cargos
+ * sequencialmente dentro de uma invocação, com **um** bucket. Sua contribuição
+ * ao IP é a de um processo só, então ele pode usar o maior teto entre os cargos
+ * que cobre — não a soma, e não o menor (que arrastaria o fan-out pesado a
+ * 1.222 s, muito além do `maxDuration`).
+ */
+export function rpsMaxParaCargos(cargos: readonly CargoTse[]): number {
+  if (cargos.length === 0) return Math.min(...CARGOS.map((c) => c.rpsMax));
+  return Math.max(...cargos.map((c) => cargoInfo(c).rpsMax));
 }

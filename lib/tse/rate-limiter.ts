@@ -18,13 +18,16 @@
  *   - `createTokenBucket` é a implementação pura, testável com relógio e
  *     sleep injetados (sem `setTimeout` real nos testes).
  *   - `getTseRateLimiter()` é o singleton usado em produção, lendo
- *     `TSE_MAX_RPS` do ambiente (default 40, clamp 1..50 — nunca deixamos
- *     configurar acima do limite documentado do TSE por engano).
+ *     `TSE_MAX_RPS` do ambiente quando definida; senão o `rpsMax` do cargo
+ *     (`lib/config/cargos.ts`: 35 para Presidente/Governador, 5 para
+ *     Senador/Deputado). Clamp 1..50 — nunca deixamos configurar acima do
+ *     limite documentado do TSE por engano.
  *   - Chamadas concorrentes a `acquire()` são serializadas via uma cadeia de
  *     Promises (`chain`), garantindo que a N-ésima chamada simultânea espere
  *     o tempo cumulativo correto em vez de todas computarem a mesma espera
  *     "ingênua" a partir do estado atual do bucket.
  */
+import { type CargoTse, cargoInfo } from "@/lib/config/cargos";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -168,27 +171,50 @@ export function createTokenBucket(opts: TokenBucketOptions): TokenBucket {
  * sequencialmente (nunca duas invocações reais em paralelo no mesmo IP). */
 const TSE_MAX_RPS_CEILING = 50;
 const TSE_MAX_RPS_FLOOR = 1;
-const TSE_MAX_RPS_DEFAULT = 40;
+/** Default quando o caller não informa cargo — o teto dos cargos leves, que é
+ * o valor seguro sem saber quem mais está no ar. Ver `getTseRateLimiter`. */
+const TSE_MAX_RPS_DEFAULT = 5;
 
 let singleton: TokenBucket | null = null;
 
 /**
- * getTseRateLimiter — bucket único do processo para todas as chamadas ao
- * CDN TSE (fetchEA20, e futuramente tse-watch.ts / acompanhamento.ts).
+ * getTseRateLimiter — bucket do processo para as chamadas ao CDN do TSE.
  *
- * Lê `TSE_MAX_RPS` do ambiente uma única vez, na primeira chamada — chamadas
- * subsequentes reutilizam a mesma instância (e portanto o mesmo estado de
- * tokens) até `resetTseRateLimiter()` ser chamado explicitamente.
+ * `cargo` define o teto **padrão** (`lib/config/cargos.ts`, campo `rpsMax`):
+ * 35 rps para Presidente e Governador (6.110 alvos cada), 5 rps para Senador e
+ * Deputado Federal (27 alvos cada). `TSE_MAX_RPS` no ambiente sobrepõe para
+ * todos — é a escotilha de janela supervisionada.
+ *
+ * ## Por que o teto é por cargo (2026-09-11)
+ *
+ * Até hoje o default era **40 para todos**, calibrado quando existiam DOIS
+ * cargos: pior caso 2 x 40 = 80 rps, 20% abaixo do teto documentado de 100.
+ * Com a entrada de Senador e Deputado (ADR-0026), os quatro crons de
+ * `vercel.ts` passam a coincidir nos minutos 0, 15, 30 e 45 — as cadências de
+ * 5 e 15 minutos caem sobre a de 1 minuto dos majoritários — e o pior caso
+ * medido virou **160 rps**, acima do teto, que bloqueia o IP por 10 minutos.
+ * A constituição § 1 exige "bem abaixo".
+ *
+ * Cada invocação tem seu próprio bucket (singleton **de processo**; o Fluid
+ * Compute isola instâncias), então o que o TSE vê no IP é a soma. Dar 5 rps
+ * aos cargos de granularidade UF entrega os 27 arquivos em 5 s em vez de
+ * 0,7 s — custo desprezível ao lado de metade da margem de segurança do dia D.
+ *
+ * A pendência do limitador **coordenado** entre invocações (contador
+ * compartilhado) continua aberta: buckets independentes garantem a média, não
+ * o pico instantâneo. Decidir depois do simulado 1, com `rateLimited` medido.
  */
-export function getTseRateLimiter(): TokenBucket {
+export function getTseRateLimiter(cargo?: CargoTse): TokenBucket {
   if (singleton) return singleton;
 
-  // Ausente/vazio/não-numérico → cai no default (40) ANTES do clamp. Um
+  // Ausente/vazio/não-numérico → cai no default do cargo ANTES do clamp. Um
   // valor numérico explícito — mesmo 0 ou negativo — é clampado em vez de
   // ignorado: "TSE_MAX_RPS=0" é uma configuração inválida, não uma ausência
-  // de configuração, então o resultado é o floor (1), não o default (40).
+  // de configuração, então o resultado é o floor (1), não o default.
   const raw = process.env.TSE_MAX_RPS;
-  let ratePerSec = TSE_MAX_RPS_DEFAULT;
+  // Sem cargo (tse-watch, diagnóstico, chamadas avulsas) fica no teto dos
+  // cargos leves: é o valor seguro quando não se sabe quem mais está no ar.
+  let ratePerSec = cargo !== undefined ? cargoInfo(cargo).rpsMax : TSE_MAX_RPS_DEFAULT;
   if (raw !== undefined && raw.trim() !== "") {
     const parsed = Number(raw.trim());
     if (Number.isFinite(parsed)) {

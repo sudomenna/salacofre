@@ -38,7 +38,7 @@
 
 import type { NextRequest } from "next/server";
 import { after, NextResponse } from "next/server";
-import type { CargoTse } from "@/lib/config/cargos";
+import { type CargoTse, cargoInfo, rpsMaxParaCargos } from "@/lib/config/cargos";
 import type { AcompanhamentoPrevious } from "@/lib/tse/acompanhamento";
 import { detectChangedUfs } from "@/lib/tse/acompanhamento";
 import { notifySlack } from "@/lib/tse/alerts";
@@ -465,7 +465,17 @@ export async function runIngestCycle(
   // um singleton do processo (Fluid Compute reutiliza instâncias), então
   // reportamos o DELTA deste ciclo, não o total acumulado desde o boot.
   resetClientStats();
-  const waitedMsBefore = getTseRateLimiter().stats.waitedMs;
+  // Fixa a taxa do bucket ANTES do primeiro fetch: `getTseRateLimiter` é
+  // singleton de processo e congela o valor na primeira chamada, então quem
+  // chama primeiro decide. Num ciclo por cargo a taxa é a daquele cargo
+  // (`lib/config/cargos.ts`, `rpsMax`); no ciclo genérico, a maior entre os
+  // cargos cobertos — ele os percorre sequencialmente com um bucket só.
+  const cargosDoBucket = cargoDoCiclo !== undefined ? [cargoDoCiclo] : getActiveCargos();
+  const rpsDoCiclo = rpsMaxParaCargos(cargosDoBucket);
+  const limiter = getTseRateLimiter(
+    cargoDoCiclo ?? cargosDoBucket.find((c) => cargoInfo(c).rpsMax === rpsDoCiclo),
+  );
+  const waitedMsBefore = limiter.stats.waitedMs;
 
   // --------------------------------------------------------------------------
   // 4. Resolve targets — filtrados por cargo quando `opts.cargo` está setado.
@@ -794,7 +804,7 @@ export async function runIngestCycle(
   // waitedMs do rate limiter — ver comentário no passo 3b sobre por que é
   // um delta e não o total acumulado do processo.
   const clientStatsSnapshot = getClientStats();
-  const waitedMs = getTseRateLimiter().stats.waitedMs - waitedMsBefore;
+  const waitedMs = limiter.stats.waitedMs - waitedMsBefore;
 
   try {
     await logIngestRun({

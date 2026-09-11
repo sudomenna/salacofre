@@ -11,6 +11,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CARGOS, piorCasoAgregadoRps } from "@/lib/config/cargos";
 import { createTokenBucket, getTseRateLimiter, resetTseRateLimiter } from "@/lib/tse/rate-limiter";
 
 // ---------------------------------------------------------------------------
@@ -105,29 +106,30 @@ describe("getTseRateLimiter", () => {
     vi.unstubAllEnvs();
   });
 
-  // Default 40, não 50: com o cron por cargo (ADR-0035 D3) duas invocações
-  // podem correr no mesmo IP com buckets independentes. 2 × 50 daria
-  // exatamente os 100 rps do teto do TSE, e a constituição § 1 exige teto
-  // "bem abaixo" do limite documentado — 2 × 40 = 80 devolve a margem.
-  it("usa default 40 rps quando TSE_MAX_RPS está ausente (§ 1: margem agregada)", () => {
+  // Chamada SEM cargo (tse-watch, diagnóstico, código avulso) cai no teto dos
+  // cargos leves — 5 rps. É o valor seguro quando não se sabe quem mais está
+  // no ar: o caller sem cargo não pode reservar 35 rps do orçamento do IP.
+  // Era 40 até 2026-09-11, quando o teto virou por cargo (ADR-0026).
+  it("sem cargo, usa o teto conservador quando TSE_MAX_RPS está ausente (§ 1)", () => {
     vi.stubEnv("TSE_MAX_RPS", "");
     const bucket = getTseRateLimiter();
 
-    // Burst default = ratePerSec; 40 tryAcquire() consecutivos devem passar,
-    // o 41º deve falhar (relógio real não anda entre chamadas síncronas).
+    // Burst default = ratePerSec; N tryAcquire() consecutivos devem passar,
+    // o N+1º deve falhar (relógio real não anda entre chamadas síncronas).
+    const conservador = Math.min(...CARGOS.map((c) => c.rpsMax));
     let succeeded = 0;
-    for (let i = 0; i < 41; i++) {
+    for (let i = 0; i < conservador + 1; i++) {
       if (bucket.tryAcquire()) succeeded++;
     }
-    expect(succeeded).toBe(40);
+    expect(succeeded).toBe(conservador);
   });
 
   // -------------------------------------------------------------------------
   // RF-010.3 item 2 — restrição AGREGADA (ADR-0035 D3, emenda de 11/09)
   //
-  // Desde o cron por cargo, Presidente e Governador podem ingerir ao mesmo
-  // tempo, cada um num processo Fluid Compute isolado com seu PRÓPRIO bucket.
-  // Os dois não se coordenam, então o teto que importa perante o TSE é a SOMA.
+  // Desde o cron por cargo, os QUATRO cargos podem ingerir ao mesmo tempo, cada
+  // um num processo Fluid Compute isolado com seu PRÓPRIO bucket. Eles não se
+  // coordenam, então o teto que importa perante o TSE é a SOMA.
   //
   // Por que isto é aritmética e não simulação: cada bucket já é testado
   // individualmente acima (nunca emite acima da taxa configurada). Com essa
@@ -136,25 +138,57 @@ describe("getTseRateLimiter", () => {
   // porque o `sleep` de um avançaria o relógio do outro e o resultado sairia
   // artificialmente baixo. O que protege de verdade é travar o NÚMERO.
   //
-  // O modo de falha real que este teste pega: alguém sobe o default de 40 para
-  // 45 achando seguro porque 45 < 50 (o ceiling), sem notar que 2 × 45 = 90,
-  // acima dos 80 que a spec exige e perigosamente perto dos 100 do TSE.
+  // O modo de falha real que este teste pega: alguém acrescenta um cargo à
+  // tabela, ou sobe o `rpsMax` de um existente, olhando só para o ceiling de 50
+  // — sem notar que o que o TSE mede é a soma dos quatro. Foi exatamente assim
+  // que o pico chegou a 160 rps em 2026-09-11, ao dar 40 aos cargos novos.
   // -------------------------------------------------------------------------
-  it("2 cargos em paralelo no default não passam de 80 rps agregados (RF-010.3 item 2)", () => {
-    vi.stubEnv("TSE_MAX_RPS", "");
-    const bucket = getTseRateLimiter();
-
-    let taxaDefault = 0;
-    for (let i = 0; i < 101; i++) {
-      if (bucket.tryAcquire()) taxaDefault++;
-    }
-
-    const CARGOS_SIMULTANEOS = 2; // Presidente + Governador (vercel.ts)
+  it("os QUATRO cargos em paralelo não passam de 80 rps agregados (RF-010.3 item 2)", () => {
+    // Reescrito em 2026-09-11. A versão anterior travava `2 × default = 80` com
+    // um default único de 40 — correto enquanto existiam DOIS cargos. Com
+    // Senador e Deputado (ADR-0026), os quatro crons de `vercel.ts` coincidem
+    // nos minutos 0, 15, 30 e 45, e 4 × 40 daria **160 rps**: acima do teto
+    // documentado de 100, que bloqueia o IP por 10 minutos. O teste passava
+    // porque media dois cargos num mundo de quatro.
+    //
+    // A aritmética é sobre as taxas CONFIGURADAS, não sobre dois buckets
+    // simulados: num relógio virtual compartilhado o `sleep` de um processo
+    // avança o tempo do outro e a taxa medida sai artificialmente baixa — seria
+    // um teste que sempre passa. Cada bucket já é testado individualmente; o
+    // que protege aqui é travar o número.
     const TETO_AGREGADO_RPS = 80; // RF-010.3 item 2
     const TETO_TSE_RPS = 100; // limite documentado, nunca alcançar
 
-    expect(taxaDefault * CARGOS_SIMULTANEOS).toBeLessThanOrEqual(TETO_AGREGADO_RPS);
-    expect(taxaDefault * CARGOS_SIMULTANEOS).toBeLessThan(TETO_TSE_RPS);
+    expect(piorCasoAgregadoRps()).toBeLessThanOrEqual(TETO_AGREGADO_RPS);
+    expect(piorCasoAgregadoRps()).toBeLessThan(TETO_TSE_RPS);
+  });
+
+  it("cada cargo usa o teto da tabela canônica quando TSE_MAX_RPS está ausente", () => {
+    for (const info of CARGOS) {
+      resetTseRateLimiter();
+      vi.stubEnv("TSE_MAX_RPS", "");
+      const bucket = getTseRateLimiter(info.cd);
+
+      let taxa = 0;
+      for (let i = 0; i < 101; i++) {
+        if (bucket.tryAcquire()) taxa++;
+      }
+      expect(taxa, `cargo ${info.cd} (${info.label})`).toBe(info.rpsMax);
+    }
+  });
+
+  it("o ciclo pesado cabe no maxDuration com o teto do seu cargo", () => {
+    // 6.110 alvos por cargo em granularidade zona (medido em 2026-09-11).
+    // `maxDuration` das rotas de ingestão é 300 s (ADR-0035 D3).
+    const ALVOS_ZONA = 6110;
+    const MAX_DURATION_S = 300;
+
+    for (const info of CARGOS.filter((c) => c.granularidade === "zona")) {
+      const duracao = ALVOS_ZONA / info.rpsMax;
+      expect(duracao, `cargo ${info.cd} levaria ${duracao.toFixed(0)}s`).toBeLessThan(
+        MAX_DURATION_S,
+      );
+    }
   });
 
   // O ceiling existe para janela SUPERVISIONADA (simulado, com alguém lendo
@@ -171,6 +205,10 @@ describe("getTseRateLimiter", () => {
     }
 
     expect(ceiling).toBe(50);
+    // O ceiling é escotilha de janela SUPERVISIONADA e vale para UM processo.
+    // Com quatro cargos, subir todos ao ceiling daria 200 rps — por isso a
+    // escotilha só é aceitável com alguém lendo `rateLimited` ao vivo, e o
+    // teste trava o que importa: um processo sozinho não encosta nos 100.
     expect(ceiling * 2).toBeLessThanOrEqual(100);
   });
 
