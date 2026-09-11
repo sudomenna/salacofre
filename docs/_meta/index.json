@@ -213,6 +213,14 @@
       "path": "docs/architecture/adrs/0026-cargos-senador-deputado-ingestao-e-read-path.md"
     },
     {
+      "id": "0027",
+      "title": "Conversão de votos em cadeiras para Deputado Federal — quociente eleitoral truncado (não round()), sobras em duas fases via médias (80/20 depois abertas), art. 111 substituído pelo art. 12-A pós-ADIs 7228/7263/7325",
+      "status": "accepted",
+      "date": "2026-09-11",
+      "note": "fecha a lacuna reservada pelo ADR-0026 (:37, :75); corrige citação do ADR-0026, que atribuía o art. 111 à Lei 9.504 — o dispositivo é do Código Eleitoral (Lei 4.737/1965); art. 111 declarado inconstitucional pelo STF (ADIs 7228/7263/7325), substituído pelo art. 12-A da Res.-TSE 23.677/2021 (redações 23.734/2024 e 23.748/2026); lugaresAPreencher lido do dado do TSE, nunca hardcoded; nota de emenda sugerida ao ADR-0026, não aplicada por este ADR",
+      "path": "docs/architecture/adrs/0027-conversao-votos-em-cadeiras-deputado-federal.md"
+    },
+    {
       "id": "0028",
       "title": "Corrida explícita por rota, não corrida ativa única — currentRace() passa a resolver só o turno presidencial",
       "status": "accepted",

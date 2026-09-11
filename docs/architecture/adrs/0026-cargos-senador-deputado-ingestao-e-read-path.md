@@ -20,6 +20,25 @@ Aceito. Este ADR **emenda o ADR-0001** (não o supersede): Postgres continua for
 
 > **Nota 2026-09-08 — Emenda ([ADR-0032](0032-detalhe-municipal-vercel-blob.md))**: dois pontos deste ADR ficaram desatualizados. (1) O "limite duro de 512 KB" do Edge Config citado abaixo é **1 MB por store inteiro** — a Vercel documenta 1 MB, não 512 KB, e renomeou o produto para "Global Config". (2) O Vercel Blob deixa de ser exclusivo do drill-down de Deputado Federal: o ADR-0032 reaproveita o mesmo mecanismo e o mesmo esquema de nomeação (`<recurso>:uf:<sigla>[:<cargo>:t<turno>].json`, pathname fixo, `allowOverwrite: true`) para o detalhe municipal e as séries temporais por UF de Presidente/Governador (`EdgePayloadUf.municipios` / `.series_temporais`), pelo mesmo motivo de volume que motivou a decisão original para Deputado. A decisão de granularidade UF/crons próprios para Senador e Deputado, abaixo, permanece integralmente vigente e não é afetada.
 
+> **Nota 2026-09-11 — duas correções ([ADR-0027](0027-conversao-votos-em-cadeiras-deputado-federal.md), implementação da Fase 8 da S07).**
+>
+> **(1) Citação legal errada.** O item 3 da Decisão abaixo remete "art. 111 da Lei 9.504" para o
+> método de cadeiras. Os artigos do quociente eleitoral, do quociente partidário, da cláusula dos
+> 10% e das sobras estão no **Código Eleitoral (Lei 4.737/1965), arts. 106–112** — não na Lei
+> 9.504/1997, que tem 107 artigos e cujos finais tratam de instruções do TSE, vigência e
+> revogações. Conferido no texto compilado do Planalto em 2026-09-11. E o **art. 111 do Código
+> Eleitoral foi declarado inconstitucional** pelo STF (ADIs 7228/7263/7325, mérito em 28/02/2024):
+> implementá-lo ao pé da letra — eleger "os mais votados" quando nenhum partido atinge o quociente
+> — produziria resultado errado. O substituto é o art. 12-A da Res.-TSE 23.677/2021. Ver ADR-0027.
+>
+> **(2) Mecanismo de cron.** O item 1 prevê que cada cron dispare `/api/ingest` com override de
+> cargos **por query string** (`?cargos=5`, `?cargos=6`). Query string em `path` de cron **não é
+> suportada pela Vercel** — achado (B) do [ADR-0035](0035-par-municipio-zona-unidade-de-ingestao.md)
+> D3, que também mostrou que o caminho documentado é distinguir crons por **segmento de rota**.
+> Implementado em 2026-09-11 como `/api/ingest/senador` e `/api/ingest/deputado-federal`
+> (`app/api/ingest/[cargo]/route.ts`, slugs em `lib/config/cargos.ts`). A decisão de granularidade
+> UF e crons próprios, com as cadências de 5 e 15 min, permanece integralmente vigente.
+
 ## Contexto
 
 O SalaCofre hoje cobre Presidente (cargo TSE 1) e Governador (cargo TSE 3), ambos ingeridos por um único cron de 60s (`vercel.ts:87-91`, ADR-0011) que dispara `/api/ingest`. `lib/tse/targets.ts:57` tipa `cargo: 1 | 3` e `getActiveCargos()` (`targets.ts:335-362`) lê a lista de cargos ativos de `TSE_CARGOS`; `lib/db/schema.ts` tipa `cargo` como `smallint` genérico (aceita qualquer valor sem migration). O usuário decidiu estender a cobertura a Senador (cargo 5) e Deputado Federal (cargo 6) até o 1º turno (04/10/2026) — ambos se decidem em turno único, sem 2º turno — com uma restrição operacional explícita: Deputado Federal pode atualizar a cada 15 minutos (ingestão mais pesada, menos urgência editorial que um cargo majoritário).

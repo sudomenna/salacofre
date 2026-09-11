@@ -5,7 +5,7 @@ status: draft
 priority: M
 personas: [P1, P2, P3]
 screens: [T-11, T-12]
-requirements: [RF-120, RF-121, RF-122, RF-123, RF-124, RF-125, RF-126, RF-127, RF-128, RF-129, RF-130]
+requirements: [RF-120, RF-121, RF-122, RF-123, RF-124, RF-125, RF-125.1, RF-126, RF-127, RF-128, RF-129, RF-130]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 016-senador]
 apis: [GET /api/ingest/deputado-federal, POST /api/ingest/deputado-federal, GET /api/projection?cargo=deputado-federal]
 components: [ResultPanel, ChancesPanel, CargoTabs, RaceHeader, ForecastTransparency]
@@ -139,6 +139,21 @@ WHEN o sistema converte votos em cadeiras, the system SHALL executar, nesta orde
 - Given nenhum partido atinge o QE, when o sistema distribui, then aplica o
   algoritmo de médias a **todas** as cadeiras (Res. art. 12-A) e **não** elege os
   mais votados — o art. 111 do Código Eleitoral foi declarado inconstitucional.
+
+**RF-125.1 — Cadeiras exibidas ≠ vagas obtidas para o denominador**
+
+WHEN o sistema exibe a contagem de cadeiras de uma agremiação, the system SHALL usar o número de
+candidatos **efetivamente eleitos**, e NUNCA a variável de bookkeeping que alimenta o denominador
+da média — que conta o quociente partidário inteiro, ainda que não preenchido (Res.-TSE 23.677
+art. 11 § 5º, ADI 5.420).
+
+**Aceitação**:
+- Given uma UF, when a apuração termina, then `Σ cadeiras_exibidas` sobre todas as agremiações é
+  **exatamente** `lugares_a_preencher`.
+- Given um partido com quociente para 3 cadeiras e apenas 2 candidatos acima de 10% do QE, when a
+  tela renderiza, then ele aparece com **2** cadeiras, não 3.
+- Rationale: com a variável errada, uma UF de 10 vagas exibiria 11 — a vaga não ocupada vai para as
+  sobras, possivelmente para outro partido, e seria contada duas vezes.
 
 **RF-126 — Testes golden contra 2022**
 
