@@ -452,13 +452,33 @@ vale para 2030). [ADR-0026](../architecture/adrs/0026-cargos-senador-deputado-in
 (`accepted`) fixa ingestão e read path. Prioridade: **P2 Senador, P3 Deputado** — abaixo do
 pipeline (P0) e do redesign (P1).
 
-- [ ] Resolver "corrida ativa única" (`lib/config/calendar.ts`) — pré-requisito de qualquer código
-- [ ] Estender `/api/ingest` para aceitar override de cargos por query string
-- [ ] **Spec 016 — Senador**: cargo 5, cron de 5 min, granularidade UF, **2 vagas por UF**,
-      `p_eleito` para top-2, rotas `/senador` e `/uf/[sigla]/senador`
-- [ ] **Spec 017 — Deputado Federal**: cargo 6, cron de **15 min**, granularidade UF, `v.vl` e
-      hierarquia federação/agremiação, módulo de cadeiras com **testes golden de 2022**, read path
-      em Vercel Blob, rotas `/deputado-federal` e `/uf/[sigla]/deputado-federal`
+- [x] **Resolver "corrida ativa única"** (ADR-0028, `accepted` desde 07/09 e nunca implementado) —
+      11/09, commit `9ee5871`. `currentRace` → `currentPresidentialRace`, `currentTurno` →
+      `currentPresidentialTurno`, `currentCargo` **removida**; `reader.ts` deixa de derivar o cargo
+      do calendário (era o default silencioso que entregaria payload presidencial a uma rota de
+      Senador); as 4 chamadas presidenciais passam cargo/turno explícitos.
+- [x] **`lib/config/cargos.ts`** — tabela canônica de cargos (código TSE, token de chave, slug de
+      rota, vagas por UF, 2º turno, arquivo `br-`, proporcional, granularidade). O conhecimento
+      estava em 4 lugares independentes, todos `1 | 3`, sem nada forçando sincronia. 12 testes.
+- [x] **Granularidade por cargo** (ADR-0026 item 1) — 1/3 em zona (6.110 alvos cada), 5/6 em UF
+      (27 cada). Medido. `listIngestTargets` monta cargo a cargo em vez de escolher modo global.
+- [x] **Crons de Senador (5 min) e Deputado (15 min)** em `vercel.ts`, nas duas janelas.
+      ⚠️ **Emenda ao ADR-0026 item 1**: o mecanismo é **segmento de rota**, não `?cargos=5` —
+      query string em `path` de cron não existe na Vercel (achado B do ADR-0035 D3).
+- [x] ~~Estender `/api/ingest` para aceitar override de cargos por query string~~ — substituído
+      pelo item acima. `filterCargos` passa a tratar **o segmento de rota como autorização**:
+      exigir que o cargo também estivesse em `TSE_CARGOS` faria o cron de Senador rodar e não
+      ingerir nada, em silêncio.
+- [x] **Spec 016 — Senador** escrita (`docs/specs/016-senador/spec.md`, `draft`): RF-100 a RF-108.
+      Ingestão implementada e medida; falta modelo, payload e as 2 telas.
+- [x] **Spec 017 — Deputado Federal** escrita (`docs/specs/017-deputado-federal/spec.md`, `draft`):
+      RF-120 a RF-130, com a degradação pré-acordada transcrita e 3 open questions.
+- [ ] **ADR-0027** — método de conversão de votos em cadeiras. Citado como dependência pelo
+      ADR-0026 desde 07/09 e **nunca escrito** (a numeração pulava de 0026 para 0028).
+      ⚠️ Correção verificada no Planalto em 11/09: os artigos estão no **Código Eleitoral**, não na
+      Lei 9.504 como o ADR-0026 cita; e o **art. 111 foi declarado inconstitucional** (STF, ADI
+      7228) — implementá-lo ao pé da letra daria resultado errado.
+- [ ] **Modelo e telas** da 016 e da 017
 - [ ] **Gate G2** (24/09): 4 gates + `model-validator` para a 016
 
 > **Degradação pré-acordada da 017** (decidida em 07/09, não re-discutir): se em 19/09 o módulo

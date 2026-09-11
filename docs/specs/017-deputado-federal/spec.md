@@ -1,0 +1,232 @@
+---
+id: 017-deputado-federal
+title: Deputado Federal — corrida proporcional com projeção de cadeiras
+status: draft
+priority: M
+personas: [P1, P2, P3]
+screens: [T-11, T-12]
+requirements: [RF-120, RF-121, RF-122, RF-123, RF-124, RF-125, RF-126, RF-127, RF-128, RF-129, RF-130]
+depends_on: [001-ingestao-tse, 002-modelo-estatistico, 016-senador]
+apis: [GET /api/ingest/deputado-federal, POST /api/ingest/deputado-federal, GET /api/projection?cargo=deputado-federal]
+components: [ResultPanel, ChancesPanel, CargoTabs, RaceHeader, ForecastTransparency]
+nfr: [RNF-001, RNF-002, RNF-003, RNF-006, RNF-007a, RNF-022, RNF-023, RNF-024]
+adrs: [0001, 0012, 0020, 0021, 0026, 0027, 0028, 0032, 0034, 0035]
+ship_blocked_on: [modulo-cadeiras-golden-2022, tabela-cadeiras-por-uf]
+opens_after: 2026-09-11
+---
+
+# Spec 017 — Deputado Federal
+
+**Rotas**: `/deputado-federal` (nacional) e `/uf/[sigla]/deputado-federal`
+**Cargo TSE**: 6 · **Turno único** · **Proporcional** — 513 cadeiras, 8 a 70 por UF
+
+## Status
+
+`draft`. Escrita em 2026-09-11. É a spec mais arriscada do produto: a conversão
+de votos em cadeiras é um algoritmo jurídico de três fases, com um artigo do
+Código Eleitoral **declarado inconstitucional** e substituído por resolução do
+TSE. O método está fixado no [ADR-0027](../../architecture/adrs/0027-conversao-votos-em-cadeiras-deputado-federal.md).
+
+## Objetivo
+
+Mostrar, ao vivo, como a bancada da Câmara está se formando — por partido e
+federação —, com a honestidade de dizer quando ainda não dá para dizer. Cadeira
+projetada é a informação que o leitor quer e a mais fácil de errar: numa eleição
+proporcional, **um partido pode ganhar votos e perder cadeira**, e a última vaga
+de um estado costuma se decidir por algumas centenas de votos.
+
+## Escopo
+
+### Dentro
+
+- Ingestão do cargo 6 em granularidade **UF** (27 arquivos por ciclo), cron de
+  **15 minutos** — já implementado em 2026-09-11.
+- Leitura da hierarquia proporcional do EA20: `carg[] → (fed[] | agr[].par[]) → cand[]`
+  e os **votos de legenda** `v.vl` (`lib/tse/ea20-schema.ts:269`), que existem
+  neste cargo e não nos majoritários.
+- Projeção de votos por agremiação pela regra de três do ADR-0021, em nível de UF.
+- **Módulo de cadeiras** implementando o ADR-0027, com testes golden contra 2022.
+- Read path híbrido: resumo nacional no Global Config; drill-down por UF no
+  **Vercel Blob** ([ADR-0026](../../architecture/adrs/0026-cargos-senador-deputado-ingestao-e-read-path.md) item 4,
+  `deputadoUfBlobPathname` em `lib/blob/paths.ts:168-171`, hoje sem caller).
+
+### Fora
+
+- **Deputado Estadual e Distrital** (cargos 7/8). Fora do escopo do produto.
+- **Projeção zona a zona.** Mesma razão da spec 016.
+- **Suplência nominal.** O ADR-0027 descreve a regra (Código Eleitoral art. 112),
+  mas exibir lista de suplentes não entra nesta janela.
+
+## Requisitos Funcionais
+
+### Ingestão e dado
+
+**RF-120 — Ingestão do cargo 6 a cada 15 minutos**
+
+WHILE estamos na janela de apuração, the system SHALL acionar
+`/api/ingest/deputado-federal` a cada 15 minutos, produzindo 27 alvos de nível UF.
+
+**Aceitação**:
+- Given o cron dispara, when `listIngestTargets(production, {cargo: 6})` roda,
+  then devolve 27 alvos `nivel: "uf"`.
+
+**RF-121 — Votos de legenda preservados**
+
+WHEN o parser lê um envelope de cargo 6, the system SHALL persistir `v.vl` (votos
+de legenda) e somá-lo aos votos nominais ao compor os **votos válidos da
+agremiação**, conforme ADR-0027.
+
+**Aceitação**:
+- Given `v.vl = 1000` e Σ nominais = 9000, when os votos da agremiação são
+  computados, then o total é **10.000**.
+- Given brancos e nulos presentes no envelope, when os votos válidos são
+  computados, then eles **não** entram (Lei 9.504 art. 5º; Res.-TSE 23.677 art. 9º p.ú.).
+
+**RF-122 — Federação conta como uma agremiação**
+
+WHEN o sistema agrega votos para o cálculo de cadeiras, the system SHALL tratar
+cada federação como **uma única** agremiação, somando os partidos que a compõem,
+e NÃO como partidos separados.
+
+**Aceitação**:
+- Given uma federação de 3 partidos, when o quociente partidário é calculado,
+  then há **um** quociente para a federação, não três.
+- Given a tela renderizada, when exibe a bancada, then a federação aparece com
+  identidade própria, com os partidos componentes legíveis (constituição § 2 —
+  cor por federação sem sugerir fusão).
+
+### Cadeiras
+
+**RF-123 — Quociente eleitoral com o arredondamento da lei**
+
+WHEN o sistema calcula o quociente eleitoral de uma UF, the system SHALL usar
+`QE = votos_válidos / lugares_a_preencher`, **desprezando a fração se ≤ 0,5 e
+arredondando para 1 se > 0,5** (Código Eleitoral art. 106).
+
+**Aceitação**:
+- Given fração exatamente 0,5, when o QE é calculado, then ela é **desprezada**
+  (não é `round()` de linguagem nenhuma — é a classe de erro que passa
+  despercebida).
+- Given fração 0,5000001, when o QE é calculado, then arredonda para cima.
+
+**RF-124 — Número de vagas NUNCA hardcoded**
+
+WHEN o sistema precisa de `lugares_a_preencher` de uma UF, the system SHALL
+obtê-lo do dado publicado pelo TSE ou de tabela versionada com verificação contra
+o simulado, e NUNCA de constante embutida no código.
+
+**Aceitação**:
+- Given a tabela de bancadas, when o valor de uma UF diverge do que o TSE publica,
+  then o ciclo registra erro e aciona alerta — errar o denominador do QE corrompe
+  a projeção inteira daquela UF.
+- Rationale: a Res.-TSE 23.748/2026 art. 7º § 1º remete à LC 78/1993, e a
+  redistribuição pelo Censo 2022 (PLP 177/2023) tem desfecho **não confirmado**.
+
+**RF-125 — Distribuição em três fases, conforme ADR-0027**
+
+WHEN o sistema converte votos em cadeiras, the system SHALL executar, nesta ordem:
+(1) cadeiras por quociente partidário com a cláusula de 10% do QE por candidato;
+(2) sobras restritas aos partidos com ≥80% do QE e candidatos com ≥20% do QE;
+(3) sobras abertas a **todos**, sem piso algum, quando a fase 2 se esgotar
+(STF, ADI 7228; Res.-TSE 23.677 art. 11 § 4º).
+
+**Aceitação**:
+- Given um partido abaixo de 80% do QE, when a fase 2 termina sem candidatos
+  elegíveis, then esse partido **participa** da fase 3.
+- Given cadeiras contadas pelo QP mas não preenchidas por falta de candidato acima
+  de 10%, when a média é calculada, then o **QP inteiro** entra no denominador
+  (ADI 5.420; Res. art. 11 § 5º).
+- Given nenhum partido atinge o QE, when o sistema distribui, then aplica o
+  algoritmo de médias a **todas** as cadeiras (Res. art. 12-A) e **não** elege os
+  mais votados — o art. 111 do Código Eleitoral foi declarado inconstitucional.
+
+**RF-126 — Testes golden contra 2022**
+
+WHEN o módulo de cadeiras é alterado, the system SHALL reproduzir a distribuição
+oficial de cadeiras de 2022 para todas as 27 UFs.
+
+**Aceitação**:
+- Given os votos de 2022 por (UF, agremiação), when o módulo roda, then a
+  distribuição bate com a oficial em cada UF.
+- ⚠️ O gabarito tem de ser o resultado **recalculado** após a ADI 7228: os
+  embargos julgados em 13/03/2025 derrubaram a modulação, e a decisão **retroage
+  a 2022**. Usar os números proclamados à época produziria um golden errado que
+  passaria com um algoritmo errado.
+
+### Telas
+
+**RF-127 — Bancada projetada com incerteza explícita**
+
+WHEN uma tela de Deputado exibe cadeiras projetadas, the system SHALL exibir o
+intervalo, não só o número central, e SHALL marcar as cadeiras cuja atribuição
+depende de sobras ainda indefinidas.
+
+**Aceitação**:
+- Given uma UF com a última vaga dentro do IC entre duas agremiações, when a tela
+  renderiza, then isso é legível — não uma cadeira atribuída com falsa firmeza.
+
+**RF-128 — Cadência de 15 minutos visível**
+
+WHEN uma tela exibe Deputado Federal, the system SHALL exibir "atualizado a cada
+15 min" e o `ts` do payload, e NÃO um "atualizado às" único quando a tela mistura
+cargos de cadências diferentes (ADR-0026 item 5, constituição § 8).
+
+**RF-129 — Drill-down por UF vem do Blob**
+
+WHEN `/uf/[sigla]/deputado-federal` precisa da lista completa de candidatos, the
+system SHALL lê-la do Vercel Blob via `fetch` no servidor com revalidate, e NÃO
+do Global Config.
+
+**Aceitação**:
+- Given o payload por UF (~10–15 KB × 27), when gravado, then vai para
+  `deputado/uf/<SIGLA>.json`, não para o Global Config — cujo limite de 1 MB já é
+  compartilhado por três cargos.
+- Given o Blob indisponível, when a página renderiza, then exibe estado de detalhe
+  indisponível e **mantém** o resumo (constituição § 7).
+
+**RF-130 — Voto de legenda visível**
+
+WHEN a tela exibe a votação de uma agremiação, the system SHALL distinguir votos
+nominais de votos de legenda.
+
+**Aceitação**:
+- Given uma agremiação com legenda relevante, when a tela renderiza, then os dois
+  números são distinguíveis — somá-los sem dizer esconde um fato que decide
+  cadeira.
+
+## Requisitos Não-Funcionais
+
+Herda RNF-001/002/003, RNF-006 (relaxado para a cadência de 15 min),
+RNF-007a (o payload por UF é o maior do produto — o drill-down vai para Blob por
+isso), RNF-022/023/024.
+
+## Degradação pré-acordada — decidida em 2026-09-07, **não re-discutir**
+
+| Marco | Condição | Consequência |
+|---|---|---|
+| **19/09** | Módulo de cadeiras não passa nos golden de 2022 | Spec shippa **parcial**: votos por partido/federação, **sem** projeção de cadeiras. RF-123 a RF-127 saem do escopo desta janela. |
+| **24/09** | Nem o parcial por partido está verde | A aba fica **desabilitada** e o cargo vai para **2030**. |
+
+A degradação é sobre a **projeção de cadeiras**, não sobre a ingestão: o cargo 6
+continua sendo ingerido e persistido de todo jeito (append-only, constituição § 10),
+para que 2030 comece com histórico.
+
+## Open questions
+
+1. **"Candidato com ≥20% do QE" — precisa estar não eleito?** O texto do art. 109
+   § 2º não qualifica. A leitura operacional é que sim (a cadeira precisa ser
+   ocupável), mas não há dispositivo nem acórdão que resolva. **Travar com fixture
+   do simulado** antes de 04/10.
+2. **Tabela de cadeiras por UF em 2026** — o total de 513 está confirmado; a
+   distribuição por UF, não. Ver RF-124.
+3. **Empate de médias que sobrevive aos dois critérios de desempate** (maior
+   votação total, depois maior votação nominal) — a norma não prevê sorteio. A
+   decisão desta spec é **marcar como indeterminado na tela**, nunca escolher.
+
+## Cross-refs
+
+- [ADR-0027](../../architecture/adrs/0027-conversao-votos-em-cadeiras-deputado-federal.md) — o método de cadeiras, com o texto legal vigente e a jurisprudência
+- [ADR-0026](../../architecture/adrs/0026-cargos-senador-deputado-ingestao-e-read-path.md) — ingestão e read path híbrido (⚠️ cita "Lei 9.504 art. 111"; o correto é **Código Eleitoral** art. 111, e ele está inconstitucional — ver ADR-0027)
+- [ADR-0032](../../architecture/adrs/0032-detalhe-municipal-vercel-blob.md) — o mesmo mecanismo de Blob, já em uso para detalhe municipal
+- [Spec 016](../016-senador/spec.md) — o outro cargo novo, majoritário
+- `lib/config/cargos.ts` — tabela canônica (`proporcional: true`, `vagasPorUf: null`)
