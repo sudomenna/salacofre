@@ -825,7 +825,7 @@ export interface EdgePayloadUf {
  * Existe porque a fronteira campo a campo é aplicada do lado TypeScript, num
  * ponto só (`splitUfPayload`, `lib/blob/uf-detail.ts`): o Python segue
  * emitindo `municipios` e `series_temporais` no mesmo objeto, e a rota
- * `/api/_internal/edge-write` separa o que vai para cada mecanismo. Sem este
+ * `/api/internal/edge-write` separa o que vai para cada mecanismo. Sem este
  * tipo, `EdgePayloadUf` teria que continuar declarando dois campos que o
  * Global Config não guarda mais — o tipo armazenado mentindo sobre o store.
  *

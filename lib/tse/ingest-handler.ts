@@ -286,6 +286,46 @@ export interface RunIngestCycleOptions {
   cargo?: 1 | 3;
 }
 
+/**
+ * Fecha o marcador de lock anti-overlap num caminho de saída antecipada.
+ *
+ * O passo 3 grava `running:true` em `ingest_log`; o passo 6 grava
+ * `running:false` com as métricas. Todo `return` entre os dois precisa passar
+ * por aqui, senão o lock (`OVERLAP_LOCK_WINDOW_MS`, 6 min) fica preso e
+ * silencia os ciclos seguintes do mesmo cargo — sem erro nenhum, só ausência
+ * de ingestão.
+ *
+ * Best-effort por desenho: falhar ao gravar o marcador de liberação não deve
+ * transformar um abort em exceção não capturada (constituição § 7).
+ */
+async function releaseOverlapLock(opts: {
+  turno: number;
+  env: string;
+  cargo?: number;
+  reason: string;
+}): Promise<void> {
+  try {
+    await logIngestRun({
+      durationMs: 0,
+      filesFetched: 0,
+      filesChanged: 0,
+      errors: 1,
+      notes: JSON.stringify({
+        running: false,
+        turno: opts.turno,
+        env: opts.env,
+        ...(opts.cargo !== undefined ? { cargo: opts.cargo } : {}),
+        aborted: opts.reason,
+      }),
+    });
+  } catch (err) {
+    logWarn("releaseOverlapLock falhou — lock pode ficar preso até expirar", {
+      error: serialiseCause(err),
+      reason: opts.reason,
+    });
+  }
+}
+
 export async function runIngestCycle(
   req: NextRequest,
   opts: RunIngestCycleOptions = {},
@@ -439,6 +479,15 @@ export async function runIngestCycle(
       env,
       cargo: cargoDoCiclo ?? "all",
     });
+    // Libera o lock anti-overlap ANTES de sair. Sem isto, o marcador
+    // `running:true` gravado no passo 3 fica de pé pelos 6 minutos inteiros
+    // de `OVERLAP_LOCK_WINDOW_MS` e bloqueia os próximos ciclos DESTE cargo:
+    // uma falha transitória de `listIngestTargets` (que lê `zonas` no
+    // Postgres) custaria 6 ciclos em vez de 1, no dia D. Mesmo motivo pelo
+    // qual `getActiveCargos()` é isolado com try/catch mais abaixo.
+    // Descoberto em 2026-09-11 exercitando o ciclo contra o mock com
+    // `TSE_COD_ELEICAO` ausente.
+    await releaseOverlapLock({ turno, env, cargo: cargoDoCiclo, reason: "targets_unavailable" });
     return NextResponse.json({ error: "targets_unavailable" }, { status: 500 });
   }
 

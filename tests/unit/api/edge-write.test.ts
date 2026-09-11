@@ -1,7 +1,7 @@
 /**
  * tests/unit/api/edge-write.test.ts
  *
- * Unit tests for POST /api/_internal/edge-write (spec 002, T15).
+ * Unit tests for POST /api/internal/edge-write (spec 002, T15).
  *
  * Estratégia
  *   - Mocka `writeProjection` via `vi.mock` (hoisted) — não queremos bater
@@ -26,7 +26,7 @@ vi.mock("@/lib/edge-config/writer", () => ({
 }));
 
 // Import post-mock
-import { POST } from "@/app/api/_internal/edge-write/route";
+import { POST } from "@/app/api/internal/edge-write/route";
 import { writeProjection } from "@/lib/edge-config/writer";
 
 // ---------------------------------------------------------------------------
@@ -83,7 +83,7 @@ function validBody() {
 
 /** Cria um NextRequest POST sintético com headers opcionais. */
 function makeRequest(body: unknown, headers: Record<string, string> = {}): NextRequest {
-  return new NextRequest("http://localhost/api/_internal/edge-write", {
+  return new NextRequest("http://localhost/api/internal/edge-write", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -97,7 +97,7 @@ function makeRequest(body: unknown, headers: Record<string, string> = {}): NextR
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("POST /api/_internal/edge-write — auth", () => {
+describe("POST /api/internal/edge-write — auth", () => {
   it("retorna 401 quando x-model-secret está ausente", async () => {
     const req = makeRequest(validBody());
 
@@ -131,7 +131,7 @@ describe("POST /api/_internal/edge-write — auth", () => {
   });
 });
 
-describe("POST /api/_internal/edge-write — body validation", () => {
+describe("POST /api/internal/edge-write — body validation", () => {
   it("retorna 400 quando body não tem campo `payload`", async () => {
     const req = makeRequest({ foo: "bar" }, { "x-model-secret": "test-secret-xyz" });
 
@@ -190,7 +190,7 @@ describe("POST /api/_internal/edge-write — body validation", () => {
 
   it("retorna 400 quando body não é JSON válido", async () => {
     // Construímos um NextRequest com body que não parseia.
-    const req = new NextRequest("http://localhost/api/_internal/edge-write", {
+    const req = new NextRequest("http://localhost/api/internal/edge-write", {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -208,7 +208,7 @@ describe("POST /api/_internal/edge-write — body validation", () => {
   });
 });
 
-describe("POST /api/_internal/edge-write — happy path", () => {
+describe("POST /api/internal/edge-write — happy path", () => {
   it("retorna 200 com keys_written quando writeProjection sucede", async () => {
     vi.mocked(writeProjection).mockResolvedValueOnce(undefined);
 
@@ -225,7 +225,7 @@ describe("POST /api/_internal/edge-write — happy path", () => {
   });
 });
 
-describe("POST /api/_internal/edge-write — failure mapping", () => {
+describe("POST /api/internal/edge-write — failure mapping", () => {
   it("retorna 500 com mensagem quando writeProjection lança", async () => {
     vi.mocked(writeProjection).mockRejectedValueOnce(
       new Error("writeProjection: 1/3 chave(s) falharam — projection-uf-SP: http 500"),

@@ -954,7 +954,7 @@ def test_edge_write_includes_payloads_uf(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """S04/F2: `_do_project` envia `payloads_uf` no body para o endpoint
-    Node `/api/_internal/edge-write` (junto do nacional). Cada chave é
+    Node `/api/internal/edge-write` (junto do nacional). Cada chave é
     uma UF do `por_uf` nacional.
     """
     from api.model import project as proj_mod
@@ -1008,7 +1008,7 @@ def test_edge_write_includes_payloads_uf(
 
 
 # ---------------------------------------------------------------------------
-# (f) T16b — Edge Config publication via /api/_internal/edge-write
+# (f) T16b — Edge Config publication via /api/internal/edge-write
 # ---------------------------------------------------------------------------
 
 
@@ -1022,7 +1022,7 @@ def test_edge_write_called_on_happy_path(
     Mockamos `urllib.request.urlopen` (caminho que `post_edge_write` usa) e
     verificamos:
       - foi chamado UMA vez;
-      - request foi POST para `/api/_internal/edge-write`;
+      - request foi POST para `/api/internal/edge-write`;
       - header `x-model-secret` correto;
       - body JSON contém shape `{payload: {ts, cargo, turno, national, por_uf, ...}}`.
     """
@@ -1068,7 +1068,7 @@ def test_edge_write_called_on_happy_path(
 
     assert len(captured["calls"]) == 1, captured
     call = captured["calls"][0]
-    assert call["url"] == "http://localhost:13000/api/_internal/edge-write"
+    assert call["url"] == "http://localhost:13000/api/internal/edge-write"
     assert call["method"] == "POST"
     assert call["x_model_secret"] == "test-secret"
 

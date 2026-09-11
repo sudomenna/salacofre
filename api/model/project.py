@@ -33,7 +33,7 @@ DB driver (decisão kickoff S03):
   psycopg[binary] direto contra `DATABASE_URL` (Neon). Aceita prepared
   statements no Neon serverless quando NÃO via pooler — caller DEVE usar
   a connection string `direct`. Se quebrar (cold start ↔ pgbouncer), criar
-  um helper Node `/api/_internal/snapshots` é o plano B.
+  um helper Node `/api/internal/snapshots` é o plano B.
 
 Auth:
   Header `x-model-secret` === `os.environ["MODEL_SECRET"]`. Mesmo padrão
@@ -2372,7 +2372,7 @@ def _needle_band(position: float) -> str:
 
 
 def _resolve_internal_base_url() -> str:
-    """Base URL para o endpoint Node `/api/_internal/edge-write`.
+    """Base URL para o endpoint Node `/api/internal/edge-write`.
 
     Mesma estratégia do lado TS: env explícita > VERCEL_URL > localhost.
     """
@@ -3224,7 +3224,7 @@ def post_edge_write(
     payload: dict[str, Any],
     payloads_uf: dict[str, dict[str, Any]] | None = None,
 ) -> None:
-    """POST `/api/_internal/edge-write` com `{payload, payloads_uf?}`.
+    """POST `/api/internal/edge-write` com `{payload, payloads_uf?}`.
 
     `payloads_uf` (S04/F2): mapa `sigla → EdgePayloadUf` rico (candidatos
     com votos, municípios com margem, séries temporais). Quando presente,
@@ -3262,7 +3262,7 @@ def post_edge_write(
         return
 
     base = _resolve_internal_base_url()
-    url = f"{base}/api/_internal/edge-write"
+    url = f"{base}/api/internal/edge-write"
 
     body_dict: dict[str, Any] = {"payload": payload}
     if payloads_uf:

@@ -1,7 +1,7 @@
 /**
- * app/api/_internal/edge-write/route.ts
+ * app/api/internal/edge-write/route.ts
  *
- * POST /api/_internal/edge-write — bridge interna Python → Node para gravação
+ * POST /api/internal/edge-write — bridge interna Python → Node para gravação
  * no Vercel Edge Config (spec 002, T15).
  *
  * Por quê existe?
@@ -23,11 +23,23 @@
  *   mesmo `MODEL_SECRET` do `/api/model/project` (lado-Python sabe esse
  *   segredo porque é o que ele próprio recebe).
  *
- * Prefixo `_internal`:
- *   Convenção: rotas com path começando em `_internal` NUNCA são expostas
- *   publicamente. Vercel não filtra automaticamente, mas o auth header
- *   `x-model-secret` garante que só callers com o segredo passam.
- *   proxy.ts (futuro) pode adicionar IP allow-list extra.
+ * Por que `internal` e NÃO `_internal` (2026-09-11):
+ *   Esta rota morou em `app/api/_internal/` até 2026-09-11, sob a convenção
+ *   — escrita no comentário original — de que "rotas começando em `_internal`
+ *   nunca são expostas publicamente; Vercel não filtra automaticamente".
+ *   A premissa estava invertida: no App Router do Next.js, um diretório com
+ *   prefixo `_` é uma **private folder** e fica FORA do roteamento por
+ *   completo. A rota respondia 404 em todo ambiente, e o orchestrator Python
+ *   registrava `edge-write http error status=404` como warn best-effort, sem
+ *   nunca levantar — de modo que NENHUMA gravação no Global Config ou no
+ *   Vercel Blob jamais ocorreu, em nenhum ambiente, desde que o endpoint
+ *   existe. Medido com duas rotas idênticas, uma com e outra sem o prefixo:
+ *   `/api/zzdiag` → 200, `/api/_zzdiag/sub` → 404.
+ *
+ *   O que de fato protege esta rota é — e sempre foi — o header
+ *   `x-model-secret` (401 sem ele), mais o BotID aplicado a `/api/*` por
+ *   `proxy.ts`. O prefixo nunca acrescentou proteção; só removia a rota.
+ *   **Não renomear de volta para `_internal`.**
  *
  * Cobre
  *   - Ponte Python ↔ Node (T15).

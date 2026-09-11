@@ -18,7 +18,7 @@
  *   - `createTokenBucket` é a implementação pura, testável com relógio e
  *     sleep injetados (sem `setTimeout` real nos testes).
  *   - `getTseRateLimiter()` é o singleton usado em produção, lendo
- *     `TSE_MAX_RPS` do ambiente (default 30, clamp 1..80 — nunca deixamos
+ *     `TSE_MAX_RPS` do ambiente (default 40, clamp 1..50 — nunca deixamos
  *     configurar acima do limite documentado do TSE por engano).
  *   - Chamadas concorrentes a `acquire()` são serializadas via uma cadeia de
  *     Promises (`chain`), garantindo que a N-ésima chamada simultânea espere
@@ -183,10 +183,10 @@ let singleton: TokenBucket | null = null;
 export function getTseRateLimiter(): TokenBucket {
   if (singleton) return singleton;
 
-  // Ausente/vazio/não-numérico → cai no default (30) ANTES do clamp. Um
+  // Ausente/vazio/não-numérico → cai no default (40) ANTES do clamp. Um
   // valor numérico explícito — mesmo 0 ou negativo — é clampado em vez de
   // ignorado: "TSE_MAX_RPS=0" é uma configuração inválida, não uma ausência
-  // de configuração, então o resultado é o floor (1), não o default (30).
+  // de configuração, então o resultado é o floor (1), não o default (40).
   const raw = process.env.TSE_MAX_RPS;
   let ratePerSec = TSE_MAX_RPS_DEFAULT;
   if (raw !== undefined && raw.trim() !== "") {
