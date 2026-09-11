@@ -203,6 +203,139 @@
     "vagas": 2,
     "granularidade": "zona"
   },
+  "AP": {
+    "uf": "AP",
+    "ts": "2026-10-04T19:12:05-03:00",
+    "cargo": 5,
+    "turno": 1,
+    "pct_apurado": 55.0,
+    "candidatos": [
+      {
+        "id": 9001,
+        "nome": "Senador AP PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 28000,
+        "votos_projetados": 30800,
+        "pct_atual": 28.0,
+        "pct_projetado": 28.0,
+        "ci95": {
+          "lower": 25.6,
+          "upper": 30.4
+        },
+        "p_eleito": 1.0
+      },
+      {
+        "id": 9002,
+        "nome": "Senador AP PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 24000,
+        "votos_projetados": 26400,
+        "pct_atual": 24.0,
+        "pct_projetado": 24.0,
+        "ci95": {
+          "lower": 21.6,
+          "upper": 26.4
+        },
+        "p_eleito": 0.62
+      },
+      {
+        "id": 9003,
+        "nome": "Senador AP MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 15000,
+        "votos_projetados": 16500,
+        "pct_atual": 15.0,
+        "pct_projetado": 15.0,
+        "ci95": {
+          "lower": 12.6,
+          "upper": 17.4
+        },
+        "p_eleito": 0.34
+      },
+      {
+        "id": 9004,
+        "nome": "Senador AP PSD",
+        "partido": "PSD",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 11000,
+        "votos_projetados": 12100,
+        "pct_atual": 11.0,
+        "pct_projetado": 11.0,
+        "ci95": {
+          "lower": 8.6,
+          "upper": 13.4
+        },
+        "p_eleito": 0.0
+      },
+      {
+        "id": 9005,
+        "nome": "Senador AP PP",
+        "partido": "PP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 8000,
+        "votos_projetados": 8800,
+        "pct_atual": 8.0,
+        "pct_projetado": 8.0,
+        "ci95": {
+          "lower": 5.6,
+          "upper": 10.4
+        },
+        "p_eleito": 0.0
+      },
+      {
+        "id": 9006,
+        "nome": "Senador AP UNIÃO",
+        "partido": "UNIÃO",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 6000,
+        "votos_projetados": 6600,
+        "pct_atual": 6.0,
+        "pct_projetado": 6.0,
+        "ci95": {
+          "lower": 3.6,
+          "upper": 8.4
+        },
+        "p_eleito": 0.0
+      },
+      {
+        "id": 9007,
+        "nome": "Senador AP PDT",
+        "partido": "PDT",
+        "cor": "var(--color-cand-7)",
+        "votos_atuais": 5000,
+        "votos_projetados": 5500,
+        "pct_atual": 5.0,
+        "pct_projetado": 5.0,
+        "ci95": {
+          "lower": 2.6,
+          "upper": 7.4
+        },
+        "p_eleito": 0.0
+      },
+      {
+        "id": 9008,
+        "nome": "Senador AP PSOL",
+        "partido": "PSOL",
+        "cor": "var(--color-cand-8)",
+        "votos_atuais": 3000,
+        "votos_projetados": 3300,
+        "pct_atual": 3.0,
+        "pct_projetado": 3.0,
+        "ci95": {
+          "lower": 0.6,
+          "upper": 5.4
+        },
+        "p_eleito": 0.0
+      }
+    ],
+    "needle_position": 0.0,
+    "needle_band": "tossup",
+    "vagas": 2,
+    "granularidade": "zona"
+  },
   "BA": {
     "uf": "BA",
     "ts": "2026-10-04T19:12:05-03:00",
@@ -1347,6 +1480,64 @@
           "upper": 17.4
         },
         "p_eleito": 0.03
+      }
+    ],
+    "needle_position": 0.0,
+    "needle_band": "tossup",
+    "vagas": 2,
+    "granularidade": "zona"
+  },
+  "RR": {
+    "uf": "RR",
+    "ts": "2026-10-04T19:12:05-03:00",
+    "cargo": 5,
+    "turno": 1,
+    "pct_apurado": 6.0,
+    "candidatos": [
+      {
+        "id": 9001,
+        "nome": "Senador RR PT",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 41000,
+        "votos_projetados": 45100,
+        "pct_atual": 41.0,
+        "pct_projetado": 41.0,
+        "ci95": {
+          "lower": 41.0,
+          "upper": 41.0
+        },
+        "p_eleito": 1.0
+      },
+      {
+        "id": 9002,
+        "nome": "Senador RR PL",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 33000,
+        "votos_projetados": 36300,
+        "pct_atual": 33.0,
+        "pct_projetado": 33.0,
+        "ci95": {
+          "lower": 33.0,
+          "upper": 33.0
+        },
+        "p_eleito": 1.0
+      },
+      {
+        "id": 9003,
+        "nome": "Senador RR MDB",
+        "partido": "MDB",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 26000,
+        "votos_projetados": 28600,
+        "pct_atual": 26.0,
+        "pct_projetado": 26.0,
+        "ci95": {
+          "lower": 26.0,
+          "upper": 26.0
+        },
+        "p_eleito": 0.0
       }
     ],
     "needle_position": 0.0,

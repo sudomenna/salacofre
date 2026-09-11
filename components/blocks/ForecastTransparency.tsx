@@ -182,7 +182,7 @@ export function ForecastTransparency({
           style={{ margin: "var(--space-3) 0 0", color: "var(--color-text-muted)" }}
         >
           {granularidade === "uf"
-            ? "Esta projeção é feita no nível do estado: o TSE publica um boletim agregado por unidade da federação para este cargo, e não um por zona eleitoral — ao contrário de Presidente e Governador. Por isso não há mapa de municípios aqui. "
+            ? "Esta projeção é feita no nível do estado: para este cargo lemos o boletim agregado por unidade da federação, e não os de cada zona eleitoral — uma escolha nossa, para caber no limite de requisições que o TSE impõe. Por isso não há mapa de municípios aqui, e a projeção é menos fina que a de Presidente e Governador. "
             : null}
           {cadenciaMinutos
             ? `Os números são atualizados a cada ${cadenciaMinutos} ${

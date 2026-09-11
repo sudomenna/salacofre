@@ -91,7 +91,13 @@ describe("<ForecastTransparency /> — RF-108", () => {
     const nota = doc.querySelector("[data-testid='forecast-cadencia']")?.textContent ?? "";
 
     expect(nota).toMatch(/nível do estado/i);
-    expect(nota).toMatch(/não um por zona eleitoral/i);
+    expect(nota).toMatch(/não os de cada zona eleitoral/i);
+    // A escolha é NOSSA, não do TSE — ele publica um arquivo por zona para os
+    // cinco cargos (`tse_docs/txt/apresentacao-interessados-2026.txt:196`:
+    // 6.083 zonas × 5 cargos = 30.415 arquivos). Atribuir a limitação ao TSE
+    // seria informação falsa sobre a fonte oficial (constituição § 8).
+    expect(nota).toMatch(/escolha nossa/i);
+    expect(nota).not.toMatch(/o TSE publica um boletim agregado/i);
     expect(nota).toContain("a cada 5 minutos");
     // Nada de `<details>`/`title`: a aceitação diz "legível sem clique".
     expect(doc.querySelector("details")).toBeNull();

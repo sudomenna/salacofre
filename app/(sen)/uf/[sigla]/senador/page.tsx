@@ -160,12 +160,18 @@ function rankByParcial(candidatos: readonly EdgeUfCandidate[]): EdgeUfCandidate[
  * A projeção tem incerteza MEDIDA? Só então `p_eleito` pode ser lido como
  * "chance".
  *
- * Com granularidade UF o bootstrap tem uma única unidade de reamostragem: as
- * 1.000 réplicas saem idênticas, o IC95 fecha no ponto e `p_eleito` vira 0 ou
- * 1. O número continua correto como leitura do ponto estimado, mas exibi-lo
- * como probabilidade afirmaria uma certeza que o modelo não tem
- * (constituição § 6). A largura do IC é o sinal, e ele vem do próprio
- * payload — nada é recalculado aqui.
+ * Quando só há UMA unidade de reamostragem, o bootstrap devolve 1.000 réplicas
+ * idênticas: o IC95 fecha no ponto e `p_eleito` vira 0 ou 1. O número continua
+ * correto como leitura do ponto estimado, mas exibi-lo como probabilidade
+ * afirmaria uma certeza que o modelo não tem (constituição § 6).
+ *
+ * Até 2026-09-11 isso era a REGRA para este cargo, porque a ingestão era por UF
+ * (um boletim por estado). Com a ingestão por zona (emenda (b) do ADR-0026), a
+ * situação passou a ser TRANSITÓRIA: acontece enquanto só uma zona do estado
+ * estiver apurada, e se resolve sozinha. A guarda permanece porque o começo da
+ * apuração é exatamente esse momento — e é quando o leitor mais olharia.
+ *
+ * A largura do IC é o sinal, e vem do próprio payload — nada é recalculado aqui.
  */
 function temIncertezaMedida(candidatos: readonly EdgeUfCandidate[]): boolean {
   return candidatos.some((c) => c.ci95.upper - c.ci95.lower > 0);
@@ -267,12 +273,12 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
             data-testid="chances-sem-incerteza"
             style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
           >
-            O TSE publica um único boletim por estado para este cargo, e não um por zona eleitoral.
-            Com uma só medição por estado, o modelo consegue projetar o resultado final, mas não
-            consegue medir o quanto essa projeção pode variar — e sem essa medida, publicar uma
-            "chance de eleição" seria dar ao leitor uma certeza que o cálculo não sustenta. Os
-            percentuais projetados e a margem para a {vagas}ª vaga, acima, são o que há de honesto a
-            dizer.
+            Ainda há uma única zona eleitoral apurada neste estado. Com uma só medição, o modelo
+            consegue projetar o resultado final, mas não consegue medir o quanto essa projeção pode
+            variar — e sem essa medida, publicar uma "chance de eleição" seria dar ao leitor uma
+            certeza que o cálculo não sustenta. Assim que a segunda zona for apurada, as chances
+            aparecem aqui. Até lá, os percentuais projetados e a margem para a {vagas}ª vaga, acima,
+            são o que há de honesto a dizer.
           </p>
         </Panel>
       )}

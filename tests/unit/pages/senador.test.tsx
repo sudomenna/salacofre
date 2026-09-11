@@ -381,9 +381,11 @@ describe("/uf/[sigla]/senador (T-10)", () => {
   });
 
   it("(q) IC de largura zero: nada de 'chance' — o bloco explica por quê", async () => {
-    // É o caso REAL do cargo hoje: com um boletim por estado, o bootstrap não
-    // tem o que reamostrar e `p_eleito` degenera para 0/1. Publicar "100%"
-    // com 62% apurado afirmaria uma certeza que o modelo não tem.
+    // Até 2026-09-11 este era o caso PERMANENTE do cargo (um boletim por
+    // estado). Com a ingestão por zona (emenda (b) do ADR-0026) virou
+    // TRANSITÓRIO: vale enquanto só uma zona do estado estiver apurada — que é
+    // justamente o começo da noite, quando o leitor mais olha. Publicar "100%"
+    // ali afirmaria uma certeza que o modelo não tem.
     const degenerado = ufPayload({
       candidatos: [
         ufCand(1, "Ana Lima", "PT", 40, { p_eleito: 1, ci95: { lower: 40, upper: 40 } }),
@@ -397,7 +399,10 @@ describe("/uf/[sigla]/senador (T-10)", () => {
     expect(doc.querySelectorAll("[data-testid='chances-panel-meters']").length).toBe(0);
     // O bloco NÃO some (ADR-0017) — ele diz o que o modelo sabe e o que não.
     const explicacao = doc.querySelector("[data-testid='chances-sem-incerteza']")?.textContent;
-    expect(explicacao).toMatch(/um único boletim por estado/i);
+    expect(explicacao).toMatch(/uma única zona eleitoral apurada/i);
+    // A explicação tem de dizer que é transitório. Afirmar que "o TSE publica um
+    // boletim por estado para este cargo" deixou de ser verdade em 11/09.
+    expect(explicacao).not.toMatch(/um único boletim por estado/i);
     expect(doc.body.textContent).not.toContain("100%");
   });
 
@@ -464,5 +469,76 @@ describe("/uf/[sigla]/senador (T-10)", () => {
     expect(linhas[0]?.textContent).toContain("Célia Mota");
     expect(linhas[0]?.getAttribute("data-vaga")).toBe("true");
     expect(linhas[2]?.getAttribute("data-vaga")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Os dois ramos que ninguém alcançava — lacuna apontada pelo
+// `a11y-perf-auditor` em 2026-09-11: as UFs da fixture tinham todas IC95 de
+// ~4,8 pp e no máximo 4 candidatos, então nem o painel substituto de chances
+// nem o colapso da lista eram exercitáveis numa tela de Senador. A fixture de
+// dev (`sen-uf.json`) ganhou RR e AP com esses formatos, para a inspeção
+// visual; aqui o payload é injetado direto, que é como o resto do arquivo faz.
+// ---------------------------------------------------------------------------
+
+describe("/uf/[sigla]/senador — os dois ramos de borda", () => {
+  it("(s) IC de largura zero: mostra a explicação, nunca '100%' de chance", async () => {
+    // Com uma única zona apurada o bootstrap devolve réplicas idênticas e o IC
+    // fecha num ponto. `p_eleito` vale 1,0 no payload, e publicá-lo como
+    // probabilidade afirmaria certeza que o modelo não tem (constituição § 6).
+    readUfProjectionMock.mockResolvedValue(
+      ufPayload({
+        uf: "RR",
+        pct_apurado: 6,
+        candidatos: [
+          ufCand(1, "Ana Lima", "PT", 41, { p_eleito: 1, ci95: { lower: 41, upper: 41 } }),
+          ufCand(2, "Bruno Reis", "PL", 33, { p_eleito: 1, ci95: { lower: 33, upper: 33 } }),
+          ufCand(3, "Célia Mota", "MDB", 26, { p_eleito: 0, ci95: { lower: 26, upper: 26 } }),
+        ],
+      }),
+    );
+    const doc = await render(UFSenadorPage({ params: Promise.resolve({ sigla: "RR" }) }));
+    const texto = doc.body.textContent ?? "";
+
+    // Escopado ao painel de chances: a página tem outro `role="meter"`
+    // legítimo, o da barra de apuração em `ForecastTransparency`.
+    expect(doc.querySelector("[data-testid='chances-panel-meters']")).toBeNull();
+    expect(texto).not.toContain("100%");
+    // E a tela explica — não fica muda (constituição § 7 e § 8).
+    expect(texto).toMatch(/uma única zona eleitoral apurada/i);
+    // E a explicação diz que é transitório — não que o cargo é assim por
+    // natureza, o que deixou de ser verdade com a ingestão por zona.
+    expect(texto).toMatch(/segunda zona/i);
+    expect(texto).not.toMatch(/um único boletim por estado/i);
+  });
+
+  it("(t) com IC medido, os medidores de chance voltam — a guarda não é permanente", async () => {
+    // Contraprova de (s): se o painel sumisse sempre, (s) passaria por acidente.
+    readUfProjectionMock.mockResolvedValue(ufPayload());
+    const doc = await render(UFSenadorPage(PARAMS_SP));
+
+    expect(doc.querySelector("[data-testid='chances-panel-meters']")).not.toBeNull();
+  });
+
+  it("(u) UF com mais candidatos que o limite exibe o colapso, e as vagas ficam no DOM", async () => {
+    const siglas = ["PT", "PL", "MDB", "PSD", "PP", "UNIÃO", "PDT", "PSOL"];
+    const pcts = [28, 24, 15, 11, 8, 6, 5, 3];
+    readUfProjectionMock.mockResolvedValue(
+      ufPayload({
+        uf: "AP",
+        candidatos: siglas.map((sg, i) =>
+          ufCand(i + 1, `Cand ${sg}`, sg, pcts[i] as number, {
+            p_eleito: i === 0 ? 1 : i === 1 ? 0.62 : i === 2 ? 0.34 : 0,
+          }),
+        ),
+      }),
+    );
+    const doc = await render(UFSenadorPage({ params: Promise.resolve({ sigla: "AP" }) }));
+
+    const botao = doc.querySelector("[aria-expanded]");
+    expect(botao, "8 candidatos deviam render o colapso da lista").not.toBeNull();
+    expect(botao?.getAttribute("aria-controls")).toBeTruthy();
+    // Mesmo colapsada, as duas linhas de vaga permanecem no DOM (ADR-0017).
+    expect(doc.querySelectorAll("[data-testid='result-vaga-marker']")).toHaveLength(2);
   });
 });
