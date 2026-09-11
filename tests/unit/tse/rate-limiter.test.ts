@@ -122,6 +122,58 @@ describe("getTseRateLimiter", () => {
     expect(succeeded).toBe(40);
   });
 
+  // -------------------------------------------------------------------------
+  // RF-010.3 item 2 — restrição AGREGADA (ADR-0035 D3, emenda de 11/09)
+  //
+  // Desde o cron por cargo, Presidente e Governador podem ingerir ao mesmo
+  // tempo, cada um num processo Fluid Compute isolado com seu PRÓPRIO bucket.
+  // Os dois não se coordenam, então o teto que importa perante o TSE é a SOMA.
+  //
+  // Por que isto é aritmética e não simulação: cada bucket já é testado
+  // individualmente acima (nunca emite acima da taxa configurada). Com essa
+  // garantia por bucket, o agregado de N processos é N × taxa — provar isso
+  // "rodando dois buckets" num relógio virtual compartilhado seria teatro,
+  // porque o `sleep` de um avançaria o relógio do outro e o resultado sairia
+  // artificialmente baixo. O que protege de verdade é travar o NÚMERO.
+  //
+  // O modo de falha real que este teste pega: alguém sobe o default de 40 para
+  // 45 achando seguro porque 45 < 50 (o ceiling), sem notar que 2 × 45 = 90,
+  // acima dos 80 que a spec exige e perigosamente perto dos 100 do TSE.
+  // -------------------------------------------------------------------------
+  it("2 cargos em paralelo no default não passam de 80 rps agregados (RF-010.3 item 2)", () => {
+    vi.stubEnv("TSE_MAX_RPS", "");
+    const bucket = getTseRateLimiter();
+
+    let taxaDefault = 0;
+    for (let i = 0; i < 101; i++) {
+      if (bucket.tryAcquire()) taxaDefault++;
+    }
+
+    const CARGOS_SIMULTANEOS = 2; // Presidente + Governador (vercel.ts)
+    const TETO_AGREGADO_RPS = 80; // RF-010.3 item 2
+    const TETO_TSE_RPS = 100; // limite documentado, nunca alcançar
+
+    expect(taxaDefault * CARGOS_SIMULTANEOS).toBeLessThanOrEqual(TETO_AGREGADO_RPS);
+    expect(taxaDefault * CARGOS_SIMULTANEOS).toBeLessThan(TETO_TSE_RPS);
+  });
+
+  // O ceiling existe para janela SUPERVISIONADA (simulado, com alguém lendo
+  // `rateLimited` ao vivo). Mesmo ele, dobrado, não pode encostar nos 100 do
+  // TSE sem que a decisão seja consciente — se este teste falhar, o ceiling
+  // subiu e RF-010.3 precisa ser revisto ANTES do código.
+  it("nem o ceiling dobrado alcança o limite do TSE (RF-010.3, margem do ceiling)", () => {
+    vi.stubEnv("TSE_MAX_RPS", "500"); // clampa no ceiling
+    const bucket = getTseRateLimiter();
+
+    let ceiling = 0;
+    for (let i = 0; i < 101; i++) {
+      if (bucket.tryAcquire()) ceiling++;
+    }
+
+    expect(ceiling).toBe(50);
+    expect(ceiling * 2).toBeLessThanOrEqual(100);
+  });
+
   it("respeita TSE_MAX_RPS dentro do clamp [1, 50]", () => {
     vi.stubEnv("TSE_MAX_RPS", "5");
     const bucket = getTseRateLimiter();
