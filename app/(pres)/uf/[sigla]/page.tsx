@@ -316,6 +316,12 @@ function municipioDetailReason(
 /**
  * Converte municípios do payload (EdgeUfMunicipio) em rows da tabela.
  * S04/F2: o payload agora inclui margem e votos_reportados por município.
+ *
+ * 2026-09-11 (ADR-0035 D2): passa adiante `eleitores` e `capital`, que o
+ * payload passou a publicar. Os dois são OPCIONAIS no payload e seguem
+ * opcionais aqui — um Blob gravado antes da migration 0006 continua válido, e
+ * `<MunicipioTable>` já sabe cair no estado "dado indisponível" sem eles.
+ * `capital` é emitido só quando `true`: ausência == não é capital.
  */
 function toMunicipioRows(
   municipios: EdgeUfMunicipio[],
@@ -334,6 +340,8 @@ function toMunicipioRows(
       margemPp: m.lider.margem_pp,
       pctApurado: m.pct_apurado,
       votosReportados: totalVotos,
+      eleitorado: m.eleitores,
+      capital: m.capital,
     };
   });
 }

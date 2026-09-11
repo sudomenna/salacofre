@@ -40,6 +40,12 @@ function makeMunicipio(i: number): EdgeUfMunicipio {
       1: liderId === 1 ? 15000 : 8000,
       2: liderId === 2 ? 15000 : 8000,
     },
+    // 2026-09-11 (ADR-0035 D2): o payload publica eleitorado por município.
+    // Decrescente com `i`, e o índice 0 é a capital — é o que o painel
+    // "Maiores colégios eleitorais" desta rota ordena (capital primeiro,
+    // depois eleitorado desc; decisão E4).
+    eleitores: 1_000_000 - i * 1000,
+    ...(i === 0 ? { capital: true as const } : {}),
   };
 }
 
@@ -422,7 +428,7 @@ describe("UFGovernadorPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
     expect(linhas[0]?.querySelector('[data-view-cell="proj"]')).not.toBeNull();
   });
 
-  it("(p) sem a grade, a folha do município começa fechada e a tabela é o único caminho", async () => {
+  it("(p) sem a grade, a tabela lista os maiores colégios e é o caminho de teclado", async () => {
     const doc = await renderGov();
 
     // 2026-09-08 — a grade de quadrados saiu (não está no protótipo). Ela era
@@ -430,14 +436,30 @@ describe("UFGovernadorPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
     // foi a tabela, que permanece.
     expect(doc.querySelector('[data-testid="waffle-svg"]')).toBeNull();
 
-    // ACHADO PRÉ-EXISTENTE (não introduzido aqui): a tabela desta rota é
-    // `mode="top-by-eleitorado"`, que filtra `eleitorado != null` — e
-    // `EdgeUfMunicipio` não tem esse campo. Por isso ela renderiza zero
-    // linhas, e nesta rota (só nesta) não há botão de município. Quando o
-    // orchestrator publicar `eleitorado`, os botões aparecem sem mais
-    // nenhuma mudança de código; o teste (o) da rota presidencial cobre o
-    // caminho de teclado enquanto isso.
-    expect(doc.querySelector('[data-testid="municipios-top-table"] tbody tr')).toBeNull();
+    // ACHADO PRÉ-EXISTENTE, RESOLVIDO EM 2026-09-11: a tabela desta rota é
+    // `mode="top-by-eleitorado"`, que filtra `eleitorado != null`. Enquanto
+    // `EdgeUfMunicipio` não publicava o campo, ela renderizava ZERO linhas e
+    // esta rota (só ela) não tinha botão de município nenhum — este teste
+    // documentava aquele estado. `eleitores` existe desde a migration 0006
+    // (ADR-0035 D2) e os dois adaptadores `toMunicipioRows` o repassam, então
+    // a tabela lista de verdade e o caminho de teclado volta a existir aqui.
+    const linhas = doc.querySelectorAll('[data-testid="municipios-top-table"] tbody tr');
+    expect(linhas.length).toBeGreaterThan(0);
+    // `topN={8}` no call site (decisão E4) — o corte do protótipo, não o
+    // default 15 do componente.
+    expect(linhas.length).toBe(8);
+    expect(doc.querySelector('[data-testid="municipios-top-empty"]')).toBeNull();
+
+    // Cada linha abre a folha por teclado: o nome é um `<button>`.
+    const botoes = doc.querySelectorAll('[data-testid="municipio-open"]');
+    expect(botoes.length).toBe(8);
+
+    // Capital em primeiro (E4) e subtítulo do protótipo em cada linha.
+    expect(linhas[0]?.textContent).toContain("· capital");
+    expect(doc.querySelectorAll('[data-testid="municipio-top-sub"]').length).toBe(8);
+    expect(doc.querySelector('[data-testid="municipio-top-sub"]')?.textContent).toContain(
+      "eleitores ·",
+    );
 
     // O sheet começa fechado — abrir é interação, coberta em e2e.
     expect(doc.querySelector('[data-testid="sheet"]')).toBeNull();

@@ -62,6 +62,17 @@ export interface MunicipioRow {
    * `mode="top-by-eleitorado"` (S06/F4d).
    */
   deltaVs2022?: number | null;
+  /**
+   * `true` quando o município é a capital da UF. Vem de
+   * `EdgeUfMunicipio.capital` (ADR-0035 D2), que é emitido **só quando
+   * verdadeiro** — ausência significa "não é capital", não "desconhecido".
+   *
+   * Usado apenas em `mode="top-by-eleitorado"`: a capital vai para o topo do
+   * painel "Maiores colégios eleitorais" (decisão E4 do plano de 11/09) e
+   * ganha o kicker `· capital` ao lado do nome, como no protótipo do kit
+   * (`ui_kits/atlas-menna/App.jsx:131,140`).
+   */
+  capital?: boolean;
 }
 
 export interface MunicipioTableProps {
@@ -100,19 +111,60 @@ export interface MunicipioTableProps {
 }
 
 /**
+ * Kicker `· capital` ao lado do nome, como o protótipo do kit
+ * (`ui_kits/atlas-menna/App.jsx:140`). Fica DENTRO do rótulo do botão de
+ * propósito: quem navega por teclado/leitor de tela ouve "São Paulo · capital"
+ * de uma vez, em vez de um fragmento solto depois do alvo interativo.
+ */
+function CapitalKicker() {
+  return (
+    <span
+      data-testid="municipio-capital"
+      className="flex-none"
+      style={{
+        font: "var(--type-kicker)",
+        letterSpacing: "var(--tracking-caps)",
+        textTransform: "uppercase",
+        color: "var(--text-muted)",
+      }}
+    >
+      {/* Espaço explícito no texto: o `gap` do flex resolve o visual, mas
+          `textContent` (leitor de tela, busca da página, teste) precisa do
+          separador para não ler "Uberaba· capital". */}
+      {" · capital"}
+    </span>
+  );
+}
+
+/**
  * Célula de nome do município. Vira botão quando há `onSelect`; caso
  * contrário mantém o `<span title>` de sempre.
  */
 function NomeCell({
   nome,
   codIbge,
+  capital,
   onSelect,
 }: {
   nome: string;
   codIbge: string;
+  capital?: boolean;
   onSelect?: (codIbge: string) => void;
 }) {
-  if (!onSelect) return <span title={nome}>{nome}</span>;
+  const conteudo = (
+    <>
+      <span className="truncate">{nome}</span>
+      {capital ? <CapitalKicker /> : null}
+    </>
+  );
+
+  if (!onSelect) {
+    return (
+      <span className="flex min-w-0 items-baseline" style={{ gap: "var(--space-1)" }} title={nome}>
+        {conteudo}
+      </span>
+    );
+  }
   return (
     <button
       type="button"
@@ -120,8 +172,9 @@ function NomeCell({
       data-cod={codIbge}
       onClick={() => onSelect(codIbge)}
       title={nome}
-      className="flex w-full items-center truncate text-left"
+      className="flex w-full min-w-0 items-baseline text-left"
       style={{
+        gap: "var(--space-1)",
         minHeight: "var(--tap-min)",
         border: 0,
         background: "transparent",
@@ -134,7 +187,7 @@ function NomeCell({
         textUnderlineOffset: 2,
       }}
     >
-      {nome}
+      {conteudo}
     </button>
   );
 }
@@ -164,23 +217,39 @@ function TopByEleitoradoTable({
   topN: number;
   onSelect?: (codIbge: string) => void;
 }) {
+  // Ordem do protótipo (decisão E4): **capital sempre em primeiro**, depois
+  // eleitorado desc.
+  //
+  // O kit faz isso com um bônus numérico — `(b.capital ? 1e12 : 0) + b.eleitores`
+  // (`ui_kits/atlas-menna/App.jsx:131`) — e este componente NÃO copia o truque:
+  // somar 1e12 ao eleitorado funde duas grandezas num único número e só está
+  // correto enquanto nenhum eleitorado chegar perto do bônus. A chave composta
+  // abaixo é equivalente, legível e não tem teto.
+  //
+  // `Array.prototype.sort` é estável (ES2019+), então empate em eleitorado
+  // preserva a ordem de entrada — é o que o teste de empate fixa.
   const top = [...rows]
     .filter((r) => r.eleitorado != null)
-    .sort((a, b) => (b.eleitorado ?? 0) - (a.eleitorado ?? 0))
+    .sort((a, b) => {
+      const capA = a.capital === true ? 1 : 0;
+      const capB = b.capital === true ? 1 : 0;
+      if (capA !== capB) return capB - capA;
+      return (b.eleitorado ?? 0) - (a.eleitorado ?? 0);
+    })
     .slice(0, topN);
 
-  // Nenhuma linha traz `eleitorado`. Hoje esse é o caso REAL em produção: o
-  // payload de UF (`EdgeUfMunicipio`) não publica eleitorado por município, e
-  // os dois adaptadores que montam estas linhas (`toMunicipioRows` em
-  // `app/uf/[sigla]/page.tsx` e em `app/uf/[sigla]/governador/page.tsx`) não
-  // têm de onde tirá-lo — o filtro acima descarta tudo e a tabela saía com
-  // cabeçalho, contagem "(0)" e `<tbody>` vazio, sem dizer ao leitor por quê.
+  // Nenhuma linha traz `eleitorado`. Era o caso REAL em produção até 11/09: o
+  // payload de UF não publicava eleitorado por município, e os dois adaptadores
+  // que montam estas linhas (`toMunicipioRows` em `app/(pres)/uf/[sigla]/page.tsx`
+  // e em `app/(gov)/uf/[sigla]/governador/page.tsx`) não tinham de onde tirá-lo —
+  // o filtro acima descartava tudo e a tabela saía com cabeçalho, contagem "(0)"
+  // e `<tbody>` vazio, sem dizer ao leitor por quê.
   //
-  // Enquanto o campo não existir, declaramos a ausência em texto em vez de
-  // desenhar uma tabela sem conteúdo (constituição § 8 — o leitor precisa
-  // saber que é dado indisponível, não "nenhum município"). Quando o payload
-  // passar a publicar o eleitorado municipal, este ramo deixa de ser
-  // alcançado sozinho, sem mudança no consumidor.
+  // `EdgeUfMunicipio.eleitores` passou a existir (ADR-0035 D2), mas é OPCIONAL:
+  // payloads e Blobs gravados antes da migration 0006 seguem válidos sem ele. O
+  // ramo continua, então, alcançável — e continua declarando a ausência em texto
+  // em vez de desenhar uma tabela sem conteúdo (constituição § 8 — o leitor
+  // precisa saber que é dado indisponível, não "nenhum município").
   if (top.length === 0) {
     return (
       <section aria-labelledby="municipios-top-heading" data-testid="municipios-top-empty">
@@ -253,8 +322,24 @@ function TopByEleitoradoTable({
         <tbody>
           {top.map((m) => (
             <tr key={m.cod_ibge} style={{ borderBottom: "1px solid var(--color-border)" }}>
-              <td className="truncate px-3 py-2 text-sm" style={{ color: "var(--color-text)" }}>
-                <NomeCell nome={m.nome} codIbge={m.cod_ibge} onSelect={onSelect} />
+              <td className="px-3 py-2 text-sm" style={{ color: "var(--color-text)" }}>
+                <NomeCell
+                  nome={m.nome}
+                  codIbge={m.cod_ibge}
+                  capital={m.capital}
+                  onSelect={onSelect}
+                />
+                {/* Subtítulo do protótipo (`App.jsx:140`). O `% apurado` só
+                    existe aqui neste modo — a coluna dedicada é do modo
+                    default —, então a linha carrega informação que nenhuma
+                    outra célula da tabela repete. */}
+                <span
+                  data-testid="municipio-top-sub"
+                  className="block"
+                  style={{ font: "var(--type-data)", color: "var(--text-muted)" }}
+                >
+                  {fmtVotos(m.eleitorado ?? 0)} eleitores · {fmtPct(m.pctApurado)} apurado
+                </span>
               </td>
               <td
                 className="px-3 py-2 text-right text-sm tabular-nums"

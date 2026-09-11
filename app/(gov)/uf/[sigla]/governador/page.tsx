@@ -204,6 +204,13 @@ function rankByParcial(candidatos: readonly EdgeUfCandidate[]): EdgeUfCandidate[
   });
 }
 
+/**
+ * 2026-09-11 (ADR-0035 D2): `eleitores` e `capital` entram nas linhas. É esta
+ * rota que consome `mode="top-by-eleitorado"` — sem os dois campos a tabela
+ * caía no estado "eleitorado não publicado" e não listava município nenhum.
+ * Ambos seguem opcionais: Blob antigo (pré-migration 0006) continua válido, e
+ * `capital` é emitido só quando `true` (ausência == não é capital).
+ */
 function toMunicipioRows(
   municipios: EdgeUfMunicipio[],
   candidateColor: Record<number, string>,
@@ -221,6 +228,8 @@ function toMunicipioRows(
       margemPp: m.lider.margem_pp,
       pctApurado: m.pct_apurado,
       votosReportados: totalVotos,
+      eleitorado: m.eleitores,
+      capital: m.capital,
     };
   });
 }
@@ -407,7 +416,11 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
               rows={municipioRows}
               candidatos={payload.candidatos}
               tableMode="top-by-eleitorado"
-              topN={15}
+              // 8, não 15: é o corte do protótipo (`ui_kits/atlas-menna/App.jsx:131`,
+              // `.slice(0, 8)`) e a decisão E4 do plano de 11/09. O default do
+              // componente segue 15 — quem manda é este call site, que é o único
+              // uso real do modo.
+              topN={8}
             />
           </div>
         ) : (

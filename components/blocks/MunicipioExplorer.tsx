@@ -33,8 +33,20 @@
  *      nunca publica um projetado municipal. A folha, portanto, mostra o
  *      **parcial** e diz que é parcial. Repetir o mesmo número nas duas
  *      colunas fingiria uma projeção que não existe (constituição § 8).
- *   2. **Não há eleitorado por município** no payload de UF, então a `Figure`
- *      "Eleitores" do kit vira "Votos apurados".
+ *   2. **O eleitorado por município passou a existir** (11/09, ADR-0035 D2):
+ *      `EdgeUfMunicipio.eleitores` é a soma exata do eleitorado apto dos pares
+ *      (município × zona) do cadastro do TSE, sem rateio, e a `Figure`
+ *      "Eleitores" do kit (`App.jsx:203`) voltou ao seu lugar. O campo é
+ *      OPCIONAL, porém: Blob gravado antes da migration 0006 não o traz, e
+ *      nesse caso a folha degrada para "Votos apurados" e diz na nota que
+ *      trocou a medida. Até 10/09 esse era o único comportamento.
+ *
+ * A nota de rodapé da folha declara, além disso, a granularidade real do dado
+ * (constituição § 8): a unidade que o TSE apura é a ZONA, uma zona pode
+ * atravessar vários municípios, e o total do município é a soma dos boletins
+ * dos pares que caem nele — enquanto o `pct_apurado` municipal é média das
+ * zonas ponderada pelo eleitorado do par (`fetch_municipio_aggregates`,
+ * api/model/project.py), não um percentual que o TSE publique por município.
  *
  * ## Por que este componente existe (e a tabela não abre o sheet sozinha)
  *
@@ -243,6 +255,16 @@ export function MunicipioExplorer({
   );
   const totalVotos = linhas.reduce((acc, l) => acc + l.votos, 0);
 
+  // O slot do kit é "Eleitores" (`App.jsx:203`). Desde 11/09 o payload publica
+  // `eleitores` por município (ADR-0035 D2) — mas como campo OPCIONAL, então o
+  // slot ainda tem de saber viver sem ele: um Blob gravado antes da migration
+  // 0006 não traz o campo, e aí a folha volta ao que dava para dizer com
+  // honestidade ("Votos apurados"), com a nota explicando a troca.
+  const eleitores =
+    typeof municipio?.eleitores === "number" && Number.isFinite(municipio.eleitores)
+      ? municipio.eleitores
+      : null;
+
   return (
     <div className="flex flex-col" style={{ gap: "var(--space-4)" }}>
       {waffleCandidatos ? (
@@ -261,7 +283,7 @@ export function MunicipioExplorer({
         <Sheet
           open
           onClose={fechar}
-          kicker={`Município · ${ufSigla}`}
+          kicker={`Município · ${ufSigla}${municipio.capital ? " · capital" : ""}`}
           title={municipio.nome}
           headingLevel={3}
         >
@@ -270,7 +292,11 @@ export function MunicipioExplorer({
             style={{ gap: "var(--space-4)", marginBottom: "var(--space-4)" }}
           >
             <Figure label="Apurado" value={formatPercent(municipio.pct_apurado, 1)} size="md" />
-            <Figure label="Votos apurados" value={formatVotes(totalVotos)} size="md" />
+            {eleitores !== null ? (
+              <Figure label="Eleitores" value={formatVotes(eleitores)} size="md" />
+            ) : (
+              <Figure label="Votos apurados" value={formatVotes(totalVotos)} size="md" />
+            )}
           </div>
           {linhas.length > 0 ? (
             <>
@@ -285,10 +311,15 @@ export function MunicipioExplorer({
                   color: "var(--text-muted)",
                 }}
               >
-                Percentuais sobre os votos já apurados neste município. O modelo projeta por zona
-                eleitoral e agrega para o estado — não existe projeção municipal. O payload também
-                não publica o eleitorado do município, então a segunda medida acima é o total de
-                votos já apurados, não o total de eleitores.
+                Percentuais sobre os votos já apurados neste município. A unidade que o TSE apura é
+                a <strong>zona eleitoral</strong>, e uma zona pode atravessar vários municípios: o
+                total daqui é a soma dos boletins de cada par município × zona, sem rateio. O
+                percentual apurado do município é a média dessas zonas ponderada pelo eleitorado de
+                cada par — não é um número que o TSE publique pronto por município. E não existe
+                projeção municipal: o modelo projeta por zona e agrega para o estado.{" "}
+                {eleitores !== null
+                  ? "Os eleitores acima são a soma do eleitorado apto desses mesmos pares, como consta do cadastro do TSE."
+                  : "O payload desta corrida não publica o eleitorado do município, então a segunda medida acima é o total de votos já apurados, não o total de eleitores."}
               </p>
             </>
           ) : (

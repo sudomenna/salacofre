@@ -56,6 +56,9 @@ const candidatos: EdgeUfCandidate[] = [
   cand({ id: 22, nome: "Candidato PL", partido: "PL", cor: "var(--party-pl)" }),
 ];
 
+// São Paulo traz `eleitores`/`capital` (o payload pós-ADR-0035 D2); Campinas
+// NÃO — é o Blob antigo, pré-migration 0006, que o campo opcional preserva.
+// Os dois estados convivem de propósito: a folha tem de se comportar nos dois.
 const municipios: EdgeUfMunicipio[] = [
   {
     cod_ibge: "3550308",
@@ -63,6 +66,8 @@ const municipios: EdgeUfMunicipio[] = [
     pct_apurado: 72.5,
     lider: { candidato_id: 13, partido: "PT", votos: 1200, margem_pp: 20 },
     votos_reportados: { 13: 1200, 22: 800 },
+    eleitores: 9_281_234,
+    capital: true,
   },
   {
     cod_ibge: "3509502",
@@ -189,15 +194,65 @@ describe("<MunicipioExplorer /> — a folha aberta pelo mapa", () => {
     expect(folha()?.textContent).not.toContain("PROJ.");
   });
 
-  it("(g) declara que a segunda medida é voto apurado, não eleitorado", () => {
-    // O `Figure` "Eleitores" do protótipo não pode existir: `EdgeUfMunicipio`
-    // não publica eleitorado por município. A folha põe o que existe (votos
-    // apurados) e diz na nota que é isso.
+  /**
+   * 2026-09-11 (ADR-0035 D2) — inversão deliberada deste caso.
+   *
+   * Até 10/09 o `Figure` "Eleitores" do protótipo (`App.jsx:203`) NÃO podia
+   * existir: `EdgeUfMunicipio` não publicava eleitorado por município, e a
+   * folha punha o que existia (votos apurados) dizendo na nota que era isso.
+   * O campo `eleitores` passou a existir — soma exata dos pares
+   * (município × zona) do cadastro do TSE, sem rateio —, então o slot do kit
+   * voltou ao lugar. O caso antigo não sumiu: virou o fallback em (h), porque
+   * o campo é opcional e Blob pré-migration 0006 segue válido.
+   */
+  it("(g) com `eleitores` no payload, a segunda medida é o eleitorado", () => {
     montar();
-    cliqueNoMapa("3550308");
+    cliqueNoMapa("3550308"); // São Paulo — a entrada com `eleitores`.
+
+    expect(folha()?.textContent).toContain("Eleitores");
+    expect(folha()?.textContent).toContain("9.281.234");
+    expect(folha()?.textContent).not.toContain("Votos apurados");
+    expect(folha()?.textContent).toContain("soma do eleitorado apto desses mesmos pares");
+  });
+
+  it("(h) sem `eleitores`, degrada para votos apurados e diz que degradou", () => {
+    montar();
+    cliqueNoMapa("3509502"); // Campinas — sem o campo, como um Blob antigo.
 
     expect(folha()?.textContent).toContain("Votos apurados");
     expect(folha()?.textContent).toContain("não publica o eleitorado do município");
     expect(folha()?.textContent).not.toContain("Eleitores");
+  });
+
+  /**
+   * Constituição § 8 — a folha não pode deixar o leitor achar que o TSE apura
+   * e publica resultado por município. Ele apura por ZONA, e uma zona pode
+   * atravessar vários municípios; o total daqui é a soma dos boletins dos
+   * pares que caem no município, e o `pct_apurado` é média das zonas
+   * ponderada pelo eleitorado do par (`fetch_municipio_aggregates`).
+   */
+  it("(i) a nota declara a granularidade real do dado, em linguagem simples", () => {
+    montar();
+    cliqueNoMapa("3550308");
+    const texto = folha()?.textContent ?? "";
+
+    expect(texto).toContain("zona eleitoral");
+    expect(texto).toContain("uma zona pode atravessar vários municípios");
+    expect(texto).toContain("soma dos boletins de cada par município × zona");
+    expect(texto).toContain("sem rateio");
+    expect(texto).toContain("não existe projeção municipal");
+  });
+
+  it("(j) a capital aparece no kicker da folha", () => {
+    montar();
+    cliqueNoMapa("3550308");
+    expect(folha()?.textContent).toContain("Município · SP · capital");
+
+    const fechar = container.querySelector<HTMLElement>('[data-testid="sheet-close"]');
+    act(() => fechar?.click());
+
+    cliqueNoMapa("3509502");
+    expect(folha()?.textContent).toContain("Município · SP");
+    expect(folha()?.textContent).not.toContain("· capital");
   });
 });

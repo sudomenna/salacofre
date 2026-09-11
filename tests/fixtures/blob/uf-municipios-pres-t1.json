@@ -7506,6 +7506,8 @@
         "cod_ibge": "3106200",
         "nome": "Belo Horizonte",
         "pct_apurado": 48.876666666666665,
+        "eleitores": 1992984,
+        "capital": true,
         "lider": {
           "candidato_id": 1001,
           "partido": "PT",
@@ -7566,6 +7568,7 @@
         "cod_ibge": "3106705",
         "nome": "Betim",
         "pct_apurado": 43.925,
+        "eleitores": 297070,
         "lider": {
           "candidato_id": 1001,
           "partido": "PT",
@@ -8340,6 +8343,7 @@
         "cod_ibge": "3118601",
         "nome": "Contagem",
         "pct_apurado": 22.6475,
+        "eleitores": 459110,
         "lider": { "candidato_id": 1001, "partido": "PT", "votos": 163, "margem_pp": 3.90625 },
         "votos_reportados": { "1001": 163, "1002": 148, "1003": 73 }
       },
@@ -8749,6 +8753,7 @@
         "cod_ibge": "3127701",
         "nome": "Governador Valadares",
         "pct_apurado": 62.22,
+        "eleitores": 198486,
         "lider": {
           "candidato_id": 1001,
           "partido": "PT",
@@ -9128,6 +9133,7 @@
         "cod_ibge": "3136702",
         "nome": "Juiz de Fora",
         "pct_apurado": 86.885,
+        "eleitores": 390203,
         "lider": {
           "candidato_id": 1002,
           "partido": "PL",
@@ -9315,6 +9321,7 @@
         "cod_ibge": "3143302",
         "nome": "Montes Claros",
         "pct_apurado": 58.32,
+        "eleitores": 277710,
         "lider": {
           "candidato_id": 1002,
           "partido": "PL",
@@ -9616,6 +9623,7 @@
         "cod_ibge": "3154606",
         "nome": "Ribeirão das Neves",
         "pct_apurado": 76.585,
+        "eleitores": 213114,
         "lider": {
           "candidato_id": 1001,
           "partido": "PT",
@@ -9927,6 +9935,7 @@
         "cod_ibge": "3170206",
         "nome": "Uberlândia",
         "pct_apurado": 57.706,
+        "eleitores": 530871,
         "lider": {
           "candidato_id": 1002,
           "partido": "PL",
