@@ -1,7 +1,8 @@
 // Utilidades compartilhadas dos scripts ETL do TSE.
 // - Pool Neon via WebSocket (mesma config de scripts/apply-postgis.mjs).
 // - Download com retry + cache local em build/tse-archives/.
-// - Parser CSV minimalista para o formato TSE: separador ;, aspas duplas, ISO-8859-1.
+// - Parser CSV para o formato TSE: separador ;, aspas duplas (com newline
+//   embutido em campo entre aspas), ISO-8859-1.
 // - Util de batches para COPY-like INSERT.
 
 import { exec } from "node:child_process";
@@ -116,28 +117,99 @@ export async function unzipTo(zipPath: string, subdir: string): Promise<string> 
 }
 
 /**
- * Itera linhas de um CSV TSE (ISO-8859-1, separador `;`, aspas duplas).
+ * Limite de linhas físicas que um único registro lógico pode ocupar.
+ * Serve de circuit breaker: se um CSV tiver uma aspa solta (não fechada),
+ * a acumulação engoliria o arquivo inteiro num registro só, silenciosamente.
+ * O maior registro multi-linha observado no acervo TSE ocupa 3 linhas.
+ */
+const MAX_LINES_PER_RECORD = 64;
+
+/**
+ * Itera registros de um CSV TSE (ISO-8859-1, separador `;`, aspas duplas).
  * Yieldea `string[]` com os campos sem aspas. Pula a linha de header (primeira).
  *
- * TSE CSVs não têm newlines embutidos em campos, então split por linha é seguro.
- * Não cobrimos escapes de `"` dentro de campo (TSE também não usa).
+ * Um registro pode ocupar mais de uma linha física: o TSE emite newlines
+ * dentro de campos entre aspas (medido em 11/09 no `eleitorado_local_votacao_2024`:
+ * 6 registros com `DS_ENDERECO`/`DS_ENDERECO_LOCVT_ORIGINAL` quebrado em 3 linhas,
+ * 12 linhas físicas excedentes em 599.217). Por isso acumulamos linhas enquanto
+ * as aspas estiverem desbalanceadas (número ímpar de `"` no buffer) antes de
+ * entregar ao parser — sem isso o registro é partido em fragmentos e ambos saem
+ * errados: o primeiro perde as colunas finais (`QT_ELEITOR_SECAO` some e vira 0)
+ * e os seguintes têm todos os offsets deslocados.
+ *
+ * O newline embutido é normalizado para `\n` (readline com `crlfDelay: Infinity`
+ * não distingue `\r\n` de `\n`); irrelevante para os campos que consumimos.
  */
 export async function* iterCsv(path: string): AsyncGenerator<string[], void, void> {
   const stream = createReadStream(path, { encoding: "latin1" });
   const rl = createInterface({ input: stream, crlfDelay: Number.POSITIVE_INFINITY });
   let isFirst = true;
+  let pending: string | null = null;
+  let pendingLines = 0;
+  let lineNo = 0;
   for await (const raw of rl) {
-    if (isFirst) {
-      isFirst = false;
+    lineNo++;
+    if (pending === null) {
+      if (isFirst) {
+        // Header pode, em tese, ser multi-linha também — mas nunca é; e mesmo
+        // que fosse, o `pending` abaixo trataria antes de chegarmos ao `continue`.
+        isFirst = false;
+        if (countQuotes(raw) % 2 === 0) continue;
+        pending = raw;
+        pendingLines = 1;
+        continue;
+      }
+      if (!raw) continue;
+      if (countQuotes(raw) % 2 === 0) {
+        yield parseTseCsvLine(raw);
+        continue;
+      }
+      pending = raw;
+      pendingLines = 1;
       continue;
     }
-    if (!raw) continue;
-    yield parseTseCsvLine(raw);
+    // Registro em aberto: concatena preservando a quebra dentro do campo.
+    pending += `\n${raw}`;
+    pendingLines++;
+    if (countQuotes(pending) % 2 === 0) {
+      const record = pending;
+      pending = null;
+      pendingLines = 0;
+      if (isFirst) {
+        isFirst = false;
+        continue;
+      }
+      yield parseTseCsvLine(record);
+      continue;
+    }
+    if (pendingLines > MAX_LINES_PER_RECORD) {
+      throw new Error(
+        `CSV malformado em ${path}: registro iniciado antes da linha ${lineNo} passou de ` +
+          `${MAX_LINES_PER_RECORD} linhas físicas com aspas abertas. Provável aspa solta na origem.`,
+      );
+    }
+  }
+  // EOF com registro em aberto: entrega o que temos em vez de descartar.
+  if (pending !== null && !isFirst) {
+    console.warn(
+      `  [warn] ${path}: EOF com aspas abertas no último registro (${pendingLines} linhas) — entregue como está.`,
+    );
+    yield parseTseCsvLine(pending);
   }
 }
 
+function countQuotes(s: string): number {
+  let n = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '"') n++;
+  }
+  return n;
+}
+
 /**
- * Parse de uma linha CSV TSE. Tolerante a aspas opcionais e a campos vazios.
+ * Parse de um registro CSV TSE. Tolerante a aspas opcionais e a campos vazios.
+ * `""` dentro de campo entre aspas é escape de `"` literal (RFC 4180).
+ * Aceita newlines embutidos — quem monta o registro é `iterCsv`.
  */
 export function parseTseCsvLine(line: string): string[] {
   const out: string[] = [];
@@ -146,6 +218,11 @@ export function parseTseCsvLine(line: string): string[] {
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
     if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+        continue;
+      }
       inQuotes = !inQuotes;
       continue;
     }
