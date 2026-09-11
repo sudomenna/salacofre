@@ -17,14 +17,15 @@ opens_after: 2026-09-11
 # Spec 016 — Senador
 
 **Rotas**: `/senador` (nacional) e `/uf/[sigla]/senador` (por estado)
-**Cargo TSE**: 5 · **Turno único** · **2 vagas por UF**
+**Cargo TSE**: 5 · **Turno único** · **2 vagas por UF** · granularidade **zona**
 
 ## Status
 
 `draft`. Escrita em 2026-09-11 a partir do [ADR-0026](../../architecture/adrs/0026-cargos-senador-deputado-ingestao-e-read-path.md),
-que fixou ingestão e read path em 07/09 mas não gerou spec. A ingestão já está
-implementada e medida (27 alvos por ciclo, cron de 5 min); falta o modelo, o
-payload e as duas telas.
+que fixou ingestão e read path em 07/09 mas não gerou spec. Implementada no
+mesmo dia: ingestão (6.110 alvos por ciclo, cron de 5 min), modelo, payload e as
+duas rotas. Pendentes os gates (`rf-coverage-checker`, `constitution-guard`,
+`a11y-perf-auditor`) e as duas open questions abaixo.
 
 ## Objetivo
 
@@ -39,10 +40,12 @@ os dois primeiros**, e a margem que interessa é a do **2º para o 3º**, não a
 
 ### Dentro
 
-- Ingestão do cargo 5 em granularidade **UF** (27 arquivos por ciclo), cron de
-  5 minutos — já implementado em 2026-09-11.
-- Projeção por UF pela regra de três do [ADR-0021](../../architecture/adrs/0021-extrapolacao-do-apurado-sem-2022.md),
-  aplicada no **nível da UF** (o `k` da UF), não da zona.
+- Ingestão do cargo 5 em granularidade **zona** (6.110 pares por ciclo), cron de
+  5 minutos — implementado em 2026-09-11. ⚠️ O ADR-0026 item 1 previa `uf`; a
+  reversão para `zona` está registrada como emenda (b) naquele ADR e tem motivo
+  medido: com um boletim por estado, `p_eleito` degenera para 0% ou 100%.
+- Projeção pela regra de três do [ADR-0021](../../architecture/adrs/0021-extrapolacao-do-apurado-sem-2022.md),
+  **zona a zona**, como Presidente e Governador.
 - `p_eleito` para cada candidato — probabilidade de terminar entre os dois
   primeiros.
 - Duas rotas, com o `<ResultPanel>` do [ADR-0034](../../architecture/adrs/0034-resultpanel-colapso-visual-corte-fora-do-kit.md)
@@ -51,10 +54,9 @@ os dois primeiros**, e a margem que interessa é a do **2º para o 3º**, não a
 
 ### Fora
 
-- **Projeção zona a zona.** O ADR-0026 escolheu granularidade UF para este cargo:
-  quatro cargos em zona passariam de 24 mil arquivos por ciclo. Consequência
-  assumida: a tela de Senador não tem mapa municipal nem "maiores colégios".
-  Revisável depois do simulado 2.
+- **Mapa municipal e "maiores colégios".** Com granularidade de zona o dado
+  existe, mas as duas telas ficam para depois do simulado — não há tempo hábil
+  antes de 15/09 e não são pré-requisito da projeção.
 - **As 27 vagas que não estão em disputa.** 2026 renova 2/3 do Senado; os
   senadores eleitos em 2022 com mandato até 2031 não aparecem na apuração e não
   devem aparecer como "eleitos" na tela.
@@ -64,15 +66,18 @@ os dois primeiros**, e a margem que interessa é a do **2º para o 3º**, não a
 
 ### Ingestão e dado
 
-**RF-100 — Ingestão do cargo 5 em granularidade UF**
+**RF-100 — Ingestão do cargo 5 em granularidade de zona**
 
 WHILE estamos na janela de apuração, the system SHALL acionar
-`/api/ingest/senador` a cada 5 minutos, produzindo **27 alvos** (um por UF, sem
-arquivo agregado `br-`), conforme [ADR-0026](../../architecture/adrs/0026-cargos-senador-deputado-ingestao-e-read-path.md) item 1.
+`/api/ingest/senador` a cada 5 minutos, produzindo **6.110 alvos** (um por par
+município×zona, sem arquivo agregado `br-`), conforme a emenda (b) do
+[ADR-0026](../../architecture/adrs/0026-cargos-senador-deputado-ingestao-e-read-path.md).
 
 **Aceitação**:
 - Given `TSE_CARGOS` ausente, when `listIngestTargets(production, {cargo: 5})`
-  roda, then devolve exatamente 27 alvos, todos `nivel: "uf"`.
+  roda, then devolve exatamente 6.110 alvos, todos `nivel: "zona"`.
+- Given o orçamento de requisições, when os quatro crons coincidem, then o pior
+  caso agregado é **80 rps** (3 × 25 + 1 × 5), 20% abaixo do teto do TSE.
 - Given `TSE_CARGOS=1,3`, when o cron de Senador dispara, then nenhum alvo é
   produzido — a chave de desligamento tem precedência (`lib/tse/targets.ts::filterCargos`).
 
@@ -89,15 +94,15 @@ descartá-lo.
 
 ### Modelo
 
-**RF-102 — Projeção por regra de três no nível da UF**
+**RF-102 — Projeção por regra de três, zona a zona**
 
 WHEN o modelo roda para cargo 5, the system SHALL aplicar a extrapolação do
-ADR-0021 com `k = te/esi` calculado **sobre a UF inteira**, não por zona, e
-rotular a saída com `metodo.granularidade = "uf"`.
+ADR-0021 zona a zona, como nos demais majoritários, e rotular a saída com
+`metodo.granularidade = "zona"`.
 
 **Aceitação**:
 - Given uma UF com 40% apurado, when o modelo projeta, then `pct_projetado` de
-  cada candidato soma 100 sobre a base escolhida e `metodo.granularidade` é `"uf"`.
+  cada candidato soma 100 sobre a base escolhida e `metodo.granularidade` é `"zona"`.
 - Given uma UF sem nenhum arquivo apurado, when o modelo roda, then a UF sai como
   `aguardando`, **nunca** com projeção imputada do nacional — a composição
   partidária do Senado varia demais entre estados para que a imputação nacional
@@ -162,15 +167,18 @@ composição total de 81 cadeiras do Senado.
 - Given qualquer estado de apuração, when a tela renderiza, then o denominador
   exibido é 54 e há texto distinguindo-o das 81 cadeiras.
 
-**RF-108 — Transparência de método e cadência**
+**RF-108 — Transparência de cadência**
 
-WHEN uma tela de Senador exibe projeção, the system SHALL exibir que a projeção é
-**em nível de estado** (não zona a zona, ao contrário de Presidente e Governador)
-e que a atualização é a cada 5 minutos (constituição § 8, ADR-0026 item 5).
+WHEN uma tela de Senador exibe projeção, the system SHALL exibir que a
+atualização é a cada 5 minutos (constituição § 8, ADR-0026 item 5).
 
 **Aceitação**:
-- Given a tela renderizada, when o leitor busca a metodologia, then ambos os
-  fatos estão legíveis sem clique.
+- Given a tela renderizada, when o leitor busca a metodologia, then a cadência
+  está legível sem clique.
+- Nota: o aviso de "projeção em nível de estado" deixou de ser necessário quando
+  o cargo passou a ser ingerido por zona. A guarda de tela
+  (`temIncertezaMedida`) **permanece**, para o caso de uma UF vir com uma única
+  zona apurada — aí o intervalo volta a ser degenerado e a chance não é exibida.
 
 ## Requisitos Não-Funcionais
 

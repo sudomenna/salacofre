@@ -76,11 +76,19 @@ export interface CargoInfo {
    * `"zona"` (≈6.110 pares por cargo) é o que o estimador precisa para a regra
    * de três (ADR-0021, RF-011/012) — é o modo de Presidente e Governador.
    *
-   * `"uf"` (27 GETs por cargo) é o de Senador e Deputado Federal: com quatro
-   * cargos em zona o fan-out passaria de 24 mil GETs por ciclo, inviável sob
-   * qualquer `TSE_MAX_RPS` permitido. O custo é que esses dois cargos não
-   * alimentam projeção zona a zona — decisão explícita do ADR-0026, revisável
-   * depois do simulado 2.
+   * `"uf"` (27 GETs por cargo) é o de Deputado Federal: quatro cargos em zona
+   * passariam de 24 mil GETs por ciclo, inviável sob qualquer `TSE_MAX_RPS`
+   * permitido.
+   *
+   * **Senador saiu de `"uf"` para `"zona"` em 2026-09-11**, emendando o
+   * ADR-0026 item 1. Motivo medido: com um único boletim por estado, o bootstrap
+   * do estimador tem uma só unidade de reamostragem — as 1.000 réplicas saem
+   * idênticas, o IC95 fecha num ponto e `p_eleito` degenera para 0% ou 100%.
+   * Verificado à parte: 1 observação produz **1** réplica distinta; 3 produzem
+   * 10. Exibir aquilo como probabilidade afirmaria certeza que o modelo não tem
+   * (constituição § 6), e a alternativa era publicar o cargo sem chance de
+   * eleição. Decisão do usuário, com o custo aceito de baixar os três cargos
+   * pesados de 35 para 25 rps.
    *
    * `TSE_GRANULARIDADE` no ambiente sobrepõe isto para TODOS os cargos —
    * é escotilha de diagnóstico, não configuração de produção.
@@ -105,15 +113,20 @@ export interface CargoInfo {
    *
    *   | cargo      | alvos | rps | duração do ciclo |
    *   |------------|-------|-----|------------------|
-   *   | Presidente | 6.110 |  35 | ~175 s           |
-   *   | Governador | 6.110 |  35 | ~175 s           |
-   *   | Senador    |    27 |   5 | ~5 s             |
+   *   | Presidente | 6.110 |  25 | ~244 s           |
+   *   | Governador | 6.110 |  25 | ~244 s           |
+   *   | Senador    | 6.110 |  25 | ~244 s           |
    *   | Deputado   |    27 |   5 | ~5 s             |
    *
-   * Os cargos de granularidade UF pedem 27 arquivos: 5 rps os entrega em 5
-   * segundos, e gastar 40 rps neles seria comprar 0,7 s de latência ao preço de
-   * metade da margem de segurança do dia D. Os ~175 s dos pesados continuam
-   * dentro do `maxDuration` de 300 s.
+   * Os pesados caíram de 35 para 25 rps em 2026-09-11, quando Senador passou a
+   * ser ingerido por zona (decisão do usuário — ver `granularidade`): três
+   * cargos pesados a 35 dariam 110 rps agregados, acima do teto. A 25, o ciclo
+   * mais longo vai a ~244 s, dentro do `maxDuration` de 300 s mas com menos
+   * folga que antes — é o custo explícito da decisão, e o que torna a medição
+   * de `duration_ms` no simulado 1 obrigatória, não opcional.
+   *
+   * Deputado Federal fica em 5 rps porque pede 27 arquivos: entrega em 5 s, e
+   * gastar mais nele seria comprar 4 s de latência ao preço da margem do dia D.
    */
   readonly rpsMax: number;
 }
@@ -133,7 +146,7 @@ export const CARGOS: readonly CargoInfo[] = [
     temArquivoBr: true,
     proporcional: false,
     granularidade: "zona",
-    rpsMax: 35,
+    rpsMax: 25,
   },
   {
     cd: 3,
@@ -145,7 +158,7 @@ export const CARGOS: readonly CargoInfo[] = [
     temArquivoBr: false,
     proporcional: false,
     granularidade: "zona",
-    rpsMax: 35,
+    rpsMax: 25,
   },
   {
     cd: 5,
@@ -156,8 +169,8 @@ export const CARGOS: readonly CargoInfo[] = [
     temSegundoTurno: false,
     temArquivoBr: false,
     proporcional: false,
-    granularidade: "uf",
-    rpsMax: 5,
+    granularidade: "zona",
+    rpsMax: 25,
   },
   {
     cd: 6,

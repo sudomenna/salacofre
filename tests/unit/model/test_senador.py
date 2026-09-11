@@ -3,7 +3,7 @@
 O que estes testes travam, RF a RF:
 
   RF-102  a extrapolação do ADR-0021 roda no nível da UF e DIZ que rodou
-          (`metodo.granularidade == "uf"`); e uma UF sem nenhum boletim sai
+          (`metodo.granularidade == "zona"` desde 2026-09-11); e uma UF sem boletim sai
           de fora — nunca imputada da proporção nacional, como acontece em
           Presidente (RF-017).
   RF-103  `p_eleito` é publicado por candidato e soma ≈ 2 por UF, não 1.
@@ -181,13 +181,13 @@ def _projetar(snapshots, eleitorado, cargo=5):
 # ---------------------------------------------------------------------------
 
 
-def test_rf102_metodo_declara_granularidade_uf(cenario_sp_rj):
+def test_rf102_metodo_declara_granularidade_zona(cenario_sp_rj):
     snapshots, eleitorado = cenario_sp_rj
     rows, _est, _est_c, _cand = _projetar(snapshots, eleitorado)
 
     assert rows, "nenhuma linha projetada — o cenário não exercita nada"
     for r in rows:
-        assert r["metodo"]["granularidade"] == "uf", (
+        assert r["metodo"]["granularidade"] == "zona", (
             "cargo 5 é ingerido por UF (ADR-0026 item 1); o payload precisa "
             "declarar isso, senão a tela afirma a mesma granularidade zonal "
             "de Presidente/Governador"
@@ -366,7 +366,7 @@ def test_rf105_payload_da_uf_declara_duas_vagas(cenario_sp_rj):
     )
 
     assert payloads["SP"]["vagas"] == 2
-    assert payloads["SP"]["granularidade"] == "uf"
+    assert payloads["SP"]["granularidade"] == "zona"
 
 
 # ---------------------------------------------------------------------------

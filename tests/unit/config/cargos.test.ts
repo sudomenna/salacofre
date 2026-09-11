@@ -6,10 +6,10 @@
  * independentes — todos travados em `1 | 3` e sem nada que forçasse sincronia
  * entre eles (ver o cabeçalho do módulo).
  *
- * Os números aqui não são decorativos: `vagasPorUf: 2` para Senador e
- * `granularidade: "uf"` para 5/6 são decisões do ADR-0026 que, se regredirem em
- * silêncio, produzem tela errada (uma vaga a menos no Senado) ou ciclo de
- * ingestão acima do `maxDuration`.
+ * Os números aqui não são decorativos: `vagasPorUf: 2` para Senador e os tetos
+ * de `rpsMax` são decisões que, se regredirem em silêncio, produzem tela errada
+ * (uma vaga a menos no Senado), ciclo acima do `maxDuration`, ou pico de
+ * requisições acima do teto do TSE — que bloqueia o IP por 10 minutos.
  */
 
 import { describe, expect, it } from "vitest";
@@ -58,11 +58,22 @@ describe("tabela de cargos", () => {
     expect(CARGOS.filter((c) => c.temSegundoTurno).map((c) => c.cd)).toEqual([1, 3]);
   });
 
-  it("Senador e Deputado ingerem em UF; Presidente e Governador em zona (ADR-0026)", () => {
+  it("só Deputado ingere em UF; os outros três em zona", () => {
+    // Senador saiu de "uf" para "zona" em 2026-09-11 (emenda ao ADR-0026 item 1,
+    // decisão do usuário): com um boletim por estado o bootstrap tem uma única
+    // unidade de reamostragem e `p_eleito` degenera para 0% ou 100%.
     expect(cargoInfo(1).granularidade).toBe("zona");
     expect(cargoInfo(3).granularidade).toBe("zona");
-    expect(cargoInfo(5).granularidade).toBe("uf");
+    expect(cargoInfo(5).granularidade).toBe("zona");
     expect(cargoInfo(6).granularidade).toBe("uf");
+  });
+
+  it("o orçamento de rps fecha em 80 com TRÊS cargos pesados", () => {
+    // A conta que mudou com Senador em zona: três pesados a 35 dariam 110 rps
+    // agregados, acima do teto de 100 do TSE. A 25, o agregado volta a 80.
+    const pesados = CARGOS.filter((c) => c.granularidade === "zona");
+    expect(pesados).toHaveLength(3);
+    for (const c of pesados) expect(c.rpsMax, `cargo ${c.cd}`).toBe(25);
   });
 
   it("token e código são conversíveis nos dois sentidos, sem colisão", () => {

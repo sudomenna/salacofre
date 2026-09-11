@@ -39,6 +39,29 @@ Aceito. Este ADR **emenda o ADR-0001** (não o supersede): Postgres continua for
 > (`app/api/ingest/[cargo]/route.ts`, slugs em `lib/config/cargos.ts`). A decisão de granularidade
 > UF e crons próprios, com as cadências de 5 e 15 min, permanece integralmente vigente.
 
+> **Nota 2026-09-11 (b) — Senador passa a ser ingerido por ZONA.** O item 1 abaixo
+> fixa `TSE_GRANULARIDADE=uf` para Senador e Deputado Federal. **Para Senador isso
+> foi revertido no mesmo dia**, por decisão do usuário, depois de uma medição:
+>
+> Com um único arquivo por estado, o bootstrap do estimador (ADR-0021/0023) tem
+> **uma só unidade de reamostragem**. As 1.000 réplicas saem idênticas, o IC95
+> fecha num ponto e `p_eleito` (RF-103) degenera para exatamente 0% ou 100%.
+> Verificado à parte: 1 observação produz **1** réplica distinta; 3 produzem 10.
+> Publicar aquilo como probabilidade afirmaria uma certeza que o modelo não tem
+> (constituição § 6), e a alternativa era publicar o cargo sem chance de eleição —
+> que numa disputa de 2 vagas é justamente o número que o leitor precisa.
+>
+> **Custo aceito**, explícito: com três cargos pesados (Presidente, Governador,
+> Senador — 6.110 alvos cada), o teto por cargo cai de 35 para **25 rps**, senão o
+> agregado seria 110 rps, acima do teto de 100 do TSE. O ciclo mais longo vai de
+> ~175 s para **~244 s**, dentro do `maxDuration` de 300 s mas com menos folga —
+> o que torna a medição de `duration_ms` no simulado 1 **obrigatória**, não
+> opcional. Tabela em `lib/config/cargos.ts`.
+>
+> **Deputado Federal permanece em `uf`**: é proporcional, o payload por UF já é o
+> maior do produto (por isso vai para Blob), e quatro cargos pesados estourariam
+> qualquer orçamento. A degradação pré-acordada da spec 017 não muda.
+
 ## Contexto
 
 O SalaCofre hoje cobre Presidente (cargo TSE 1) e Governador (cargo TSE 3), ambos ingeridos por um único cron de 60s (`vercel.ts:87-91`, ADR-0011) que dispara `/api/ingest`. `lib/tse/targets.ts:57` tipa `cargo: 1 | 3` e `getActiveCargos()` (`targets.ts:335-362`) lê a lista de cargos ativos de `TSE_CARGOS`; `lib/db/schema.ts` tipa `cargo` como `smallint` genérico (aceita qualquer valor sem migration). O usuário decidiu estender a cobertura a Senador (cargo 5) e Deputado Federal (cargo 6) até o 1º turno (04/10/2026) — ambos se decidem em turno único, sem 2º turno — com uma restrição operacional explícita: Deputado Federal pode atualizar a cada 15 minutos (ingestão mais pesada, menos urgência editorial que um cargo majoritário).

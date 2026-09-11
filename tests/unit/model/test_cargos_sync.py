@@ -133,10 +133,17 @@ def test_espelho_python_bate_campo_a_campo_com_o_ts():
         assert py[cd] == linha_ts, f"cargo {cd} divergente"
 
 
-def test_senador_tem_duas_vagas_e_granularidade_uf():
-    """RF-102/RF-103 dependem destes dois valores literalmente."""
+def test_senador_tem_duas_vagas_e_granularidade_zona():
+    """RF-102/RF-103 dependem destes dois valores literalmente.
+
+    Senador saiu de `"uf"` para `"zona"` em 2026-09-11 (emenda ao ADR-0026
+    item 1, decisão do usuário). Com um único boletim por estado o bootstrap
+    tinha uma só unidade de reamostragem e `p_eleito` degenerava para 0% ou
+    100% — ver `app/(sen)/uf/[sigla]/senador/page.tsx::temIncertezaMedida`,
+    que permanece como guarda para o caso de a UF vir com uma zona só.
+    """
     assert vagas_por_uf(5) == 2
-    assert granularidade(5) == "uf"
+    assert granularidade(5) == "zona"
     info = cargo_info(5)
     assert info is not None
     assert info["tem_segundo_turno"] is False
