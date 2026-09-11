@@ -11,6 +11,17 @@ date: 2026-09-05
 
 Aceito.
 
+### Emenda 2026-09-11 — RF-010.3 recalibrado para cron por cargo (ADR-0035 D3)
+
+**Nota 2026-09-11 ([ADR-0035](0035-par-municipio-zona-unidade-de-ingestao.md) D3).** RF-010.3
+recalibrado: com o cron por cargo (Presidente e Governador em invocações separadas,
+`/api/ingest/[cargo]`), cada processo roda seu próprio rate limiter singleton
+(`lib/tse/rate-limiter.ts`), e `TSE_MAX_RPS_DEFAULT` subiu de 30 para 50 — o pior caso de duas
+invocações simultâneas no mesmo IP soma exatamente 100 rps, o teto documentado do TSE, não acima
+dele. Antes do cron por cargo, um único ciclo cobria todos os cargos sequencialmente e 30 rps era a
+margem de segurança adequada para um único processo. O teto de 100 rps/IP e a proibição de sondar
+URL seguem exatamente como este ADR definiu.
+
 ## Contexto
 
 A documentação interna escrita em 2026-05-17 (constituição § 1, `docs/reference/regulatory.md`, `docs/operations/runbook.md`, RF-010 da spec 001, backlog da S07) foi redigida antes de a resolução do pleito 2026 ser publicada, e assumiu por analogia com a Res. TSE 23.736/2024 que: (a) o SalaCofre precisaria se **cadastrar previamente** como "interessado na divulgação" e ter esse cadastro **aprovado** antes da janela de apuração; (b) o TSE abandonaria o leiaute EA20 em favor de "um formato JSON novo" a ser definido em audiência pública técnica prevista para julho/2026; e (c) a resolução vigente para 2026 ainda não existia. As três premissas motivaram, respectivamente, RF-010 (cadastro como requisito bloqueante), um plano de refactor do parser para um formato ainda desconhecido, e um "watch" indefinido sobre a publicação da norma.

@@ -336,7 +336,7 @@ Passos operacionais transcritos do plano. Registrar tudo em [`../testing/tse-sim
 - [ ] Ensaio de `TSE_TURNO=2` se o TSE simular 2º turno
 - [ ] Validar cargos 5 e 6 (specs 016/017) com dado real; medir duração do ingest e `rateLimited`
 
-### ✅ Fase 7 — Redesign Atlas Menna — concluída em 08/09 (falta dark mode)
+### ✅ Fase 7 — Redesign Atlas Menna — concluída em 08/09
 
 Plano vivo: [`../_meta/plano-redesign-2026-09-08.md`](../_meta/plano-redesign-2026-09-08.md).
 Handoff da sessão: [`../_meta/handoff-2026-09-08.md`](../_meta/handoff-2026-09-08.md).
@@ -380,21 +380,50 @@ em Blob). ADR-0013 `superseded`; 0017, 0018, 0001, 0026 e 0024 com nota de emend
       o gerador precisa produzir 29 rampas novas e rerodar os gates dos ADRs 0024 e 0031.
 - [ ] Congelar a UI nas janelas do simulado 1 (9–12h e 14–17h de 15–17/09)
 
-### 🔴 Fase 7b — P0 de pipeline, descoberto em 08/09 — **em execução, na frente do resto**
+### ✅ Fase 7b — P0 de pipeline, descoberto em 08/09 — concluída (commits de 08/09)
 
 - [x] Guarda de tamanho do store no writer (não existia; o código afirmava 512 KB e o limite real
       é **1 MB do store inteiro**). Aviso em 78% e crítico em 94%, com ~7 minutos de antecedência
       medidos contra a taxa de crescimento real.
-- [ ] **Renomear as chaves do Global Config** — usam dois-pontos, que o padrão documentado
-      (`^[A-Za-z0-9_-]+$`) não permite. Não foi possível verificar se a API aceita: `EDGE_CONFIG`
-      está comentado desde 18/05, sem token de escrita, CLI não autenticado. Decisão do usuário:
-      renomear em vez de depender de tolerância não documentada.
-- [ ] **Migrar detalhe municipal e séries para o Blob** (ADR-0032) — o payload mede 2,19 MB com
-      Presidente + Governador contra 1 MB de limite, e **cresce conforme a cobertura melhora**.
-      Decisão do usuário: **antes do simulado 1**.
-- [ ] **Investigar `eleitorado`** — inflada 21,8% de forma desigual por UF (SP 1,454 · BA 1,018)
-      porque o importador não filtra turno, e alimenta o peso de cada UF na agregação nacional.
-      **Candidata a causa do gate OT-4.** Pede `model-validator` medindo o replay antes/depois.
+- [x] **Renomear as chaves do Global Config** — usam dois-pontos, que o padrão documentado
+      (`^[A-Za-z0-9_-]+$`) não permite. Commit `7dcf7b7` (08/09). **Nunca exercitado contra a API real** — falta `EDGE_CONFIG_TOKEN`; `pnpm edge-config:smoke` (11/09) é o teste que resolve.
+- [x] **Migrar detalhe municipal e séries para o Blob** (ADR-0032) — o payload mede 2,19 MB com
+      Presidente + Governador contra 1 MB de limite. Commit `2a6097f` (08/09).
+- [x] **Investigar `eleitorado` inflada por turno** — o importador não filtrava turno. Corrigido no
+      commit `2a6298a` (08/09), rendeu **−0,228pp** no MAE@1h: é um bug real, **não** a causa do gate
+      OT-4. O colapso zona→município, medido em 10/09, também **não** é causa (o modelo nunca lê
+      `cod_municipio_tse` — ver ADR-0035 D2). A frente viva do OT-4 é a faixa de sensibilidade do
+      ADR-0033 D3, implementada em 11/09 (`scripts/replay-sensitivity.ts`): passa em atraso 0–1,
+      reprova em 2–3. Estreitar a faixa depende de medir o atraso regional real no simulado.
+
+### ⏳ Fase 7c — ADR-0035: Par (município, zona) como unidade de ingestão — **11/09, sincronização de docs**
+
+Referência: [ADR-0035](../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md) (Decisões D1, D2, D3).
+
+A mudança de unidade de ingestão de zona para **par (município, zona)** foi implementada em 6 commits
+desde 10/09, refletindo a mudança real do leiaute TSE 2026. Impacto: 3.392 de 5.572 municípios deixam
+de ser invisíveis no mapa; 26,1% do eleitorado deixa de ficar sob rótulo errado. Gate OT-4 permanece
+idêntico (MAE@1h PT 2,3623pp / cobertura 82,5%) — prova empírica de que a mudança de unidade de ingestão
+não toca o modelo.
+
+Sincronização desta sessão (11/09):
+
+- [x] ADR-0035 escrito (D1 pares em zonas, D2 município por soma exata, D3 cron por cargo)
+- [x] Spec 001 design.md: EA12 URL (2022→2026), pares e cron documentados
+- [x] Spec 001 spec.md: RF-008/RF-009 em EARS, referência ADR-0035
+- [x] `tse-2026-leiautes.md`: EA12 divergência registrada
+- [x] `data-model.md`: tabelas de pares confirmadas
+- [x] `runbook.md`: custo por ciclo (2.651→6.085 pares)
+- [x] `components.md`: `MunicipioTable` modo eleitorado+capital, `MunicipioExplorer` novo
+- [x] `traceability.md`: RF-008/009 pares, RF-005.4 eleitorado confirmado
+- [x] **Sprints 2026-S07**: Fase 7 dark mode checkmark, Fase 7b 3 items commitados, Fase 7c criada
+- [x] Cross-refs validadas (script CLAUDE.md § 12)
+
+**Gates pendentes pré-simulado 1**:
+- [ ] `constitution-guard` (pares + cron por cargo)
+- [ ] `rf-coverage-checker` (RF-008/009 pares)
+- [ ] Specs 001, 003-006 `shipped` confirmadas
+- [ ] `spec-syncer` repropaga após gates (já fez Fase 7c)
 
 ### ⏳ Fase 8 — Cargos novos: Senador e Deputado Federal — specs 016 e 017
 

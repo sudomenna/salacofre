@@ -83,7 +83,8 @@ Notas dos atoms não construídos:
 | `<DecisiveUFsGrid />` | ⛔ órfão | ~~RF-024~~ | `components/blocks/DecisiveUFsGrid.tsx` | tests existem mas sem call site em produção |
 | `<UFMapDuo />` | ⛔ órfão | ~~RF-035, RF-036~~ | `components/blocks/UFMapDuo.tsx` | — (sem teste dedicado) |
 | `<UfMapsLazy />` | ⛔ órfão | ~~RF-034, RF-035, RF-036, RF-038~~ | `components/blocks/UfMapsLazy.tsx` | — (sem teste dedicado); exports `UfMapDuoLazy`/`UfSwingArrowMapLazy` órfãos |
-| `<MunicipioTable />` | ✅ | RF-037 | `components/blocks/MunicipioTable.tsx` | `tests/unit/components/MunicipioTable.test.tsx`, `MunicipioTable.topByEleitorado.test.tsx` |
+| `<MunicipioTable />` | ✅ S07 | RF-005.4, RF-037 | `components/blocks/MunicipioTable.tsx` | `tests/unit/components/MunicipioTable.test.tsx`, `MunicipioTable.topByEleitorado.test.tsx` (modo novo em S07: ordenação capital-primeiro, eleitorado desc, subtítulo `"N eleitores · X% apurado"`) |
+| `<MunicipioExplorer />` | ✅ S07 | (painel de folha de município com figura "Eleitores", novo em S07 ADR-0035) | `components/blocks/MunicipioExplorer.tsx` | `tests/unit/components/MunicipioExplorer.test.tsx` |
 | `<MunicipioWaffleGrid />` | ✅ S06 | RF-005.2 | `components/blocks/MunicipioWaffleGrid.tsx` | `tests/unit/components/MunicipioWaffleGrid.test.tsx` |
 | `<ForecastTransparency />` | ✅ | RF-043 | `components/blocks/ForecastTransparency.tsx` | `tests/unit/components/ForecastTransparency.test.tsx` |
 | `<InsightCard />` | ✅ | RF-044 | `components/blocks/InsightCard.tsx` | `tests/unit/components/InsightCard.test.tsx` |

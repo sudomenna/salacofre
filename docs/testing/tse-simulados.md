@@ -43,6 +43,67 @@ Ambiente: `https://resultados-sim.tse.jus.br/oficial`.
 
 ## Protocolo do dia 15/09
 
+### Passo 0 — Confirmar a premissa da fatia por município (a pergunta mais cara de errar)
+
+**Antes de qualquer outro passo.** Toda a arquitetura de ingestão (migration 0006,
+ADR-0035, `api/model/zona_merge.py`) repousa numa premissa **nunca verificada
+contra dado real**: que o arquivo de zona `<uf><mun5>-z<zona4>-c<cargo>-e<n>-u.json`
+(`lib/tse/targets.ts::buildEA20UrlZona`) traz apenas a **fatia** da zona que cai
+naquele município — não a zona inteira. Se a premissa for falsa,
+`merge_pairs_into_zonas` soma N cópias da mesma zona (N = nº de municípios que ela
+cobre, até 8) e todo painel municipal (`fetch_municipio_aggregates`) credita a zona
+inteira a cada município que ela toca. Isso é invisível em qualquer teste com
+fixture sintética — só o dado real do simulado decide. Uma guarda de sanidade em
+runtime (`api.model.zona_merge.check_zona_merge_sanity`, chamada em
+`_do_project`) já loga `error` e aciona o Slack se a razão `Σ e.te dos pares / eleitorado
+da zona` for compatível com multiplicação (`>= 1,8`) — mas ela é uma rede de
+segurança operacional, não confirmação. **Este passo é a confirmação.**
+
+1. Achar uma zona multi-município no banco:
+
+   ```sql
+   SELECT uf, cod_zona, COUNT(DISTINCT cod_municipio_tse) AS n_municipios
+   FROM zonas
+   GROUP BY uf, cod_zona
+   HAVING COUNT(DISTINCT cod_municipio_tse) > 1
+   ORDER BY n_municipios DESC
+   LIMIT 5;
+   ```
+
+2. Baixar, para `tests/fixtures/tse/2026-sim/`:
+   - o arquivo de zona (`buildEA20UrlZona`) de **cada um dos pares** dessa zona
+     (um por município que ela cobre);
+   - o arquivo de **município** (`buildEA20UrlMunicipio`) de **um** desses
+     municípios;
+   - o arquivo **EA12** (`mun-e<eleição>-cm.json`,
+     `tse-ea12-arquivo-de-configuracao-de-municipios.txt:26-28`) — mesmo diretório,
+     confirma quais zonas o EA12 associa a cada município e serve de referência
+     cruzada independente do EA20.
+
+3. Fazer as três aritméticas decisivas:
+
+   - **Σ `e.te` dos pares da zona = eleitorado da zona em `eleitorado`?**
+     Somar `e.te` de todos os arquivos de zona baixados no passo 2 e comparar
+     contra `SELECT SUM(eleitores_aptos) FROM eleitorado WHERE ano = 2026 AND uf = ? AND cod_zona = ?
+     GROUP BY uf, cod_zona`. Razão ≈ 1 confirma a fatia. Razão ≈ N (nº de pares)
+     derruba a premissa — os arquivos trazem a zona inteira, e a soma multiplica.
+   - **Σ `v.vvc` (e `cand[].vap`) dos pares de um município = o arquivo `mu` daquele
+     município?** Somar os pares que pertencem ao município escolhido no passo 2 e
+     comparar campo a campo (`v.vvc`, `v.vv`, cada `cand[].vap`) contra o arquivo de
+     município baixado. Bater exatamente confirma que o arquivo de município é a
+     soma exata dos seus pares — condição necessária para `fetch_municipio_aggregates`
+     continuar correto.
+   - **`s.sa`/`s.si`/`s.ts` dos pares somam de forma consistente?** Resolve a
+     pergunta em aberto da Fase 3 (`api/model/zona_merge.py::_psa_merged`):
+     `psa` da zona é `100 · Σsa / Σsi` (implementado hoje) ou `100 · Σsa / Σts`? As
+     fixtures do repo são sintéticas e não decidem — só o dado real do TSE tem os
+     três campos preenchidos de forma que a razão certa fique óbvia.
+
+Se a razão do item 1 confirmar a fatia (≈ 1), a arquitetura está correta e os
+demais passos seguem normalmente. Se confirmar a multiplicação (≈ N), **parar e
+reportar** antes de prosseguir com o resto do protocolo — o modelo estaria
+inflando o eleitorado apurado de 62,5% das zonas do país.
+
 ### Passo 1 — Antes das 9h: descobrir, não adivinhar
 
 ```bash
@@ -66,7 +127,7 @@ Ambiente **preview** da Vercel (nunca produção):
 | `TSE_MAX_RPS` | `20` — conservador na primeira janela |
 | `TSE_TARGETS_WHITELIST` | `SP:1,SP:3` — começar pequeno |
 | `TSE_ACOMPANHAMENTO` | `off` — só ligar no dia 16/17, depois do EA15 mapeado |
-| `TSE_GRANULARIDADE` | `uf` (default) |
+| `TSE_GRANULARIDADE` | `zona` (default desde 2026-09-05, E4 — `lib/tse/targets.ts::getGranularidade`; **não** `uf`) |
 | `CRON_ENABLED` | `false` no início — os primeiros ciclos são manuais |
 
 ### Passo 3 — Coleta obrigatória de fixtures e diffs
@@ -90,8 +151,23 @@ E então:
 
 ### Passo 4 — Primeiro ciclo, manual
 
+Os crons de produção não apontam mais para `/api/ingest` sem cargo — desde
+ADR-0035 D3 (`vercel.ts`) cada cargo tem sua própria rota,
+`/api/ingest/presidente` e `/api/ingest/governador`
+(`app/api/ingest/[cargo]/route.ts`, que aceita GET **ou** POST), porque a
+Vercel só distingue dois crons no mesmo horário por segmento de rota, não por
+query string. O Vercel Cron invoca por **GET** com
+`Authorization: Bearer <CRON_SECRET>`; o caminho manual do runbook
+(`curl -X POST … -H "x-cron-secret"`) continua válido — `lib/tse/ingest-handler.ts`
+aceita os dois (Bearer OU `x-cron-secret`).
+
 ```bash
-curl -X POST https://<preview-url>/api/ingest -H "x-cron-secret: $CRON_SECRET"
+# Caminho manual (runbook) — ainda válido:
+curl -X POST https://<preview-url>/api/ingest/presidente -H "x-cron-secret: $CRON_SECRET"
+curl -X POST https://<preview-url>/api/ingest/governador -H "x-cron-secret: $CRON_SECRET"
+
+# Caminho do Vercel Cron (GET + Bearer) — para reproduzir localmente o que o cron faz:
+curl https://<preview-url>/api/ingest/presidente -H "authorization: Bearer $CRON_SECRET"
 ```
 
 Conferir na resposta e em `ingest_log`:
@@ -151,7 +227,7 @@ Ligar o cron (`CRON_ENABLED=true`) e deixar rodar a janela inteira. Exportar ao 
 ### Decisões que dependem destes dados
 
 1. **Fan-out de produção** — UF/BR só, ou híbrido com granularidade de zona nas UFs sinalizadas pelo EA14 (`TSE_ACOMPANHAMENTO=on`)? O modelo precisa de zona para o swing (RF-011/012). Ver [runbook § dimensionamento do fan-out](../operations/runbook.md#tse--dimensionamento-do-fan-out-revisado-em-2026-09-05). **Decisão do usuário, após medir.**
-2. **`TSE_MAX_RPS` de produção** — o default 30 é estimativa de segurança, não medição.
+2. **`TSE_MAX_RPS` de produção** — o default é **50** (`lib/tse/rate-limiter.ts`, teto/ceiling também 50), estimativa de segurança, não medição.
 3. **`INGEST_CONCURRENCY` e `maxDuration`** — recalibrar com `duration_ms` real.
 4. **`EA15Schema` e o path do EA15** — ajustar ao arquivo real coletado no passo 3.
 

@@ -9,7 +9,18 @@ date: 2026-09-07
 
 ## Status
 
-Aceito. Este ADR **não supersede o ADR-0021** — é continuação direta dele. O método permanece "extrapolação do apurado por zona, sem 2022"; o que muda é *como as zonas apuradas são agregadas dentro do bootstrap de uma UF*, em resposta ao risco que o próprio ADR-0021 já havia nomeado como central e deixado, deliberadamente, sem solução: "o bootstrap não vê" o viés de composição.
+Aceito.
+
+### Emenda 2026-09-11 — ingestão por par, estratos intocados (ADR-0035 D1/D2)
+
+**Nota 2026-09-11 ([ADR-0035](0035-par-municipio-zona-unidade-de-ingestao.md) D1/D2).** Mesma nota
+aplicada ao ADR-0021: a ingestão passou a ser por par (município, zona), somada de volta à zona por
+`api/model/zona_merge.py` antes do estimador. Os estratos por porte de zona (tercis de `te` sobre
+`eleitorado`, agregada por `(uf, cod_zona)`) não mudam — `eleitorado` também passou a ser chaveada
+por par, mas `fetch_eleitorado` (`api/model/project.py:319`) soma por zona na leitura, preservando o
+peso a priori de cada estrato exatamente como este ADR definiu.
+
+Este ADR **não supersede o ADR-0021** — é continuação direta dele. O método permanece "extrapolação do apurado por zona, sem 2022"; o que muda é *como as zonas apuradas são agregadas dentro do bootstrap de uma UF*, em resposta ao risco que o próprio ADR-0021 já havia nomeado como central e deixado, deliberadamente, sem solução: "o bootstrap não vê" o viés de composição.
 
 ## Contexto
 

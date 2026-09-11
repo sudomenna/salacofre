@@ -11,6 +11,16 @@ date: 2026-05-17
 
 Aceito.
 
+### Emenda 2026-09-11 — precedente para o lock de ingestão por cargo (ADR-0035 D3)
+
+**Nota 2026-09-11 ([ADR-0035](0035-par-municipio-zona-unidade-de-ingestao.md) D3).** O princípio de
+fundo deste ADR — nomear o estado por corrida/contexto em vez de uma chave única compartilhada —
+reaparece na camada de ingestão: o lock anti-overlap de `/api/ingest` passou a ser **por cargo**
+(`notes.cargo` no marcador de `ingest_log`, `lib/tse/ingest-handler.ts:360-420`), para que um ciclo
+de Presidente e um de Governador possam correr concorrentemente sem um bloquear o outro. Mesmo
+princípio, mecanismo diferente (marcador de linha em vez de chave de Edge Config); nenhuma mudança
+ao schema de chaves deste ADR.
+
 ### Emenda 2026-09-08 — separador `-` no lugar de `:` (a decisão de fundo permanece)
 
 **Append-only. O corpo abaixo não foi reescrito** — ele registra o esquema como foi decidido em

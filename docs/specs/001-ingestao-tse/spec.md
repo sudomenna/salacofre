@@ -10,7 +10,7 @@ depends_on: []
 apis: [POST /api/ingest]
 components: []
 nfr: [RNF-006, RNF-009, RNF-011, RNF-012, RNF-016, RNF-031, RNF-032, RNF-033, RNF-034]
-adrs: [0001, 0002, 0008, 0011, 0012, 0020]
+adrs: [0001, 0002, 0008, 0011, 0012, 0020, 0035]
 ---
 
 # Spec 001 — Ingestão de dados do TSE
@@ -102,13 +102,22 @@ WHEN o sistema é inicializado pela primeira vez, the system SHALL ter `historic
 
 WHEN o sistema é inicializado, the system SHOULD ter `historical_results` populado para `ano=2018` em granularidade de zona — usado para análises secundárias.
 
-**RF-008 — Mapeamento zona ↔ município ↔ UF (IBGE)**
+**RF-008 — Mapeamento par (município, zona) ↔ UF (IBGE × TSE)**
 
-WHEN o sistema é inicializado, the system SHALL ter `municipios` e `zonas` populados com mapeamento IBGE × TSE.
+WHEN o sistema é inicializado, the system SHALL ter `municipios` e `zonas` populados com mapeamento IBGE × TSE em granularidade de **par** (município, zona) — isto é, `zonas` terá PK `(uf, cod_municipio_tse, cod_zona)` — de forma que cada arquivo EA20 de par tenha alvo de ingestão correspondente. Fonte primária: EA12 (`comum/config/mun-e<n>-cm.json`, arquivo único nacional, `abr[].mu[].z[]`); fallback até o EA12 2026 existir: DISTINCT `(uf, cod_municipio_tse, cod_zona)` de `eleitorado WHERE ano=2026` ([ADR-0035 D1](../../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md)).
 
-**RF-009 — Eleitorado por zona/seção do TSE**
+**Aceitação**:
+- Given o EA12 2026 publicado, when `zonas-import --ea12 <path>` roda, then `SELECT COUNT(DISTINCT (uf, cod_municipio_tse, cod_zona)) FROM zonas` ≥ 6.000 (estimativa TSE: ~6.083 pares).
+- Given nenhum EA12 2026 antes de 15/09, when fallback CSV roda, then `SELECT COUNT(*) FROM zonas` ≥ 6.000 (medido em 2026-09-11: 6.085 pares do eleitorado 2024).
+- Given um arquivo EA20 de par `sp71072-z0001-c0003-e*-u.json`, when o ciclo enumera alvos, then a tabela `zonas` tem linha `(uf='sp', cod_municipio_tse=71072, cod_zona=1)`.
 
-WHEN o sistema é inicializado, the system SHALL ter `eleitorado` populado com `eleitores_aptos` por zona para `ano=2026`.
+**RF-009 — Eleitorado por par (município, zona) para 2026**
+
+WHEN o sistema é inicializado, the system SHALL ter `eleitorado` populado com `eleitores_aptos` por **par** (município, zona) para `ano=2026` — PK `(ano, uf, cod_municipio_tse, cod_zona)` — de forma que somas e agregações sejam exatas ([ADR-0035 D2](../../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md)).
+
+**Aceitação**:
+- Given o CSV de eleitorado 2024 (`build/tse-archives/eleitorado_local_votacao_2024/`), when `eleitorado-import.ts` roda, then `SELECT COUNT(*) FROM eleitorado WHERE ano=2026` ≥ 6.000 e `SUM(eleitores_aptos) BETWEEN 155M AND 157M`.
+- Given um par `(uf='mg', cod_municipio_tse=3106200, cod_zona=1)` com dois snapshots de turnos distintos, when `fetch_eleitorado_por_par` agrega, then `SELECT SUM(eleitores_aptos) FROM eleitorado WHERE uf='mg' AND cod_municipio_tse=3106200 AND cod_zona=1 AND ano=2026` = total exato para aquele par em 2026.
 
 ### Conformidade regulatória
 

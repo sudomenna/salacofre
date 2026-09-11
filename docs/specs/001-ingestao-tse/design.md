@@ -98,14 +98,16 @@ Cacheado em memória da função. Campos relevantes:
 `TSE_COD_ELEICAO` codifica os dois segmentos concatenados: `ele<AAAA>/<dígitos>` (ex.
 `ele2026/619`), validado por regex antes de qualquer GET.
 
-### Configuração de municípios (EA12, por UF)
+### Configuração de municípios (EA12, arquivo único nacional)
 
 ```
-GET <base>/comum/config/{uf}/{uf}-p000407-cm.json
+GET <base>/comum/config/mun-e<eleição6>-cm.json
 ```
 
 `abr[].mu[].z[]` lista os números de zona (4 dígitos) de cada município — origem dos dados de
-`municipios`/`zonas` (RF-008).
+`municipios`/`zonas` (RF-008). Trata-se de um arquivo único nacional, não um arquivo por UF como
+em 2022. O campo `mu[].c` indica se é capital (`true`|`false`), semeado em `municipios.capital`
+(ADR-0035 D1).
 
 ### Resultado unificado (EA20) — pasta e nome do arquivo
 
@@ -146,6 +148,35 @@ zona e agregam para UF ponderando por eleitorado. Desenho recomendado: **híbrid
 `uf` para as telas e busca em `zona` restrita às UFs que o EA14 sinaliza como alteradas
 (`TSE_ACOMPANHAMENTO=on`). A escolha final entre híbrido e "zona escopado por EA14" depende de medir
 latência e volume no simulado de 15–17/09 — ver [tse-2026-leiautes.md § 6](../../reference/tse-2026-leiautes.md).
+
+## Par (município, zona) como unidade de ingestão e agregação (ADR-0035)
+
+O TSE 2026 publica o EA20 de zona **por par** `(município, zona)`. Um arquivo por par — o nome
+inclui o município de 5 dígitos (`<uf><munic5>-z<zona4>-c<cargo>-e<eleição>-u.json`), ex.
+`sp71072-z0001-c0003-e000619-u.json`. Zona ↔ município é relação muitos-para-muitos: 62,5% das
+zonas cobrem 2–8 municípios. O par é a interseção, mais fino que as duas visões, ambas deriváveis
+dele por soma ([ADR-0035 D1, D2](../../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md)).
+
+Consequências:
+- `zonas` (`lib/db/schema.ts:143-158`) é tabela de pares: PK `(uf, cod_municipio_tse, cod_zona)`, coluna `fonte` (`'ea12'` | `'csv'`).
+- `snapshots` (`lib/db/schema.ts:164-193`) ganhou `codMunicipioTse int NOT NULL DEFAULT 0` e índice `ix_snap_lookup_par` — dedup por par, não por zona.
+- `fetch_municipio_aggregates` (`api/model/project.py`) soma exata dos pares, sem rateio. Município é unidade de exibição.
+- Modelo continua por zona (ADR-0021/0023 intocados): `api/model/zona_merge.py` soma pares de volta em zona em memória.
+
+## Cron por cargo e rate limiter por invocação (ADR-0035 D3)
+
+Duas rotas nova:
+- `/api/ingest` — todos os cargos (preview, uso manual). Endpoint antigo, sem mudança de contrato.
+- `/api/ingest/[cargo]` — `[cargo]` = segmento de rota (`presidente` ou `governador`), novo caminho do Vercel Cron.
+
+`vercel.ts` aponta agora a `/api/ingest/presidente` e `/api/ingest/governador`, cada uma recebendo `GET` (do Vercel Cron, com `Authorization: Bearer`) além do `POST` (manual).
+
+O lock anti-overlap é **por cargo** — `notes.cargo` em `ingest_log` — permitindo que Presidente e Governador rodem concorrentemente em processos separados, cada um com seu próprio rate limiter singleton (`lib/tse/rate-limiter.ts`).
+
+Mudanças de operação:
+- `TSE_MAX_RPS` default 30→**50** (cada invocação `/api/ingest/[cargo]` roda ≤50 rps; duas simultâneas somam ≤100 rps, teto documentado do TSE, RF-010.3).
+- `maxDuration` 180→**300** s (fan-out por par chega a ~6.100 arquivos por cargo).
+- Lock window 3→**6 min** (≥ `maxDuration`, evita overlap de dois ciclos do mesmo cargo).
 
 ## Schema EA20 (parcial relevante)
 

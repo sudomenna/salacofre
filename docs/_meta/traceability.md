@@ -32,8 +32,8 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-005 | Replay completo | M | [001](../specs/001-ingestao-tse/) | — | replay |
 | RF-006 | Histórico 2022 zona | M | [001](../specs/001-ingestao-tse/) | — | unit |
 | RF-007 | Histórico 2018 zona | S | [001](../specs/001-ingestao-tse/) | — | unit |
-| RF-008 | Mapeamento IBGE/TSE | M | [001](../specs/001-ingestao-tse/) | — | unit |
-| RF-009 | Eleitorado por zona/seção | M | [001](../specs/001-ingestao-tse/) | — | unit |
+| RF-008 | Mapeamento par (município, zona) ↔ UF (IBGE × TSE, ADR-0035) | M | [001](../specs/001-ingestao-tse/) | — | unit (`geo-coverage.test.ts`: `zonas` ≥ 6.000 pares, municípios distintos ≥ 5.500) |
+| RF-009 | Eleitorado por par (município, zona) para 2026 (ADR-0035) | M | [001](../specs/001-ingestao-tse/) | — | unit (`geo-coverage.test.ts`: `eleitorado` ≥ 6.000 pares, `SUM BETWEEN 155e6..157e6`) |
 | RF-010 | Conformidade com Res. TSE 23.751/2026 (arts. 264–269) | M | [001](../specs/001-ingestao-tse/) | — | — |
 | RF-010.1 | Integridade dado oficial (append-only, sem alteração) | M | [001](../specs/001-ingestao-tse/) | — | unit |
 | RF-010.2 | Projeção rotulada como conteúdo derivado | M | [001](../specs/001-ingestao-tse/) | — | unit |
@@ -67,7 +67,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-005.1 | K-1 disclaimer adaptativo | M | [005](../specs/005-pagina-uf-governador/) | `<K1Banner />` | unit |
 | RF-005.2 | Waffle de municípios | M | [005](../specs/005-pagina-uf-governador/) | `<MunicipioWaffleGrid />` | unit |
 | RF-005.3 | Apuração por mesorregião | M | [005](../specs/005-pagina-uf-governador/) | (tabela condicional) | unit |
-| RF-005.4 | Maiores municípios | M | [005](../specs/005-pagina-uf-governador/) | `<MunicipioTable mode="top-by-eleitorado" />` | unit |
+| RF-005.4 | Maiores colégios eleitorais (8 municípios, capital primeiro, eleitorado + % apurado em S07, ADR-0035 D2) | M | [005](../specs/005-pagina-uf-governador/) | `<MunicipioTable mode="top-by-eleitorado" />` | unit (`MunicipioTable.topByEleitorado.test.tsx` em S07) |
 | RF-006.1 | Header com contagem de chamadas | M | [006](../specs/006-grid-governadores/) | `<RaceStatsCards />` | unit |
 | RF-006.2 | Filtros por status | M | [006](../specs/006-grid-governadores/) | `<FilterBar />` | unit |
 | RF-006.3 | Cartograma hexagonal | M | [006](../specs/006-grid-governadores/) | `<HexCartogramBrasil />` | unit |

@@ -223,7 +223,7 @@ com hash SHA-256 por item de UF + ETag do arquivo inteiro, fail-open em qualquer
 
 ---
 
-## 4. EA11 / EA12 (configuração) — confirmação, sem divergência relevante
+## 4. EA11 / EA12 (configuração) — EA12 mudou para arquivo único nacional
 
 - **EA11** (`tse-ea11-arquivo-de-configuracao-de-eleicoes.txt:31-326`): `pl[].e[].cd` (código da eleição),
   `pl[].e[].t` (turno), `pl[].e[].abr[].cd` (UF ou `br`), `pl[].e[].abr[].cp[].cd` (código do cargo) — **igual**
@@ -232,12 +232,16 @@ com hash SHA-256 por item de UF + ETag do arquivo inteiro, fail-open em qualquer
   `"ele2024"`) — não confundir com o campo `c` do elemento `e`/`s` do EA20/EA14/EA15 (comparecimento/totalizadas),
   são elementos diferentes em documentos diferentes.
 - **EA12** (`tse-ea12-arquivo-de-configuracao-de-municipios.txt:38-63`): `abr[].mu[].z[]` lista os números de
-  zona (4 dígitos) de cada município — usado para popular `zonas`/`municipios` (RF-008). Sem divergência.
+  zona (4 dígitos) de cada município — usado para popular `zonas`/`municipios` (RF-008). **Divergência encontrada
+  em 11/09**: em 2022 o EA12 era **um arquivo por UF** (`comum/config/{uf}/{uf}-p000407-cm.json`). Em 2026 é
+  **arquivo único nacional** (`comum/config/mun-e<eleição6>-cm.json`). Campo novo: `mu[].c` (boolean) indica
+  se o município é capital. Parser em `lib/tse/ea12-schema.ts` com `.passthrough()`.
 
 `lib/tse/targets.ts` `getCodEleicao()` já assumia `TSE_COD_ELEICAO="ele<AAAA>/<dígitos>"` representando
 `<ciclo>/<eleição>` concatenados por `/` — **confirmado correto**: a pasta `[ciclo]` do CDN é literalmente
 `ele<AAAA>` e `[eleição]` é o `pl[].e[].cd` numérico do EA11 (Instruções §3, IDs de pasta 2 e 3). Nenhuma
-mudança necessária nessa função.
+mudança necessária nessa função. Parser EA12 novo em `lib/tse/ea12-schema.ts` (`zonas-import --ea12 <path|url>`
+via `lib/tse/targets.ts` `buildEA12Url`).
 
 ---
 

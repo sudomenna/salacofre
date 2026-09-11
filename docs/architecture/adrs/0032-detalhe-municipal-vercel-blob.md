@@ -10,7 +10,19 @@ amends: 0001, 0026
 
 ## Status
 
-Aceito. Este ADR **emenda o ADR-0001** e o **ADR-0026** — não os supersede. O princípio central do
+Aceito.
+
+### Emenda 2026-09-11 — `eleitores`/`capital` somados ao objeto Blob (ADR-0035 D2)
+
+**Nota 2026-09-11 ([ADR-0035](0035-par-municipio-zona-unidade-de-ingestao.md) D2).** `EdgeUfMunicipio`
+ganha dois campos opcionais no mesmo objeto Blob que este ADR já definia: `eleitores?: number` (soma
+do eleitorado dos pares do município) e `capital?: boolean` (emitido só quando `true`). Nenhum
+destino de armazenamento novo é criado — os dois campos entram no mesmo
+`municipios:uf:<sigla>:<cargo>:t<turno>.json` que este ADR já especificava. A soma de eleitorado por
+município passou a ser exata (soma dos pares reais), não mais dependente da tabela `zonas` antiga
+(um município por zona) que o `LEFT JOIN` removido por esta mudança usava.
+
+Este ADR **emenda o ADR-0001** e o **ADR-0026** — não os supersede. O princípio central do
 ADR-0001 (Postgres fora do read path) permanece intacto. O ADR-0026 abriu uma exceção pontual ao
 ADR-0001 para o Vercel Blob, restrita ao drill-down de UF de Deputado Federal; este ADR generaliza
 essa exceção: o Blob passa a ser o destino de **qualquer** detalhe por UF cujo volume seja

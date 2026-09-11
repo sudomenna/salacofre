@@ -3,7 +3,7 @@
   "name": "SalaCofre Docs Index",
   "description": "Índice machine-readable da documentação SDD do SalaCofre. Carregar este arquivo dá a um agente o mapa completo das specs, NFRs, ADRs e fontes canônicas.",
   "version": "1.0",
-  "last_updated": "2026-09-10",
+  "last_updated": "2026-09-11",
   "source_prd": "docs/PRD.md",
   "constitution": "docs/constitution.md",
   "conventions": "docs/_meta/conventions.md",
@@ -93,6 +93,8 @@
       "id": "0012",
       "title": "Chaves nomeadas no Edge Config por corrida e turno, não chave única",
       "status": "accepted",
+      "amended_by": "0035",
+      "note": "nota 2026-09-11: lock anti-overlap de ingestão por cargo (ADR-0035 D3) reaplica o mesmo princípio de namespacing por corrida",
       "path": "docs/architecture/adrs/0012-edge-config-chaves-nomeadas.md"
     },
     {
@@ -155,6 +157,8 @@
       "title": "Conformidade com a Res. TSE 23.751/2026 sem cadastro prévio, não o regime de 'interessado cadastrado' de 2024",
       "status": "accepted",
       "date": "2026-09-05",
+      "amended_by": "0035",
+      "note": "nota 2026-09-11: RF-010.3 recalibrado — TSE_MAX_RPS_DEFAULT 30→50 porque o cron por cargo (ADR-0035 D3) roda 2 processos concorrentes, cada um ≤50 rps, somando ≤100 rps",
       "path": "docs/architecture/adrs/0020-conformidade-res-23751-2026.md"
     },
     {
@@ -163,6 +167,8 @@
       "status": "accepted",
       "date": "2026-09-05",
       "supersedes": "0015",
+      "amended_by": "0035",
+      "note": "nota 2026-09-11: ingestão passou a ser por par (município, zona); merge_pairs_into_zonas recompõe a zona em memória antes do estimador — método intocado, gate OT-4 idêntico ao dígito antes/depois",
       "path": "docs/architecture/adrs/0021-extrapolacao-do-apurado-sem-2022.md"
     },
     {
@@ -178,7 +184,8 @@
       "title": "Pós-estratificação por porte de zona no bootstrap de candidatos, não amostragem simples das zonas apuradas",
       "status": "accepted",
       "date": "2026-09-07",
-      "note": "continuação direta do ADR-0021 — não o supersede; responde ao risco de viés de composição já nomeado ali como central",
+      "amended_by": "0035",
+      "note": "continuação direta do ADR-0021 — não o supersede; responde ao risco de viés de composição já nomeado ali como central. Nota 2026-09-11: ingestão por par não altera os estratos — eleitorado segue somada por zona na leitura",
       "path": "docs/architecture/adrs/0023-pos-estratificacao-por-porte-de-zona.md"
     },
     {
@@ -251,7 +258,8 @@
         "0001",
         "0026"
       ],
-      "note": "generaliza a exceção Vercel Blob do ADR-0026 (antes só Deputado Federal) para o campo municipios/series_temporais de EdgePayloadUf; corrige o limite de Edge Config citado em ADR-0001/ADR-0026 de 512KB (errado) para 1MB (real, produto renomeado Global Config); pré-requisito do usuário para o simulado 1 (15-17/09)",
+      "amended_by": "0035",
+      "note": "generaliza a exceção Vercel Blob do ADR-0026 (antes só Deputado Federal) para o campo municipios/series_temporais de EdgePayloadUf; corrige o limite de Edge Config citado em ADR-0001/ADR-0026 de 512KB (errado) para 1MB (real, produto renomeado Global Config); pré-requisito do usuário para o simulado 1 (15-17/09). Nota 2026-09-11: EdgeUfMunicipio ganha eleitores?/capital? opcionais no mesmo objeto Blob (ADR-0035 D2), sem novo destino de armazenamento",
       "path": "docs/architecture/adrs/0032-detalhe-municipal-vercel-blob.md"
     },
     {
@@ -260,7 +268,7 @@
       "status": "accepted",
       "date": "2026-09-08",
       "amends": "0029",
-      "note": "3 decisões da sessão de 08/09: (1) navegação por moldura persistente ('jeito C') — mapa vive em layout.tsx compartilhado entre home/UF do mesmo cargo, endereço continua mudando, mapa não desmonta; (2) home adota ordem de painéis do protótipo (Resultado→Chances→Redutos→Falta apurar→Boletim) com Placar por estado mantido e Cenários/UFs decisivas removidos; (3) gate OT-4 não é calibrado ajustando REGIONAL_DELAY do fixture sintético — aguarda pesquisa de dado real de 2022, que pode não existir. Emenda o ADR-0029 (nota de Status, D17: reversão da posição/exceção do hero) sem tocar seu corpo.",
+      "note": "3 decisões da sessão de 08/09: (1) navegação por moldura persistente ('jeito C') — mapa vive em layout.tsx compartilhado entre home/UF do mesmo cargo, endereço continua mudando, mapa não desmonta; (2) home adota ordem de painéis do protótipo (Resultado→Chances→Redutos→Falta apurar→Boletim) com Placar por estado mantido e Cenários/UFs decisivas removidos; (3) gate OT-4 não é calibrado ajustando REGIONAL_DELAY do fixture sintético — aguarda pesquisa de dado real de 2022, que pode não existir. Emenda o ADR-0029 (nota de Status, D17: reversão da posição/exceção do hero) sem tocar seu corpo. Decisão 3 implementada em 2026-09-11 (scripts/replay-sensitivity.ts); nota adicional 2026-09-11 registra que o ADR-0035 (ingestão por par) usou esses números como prova de que o modelo ficou intocado.",
       "path": "docs/architecture/adrs/0033-navegacao-moldura-persistente-paineis-home-calibracao-ot4.md"
     },
     {
@@ -276,6 +284,22 @@
         "0029"
       ],
       "path": "docs/architecture/adrs/0034-resultpanel-colapso-visual-corte-fora-do-kit.md"
+    },
+    {
+      "id": "0035",
+      "title": "O par (município, zona) como unidade de ingestão e agregação exata por soma, não a zona sozinha nem rateio por eleitorado — cron por cargo, não fan-out único",
+      "status": "accepted",
+      "date": "2026-09-11",
+      "amends": [
+        "0012",
+        "0020",
+        "0021",
+        "0023",
+        "0032",
+        "0033"
+      ],
+      "note": "D1: zonas/eleitorado viram tabelas de pares (uf, cod_municipio_tse, cod_zona) via migration 0006 — o TSE 2026 publica EA20 por par, e a versão anterior (1 município por zona, MIN() arbitrário) perdia ~56% dos alvos e creditava 26,1% do eleitorado/31,2% dos votos ao município errado. Fonte: EA12 quando existir, fallback CSV 2024 + suplemento estreito do histórico (25 pares recuperados, 19 DF). D2: município é soma exata dos pares (sem rateio) via fetch_municipio_aggregates sem o antigo LEFT JOIN zonas; modelo continua por zona via api/model/zona_merge.py (merge em memória, nunca persistido) — ADR-0021/0023 intocados, gate OT-4 idêntico ao dígito antes/depois. D3: cron por cargo (/api/ingest/presidente, /api/ingest/governador) corrige achado de que o cron da Vercel nunca invocou a ingestão real (GET+Bearer, não POST+x-cron-secret); TSE_MAX_RPS 30→50, maxDuration 180→300, lock por cargo; limpeza única de 10.604 snapshots de ensaio autorizada pelo usuário. Risco de primeira grandeza não resolvido: a premissa de que o arquivo por par traz só a fatia da zona (não a zona inteira) não foi verificada contra dado real — guarda de sanidade check_zona_merge_sanity loga violação se a razão indicar multiplicação; resolução esperada no simulado de 15/09.",
+      "path": "docs/architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md"
     }
   ],
   "nfr": {

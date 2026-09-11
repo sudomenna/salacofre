@@ -10,7 +10,24 @@ amends: 0029
 
 ## Status
 
-Aceito. Este ADR **emenda o ADR-0029** — a nota de emenda ao seu `## Status`, reproduzida na
+Aceito. Decisão 3 **implementada em 2026-09-11**: `scripts/replay-sensitivity.ts` (novo) roda o
+replay 2022 sob `REGIONAL_DELAY` ∈ {0, 1, 2, 3} timesteps (parametrizado via
+`REPLAY_REGIONAL_DELAY` em `scripts/build-replay-fixtures.ts`, default 3, o gate oficial
+inalterado) e grava a faixa medida em
+[docs/testing/replay-sensitivity.md](../../testing/replay-sensitivity.md). O gate OT-4 continua
+`FAIL` no ponto oficial (`delay=3`) — esta decisão muda **como o gate é reportado**, não o
+veredito.
+
+**Nota 2026-09-11 ([ADR-0035](0035-par-municipio-zona-unidade-de-ingestao.md) D1/D2).** No mesmo dia,
+a ingestão TSE passou a ser por par (município, zona), com `api/model/zona_merge.py` somando os pares
+de volta em zona antes do estimador. Os números desta faixa de sensibilidade (medidos com
+`replay-sensitivity.ts`) foram usados pelo ADR-0035 como prova de que essa mudança de ingestão não
+tocou o modelo: o ponto oficial (`delay=3`) reproduziu 2,3624pp/82,5% contra os 2,3623pp/82,5% de
+referência aqui registrados — idêntico ao dígito, dentro de arredondamento. Este ADR não é alterado
+em mais nada por essa nota; a Decisão 3 e a tabela de `docs/testing/replay-sensitivity.md` permanecem
+como estavam.
+
+Este ADR **emenda o ADR-0029** — a nota de emenda ao seu `## Status`, reproduzida na
 Decisão 1 abaixo, foi aplicada diretamente por este documento (sem a restrição de processo que o
 próprio ADR-0029 se impôs sobre 0017/0018 — aqui não há essa restrição). Não emenda nem supersede o
 [ADR-0028](0028-corrida-explicita-por-rota.md) nem o [ADR-0012](0012-edge-config-chaves-nomeadas.md):

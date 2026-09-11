@@ -10,7 +10,21 @@ supersedes: ADR-0015
 
 ## Status
 
-Aceito. Este ADR **versiona a constituição § 8 para a versão 1.2** (o preâmbulo da constituição, `docs/constitution.md:11`, exige justificativa em ADR + atualização versionada para mudar um princípio).
+Aceito.
+
+### Emenda 2026-09-11 — ingestão por par, estimador intocado (ADR-0035 D1/D2)
+
+**Nota 2026-09-11 ([ADR-0035](0035-par-municipio-zona-unidade-de-ingestao.md) D1/D2).** A partir da
+migration 0006, a ingestão TSE passou a ser por **par** (município, zona) — o EA20 de zona é
+publicado um arquivo por par. O método deste ADR **não muda**: `api/model/zona_merge.py` soma os
+pares de volta em zona, em memória, antes de `fetch_snapshots` alimentar o estimador — a extrapolação
+continua operando sobre a zona, com o mesmo `k = te/esi` e o mesmo bootstrap não-paramétrico. O gate
+OT-4 foi medido antes e depois da mudança de ingestão e ficou **idêntico ao dígito** (MAE@1h PT
+2,3623pp / cobertura 82,5%, contra o fixture commitado `tests/fixtures/replay-2022/snapshots.json`)
+— confirmação empírica de que a
+unidade de ingestão e a unidade do estimador são, de propósito, desacopladas.
+
+Este ADR **versiona a constituição § 8 para a versão 1.2** (o preâmbulo da constituição, `docs/constitution.md:11`, exige justificativa em ADR + atualização versionada para mudar um princípio).
 
 ## Contexto
 
