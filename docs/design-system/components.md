@@ -97,6 +97,10 @@ Notas dos atoms não construídos:
 | `<HexCartogramBrasil />` | ✅ S06 | RF-006.3 | `components/blocks/HexCartogramBrasil.tsx` | `tests/unit/components/HexCartogramBrasil.test.tsx` |
 | `<RaceStatsCards />` | ✅ S06 | RF-006.1 | `components/blocks/RaceStatsCards.tsx` | `tests/unit/components/RaceStatsCards.test.tsx` |
 | `<BreakingNewsTicker />` | ✅ S06 | RF-006.4 | `components/blocks/BreakingNewsTicker.tsx` | `tests/unit/components/BreakingNewsTicker.test.tsx` |
+| `<ResultPanel />` | ✅ S07 | RF-022, RF-023, RF-030.5, RF-030.6, RF-030.8 | `components/blocks/ResultPanel.tsx` | `tests/unit/components/ResultPanel.test.tsx` |
+| `<CandidateListCollapse />` | ✅ S07 | RF-030.8 (colapso visual preservando DOM, ADR-0034 D21) | `components/blocks/CandidateListCollapse.tsx` | coberto por `ResultPanel.test.tsx` |
+| `<ChancesPanel />` | ✅ S07 | RF-030.7 (migrado de `TwoRoundIndicator`, ADR-0034 D21) | `components/blocks/ChancesPanel.tsx` | `tests/unit/components/ChancesPanel.test.tsx` |
+| `<NationalMapBlock />` | ✅ S07 | RF-030.1-4 (refator layout, ADR-0033) | `components/blocks/NationalMapBlock.tsx` | — (não tem componente separado de teste; coberto pelo smoke de home) |
 | `<UFForecastTable />` | 🕐 planejada | RF-025 (deferido desde S05) | *previsto*: `components/blocks/UFForecastTable.tsx` | — |
 | `<MaintenancePageMessage />` | 🕐 planejada | RF-058 | *previsto*: `components/blocks/MaintenancePageMessage.tsx` | — |
 | `<TurnoTransitionBanner />` | 🕐 planejada | RF-058.1 | *previsto*: `components/blocks/TurnoTransitionBanner.tsx` | — |
@@ -112,12 +116,17 @@ Notas dos atoms não construídos:
 | `<RaceHeader />` | ✅ S07 | RF-063 | `components/layout/RaceHeader.tsx` | `tests/integration/home-page.test.tsx`, `governador-page.test.tsx`, `uf-governador-page.test.tsx`, `tests/unit/components/UFPage.test.tsx` |
 | `<LiveBadge />` | ✅ | RF-026, RF-028 | `components/layout/LiveBadge.tsx` | `tests/unit/components/LiveBadge.test.tsx` |
 | `<Footer />` | ✅ | RF-055 | `components/layout/Footer.tsx` | `tests/unit/components/Footer.test.tsx` |
+| `<AppShellSplit />` | ✅ S07 | (shell de duas colunas, ADR-0033) | `components/layout/AppShellSplit.tsx` | — (coberto por smoke de UF pages) |
+| `<PersistentMapFrame />` | ✅ S07 | RF-030.1-4 (moldura persistente, ADR-0033 § 1) | `components/layout/PersistentMapFrame.tsx` | — (coberto por smoke de UF pages) |
+| `<UfPicker />` | ✅ S07 | (controle de UF no shell, ADR-0033) | `components/layout/UfPicker.tsx` | — (coberto por smoke de UF navigation) |
+| `<ThemeToggle />` | ✅ S07 | (tema claro/escuro no masthead; persistência em `localStorage`, nunca cookie — ADR-0025 § 5) | `components/atoms/controls/ThemeToggle.tsx` | `tests/unit/state/theme.test.ts`, `tests/unit/shell/static-shell.test.ts` |
 
 ## Shared
 
 | Componente | Status | RFs atendidos | Arquivo | Testes |
 |---|---|---|---|---|
 | `<SWRProvider />` / `useProjection()` | ✅ | RF-027 | `components/shared/swr-provider.tsx` | — (sem teste dedicado) |
+| `useMunicipioSheetStore` | ✅ S07 | (estado da folha de município entre o mapa e a página) | `components/shared/municipio-sheet-store.ts` | `tests/unit/components/MunicipioExplorer.test.tsx` |
 | `<HoverTooltip />` | 🕐 planejada | RF-045, RF-048 | *previsto*: `components/shared/HoverTooltip.tsx` | — |
 | `<BottomSheet />` | 🕐 planejada | RF-049, RF-050 | *previsto*: `components/shared/BottomSheet.tsx` | — |
 

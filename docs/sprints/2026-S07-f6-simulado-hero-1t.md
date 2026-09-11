@@ -277,6 +277,31 @@ os votos da zona ao município-**sede** — e a interface não avisa. Não é re
 granularidade de zona (no modo `uf` não havia recorte municipal algum), mas é dívida de
 transparência sob a constituição § 8.
 
+### ✅ Fase 6 — Redesign UI fiel ao protótipo (ADR-0032, 0033, 0034) — concluída 08–10/09
+
+Redesign de 2 dias em paralelo com o modelo, motivado por decisão do usuário de adotar o
+design kit Atlas Menna (`docs/design-system/atlas-menna/ui_kits/atlas-menna/App.jsx`) como
+fonte de verdade visual, com ajuste que o painel de resultado substitui os 6 termômetros em
+3 das 4 rotas.
+
+**Commits**: `2a6298a`, `2a6097f`, `49d55c5`, `c347cce`, `f3b0de8`, `fb7ddc1`, `396f8a5`,
+`b7c1bbb`, `910f21f`, `744b902`.
+
+- [x] **ADR-0032 — Vercel Blob como storage do detalhe por município** — deciso arquitectural já pendente desde S06; entra antes do simulado pra testar a arquitetura definitiva. `adr-author`, 08/09
+- [x] **ADR-0033 — Moldura persistente (mapa em coluna, painéis ao lado) + home mobile-first** — redesign da navegação via 2 colunas (`<AppShellSplit>`, `<PersistentMapFrame>`, `<UfPicker>`), novo layout. `adr-author`, 08/09
+- [x] **ADR-0034 — `<ResultPanel>` como hero (D21, D22, D23)** — painel de resultado substitui os 6 termômetros em home + UF presidencial + UF governador; colapso visual preservando DOM (D21, ADR-0017); poda de blocos sem contraparte no protótipo (D23, ADR-0019 emendado). Emenda ADR-0017/0018/0019/0029 aplicada (nota de Status). `adr-author`, 10/09
+- [x] **7 componentes novos** — `ResultPanel`, `CandidateListCollapse`, `ChancesPanel`, `NationalMapBlock` (blocks) + `AppShellSplit`, `PersistentMapFrame`, `UfPicker` (layout). `spec-implementer`, 08–10/09
+- [x] **Specs 003/004/005/006 reescritas** — frontmatter atualizado com RFs removidos (RF-024, 030.9, 035, 036, 038, 039, 040, 041, 042, 044 saem de 004/005) e componentes novos adicionados. Estrutura mantém `shipped` (perda de escopo por decisão de produto, não regressão). `spec-syncer`, 10/09
+- [x] **Catálogo atualizado** — 7 novos em `components.md`, UFBreadcrumb marcado órfão. `spec-syncer`, 10/09
+- [x] **Traceability atualizado** — RF-022/023/030.7 com novo status; RF-031 com UFBreadcrumb órfão. Novo risco em `risks.md`: perda de participação em 3/4 telas aceita pelo usuário. `spec-syncer`, 10/09
+- [x] **Sem regressão de cobertura** — RF-022/023 perdem consumidor em 3 de 4 rotas mas mantém `ProjectionThermometers` em `/governador` (ADR-0034 D22, ADR-0022). RF-030.7 migra de `TwoRoundIndicator` para `ChancesPanel` (sem perda).
+- [x] **Dark mode ENTREGUE** (commit `c347cce`, 08/09) — 18 tokens de base do kit mais as **31 rampas de partido geradas** para o tema escuro, `ThemeToggle` no masthead, persistência em `localStorage` (nunca cookie, ADR-0025 § 5) e script anti-flash como primeiro nó do `<body>`.
+      As 13 bases que reprovavam 3:1 no escuro não foram resolvidas clareando cada uma até o piso — isso derrubaria o ADR-0031 em sete pares de azuis institucionais. A base escura é a clara sob um mapa afim de L\*, com matiz intocada (§ 2). **Nenhum piso foi relaxado.** Pior contraste medido: União 3,09:1.
+      Auditado com axe em 10/09 nos dois temas; os dois achados (`nested-interactive` no cartograma e `color-contrast` nos chips de `GovernorCard`) foram corrigidos no commit `744b902`.
+- [x] **Auditoria de acessibilidade** (10/09) — axe-core real em 5 rotas × 2 viewports × **2 temas** = 20 combinações. 18 limpas após correção. Suíte reprodutível em `tests/e2e/a11y-audit.spec.ts`. O colapso da lista de candidatos (D21) foi confirmado pela árvore de acessibilidade, não por leitura de CSS.
+- [ ] **E2E Playwright (Fase 5 de 05/09)** — ainda diferida para S08+. Smoke visual local OK em todas 4 rotas.
+- [ ] **Gates finais** — pendentes após modelo convergir (tentativa 3 OT-4 no simulado 1)
+
 ### ⏳ Fase 4 — Simulado 1 (15–17/09) — protocolo
 
 Passos operacionais transcritos do plano. Registrar tudo em [`../testing/tse-simulados.md`](../testing/tse-simulados.md).

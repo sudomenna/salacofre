@@ -9,9 +9,9 @@ screens: [T-04]
 requirements: [RF-031, RF-032, RF-033, RF-034, RF-037, RF-043, RF-005.4, RF-061, RF-062, RF-063]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 004-pagina-uf-presidencial]
 apis: [GET /api/projection?cargo=governador&uf=<sigla>]
-components: [WinnerBanner, CandidateRow, ChoroplethMapUF, MunicipioTable, ForecastTransparency, UFBreadcrumb, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader, CandidateResultRow, MunicipioExplorer]
+components: [WinnerBanner, CandidateRow, ChoroplethMapUF, MunicipioTable, ForecastTransparency, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader, CandidateResultRow, MunicipioExplorer, ResultPanel, CandidateListCollapse]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-008, RNF-022, RNF-023, RNF-024, RNF-025, RNF-027]
-adrs: [0001, 0003, 0004, 0007, 0010, 0012, 0013, 0018, 0019, 0025, 0032, 0033]
+adrs: [0001, 0003, 0004, 0007, 0010, 0012, 0013, 0018, 0019, 0025, 0032, 0033, 0034]
 ---
 
 # Spec 005 — Página de UF (Governador)

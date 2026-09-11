@@ -127,7 +127,10 @@
       "status": "accepted",
       "path": "docs/architecture/adrs/0017-transparencia-total-3-camadas.md",
       "note": "parcialmente superado por ADR-0018 no modo multi-1t (apenas Camada 1); emendado por ADR-0029 (formato de linha) e ADR-0034 (D21 — distingue colapso visual de remoção de nós); ver seção Status do arquivo",
-      "amended_by": ["0029", "0034"]
+      "amended_by": [
+        "0029",
+        "0034"
+      ]
     },
     {
       "id": "0018",
@@ -216,7 +219,10 @@
       "status": "accepted",
       "date": "2026-09-07",
       "note": "emenda parcial ADR-0017 (formato de linha das Camadas 2/3) e ADR-0018 (posição do hero, conteúdo inalterado); não supersede nenhum dos dois; emendado por ADR-0033 (D17 — reversão do hero) e por ADR-0034, que fecha essa pendência (ADR-0018 fica superseded)",
-      "amended_by": ["0033", "0034"],
+      "amended_by": [
+        "0033",
+        "0034"
+      ],
       "path": "docs/architecture/adrs/0029-home-mobile-first-mapa-primeiro-fiel-ao-kit.md"
     },
     {
@@ -241,7 +247,10 @@
       "title": "Detalhe municipal e séries por UF em Vercel Blob, não no store do Edge Config — resumo por UF permanece, com correção do limite real (1 MB) e guarda de store inteiro",
       "status": "accepted",
       "date": "2026-09-08",
-      "amends": ["0001", "0026"],
+      "amends": [
+        "0001",
+        "0026"
+      ],
       "note": "generaliza a exceção Vercel Blob do ADR-0026 (antes só Deputado Federal) para o campo municipios/series_temporais de EdgePayloadUf; corrige o limite de Edge Config citado em ADR-0001/ADR-0026 de 512KB (errado) para 1MB (real, produto renomeado Global Config); pré-requisito do usuário para o simulado 1 (15-17/09)",
       "path": "docs/architecture/adrs/0032-detalhe-municipal-vercel-blob.md"
     },
@@ -261,7 +270,11 @@
       "date": "2026-09-10",
       "supersedes": "0018",
       "note": "3 decisões da sessão de 09/09 (D21, D22, D23): (D21) o botão 'Todos os N candidatos' do ResultPanel colapsa visualmente (height:0/overflow:hidden), nunca remove nós — satisfaz ADR-0017/ADR-0029 §7; (D22) ResultPanel do kit (Figure Apurado + Figure Margem + VoteBar + linhas com PARCIAL/PROJ) substitui os seis termômetros do ADR-0018 na home e nas duas rotas de UF — ADR-0018 fica superseded como regra geral, mas sua metodologia segue viva via ADR-0022 em /governador; consequência aceita: brancos/nulos/abstenção saem dessas 3 telas, o dado continua no payload; (D23) poda de BreakingNewsTicker/WinnerBanner/UFBreadcrumb/TrilhaKicker/InsightCard/Needle/RaceStatsCards/MunicipioWaffleGrid/ProjectionThermometers/ApuracaoMeta conforme tabela por rota; emenda ADR-0017 e ADR-0019; fecha a pendência D17 do ADR-0033/ADR-0029",
-      "amends": ["0017", "0019", "0029"],
+      "amends": [
+        "0017",
+        "0019",
+        "0029"
+      ],
       "path": "docs/architecture/adrs/0034-resultpanel-colapso-visual-corte-fora-do-kit.md"
     }
   ],
@@ -337,7 +350,9 @@
         "end": "2026-06-21",
         "opened": "2026-05-17",
         "closed": "2026-05-17",
-        "specs_in_flight": ["001-ingestao-tse"],
+        "specs_in_flight": [
+          "001-ingestao-tse"
+        ],
         "path": "docs/sprints/2026-S02-f2-ingestao.md"
       },
       {
@@ -348,7 +363,9 @@
         "end": "2026-07-05",
         "opened": "2026-05-17",
         "closed": "2026-05-17",
-        "specs_in_flight": ["002-modelo-estatistico"],
+        "specs_in_flight": [
+          "002-modelo-estatistico"
+        ],
         "path": "docs/sprints/2026-S03-f3-modelo.md"
       },
       {
@@ -390,8 +407,14 @@
         "end": "2026-08-16",
         "opened": "2026-05-18",
         "closed": "2026-05-18",
-        "specs_in_flight": ["005-pagina-uf-governador", "006-grid-governadores"],
-        "specs_deferred": ["014-boca-de-urna", "015-drill-down-municipio"],
+        "specs_in_flight": [
+          "005-pagina-uf-governador",
+          "006-grid-governadores"
+        ],
+        "specs_deferred": [
+          "014-boca-de-urna",
+          "015-drill-down-municipio"
+        ],
         "path": "docs/sprints/2026-S06-f4d-2t-governadores.md"
       },
       {
@@ -401,7 +424,9 @@
         "status": "active",
         "start": "2026-09-06",
         "end": "2026-09-24",
-        "specs_in_flight": ["002-modelo-estatistico"],
+        "specs_in_flight": [
+          "002-modelo-estatistico"
+        ],
         "specs_evolving": [
           "001-ingestao-tse",
           "003-home-nacional",
@@ -409,7 +434,9 @@
           "005-pagina-uf-governador",
           "006-grid-governadores"
         ],
-        "specs_superseded": ["001.1-tse-json-refactor"],
+        "specs_superseded": [
+          "001.1-tse-json-refactor"
+        ],
         "path": "docs/sprints/2026-S07-f6-simulado-hero-1t.md"
       },
       {
@@ -477,30 +504,77 @@
         "RF-007",
         "RF-008",
         "RF-009",
-        "RF-010"
+        "RF-010",
+        "RF-010.1",
+        "RF-010.2",
+        "RF-010.3",
+        "RF-010.4",
+        "RF-010.5",
+        "RF-010.6"
       ],
       "depends_on": [],
-      "apis": ["POST /api/ingest"],
-      "adrs": ["0001", "0002", "0008", "0011"],
-      "path": "docs/specs/001-ingestao-tse/"
+      "apis": [
+        "POST /api/ingest"
+      ],
+      "components": [],
+      "nfr": [
+        "RNF-006",
+        "RNF-009",
+        "RNF-011",
+        "RNF-012",
+        "RNF-016",
+        "RNF-031",
+        "RNF-032",
+        "RNF-033",
+        "RNF-034"
+      ],
+      "adrs": [
+        "0001",
+        "0002",
+        "0008",
+        "0011",
+        "0012",
+        "0020"
+      ]
     },
     {
       "id": "001.1-tse-json-refactor",
       "title": "Refactor parser TSE — EA20 (legado) → JSON (2026)",
-      "status": "draft",
+      "status": "superseded",
+      "superseded_by": [
+        "001-ingestao-tse",
+        "ADR-0020"
+      ],
+      "superseded_at": "2026-09-05",
       "priority": "M",
       "personas": [],
       "screens": [],
-      "requirements": ["RF-001.1", "RF-002.1", "RF-003.1", "RF-004.1", "RF-005.1"],
-      "depends_on": ["001-ingestao-tse"],
+      "requirements": [
+        "RF-001.1",
+        "RF-002.1",
+        "RF-003.1",
+        "RF-004.1",
+        "RF-005.1"
+      ],
+      "depends_on": [
+        "001-ingestao-tse"
+      ],
+      "supersedes_parser_only": "001-ingestao-tse",
       "apis": [],
-      "adrs": ["0008", "0011"],
-      "blocked_on": ["tse-audiencia-tecnica-2026-07", "tse-spec-json-2026"],
-      "path": "docs/specs/001.1-tse-json-refactor/"
+      "components": [],
+      "nfr": [
+        "RNF-006",
+        "RNF-020"
+      ],
+      "adrs": [
+        "0008",
+        "0011",
+        "0020"
+      ]
     },
     {
       "id": "002-modelo-estatistico",
-      "title": "Modelo estatístico (extrapolação por zona, bootstrap, projeção)",
+      "title": "Modelo estatístico (extrapolação do apurado, bootstrap, projeção)",
       "status": "implementing",
       "priority": "M",
       "personas": [],
@@ -516,20 +590,48 @@
         "RF-018",
         "RF-019",
         "RF-020",
-        "RF-020.1"
+        "RF-020.1",
+        "RF-020.2",
+        "RF-020.3"
       ],
-      "depends_on": ["001-ingestao-tse"],
-      "apis": ["POST /api/model/project"],
-      "adrs": ["0006", "0007", "0012", "0014", "0015", "0018", "0021"],
-      "path": "docs/specs/002-modelo-estatistico/"
+      "depends_on": [
+        "001-ingestao-tse"
+      ],
+      "apis": [
+        "POST /api/model/project"
+      ],
+      "components": [],
+      "nfr": [
+        "RNF-006"
+      ],
+      "adrs": [
+        "0006",
+        "0007",
+        "0012",
+        "0014",
+        "0018",
+        "0020",
+        "0021",
+        "0023"
+      ],
+      "ship_blocked_on": [
+        "simulado-tse-2026"
+      ]
     },
     {
       "id": "003-home-nacional",
       "title": "Home Nacional Presidencial (T-01)",
       "status": "shipped",
       "priority": "M",
-      "personas": ["P1", "P2", "P3", "P4"],
-      "screens": ["T-01"],
+      "personas": [
+        "P1",
+        "P2",
+        "P3",
+        "P4"
+      ],
+      "screens": [
+        "T-01"
+      ],
       "requirements": [
         "RF-021",
         "RF-022",
@@ -552,19 +654,38 @@
         "RF-062",
         "RF-063"
       ],
-      "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "008-interatividade-brushing"],
-      "apis": ["GET /api/projection"],
+      "depends_on": [
+        "001-ingestao-tse",
+        "002-modelo-estatistico",
+        "008-interatividade-brushing"
+      ],
+      "apis": [
+        "GET /api/projection"
+      ],
       "components": [
         "HeadlineScore",
         "NationalChoroplethMap",
         "MapViewToggle",
         "StateGroupedTable",
         "NationalNeedle",
-        "DecisiveUFsGrid",
+        "ChancesPanel",
         "InsightCard",
         "ForecastTransparency",
         "LiveBadge",
-        "Tabs"
+        "Tabs",
+        "MinorCandidatesList",
+        "RaceTypeIndicator",
+        "TurnoBadge",
+        "ProjectionThermometer",
+        "ProjectionThermometers",
+        "TrilhaKicker",
+        "RaceHeader",
+        "ApuracaoMeta",
+        "BreakingNewsTicker",
+        "NationalWinnerBanner",
+        "TurnoOneRecap",
+        "ResultPanel",
+        "CandidateListCollapse"
       ],
       "nfr": [
         "RNF-001",
@@ -579,16 +700,39 @@
         "RNF-026",
         "RNF-028"
       ],
-      "adrs": ["0001", "0002", "0003", "0004", "0005", "0010"],
-      "path": "docs/specs/003-home-nacional/"
+      "adrs": [
+        "0001",
+        "0002",
+        "0003",
+        "0004",
+        "0005",
+        "0010",
+        "0012",
+        "0013",
+        "0014",
+        "0017",
+        "0018",
+        "0019",
+        "0025",
+        "0033",
+        "0034"
+      ],
+      "shipped_with_carry_overs": ""
     },
     {
       "id": "004-pagina-uf-presidencial",
       "title": "Página de UF — Presidencial (T-03)",
       "status": "shipped",
       "priority": "M",
-      "personas": ["P1", "P2", "P3", "P4"],
-      "screens": ["T-03"],
+      "personas": [
+        "P1",
+        "P2",
+        "P3",
+        "P4"
+      ],
+      "screens": [
+        "T-03"
+      ],
       "requirements": [
         "RF-031",
         "RF-032",
@@ -606,21 +750,23 @@
         "008-interatividade-brushing",
         "003-home-nacional"
       ],
-      "apis": ["GET /api/projection?uf=<sigla>"],
+      "apis": [
+        "GET /api/projection?uf=<sigla>"
+      ],
       "components": [
         "WinnerBanner",
         "CandidateRow",
         "ChoroplethMapUF",
         "MunicipioTable",
         "ForecastTransparency",
-        "UFBreadcrumb",
         "Footer",
         "ProjectionThermometer",
-        "ProjectionThermometers",
         "TrilhaKicker",
         "RaceHeader",
         "CandidateResultRow",
-        "MunicipioExplorer"
+        "MunicipioExplorer",
+        "ResultPanel",
+        "CandidateListCollapse"
       ],
       "nfr": [
         "RNF-001",
@@ -633,16 +779,38 @@
         "RNF-025",
         "RNF-027"
       ],
-      "adrs": ["0001", "0003", "0004", "0007", "0010"],
-      "path": "docs/specs/004-pagina-uf-presidencial/"
+      "adrs": [
+        "0001",
+        "0003",
+        "0004",
+        "0007",
+        "0010",
+        "0013",
+        "0014",
+        "0017",
+        "0018",
+        "0019",
+        "0025",
+        "0032",
+        "0033",
+        "0034"
+      ],
+      "shipped_with_carry_overs": ""
     },
     {
       "id": "005-pagina-uf-governador",
       "title": "Página de UF — Governador (T-04)",
       "status": "shipped",
+      "shipped_date": "2026-05-18",
       "priority": "M",
-      "personas": ["P1", "P2", "P3"],
-      "screens": ["T-04"],
+      "personas": [
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "screens": [
+        "T-04"
+      ],
       "requirements": [
         "RF-031",
         "RF-032",
@@ -658,23 +826,25 @@
       "depends_on": [
         "001-ingestao-tse",
         "002-modelo-estatistico",
-        "004-pagina-uf-presidencial",
-        "008-interatividade-brushing"
+        "004-pagina-uf-presidencial"
       ],
-      "apis": ["GET /api/projection?cargo=governador&uf=<sigla>"],
+      "apis": [
+        "GET /api/projection?cargo=governador&uf=<sigla>"
+      ],
       "components": [
         "WinnerBanner",
         "CandidateRow",
         "ChoroplethMapUF",
         "MunicipioTable",
         "ForecastTransparency",
-        "UFBreadcrumb",
         "ProjectionThermometer",
         "ProjectionThermometers",
         "TrilhaKicker",
         "RaceHeader",
         "CandidateResultRow",
-        "MunicipioExplorer"
+        "MunicipioExplorer",
+        "ResultPanel",
+        "CandidateListCollapse"
       ],
       "nfr": [
         "RNF-001",
@@ -687,16 +857,36 @@
         "RNF-025",
         "RNF-027"
       ],
-      "adrs": ["0001", "0003", "0004", "0007", "0010", "0012", "0013", "0015", "0016", "0017"],
-      "path": "docs/specs/005-pagina-uf-governador/"
+      "adrs": [
+        "0001",
+        "0003",
+        "0004",
+        "0007",
+        "0010",
+        "0012",
+        "0013",
+        "0018",
+        "0019",
+        "0025",
+        "0032",
+        "0033",
+        "0034"
+      ]
     },
     {
       "id": "006-grid-governadores",
       "title": "Grid Nacional Governadores (T-02)",
       "status": "shipped",
+      "shipped_date": "2026-05-18",
       "priority": "M",
-      "personas": ["P1", "P2", "P3"],
-      "screens": ["T-02"],
+      "personas": [
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "screens": [
+        "T-02"
+      ],
       "requirements": [
         "RF-021",
         "RF-022",
@@ -707,47 +897,125 @@
         "RF-006.2",
         "RF-006.3",
         "RF-006.4",
-        "RF-006.5"
+        "RF-006.5",
+        "RF-062",
+        "RF-063"
       ],
-      "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "005-pagina-uf-governador"],
-      "apis": ["GET /api/projection?cargo=governador"],
+      "depends_on": [
+        "001-ingestao-tse",
+        "002-modelo-estatistico",
+        "005-pagina-uf-governador"
+      ],
+      "apis": [
+        "GET /api/projection?cargo=governador"
+      ],
       "components": [
         "GovernorCard",
         "HexCartogramBrasil",
         "RaceStatsCards",
         "BreakingNewsTicker",
         "LiveBadge",
-        "Tabs"
+        "Tabs",
+        "ProjectionThermometer",
+        "ProjectionThermometers",
+        "TrilhaKicker",
+        "RaceHeader"
       ],
-      "nfr": ["RNF-001", "RNF-002", "RNF-003", "RNF-022", "RNF-023", "RNF-024"],
-      "adrs": ["0001", "0002", "0010", "0011", "0012", "0013", "0017"],
-      "path": "docs/specs/006-grid-governadores/"
+      "nfr": [
+        "RNF-001",
+        "RNF-002",
+        "RNF-003",
+        "RNF-022",
+        "RNF-023",
+        "RNF-024"
+      ],
+      "adrs": [
+        "0001",
+        "0002",
+        "0010",
+        "0011",
+        "0012",
+        "0013",
+        "0017",
+        "0018",
+        "0019",
+        "0022",
+        "0025",
+        "0034"
+      ]
     },
     {
       "id": "008-interatividade-brushing",
       "title": "Interatividade — Brushing & Linking",
       "status": "draft",
       "priority": "M",
-      "personas": ["P1", "P2", "P3"],
-      "screens": ["T-01", "T-02", "T-03", "T-04", "T-05"],
-      "requirements": ["RF-045", "RF-046", "RF-047", "RF-048", "RF-049", "RF-050"],
+      "personas": [
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "screens": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-04",
+        "T-05"
+      ],
+      "requirements": [
+        "RF-045",
+        "RF-046",
+        "RF-047",
+        "RF-048",
+        "RF-049",
+        "RF-050"
+      ],
       "depends_on": [],
       "apis": [],
-      "adrs": [],
-      "path": "docs/specs/008-interatividade-brushing/"
+      "components": [
+        "HoverTooltip",
+        "BottomSheet"
+      ],
+      "nfr": [
+        "RNF-003",
+        "RNF-022",
+        "RNF-024"
+      ],
+      "adrs": []
     },
     {
       "id": "009-compartilhamento-meta",
       "title": "Compartilhamento e Metadados (OG, Share buttons)",
       "status": "draft",
       "priority": "S",
-      "personas": ["P1", "P2"],
-      "screens": ["T-01", "T-02", "T-03", "T-04"],
-      "requirements": ["RF-051", "RF-052", "RF-053", "RF-054", "RF-055"],
-      "depends_on": ["003-home-nacional"],
+      "personas": [
+        "P1",
+        "P2"
+      ],
+      "screens": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-04"
+      ],
+      "requirements": [
+        "RF-051",
+        "RF-052",
+        "RF-053",
+        "RF-054",
+        "RF-055"
+      ],
+      "depends_on": [
+        "003-home-nacional"
+      ],
       "apis": [],
-      "adrs": [],
-      "path": "docs/specs/009-compartilhamento-meta/"
+      "components": [],
+      "nfr": [
+        "RNF-027",
+        "RNF-028",
+        "RNF-029",
+        "RNF-030"
+      ],
+      "adrs": []
     },
     {
       "id": "010-operacao-monitoramento",
@@ -755,27 +1023,71 @@
       "status": "draft",
       "priority": "M",
       "personas": [],
-      "screens": ["T-07"],
-      "requirements": ["RF-056", "RF-057", "RF-058", "RF-059", "RF-060"],
-      "depends_on": ["001-ingestao-tse", "012-dashboard-status", "013-pagina-manutencao"],
+      "screens": [
+        "T-07"
+      ],
+      "requirements": [
+        "RF-056",
+        "RF-057",
+        "RF-058",
+        "RF-059",
+        "RF-060"
+      ],
+      "depends_on": [
+        "001-ingestao-tse",
+        "012-dashboard-status",
+        "013-pagina-manutencao"
+      ],
       "apis": [],
-      "adrs": [],
-      "path": "docs/specs/010-operacao-monitoramento/"
+      "components": [],
+      "nfr": [
+        "RNF-009",
+        "RNF-010",
+        "RNF-011",
+        "RNF-012",
+        "RNF-031",
+        "RNF-032",
+        "RNF-033",
+        "RNF-034"
+      ],
+      "adrs": []
     },
     {
       "id": "011-sobre-o-modelo",
       "title": "Página Sobre o Modelo (T-06)",
       "status": "shipped",
       "priority": "M",
-      "personas": ["P2", "P3"],
-      "screens": ["T-06"],
-      "requirements": ["RF-054"],
-      "depends_on": ["002-modelo-estatistico"],
+      "personas": [
+        "P2",
+        "P3"
+      ],
+      "screens": [
+        "T-06"
+      ],
+      "requirements": [
+        "RF-054"
+      ],
+      "depends_on": [
+        "002-modelo-estatistico"
+      ],
       "apis": [],
-      "components": ["SwingIllustration", "ConfidenceBandIllustration", "NeedleIllustration"],
-      "nfr": ["RNF-022", "RNF-027", "RNF-030"],
-      "adrs": ["0005", "0006"],
-      "path": "docs/specs/011-sobre-o-modelo/"
+      "components": [
+        "ExtrapolationIllustration",
+        "ConfidenceBandIllustration",
+        "NeedleIllustration"
+      ],
+      "nfr": [
+        "RNF-022",
+        "RNF-027",
+        "RNF-030"
+      ],
+      "adrs": [
+        "0005",
+        "0006",
+        "0021",
+        "0025"
+      ],
+      "shipped_with_carry_overs": ""
     },
     {
       "id": "012-dashboard-status",
@@ -783,56 +1095,108 @@
       "status": "draft",
       "priority": "M",
       "personas": [],
-      "screens": ["T-07"],
-      "requirements": ["RF-056", "RF-057"],
-      "depends_on": ["001-ingestao-tse", "010-operacao-monitoramento"],
+      "screens": [
+        "T-07"
+      ],
+      "requirements": [
+        "RF-056",
+        "RF-057"
+      ],
+      "depends_on": [
+        "001-ingestao-tse",
+        "010-operacao-monitoramento"
+      ],
       "apis": [],
-      "adrs": [],
-      "path": "docs/specs/012-dashboard-status/"
+      "components": [],
+      "nfr": [
+        "RNF-009",
+        "RNF-032",
+        "RNF-033",
+        "RNF-034"
+      ],
+      "adrs": []
     },
     {
       "id": "013-pagina-manutencao",
       "title": "Página de Manutenção (T-08)",
       "status": "ready",
       "priority": "M",
-      "personas": [],
-      "screens": ["T-08"],
-      "requirements": ["RF-058", "RF-058.1", "RF-058.2"],
+      "personas": [
+        "eleitor-geral",
+        "midia"
+      ],
+      "screens": [
+        "T-08"
+      ],
+      "requirements": [
+        "RF-058",
+        "RF-058.1",
+        "RF-058.2"
+      ],
       "depends_on": [],
       "apis": [],
-      "components": ["MaintenancePageMessage", "TurnoTransitionBanner"],
-      "nfr": ["RNF-012", "RNF-022", "RNF-028"],
-      "adrs": ["0001"],
-      "path": "docs/specs/013-pagina-manutencao/"
+      "components": [
+        "MaintenancePageMessage",
+        "TurnoTransitionBanner"
+      ],
+      "nfr": [
+        "RNF-012",
+        "RNF-022",
+        "RNF-028"
+      ],
+      "adrs": [
+        "0001"
+      ]
     },
     {
       "id": "014-boca-de-urna",
-      "title": "Boca de urna + recorte demográfico",
+      "title": "Boca de urna + recorte demográfico (Datafolha pós-urna)",
       "status": "draft",
       "priority": "S",
-      "personas": ["P1", "P2", "P3"],
+      "personas": [
+        "P1",
+        "P2",
+        "P3"
+      ],
       "screens": [],
       "requirements": [],
-      "depends_on": ["004-pagina-uf-presidencial", "015-drill-down-municipio"],
+      "depends_on": [
+        "004-pagina-uf-presidencial",
+        "015-drill-down-municipio"
+      ],
       "apis": [],
+      "components": [],
+      "nfr": [],
       "adrs": [],
-      "blocked_on": ["fonte-licenciada-datafolha-pos-urna", "decisao-legal-licenciamento"],
       "opens_after": "D1-04out2026",
-      "path": "docs/specs/014-boca-de-urna/"
+      "blocked_on": [
+        "fonte-licenciada-datafolha-pos-urna",
+        "decisao-legal-licenciamento"
+      ]
     },
     {
       "id": "015-drill-down-municipio",
-      "title": "Drill-down município (página /uf/[sigla]/municipio/[cod_ibge])",
+      "title": "Drill-down município — página /uf/[sigla]/municipio/[cod_ibge]",
       "status": "draft",
       "priority": "S",
-      "personas": ["P1", "P2", "P3"],
+      "personas": [
+        "P1",
+        "P2",
+        "P3"
+      ],
       "screens": [],
       "requirements": [],
-      "depends_on": ["004-pagina-uf-presidencial", "005-pagina-uf-governador"],
-      "apis": ["GET /api/projection?municipio=<cod_ibge>"],
+      "depends_on": [
+        "004-pagina-uf-presidencial",
+        "005-pagina-uf-governador"
+      ],
+      "apis": [
+        "GET /api/projection?municipio=<cod_ibge>"
+      ],
+      "components": [],
+      "nfr": [],
       "adrs": [],
-      "opens_after": "D1-04out2026",
-      "path": "docs/specs/015-drill-down-municipio/"
+      "opens_after": "D1-04out2026"
     }
   ]
 }
