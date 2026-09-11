@@ -3,6 +3,7 @@ id: ADR-0029
 title: Home mobile-first com mapa primeiro e abas de cargo no rodapé, não pilha de blocos com hero de texto no topo — fidelidade ao protótipo do kit Atlas Menna
 status: accepted
 date: 2026-09-07
+amended_by: ADR-0034 # fecha a pendência D17 (nota de ADR-0033): a reversão do hero é de conteúdo, não só posição — ADR-0018 fica superseded
 ---
 
 # ADR-0029 — Home mobile-first com mapa primeiro e abas de cargo no rodapé, não pilha de blocos com hero de texto no topo
@@ -24,6 +25,14 @@ Aceito. Este ADR **emenda parcialmente** o ADR-0018 (só a **posição** do hero
 > reversão (ver "O padrão do próprio protótipo reproduz exatamente o problema (i) e (ii)" na Decisão,
 > item 6). O restante desta Decisão — itens 1–5 e 7–9 — permanece integralmente vigente e não é
 > tocado por esta nota.
+
+> **Nota 2026-09-10 ([ADR-0034](0034-resultpanel-colapso-visual-corte-fora-do-kit.md)).** A
+> pendência registrada pela nota de emenda do ADR-0033 (D17) acima — se a reversão do hero do
+> `multi-1t` era só de posição ou também de conteúdo — está resolvida: é de conteúdo. O ADR-0034
+> substitui os seis termômetros (item 6 desta Decisão) pelo `<ResultPanel>` do kit inteiro, e por
+> isso o ADR-0018 fica `superseded` (ver a nota correspondente no próprio ADR-0018). Os itens 1–5 e
+> 7–9 desta Decisão permanecem intocados; o item 7 (`<CandidateResultRow>` com parcial/projeção lado
+> a lado) é, na prática, absorvido pelo `<ResultPanel>`, que usa a mesma linha internamente.
 
 ## Contexto
 

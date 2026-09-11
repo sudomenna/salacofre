@@ -83,18 +83,21 @@ function chipFor(bucket: EdgeUfRow["bucket"]): StatusChip {
     case "decidido_1t":
       return {
         label: "● ELEITO",
-        // -strong: texto branco por cima exige 4.5:1 (--color-success falha,
-        // 4.14:1) — achado a11y-perf-auditor 2026-09-05, ver globals.css.
+        // -strong como fundo, com a TINTA PAREADA por tema — nunca branco
+        // fixo. `-strong` inverte de claridade entre claro e escuro (escuro
+        // no claro, claro no escuro), então branco cravado passa num tema e
+        // desaba no outro: o axe mediu 1,62:1 em 2026-09-10, tema escuro.
         bg: "var(--color-success-strong, #166534)",
-        fg: "#ffffff",
+        fg: "var(--chip-success-ink, #ffffff)",
         ariaText: "eleito",
       };
     case "vai_2t":
       return {
         label: "VAI A 2T",
-        // -strong: idem acima — --color-warning falha (3.18:1 com texto branco).
+        // Idem acima: tinta pareada, não branco fixo. Medido a 1,85:1 no
+        // tema escuro antes da correção.
         bg: "var(--color-warning-strong, #b45309)",
-        fg: "#ffffff",
+        fg: "var(--chip-warning-ink, #ffffff)",
         ariaText: "vai ao segundo turno",
       };
     default:

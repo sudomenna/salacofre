@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * components/blocks/StrongholdsPanel.tsx
  *
@@ -9,6 +11,21 @@
  * Cobertura: RF-024 (leitura estadual da corrida nacional) e RF-030.6
  * (distribuição por UF em corrida multi-candidato), na chave "por candidato"
  * em vez de "por UF" — é a mesma matriz lida na outra direção.
+ *
+ * ===== 2026-09-10 — as pílulas do protótipo =====
+ * Até aqui o bloco renderizava uma coluna FIXA por candidato, todas ao mesmo
+ * tempo, e declarava a omissão da fileira de pílulas em comentário. As pílulas
+ * agora existem: uma por candidato (até 5, `race.candidates.slice(0,5)` do
+ * kit), e a tabela mostra as 10 UFs do candidato selecionado.
+ *
+ * A troca não é cosmética — as três colunas eram um defeito de layout. A
+ * coluna de painéis mede `--container-sidebar` (400px) no desktop (ADR-0033
+ * § 1), enquanto o `md:grid-cols-3` que estava aqui é uma media query de
+ * VIEWPORT: acima de 768px de janela, as três tabelas se espremiam em ~130px
+ * cada dentro de uma coluna de 400px. Uma tabela por vez cabe.
+ *
+ * Custo declarado: o bloco vira Client Component (`useState` para a seleção).
+ * É o mesmo custo que o kit paga, e é o único jeito de a seleção existir.
  *
  * ===== De onde vem cada número =====
  * Tudo sai de `EdgeUfRow.top_candidatos[]`, cujo `pct` é literalmente o
@@ -30,38 +47,62 @@
  * `top_candidatos` guarda **no máximo 3 candidatos por UF**. Um candidato que
  * esteja em 4º naquela UF simplesmente não aparece na linha, e não há campo no
  * payload de onde derivar o percentual dele ali. Consequência: a lista de um
- * candidato de rank 3 pode ser mais curta que a dos dois primeiros. Preferimos
- * a lista curta a um número sintético — a nota de rodapé declara isso ao
- * leitor, e a coluna "UFs consideradas" mostra o denominador real.
+ * candidato de rank 3 pode ser mais curta que a dos dois primeiros — e a
+ * pílula do 4º ou 5º colocado nacional pode abrir uma tabela vazia. Preferimos
+ * a lista curta (e o estado vazio explícito, ADR-0017) a um número sintético;
+ * a legenda de cada tabela mostra o denominador real.
  *
  * ===== Cor =====
  * Identidade pelo partido (ADR-0024), intensidade pela margem local
  * (constituição § 2). Sem `partido` mapeado, cai no rank (ADR-0013). Toda
  * barra leva contorno — ver `DATA_FILL_STROKE` em `./_candidateColor`.
  *
- * Server Component puro — sem estado, sem hooks, zero JS novo (RNF-007a). O
- * protótipo do kit trocava de candidato por botão (`useState`); aqui as três
- * colunas são renderizadas de uma vez, o que remove o JS e ainda mostra as
- * três forças lado a lado em vez de uma por vez.
+ * **A pílula selecionada é preenchimento com texto por cima**, que é um caso
+ * diferente: o par cor-de-fundo + tinta precisa de >= 4,5:1 (constituição § 4),
+ * e `colorForParty()` não diz nada sobre a tinta. Quem resolve isso é
+ * `partyChipInk(sigla)` (`lib/utils/party-color.ts`), que devolve o par
+ * `--party-<slug>-chip` / `--party-<slug>-ink` já medido pelo gerador — o
+ * mesmo par que `<PartyTag filled>` exige. Sigla sem token cai no par inverso
+ * do shell (`--surface-inverse` / `--text-inverse`), que é o preenchimento do
+ * `<Button variant="primary">`; o fallback de rank (`colorForRank`) não tem
+ * tinta medida e por isso não pinta pílula.
  *
- * A11y (RNF-023): cada coluna é uma `<table>` de verdade, com `<caption>`
- * visível como título da coluna — leitor de tela navega célula a célula e a
- * cor da barra nunca é o único portador de significado.
+ * A11y (RNF-023)
+ *   - As pílulas são um `<fieldset>` com `<legend>` só para leitor de tela, e
+ *     cada uma é um `<button aria-pressed>` — alternância de filtro, não
+ *     navegação, e todas alcançáveis por Tab. `aria-controls` aponta para a
+ *     tabela que elas trocam. (`<fieldset>` e não `role="group"` num `<div>`:
+ *     é o elemento nativo do papel, e é o que o `useSemanticElements` do
+ *     Biome exige.)
+ *   - A tabela é uma `<table>` de verdade com `<caption>` que NOMEIA o
+ *     candidato selecionado: a mudança de conteúdo é anunciável e a cor da
+ *     pílula nunca é o único portador do estado (o `aria-pressed` é).
+ *   - Alvo de toque de `--tap-min` (44px) no mobile — ver
+ *     `StrongholdsPanel.module.css`.
  */
+
+import { useId, useState } from "react";
 
 import { PartyTag } from "@/components/atoms/data/PartyTag";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { formatPercent, formatPp } from "@/lib/utils/format";
-import { candidateColor, candidateColorByMargin, DATA_FILL_STROKE } from "./_candidateColor";
+import { partyChipInk } from "@/lib/utils/party-color";
+import {
+  candidateColor,
+  candidateColorByMargin,
+  DATA_FILL_STROKE,
+  partidoIsMapped,
+} from "./_candidateColor";
+import styles from "./StrongholdsPanel.module.css";
 
 export interface StrongholdsPanelProps {
   /** `EdgeNational.candidatos`, já ordenado por rank. */
   candidatos: EdgeCandidate[];
   rows: EdgeUfRow[];
-  /** Quantas forças exibir (colunas). Default 3 — o que cabe sem rolagem. */
+  /** Quantos candidatos viram pílula. Default 5 — o corte do kit. */
   topCandidatos?: number;
-  /** Quantas UFs listar por força. Default 5. */
+  /** Quantas UFs listar por força. Default 10 — o corte do kit. */
   topUfs?: number;
   className?: string;
 }
@@ -115,6 +156,54 @@ export function strongholdsFor(
   return out.sort((a, b) => b.pct - a.pct || a.sigla.localeCompare(b.sigla, "pt-BR"));
 }
 
+/**
+ * Par fundo + tinta da pílula SELECIONADA. Só o par medido do partido serve
+ * (ver o bloco "Cor" no topo); sem token de partido, o par inverso do shell.
+ */
+export function chipFillFor(partido: string | null | undefined): {
+  background: string;
+  ink: string;
+} {
+  if (!partidoIsMapped(partido)) {
+    return { background: "var(--surface-inverse)", ink: "var(--text-inverse)" };
+  }
+  return partyChipInk(partido);
+}
+
+/** Primeiro nome — o rótulo da pílula no kit (`x.nome.split(' ')[0]`). */
+function primeiroNome(nome: string): string {
+  return nome.trim().split(/\s+/)[0] || nome;
+}
+
+/**
+ * Rótulos VISÍVEIS das pílulas, um por candidato, na ordem de entrada.
+ *
+ * Regra do kit: primeiro nome. O kit pode se dar ao luxo porque a maquete traz
+ * nomes de urna distintos ("Lula", "Tarcísio", "Ciro"). O payload real não
+ * garante isso — o fixture de teste deste repositório tem cinco candidatos
+ * chamados "Candidato PT", "Candidato PL", "Candidato MDB"… e o corte no
+ * primeiro nome produz **cinco pílulas idênticas**, medidas em 2026-09-10 a
+ * 400px: cinco botões de 80×32 escritos "Candidato".
+ *
+ * Então: primeiro nome quando ele já distingue; primeiro nome + sigla quando
+ * dois candidatos do quadro o compartilham. Só quem colide paga o rótulo mais
+ * longo — no caso real (nomes de urna distintos) a saída é idêntica à do kit.
+ * Sem sigla para desempatar, cai no nome completo, que é o último recurso que
+ * não inventa nada.
+ */
+export function chipLabels(candidatos: Array<{ nome: string; partido: string }>): string[] {
+  const primeiros = candidatos.map((c) => primeiroNome(c.nome));
+  const contagem = new Map<string, number>();
+  for (const p of primeiros) contagem.set(p, (contagem.get(p) ?? 0) + 1);
+
+  return candidatos.map((c, i) => {
+    const p = primeiros[i] as string;
+    if ((contagem.get(p) ?? 0) < 2) return p;
+    const sigla = c.partido?.trim();
+    return sigla ? `${p} ${sigla}` : c.nome.trim();
+  });
+}
+
 const CELL: React.CSSProperties = {
   padding: "var(--space-2) 0",
   borderTop: "1px solid var(--border-hairline)",
@@ -129,19 +218,21 @@ const HEAD_CELL: React.CSSProperties = {
   fontWeight: 600,
 };
 
-interface CandidateColumnProps {
+interface CandidateTableProps {
   cand: EdgeCandidate;
   rank: number;
   lista: StrongholdRow[];
   totalUfsComDado: number;
+  id: string;
 }
 
-function CandidateColumn({ cand, rank, lista, totalUfsComDado }: CandidateColumnProps) {
+function CandidateTable({ cand, rank, lista, totalUfsComDado, id }: CandidateTableProps) {
   const cor = candidateColor(cand.partido, rank);
-  const captionId = `redutos-${cand.id}-caption`;
+  const captionId = `${id}-caption`;
 
   return (
     <table
+      id={id}
       data-testid="stronghold-column"
       data-candidato={cand.id}
       className="w-full border-collapse text-left"
@@ -236,35 +327,81 @@ function CandidateColumn({ cand, rank, lista, totalUfsComDado }: CandidateColumn
 export function StrongholdsPanel({
   candidatos,
   rows,
-  topCandidatos = 3,
-  topUfs = 5,
+  topCandidatos = 5,
+  topUfs = 10,
   className,
 }: StrongholdsPanelProps) {
+  const baseId = useId();
+  const tabelaId = `${baseId}-tabela`;
   const candidatosById = new Map(candidatos.map((c) => [c.id, c]));
-  const colunas = candidatos.slice(0, topCandidatos);
+  const pilulas = candidatos.slice(0, topCandidatos);
+
+  // A seleção guarda o ID, não o índice: se o payload reordenar entre dois
+  // ciclos de 60s, o índice apontaria para outro candidato em silêncio.
+  const [selecionadoId, setSelecionadoId] = useState<number | null>(null);
+  const selecionado = pilulas.find((c) => c.id === selecionadoId) ?? pilulas[0];
+
   const totalUfsComDado = rows.filter((r) => (r.top_candidatos ?? []).length > 0).length;
+  const rotulos = chipLabels(pilulas);
 
   return (
     <Panel
       kicker="Por unidade federativa"
-      title="Onde cada força é mais forte"
+      title="Onde cada candidato é mais forte"
       titleId="strongholds-panel-heading"
       className={className}
     >
-      <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: "var(--space-8)" }}>
-        {colunas.map((c, i) => {
-          const rank = c.rank ?? i + 1;
-          return (
-            <CandidateColumn
-              key={c.id}
-              cand={c}
-              rank={rank}
-              lista={strongholdsFor(c.id, rows, candidatosById).slice(0, topUfs)}
-              totalUfsComDado={totalUfsComDado}
-            />
-          );
-        })}
-      </div>
+      {pilulas.length > 0 ? (
+        <fieldset data-testid="strongholds-chips" className={styles.chips}>
+          <legend className="sr-only">Escolher candidato</legend>
+          {pilulas.map((c, i) => {
+            const ativo = c.id === selecionado?.id;
+            const { background, ink } = chipFillFor(c.partido);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                data-testid="stronghold-chip"
+                data-candidato={c.id}
+                data-ativo={ativo ? "true" : "false"}
+                aria-pressed={ativo}
+                aria-controls={tabelaId}
+                className={[styles.chip, ativo ? styles.chipOn : null].filter(Boolean).join(" ")}
+                // Inline só o par que depende da sigla; o resto é o módulo CSS.
+                // Estilo inline vence seletor, então o `:hover` do módulo não
+                // alcança (nem deve alcançar) o fundo medido da selecionada.
+                style={ativo ? { background, color: ink } : undefined}
+                onClick={() => setSelecionadoId(c.id)}
+              >
+                {rotulos[i]}
+                {/* Nome completo e sigla para leitor de tela — a pílula
+                    visível é curta por desenho, mas quem ouve não deve ter de
+                    adivinhar de quem é. */}
+                <span className="sr-only">
+                  {" — "}
+                  {c.nome}
+                  {c.partido ? `, ${c.partido}` : ", sem partido"}
+                </span>
+              </button>
+            );
+          })}
+        </fieldset>
+      ) : null}
+
+      {selecionado ? (
+        <CandidateTable
+          id={tabelaId}
+          cand={selecionado}
+          rank={selecionado.rank ?? pilulas.indexOf(selecionado) + 1}
+          lista={strongholdsFor(selecionado.id, rows, candidatosById).slice(0, topUfs)}
+          totalUfsComDado={totalUfsComDado}
+        />
+      ) : (
+        <p style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-muted)" }}>
+          Aguardando a lista de candidatos do TSE.
+        </p>
+      )}
+
       <p
         data-testid="strongholds-nota"
         style={{
@@ -274,10 +411,11 @@ export function StrongholdsPanel({
           color: "var(--text-muted)",
         }}
       >
-        UFs com maior percentual projetado para cada candidato. A diferença é a margem projetada
-        local: para quem está em 1º, a distância até o 2º; abaixo disso, a distância até o 1º. O
-        payload publica no máximo três candidatos por UF, então uma UF em que o candidato esteja em
-        4º ou abaixo não entra na lista. Projeção não oficial; o resultado é do TSE.
+        {topUfs} UFs com maior percentual projetado para o candidato escolhido acima. A diferença é
+        a margem projetada local: para quem está em 1º, a distância até o 2º; abaixo disso, a
+        distância até o 1º. O payload publica no máximo três candidatos por UF, então uma UF em que
+        o candidato esteja em 4º ou abaixo não entra na lista. Projeção não oficial; o resultado é
+        do TSE.
       </p>
     </Panel>
   );

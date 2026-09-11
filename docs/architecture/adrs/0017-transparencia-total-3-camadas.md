@@ -3,7 +3,7 @@ id: ADR-0017
 title: Todos os candidatos do 1T visíveis em 3 camadas fixas, sem collapsible
 status: accepted
 date: 2026-05-17
-amended_by: ADR-0029 # formato de linha das Camadas 2/3; regra "sempre no DOM" reafirmada
+amended_by: [ADR-0029, ADR-0034] # 0029: formato de linha das Camadas 2/3; 0034: distingue colapso visual (D21) de remoção de nós
 ---
 
 # ADR-0017 — Todos os candidatos do 1T visíveis em 3 camadas fixas, sem collapsible
@@ -17,6 +17,8 @@ Aceito (parcialmente superado por [ADR-0018](0018-termometros-hero-1t.md) no mod
 > Especificamente: a definição de **Camada 1** (hero) deste ADR — `<HeadlineScore />` top-2 — deixa de valer no modo `multi-1t` (1º turno com >2 candidatos), onde o ADR-0018 a substitui por `<ProjectionThermometers />` (seis termômetros: 1º, 2º, 3º colocados, "Outros", brancos/nulos, abstenção). A regra estrutural deste ADR — **todas as camadas sempre presentes no DOM, sem collapsibles** — permanece **integralmente vigente** em ambos os modos, assim como a definição completa da Camada 2 (`<CandidateRanking />`) e da Camada 3 (`<MinorCandidatesList />`, agora também consumida pelo ADR-0018 como "Composição de Outros"). Para o modo `binary` (2º turno), este ADR aplica-se **sem nenhuma alteração** — `<HeadlineScore />` continua sendo a Camada 1.
 
 > **Nota 2026-09-08 (ADR-0029).** As linhas de candidato das Camadas 2 e 3 adotam o formato visual do componente `CandidateRow` do kit Atlas Menna (parcial e projeção lado a lado, com delta), em vez do formato comprimido pct+IC anterior. A regra central deste ADR — todas as camadas sempre no DOM, sem collapsible — é reafirmada e usada explicitamente para **rejeitar** o botão "Mostrar todos os N candidatos" presente no componente equivalente do kit (`ResultPanel`), que violaria esta regra se copiado sem revisão.
+
+> **Nota 2026-09-10 (D21, [ADR-0034](0034-resultpanel-colapso-visual-corte-fora-do-kit.md)).** A permanência "sempre no DOM" ganha uma segunda camada de precisão: o botão "Todos os N candidatos" do painel de resultado (`<CandidateListCollapse>`, `components/blocks/CandidateListCollapse.tsx`) não remove nenhuma linha excedente — clipa via `height: 0; overflow: hidden` (`components/blocks/ResultPanel.module.css:44-47`), a mesma mecânica de `sr-only`. A proibição deste ADR sempre mirou a REMOÇÃO de nós (`display:none`, `hidden`, `<details>`), nunca o colapso visual que preserva a árvore de acessibilidade e a busca da página — medido no navegador em 2026-09-09 (11 linhas com `display:list-item` computado, a 11ª alcançável pela árvore de acessibilidade). Ver ADR-0034 para o levantamento completo.
 
 ## Contexto
 

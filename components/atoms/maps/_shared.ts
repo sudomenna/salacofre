@@ -135,6 +135,60 @@ export function ufCodigoIbge(sigla: string): number | undefined {
   return UF_CODIGO_IBGE[sigla.toUpperCase()];
 }
 
+/**
+ * Nome por extenso de cada UF — o rótulo do seletor de UF
+ * (`components/layout/UfPicker.tsx`), que o protótipo ordena por NOME e não
+ * por sigla (`AM.UF.slice().sort((a, b) => a.nome.localeCompare(b.nome))`,
+ * `ui_kits/atlas-menna/App.jsx:364`).
+ *
+ * Terceira cópia desta tabela no repositório — as outras duas estão em
+ * `components/blocks/StateResultSheet.tsx:54` e
+ * `components/blocks/GovernorCard.tsx`, cada uma com o comentário "sem módulo
+ * compartilhado pra este propósito, então repetida aqui". Agora há: este.
+ * Unificar as três é limpeza pendente (não feita aqui para não mexer em dois
+ * blocos fora do escopo da mudança que trouxe o seletor).
+ */
+export const UF_NOMES: Record<string, string> = {
+  AC: "Acre",
+  AL: "Alagoas",
+  AP: "Amapá",
+  AM: "Amazonas",
+  BA: "Bahia",
+  CE: "Ceará",
+  DF: "Distrito Federal",
+  ES: "Espírito Santo",
+  GO: "Goiás",
+  MA: "Maranhão",
+  MT: "Mato Grosso",
+  MS: "Mato Grosso do Sul",
+  MG: "Minas Gerais",
+  PA: "Pará",
+  PB: "Paraíba",
+  PR: "Paraná",
+  PE: "Pernambuco",
+  PI: "Piauí",
+  RJ: "Rio de Janeiro",
+  RN: "Rio Grande do Norte",
+  RS: "Rio Grande do Sul",
+  RO: "Rondônia",
+  RR: "Roraima",
+  SC: "Santa Catarina",
+  SP: "São Paulo",
+  SE: "Sergipe",
+  TO: "Tocantins",
+};
+
+/**
+ * As 27 UFs `{ sigla, nome }` ordenadas por NOME em pt-BR — a ordem do
+ * seletor do protótipo. Determinístico (constituição § 6): mesma entrada,
+ * mesma saída, sem depender do locale do runtime (o `"pt-BR"` é explícito).
+ */
+export function ufsPorNome(): Array<{ sigla: string; nome: string }> {
+  return Object.entries(UF_NOMES)
+    .map(([sigla, nome]) => ({ sigla, nome }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
 /** Centro geográfico aproximado da UF (lon, lat). */
 export function ufCenter(sigla: string): [number, number] {
   const box = UF_BBOX[sigla];

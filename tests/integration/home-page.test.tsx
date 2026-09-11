@@ -323,11 +323,17 @@ describe("HomePage (integration / smoke)", () => {
     );
     expect(doc.querySelectorAll('[data-testid="bulletin-list"] > li').length).toBeGreaterThan(0);
 
-    // Redutos (RF-024 / RF-030.6) — uma coluna por candidato do top 3
+    // Redutos (RF-024 / RF-030.6) — desde 2026-09-10 é uma fileira de pílulas
+    // (uma por candidato, até 5) e UMA tabela: a do candidato selecionado,
+    // como no protótipo. As três colunas simultâneas de antes não cabiam na
+    // coluna de painéis de 400px (ADR-0033 § 1).
     expect(doc.querySelector("#strongholds-panel-heading")?.textContent).toBe(
-      "Onde cada força é mais forte",
+      "Onde cada candidato é mais forte",
     );
-    expect(doc.querySelectorAll('[data-testid="stronghold-column"]')).toHaveLength(3);
+    expect(doc.querySelectorAll('[data-testid="stronghold-column"]')).toHaveLength(1);
+    expect(doc.querySelectorAll('[data-testid="stronghold-chip"]').length).toBeGreaterThanOrEqual(
+      2,
+    );
 
     // O que falta apurar (RF-026 / RF-024)
     expect(doc.querySelector("#remaining-panel-heading")?.textContent).toBe(

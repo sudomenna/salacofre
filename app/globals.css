@@ -249,6 +249,23 @@
  * no bloco `@theme` acima.
  * ========================================================================= */
 :root {
+  /* Tinta que vai POR CIMA de `--color-*-strong` quando ele é FUNDO de chip.
+   *
+   * Nome fora do namespace `--color-*` de propósito: o Tailwind v4 trata
+   * `--color-*` como variável de tema e PODA as que nenhuma classe utilitária
+   * usa. Estas só aparecem dentro de um `var()` em estilo inline de TSX, que
+   * ele não enxerga — batizadas de `--color-*-ink` elas sumiam do CSS servido
+   * e o `var(..., #ffffff)` caía no fallback, medido em 2026-09-10.
+   *
+   * O par existe porque `--color-*-strong` INVERTE de claridade entre os
+   * temas: escuro no tema claro, claro no tema escuro. Tinta branca cravada
+   * passa num e desaba no outro (1,62:1 e 1,85:1, axe, 22 nós na
+   * `/governador`). */
+  --chip-success-ink: #ffffff;
+  --chip-warning-ink: #ffffff;
+}
+
+:root {
   --surface-page: var(--paper-1);
   --surface-card: var(--paper-0);
   --surface-sunken: var(--paper-2);
@@ -474,6 +491,14 @@ main[data-trilha="gov"] {
   --color-band-lean: #3d434c;
   --color-band-likely: #59616d;
   --color-band-very_likely: #818b99;
+}
+
+:root[data-theme="dark"] {
+  /* Fundo claro no escuro pede tinta escura. O papel escuro serve, com folga:
+   *   #86dda8 sobre #14171b → 11,06:1
+   *   #ffa896 sobre #14171b →  9,67:1 */
+  --chip-success-ink: #14171b;
+  --chip-warning-ink: #14171b;
 }
 
 /* Semânticos que vivem fora do `@theme` (ver o bloco `:root` acima) e são hex

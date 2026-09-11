@@ -42,7 +42,7 @@
  */
 
 import Link from "next/link";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useState } from "react";
 import { type MapView, MapViewToggle } from "@/components/atoms/controls/MapViewToggle";
 import { NationalChoroplethMap } from "@/components/blocks/NationalChoroplethMap";
@@ -114,6 +114,14 @@ export interface NationalMapBlockProps {
    * (`App.jsx`, `goBack`). Aqui é `<Link>`, não `onClick`: o nível é rota.
    */
   backHref?: string;
+  /**
+   * Só em `frame`: controle extra do canto superior DIREITO, ao lado do
+   * `<MapViewToggle>`. Existe para o seletor de UF (`<UfPicker>`, 2026-09-10)
+   * entrar na MESMA faixa `flex-wrap` do toggle em vez de numa caixa própria
+   * ancorada no canto — ancorar duas caixas em cantos opostos foi o defeito
+   * medido a 375px que a faixa única resolveu (ver o comentário do overlay).
+   */
+  action?: ReactNode;
 }
 
 export function NationalMapBlock({
@@ -124,6 +132,7 @@ export function NationalMapBlock({
   variant = "section",
   scopeLabel = "Presidente · Brasil",
   backHref,
+  action,
 }: NationalMapBlockProps) {
   const [view, setView] = useState<MapView>("winner");
   const viewMode = useViewMode();
@@ -172,8 +181,12 @@ export function NationalMapBlock({
             ) : null}
             <h2 style={{ ...CHIP_STYLE, margin: 0 }}>{scopeLabel}</h2>
           </div>
-          <div className="pointer-events-auto min-w-0">
+          <div
+            className="pointer-events-auto flex min-w-0 flex-wrap items-start justify-end"
+            style={{ gap: "var(--space-2)" }}
+          >
             <MapViewToggle value={view} onChange={setView} />
+            {action}
           </div>
         </div>
       </section>

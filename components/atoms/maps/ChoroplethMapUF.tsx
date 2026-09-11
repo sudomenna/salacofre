@@ -21,8 +21,12 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef } from "react";
 
-import { registerPmtilesProtocolOnce, resetPmtilesProtocol } from "@/components/atoms/maps/_pmtiles-protocol";
+import {
+  registerPmtilesProtocolOnce,
+  resetPmtilesProtocol,
+} from "@/components/atoms/maps/_pmtiles-protocol";
 import { resolveCssColor, UF_BBOX, ufCodigoIbge } from "@/components/atoms/maps/_shared";
+import { useMunicipioSheetStore } from "@/components/shared/municipio-sheet-store";
 import { useHoverStore } from "@/lib/state/hover-store";
 
 const PMTILES_BASE = "https://jbtu251tioj3y57z.public.blob.vercel-storage.com";
@@ -259,7 +263,11 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
           if (!codIbge) return;
 
           useHoverStore.getState().setHovered({ type: "municipio", codIbge }, "map");
-          map.setFilter("municipios-stroke-hover", ["all", ufFilter, ["==", ["get", "CD_MUN"], codIbge]]);
+          map.setFilter("municipios-stroke-hover", [
+            "all",
+            ufFilter,
+            ["==", ["get", "CD_MUN"], codIbge],
+          ]);
           map.getCanvas().style.cursor = "pointer";
         },
         16,
@@ -273,12 +281,25 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
         map.getCanvas().style.cursor = "";
       });
 
-      // Mobile: tap-to-select
+      // Clique no município: realça (era o único efeito até 2026-09-10, e é o
+      // que serve o tap-to-select do mobile, onde não há `mousemove`) E abre a
+      // folha do município — o `MunSheet` do protótipo, aberto a partir do
+      // mapa (`ui_kits/atlas-menna/App.jsx:311`).
+      //
+      // A folha em si é a que já existe, desenhada pelo `<MunicipioExplorer>`
+      // da página de UF; aqui só se escreve o `cod_ibge` no store compartilhado
+      // (`components/shared/municipio-sheet-store.ts`), que é o que atravessa
+      // as duas colunas do `<AppShellSplit>`. Nenhuma segunda folha é criada.
+      //
+      // `getState()` e não o hook: este handler é registrado uma vez dentro do
+      // `mount()` e sobrevive a re-renders — um `select` capturado por closure
+      // envelheceria junto com ela.
       map.on("click", "municipios-fill", (e) => {
         const feature = e.features?.[0];
         const codIbge = feature?.properties?.CD_MUN as string | undefined;
         if (codIbge) {
           useHoverStore.getState().setHovered({ type: "municipio", codIbge }, "map");
+          useMunicipioSheetStore.getState().select(codIbge);
         }
       });
 

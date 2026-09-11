@@ -1,19 +1,22 @@
 ---
 id: ADR-0018
 title: Seis termômetros de projeção como hero do 1º turno, não duelo top-2
-status: accepted
+status: superseded
 date: 2026-09-05
 supersedes: ADR-0017 (parcial — apenas a definição da Camada 1 em modo `multi-1t`)
 amended_by: ADR-0029 # posição do hero no fluxo da página; conteúdo e denominadores inalterados
+superseded_by: ADR-0034 # painel de resultado do protótipo substitui os termômetros como hero em 3 das 4 rotas; metodologia (denominadores, IC) segue vigente via ADR-0022 em /governador
 ---
 
 # ADR-0018 — Seis termômetros de projeção como hero do 1º turno, não duelo top-2
 
 ## Status
 
-Aceito.
+Aceito (histórico — ver nota de 2026-09-10 abaixo: `superseded` desde então).
 
 > **Nota 2026-09-08 (ADR-0029).** A posição de `<ProjectionThermometers />` no fluxo da página muda — passa a vir logo abaixo do bloco de mapa, não acima dele, como parte da recomposição "mapa primeiro" da home mobile-first. O conteúdo, os denominadores por categoria e o cálculo de IC por soma de resamples permanecem exatamente como decidido aqui. O usuário confirmou esta leitura em 2026-09-08, ao escolher manter os seis termômetros em vez de adotar o duelo top-2 do protótipo do kit: numa disputa de 9 candidatos, o padrão do protótipo reproduziria as razões (i) e (ii) que este ADR listou para rejeitá-lo.
+
+> **Superseded em 2026-09-10 por [ADR-0034](0034-resultpanel-colapso-visual-corte-fora-do-kit.md).** A reversão do hero do `multi-1t` registrada na nota de emenda do ADR-0029 (D17, 2026-09-08) deixou de ser só de posição: o ADR-0034 substitui inteiramente os seis termômetros pelo `<ResultPanel>` do kit na home e nas duas rotas de UF. As quatro razões pelas quais este ADR rejeitou o duelo top-2 (esconder o 3º colocado competitivo; omitir participação; misturar denominadores `v.vvc`/`e.c`/`e.esi`; IC de "Outros" incorreto por subtração) permanecem corretas como diagnóstico — o ADR-0034 não as refuta, registra que o usuário aceitou os custos que elas descrevem. A metodologia deste ADR (denominadores, IC de "Outros" por soma de resamples) continua sendo a fonte de verdade da única instância remanescente de `<ProjectionThermometers>`, em `/governador` (`variant="participacao-only"`, ADR-0022 — não revisto por este ADR nem pelo ADR-0034).
 
 ## Contexto
 

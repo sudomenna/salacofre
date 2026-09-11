@@ -3,7 +3,7 @@
   "name": "SalaCofre Docs Index",
   "description": "Índice machine-readable da documentação SDD do SalaCofre. Carregar este arquivo dá a um agente o mapa completo das specs, NFRs, ADRs e fontes canônicas.",
   "version": "1.0",
-  "last_updated": "2026-09-08",
+  "last_updated": "2026-09-10",
   "source_prd": "docs/PRD.md",
   "constitution": "docs/constitution.md",
   "conventions": "docs/_meta/conventions.md",
@@ -126,20 +126,26 @@
       "title": "Todos os candidatos do 1T visíveis em 3 camadas fixas, sem collapsible",
       "status": "accepted",
       "path": "docs/architecture/adrs/0017-transparencia-total-3-camadas.md",
-      "note": "parcialmente superado por ADR-0018 no modo multi-1t (apenas Camada 1); ver seção Status do arquivo"
+      "note": "parcialmente superado por ADR-0018 no modo multi-1t (apenas Camada 1); emendado por ADR-0029 (formato de linha) e ADR-0034 (D21 — distingue colapso visual de remoção de nós); ver seção Status do arquivo",
+      "amended_by": ["0029", "0034"]
     },
     {
       "id": "0018",
       "title": "Seis termômetros de projeção como hero do 1º turno, não duelo top-2",
-      "status": "accepted",
+      "status": "superseded",
       "path": "docs/architecture/adrs/0018-termometros-hero-1t.md",
-      "supersedes": "0017 (parcial — apenas Camada 1 em modo multi-1t)"
+      "supersedes": "0017 (parcial — apenas Camada 1 em modo multi-1t)",
+      "amended_by": "0029",
+      "superseded_by": "0034",
+      "note": "superseded em 2026-09-10 como regra geral de hero (ResultPanel do kit substitui os termômetros em 3 das 4 rotas); metodologia (denominadores, IC) segue vigente via ADR-0022 em /governador"
     },
     {
       "id": "0019",
       "title": "Identidade visual por trilha (presidencial vs. governador), não paleta única",
       "status": "accepted",
-      "path": "docs/architecture/adrs/0019-identidade-visual-por-trilha.md"
+      "path": "docs/architecture/adrs/0019-identidade-visual-por-trilha.md",
+      "amended_by": "0034",
+      "note": "TrilhaKicker sai de 3 das 4 rotas (D23); mecanismo (atributo + tokens) intocado"
     },
     {
       "id": "0020",
@@ -209,8 +215,8 @@
       "title": "Home mobile-first com mapa primeiro e abas de cargo no rodapé, não pilha de blocos com hero de texto no topo — fidelidade ao protótipo do kit Atlas Menna",
       "status": "accepted",
       "date": "2026-09-07",
-      "note": "emenda parcial ADR-0017 (formato de linha das Camadas 2/3) e ADR-0018 (posição do hero, conteúdo inalterado); não supersede nenhum dos dois — texto de frontmatter/Status a aplicar em ambos está reproduzido no próprio ADR-0029",
-      "amended_by": "0033",
+      "note": "emenda parcial ADR-0017 (formato de linha das Camadas 2/3) e ADR-0018 (posição do hero, conteúdo inalterado); não supersede nenhum dos dois; emendado por ADR-0033 (D17 — reversão do hero) e por ADR-0034, que fecha essa pendência (ADR-0018 fica superseded)",
+      "amended_by": ["0033", "0034"],
       "path": "docs/architecture/adrs/0029-home-mobile-first-mapa-primeiro-fiel-ao-kit.md"
     },
     {
@@ -247,6 +253,16 @@
       "amends": "0029",
       "note": "3 decisões da sessão de 08/09: (1) navegação por moldura persistente ('jeito C') — mapa vive em layout.tsx compartilhado entre home/UF do mesmo cargo, endereço continua mudando, mapa não desmonta; (2) home adota ordem de painéis do protótipo (Resultado→Chances→Redutos→Falta apurar→Boletim) com Placar por estado mantido e Cenários/UFs decisivas removidos; (3) gate OT-4 não é calibrado ajustando REGIONAL_DELAY do fixture sintético — aguarda pesquisa de dado real de 2022, que pode não existir. Emenda o ADR-0029 (nota de Status, D17: reversão da posição/exceção do hero) sem tocar seu corpo.",
       "path": "docs/architecture/adrs/0033-navegacao-moldura-persistente-paineis-home-calibracao-ot4.md"
+    },
+    {
+      "id": "0034",
+      "title": "Painel de resultado do protótipo como hero único, colapso visual sem remoção de nós e poda dos blocos fora do kit — participação sai de três telas, não do payload",
+      "status": "accepted",
+      "date": "2026-09-10",
+      "supersedes": "0018",
+      "note": "3 decisões da sessão de 09/09 (D21, D22, D23): (D21) o botão 'Todos os N candidatos' do ResultPanel colapsa visualmente (height:0/overflow:hidden), nunca remove nós — satisfaz ADR-0017/ADR-0029 §7; (D22) ResultPanel do kit (Figure Apurado + Figure Margem + VoteBar + linhas com PARCIAL/PROJ) substitui os seis termômetros do ADR-0018 na home e nas duas rotas de UF — ADR-0018 fica superseded como regra geral, mas sua metodologia segue viva via ADR-0022 em /governador; consequência aceita: brancos/nulos/abstenção saem dessas 3 telas, o dado continua no payload; (D23) poda de BreakingNewsTicker/WinnerBanner/UFBreadcrumb/TrilhaKicker/InsightCard/Needle/RaceStatsCards/MunicipioWaffleGrid/ProjectionThermometers/ApuracaoMeta conforme tabela por rota; emenda ADR-0017 e ADR-0019; fecha a pendência D17 do ADR-0033/ADR-0029",
+      "amends": ["0017", "0019", "0029"],
+      "path": "docs/architecture/adrs/0034-resultpanel-colapso-visual-corte-fora-do-kit.md"
     }
   ],
   "nfr": {

@@ -3,9 +3,24 @@
 /**
  * components/blocks/MunicipioExplorer.tsx
  *
- * S07/Bloco 2 — a folha do município. Tocar num município (na tabela ou, onde
- * ela existe, na grade de quadrados) abre o `<Sheet>` com os números daquele
- * município: bottom sheet modal no mobile, cartão lateral no desktop.
+ * S07/Bloco 2 — a folha do município. Tocar num município (na tabela, no
+ * MAPA da coluna ao lado ou, onde ela existe, na grade de quadrados) abre o
+ * `<Sheet>` com os números daquele município.
+ *
+ * ## 2026-09-10 — o mapa passa a abrir esta mesma folha
+ *
+ * O protótipo abre a folha ao clicar num município **do mapa**
+ * (`ui_kits/atlas-menna/App.jsx:311`); aqui ela só abria pela tabela. O gatilho
+ * que faltava agora existe em `<ChoroplethMapUF>` (`map.on("click", ...)`), e
+ * chega até aqui pelo store de módulo em
+ * `components/shared/municipio-sheet-store.ts` — o mapa vive na moldura
+ * persistente montada pelo `layout.tsx` (ADR-0033 § 1), numa árvore React irmã
+ * desta. Nenhuma segunda folha foi criada: é este `<Sheet>`, com estes números.
+ *
+ * Clique num município que o payload não cobre é **no-op silencioso**: sem
+ * entrada em `municipios` não há nem nome nem `pct_apurado` para titular a
+ * folha, e um diálogo vazio comunicaria menos que nada (ADR-0017 vale para
+ * estado ausente exibido, não para diálogo inventado).
  *
  * Portado do `MunSheet` do protótipo do kit
  * (`docs/design-system/atlas-menna/ui_kits/atlas-menna/App.jsx:198`), com
@@ -24,11 +39,12 @@
  * ## Por que este componente existe (e a tabela não abre o sheet sozinha)
  *
  * O estado "qual município está aberto" é compartilhado entre a tabela, a
- * grade e o sheet. Se cada bloco carregasse o próprio, tocar na grade não
- * fecharia o sheet aberto pela tabela. Este wrapper é o dono do estado; a
- * tabela e a grade recebem só um `onSelect`, e continuam utilizáveis sem ele
- * (as duas páginas de UF que não passam `onSelect` renderizam exatamente como
- * antes).
+ * grade, o mapa e o sheet. Se cada bloco carregasse o próprio, tocar na grade
+ * não fecharia o sheet aberto pela tabela. Este wrapper é o dono do SHEET; o
+ * estado em si mudou de casa em 2026-09-10 (de `useState` local para o store
+ * de módulo) porque o quarto gatilho, o mapa, não é descendente deste
+ * componente. A tabela e a grade continuam recebendo só um `onSelect`, e
+ * continuam utilizáveis sem ele.
  *
  * `"use client"` já era obrigatório aqui: `<MunicipioTable>` e
  * `<MunicipioWaffleGrid>` são Client Components desde S04/S06, então este
@@ -47,12 +63,13 @@
  *   - O `<Sheet>` já resolve Esc, foco de entrada/retorno e `aria-modal`.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import { Figure } from "@/components/atoms/data/Figure";
 import { Sheet } from "@/components/atoms/overlays/Sheet";
 import { type MunicipioRow, MunicipioTable } from "@/components/blocks/MunicipioTable";
 import { MunicipioWaffleGrid } from "@/components/blocks/MunicipioWaffleGrid";
+import { useMunicipioSheetStore } from "@/components/shared/municipio-sheet-store";
 import type { EdgeCandidate, EdgeUfCandidate, EdgeUfMunicipio } from "@/lib/edge-config/types";
 import { formatPercent, formatVotes } from "@/lib/utils/format";
 
@@ -183,7 +200,13 @@ export function MunicipioExplorer({
   topN,
   waffleCandidatos,
 }: MunicipioExplorerProps) {
-  const [selecionado, setSelecionado] = useState<string | null>(null);
+  // Qual município está aberto vive FORA deste componente desde 2026-09-10:
+  // o clique no mapa (`<ChoroplethMapUF>`) precisa abrir esta mesma folha, e o
+  // mapa é montado pelo `layout.tsx` do grupo de rotas, numa árvore irmã. Ver
+  // o cabeçalho de `components/shared/municipio-sheet-store.ts`. Selector fino
+  // (só o `codIbge`), como manda a convenção do `useHoverStore`.
+  const selecionado = useMunicipioSheetStore((s) => s.codIbge);
+  const select = useMunicipioSheetStore((s) => s.select);
 
   const porCod = useMemo(
     () => new Map(municipios.map((m) => [m.cod_ibge, m] as const)),
@@ -192,11 +215,26 @@ export function MunicipioExplorer({
 
   const abrir = useCallback(
     (cod: string) => {
-      if (porCod.has(cod)) setSelecionado(cod);
+      if (porCod.has(cod)) select(cod);
     },
-    [porCod],
+    [porCod, select],
   );
-  const fechar = useCallback(() => setSelecionado(null), []);
+  const fechar = useCallback(() => select(null), [select]);
+
+  // O store é de módulo: sobrevive à navegação. Sem esta limpeza, sair de
+  // `/uf/SP` com a folha aberta e voltar depois reabriria a folha sozinha — e
+  // ir de `/uf/SP` para `/uf/MG` (mesmo componente de página, árvore React
+  // preservada pelo App Router) carregaria junto o `cod_ibge` da UF anterior.
+  // Fecha ao montar, ao desmontar e a cada troca de UF; o `porCod.has()` acima
+  // é a segunda trava.
+  //
+  // `ufSigla` não é LIDO no corpo — é o gatilho. Trocar de UF tem de fechar a
+  // folha; sem a dependência, voltar para a UF anterior reabriria a folha dela.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: ufSigla é gatilho, não leitura — ver acima
+  useEffect(() => {
+    select(null);
+    return () => select(null);
+  }, [select, ufSigla]);
 
   const municipio = selecionado ? (porCod.get(selecionado) ?? null) : null;
   const linhas = useMemo(
@@ -248,7 +286,9 @@ export function MunicipioExplorer({
                 }}
               >
                 Percentuais sobre os votos já apurados neste município. O modelo projeta por zona
-                eleitoral e agrega para o estado — não existe projeção municipal.
+                eleitoral e agrega para o estado — não existe projeção municipal. O payload também
+                não publica o eleitorado do município, então a segunda medida acima é o total de
+                votos já apurados, não o total de eleitores.
               </p>
             </>
           ) : (

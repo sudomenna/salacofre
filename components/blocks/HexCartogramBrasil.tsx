@@ -49,7 +49,15 @@ export function HexCartogramBrasil({ rows, candidatos, hexRadius = 26 }: HexCart
   return (
     <figure className="w-full" aria-labelledby="hex-cartogram-title">
       <svg
-        role="img"
+        // `role="group"`, NÃO `role="img"`. Este SVG contém 27 links (um por
+        // UF) e `role="img"` declara ao leitor de tela que o elemento é uma
+        // imagem única, sem partes interativas — os links ficam presos dentro
+        // de algo que afirma não tê-los. O axe classifica como
+        // `nested-interactive`, serious, WCAG 4.1.2; medido em 2026-09-10 nas
+        // quatro combinações de viewport × tema da `/governador`.
+        // O nome acessível não se perde: vem do mesmo `aria-labelledby`, e o
+        // `<figure>` externo também o carrega.
+        role="group"
         aria-labelledby="hex-cartogram-title hex-cartogram-desc"
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="xMidYMid meet"

@@ -72,10 +72,20 @@ describe("<HexCartogramBrasil />", () => {
     expect(polys.length).toBe(27);
   });
 
-  it("(b) renderiza svg com role=img e título descritivo", () => {
+  // 2026-09-10 — era `role="img"`. O axe reprovou com `nested-interactive`
+  // (serious, WCAG 4.1.2) nas quatro combinações de viewport × tema da
+  // `/governador`: o SVG contém 27 links (um por UF, ver o caso (c) logo
+  // abaixo) e `role="img"` declara ao leitor de tela que o elemento é uma
+  // imagem única, sem partes interativas — os links ficam presos dentro de
+  // algo que afirma não tê-los. `role="group"` descreve o que o elemento é de
+  // fato, e o nome acessível continua vindo do mesmo `aria-labelledby`.
+  it("(b) o svg é um grupo (não uma imagem), com título descritivo", () => {
     const doc = parse(<HexCartogramBrasil rows={mkRows()} candidatos={candidatos} />);
     const svg = doc.querySelector("svg");
-    expect(svg?.getAttribute("role")).toBe("img");
+    expect(svg?.getAttribute("role")).toBe("group");
+    // `role="img"` não pode voltar enquanto houver link dentro do SVG.
+    expect(svg?.getAttribute("role")).not.toBe("img");
+    expect(svg?.getAttribute("aria-labelledby")).toContain("hex-cartogram-title");
     const title = doc.querySelector("svg title");
     expect(title?.textContent ?? "").toContain("hexágonos");
   });

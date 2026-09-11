@@ -13,12 +13,29 @@
  *      lidera (d). Trocar isso inverteria a leitura da tabela inteira.
  *   3. Determinismo do desempate (e) — constituição § 6.
  *   4. Cor por partido com fallback de rank (f) — ADR-0024 sobre ADR-0013.
+ *   5. As pílulas de 2026-09-10 (k..o): existem, uma por candidato até 5, a
+ *      primeira nasce selecionada, e a SELECIONADA usa o par medido
+ *      `-chip`/`-ink` — nunca `colorForParty()`, que não garante contraste
+ *      do texto por cima (constituição § 4).
+ *
+ * O arquivo tem duas metades. A primeira usa `renderToStaticMarkup`, como o
+ * resto da suíte de componentes: cobre a regra pura (`strongholdsFor`) e o
+ * markup no estado inicial. A segunda monta de verdade (`createRoot` + `act`,
+ * happy-dom), porque `renderToStaticMarkup` não hidrata e o CLIQUE na pílula
+ * — que é o comportamento inteiro da mudança — só existe numa árvore montada.
  */
 
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { StrongholdsPanel, strongholdsFor } from "@/components/blocks/StrongholdsPanel";
+import {
+  chipFillFor,
+  chipLabels,
+  StrongholdsPanel,
+  strongholdsFor,
+} from "@/components/blocks/StrongholdsPanel";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 
 function parse(node: React.ReactElement): Document {
@@ -142,26 +159,35 @@ describe("strongholdsFor()", () => {
 
 describe("<StrongholdsPanel />", () => {
   it("(f) cor vem do partido (ADR-0024); sem sigla mapeada cai no rank (ADR-0013)", () => {
-    const doc = parse(<StrongholdsPanel candidatos={candidatos} rows={rows} />);
-    const tags = Array.from(doc.querySelectorAll<HTMLElement>('[data-testid="party-tag"]'));
-    const styleOf = (sigla: string) =>
-      tags.find((t) => t.getAttribute("data-sigla") === sigla)?.getAttribute("style") ?? "";
+    // A tabela visível é a do candidato selecionado — por default o primeiro
+    // da lista. Então cada asserção renderiza com o candidato que interessa
+    // na cabeça da lista, em vez de procurar três tabelas na mesma árvore.
+    const tagStyle = (cands: EdgeCandidate[], sigla: string) => {
+      const doc = parse(<StrongholdsPanel candidatos={cands} rows={rows} />);
+      return (
+        Array.from(doc.querySelectorAll<HTMLElement>('[data-testid="party-tag"]'))
+          .find((t) => t.getAttribute("data-sigla") === sigla)
+          ?.getAttribute("style") ?? ""
+      );
+    };
 
-    expect(styleOf("PT")).toContain("var(--party-pt)");
-    expect(styleOf("PL")).toContain("var(--party-pl)");
+    expect(tagStyle([pt, pl], "PT")).toContain("var(--party-pt)");
+    expect(tagStyle([pl, pt], "PL")).toContain("var(--party-pl)");
     // `partido: ""` não tem token — usa o rank 3 do fallback, não `--party-outros`.
-    expect(styleOf("")).toContain("var(--color-cand-3)");
+    expect(tagStyle([semPartido], "")).toContain("var(--color-cand-3)");
   });
 
-  it("(g) uma <table> por candidato, com <caption> e cabeçalhos de coluna (RNF-023)", () => {
+  it("(g) UMA <table> por vez — a do candidato selecionado — com <caption> e cabeçalhos (RNF-023)", () => {
     const doc = parse(<StrongholdsPanel candidatos={candidatos} rows={rows} />);
     const tabelas = doc.querySelectorAll('[data-testid="stronghold-column"]');
-    expect(tabelas).toHaveLength(3);
+    // Antes de 2026-09-10 eram três colunas simultâneas; agora as pílulas
+    // filtram e só a selecionada é desenhada.
+    expect(tabelas).toHaveLength(1);
 
-    const primeira = tabelas[0];
-    expect(primeira?.querySelector("caption")?.textContent).toContain("Candidato PT");
+    const unica = tabelas[0];
+    expect(unica?.querySelector("caption")?.textContent).toContain("Candidato PT");
     expect(
-      Array.from(primeira?.querySelectorAll("thead th") ?? []).map((th) => th.textContent),
+      Array.from(unica?.querySelectorAll("thead th") ?? []).map((th) => th.textContent),
     ).toEqual(["UF", "Posição", "Diferença", "Projetado"]);
   });
 
@@ -184,5 +210,192 @@ describe("<StrongholdsPanel />", () => {
     for (const t of trilhos) {
       expect(t.getAttribute("style")).toContain("var(--text-secondary)");
     }
+  });
+
+  it("(k) uma pílula por candidato, rotulada pelo PRIMEIRO nome, no máximo 5", () => {
+    const seis = [1, 2, 3, 4, 5, 6].map((n) =>
+      makeCand({ id: n, nome: `Nome${n} Sobrenome${n}`, partido: "PT", rank: n }),
+    );
+    const doc = parse(<StrongholdsPanel candidatos={seis} rows={rows} />);
+    const chips = Array.from(doc.querySelectorAll<HTMLElement>('[data-testid="stronghold-chip"]'));
+
+    expect(chips).toHaveLength(5); // `race.candidates.slice(0, 5)` do kit
+    // O `<span class="sr-only">` acrescenta a sigla só para leitor de tela; o
+    // rótulo VISÍVEL é o primeiro nome e nada mais.
+    const rotuloVisivel = (el: HTMLElement) => {
+      const copia = el.cloneNode(true) as HTMLElement;
+      copia.querySelector(".sr-only")?.remove();
+      return copia.textContent?.trim();
+    };
+    expect(chips.map((c) => rotuloVisivel(c))).toEqual([
+      "Nome1",
+      "Nome2",
+      "Nome3",
+      "Nome4",
+      "Nome5",
+    ]);
+    expect(chips.map((c) => c.getAttribute("data-candidato"))).toEqual(["1", "2", "3", "4", "5"]);
+  });
+
+  it("(k2) primeiros nomes iguais não viram pílulas idênticas — desempata pela sigla", () => {
+    // Caso real do fixture do repo: "Candidato PT", "Candidato PL", … — o
+    // corte no primeiro nome produziria cinco pílulas escritas "Candidato".
+    expect(
+      chipLabels([
+        { nome: "Candidato PT", partido: "PT" },
+        { nome: "Candidato PL", partido: "PL" },
+        { nome: "Ciro Gomes", partido: "PDT" },
+      ]),
+    ).toEqual(["Candidato PT", "Candidato PL", "Ciro"]);
+
+    // Nomes de urna distintos (o caso do protótipo): saída idêntica à do kit.
+    expect(
+      chipLabels([
+        { nome: "Lula da Silva", partido: "PT" },
+        { nome: "Tarcísio de Freitas", partido: "REPUBLICANOS" },
+      ]),
+    ).toEqual(["Lula", "Tarcísio"]);
+
+    // Colidem e não há sigla para desempatar → nome completo.
+    expect(
+      chipLabels([
+        { nome: "Maria Silva", partido: "" },
+        { nome: "Maria Souza", partido: "" },
+      ]),
+    ).toEqual(["Maria Silva", "Maria Souza"]);
+  });
+
+  it("(l) a primeira pílula nasce selecionada e as demais não (aria-pressed)", () => {
+    const doc = parse(<StrongholdsPanel candidatos={candidatos} rows={rows} />);
+    const chips = Array.from(doc.querySelectorAll<HTMLElement>('[data-testid="stronghold-chip"]'));
+    expect(chips.map((c) => c.getAttribute("aria-pressed"))).toEqual(["true", "false", "false"]);
+    // O estado NÃO é carregado só pela cor — `aria-pressed` é o portador.
+    expect(chips[0]?.getAttribute("data-ativo")).toBe("true");
+  });
+
+  it("(m) a pílula selecionada pinta com o par medido -chip/-ink, não com colorForParty()", () => {
+    const doc = parse(<StrongholdsPanel candidatos={candidatos} rows={rows} />);
+    const chips = Array.from(doc.querySelectorAll<HTMLElement>('[data-testid="stronghold-chip"]'));
+    const estilo = chips[0]?.getAttribute("style") ?? "";
+
+    expect(estilo).toContain("var(--party-pt-chip)");
+    expect(estilo).toContain("var(--party-pt-ink)");
+    // `--party-pt` cru como fundo seria o erro que este teste existe para
+    // impedir: ele não vem com tinta medida.
+    expect(estilo).not.toMatch(/var\(--party-pt\)/);
+
+    // Não selecionada: sem preenchimento inline nenhum (contorno hairline do
+    // módulo CSS).
+    expect(chips[1]?.getAttribute("style")).toBeNull();
+  });
+
+  it("(n) sigla sem token de partido não inventa par — cai no inverso do shell", () => {
+    expect(chipFillFor("PT")).toEqual({
+      background: "var(--party-pt-chip)",
+      ink: "var(--party-pt-ink)",
+    });
+    expect(chipFillFor("")).toEqual({
+      background: "var(--surface-inverse)",
+      ink: "var(--text-inverse)",
+    });
+    expect(chipFillFor(undefined)).toEqual({
+      background: "var(--surface-inverse)",
+      ink: "var(--text-inverse)",
+    });
+  });
+
+  it("(o) as pílulas são um grupo rotulado e apontam para a tabela que trocam", () => {
+    const doc = parse(<StrongholdsPanel candidatos={candidatos} rows={rows} />);
+    const grupo = doc.querySelector('[data-testid="strongholds-chips"]');
+    expect(grupo?.tagName).toBe("FIELDSET");
+    expect(grupo?.querySelector("legend")?.textContent).toBe("Escolher candidato");
+
+    const chip = doc.querySelector<HTMLElement>('[data-testid="stronghold-chip"]');
+    const tabela = doc.querySelector<HTMLElement>('[data-testid="stronghold-column"]');
+    expect(chip?.getAttribute("aria-controls")).toBe(tabela?.getAttribute("id"));
+    expect(tabela?.getAttribute("id")).toBeTruthy();
+  });
+
+  it("(p) lista as 10 UFs mais fortes do selecionado, não 5", () => {
+    // 12 UFs em que o PT aparece; o corte tem de ser 10.
+    const muitas = Array.from({ length: 12 }, (_, i) =>
+      makeRow(`U${i}`, [
+        { id: 13, pct: 60 - i },
+        { id: 22, pct: 20 },
+      ]),
+    );
+    const doc = parse(<StrongholdsPanel candidatos={[pt, pl]} rows={muitas} />);
+    expect(doc.querySelectorAll("tbody tr")).toHaveLength(10);
+  });
+});
+
+/**
+ * O clique. `renderToStaticMarkup` não hidrata, então esta parte monta de
+ * verdade (`createRoot` + `act`, happy-dom) — é o único jeito de medir que a
+ * pílula TROCA a tabela, que é o comportamento inteiro da mudança.
+ */
+// biome-ignore lint/suspicious/noExplicitAny: flag global do ambiente de `act`
+(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+
+describe("<StrongholdsPanel /> — a pílula filtra", () => {
+  let container: HTMLElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(<StrongholdsPanel candidatos={candidatos} rows={rows} />);
+    });
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  const chips = () =>
+    Array.from(container.querySelectorAll<HTMLElement>('[data-testid="stronghold-chip"]'));
+  const caption = () => container.querySelector("caption")?.textContent ?? "";
+  const ufsNaTabela = () =>
+    Array.from(container.querySelectorAll<HTMLElement>("tbody tr[data-uf]")).map((tr) =>
+      tr.getAttribute("data-uf"),
+    );
+
+  it("(q) clicar na segunda pílula troca a tabela para aquele candidato", () => {
+    expect(caption()).toContain("Candidato PT");
+    expect(ufsNaTabela()).toEqual(["BA", "MG", "SC"]); // as UFs do PT
+
+    act(() => chips()[1]?.click());
+
+    expect(caption()).toContain("Candidato PL");
+    // As UFs do PL, por percentual desc: SC 58, MG 44, RR 35, BA 28.
+    expect(ufsNaTabela()).toEqual(["SC", "MG", "RR", "BA"]);
+  });
+
+  it("(r) só uma pílula fica pressionada por vez", () => {
+    act(() => chips()[2]?.click());
+    expect(chips().map((c) => c.getAttribute("aria-pressed"))).toEqual(["false", "false", "true"]);
+    // E a tabela seguiu: `semPartido` (#99) só aparece em RR.
+    expect(ufsNaTabela()).toEqual(["RR"]);
+  });
+
+  it("(s) a pílula pressionada ganha o preenchimento medido; a anterior o perde", () => {
+    act(() => chips()[1]?.click());
+
+    // `style.background` volta o token literal — não resolvemos CSS aqui.
+    expect(chips()[1]?.style.background).toContain("--party-pl-chip");
+    expect(chips()[1]?.style.color).toContain("--party-pl-ink");
+    expect(chips()[0]?.style.background).toBe("");
+  });
+
+  it("(t) o aria-controls continua apontando para a tabela depois da troca", () => {
+    act(() => chips()[1]?.click());
+    const alvo = chips()[1]?.getAttribute("aria-controls");
+    expect(alvo).toBeTruthy();
+    expect(container.querySelector(`#${alvo}`)?.getAttribute("data-testid")).toBe(
+      "stronghold-column",
+    );
   });
 });

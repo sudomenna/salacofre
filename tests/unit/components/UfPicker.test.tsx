@@ -1,0 +1,196 @@
+// @vitest-environment happy-dom
+/**
+ * tests/unit/components/UfPicker.test.tsx
+ *
+ * `<UfPicker />` — o seletor de UF sobreposto ao mapa (protótipo
+ * `ui_kits/atlas-menna/App.jsx:316` + `:362-369`), entregue em 2026-09-10.
+ *
+ * O que estes testes protegem:
+ *   1. **As 27 são links reais.** A maquete deixa 26 `disabled` porque só
+ *      carregou São Paulo; aqui a rota existe para todas, e um seletor que
+ *      desabilitasse 26 seria um porte errado do protótipo, não fidelidade.
+ *   2. **Ordem por NOME**, não por sigla — é a ordem do kit, e é a que o
+ *      leitor varre. O par que separa as duas ordens é Amapá/Amazonas: por
+ *      nome AP vem antes de AM, por sigla seria o contrário.
+ *   3. **Destino por cargo**: `/uf/<SIGLA>` no presidencial,
+ *      `/uf/<SIGLA>/governador` no de governador. Trocar isso levaria o leitor
+ *      para a corrida errada em silêncio.
+ *   4. **Alvo de toque de 44px** em cada item (`--tap-min`, RNF-022): a folha
+ *      abre por um botão sobre o mapa, que é a superfície mais tocada no
+ *      mobile.
+ *
+ * O arquivo tem duas metades. A primeira usa `renderToStaticMarkup`, como o
+ * resto da suíte de componentes, e cobre o markup da grade e do botão
+ * fechado. A segunda monta de verdade (`createRoot` + `act`, happy-dom)
+ * porque o `<Sheet>` só existe DEPOIS do clique — abrir, Esc e escolher uma
+ * UF não são observáveis num render estático.
+ */
+
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import { ufsPorNome } from "@/components/atoms/maps/_shared";
+import { UfPicker, UfPickerGrid, ufHref } from "@/components/layout/UfPicker";
+
+function parse(node: React.ReactElement): Document {
+  return new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
+}
+
+function itens(doc: Document): HTMLElement[] {
+  return Array.from(doc.querySelectorAll<HTMLElement>('[data-testid="uf-picker-item"]'));
+}
+
+describe("ufsPorNome()", () => {
+  it("(a) devolve as 27 unidades federativas", () => {
+    expect(ufsPorNome()).toHaveLength(27);
+  });
+
+  it("(b) ordena por NOME em pt-BR, não por sigla", () => {
+    const nomes = ufsPorNome().map((u) => u.nome);
+    expect(nomes[0]).toBe("Acre");
+    expect(nomes.at(-1)).toBe("Tocantins");
+
+    // O par que distingue as duas ordens: por NOME, "Amapá" < "Amazonas"
+    // (AP antes de AM); por SIGLA seria o contrário (AM antes de AP). Se
+    // alguém trocar o critério de ordenação, é aqui que quebra.
+    const siglas = ufsPorNome().map((u) => u.sigla);
+    expect(siglas.indexOf("AP")).toBeLessThan(siglas.indexOf("AM"));
+  });
+
+  it("(c) é determinístico — mesma saída em toda chamada (constituição § 6)", () => {
+    expect(ufsPorNome()).toEqual(ufsPorNome());
+  });
+});
+
+describe("ufHref()", () => {
+  it("(d) o destino muda com o cargo", () => {
+    expect(ufHref("pres", "SP")).toBe("/uf/SP");
+    expect(ufHref("gov", "SP")).toBe("/uf/SP/governador");
+  });
+});
+
+describe("<UfPickerGrid />", () => {
+  it("(e) as 27 UFs são links de verdade — nenhuma desabilitada", () => {
+    const doc = parse(<UfPickerGrid cargo="pres" />);
+    const links = itens(doc);
+
+    expect(links).toHaveLength(27);
+    for (const a of links) {
+      expect(a.tagName).toBe("A");
+      expect(a.getAttribute("href")).toMatch(/^\/uf\/[A-Z]{2}$/);
+      expect(a.hasAttribute("disabled")).toBe(false);
+      expect(a.getAttribute("aria-disabled")).toBeNull();
+    }
+  });
+
+  it("(f) no cargo de governador todo href leva à rota de governador", () => {
+    const doc = parse(<UfPickerGrid cargo="gov" />);
+    for (const a of itens(doc)) {
+      expect(a.getAttribute("href")).toMatch(/^\/uf\/[A-Z]{2}\/governador$/);
+    }
+  });
+
+  it("(g) a ordem no DOM é a ordem por nome", () => {
+    const doc = parse(<UfPickerGrid cargo="pres" />);
+    expect(itens(doc).map((a) => a.getAttribute("data-sigla"))).toEqual(
+      ufsPorNome().map((u) => u.sigla),
+    );
+  });
+
+  it("(h) a UF corrente ganha aria-current=page e só ela", () => {
+    const doc = parse(<UfPickerGrid cargo="pres" atual="mg" />);
+    const atuais = itens(doc).filter((a) => a.getAttribute("aria-current") === "page");
+    expect(atuais.map((a) => a.getAttribute("data-sigla"))).toEqual(["MG"]);
+  });
+
+  it("(i) cada item tem alvo de toque de --tap-min (RNF-022)", () => {
+    const doc = parse(<UfPickerGrid cargo="pres" />);
+    for (const a of itens(doc)) {
+      expect(a.getAttribute("style")).toContain("min-height:var(--tap-min)");
+    }
+  });
+});
+
+describe("<UfPicker />", () => {
+  it("(j) fechado, é só o botão — a folha não nasce montada", () => {
+    const doc = parse(<UfPicker cargo="pres" />);
+    expect(doc.querySelector('[data-testid="sheet"]')).toBeNull();
+    expect(itens(doc)).toHaveLength(0);
+
+    const botao = doc.querySelector<HTMLElement>('[data-testid="button"]');
+    expect(botao?.textContent).toContain("Escolher UF");
+    // `size="md"` = 44px. `sm` (32px) fica abaixo de `--tap-min` e não serve
+    // para um alvo sobre o mapa.
+    expect(botao?.getAttribute("data-size")).toBe("md");
+    expect(botao?.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("(k) numa rota de UF o botão mostra a sigla corrente", () => {
+    const doc = parse(<UfPicker cargo="gov" atual="ba" />);
+    expect(doc.querySelector('[data-testid="button"]')?.textContent).toContain("BA");
+  });
+});
+
+/** A abertura da folha — precisa de árvore montada de verdade. */
+// biome-ignore lint/suspicious/noExplicitAny: flag global do ambiente de `act`
+(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+
+describe("<UfPicker /> — abrir e fechar", () => {
+  let container: HTMLElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(<UfPicker cargo="pres" atual="SP" />);
+    });
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  const botao = () => container.querySelector<HTMLElement>('[data-testid="button"]');
+  const folha = () => container.querySelector('[data-testid="sheet"]');
+
+  it("(l) o botão abre a folha com as 27 UFs e o kicker do protótipo", () => {
+    expect(folha()).toBeNull();
+    act(() => botao()?.click());
+
+    expect(folha()).not.toBeNull();
+    expect(folha()?.textContent).toContain("Escolher UF");
+    expect(container.querySelectorAll('[data-testid="uf-picker-item"]')).toHaveLength(27);
+    expect(botao()?.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("(m) é modal — tem scrim, aria-modal e não a variante `side`", () => {
+    act(() => botao()?.click());
+    expect(folha()?.getAttribute("aria-modal")).toBe("true");
+    expect(folha()?.getAttribute("data-side")).toBe("false");
+    expect(container.querySelector('[data-testid="sheet-scrim"]')).not.toBeNull();
+  });
+
+  it("(n) Esc fecha (WCAG 2.1.2)", () => {
+    act(() => botao()?.click());
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(folha()).toBeNull();
+    expect(botao()?.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("(o) escolher uma UF fecha a folha (a navegação é do <Link>)", () => {
+    act(() => botao()?.click());
+    const mg = container.querySelector<HTMLElement>(
+      '[data-testid="uf-picker-item"][data-sigla="MG"]',
+    );
+    expect(mg?.getAttribute("href")).toBe("/uf/MG");
+    act(() => mg?.click());
+    expect(folha()).toBeNull();
+  });
+});

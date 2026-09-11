@@ -1,0 +1,71 @@
+/*
+ * components/blocks/StrongholdsPanel.module.css
+ *
+ * A fileira de pílulas do painel de redutos — uma por candidato — que o
+ * protótipo desenha acima da tabela
+ * (`ui_kits/atlas-menna/App.jsx:74-76`).
+ *
+ * Por que CSS Module e não `style={{}}` inline como o resto do bloco: o alvo
+ * de toque precisa de uma media query. O kit fixa `height: 30` em toda tela;
+ * 30px fica abaixo dos 44px de `--tap-min`, que é o piso de toque do projeto
+ * (WCAG 2.5.5 / RNF-022, mesmo piso que o `<Button size="md">` e o botão de
+ * município da `<MunicipioTable>` cumprem). Inline não faz media query, então
+ * a altura vive aqui: 32px na densidade de painel do desktop (a mesma do
+ * `<Button size="sm">`), `--tap-min` no toque.
+ *
+ * O corte é `min-width: 960px` — o mesmo breakpoint de `AppShellSplit.module.css`,
+ * onde a coluna de painéis passa a medir `--container-sidebar` (400px) e o
+ * ponteiro passa a ser mouse. Abaixo dele a coluna é a largura da tela e o
+ * dedo é o ponteiro.
+ *
+ * Modo `pure` de CSS Modules: toda regra carrega ao menos uma classe local.
+ */
+
+/* `<fieldset>` (o elemento nativo do papel "grupo de controles") traz borda,
+ * padding e um `min-width: min-content` do UA que impediriam a fileira de
+ * quebrar dentro da coluna de 400px. Os quatro zeros abaixo são esse reset. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-hairline);
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--type-label);
+  font-size: var(--text-xs);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.chip:hover {
+  background: var(--surface-sunken);
+}
+
+/* Selecionada: fundo e tinta chegam por `style` inline, porque dependem da
+ * sigla (o par medido `-chip`/`-ink`). Estilo inline vence qualquer seletor,
+ * então a regra `.chip:hover` acima já não alcança a pílula selecionada — não
+ * há o que neutralizar. Aqui fica só a borda, que some contra o preenchimento. */
+.chipOn {
+  border-color: transparent;
+}
+
+@media (min-width: 960px) {
+  .chip {
+    min-height: 32px;
+  }
+}

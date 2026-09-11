@@ -75,6 +75,7 @@ import {
 import { HexCartogramBrasil } from "@/components/blocks/HexCartogramBrasil";
 import { CHIP_STYLE, NationalMapBlock } from "@/components/blocks/NationalMapBlock";
 import { UfLeaderMapLazy } from "@/components/blocks/UfMapsLazy";
+import { UfPicker } from "@/components/layout/UfPicker";
 import type { EdgePayload, EdgePayloadUf, EdgeUfMunicipio } from "@/lib/edge-config/types";
 
 /** Mesma cadência de escrita do orchestrator (ADR-0011). */
@@ -224,18 +225,28 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
         className="absolute inset-0 flex flex-col"
         style={{ gap: "var(--space-3)", padding: "var(--space-4)", overflow: "hidden" }}
       >
-        <h2
-          id="persistent-map-heading"
-          style={{
-            margin: 0,
-            font: "var(--type-kicker)",
-            letterSpacing: "var(--tracking-caps)",
-            textTransform: "uppercase",
-            color: "var(--text-secondary)",
-          }}
+        {/* Cabeçalho da moldura: título à esquerda, seletor de UF à direita.
+            No cargo `gov` o cabeçalho é um elemento de fluxo (não overlay), e
+            é ele que ocupa o topo do mapa — então é aqui que o botão do canto
+            superior direito do protótipo (`App.jsx:316`) mora. */}
+        <div
+          className="flex flex-wrap items-start justify-between"
+          style={{ gap: "var(--space-2)" }}
         >
-          {sigla ? `${sigla} · quem lidera cada município` : `Mapa hexagonal — ${escopo}`}
-        </h2>
+          <h2
+            id="persistent-map-heading"
+            style={{
+              margin: 0,
+              font: "var(--type-kicker)",
+              letterSpacing: "var(--tracking-caps)",
+              textTransform: "uppercase",
+              color: "var(--text-secondary)",
+            }}
+          >
+            {sigla ? `${sigla} · quem lidera cada município` : `Mapa hexagonal — ${escopo}`}
+          </h2>
+          <UfPicker cargo="gov" atual={sigla} />
+        </div>
         {sigla ? (
           // Nível UF — mesmo coroplético municipal da rota presidencial. O
           // "quem lidera cada município" que antes vivia num Panel da própria
@@ -321,6 +332,14 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
               {municipiosTotalFor(sigla) > 0 ? ` · ${municipiosTotalFor(sigla)} mun.` : ""}
             </span>
           </div>
+          {/* Canto superior direito — o seletor de UF do protótipo
+              (`App.jsx:316`). Dentro da MESMA faixa `flex-wrap` do chip da
+              esquerda, não numa caixa ancorada em `right`: a 375px as duas
+              caixas se sobreporiam, e é esse o defeito que a faixa única já
+              resolvia para o toggle do nível Brasil. */}
+          <div className="pointer-events-auto flex-none">
+            <UfPicker cargo="pres" atual={sigla} />
+          </div>
         </div>
         {municipioDetalhe?.status === "unavailable" && (
           <div
@@ -358,6 +377,11 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
       variant="frame"
       scopeLabel={escopo}
       backHref={sigla ? homeHref : undefined}
+      // Nível Brasil: o seletor entra na faixa do canto direito, ao lado do
+      // `<MapViewToggle>` (ver `action` em `NationalMapBlock`). O mapa
+      // continua clicável para descer numa UF — o seletor é o caminho de
+      // teclado e de quem sabe o nome do estado mas não onde ele fica.
+      action={<UfPicker cargo="pres" atual={sigla} />}
     />
   );
 }

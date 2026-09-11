@@ -3,6 +3,7 @@ id: ADR-0019
 title: Identidade visual por trilha (presidencial vs. governador), não paleta única
 status: accepted
 date: 2026-09-05
+amended_by: ADR-0034 # TrilhaKicker sai de 3 das 4 rotas (D23); mecanismo (atributo + tokens) intocado
 ---
 
 # ADR-0019 — Identidade visual por trilha (presidencial vs. governador), não paleta única
@@ -10,6 +11,8 @@ date: 2026-09-05
 ## Status
 
 Aceito.
+
+> **Nota 2026-09-10 (D23, [ADR-0034](0034-resultpanel-colapso-visual-corte-fora-do-kit.md)).** `<TrilhaKicker>` sai de três das quatro rotas que este ADR cobria — `/uf/[sigla]`, `/uf/[sigla]/governador` e `/governador` — na poda de blocos sem contraparte no protótipo do kit. Sobrevive apenas na home (`/`), acima do `<h1>` do painel de resultado, como este ADR descreve. O mecanismo (atributo `data-trilha` + tokens `--trilha-accent`/`--trilha-accent-soft` redefinidos por seletor) não muda, e as três rotas continuam declarando `data-trilha` no `<main>` — só o elemento visual de kicker desaparece delas.
 
 ## Contexto
 
