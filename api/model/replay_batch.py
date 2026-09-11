@@ -100,6 +100,7 @@ from api.model.project import (
     compute_uf_projections,
     derive_seed,
 )
+from api.model.zona_merge import merge_pairs_into_zonas
 
 
 def _pct_to_frac(x: float) -> float:
@@ -118,10 +119,17 @@ def _build_eleitorado_lookup(
 
     Tuples não sobrevivem JSON — recebemos lista de dicts e reconstruímos o
     formato esperado por `compute_uf_projections`.
+
+    **Soma** quando a mesma zona aparece mais de uma vez (um par `(município,
+    zona)` por linha). `scripts/build-replay-fixtures.ts` já emite
+    `SUM(...) GROUP BY uf, cod_zona` — uma linha por zona — mas somar aqui
+    impede que um dataset por par sobrescreva em silêncio, que é o defeito
+    que inflou o MAE@1h de 2,3623 pp para 3,4636 pp em 11/09.
     """
     out: dict[tuple[str, int], int] = {}
     for r in rows:
-        out[(r["uf"], int(r["cod_zona"]))] = int(r["eleitores_aptos"])
+        chave = (r["uf"], int(r["cod_zona"]))
+        out[chave] = out.get(chave, 0) + int(r["eleitores_aptos"])
     return out
 
 
@@ -162,6 +170,13 @@ def _run_one_timestep(
     del historical  # noqa: ARG001 — ignorado nesta fase, ver docstring acima.
     seed_base = derive_seed(cargo, turno, trigger_ts)
     eleitorado_total = _total_eleitorado_by_uf(eleitorado)
+
+    # Espelha `_do_project`: os snapshots chegam por PAR (município × zona)
+    # desde a migration 0006 e são somados de volta à ZONA antes do estimador
+    # (ADR-0035 D2 / decisão E5). O dataset de replay 2022 tem uma linha por
+    # zona (`cod_municipio_tse` ausente == sentinela 0), então o merge é
+    # IDENTIDADE ali — mesmas linhas, mesmos payloads, mesmo gate OT-4.
+    snapshots = merge_pairs_into_zonas(snapshots)
 
     uf_rows, estimates_by_uf, _estimates_c_by_uf, _cand_by_uf = compute_uf_projections(
         cargo=cargo,

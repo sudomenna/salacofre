@@ -624,6 +624,29 @@ export interface EdgeUfMunicipio {
    * com presença nos snapshots. Chave numérica (candidato_id).
    */
   votos_reportados: Record<number, number>;
+  /**
+   * Eleitorado apto do município — **soma exata** dos pares `(município,
+   * zona)` que caem nele (`SUM(eleitores_aptos) GROUP BY uf,
+   * cod_municipio_tse` em `fetch_municipio_eleitorado`, api/model/project.py).
+   * Sem rateio: o CSV do TSE publica o eleitorado por par, então o total do
+   * município é dado, não estimativa (ADR-0035 D2, constituição § 6).
+   *
+   * OPCIONAL de propósito (decisão D-d): payloads gravados antes da migration
+   * 0006 e a fixture `tests/fixtures/blob/uf-municipios-pres-t1.json` seguem
+   * válidos sem o campo. Ausente → o consumidor esconde o subtítulo
+   * "N eleitores" e ordena a tabela só pelo que tiver.
+   */
+  eleitores?: number;
+  /**
+   * `true` quando o município é a capital da UF (`municipios.capital`, seed
+   * estático das 27 capitais na migration 0006).
+   *
+   * OPCIONAL e **emitido só quando verdadeiro** — são 27 em ~5.570
+   * municípios, e 644 `"capital": false` por payload de SP não pagariam o
+   * próprio peso. Ausente == não é capital. Ordena o painel "Maiores
+   * colégios eleitorais" (capital primeiro — decisão E4).
+   */
+  capital?: boolean;
 }
 
 /**

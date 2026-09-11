@@ -250,8 +250,10 @@ sys.stdout.write('\\n')
 
 /**
  * Insere em `eleitorado 2026`. `aptos` é absoluto (não fração).
- * NOTA: PK é (ano, uf, cod_zona) — uma única linha por zona/UF, mesmo
- * que a zona apareça com municípios distintos.
+ * NOTA: desde a migration 0006 a PK é (ano, uf, cod_municipio_tse, cod_zona).
+ * Estes casos seedam sempre o mesmo `COD_MUNICIPIO_TSE`, então continuam com
+ * uma linha por zona/UF — o que o eleitorado da zona vale aqui não muda.
+ * Zona espalhada por vários municípios é cenário da Fase 3 (soma dos pares).
  */
 async function seedEleitorado(args: { uf: string; codZona: number; aptos: number }): Promise<void> {
   await db.execute(sql`
@@ -259,7 +261,7 @@ async function seedEleitorado(args: { uf: string; codZona: number; aptos: number
       (ano, uf, cod_municipio_tse, cod_zona, eleitores_aptos)
     VALUES
       (2026, ${args.uf}, ${COD_MUNICIPIO_TSE}, ${args.codZona}, ${args.aptos})
-    ON CONFLICT (ano, uf, cod_zona) DO UPDATE
+    ON CONFLICT (ano, uf, cod_municipio_tse, cod_zona) DO UPDATE
       SET eleitores_aptos = EXCLUDED.eleitores_aptos
   `);
 }

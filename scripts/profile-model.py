@@ -164,10 +164,33 @@ class FakeCursor:
         self._last_rows: list[tuple] = []
 
     def execute(self, sql: str, params: tuple) -> None:
-        if "FROM snapshots" in sql:
+        if "FROM snapshots" in sql and "votos_total" in sql:
+            # fetch_municipio_aggregates — 6 colunas, município do próprio
+            # snapshot (sem `JOIN zonas` desde a Fase 3 de 11/09).
             cargo, turno = params
             self._last_rows = [
-                (s["uf"], s["cod_zona"], s["pct_apurado"], s["payload"])
+                (
+                    s["uf"],
+                    s["cod_zona"],
+                    s["pct_apurado"],
+                    s.get("votos_total"),
+                    s["payload"],
+                    int(s.get("cod_municipio_tse") or 0),
+                )
+                for s in self._conn.snapshots
+                if s["cargo"] == cargo and s["turno"] == turno
+            ]
+        elif "FROM snapshots" in sql:
+            # fetch_snapshots — 5 colunas (cod_municipio_tse entre uf e zona).
+            cargo, turno = params
+            self._last_rows = [
+                (
+                    s["uf"],
+                    int(s.get("cod_municipio_tse") or 0),
+                    s["cod_zona"],
+                    s["pct_apurado"],
+                    s["payload"],
+                )
                 for s in self._conn.snapshots
                 if s["cargo"] == cargo and s["turno"] == turno
             ]
@@ -179,12 +202,33 @@ class FakeCursor:
                 if h["cargo"] == cargo and h["turno"] == turno
             ]
         elif "FROM eleitorado" in sql:
+            # Três agregações desde a migration 0006 (PK no par) — o `GROUP BY`
+            # é o conserto: sem ele o dict fica com a última fatia de município
+            # em vez da soma.
             (ano,) = params
-            self._last_rows = [
-                (e["uf"], e["cod_zona"], e["eleitores_aptos"])
-                for e in self._conn.eleitorado
-                if e["ano"] == ano
-            ]
+            fixtures = [e for e in self._conn.eleitorado if e["ano"] == ano]
+            if "GROUP BY uf, cod_municipio_tse, cod_zona" in sql:
+                por_par: dict[tuple, int] = {}
+                for e in fixtures:
+                    k = (e["uf"], int(e.get("cod_municipio_tse") or 0), e["cod_zona"])
+                    por_par[k] = por_par.get(k, 0) + int(e["eleitores_aptos"])
+                self._last_rows = [(u, m, z, v) for (u, m, z), v in por_par.items()]
+            elif "GROUP BY uf, cod_municipio_tse" in sql:
+                por_mun: dict[tuple, int] = {}
+                for e in fixtures:
+                    k = (e["uf"], int(e.get("cod_municipio_tse") or 0))
+                    por_mun[k] = por_mun.get(k, 0) + int(e["eleitores_aptos"])
+                self._last_rows = [(u, m, v) for (u, m), v in por_mun.items()]
+            else:
+                por_zona: dict[tuple, int] = {}
+                for e in fixtures:
+                    k = (e["uf"], e["cod_zona"])
+                    por_zona[k] = por_zona.get(k, 0) + int(e["eleitores_aptos"])
+                self._last_rows = [(u, z, v) for (u, z), v in por_zona.items()]
+        elif "FROM zonas z" in sql or "JOIN municipios" in sql:
+            self._last_rows = []
+        elif "FROM projections" in sql:
+            self._last_rows = []
         else:
             raise AssertionError(f"FakeCursor sql não suportada: {sql[:80]}")
 

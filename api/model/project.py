@@ -88,6 +88,7 @@ from api.model.turnout import (
     aggregate_national_participacao,
     estimate_uf_participacao,
 )
+from api.model.zona_merge import check_zona_merge_sanity, merge_pairs_into_zonas
 
 # ---------------------------------------------------------------------------
 # Logging — JSON-line para alinhar com lib/tse/log.ts (RNF-032)
@@ -226,10 +227,22 @@ def _discard_zero_zona_sentinel_when_real_zonas_exist(
 
 
 def fetch_snapshots(conn, cargo: int, turno: int) -> list[LatestSnapshot]:
-    """Snapshot mais recente por (uf, cod_zona) para (cargo, turno).
+    """Snapshot mais recente por **par** `(uf, cod_municipio_tse, cod_zona)`
+    para (cargo, turno).
+
+    Migration 0006 / ADR-0035 D1 (11/09): a unidade de ingestão passou a ser o
+    par — o TSE publica um EA20 por `(município, zona)` e 62,5 % das zonas
+    cobrem 2 a 8 municípios. Particionar por `(uf, cod_zona)` como antes
+    devolveria **uma fatia** da zona (o par mais recente), descartando os
+    demais em silêncio. A partição agora é pelo par e o índice usado é
+    `ix_snap_lookup_par`.
+
+    A soma dos pares de volta à zona — a unidade do estimador, que **não
+    muda** (ADR-0021/0023) — é feita pelo CHAMADOR via
+    `api.model.zona_merge.merge_pairs_into_zonas`, em memória e nunca
+    persistida (§ 1/§ 6). Ver `_do_project` e `api/model/replay_batch.py`.
 
     CTE espelha `getLatestSnapshotsByZone` em lib/model/repository.ts:193.
-    Mesmo índice usado (`ix_snap_lookup`); plan deve ser index-only.
     `pct_apurado` volta como Decimal/None → convertemos para float.
 
     Achado urgente (plano `tem-um-erro-eu-velvety-sprout.md`): descarta a
@@ -246,17 +259,18 @@ def fetch_snapshots(conn, cargo: int, turno: int) -> list[LatestSnapshot]:
         WITH ranked AS (
             SELECT
                 uf,
+                cod_municipio_tse,
                 cod_zona,
                 pct_apurado,
                 payload,
                 ROW_NUMBER() OVER (
-                    PARTITION BY uf, cod_zona
+                    PARTITION BY uf, cod_municipio_tse, cod_zona
                     ORDER BY ts DESC, id DESC
                 ) AS rn
             FROM snapshots
             WHERE cargo = %s AND turno = %s
         )
-        SELECT uf, cod_zona, pct_apurado, payload
+        SELECT uf, cod_municipio_tse, cod_zona, pct_apurado, payload
         FROM ranked
         WHERE rn = 1
     """
@@ -266,9 +280,10 @@ def fetch_snapshots(conn, cargo: int, turno: int) -> list[LatestSnapshot]:
     raw: list[LatestSnapshot] = [
         {
             "uf": r[0],
-            "cod_zona": r[1],
-            "pct_apurado": float(r[2]) if r[2] is not None else 0.0,
-            "payload": r[3],
+            "cod_municipio_tse": int(r[1]) if r[1] is not None else 0,
+            "cod_zona": r[2],
+            "pct_apurado": float(r[3]) if r[3] is not None else 0.0,
+            "payload": r[4],
         }
         for r in rows
     ]
@@ -302,44 +317,148 @@ def fetch_historical_2022(conn, cargo: int, turno: int) -> list[HistoricalRow]:
 
 
 def fetch_eleitorado(conn, ano: int = 2026) -> dict[tuple[str, int], int]:
-    """Eleitores aptos por (uf, cod_zona). Chave tuple para lookup O(1)."""
-    sql = "SELECT uf, cod_zona, eleitores_aptos FROM eleitorado WHERE ano = %s"
+    """Eleitores aptos por (uf, cod_zona). Chave tuple para lookup O(1).
+
+    ⚠️ O `SUM(...) GROUP BY` não é cosmético. Desde a migration 0006 a PK de
+    `eleitorado` é o par `(ano, uf, cod_municipio_tse, cod_zona)`: 6.085 linhas
+    para 2.619 zonas. Sem o `GROUP BY`, o dict-comprehension ficava com a
+    **última fatia de município** de cada zona em vez da soma — o peso da zona
+    no modelo virava fragmentário, em silêncio. O mesmo defeito, em
+    `scripts/build-replay-fixtures.ts`, inflou o MAE@1h de 2,3623 pp para
+    3,4636 pp (medido em 11/09). Ver
+    `docs/_meta/diagnostico-colapso-zona-municipio-2026-09-10.md` § "O que o
+    conserto custa".
+
+    A **chave de saída não muda** — continua `(uf, cod_zona)`, porque a
+    unidade do estimador continua sendo a zona (ADR-0021/0023). Nada a jusante
+    precisou mudar.
+    """
+    sql = """
+        SELECT uf, cod_zona, SUM(eleitores_aptos) AS eleitores_aptos
+        FROM eleitorado
+        WHERE ano = %s
+        GROUP BY uf, cod_zona
+    """
     with conn.cursor() as cur:
         cur.execute(sql, (ano,))
         rows = cur.fetchall()
     return {(r[0], r[1]): int(r[2]) for r in rows}
 
 
-def fetch_zona_municipio(conn) -> dict[tuple[str, int], dict[str, Any]]:
-    """Mapa `(uf, cod_zona) -> {cod_ibge, cod_municipio_tse, nome, uf,
-    mesorregiao_cod, mesorregiao_nome}`.
+def fetch_municipio_eleitorado(conn, ano: int = 2026) -> dict[tuple[str, int], int]:
+    """Eleitores aptos por `(uf, cod_municipio_tse)` — soma EXATA dos pares
+    `(município, zona)` daquele município (ADR-0035 D2: sem rateio).
 
-    ⚠️ A chave é a TUPLA `(uf, cod_zona)`, nunca `cod_zona` sozinho. A PK de
-    `zonas` é composta e o número da zona **repete entre UFs**: em 2026-09-05
-    o banco tinha 2.651 linhas para apenas 422 `cod_zona` distintos, 320 deles
-    presentes em mais de uma UF. Chavear só por `cod_zona` sobrescrevia 2.229
-    das 2.651 entradas (84%) com a última UF iterada — corrupção silenciosa de
-    qual município cada zona resolve, propagada a `EdgeUfMunicipio`. Bug irmão
-    do JOIN sem `AND z.uf = r.uf` em `fetch_municipio_aggregates` (corrigido na
-    mesma rodada).
+    Alimenta `EdgeUfMunicipio.eleitores` (decisão D-d), que por sua vez move o
+    painel "Maiores colégios eleitorais" (decisão E4). Antes da migration 0006
+    esse número não existia por município: a PK de `eleitorado` creditava a
+    zona inteira a um município só, pondo 26,1 % do eleitorado sob rótulo
+    errado (Uberaba e Governador Valadares sumiam do top-10 de MG).
 
-    Junta `zonas` (que tem `cod_municipio_tse`) com `municipios` (que tem
-    `cod_ibge`, `nome` e — desde S06/F4d migration 0005 — `mesorregiao_cod`)
-    e `mesorregioes` (S06/F4d, opcional). Usado pelo build de
-    `EdgeUfMunicipio` para agregar snapshots zonais em totais municipais
+    Mapa vazio (com log) quando a tabela ainda não foi importada — o payload
+    simplesmente omite `eleitores` (campo opcional em `EdgeUfMunicipio`).
+    """
+    sql = """
+        SELECT uf, cod_municipio_tse, SUM(eleitores_aptos) AS eleitores
+        FROM eleitorado
+        WHERE ano = %s
+        GROUP BY uf, cod_municipio_tse
+    """
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, (ano,))
+            rows = cur.fetchall()
+    except Exception as exc:  # noqa: BLE001 — sem seed de eleitorado
+        _log("warn", "fetch_municipio_eleitorado failed", error=str(exc))
+        try:
+            conn.rollback()
+        except Exception:  # noqa: BLE001 — autocommit ou sem tx
+            pass
+        return {}
+    out: dict[tuple[str, int], int] = {}
+    for r in rows:
+        if r[1] is None:
+            continue
+        out[(str(r[0]), int(r[1]))] = int(r[2] or 0)
+    return out
+
+
+def _fetch_eleitorado_por_par(
+    conn, ano: int = 2026
+) -> dict[tuple[str, int, int], int]:
+    """Eleitores aptos por par `(uf, cod_municipio_tse, cod_zona)` — a PK de
+    `eleitorado` desde a migration 0006.
+
+    Usado só como PESO do `pct_apurado` municipal em
+    `fetch_municipio_aggregates`. Falha ou tabela vazia → `{}`, e o caller
+    cai para peso 1 por par (média simples). O `SUM` é redundante com a PK,
+    mas mantém a query correta se a chave mudar de novo.
+    """
+    sql = """
+        SELECT uf, cod_municipio_tse, cod_zona, SUM(eleitores_aptos) AS eleitores
+        FROM eleitorado
+        WHERE ano = %s
+        GROUP BY uf, cod_municipio_tse, cod_zona
+    """
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, (ano,))
+            rows = cur.fetchall()
+    except Exception as exc:  # noqa: BLE001 — sem seed de eleitorado
+        _log("info", "_fetch_eleitorado_por_par failed, peso cai para 1", error=str(exc))
+        try:
+            conn.rollback()
+        except Exception:  # noqa: BLE001 — autocommit ou sem tx
+            pass
+        return {}
+    out: dict[tuple[str, int, int], int] = {}
+    for r in rows:
+        if len(r) != 4 or r[1] is None:
+            continue
+        out[(str(r[0]), int(r[1]), int(r[2]))] = int(r[3] or 0)
+    return out
+
+
+def fetch_zona_municipio(conn) -> dict[tuple[str, int, int], dict[str, Any]]:
+    """Mapa `(uf, cod_municipio_tse, cod_zona) -> {cod_ibge,
+    cod_municipio_tse, nome, uf, mesorregiao_cod, mesorregiao_nome, capital,
+    eleitores}`.
+
+    ⚠️ A chave é a TRIPLA do **par**, desde a migration 0006 (ADR-0035 D1). Duas
+    razões, nesta ordem:
+
+      1. `zonas` virou tabela de pares (PK `(uf, cod_municipio_tse, cod_zona)`,
+         6.109 linhas): a mesma zona aparece em até 8 municípios. Chavear por
+         `(uf, cod_zona)` manteria só o ÚLTIMO município iterado de cada zona —
+         era exatamente o colapso que a migration desfez (3.392 municípios
+         invisíveis no mapa, `docs/_meta/diagnostico-colapso-zona-municipio-
+         2026-09-10.md`).
+      2. O número da zona **repete entre UFs** (bug de 2026-09-05: 2.229 de
+         2.651 entradas sobrescritas ao chavear só por `cod_zona`) — a `uf`
+         continua obrigatória na chave.
+
+    Junta `zonas` (que tem o par) com `municipios` (`cod_ibge`, `nome`,
+    `mesorregiao_cod` desde a migration 0005, `capital` desde a 0006) e
+    `mesorregioes` (opcional). `eleitores` vem de `fetch_municipio_eleitorado`
+    (soma dos pares do município). Usado pelo build de `EdgeUfMunicipio`
     (S04/F2) e por `aggregate_by_mesorregiao` (S06/F4d).
 
-    `mesorregiao_cod` / `mesorregiao_nome` ficam `None` quando:
-      - Migration 0005 não foi aplicada (coluna ainda não existe) → query
-        cai pro fallback que omite os 2 campos.
-      - Coluna existe mas não está populada (CSV pendente) → LEFT JOIN
-        retorna NULL.
+    Degradação por tiers de schema (dev/DB atrás das migrations):
+      - sem `municipios.capital` (0006) → tenta a query só com mesorregião;
+      - sem `municipios.mesorregiao_cod` (0005) → cai na query original (S04);
+      - `capital` sai `False` e `mesorregiao_*` sai `None` nesses casos.
 
     Retorna mapa vazio quando ainda não há dados geográficos carregados
     (dev sem seed) — caller graciosamente produz `municipios: []`.
     """
-    # Tenta query enriquecida (S06+). Se falhar (coluna `mesorregiao_cod`
-    # ainda não existe), faz fallback pra query original (S04).
+    sql_full = """
+        SELECT
+            z.cod_zona, m.cod_ibge, m.cod_municipio_tse, m.nome, z.uf,
+            m.mesorregiao_cod, meso.nome AS mesorregiao_nome, m.capital
+        FROM zonas z
+        JOIN municipios m ON m.cod_municipio_tse = z.cod_municipio_tse
+        LEFT JOIN mesorregioes meso ON meso.cod = m.mesorregiao_cod
+    """
     sql_with_meso = """
         SELECT
             z.cod_zona, m.cod_ibge, m.cod_municipio_tse, m.nome, z.uf,
@@ -353,50 +472,53 @@ def fetch_zona_municipio(conn) -> dict[tuple[str, int], dict[str, Any]]:
         FROM zonas z
         JOIN municipios m ON m.cod_municipio_tse = z.cod_municipio_tse
     """
-    rows: list[Any]
-    has_meso_columns = True
-    try:
-        with conn.cursor() as cur:
-            cur.execute(sql_with_meso, ())
-            rows = cur.fetchall()
-    except Exception as exc:  # noqa: BLE001 — pode ser coluna inexistente OU sem seed geo
-        _log(
-            "info",
-            "fetch_zona_municipio meso query failed, trying fallback",
-            error=str(exc),
-        )
-        # Rollback transação (se houver) — psycopg invalida o cursor após erro.
-        try:
-            conn.rollback()
-        except Exception:  # noqa: BLE001 — autocommit ou sem tx
-            pass
-        has_meso_columns = False
+
+    rows: list[Any] | None = None
+    for sql in (sql_full, sql_with_meso, sql_fallback):
         try:
             with conn.cursor() as cur:
-                cur.execute(sql_fallback, ())
+                cur.execute(sql, ())
                 rows = cur.fetchall()
-        except Exception as exc2:  # noqa: BLE001 — sem seed geo
-            _log("warn", "fetch_zona_municipio fallback failed", error=str(exc2))
-            return {}
+            break
+        except Exception as exc:  # noqa: BLE001 — coluna inexistente OU sem seed geo
+            _log(
+                "info",
+                "fetch_zona_municipio query failed, trying next tier",
+                error=str(exc),
+            )
+            # Rollback (se houver tx) — psycopg invalida o cursor após erro.
+            try:
+                conn.rollback()
+            except Exception:  # noqa: BLE001 — autocommit ou sem tx
+                pass
+    if rows is None:
+        _log("warn", "fetch_zona_municipio: nenhuma query funcionou")
+        return {}
 
-    out: dict[tuple[str, int], dict[str, Any]] = {}
+    eleitorado_munic = fetch_municipio_eleitorado(conn, ano=2026)
+
+    out: dict[tuple[str, int, int], dict[str, Any]] = {}
     for r in rows:
+        uf = str(r[4])
+        cod_municipio_tse = int(r[2])
         entry: dict[str, Any] = {
             "cod_ibge": str(r[1]),
-            "cod_municipio_tse": int(r[2]),
+            "cod_municipio_tse": cod_municipio_tse,
             "nome": str(r[3]),
-            "uf": str(r[4]),
+            "uf": uf,
         }
-        if has_meso_columns and len(r) >= 7:
-            entry["mesorregiao_cod"] = (
-                str(r[5]).strip() if r[5] is not None else None
-            )
+        if len(r) >= 7:
+            entry["mesorregiao_cod"] = str(r[5]).strip() if r[5] is not None else None
             entry["mesorregiao_nome"] = str(r[6]) if r[6] is not None else None
         else:
             entry["mesorregiao_cod"] = None
             entry["mesorregiao_nome"] = None
-        # r[0] = cod_zona, r[4] = uf — chave composta (ver docstring).
-        out[(str(r[4]), int(r[0]))] = entry
+        entry["capital"] = bool(r[7]) if len(r) >= 8 else False
+        eleitores = eleitorado_munic.get((uf, cod_municipio_tse))
+        if eleitores is not None:
+            entry["eleitores"] = int(eleitores)
+        # r[0] = cod_zona, r[2] = cod_municipio_tse, r[4] = uf — chave tripla.
+        out[(uf, cod_municipio_tse, int(r[0]))] = entry
     return out
 
 
@@ -525,56 +647,68 @@ def fetch_municipio_aggregates(
     cargo: int,
     turno: int,
 ) -> dict[tuple[str, int], dict[str, Any]]:
-    """Agrega snapshots de zonas em totais por município (S04/F2).
+    """Agrega snapshots por **par** `(município, zona)` em totais por
+    município (S04/F2, reescrito na Fase 3 do plano de 11/09).
 
     Retorna `{(uf, cod_municipio_tse): {pct_apurado, votos_por_candidato,
     total_votos}}` para alimentar `EdgeUfMunicipio`.
 
-    Estratégia: pega o snapshot mais recente de cada zona (mesma CTE de
-    `fetch_snapshots`) + payload EA20 → soma `cand[].vap` (votos absolutos)
-    e `votos_total` por município. `pct_apurado` do município é a média
-    ponderada pelo eleitorado das zonas.
+    Estratégia: pega o snapshot mais recente de cada PAR (mesma CTE de
+    `fetch_snapshots`) + payload EA20 → soma `cand[].vap` (votos absolutos) e
+    `votos_total` por município. O total do município é a **soma exata** dos
+    pares que caem nele — sem rateio (ADR-0035 D2; § 6 não admite estimativa
+    apresentada como apuração).
+
+    ⚠️ O `LEFT JOIN zonas` SAIU. Ele existia para re-derivar o município a
+    partir da zona, e era justamente o caminho do colapso: `zonas` tinha um
+    município por zona, então 31,2 % dos votos caíam no município errado e
+    3.392 municípios ficavam estruturalmente invisíveis no mapa
+    (`docs/_meta/diagnostico-colapso-zona-municipio-2026-09-10.md` § Problema
+    B). Agora `cod_municipio_tse` vem **do próprio snapshot** — o par é o que
+    o TSE publicou, não uma reconstrução.
+
+    Contrato de linha PRESERVADO em aridade e ordem —
+    `(uf, cod_zona, pct_apurado, votos_total, payload, cod_municipio_tse)`,
+    6 colunas, `cod_municipio_tse` por último. `tests/unit/model/
+    test_payload_envelope.py:326-362` monta tuplas nessa ordem.
+
+    `pct_apurado` do município: **média ponderada pelo eleitorado do par**
+    (`SUM(eleitores_aptos) GROUP BY uf, cod_municipio_tse, cod_zona`). Era
+    média SIMPLES entre zonas até 11/09 — o que dava a uma zona de 2 mil
+    eleitores o mesmo peso de uma de 200 mil no percentual exibido do
+    município. Sem eleitorado importado (dev sem seed), ou par sem linha em
+    `eleitorado`, o peso cai para 1 e o resultado degrada exatamente para a
+    média simples anterior.
 
     Tolerante: payload sem `vap` (formato antigo) → votos = 0 (chart fica
-    sem dados mas não quebra).
+    sem dados mas não quebra). Par sentinela (`cod_municipio_tse = 0`, alvos
+    de nível `uf`/`br`) é ignorado — não é município.
 
-    BUG MEDIDO E CORRIGIDO (T18, 2026-09-05 — timeout do subprocess Python
-    em `tests/integration/model-cycle.test.ts`): `zonas` tem PK COMPOSTA
-    `(uf, cod_zona)` — `cod_zona` sozinho REPETE entre UFs (zona "8" existe
-    em AP, BA, CE, DF, ES, ... — confirmado via `pg_constraint`/consulta
-    direta: 2651 linhas em `zonas`, só 422 `cod_zona` distintos). O JOIN
-    anterior (`ON z.cod_zona = r.cod_zona`, sem `uf`) casava cada snapshot
-    com TODAS as UFs que compartilham aquele número de zona — fan-out
-    medido de 2651 linhas reais para 35757 linhas retornadas (13,5x) num
-    dataset nacional real (S07, ~2600 zonas). Consequência dupla: (1)
-    performance — a query sozinha levou 226s (`cur.execute`, antes do
-    `fetchall`) via psycopg contra Neon, o grosso do timeout ETIMEDOUT de
-    30s do teste de integração; (2) CORRETUDE — `cod_municipio_tse`
-    resolvido por uma UF ERRADA sempre que duas UFs compartilham o número
-    de zona (quase sempre), corrompendo silenciosamente `EdgeUfMunicipio`
-    (município errado recebendo os votos da zona). Fix: casar também por
-    `uf` — o JOIN vira 1:1 com `ranked` (mesma cardinalidade de
-    `fetch_snapshots`, ~2651 linhas, sem fan-out).
+    Histórico: até 2026-09-05 o JOIN era `ON z.cod_zona = r.cod_zona` sem
+    `uf`, e como o número da zona repete entre UFs isso gerava fan-out de
+    2.651 para 35.757 linhas (13,5x, 226 s de query) além de resolver o
+    município pela UF errada. O fix da época (casar por `uf`) deixou de ser
+    necessário quando o JOIN inteiro saiu.
     """
     sql = """
         WITH ranked AS (
             SELECT
                 s.uf,
+                s.cod_municipio_tse,
                 s.cod_zona,
                 s.pct_apurado,
                 s.votos_total,
                 s.payload,
                 ROW_NUMBER() OVER (
-                    PARTITION BY s.uf, s.cod_zona
+                    PARTITION BY s.uf, s.cod_municipio_tse, s.cod_zona
                     ORDER BY s.ts DESC, s.id DESC
                 ) AS rn
             FROM snapshots s
             WHERE s.cargo = %s AND s.turno = %s
         )
         SELECT r.uf, r.cod_zona, r.pct_apurado, r.votos_total, r.payload,
-               z.cod_municipio_tse
+               r.cod_municipio_tse
         FROM ranked r
-        LEFT JOIN zonas z ON z.cod_zona = r.cod_zona AND z.uf = r.uf
         WHERE r.rn = 1
     """
     try:
@@ -585,11 +719,16 @@ def fetch_municipio_aggregates(
         _log("warn", "fetch_municipio_aggregates failed", error=str(exc))
         return {}
 
+    # Peso de cada par no `pct_apurado` do município. Query própria, tolerante:
+    # sem eleitorado importado o dict fica vazio e todo par pesa 1 (média
+    # simples, comportamento anterior a 11/09).
+    eleitorado_par = _fetch_eleitorado_por_par(conn, ano=2026)
+
     # Aggregate per municipio. Envolvemos o loop em try/except porque o
     # FakeCursor em testes pode devolver tuplas com aridade diferente
-    # (sem o JOIN com `zonas`) e o `unpacking` levantaria ValueError.
-    # Em produção real, o JOIN sempre devolve 6 colunas — captura é
-    # defensiva (degrade graceful para municípios vazios).
+    # e o `unpacking` levantaria ValueError. Em produção a query sempre
+    # devolve 6 colunas — captura é defensiva (degrade graceful para
+    # municípios vazios).
     agg: dict[tuple[str, int], dict[str, Any]] = {}
     try:
         _iter_rows = list(rows)
@@ -599,21 +738,35 @@ def fetch_municipio_aggregates(
         if len(row) != 6:
             # Cursor antigo OR fixture de teste — graciosamente ignora.
             continue
-        uf, _cod_zona, pct_apurado, votos_total, payload, cod_municipio_tse = row
+        uf, cod_zona, pct_apurado, votos_total, payload, cod_municipio_tse = row
         if cod_municipio_tse is None:
             continue
-        key = (str(uf), int(cod_municipio_tse))
+        cod_municipio_tse = int(cod_municipio_tse)
+        if cod_municipio_tse == 0:
+            # Sentinela de abrangência `uf`/`br` — não é município.
+            continue
+        key = (str(uf), cod_municipio_tse)
         bucket = agg.setdefault(
             key,
             {
-                "pct_apurado_sum": 0.0,
-                "pct_apurado_count": 0,
+                "pct_apurado_num": 0.0,
+                "pct_apurado_den": 0.0,
                 "votos_por_candidato": {},
                 "total_votos": 0,
             },
         )
-        bucket["pct_apurado_sum"] += float(pct_apurado) if pct_apurado is not None else 0.0
-        bucket["pct_apurado_count"] += 1
+        try:
+            peso = float(
+                eleitorado_par.get((str(uf), cod_municipio_tse, int(cod_zona)), 0)
+            )
+        except (TypeError, ValueError):
+            peso = 0.0
+        if peso <= 0:
+            peso = 1.0
+        bucket["pct_apurado_num"] += (
+            float(pct_apurado) if pct_apurado is not None else 0.0
+        ) * peso
+        bucket["pct_apurado_den"] += peso
         if votos_total is not None:
             bucket["total_votos"] += int(votos_total)
 
@@ -635,13 +788,13 @@ def fetch_municipio_aggregates(
                 bucket["votos_por_candidato"].get(cid, 0) + int(votos_f)
             )
 
-    # Finaliza pct_apurado como média simples (sem peso de eleitorado aqui,
-    # suficiente para display — refinamento em S05+).
+    # Finaliza `pct_apurado` como média ponderada pelo eleitorado do par
+    # (peso 1 quando não há eleitorado → média simples, como antes).
     out: dict[tuple[str, int], dict[str, Any]] = {}
     for key, b in agg.items():
-        count = b["pct_apurado_count"]
+        den = b["pct_apurado_den"]
         out[key] = {
-            "pct_apurado": b["pct_apurado_sum"] / count if count > 0 else 0.0,
+            "pct_apurado": b["pct_apurado_num"] / den if den > 0 else 0.0,
             "votos_por_candidato": b["votos_por_candidato"],
             "total_votos": b["total_votos"],
         }
@@ -2240,7 +2393,7 @@ def build_uf_payloads(
     uf_rows: list[dict[str, Any]],
     national_rows: list[dict[str, Any]],
     municipio_aggregates: dict[tuple[str, int], dict[str, Any]],
-    zona_municipio: dict[tuple[str, int], dict[str, Any]],
+    zona_municipio: dict[tuple[str, int, int], dict[str, Any]],
     series_by_uf: dict[str, list[dict[str, Any]]],
     estimates_by_uf: dict[str, dict[int, np.ndarray]] | None = None,
     participacao_by_uf: dict[str, dict[str, ParticipacaoEstimate | None]] | None = None,
@@ -2304,7 +2457,11 @@ def build_uf_payloads(
     # Inverte zona_municipio: para cada (uf, cod_municipio_tse) coleta dados.
     # Como `fetch_municipio_aggregates` já agrega por município, reuso direto.
     # Precisamos só mapear (uf, cod_municipio_tse) → cod_ibge + nome
-    # (+ mesorregiao_cod/_nome quando disponíveis — S06/F4d).
+    # (+ mesorregiao_cod/_nome quando disponíveis — S06/F4d; + eleitores/
+    # capital desde a migration 0006 — decisão D-d do plano de 11/09).
+    # A chave de `zona_municipio` é a tripla do par, mas só os VALORES
+    # importam aqui — várias zonas do mesmo município colapsam na mesma
+    # entrada (primeira vence; todas trazem os mesmos dados do município).
     munic_meta: dict[tuple[str, int], dict[str, Any]] = {}
     for _chave, z_meta in zona_municipio.items():
         key = (z_meta["uf"], z_meta["cod_municipio_tse"])
@@ -2314,6 +2471,8 @@ def build_uf_payloads(
                 "nome": z_meta["nome"],
                 "mesorregiao_cod": z_meta.get("mesorregiao_cod"),
                 "mesorregiao_nome": z_meta.get("mesorregiao_nome"),
+                "eleitores": z_meta.get("eleitores"),
+                "capital": z_meta.get("capital"),
             }
 
     out: dict[str, dict[str, Any]] = {}
@@ -2517,6 +2676,19 @@ def build_uf_payloads(
                 },
                 "votos_reportados": votos_reportados_payload,
             }
+            # Migration 0006 / decisão D-d — ambos OPCIONAIS no contrato TS
+            # (`EdgeUfMunicipio.eleitores?` / `.capital?`): Blobs já gravados e
+            # a fixture `tests/fixtures/blob/uf-municipios-pres-t1.json`
+            # continuam válidos sem eles. Só emitimos quando o dado existe de
+            # fato — `eleitores` é Σ dos pares do município (sem rateio),
+            # `capital` é o seed estático das 27 capitais.
+            # `capital` só aparece quando é `true` (são 27 em ~5.570
+            # municípios): ausência == não-capital para o consumidor, e o
+            # payload da UF não paga por 644 `"capital": false`.
+            if meta.get("eleitores") is not None:
+                payload_row["eleitores"] = int(meta["eleitores"])
+            if meta.get("capital"):
+                payload_row["capital"] = True
             municipios_payload.append(payload_row)
             # S06/F4d — versão enriquecida pra aggregate_by_mesorregiao.
             municipios_for_meso.append(
@@ -2997,6 +3169,57 @@ def build_edge_payload(
     }
 
 
+def _alert_slack(severity: str, msg: str, **ctx: Any) -> None:
+    """POST best-effort para o Slack Incoming Webhook — lado Python.
+
+    Não existia equivalente Python a `lib/tse/alerts.ts::notifySlack` antes
+    desta função; espelha deliberadamente o mesmo contrato do lado TS (mesma
+    env var `SLACK_WEBHOOK_URL`, mesmo formato de mensagem `[SEVERITY] msg` +
+    bloco de código com o contexto) para os dois canais renderizarem igual
+    no mesmo canal do Slack.
+
+    Best-effort e nunca levanta (constituição § 7 — o alerta não pode
+    derrubar o ciclo do modelo): ausência da env var, erro de rede ou 4xx/5xx
+    do Slack viram `_log("warn"/"info", ...)`, nunca uma exceção propagada.
+    stdlib `urllib.request` pelo mesmo motivo de `post_edge_write` — sem dep
+    nova, uma chamada isolada por ciclo, timeout curto.
+    """
+    webhook_url = os.environ.get("SLACK_WEBHOOK_URL")
+    if not webhook_url:
+        _log(
+            "info",
+            "slack alert skipped — SLACK_WEBHOOK_URL ausente",
+            severity=severity,
+            msg=msg,
+        )
+        return
+
+    text = f"[{severity.upper()}] {msg}"
+    if ctx:
+        try:
+            text += f"\n```{json.dumps(ctx, default=str, indent=2)}```"
+        except Exception:  # noqa: BLE001 — serialização nunca deve derrubar o alerta
+            text += "\n[ctx: serialização falhou]"
+
+    body = json.dumps({"text": text}).encode("utf-8")
+    req = urllib.request.Request(
+        webhook_url,
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        # 3s: mesmo teto de `lib/tse/alerts.ts` — um Slack lento não pode
+        # consumir o orçamento do ciclo do modelo.
+        with urllib.request.urlopen(req, timeout=3) as response:
+            if response.status < 200 or response.status >= 300:
+                _log("warn", "slack alert non-2xx", status=response.status)
+    except urllib.error.HTTPError as exc:
+        _log("warn", "slack alert http error", status=exc.code, reason=str(exc.reason))
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        _log("warn", "slack alert failed", error=str(exc))
+
+
 def post_edge_write(
     payload: dict[str, Any],
     payloads_uf: dict[str, dict[str, Any]] | None = None,
@@ -3108,7 +3331,15 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
     # 3. DB query + compute + persist (tudo em uma transação).
     try:
         with _open_conn() as conn:
-            snapshots = fetch_snapshots(conn, req.cargo, req.turno)
+            # `fetch_snapshots` devolve uma linha por PAR (município × zona)
+            # desde a migration 0006; `merge_pairs_into_zonas` soma os pares de
+            # volta à ZONA, que é e continua sendo a unidade do estimador
+            # (ADR-0021/0023, decisão E5). Em memória, nunca persistido (§ 1).
+            # Zona com um único par sai inalterada. `raw_snapshots` (pré-merge)
+            # é mantido para a guarda de sanidade logo abaixo — comparar o
+            # ANTES e o DEPOIS do merge é o que detecta multiplicação.
+            raw_snapshots = fetch_snapshots(conn, req.cargo, req.turno)
+            snapshots = merge_pairs_into_zonas(raw_snapshots)
             # Plano § B — 2022 SAI da projeção de candidatos (decisão E1);
             # `historical` fica NÃO-FATAL e sem uso no cálculo — só existe
             # aqui para alimentar `compute_swing_descritivo` (Fase 5,
@@ -3129,6 +3360,35 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 except Exception:  # noqa: BLE001 — autocommit ou sem tx
                     pass
             eleitorado = fetch_eleitorado(conn, ano=2026)
+
+            # Guarda de sanidade (plano `perfeito-monte-um-plano-eventual-
+            # candle.md`, 2026-09-11): a premissa de que o EA20 por par traz
+            # só a FATIA do município, não a zona inteira, nunca foi
+            # verificada contra dado real — ver docstring de
+            # `check_zona_merge_sanity`. Não aborta o ciclo (§ 7); só torna a
+            # violação ruidosa. Resolvida no simulado de 15/09.
+            n_zona_merge_violacoes = check_zona_merge_sanity(
+                raw_snapshots, snapshots, eleitorado
+            )
+            if n_zona_merge_violacoes:
+                _log(
+                    "error",
+                    "zona_merge_sanity: ciclo com zonas em violação confirmada "
+                    "— possível dupla contagem por multiplicação de fatia",
+                    cargo=req.cargo,
+                    turno=req.turno,
+                    n_violacoes=n_zona_merge_violacoes,
+                )
+                _alert_slack(
+                    "error",
+                    "zona_merge_sanity: possível multiplicação de votos por "
+                    "zona (premissa da fatia por município pode estar "
+                    "violada) — ver logs do ciclo para UF/zona/razão",
+                    cargo=req.cargo,
+                    turno=req.turno,
+                    n_violacoes=n_zona_merge_violacoes,
+                )
+
             # S04/F2 — dados para enriquecer EdgePayloadUf. Cada um tolera
             # falha (DB sem seed geográfico, projections vazia) com dict
             # vazio + log warn — o payload UF cai pra esqueleto.

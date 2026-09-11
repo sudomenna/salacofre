@@ -149,11 +149,18 @@ class FakeCursor:
         # com fixtures vazias por default, já que o minimal_dataset não
         # carrega zonas/municipios/projections histórico — orchestrator
         # gracefully degrada).
-        if "FROM snapshots" in sql and "ranked" in sql and "JOIN zonas" in sql:
-            # fetch_municipio_aggregates (S04/F2): mesma CTE + LEFT JOIN com
-            # zonas. Em testes sem fixture de zonas, devolve cod_municipio_tse
-            # = None para cada snapshot — `fetch_municipio_aggregates` ignora
-            # rows sem cod_municipio_tse.
+        #
+        # Fase 3 (11/09): `fetch_municipio_aggregates` perdeu o `JOIN zonas`
+        # (o município agora vem do próprio snapshot) — a âncora de dispatch
+        # passou a ser `votos_total`, que só a query de município seleciona.
+        # `test_project_sqls_todas_despachadas` (neste arquivo) executa CADA
+        # SQL de `project.py` contra este cursor para que uma mudança futura
+        # de SQL falhe alto, em vez de cair no `else: raise` de dentro de um
+        # `try/except` que engole o erro.
+        if "FROM snapshots" in sql and "ranked" in sql and "votos_total" in sql:
+            # fetch_municipio_aggregates: mesma CTE, partição por par. O
+            # `cod_municipio_tse` vem do snapshot (chave `cod_municipio_tse`
+            # da fixture, 0 quando ausente — sentinela, ignorada pela função).
             cargo, turno = params
             self._last_rows = [
                 (
@@ -162,15 +169,23 @@ class FakeCursor:
                     s["pct_apurado"],
                     s.get("votos_total"),
                     s["payload"],
-                    None,  # cod_municipio_tse — sem fixture de zonas
+                    int(s.get("cod_municipio_tse") or 0),
                 )
                 for s in self._conn.snapshots
                 if s["cargo"] == cargo and s["turno"] == turno
             ]
         elif "FROM snapshots" in sql:
+            # fetch_snapshots — 5 colunas desde a migration 0006
+            # (cod_municipio_tse entre uf e cod_zona).
             cargo, turno = params
             self._last_rows = [
-                (s["uf"], s["cod_zona"], s["pct_apurado"], s["payload"])
+                (
+                    s["uf"],
+                    int(s.get("cod_municipio_tse") or 0),
+                    s["cod_zona"],
+                    s["pct_apurado"],
+                    s["payload"],
+                )
                 for s in self._conn.snapshots
                 if s["cargo"] == cargo and s["turno"] == turno
             ]
@@ -188,12 +203,33 @@ class FakeCursor:
                 if h["cargo"] == cargo and h["turno"] == turno
             ]
         elif "FROM eleitorado" in sql:
+            # Três consultas diferentes batem aqui desde a migration 0006 —
+            # todas agregam de verdade (o `GROUP BY` é o ponto do conserto:
+            # com a PK no par, somar é o que distingue o peso certo da última
+            # fatia de município).
             (ano,) = params
-            self._last_rows = [
-                (e["uf"], e["cod_zona"], e["eleitores_aptos"])
-                for e in self._conn.eleitorado
-                if e["ano"] == ano
-            ]
+            fixtures = [e for e in self._conn.eleitorado if e["ano"] == ano]
+            if "GROUP BY uf, cod_municipio_tse, cod_zona" in sql:
+                # _fetch_eleitorado_por_par — peso do pct_apurado municipal.
+                por_par: dict[tuple[str, int, int], int] = {}
+                for e in fixtures:
+                    chave = (e["uf"], int(e.get("cod_municipio_tse") or 0), e["cod_zona"])
+                    por_par[chave] = por_par.get(chave, 0) + int(e["eleitores_aptos"])
+                self._last_rows = [(u, m, z, v) for (u, m, z), v in por_par.items()]
+            elif "GROUP BY uf, cod_municipio_tse" in sql:
+                # fetch_municipio_eleitorado — Σ dos pares do município.
+                por_mun: dict[tuple[str, int], int] = {}
+                for e in fixtures:
+                    chave = (e["uf"], int(e.get("cod_municipio_tse") or 0))
+                    por_mun[chave] = por_mun.get(chave, 0) + int(e["eleitores_aptos"])
+                self._last_rows = [(u, m, v) for (u, m), v in por_mun.items()]
+            else:
+                # fetch_eleitorado — Σ dos pares da zona (peso do estimador).
+                por_zona: dict[tuple[str, int], int] = {}
+                for e in fixtures:
+                    chave = (e["uf"], e["cod_zona"])
+                    por_zona[chave] = por_zona.get(chave, 0) + int(e["eleitores_aptos"])
+                self._last_rows = [(u, z, v) for (u, z), v in por_zona.items()]
         elif "FROM zonas z" in sql or "JOIN municipios" in sql:
             # fetch_zona_municipio — sem fixture, devolve vazio.
             self._last_rows = []
@@ -201,7 +237,13 @@ class FakeCursor:
             # fetch_series_temporais — sem fixture, devolve vazio.
             self._last_rows = []
         else:
+            # Registra ANTES de levantar: vários callers de `project.py`
+            # envolvem a query em try/except e engoliriam este AssertionError,
+            # degradando para dict vazio sem que o teste percebesse. A lista
+            # é inspecionada por `test_todas_as_sqls_de_project_sao_despachadas`.
+            self._conn.unsupported_sqls.append(sql)
             raise AssertionError(f"FakeCursor sql não suportada: {sql[:80]}")
+        self._conn.executed_sqls.append(sql)
 
     def executemany(self, sql: str, rows: list[dict]) -> None:
         assert "INSERT INTO projections" in sql
@@ -229,6 +271,12 @@ class FakeConn:
         self.eleitorado = eleitorado
         self.inserted: list[dict] = []
         self.committed = False
+        # Auditoria de dispatch — ver `FakeCursor.execute`.
+        self.executed_sqls: list[str] = []
+        self.unsupported_sqls: list[str] = []
+
+    def rollback(self) -> None:
+        return None
 
     def cursor(self) -> FakeCursor:
         return FakeCursor(self)
@@ -1518,3 +1566,255 @@ def test_fetch_snapshots_mantem_sentinela_zona_zero_sozinha(fake_db) -> None:
 
     assert len(out) == 1
     assert out[0]["cod_zona"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Dispatch de SQL — rede de proteção contra o `else: raise` engolido
+# ---------------------------------------------------------------------------
+
+
+def test_todas_as_sqls_de_project_sao_despachadas(fake_db) -> None:
+    """Executa CADA consulta de `api/model/project.py` contra o `FakeCursor`
+    e exige que todas caiam num ramo conhecido.
+
+    Por que existe (risco R3 do plano de 11/09): o `FakeCursor` despacha por
+    SUBSTRING da SQL e termina em `else: raise AssertionError`. Metade dos
+    callers em `project.py` (`fetch_municipio_aggregates`,
+    `fetch_zona_municipio`, `fetch_series_temporais`, `_fetch_eleitorado_por_par`)
+    envolve a query em `try/except Exception` e degrada para dict vazio — ou
+    seja, uma mudança de SQL que o mock não reconhece passaria como "sem
+    dados" em vez de falhar. Aqui a lista `unsupported_sqls` é inspecionada
+    diretamente, então a falha é alta e imediata.
+    """
+    from api.model.project import (
+        _fetch_eleitorado_por_par,
+        fetch_eleitorado,
+        fetch_historical_2022,
+        fetch_municipio_aggregates,
+        fetch_municipio_eleitorado,
+        fetch_series_temporais,
+        fetch_snapshots,
+        fetch_zona_municipio,
+    )
+
+    snapshots = [
+        {
+            "cargo": 1, "turno": 1, "uf": "SP", "cod_municipio_tse": 71072,
+            "cod_zona": 1, "pct_apurado": 50.0, "votos_total": 260,
+            "payload": _synthetic_envelope({100: 60.0, 200: 40.0}),
+        },
+    ]
+    eleitorado = [
+        {"ano": 2026, "uf": "SP", "cod_municipio_tse": 71072, "cod_zona": 1,
+         "eleitores_aptos": 350},
+    ]
+    conn = fake_db(snapshots, [], eleitorado)
+
+    assert len(fetch_snapshots(conn, cargo=1, turno=1)) == 1
+    assert fetch_historical_2022(conn, cargo=1, turno=1) == []
+    assert fetch_eleitorado(conn, ano=2026) == {("SP", 1): 350}
+    assert fetch_municipio_eleitorado(conn, ano=2026) == {("SP", 71072): 350}
+    assert _fetch_eleitorado_por_par(conn, ano=2026) == {("SP", 71072, 1): 350}
+    assert fetch_zona_municipio(conn) == {}
+    assert fetch_series_temporais(conn, cargo=1, turno=1) == {}
+    # Aridade de 6 colunas preservada: se o mock tivesse devolvido outra coisa,
+    # `fetch_municipio_aggregates` ignoraria a linha e o dict sairia vazio.
+    agregados = fetch_municipio_aggregates(conn, cargo=1, turno=1)
+    assert set(agregados.keys()) == {("SP", 71072)}
+    assert agregados[("SP", 71072)]["total_votos"] == 260
+
+    assert conn.unsupported_sqls == []
+
+
+def test_fetch_eleitorado_soma_os_pares_da_zona(fake_db) -> None:
+    """A zona espalhada por 3 municípios pesa a SOMA dos pares.
+
+    Antes do `GROUP BY` (Fase 3, 11/09), o dict-comprehension de
+    `fetch_eleitorado` ficava com a ÚLTIMA fatia de município — peso
+    fragmentário, sem erro nenhum. Mesmo defeito que, em
+    `scripts/build-replay-fixtures.ts`, levou o MAE@1h de 2,3623 pp a
+    3,4636 pp.
+    """
+    from api.model.project import fetch_eleitorado
+
+    eleitorado = [
+        {"ano": 2026, "uf": "MG", "cod_municipio_tse": 41238, "cod_zona": 9,
+         "eleitores_aptos": 100_000},
+        {"ano": 2026, "uf": "MG", "cod_municipio_tse": 41254, "cod_zona": 9,
+         "eleitores_aptos": 30_000},
+        {"ano": 2026, "uf": "MG", "cod_municipio_tse": 41270, "cod_zona": 9,
+         "eleitores_aptos": 7_000},
+    ]
+    conn = fake_db([], [], eleitorado)
+
+    assert fetch_eleitorado(conn, ano=2026) == {("MG", 9): 137_000}
+
+
+def test_fetch_municipio_aggregates_separa_pares_da_mesma_zona(fake_db) -> None:
+    """Dois pares da MESMA zona em municípios distintos viram duas entradas
+    municipais, cada uma com os seus votos — sem `JOIN zonas`, sem rateio
+    (ADR-0035 D2)."""
+    from api.model.project import fetch_municipio_aggregates
+
+    snapshots = [
+        {
+            "cargo": 1, "turno": 1, "uf": "MG", "cod_municipio_tse": 41238,
+            "cod_zona": 9, "pct_apurado": 100.0, "votos_total": 1_000,
+            "payload": _synthetic_envelope({100: 60.0, 200: 40.0}),
+        },
+        {
+            "cargo": 1, "turno": 1, "uf": "MG", "cod_municipio_tse": 41254,
+            "cod_zona": 9, "pct_apurado": 50.0, "votos_total": 400,
+            "payload": _synthetic_envelope({100: 30.0, 200: 70.0}),
+        },
+        {
+            # Sentinela de abrangência UF — nunca vira município.
+            "cargo": 1, "turno": 1, "uf": "MG", "cod_municipio_tse": 0,
+            "cod_zona": 0, "pct_apurado": 80.0, "votos_total": 9_999,
+            "payload": _synthetic_envelope({100: 55.0, 200: 45.0}),
+        },
+    ]
+    conn = fake_db(snapshots, [], [])
+
+    out = fetch_municipio_aggregates(conn, cargo=1, turno=1)
+
+    assert set(out.keys()) == {("MG", 41238), ("MG", 41254)}
+    assert out[("MG", 41238)]["total_votos"] == 1_000
+    assert out[("MG", 41254)]["total_votos"] == 400
+    assert out[("MG", 41238)]["pct_apurado"] == 100.0
+    assert out[("MG", 41254)]["pct_apurado"] == 50.0
+
+
+def test_fetch_municipio_aggregates_pondera_pct_por_eleitorado_do_par(
+    fake_db,
+) -> None:
+    """`pct_apurado` do município é média ponderada pelo eleitorado do par.
+
+    Um município com duas zonas — uma de 200 mil eleitores a 100 % apurado e
+    outra de 2 mil a 0 % — está 99,0 % apurado, não 50 % (que era o que a
+    média simples anterior a 11/09 exibia).
+    """
+    from api.model.project import fetch_municipio_aggregates
+
+    snapshots = [
+        {
+            "cargo": 1, "turno": 1, "uf": "SP", "cod_municipio_tse": 71072,
+            "cod_zona": 1, "pct_apurado": 100.0, "votos_total": 100,
+            "payload": _synthetic_envelope({100: 60.0, 200: 40.0}),
+        },
+        {
+            "cargo": 1, "turno": 1, "uf": "SP", "cod_municipio_tse": 71072,
+            "cod_zona": 2, "pct_apurado": 0.0, "votos_total": 0,
+            "payload": _synthetic_envelope({100: 50.0, 200: 50.0}),
+        },
+    ]
+    eleitorado = [
+        {"ano": 2026, "uf": "SP", "cod_municipio_tse": 71072, "cod_zona": 1,
+         "eleitores_aptos": 200_000},
+        {"ano": 2026, "uf": "SP", "cod_municipio_tse": 71072, "cod_zona": 2,
+         "eleitores_aptos": 2_000},
+    ]
+    conn = fake_db(snapshots, [], eleitorado)
+
+    out = fetch_municipio_aggregates(conn, cargo=1, turno=1)
+
+    assert out[("SP", 71072)]["pct_apurado"] == pytest.approx(
+        100.0 * 200_000 / 202_000
+    )
+
+
+def test_build_uf_payloads_emite_eleitores_e_capital() -> None:
+    """`eleitores`/`capital` chegam ao `EdgeUfMunicipio` quando existem no
+    mapa de municípios; `capital` só aparece quando é verdadeiro (decisão
+    D-d — ambos opcionais no contrato TS)."""
+    from api.model.project import build_uf_payloads
+
+    uf_rows = [
+        {
+            "cargo": 1, "turno": 1, "uf": "MG", "candidato_id": 100,
+            "pct_projetado": 55.0, "pct_projetado_lower": 53.0,
+            "pct_projetado_upper": 57.0, "pct_apurado": 100.0,
+        },
+    ]
+    national_rows = [{"candidato_id": 100, "partido": "PT", "pct_projetado": 55.0}]
+    municipio_aggregates = {
+        ("MG", 41238): {
+            "pct_apurado": 100.0,
+            "votos_por_candidato": {100: 900_000},
+            "total_votos": 900_000,
+        },
+        ("MG", 41254): {
+            "pct_apurado": 100.0,
+            "votos_por_candidato": {100: 120_000},
+            "total_votos": 120_000,
+        },
+    }
+    # Chave tripla `(uf, cod_municipio_tse, cod_zona)` — a mesma zona 9 aparece
+    # nos dois municípios, que é justamente o caso que a chave dupla perdia.
+    zona_municipio = {
+        ("MG", 41238, 9): {
+            "uf": "MG", "cod_municipio_tse": 41238, "cod_ibge": "3106200",
+            "nome": "Belo Horizonte", "eleitores": 1_992_984, "capital": True,
+        },
+        ("MG", 41254, 9): {
+            "uf": "MG", "cod_municipio_tse": 41254, "cod_ibge": "3170206",
+            "nome": "Uberaba", "eleitores": 238_276, "capital": False,
+        },
+    }
+
+    out = build_uf_payloads(
+        cargo=1,
+        turno=1,
+        ts_iso="2026-10-04T18:23:15Z",
+        uf_rows=uf_rows,
+        national_rows=national_rows,
+        municipio_aggregates=municipio_aggregates,
+        zona_municipio=zona_municipio,
+        series_by_uf={},
+    )
+
+    por_nome = {m["nome"]: m for m in out["MG"]["municipios"]}
+    assert por_nome["Belo Horizonte"]["eleitores"] == 1_992_984
+    assert por_nome["Belo Horizonte"]["capital"] is True
+    assert por_nome["Uberaba"]["eleitores"] == 238_276
+    # Não-capital não carrega a chave (ausência == false no contrato TS).
+    assert "capital" not in por_nome["Uberaba"]
+
+
+def test_build_uf_payloads_sem_eleitores_nem_capital_omite_campos() -> None:
+    """Mapa de municípios sem os campos novos (Blob antigo / DB anterior à
+    migration 0006) → payload sem `eleitores` nem `capital`, exatamente como
+    antes. É o que mantém as fixtures de Blob já gravadas válidas."""
+    from api.model.project import build_uf_payloads
+
+    out = build_uf_payloads(
+        cargo=1,
+        turno=1,
+        ts_iso="2026-10-04T18:23:15Z",
+        uf_rows=[
+            {
+                "cargo": 1, "turno": 1, "uf": "MG", "candidato_id": 100,
+                "pct_projetado": 55.0, "pct_projetado_lower": 53.0,
+                "pct_projetado_upper": 57.0, "pct_apurado": 100.0,
+            },
+        ],
+        national_rows=[{"candidato_id": 100, "partido": "PT", "pct_projetado": 55.0}],
+        municipio_aggregates={
+            ("MG", 41238): {
+                "pct_apurado": 100.0,
+                "votos_por_candidato": {100: 900_000},
+                "total_votos": 900_000,
+            },
+        },
+        zona_municipio={
+            ("MG", 41238, 9): {
+                "uf": "MG", "cod_municipio_tse": 41238,
+                "cod_ibge": "3106200", "nome": "Belo Horizonte",
+            },
+        },
+        series_by_uf={},
+    )
+
+    municipio = out["MG"]["municipios"][0]
+    assert "eleitores" not in municipio
+    assert "capital" not in municipio

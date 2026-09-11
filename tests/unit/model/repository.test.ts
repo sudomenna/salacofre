@@ -35,6 +35,7 @@ const ZONA_A = 99020;
 const ZONA_B = 99021;
 const ZONA_C = 99022;
 const ZONA_D = 99023; // só para snapshot 0% apurado / sem hist
+const ZONA_E = 99024; // zona em 3 municípios (soma dos pares, migration 0006)
 const TEST_CARGO = 1; // sentinel — Presidente
 const TEST_TURNO = 9; // sentinel sintético (produção usa 1|2)
 const TEST_ANO = 2022; // reuso do ano "histórico" para teste de eleitorado
@@ -63,7 +64,7 @@ async function cleanupAll(): Promise<void> {
   `);
   await db.execute(sql`
     DELETE FROM eleitorado
-    WHERE uf = ${TEST_UF} AND cod_zona >= ${ZONA_A} AND cod_zona <= ${ZONA_D}
+    WHERE uf = ${TEST_UF} AND cod_zona >= ${ZONA_A} AND cod_zona <= ${ZONA_E}
   `);
 }
 
@@ -113,10 +114,17 @@ async function seedEleitorado(
   codZona: number,
   eleitoresAptos: number,
   ano: number = TEST_ANO,
+  codMunicipioTse = 99999,
 ): Promise<void> {
+  // 99999 é um cod_municipio_tse sentinela (não existe em `municipios`;
+  // `eleitorado` não tem FK). Desde a migration 0006 a PK é
+  // (ano, uf, cod_municipio_tse, cod_zona): com um município fixo, cada zona
+  // segue tendo exatamente uma linha aqui, que é o que a maioria destes casos
+  // assume. `codMunicipioTse` permite seedar dois PARES da mesma zona — ver
+  // "soma os pares (município × zona)" mais abaixo.
   await db.execute(sql`
     INSERT INTO eleitorado (ano, uf, cod_municipio_tse, cod_zona, eleitores_aptos)
-    VALUES (${ano}, ${uf}, 99999, ${codZona}, ${eleitoresAptos})
+    VALUES (${ano}, ${uf}, ${codMunicipioTse}, ${codZona}, ${eleitoresAptos})
   `);
 }
 
@@ -300,5 +308,19 @@ describe.skipIf(!hasDb)("lib/model/repository — RF-019 / RF-020 / RF-012", () 
       expect(typeof k).toBe("string");
       expect(typeof v).toBe("number");
     }
+  });
+
+  it("getEleitoradoByZone: soma os pares (município × zona) da mesma zona", async () => {
+    // Desde a migration 0006 a PK de `eleitorado` é o par, e 62,5% das zonas
+    // cobrem 2+ municípios. Sem `sum()`/`groupBy` no repo, o `m.set()` ficava
+    // com a ÚLTIMA fatia (aqui: 7.000) em vez do total (137.000) — em silêncio,
+    // e o peso da zona no modelo saía fragmentário.
+    await seedEleitorado(TEST_UF, ZONA_E, 100_000, TEST_ANO, 90001);
+    await seedEleitorado(TEST_UF, ZONA_E, 30_000, TEST_ANO, 90002);
+    await seedEleitorado(TEST_UF, ZONA_E, 7_000, TEST_ANO, 90003);
+
+    const m = await getEleitoradoByZone(TEST_ANO);
+
+    expect(m.get(`${TEST_UF}:${ZONA_E}`)).toBe(137_000);
   });
 });

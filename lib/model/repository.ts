@@ -52,7 +52,7 @@
  * o dashboard `/_status` (spec 012).
  */
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, sum } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import type { NewProjection } from "@/lib/db/schema";
 import { logDebug, logError } from "@/lib/tse/log";
@@ -313,7 +313,15 @@ export async function getHistoricalResults2022(
  * cod_zona é int — concatenar com ':' evita colisão entre `"SP:1"` e
  * `"S:P1"` etc.
  *
- * Valor: número de eleitores aptos (int).
+ * Valor: número de eleitores aptos (int) — **soma dos pares `(município,
+ * zona)`** daquela zona.
+ *
+ * O `sum()` + `groupBy` não é cosmético: desde a migration 0006 a PK de
+ * `eleitorado` é o par `(ano, uf, cod_municipio_tse, cod_zona)` — 6.085 linhas
+ * para 2.619 zonas. Sem o agrupamento, `m.set()` guardava a ÚLTIMA fatia de
+ * município em vez da soma, em silêncio. Gêmeo de `fetch_eleitorado`
+ * (api/model/project.py), onde o mesmo defeito inflou o MAE@1h de 2,3623 pp
+ * para 3,4636 pp quando apareceu em `scripts/build-replay-fixtures.ts`.
  *
  * @throws ModelRepositoryError em erro de DB.
  */
@@ -323,14 +331,17 @@ export async function getEleitoradoByZone(ano: number): Promise<Map<string, numb
       .select({
         uf: schema.eleitorado.uf,
         codZona: schema.eleitorado.codZona,
-        eleitoresAptos: schema.eleitorado.eleitoresAptos,
+        eleitoresAptos: sum(schema.eleitorado.eleitoresAptos),
       })
       .from(schema.eleitorado)
-      .where(eq(schema.eleitorado.ano, ano));
+      .where(eq(schema.eleitorado.ano, ano))
+      .groupBy(schema.eleitorado.uf, schema.eleitorado.codZona);
 
     const m = new Map<string, number>();
     for (const r of rows) {
-      m.set(`${r.uf}:${r.codZona}`, r.eleitoresAptos);
+      // `sum()` do Drizzle devolve string|null (NUMERIC do Postgres) —
+      // a coluna é integer, então o total cabe em Number sem perda.
+      m.set(`${r.uf}:${r.codZona}`, Number(r.eleitoresAptos ?? 0));
     }
     return m;
   } catch (err) {

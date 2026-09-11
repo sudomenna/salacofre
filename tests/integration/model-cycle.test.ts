@@ -314,6 +314,12 @@ describeIfReady("T18 — ciclo do modelo end-to-end (integration)", { timeout: 1
 
     // ------------------------------------------------------------------
     // 1. Seed eleitorado 2026 (10 zonas, eleitores aptos ~100k–500k).
+    //
+    // Desde a migration 0006 a PK de `eleitorado` é
+    // (ano, uf, cod_municipio_tse, cod_zona). Cada zona aqui recebe um único
+    // município (SP_MOCK_COD_MUN ou RJ_MOCK_COD_MUN), então continua havendo
+    // uma linha por zona e os números do ciclo não mudam. Zona espalhada por
+    // vários municípios é cenário da Fase 3 (soma dos pares antes do modelo).
     // ------------------------------------------------------------------
     const rngElec = mulberry32(424242);
     const eleitoradoRows = TEST_ZONES.map((codZona, i) => {
@@ -496,3 +502,165 @@ describeIfReady("T18 — ciclo do modelo end-to-end (integration)", { timeout: 1
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Fase 3 (11/09) — dois PARES (município × zona) da mesma zona
+// ---------------------------------------------------------------------------
+
+/** UF sentinela exclusiva deste bloco (não colide com ZT acima). */
+const PAIR_UF = "ZP";
+/** Zona única, coberta por DOIS municípios — o caso de 62,5% das zonas reais. */
+const PAIR_ZONA = 99045;
+const PAIR_MUN_A = 91001;
+const PAIR_MUN_B = 91002;
+const PAIR_CAND_A = 1003;
+const PAIR_CAND_B = 1004;
+
+// Eleitorado por par — a zona pesa a SOMA (200.000).
+const PAIR_APTOS_A = 120_000;
+const PAIR_APTOS_B = 80_000;
+// Votáveis concorrentes por par (esi = te → k = 1, sem escala).
+const PAIR_VVC_A = 84_000;
+const PAIR_VVC_B = 56_000;
+// Votos absolutos conhecidos por par.
+const PAIR_VAP_A1 = 50_000;
+const PAIR_VAP_B1 = PAIR_VVC_A - PAIR_VAP_A1; // 34.000
+const PAIR_VAP_A2 = 21_000;
+const PAIR_VAP_B2 = PAIR_VVC_B - PAIR_VAP_A2; // 35.000
+
+function buildPairEnvelope(aptos: number, vvc: number, vapA: number, vapB: number) {
+  return {
+    e: { te: aptos, esi: aptos, c: vvc, a: aptos - vvc },
+    v: { vvc, vv: vvc, vb: 0, tvn: 0, van: 0, vansj: 0 },
+    s: { ts: 100, si: 100, sa: 100, psa: 100 },
+    carg: [
+      {
+        cd: String(CARGO),
+        agr: [
+          {
+            par: [
+              {
+                cand: [
+                  { n: PAIR_CAND_A, vap: vapA },
+                  { n: PAIR_CAND_B, vap: vapB },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+async function cleanupPairs(): Promise<void> {
+  await db.execute(sql`
+    DELETE FROM eleitorado WHERE uf = ${PAIR_UF} AND cod_zona = ${PAIR_ZONA}
+  `);
+  await db.execute(sql`
+    DELETE FROM snapshots WHERE uf = ${PAIR_UF} AND cod_zona = ${PAIR_ZONA}
+  `);
+  await db.execute(sql`
+    DELETE FROM projections
+    WHERE candidato_id IN (${PAIR_CAND_A}, ${PAIR_CAND_B})
+      AND cargo = ${CARGO} AND turno = ${TURNO}
+  `);
+}
+
+describeIfReady(
+  "Fase 3 — zona multi-município: o total da UF é a soma dos pares",
+  { timeout: 100_000 },
+  () => {
+    beforeAll(async () => {
+      await cleanupPairs();
+
+      // Eleitorado: DOIS pares da mesma zona. A zona pesa 200.000 — é o que
+      // `fetch_eleitorado` tem de devolver (`SUM ... GROUP BY uf, cod_zona`);
+      // sem o GROUP BY viriam 80.000 (a última fatia de município).
+      await db.insert(schema.eleitorado).values([
+        {
+          ano: 2026,
+          uf: PAIR_UF,
+          codMunicipioTse: PAIR_MUN_A,
+          codZona: PAIR_ZONA,
+          eleitoresAptos: PAIR_APTOS_A,
+          comparecimentoPctHistorico: null,
+        },
+        {
+          ano: 2026,
+          uf: PAIR_UF,
+          codMunicipioTse: PAIR_MUN_B,
+          codZona: PAIR_ZONA,
+          eleitoresAptos: PAIR_APTOS_B,
+          comparecimentoPctHistorico: null,
+        },
+      ]);
+
+      // Snapshots: um por par, 100% apurado, `vap` conhecidos. É o formato que
+      // o TSE publica em 2026 — um arquivo EA20 por (município, zona).
+      const p1 = buildPairEnvelope(PAIR_APTOS_A, PAIR_VVC_A, PAIR_VAP_A1, PAIR_VAP_B1);
+      const p2 = buildPairEnvelope(PAIR_APTOS_B, PAIR_VVC_B, PAIR_VAP_A2, PAIR_VAP_B2);
+      await db.insert(schema.snapshots).values([
+        {
+          cargo: CARGO,
+          turno: TURNO,
+          uf: PAIR_UF,
+          codMunicipioTse: PAIR_MUN_A,
+          codZona: PAIR_ZONA,
+          etag: `"etag-zp-${PAIR_MUN_A}"`,
+          pctApurado: "100.00",
+          votosTotal: PAIR_VVC_A,
+          payload: p1,
+          hashPayload: sha256Hex(JSON.stringify(p1)),
+        },
+        {
+          cargo: CARGO,
+          turno: TURNO,
+          uf: PAIR_UF,
+          codMunicipioTse: PAIR_MUN_B,
+          codZona: PAIR_ZONA,
+          etag: `"etag-zp-${PAIR_MUN_B}"`,
+          pctApurado: "100.00",
+          votosTotal: PAIR_VVC_B,
+          payload: p2,
+          hashPayload: sha256Hex(JSON.stringify(p2)),
+        },
+      ]);
+    });
+
+    afterAll(async () => {
+      await cleanupPairs();
+    });
+
+    it("soma os dois pares: votos projetados da UF = vap(par 1) + vap(par 2) a 100%", async () => {
+      const result = invokePython(PYTHON_BIN, {
+        cargo: CARGO,
+        turno: TURNO,
+        trigger_ts: TRIGGER_TS,
+      });
+      expect(result.status).toBe(200);
+      expect(result.body.computed).toBe(true);
+
+      const inserted = await db.execute<{
+        candidato_id: number;
+        votos_projetados: string | null;
+        pct_apurado: string | null;
+      }>(sql`
+        SELECT candidato_id, votos_projetados::text, pct_apurado::text
+        FROM projections
+        WHERE cargo = ${CARGO} AND turno = ${TURNO} AND uf = ${PAIR_UF}
+          AND candidato_id IN (${PAIR_CAND_A}, ${PAIR_CAND_B})
+      `);
+
+      const byCand = new Map(inserted.rows.map((r) => [Number(r.candidato_id), r]));
+      // Antes da Fase 3 esta UF veria UMA das duas fatias (a mais recente por
+      // `(uf, cod_zona)`) e projetaria ~56.000 ou ~84.000 votáveis, não 140.000.
+      expect(byCand.get(PAIR_CAND_A)).toBeDefined();
+      expect(byCand.get(PAIR_CAND_B)).toBeDefined();
+      expect(Number(byCand.get(PAIR_CAND_A)?.votos_projetados)).toBe(PAIR_VAP_A1 + PAIR_VAP_A2);
+      expect(Number(byCand.get(PAIR_CAND_B)?.votos_projetados)).toBe(PAIR_VAP_B1 + PAIR_VAP_B2);
+      // Peso da zona = Σ dos pares → a UF está 100% apurada (não 40% nem 60%).
+      expect(Number(byCand.get(PAIR_CAND_A)?.pct_apurado)).toBeCloseTo(100, 5);
+    });
+  },
+);

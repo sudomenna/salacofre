@@ -93,6 +93,33 @@ describe("splitUfPayload — a fronteira do ADR-0032", () => {
     const { detail } = splitUfPayload(input, "pres", 1);
     expect(detail.series_temporais).toBeNull();
   });
+
+  it("`eleitores`/`capital` atravessam o split quando existem (migration 0006)", () => {
+    const input = makeInput(2);
+    const municipios = input.municipios as EdgeUfMunicipio[];
+    // Capital com eleitorado = Σ dos pares (município × zona) do município.
+    municipios[0] = { ...(municipios[0] as EdgeUfMunicipio), eleitores: 1_992_984, capital: true };
+    municipios[1] = { ...(municipios[1] as EdgeUfMunicipio), eleitores: 238_276 };
+
+    const { detail } = splitUfPayload(input, "pres", 1);
+
+    expect(detail.municipios[0]?.eleitores).toBe(1_992_984);
+    expect(detail.municipios[0]?.capital).toBe(true);
+    expect(detail.municipios[1]?.eleitores).toBe(238_276);
+    // Não-capital não carrega a chave — ausência == false (decisão D-d).
+    expect(detail.municipios[1]).not.toHaveProperty("capital");
+  });
+
+  it("município SEM `eleitores`/`capital` continua válido (Blob/fixture antigos)", () => {
+    // É o ponto da decisão D-d: os dois campos são opcionais, então os Blobs
+    // já gravados e `tests/fixtures/blob/uf-municipios-pres-t1.json` (que não
+    // os tem) seguem sendo payloads legítimos.
+    const { detail } = splitUfPayload(makeInput(1), "pres", 1);
+    const municipio = detail.municipios[0] as EdgeUfMunicipio;
+    expect(municipio).not.toHaveProperty("eleitores");
+    expect(municipio).not.toHaveProperty("capital");
+    expect(municipio.cod_ibge).toBe("3500000");
+  });
 });
 
 describe("readUfDetail — degradação com motivo", () => {
