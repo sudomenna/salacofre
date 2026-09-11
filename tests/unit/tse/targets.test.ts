@@ -349,6 +349,85 @@ describe("listIngestTargets — granularidade uf (opt-in explícito)", () => {
 // env|codEleicao|baseUrl|granularidade
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// listIngestTargets — pares (município × zona), migration 0006 (ADR-0035 D1)
+// e filtro por cargo (ADR-0035 D3 — cron por cargo)
+// ---------------------------------------------------------------------------
+
+/**
+ * mockZonasRowsOnce — sobrescreve APENAS a próxima chamada de `db.select`
+ * para devolver `rows` — usado para simular `zonas` com 2+ pares (mesma
+ * zona, municípios distintos), o cenário real do TSE 2026 (migration 0006:
+ * uma linha de `zonas` é um PAR, não mais "1 município por zona"). O objeto
+ * devolvido é awaitable (Promise real) e também tem `.where()` — cobre tanto
+ * `buildProductionTargetsZona` (sem `.where()`) quanto
+ * `buildPreviewTargetsZona` (com `.where()`).
+ */
+function mockZonasRowsOnce(
+  rows: Array<{ uf: string; codMunicipioTse: number; codZona: number }>,
+): void {
+  const awaitable = Object.assign(Promise.resolve(rows), {
+    where: () => Promise.resolve(rows),
+  });
+  vi.mocked(db.select).mockReturnValueOnce({ from: () => awaitable } as never);
+}
+
+describe("listIngestTargets — pares (2 municípios na mesma zona)", () => {
+  const PARES_MESMA_ZONA = [
+    { uf: "SP", codMunicipioTse: 71072, codZona: 1 },
+    { uf: "SP", codMunicipioTse: 12345, codZona: 1 },
+  ] as const;
+
+  beforeEach(() => {
+    vi.stubEnv("TSE_GRANULARIDADE", "zona");
+    vi.stubEnv("TSE_COD_ELEICAO", "ele2026/619");
+  });
+
+  it("2 pares da mesma zona × 1 cargo ativo → 2 targets com URLs distintas (por mun5)", async () => {
+    vi.stubEnv("TSE_CARGOS", "1");
+    mockZonasRowsOnce([...PARES_MESMA_ZONA]);
+
+    const targets = await listIngestTargets("production");
+
+    expect(targets).toHaveLength(2);
+    expect(targets.every((t) => t.nivel === "zona" && t.codZona === 1 && t.cargo === 1)).toBe(true);
+    expect(new Set(targets.map((t) => t.url)).size).toBe(2);
+    expect(targets.map((t) => t.codMunicipioTse).sort()).toEqual([12345, 71072]);
+    expect(targets.find((t) => t.codMunicipioTse === 71072)?.url).toContain("sp71072-");
+    expect(targets.find((t) => t.codMunicipioTse === 12345)?.url).toContain("sp12345-");
+  });
+
+  it("opts.cargo restringe a um único cargo mesmo com TSE_CARGOS=1,3 (2 pares → 2 targets, não 4)", async () => {
+    vi.stubEnv("TSE_CARGOS", "1,3");
+    mockZonasRowsOnce([...PARES_MESMA_ZONA]);
+
+    const targets = await listIngestTargets("production", { cargo: 3 });
+
+    expect(targets).toHaveLength(2);
+    expect(targets.every((t) => t.cargo === 3)).toBe(true);
+  });
+
+  it("opts.cargo pedido fora de TSE_CARGOS → lista vazia (sem fallback silencioso)", async () => {
+    vi.stubEnv("TSE_CARGOS", "3");
+    mockZonasRowsOnce([...PARES_MESMA_ZONA]);
+
+    const targets = await listIngestTargets("production", { cargo: 1 });
+
+    expect(targets).toHaveLength(0);
+  });
+
+  it("cache diferencia por cargo — opts.cargo=1 e opts.cargo=3 não reaproveitam a mesma entrada", async () => {
+    vi.stubEnv("TSE_CARGOS", "1,3");
+    mockZonasRowsOnce([...PARES_MESMA_ZONA]);
+    await listIngestTargets("production", { cargo: 1 });
+    expect(vi.mocked(db.select)).toHaveBeenCalledTimes(1);
+
+    mockZonasRowsOnce([...PARES_MESMA_ZONA]);
+    await listIngestTargets("production", { cargo: 3 });
+    expect(vi.mocked(db.select)).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("listIngestTargets — granularidade zona (opt-in) — cache não cruza bases", () => {
   it("reaproveita cache no mesmo baseUrl, refaz query quando baseUrl muda", async () => {
     vi.stubEnv("TSE_GRANULARIDADE", "zona");

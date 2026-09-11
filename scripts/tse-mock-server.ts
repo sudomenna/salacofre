@@ -66,23 +66,40 @@
 //                          um envelope EA20 REAL gerado a partir de um
 //                          template determinístico (seed = sha256(uf:zona:cargo)),
 //                          SEM precisar de um arquivo de fixture por zona —
-//                          cobre exatamente o universo (~2.600 zonas × 2
+//                          cobre exatamente o universo (~6.100 pares × 2
 //                          cargos) que `lib/tse/targets.ts:buildProductionTargetsZona`
 //                          materializa a partir da tabela `zonas` real do
-//                          Neon, qualquer que seja o código exato de zona.
-//                          `zona > N` → 404 (zona "não publicada"). Município
-//                          é ignorado no match (não afeta o conteúdo
-//                          sintético). Combina com --not-found-ratio e
+//                          Neon (uma linha por PAR município×zona desde a
+//                          migration 0006), qualquer que seja o código exato
+//                          de zona. `zona > N` → 404 (zona "não publicada"),
+//                          A MENOS que `--pares` esteja setado — nesse caso o
+//                          CSV de pares é o único portão (ver `--pares`
+//                          acima). Combina com --not-found-ratio e
 //                          --rate-limit-after normalmente. O conteúdo é
-//                          estável entre requisições (seed determinística +
-//                          `dg`/`hg` fixados no boot do processo) — uma 2ª
-//                          chamada idêntica cai em 304 via ETag, como no TSE
-//                          real.
+//                          estável entre requisições (seed determinística —
+//                          `sha256(uf:município:zona:cargo)`, ver
+//                          `generateSyntheticZonaEnvelope` — + `dg`/`hg`
+//                          fixados no boot do processo) — uma 2ª chamada
+//                          idêntica cai em 304 via ETag, como no TSE real.
 //   --cargos "1,3"        (default "1,3"; só tem efeito com --zonas). Lista
 //                          de cargos (números crus, sem zero-padding) que
 //                          recebem conteúdo sintético 200; cargos fora da
 //                          lista respondem 404 (simula rollout parcial por
 //                          cargo).
+//   --pares <csv>          (default: desligado — sem restrição de par; só
+//                          tem efeito com --zonas). Path de um CSV com
+//                          colunas `uf,cod_municipio_tse,cod_zona` (uma
+//                          linha de cabeçalho opcional). Quando setado,
+//                          `--zonas N` deixa de ser o único portão: uma
+//                          requisição de nível ZONA só recebe 200 se o par
+//                          exato (uf, município, zona) da URL está no CSV —
+//                          qualquer outro par (mesmo com zona <= N) responde
+//                          404. Sem isso, o ensaio de escala não distinguia
+//                          "par certo" de "par errado" — só "zona <= N",
+//                          ignorando o município do path inteiramente (2026-
+//                          09-11, plano `perfeito-monte-um-plano-eventual-
+//                          candle.md`, Fase 2 — a unidade de ingestão real do
+//                          TSE 2026 é o par, não a zona).
 //
 // Uso:
 //   pnpm tsx scripts/tse-mock-server.ts --port 8787
@@ -140,6 +157,53 @@ export interface MockServerOptions {
   /** Cargos (números crus) que recebem 200 sintético quando o modo sintético
    *  está ligado. Ignorado em modo arquivo. */
   syntheticCargos: Set<number>;
+  /** Conjunto de pares conhecidos (`"<uf>:<mun5>:<zona4>"`), carregado do CSV
+   *  de `--pares`. `undefined` = sem restrição de par (comportamento
+   *  pré-2026-09-11: só `--zonas N` decide). Ver comentário `--pares` no
+   *  cabeçalho do arquivo. */
+  paresConhecidos?: Set<string>;
+}
+
+/** Chave de um par no formato usado por `paresConhecidos`. */
+function parKey(uf: string, codMunicipioTse: number, codZona: number): string {
+  return `${uf.toLowerCase()}:${String(codMunicipioTse).padStart(5, "0")}:${String(codZona).padStart(4, "0")}`;
+}
+
+/**
+ * loadParesCsv — lê `uf,cod_municipio_tse,cod_zona` de um CSV e devolve o
+ * `Set` de chaves usado por `paresConhecidos`. Tolera uma linha de
+ * cabeçalho (`uf,cod_municipio_tse,cod_zona`, case-insensitive) e linhas em
+ * branco. Lança se o arquivo não existir — falha alto (CLI), não silenciosa.
+ */
+function loadParesCsv(path: string): Set<string> {
+  const absolute = resolve(process.cwd(), path);
+  if (!existsSync(absolute)) {
+    throw new Error(`[tse-mock-server] --pares: arquivo não existe: ${absolute}`);
+  }
+
+  const text = readFileSync(absolute, "utf8");
+  const pares = new Set<string>();
+
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (/^uf\s*,\s*cod_municipio_tse\s*,\s*cod_zona$/i.test(line)) continue;
+
+    const [uf, mun, zona] = line.split(",").map((s) => s.trim());
+    if (!uf || !mun || !zona) {
+      console.warn(`[tse-mock-server] --pares: linha ignorada (colunas insuficientes): "${line}"`);
+      continue;
+    }
+    const munNum = Number(mun);
+    const zonaNum = Number(zona);
+    if (!Number.isFinite(munNum) || !Number.isFinite(zonaNum)) {
+      console.warn(`[tse-mock-server] --pares: linha ignorada (não-numérica): "${line}"`);
+      continue;
+    }
+    pares.add(parKey(uf, munNum, zonaNum));
+  }
+
+  return pares;
 }
 
 function parseCargosList(raw: string): Set<number> {
@@ -195,6 +259,9 @@ function parseArgs(argv: string[]): MockServerOptions {
         break;
       case "--cargos":
         opts.syntheticCargos = parseCargosList(String(argv[++i]));
+        break;
+      case "--pares":
+        opts.paresConhecidos = loadParesCsv(String(argv[++i]));
         break;
       default:
         console.warn(`[tse-mock-server] flag desconhecida ignorada: ${arg}`);
@@ -372,12 +439,18 @@ const BOOT_TIMESTAMP = computeBootBrtTimestamp();
  */
 function generateSyntheticZonaEnvelope(args: {
   uf: string;
+  municipio: string; // já formatado 5 dígitos, vindo da URL
   zona: string; // já formatado 4 dígitos, vindo da URL
   cargo: number; // cru, sem zero-padding
   eleicaoSuffix: string; // 6 dígitos, vindo da URL
 }): Record<string, unknown> {
-  const { uf, zona, cargo, eleicaoSuffix } = args;
-  const seedKey = `${uf}:${zona}:${cargo}`;
+  const { uf, municipio, zona, cargo, eleicaoSuffix } = args;
+  // Seed inclui o município (2026-09-11): antes era só `uf:zona:cargo`, o
+  // que fazia dois pares DIFERENTES da mesma zona (municípios distintos)
+  // produzirem o MESMO corpo sintético — o ensaio de escala não conseguia
+  // distinguir "par certo" de "par errado" pelo conteúdo. Ver `--pares` no
+  // cabeçalho do arquivo.
+  const seedKey = `${uf}:${municipio}:${zona}:${cargo}`;
   const rand = mulberry32(seedFromKey(seedKey));
 
   // Tamanho do eleitorado da zona: 150..3.150 (faixa plausível de zona
@@ -648,7 +721,20 @@ function buildRequestHandler(opts: MockServerOptions, counters: Counters) {
         return;
       }
 
-      if (opts.syntheticZonasMax === undefined || zonaNum > opts.syntheticZonasMax) {
+      // Portão de par: quando `--pares` está setado, ele é a ÚNICA fonte de
+      // verdade sobre quais pares existem — mesmo um par com zona <= N (o
+      // teto de `--zonas`) responde 404 se não estiver no CSV. Sem
+      // `--pares`, mantém o comportamento pré-2026-09-11 (`zona <= N`,
+      // município ignorado no match).
+      if (opts.paresConhecidos !== undefined) {
+        const key = parKey(match.uf, Number(match.municipio), zonaNum);
+        if (!opts.paresConhecidos.has(key)) {
+          recordStatus(counters, 404);
+          sendJson(res, 404, { error: "not_found" });
+          logLine(opts, method, pathname, 404);
+          return;
+        }
+      } else if (opts.syntheticZonasMax === undefined || zonaNum > opts.syntheticZonasMax) {
         recordStatus(counters, 404);
         sendJson(res, 404, { error: "not_found" });
         logLine(opts, method, pathname, 404);
@@ -664,6 +750,7 @@ function buildRequestHandler(opts: MockServerOptions, counters: Counters) {
 
       const envelope = generateSyntheticZonaEnvelope({
         uf: match.uf,
+        municipio: match.municipio,
         zona: match.zona,
         cargo: cargoNum,
         eleicaoSuffix: match.eleicao,
@@ -857,7 +944,8 @@ async function main(): Promise<void> {
       `rate-limit-after: ${opts.rateLimitAfter}, not-found-ratio: ${opts.notFoundRatio}, ` +
       `latency-ms: ${opts.latencyMs}, ` +
       `zonas: ${opts.syntheticZonasMax ?? "off (modo fixture)"}, ` +
-      `cargos: ${opts.syntheticZonasMax !== undefined ? [...opts.syntheticCargos].join(",") : "n/a"})`,
+      `cargos: ${opts.syntheticZonasMax !== undefined ? [...opts.syntheticCargos].join(",") : "n/a"}, ` +
+      `pares: ${opts.paresConhecidos ? `${opts.paresConhecidos.size} conhecidos` : "off (sem restrição de par)"})`,
   );
   console.log("[tse-mock-server] Ctrl+C para encerrar.");
 

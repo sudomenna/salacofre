@@ -44,14 +44,23 @@ import type { Target } from "./targets";
 
 /**
  * Fetches the most recent ETag and payload hash for a given
- * (cargo, turno, uf, cod_zona) combination.
+ * (cargo, turno, uf, cod_municipio_tse, cod_zona) combination.
+ *
+ * Migration 0006 (ADR-0035 D1): the dedup key gained `cod_municipio_tse`
+ * because a single zone can now be split across multiple ingestion targets
+ * (one per município — the TSE 2026 EA20 is published per PAR município ×
+ * zona). Without this column, two pares of the same zone would collide on
+ * dedup — `insertSnapshot` would see the second par's fresh payload as
+ * "same hash as the first par" purely because both filtered on
+ * `(cargo, turno, uf, cod_zona)` alone, ignoring which município the row
+ * actually belongs to.
  *
  * Used by the route handler BEFORE calling fetchEA20:
  *   1. The ETag is forwarded in `If-None-Match` to the TSE CDN (RF-003).
  *   2. The hash is used for secondary dedup inside `insertSnapshot` (RF-004).
  *
  * Returns `{ etag: null, hash: null }` when no previous snapshot exists for
- * this combination (first ingest for a given zone).
+ * this combination (first ingest for a given par).
  *
  * @throws IngestError('persist', ...) on database error.
  */
@@ -73,6 +82,7 @@ export async function getLastEtagAndHash(args: {
           eq(schema.snapshots.cargo, target.cargo),
           eq(schema.snapshots.turno, turno),
           eq(schema.snapshots.uf, target.uf),
+          eq(schema.snapshots.codMunicipioTse, target.codMunicipioTse),
           eq(schema.snapshots.codZona, target.codZona),
         ),
       )
@@ -80,7 +90,7 @@ export async function getLastEtagAndHash(args: {
       .limit(1);
 
     // noUncheckedIndexedAccess: rows[0] may be undefined when there are no
-    // prior snapshots for this zone. This is the expected first-ingest path.
+    // prior snapshots for this par. This is the expected first-ingest path.
     const row = rows[0];
     if (!row) {
       return { etag: null, hash: null };
@@ -94,7 +104,7 @@ export async function getLastEtagAndHash(args: {
     if (err instanceof IngestError) throw err;
     throw new IngestError(
       "persist",
-      `getLastEtagAndHash falhou para ${target.uf} cargo=${target.cargo} zona=${target.codZona} turno=${turno}`,
+      `getLastEtagAndHash falhou para ${target.uf} cargo=${target.cargo} municipio=${target.codMunicipioTse} zona=${target.codZona} turno=${turno}`,
       err,
     );
   }
@@ -149,6 +159,7 @@ export async function insertSnapshot(args: {
       uf: target.uf,
       cargo: target.cargo,
       turno,
+      codMunicipioTse: target.codMunicipioTse,
       codZona: target.codZona,
       hash,
     });
@@ -164,6 +175,7 @@ export async function insertSnapshot(args: {
         cargo: target.cargo,
         turno,
         uf: target.uf,
+        codMunicipioTse: target.codMunicipioTse,
         codZona: target.codZona,
         etag: etag ?? null,
         hashPayload: hash,
@@ -189,7 +201,7 @@ export async function insertSnapshot(args: {
     if (err instanceof IngestError) throw err;
     throw new IngestError(
       "persist",
-      `insertSnapshot falhou para ${target.uf} cargo=${target.cargo} zona=${target.codZona} turno=${turno}`,
+      `insertSnapshot falhou para ${target.uf} cargo=${target.cargo} municipio=${target.codMunicipioTse} zona=${target.codZona} turno=${turno}`,
       err,
     );
   }
@@ -268,10 +280,13 @@ export async function logIngestRun(args: {
 
 /** Shape do JSON armazenado em `ingest_log.notes` que o route handler
  *  consegue interpretar. Campos além destes (turno, env, etc — ver
- *  app/api/ingest/route.ts) são ignorados aqui; só `running` é usado pelo
- *  lock anti-overlap. */
+ *  lib/tse/ingest-handler.ts) são ignorados aqui; `running` e `cargo` são
+ *  usados pelo lock anti-overlap (ADR-0035 D3 — lock por cargo). */
 export interface LastIngestRunNotes {
   running?: boolean;
+  /** Cargo do ciclo (1|3). Ausente quando o ciclo cobriu todos os cargos
+   *  ativos (rota `/api/ingest`, sem segmento). */
+  cargo?: number;
   [key: string]: unknown;
 }
 
@@ -280,51 +295,71 @@ export interface LastIngestRun {
   notes: LastIngestRunNotes | null;
 }
 
+/** Quantas linhas recentes de `ingest_log` são examinadas em busca de um
+ *  marcador do cargo pedido — ver `getLastIngestRun`. Duas linhas por ciclo
+ *  (marcador `running:true` + linha final `running:false`) para até 2
+ *  cargos intercalados cobrem folgadamente esta janela. */
+const LAST_INGEST_RUN_SCAN_LIMIT = 10;
+
 /**
- * getLastIngestRun — lê a última linha de `ingest_log` (por `ts` desc).
+ * getLastIngestRun — lê as últimas linhas de `ingest_log` (por `ts` desc) e
+ * devolve a mais recente cujo `notes.cargo` bate com o `cargo` pedido.
  *
- * Usado pelo lock anti-overlap simples do route handler (RF-002 hardening,
- * 2026-09-05): antes de iniciar um ciclo, o handler grava uma linha marcador
- * com `notes.running = true`; ao final, grava outra com `notes.running =
- * false` junto das métricas do ciclo — append-only (constituição § 10), sem
- * UPDATE. Se a última linha tem `running: true` e é recente (<3min), o
- * handler entende que um ciclo anterior ainda está em voo (ou travou) e
- * pula este ciclo em vez de rodar em paralelo.
+ * Usado pelo lock anti-overlap simples do handler de ingestão (RF-002
+ * hardening; ADR-0035 D3 — lock **por cargo**): antes de iniciar um ciclo, o
+ * handler grava uma linha marcador com `notes.running = true` (e
+ * `notes.cargo`, quando o ciclo é restrito a um cargo); ao final, grava outra
+ * com `notes.running = false` junto das métricas do ciclo — append-only
+ * (constituição § 10), sem UPDATE. Se a linha mais recente DO MESMO CARGO tem
+ * `running: true` e é recente (<6min), o handler entende que um ciclo
+ * anterior desse cargo ainda está em voo (ou travou) e pula este ciclo em
+ * vez de rodar em paralelo. Um ciclo do cargo 1 nunca vê o lock do cargo 3
+ * (e vice-versa) — as duas invocações do cron rodam concorrentemente por
+ * desenho (ADR-0035 D3).
  *
- * Retorna `null` quando `ingest_log` está vazia (primeiro ciclo do processo).
- * `notes` malformado (JSON inválido) retorna `null` em vez de lançar — um
- * lock que não pode ser lido é tratado como "sem lock" (fail-open: preferimos
- * rodar um ciclo a mais do que travar o pipeline por um parse error).
+ * @param cargo — `undefined` busca a última linha SEM `notes.cargo` (ciclo
+ *   de todos os cargos, rota `/api/ingest`); `1`/`3` busca a última linha
+ *   cujo `notes.cargo` seja exatamente esse valor.
+ *
+ * Retorna `null` quando `ingest_log` está vazia ou nenhuma das últimas
+ * `LAST_INGEST_RUN_SCAN_LIMIT` linhas casa com o `cargo` pedido (equivalente
+ * a "sem lock conhecido para este cargo" — fail-open, não bloqueia o
+ * primeiro ciclo de um cargo novo). `notes` malformado (JSON inválido) é
+ * tratado como `notes: null` (não casa com nenhum `cargo` específico) em vez
+ * de lançar — um lock que não pode ser lido é tratado como "sem lock".
  *
  * @throws IngestError('persist', ...) em erro de banco (não em notes malformado).
  */
-export async function getLastIngestRun(): Promise<LastIngestRun | null> {
+export async function getLastIngestRun(cargo?: 1 | 3): Promise<LastIngestRun | null> {
   try {
     const rows = await db
       .select({ ts: schema.ingestLog.ts, notes: schema.ingestLog.notes })
       .from(schema.ingestLog)
       .orderBy(desc(schema.ingestLog.ts))
-      .limit(1);
+      .limit(LAST_INGEST_RUN_SCAN_LIMIT);
 
-    const row = rows[0];
-    if (!row) {
-      return null;
-    }
-
-    let notes: LastIngestRunNotes | null = null;
-    if (row.notes) {
-      try {
-        const parsed: unknown = JSON.parse(row.notes);
-        if (parsed && typeof parsed === "object") {
-          notes = parsed as LastIngestRunNotes;
+    for (const row of rows) {
+      let notes: LastIngestRunNotes | null = null;
+      if (row.notes) {
+        try {
+          const parsed: unknown = JSON.parse(row.notes);
+          if (parsed && typeof parsed === "object") {
+            notes = parsed as LastIngestRunNotes;
+          }
+        } catch {
+          // notes malformado — fail-open, ver docstring acima.
+          notes = null;
         }
-      } catch {
-        // notes malformado — fail-open, ver docstring acima.
-        notes = null;
+      }
+
+      const rowCargo = notes?.cargo;
+      const matches = cargo === undefined ? rowCargo === undefined : rowCargo === cargo;
+      if (matches) {
+        return { ts: row.ts, notes };
       }
     }
 
-    return { ts: row.ts, notes };
+    return null;
   } catch (err) {
     if (err instanceof IngestError) throw err;
     throw new IngestError("persist", "getLastIngestRun falhou ao consultar ingest_log", err);

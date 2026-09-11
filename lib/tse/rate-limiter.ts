@@ -140,10 +140,35 @@ export function createTokenBucket(opts: TokenBucketOptions): TokenBucket {
  *  mesmo via env, para deixar margem de segurança (outros processos no
  *  mesmo IP, retries, HEAD do tse-watch, e o 304 que tratamos como se
  *  consumisse cota). Teto exigido por RF-010.3 da spec 001 — não elevar
- *  sem revisar a spec e o ADR-0020. */
+ *  sem revisar a spec e o ADR-0020.
+ *
+ * Default 40 (2026-09-11, ADR-0035 D3 emendado pela auditoria constitucional
+ * do mesmo dia): desde o cron por cargo, CADA invocação de
+ * `/api/ingest/[cargo]` roda num rate limiter de PROCESSO separado (Fluid
+ * Compute isola instâncias por invocação concorrente) — os cargos 1 e 3
+ * podem ingerir ao mesmo tempo, e os dois buckets NÃO se coordenam.
+ *
+ * A primeira versão desta mudança pôs o default em 50, o que dava pior caso
+ * de 2 × 50 = exatamente 100 rps: a borda documentada do TSE, sem folga
+ * nenhuma para retry, para o HEAD do `tse-watch`, para o 304 (que conta) nem
+ * para qualquer outro processo no mesmo IP. A constituição § 1 exige teto
+ * "**bem abaixo** do limite documentado" — e "exatamente no limite" não
+ * satisfaz esse texto. Default 40 devolve margem real: pior caso agregado 80
+ * rps, 20% abaixo do teto. Custo: 6.109 GETs a 40 rps ≈ 153 s por cargo,
+ * bem dentro do `maxDuration` de 300 s.
+ *
+ * O CEILING segue em 50 para que uma janela SUPERVISIONADA (simulado, com
+ * alguém lendo `rateLimited` em tempo real) possa subir via `TSE_MAX_RPS`
+ * deliberadamente. Produção desassistida usa o default.
+ *
+ * Pendência registrada: dois buckets independentes garantem a média, não o
+ * pico instantâneo. Um limitador coordenado entre invocações (contador
+ * compartilhado) é a solução completa — decidir depois do simulado 1, com
+ * `rateLimited` medido. Era 30 quando um único ciclo cobria todos os cargos
+ * sequencialmente (nunca duas invocações reais em paralelo no mesmo IP). */
 const TSE_MAX_RPS_CEILING = 50;
 const TSE_MAX_RPS_FLOOR = 1;
-const TSE_MAX_RPS_DEFAULT = 30;
+const TSE_MAX_RPS_DEFAULT = 40;
 
 let singleton: TokenBucket | null = null;
 

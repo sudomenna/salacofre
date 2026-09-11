@@ -105,17 +105,21 @@ describe("getTseRateLimiter", () => {
     vi.unstubAllEnvs();
   });
 
-  it("usa default 30 rps quando TSE_MAX_RPS está ausente", () => {
+  // Default 40, não 50: com o cron por cargo (ADR-0035 D3) duas invocações
+  // podem correr no mesmo IP com buckets independentes. 2 × 50 daria
+  // exatamente os 100 rps do teto do TSE, e a constituição § 1 exige teto
+  // "bem abaixo" do limite documentado — 2 × 40 = 80 devolve a margem.
+  it("usa default 40 rps quando TSE_MAX_RPS está ausente (§ 1: margem agregada)", () => {
     vi.stubEnv("TSE_MAX_RPS", "");
     const bucket = getTseRateLimiter();
 
-    // Burst default = ratePerSec; 30 tryAcquire() consecutivos devem passar,
-    // o 31º deve falhar (relógio real não anda entre chamadas síncronas).
+    // Burst default = ratePerSec; 40 tryAcquire() consecutivos devem passar,
+    // o 41º deve falhar (relógio real não anda entre chamadas síncronas).
     let succeeded = 0;
-    for (let i = 0; i < 31; i++) {
+    for (let i = 0; i < 41; i++) {
       if (bucket.tryAcquire()) succeeded++;
     }
-    expect(succeeded).toBe(30);
+    expect(succeeded).toBe(40);
   });
 
   it("respeita TSE_MAX_RPS dentro do clamp [1, 50]", () => {

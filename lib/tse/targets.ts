@@ -522,8 +522,9 @@ function cacheKey(
   codEleicao: string,
   baseUrl: string,
   granularidade: TseGranularidade,
+  cargoFiltro: 1 | 3 | undefined,
 ): string {
-  return `${env}|${codEleicao}|${baseUrl}|${granularidade}`;
+  return `${env}|${codEleicao}|${baseUrl}|${granularidade}|${cargoFiltro ?? "all"}`;
 }
 
 /**
@@ -542,24 +543,44 @@ export function clearTargetsCache(): void {
 // listIngestTargets (função principal)
 // ---------------------------------------------------------------------------
 
+export interface ListIngestTargetsOptions {
+  /**
+   * Restringe os alvos a um único cargo. `undefined` (default) mantém o
+   * comportamento anterior: todos os cargos ativos (`getActiveCargos()` /
+   * `TSE_CARGOS`).
+   *
+   * Usado pelo cron por cargo (ADR-0035 D3, `app/api/ingest/[cargo]/route.ts`):
+   * cada invocação do cron cobre só um cargo, então nunca precisa enumerar
+   * o outro. Quando `cargo` não está entre os cargos ativos (`TSE_CARGOS`),
+   * o resultado é uma lista vazia — não há fallback silencioso para "todos".
+   */
+  cargo?: 1 | 3;
+}
+
 /**
  * Retorna a lista materializada de targets para o ciclo de ingestão.
  *
  * @param env
  *   - 'preview'    → whitelist via TSE_TARGETS_WHITELIST (default: SP × Presidente).
  *   - 'production' → todas as UFs (ou zonas, conforme `TSE_GRANULARIDADE`) × cargos ativos.
+ * @param opts.cargo — restringe a um único cargo (ver `ListIngestTargetsOptions`).
  *
  * Cache por 5 minutos no estado do módulo — Fluid Compute reutiliza instâncias,
  * evitando N queries ao Neon por ciclo de 60s. Chave do cache inclui
- * `codEleicao`, o host base (`TSE_BASE_URL`) e a granularidade — ver `cacheKey`.
+ * `codEleicao`, o host base (`TSE_BASE_URL`), a granularidade e o cargo —
+ * ver `cacheKey`.
  *
  * Cobre: RF-001 (descoberta de endpoints), decisão D-4 (whitelist preview).
  */
-export async function listIngestTargets(env: "preview" | "production"): Promise<Target[]> {
+export async function listIngestTargets(
+  env: "preview" | "production",
+  opts: ListIngestTargetsOptions = {},
+): Promise<Target[]> {
   const codEleicao = getCodEleicao();
   const baseUrl = getTseBaseUrl();
   const granularidade = getGranularidade();
-  const key = cacheKey(env, codEleicao, baseUrl, granularidade);
+  const cargoFiltro = opts.cargo;
+  const key = cacheKey(env, codEleicao, baseUrl, granularidade, cargoFiltro);
 
   const now = Date.now();
   const cached = cache.get(key);
@@ -572,13 +593,13 @@ export async function listIngestTargets(env: "preview" | "production"): Promise<
   if (env === "preview") {
     targets =
       granularidade === "zona"
-        ? await buildPreviewTargetsZona(codEleicao, baseUrl)
-        : buildPreviewTargetsUf(codEleicao, baseUrl);
+        ? await buildPreviewTargetsZona(codEleicao, baseUrl, cargoFiltro)
+        : buildPreviewTargetsUf(codEleicao, baseUrl, cargoFiltro);
   } else {
     targets =
       granularidade === "zona"
-        ? await buildProductionTargetsZona(codEleicao, baseUrl)
-        : buildProductionTargetsUf(codEleicao, baseUrl);
+        ? await buildProductionTargetsZona(codEleicao, baseUrl, cargoFiltro)
+        : buildProductionTargetsUf(codEleicao, baseUrl, cargoFiltro);
   }
 
   cache.set(key, { targets, expiresAt: now + CACHE_TTL_MS });
@@ -614,11 +635,27 @@ function buildBrTarget(cargo: 1 | 3, codEleicao: string, baseUrl: string): Targe
 }
 
 /**
+ * filterCargos — aplica o filtro opcional de cargo a uma lista de cargos
+ * ativos. `cargoFiltro === undefined` devolve a lista inalterada (ciclo de
+ * todos); caso contrário, restringe a esse único cargo (lista vazia se o
+ * cargo pedido não está entre os ativos — sem fallback silencioso).
+ */
+function filterCargos(
+  cargosAtivos: ReadonlyArray<1 | 3>,
+  cargoFiltro: 1 | 3 | undefined,
+): Array<1 | 3> {
+  if (cargoFiltro === undefined) return [...cargosAtivos];
+  return cargosAtivos.filter((c) => c === cargoFiltro);
+}
+
+/**
  * Preview, granularidade "uf": 1 target por (uf, cargo) da whitelist — sem
  * tocar o DB (a lista de UFs vem literalmente da whitelist, não de `zonas`).
  */
-function buildPreviewTargetsUf(codEleicao: string, baseUrl: string): Target[] {
-  const whitelist = parseWhitelist(process.env.TSE_TARGETS_WHITELIST);
+function buildPreviewTargetsUf(codEleicao: string, baseUrl: string, cargoFiltro?: 1 | 3): Target[] {
+  const whitelist = parseWhitelist(process.env.TSE_TARGETS_WHITELIST).filter(
+    ({ cargo }) => cargoFiltro === undefined || cargo === cargoFiltro,
+  );
   return whitelist.map(({ uf, cargo }) => buildUfTarget(uf, cargo, codEleicao, baseUrl));
 }
 
@@ -627,8 +664,12 @@ function buildPreviewTargetsUf(codEleicao: string, baseUrl: string): Target[] {
  * cargo 1 — Presidente é o único cargo com arquivo de abrangência Brasil,
  * EA20 § 2 tabela de cargos).
  */
-function buildProductionTargetsUf(codEleicao: string, baseUrl: string): Target[] {
-  const cargosAtivos = getActiveCargos();
+function buildProductionTargetsUf(
+  codEleicao: string,
+  baseUrl: string,
+  cargoFiltro?: 1 | 3,
+): Target[] {
+  const cargosAtivos = filterCargos(getActiveCargos(), cargoFiltro);
   const targets: Target[] = [];
 
   for (const uf of TODAS_UFS) {
@@ -648,8 +689,14 @@ function buildProductionTargetsUf(codEleicao: string, baseUrl: string): Target[]
 // Targets — granularidade "zona" (unidade da regra de três do modelo)
 // ---------------------------------------------------------------------------
 
-async function buildPreviewTargetsZona(codEleicao: string, baseUrl: string): Promise<Target[]> {
-  const whitelist = parseWhitelist(process.env.TSE_TARGETS_WHITELIST);
+async function buildPreviewTargetsZona(
+  codEleicao: string,
+  baseUrl: string,
+  cargoFiltro?: 1 | 3,
+): Promise<Target[]> {
+  const whitelist = parseWhitelist(process.env.TSE_TARGETS_WHITELIST).filter(
+    ({ cargo }) => cargoFiltro === undefined || cargo === cargoFiltro,
+  );
 
   const targets: Target[] = [];
 
@@ -687,11 +734,16 @@ async function buildPreviewTargetsZona(codEleicao: string, baseUrl: string): Pro
 }
 
 /**
- * Em produção: todas as zonas × cargos ativos (`getActiveCargos()` /
- * `TSE_CARGOS`, default `[1, 3]`).
+ * Em produção: todos os pares (uf, cod_municipio_tse, cod_zona) de `zonas` ×
+ * cargos ativos (`getActiveCargos()` / `TSE_CARGOS`, default `[1, 3]`),
+ * restrito a `cargoFiltro` quando informado (ADR-0035 D3, cron por cargo).
  */
-async function buildProductionTargetsZona(codEleicao: string, baseUrl: string): Promise<Target[]> {
-  const cargosAtivos = getActiveCargos();
+async function buildProductionTargetsZona(
+  codEleicao: string,
+  baseUrl: string,
+  cargoFiltro?: 1 | 3,
+): Promise<Target[]> {
+  const cargosAtivos = filterCargos(getActiveCargos(), cargoFiltro);
 
   const zonas = await db
     .select({

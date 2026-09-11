@@ -79,28 +79,53 @@ const config: VercelProjectConfig = {
   // ADR-0011 fixou cadência em 60s — Vercel Cron mínimo nativo é 1/min.
   // RNF-006: defasagem TSE→tela <90s.
   //
+  // ---------------------------------------------------------------------------
+  // Achado (B) — 2026-09-11, ADR-0035 D3
+  // ---------------------------------------------------------------------------
+  // Uma query string em `path` (ex.: `/api/ingest?cargo=1`) NÃO é documentada
+  // pela Vercel (vercel.com/docs/cron-jobs, vercel.com/docs/cron-jobs/manage-cron-jobs
+  // — lidos 2026-09-11). O que a doc documenta, com exemplo literal, é
+  // distinguir dois crons NO MESMO horário por SEGMENTO DE ROTA:
+  //   `/api/sync-slack-team/T0CAQ10TZ` e `/api/sync-slack-team/T4BOE34OP`.
+  // O header `x-vercel-cron-schedule` só ajuda a distinguir crons de
+  // HORÁRIOS diferentes — inútil aqui, porque presidente e governador rodam
+  // no mesmo minuto. Por isso cada janela abaixo vira DUAS entradas — uma
+  // por cargo — apontando para `/api/ingest/presidente` e
+  // `/api/ingest/governador` (app/api/ingest/[cargo]/route.ts), não para
+  // `/api/ingest?cargo=`.
+  //
   // - Cron de apuração: a cada minuto na janela 17h–04h BRT (UTC-3 sem DST).
   //   17h BRT = 20h UTC; 04h BRT = 07h UTC. Em cron UTC: hours 20-23,0-7.
+  // - Cron do simulado (2026-09-05): 9h-17h BRT = 12h-20h UTC, todo minuto.
+  //   Os simulados oficiais TSE rodam 15-17/09 e 22-24/09, 9h-17h BRT
+  //   (ver docs/testing/tse-simulados.md). Este cron roda TODO DIA nessa
+  //   janela — não só nos dias do simulado — porque `runIngestCycle`
+  //   (lib/tse/ingest-handler.ts) já resolve isso via `INGEST_WINDOW`
+  //   (default "17-04"; setar `INGEST_WINDOW=9-17` no ambiente do simulado):
+  //   fora da janela configurada, o handler responde
+  //   `{ skipped: "out_of_window" }` sem custo real (sem query a targets, sem
+  //   fetch ao TSE). Isso evita ter que fazer redeploy pra ligar/desligar
+  //   este cron especificamente no dia 15 — só a env var `INGEST_WINDOW`
+  //   muda entre ambientes.
   // - Cron heartbeat diurno: 12:00 UTC = 09:00 BRT. Satisfaz exigência Vercel
-  //   de ≥1 execução/dia em plano pago. O handler retorna {skipped} fora
-  //   da janela, então o heartbeat é inofensivo.
+  //   de ≥1 execução/dia em plano pago. Aponta para `/api/ingest` SEM cargo
+  //   (todos os cargos ativos) — o handler retorna {skipped} fora da
+  //   janela, então o heartbeat é inofensivo.
   crons: [
     {
-      path: "/api/ingest",
+      path: "/api/ingest/presidente",
       schedule: "* 20-23,0-7 * * *",
     },
-    // Cron do simulado (2026-09-05): 9h-17h BRT = 12h-20h UTC, todo minuto.
-    // Os simulados oficiais TSE rodam 15-17/09 e 22-24/09, 9h-17h BRT
-    // (ver docs/testing/tse-simulados.md). Este cron roda TODO DIA nessa
-    // janela — não só nos dias do simulado — porque o handler de
-    // `/api/ingest` já resolve isso via `INGEST_WINDOW` (default "17-04";
-    // setar `INGEST_WINDOW=9-17` no ambiente do simulado): fora da janela
-    // configurada, o handler responde `{ skipped: "out_of_window" }` sem
-    // custo real (sem query a targets, sem fetch ao TSE). Isso evita ter
-    // que fazer redeploy pra ligar/desligar este cron especificamente no
-    // dia 15 — só a env var `INGEST_WINDOW` muda entre ambientes.
     {
-      path: "/api/ingest",
+      path: "/api/ingest/governador",
+      schedule: "* 20-23,0-7 * * *",
+    },
+    {
+      path: "/api/ingest/presidente",
+      schedule: "* 12-20 * * *",
+    },
+    {
+      path: "/api/ingest/governador",
       schedule: "* 12-20 * * *",
     },
     {

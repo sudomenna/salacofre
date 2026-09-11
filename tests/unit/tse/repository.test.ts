@@ -166,3 +166,145 @@ describe("repository — RF-004 append-only (constituição § 10)", () => {
     expect(result.hash).toBe("b".repeat(64));
   });
 });
+
+// ---------------------------------------------------------------------------
+// Migration 0006 (ADR-0035 D1) — 2 pares da MESMA zona não colidem na dedup
+// ---------------------------------------------------------------------------
+//
+// Antes da migration 0006, a chave de dedup era (cargo, turno, uf, cod_zona)
+// — sem `cod_municipio_tse`. Como o TSE 2026 publica um EA20 por PAR
+// (município × zona) e 62,5% das zonas cobrem 2+ municípios, dois pares da
+// mesma zona colidiriam: o segundo par inserido seria lido como "mesmo
+// hash" do primeiro (ou pior, `getLastEtagAndHash` do par B devolveria o
+// ETag do par A). `codMunicipioTse` entrou na chave (repository.ts) e no
+// dedup exatamente para separar os dois.
+
+describe("repository — pares (município × zona) não colidem na dedup (migration 0006)", () => {
+  const TEST_UF_PAR = "ZT"; // mesmo sentinel de UF, zona reaproveitada de propósito
+  const TEST_COD_ZONA_PAR = 99002; // zona compartilhada pelos 2 pares abaixo
+  const MUN_A = 88881;
+  const MUN_B = 88882;
+
+  const targetA: Target = {
+    uf: TEST_UF_PAR,
+    cargo: TEST_CARGO,
+    nivel: "zona",
+    codMunicipioTse: MUN_A,
+    codZona: TEST_COD_ZONA_PAR,
+    url: "https://test.invalid/sentinel-par-a.json",
+    codEleicao: "ele2026/test",
+  };
+
+  const targetB: Target = {
+    uf: TEST_UF_PAR,
+    cargo: TEST_CARGO,
+    nivel: "zona",
+    codMunicipioTse: MUN_B,
+    codZona: TEST_COD_ZONA_PAR,
+    url: "https://test.invalid/sentinel-par-b.json",
+    codEleicao: "ele2026/test",
+  };
+
+  async function cleanupParTestSnapshots(): Promise<void> {
+    await db.execute(sql`
+      DELETE FROM snapshots
+      WHERE uf = ${TEST_UF_PAR} AND cod_zona = ${TEST_COD_ZONA_PAR}
+    `);
+  }
+
+  beforeAll(async () => {
+    await cleanupParTestSnapshots();
+  });
+
+  afterAll(async () => {
+    await cleanupParTestSnapshots();
+  });
+
+  it("getLastEtagAndHash é null/null para os 2 pares antes de qualquer insert", async () => {
+    const a = await getLastEtagAndHash({ target: targetA, turno: TEST_TURNO });
+    const b = await getLastEtagAndHash({ target: targetB, turno: TEST_TURNO });
+    expect(a).toEqual({ etag: null, hash: null });
+    expect(b).toEqual({ etag: null, hash: null });
+  });
+
+  it("insertSnapshot com hashes DIFERENTES para os 2 pares — ambos persistem (sem colisão)", async () => {
+    const payload = loadFixture("presidente-sp-z0001.json");
+
+    const idA = await insertSnapshot({
+      target: targetA,
+      turno: TEST_TURNO,
+      etag: '"par-a-1"',
+      hash: "c".repeat(64),
+      payload,
+      pctApurado: 50,
+      votosTotal: 100,
+    });
+    const idB = await insertSnapshot({
+      target: targetB,
+      turno: TEST_TURNO,
+      etag: '"par-b-1"',
+      hash: "d".repeat(64),
+      payload,
+      pctApurado: 60,
+      votosTotal: 120,
+    });
+
+    expect(idA).not.toBeNull();
+    expect(idB).not.toBeNull();
+    expect(idA).not.toBe(idB);
+
+    const resultA = await getLastEtagAndHash({ target: targetA, turno: TEST_TURNO });
+    const resultB = await getLastEtagAndHash({ target: targetB, turno: TEST_TURNO });
+
+    // Cada par reflete o SEU próprio ETag/hash — não o do outro par da
+    // mesma zona (a colisão que a migration 0006 corrigiu).
+    expect(resultA.etag).toBe('"par-a-1"');
+    expect(resultA.hash).toBe("c".repeat(64));
+    expect(resultB.etag).toBe('"par-b-1"');
+    expect(resultB.hash).toBe("d".repeat(64));
+  });
+
+  it("insertSnapshot com o MESMO hash do par A para o par B NÃO é deduplicado (pares independentes)", async () => {
+    const payload = loadFixture("presidente-sp-z0001.json");
+
+    // Par B recebe o MESMO hash que o par A já tem — se a dedup ainda
+    // comparasse só (cargo,turno,uf,cod_zona), isto seria descartado como
+    // "hash idêntico ao último snapshot da zona". Com `cod_municipio_tse` na
+    // chave, o par B compara contra o SEU último hash (`"d".repeat(64)`,
+    // não `"c".repeat(64)`), então este insert é uma mudança real e persiste.
+    const id = await insertSnapshot({
+      target: targetB,
+      turno: TEST_TURNO,
+      etag: '"par-b-2"',
+      hash: "c".repeat(64),
+      payload,
+      pctApurado: 70,
+      votosTotal: 140,
+    });
+
+    expect(id).not.toBeNull();
+
+    const resultB = await getLastEtagAndHash({ target: targetB, turno: TEST_TURNO });
+    expect(resultB.hash).toBe("c".repeat(64));
+    expect(resultB.etag).toBe('"par-b-2"');
+
+    // Par A permanece intocado.
+    const resultA = await getLastEtagAndHash({ target: targetA, turno: TEST_TURNO });
+    expect(resultA.hash).toBe("c".repeat(64));
+    expect(resultA.etag).toBe('"par-a-1"');
+  });
+
+  it("SELECT direto confirma 3 linhas na zona compartilhada (2 do par A+B, 1 do par B repetido) com cod_municipio_tse correto", async () => {
+    const rows = await db.execute<{ cod_municipio_tse: number; hash_payload: string }>(sql`
+      SELECT cod_municipio_tse, hash_payload
+      FROM snapshots
+      WHERE uf = ${TEST_UF_PAR} AND cod_zona = ${TEST_COD_ZONA_PAR}
+      ORDER BY ts ASC
+    `);
+
+    expect(rows.rows).toHaveLength(3);
+    expect(rows.rows[0]).toMatchObject({ cod_municipio_tse: MUN_A, hash_payload: "c".repeat(64) });
+    expect(rows.rows[1]).toMatchObject({ cod_municipio_tse: MUN_B, hash_payload: "d".repeat(64) });
+    expect(rows.rows[2]).toMatchObject({ cod_municipio_tse: MUN_B, hash_payload: "c".repeat(64) });
+  });
+});
