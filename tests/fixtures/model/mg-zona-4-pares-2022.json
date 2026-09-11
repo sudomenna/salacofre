@@ -1,0 +1,79 @@
+{
+  "_nota": "Fixture REAL — não sintética. Fatias por par (município × zona) de MG zona 4, Presidente, 2º TURNO de 2022. Seis municípios; é o caso que os testes de merge nunca tiveram. Origem de cada campo: (a) votos e vvc = QT_VOTOS_NOMINAIS_VALIDOS de build/tse-archives/votacao_partido_munzona_2022/votacao_partido_munzona_2022_BR.csv, somado sobre ST_VOTO_EM_TRANSITO (S+N), dataset aberto oficial do TSE; (b) te e si = QT_ELEITOR_SECAO / NR_SECAO de build/tse-archives/eleitorado_local_votacao_2024/, com o MESMO filtro NR_TURNO=1 que data-pipeline/eleitorado-import.ts:169,178 usa — conferido igual à tabela `eleitorado` nos 6 pares (soma 39.286). O cadastro é de 2024 e o resultado de 2022: é ordem de grandeza para e.te, e o assert do teste é sobre VOTOS. (c) total_zona_esperado NÃO é a soma recalculada aqui — vem de `historical_results` (ano=2022, turno=2, cargo=1, uf=MG, cod_zona=4), fonte independente lida em 2026-09-11: cod_candidato 3022213 (PT, nº 13) = 19152 e 3022222 (PL, nº 22) = 9391.",
+  "uf": "MG",
+  "cod_zona": 4,
+  "turno": 2,
+  "cargo": 1,
+  "pares": [
+    {
+      "cod_municipio_tse": 40177,
+      "votos_por_partido": {
+        "13": 6451,
+        "22": 4582
+      },
+      "vvc": 11033,
+      "te": 14449,
+      "si": 53
+    },
+    {
+      "cod_municipio_tse": 41319,
+      "votos_por_partido": {
+        "13": 2201,
+        "22": 822
+      },
+      "vvc": 3023,
+      "te": 4079,
+      "si": 21
+    },
+    {
+      "cod_municipio_tse": 41505,
+      "votos_por_partido": {
+        "13": 2859,
+        "22": 967
+      },
+      "vvc": 3826,
+      "te": 5469,
+      "si": 18
+    },
+    {
+      "cod_municipio_tse": 41963,
+      "votos_por_partido": {
+        "13": 2441,
+        "22": 828
+      },
+      "vvc": 3269,
+      "te": 4908,
+      "si": 19
+    },
+    {
+      "cod_municipio_tse": 47775,
+      "votos_por_partido": {
+        "13": 2828,
+        "22": 1544
+      },
+      "vvc": 4372,
+      "te": 5859,
+      "si": 21
+    },
+    {
+      "cod_municipio_tse": 49352,
+      "votos_por_partido": {
+        "13": 2372,
+        "22": 648
+      },
+      "vvc": 3020,
+      "te": 4522,
+      "si": 17
+    }
+  ],
+  "eleitorado_zona_esperado": 39286,
+  "total_zona_recalculado_da_entrada": {
+    "13": 19152,
+    "22": 9391
+  },
+  "total_zona_historical_results": {
+    "13": 19152,
+    "22": 9391
+  },
+  "_procedencia_do_esperado": "`total_zona_historical_results` foi LIDO do Postgres em 2026-09-11, não calculado a partir dos pares acima: SELECT cod_candidato, votos FROM historical_results WHERE ano=2022 AND turno=2 AND cargo=1 AND uf='MG' AND cod_zona=4 → {3022213: 19152, 3022222: 9391}, mapeados para os números de urna 13 (PT) e 22 (PL). É a ÚNICA coisa contra a qual o teste principal deve assertar. `total_zona_recalculado_da_entrada` é a soma das fatias e existe só para documentar que as duas coincidem — assertar contra ele seria tautológico, o mesmo defeito que o replay 2022 teve quando o dataset era construído a partir do próprio gabarito."
+}

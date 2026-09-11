@@ -80,7 +80,22 @@ segurança operacional, não confirmação. **Este passo é a confirmação.**
      confirma quais zonas o EA12 associa a cada município e serve de referência
      cruzada independente do EA20.
 
-3. Fazer as três aritméticas decisivas:
+3. **Rodar o script** — as três aritméticas estão automatizadas desde 11/09:
+
+   ```bash
+   set -a; . ./.env.local; set +a
+   pnpm verify-fatia-premise --fixtures tests/fixtures/tse/2026-sim
+   ```
+
+   `scripts/verify-fatia-premise.ts` **não faz nenhuma requisição** — opera só
+   sobre os arquivos já baixados no passo 2. Códigos de saída: **0 = fatia
+   confirmada** (siga o protocolo), **2 = multiplicação** (pare e reporte),
+   **1 = inconclusivo** (não é sinal verde — é ausência de sinal; confira se
+   baixou TODOS os pares de uma zona multi-município). Validado nos dois
+   desfechos contra dado real de MG zona 4 (razão 1,000 → fatia; a mesma zona
+   com os arquivos duplicados → razão 6,000 → multiplicação).
+
+   As três aritméticas que ele executa, para conferência manual se preciso:
 
    - **Σ `e.te` dos pares da zona = eleitorado da zona em `eleitorado`?**
      Somar `e.te` de todos os arquivos de zona baixados no passo 2 e comparar
