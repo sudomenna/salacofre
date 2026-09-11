@@ -84,7 +84,7 @@ describe("readProjection — ordem de fallback", () => {
   it("caminho saudável: chave nova responde e o reader para na primeira leitura", async () => {
     withStore({ "projection-current-pres-t1": { ts: "novo" } });
 
-    const payload = await readProjection();
+    const payload = await readProjection({ cargo: "pres" });
 
     expect(payload).toEqual({ ts: "novo" });
     // O custo do fallback é ZERO quando a chave nova existe — este é o
@@ -97,7 +97,7 @@ describe("readProjection — ordem de fallback", () => {
     // sob o esquema antigo.
     withStore({ "projection:current:pres:t1": { ts: "antigo" } });
 
-    const payload = await readProjection();
+    const payload = await readProjection({ cargo: "pres" });
 
     expect(payload).toEqual({ ts: "antigo" });
     expect(keysRead()).toEqual(["projection-current-pres-t1", "projection:current:pres:t1"]);
@@ -106,7 +106,7 @@ describe("readProjection — ordem de fallback", () => {
   it("miss total na corrida ativa: tenta também os dois aliases, nessa ordem", async () => {
     withStore({});
 
-    const payload = await readProjection();
+    const payload = await readProjection({ cargo: "pres" });
 
     expect(payload).toBeNull();
     expect(keysRead()).toEqual([
@@ -131,13 +131,13 @@ describe("readProjection — ordem de fallback", () => {
       "projection:current": { ts: "alias-antigo" },
     });
 
-    expect(await readProjection()).toEqual({ ts: "alias-novo" });
+    expect(await readProjection({ cargo: "pres" })).toEqual({ ts: "alias-novo" });
   });
 
   it("falha do SDK degrada para null, não propaga", async () => {
     getMock.mockRejectedValue(new Error("edge config indisponível"));
 
-    await expect(readProjection()).resolves.toBeNull();
+    await expect(readProjection({ cargo: "pres" })).resolves.toBeNull();
   });
 });
 
@@ -149,14 +149,14 @@ describe("readUfProjection — ordem de fallback", () => {
   it("caminho saudável: uma leitura na chave nova", async () => {
     withStore({ "projection-uf-SP-pres-t1": { uf: "SP" } });
 
-    expect(await readUfProjection("SP")).toEqual({ uf: "SP" });
+    expect(await readUfProjection("SP", { cargo: "pres" })).toEqual({ uf: "SP" });
     expect(keysRead()).toEqual(["projection-uf-SP-pres-t1"]);
   });
 
   it("miss total: nova → deprecada → alias novo → alias deprecado", async () => {
     withStore({});
 
-    expect(await readUfProjection("SP")).toBeNull();
+    expect(await readUfProjection("SP", { cargo: "pres" })).toBeNull();
     expect(keysRead()).toEqual([
       "projection-uf-SP-pres-t1",
       "projection:uf:SP:pres:t1",
@@ -168,7 +168,7 @@ describe("readUfProjection — ordem de fallback", () => {
   it("sigla malformada não vira chave inválida — degrada para null", async () => {
     withStore({});
 
-    expect(await readUfProjection("SP:1")).toBeNull();
+    expect(await readUfProjection("SP:1", { cargo: "pres" })).toBeNull();
     // Nenhuma leitura chegou a ser feita: a sigla foi rejeitada na
     // construção da chave.
     expect(keysRead()).toEqual([]);
@@ -204,9 +204,9 @@ describe("sem EDGE_CONFIG", () => {
   it("retorna null sem tocar no SDK (dev/preview sem credencial)", async () => {
     delete process.env.EDGE_CONFIG;
 
-    expect(await readProjection()).toBeNull();
-    expect(await readUfProjection("SP")).toBeNull();
-    expect(await readArchivedProjection()).toBeNull();
+    expect(await readProjection({ cargo: "pres" })).toBeNull();
+    expect(await readUfProjection("SP", { cargo: "pres" })).toBeNull();
+    expect(await readArchivedProjection({ cargo: "pres" })).toBeNull();
     expect(getMock).not.toHaveBeenCalled();
   });
 });

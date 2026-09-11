@@ -84,22 +84,28 @@ async function getFirst<T>(keys: readonly string[]): Promise<T | null> {
  * com `{ error: "no_payload" }`, e o page faz fallback para "Aguardando
  * dados".
  *
- * @param opts.cargo  Override do cargo ativo (útil pra preview de
- *                    governador / debug). Default: `"pres"` (ADR-0028 — o cargo nunca vem do calendário).
+ * @param opts.cargo  **Obrigatório.** O cargo que se quer ler. Não há default:
+ *                    o ADR-0028 removeu o default vindo do calendário porque
+ *                    um caller distraído recebia o payload presidencial com
+ *                    forma válida; substituí-lo por um literal `"pres"` teria
+ *                    deixado o mesmo footgun de pé. Apontado pelo
+ *                    `constitution-guard` em 2026-09-11 e fechado no mesmo dia:
+ *                    todos os call sites já declaravam o cargo, então torná-lo
+ *                    obrigatório não custou nada e eliminou o caminho errado.
  * @param opts.turno  Override do turno ativo. Default: `currentPresidentialTurno()`.
  */
-export async function readProjection(opts?: {
-  cargo?: Cargo;
+export async function readProjection(opts: {
+  cargo: Cargo;
   turno?: Turno;
 }): Promise<EdgePayload | null> {
   if (!process.env.EDGE_CONFIG) return null;
-  // O calendário responde só pelo TURNO presidencial (ADR-0028). O cargo NUNCA
-  // sai dele: um default de cargo faria um caller distraído receber o payload
-  // presidencial com forma válida — silencioso e errado assim que existirem
-  // quatro cargos. `"pres"` aqui é o default histórico deste reader, explícito.
+  // O calendário responde só pelo TURNO presidencial (ADR-0028). O cargo é
+  // OBRIGATÓRIO e não tem default: qualquer default — vindo do calendário ou
+  // literal — faria um caller distraído receber o payload presidencial com
+  // forma válida e conteúdo errado.
   const turnoPresidencial = currentPresidentialTurno();
-  const cargo = opts?.cargo ?? "pres";
-  const turno = opts?.turno ?? turnoPresidencial;
+  const cargo = opts.cargo;
+  const turno = opts.turno ?? turnoPresidencial;
 
   // O alias legado sem cargo (`projection-current`) só existiu para a corrida
   // presidencial — comparar contra o literal, não contra o que o calendário
@@ -166,20 +172,20 @@ export async function readNationalProjection(): Promise<EdgePayload | null> {
  *   // ... <TurnoOneRecap recap={recap} />
  *   ```
  *
- * @param opts.cargo  Cargo arquivado. Default: `"pres"` (ADR-0028).
+ * @param opts.cargo  **Obrigatório** — ver `readProjection`.
  * @param opts.turno  Turno arquivado. Default: turno ativo - 1 não faz
  *                    sentido aqui (caller passa explicitamente). Default
  *                    é turno ativo, que SÓ retornará algo se já houve
  *                    transição passada para o turno corrente.
  */
-export async function readArchivedProjection(opts?: {
-  cargo?: Cargo;
+export async function readArchivedProjection(opts: {
+  cargo: Cargo;
   turno?: Turno;
 }): Promise<EdgePayload | null> {
   if (!process.env.EDGE_CONFIG) return null;
   // Ver a nota em `readProjection`: cargo nunca vem do calendário (ADR-0028).
-  const cargo = opts?.cargo ?? "pres";
-  const turno = opts?.turno ?? currentPresidentialTurno();
+  const cargo = opts.cargo;
+  const turno = opts.turno ?? currentPresidentialTurno();
 
   try {
     return await getFirst<EdgePayload>([
@@ -211,16 +217,16 @@ export async function readArchivedProjection(opts?: {
  */
 export async function readUfProjection(
   sigla: string,
-  opts?: { cargo?: Cargo; turno?: Turno },
+  opts: { cargo: Cargo; turno?: Turno },
 ): Promise<EdgePayloadUf | null> {
   if (!process.env.EDGE_CONFIG) return null;
-  // O calendário responde só pelo TURNO presidencial (ADR-0028). O cargo NUNCA
-  // sai dele: um default de cargo faria um caller distraído receber o payload
-  // presidencial com forma válida — silencioso e errado assim que existirem
-  // quatro cargos. `"pres"` aqui é o default histórico deste reader, explícito.
+  // O calendário responde só pelo TURNO presidencial (ADR-0028). O cargo é
+  // OBRIGATÓRIO e não tem default: qualquer default — vindo do calendário ou
+  // literal — faria um caller distraído receber o payload presidencial com
+  // forma válida e conteúdo errado.
   const turnoPresidencial = currentPresidentialTurno();
-  const cargo = opts?.cargo ?? "pres";
-  const turno = opts?.turno ?? turnoPresidencial;
+  const cargo = opts.cargo;
+  const turno = opts.turno ?? turnoPresidencial;
 
   // O alias legado sem cargo (`projection-current`) só existiu para a corrida
   // presidencial — comparar contra o literal, não contra o que o calendário
