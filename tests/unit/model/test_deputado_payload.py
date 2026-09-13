@@ -1441,10 +1441,15 @@ def test_ciclo_proporcional_aciona_a_guarda_quando_a_premissa_da_fatia_cai(
     )
 
     assert status == 200, "a guarda NÃO pode abortar o ciclo (constituição § 7)"
-    assert alertas, "a guarda não acionou o alarme — a chamada saiu do ciclo?"
-    nivel, mensagem, ctx = alertas[0]
+    # Procura o alarme DESTA guarda em vez de assumir que é o primeiro: o mesmo
+    # ciclo ganhou (ou vai ganhar) outros alarmes — o de dado parado, por
+    # exemplo. Assumir `alertas[0]` faria este teste ficar vermelho quando
+    # outro alarme legítimo disparasse antes, e alguém leria isso como "a
+    # trava contra multiplicação quebrou". Ver a nota no par deste teste.
+    multiplicacao = [a for a in alertas if "multiplicação" in a[1]]
+    assert multiplicacao, f"a guarda não acionou o alarme — a chamada saiu do ciclo? alertas={alertas}"
+    nivel, _mensagem, ctx = multiplicacao[0]
     assert nivel == "error"
-    assert "multiplicação" in mensagem
     assert ctx["n_violacoes"] == 1
 
 
@@ -1472,4 +1477,12 @@ def test_ciclo_proporcional_fica_calado_quando_a_premissa_se_confirma(
     )
 
     assert status == 200
-    assert not alertas, f"alarme falso com a premissa confirmada: {alertas}"
+    # ⚠️ A asserção é sobre ESTE alarme, não sobre o silêncio do ciclo inteiro.
+    # `assert not alertas` seria mais forte e **errado**: o mesmo ciclo tem
+    # outros alarmes legítimos (dado parado, por exemplo), e um deles disparar
+    # aqui deixaria este teste vermelho parecendo que a trava contra
+    # multiplicação passou a gritar sempre. Um teste que fica vermelho pela
+    # razão errada é pior que um que não existe — manda consertar o lugar
+    # errado.
+    multiplicacao = [a for a in alertas if "multiplicação" in a[1]]
+    assert not multiplicacao, f"alarme falso com a premissa confirmada: {multiplicacao}"
