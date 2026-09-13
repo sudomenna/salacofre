@@ -119,6 +119,27 @@ demais passos seguem normalmente. Se confirmar a multiplicação (≈ N), **para
 reportar** antes de prosseguir com o resto do protocolo — o modelo estaria
 inflando o eleitorado apurado de 62,5% das zonas do país.
 
+### Passo 0b — `carg[].nv` nos 27 envelopes de cargo 6 (novo em 12/09)
+
+Rápido, e decide se a tela de Deputado pode confiar no denominador.
+
+`lugares_a_preencher` vem de `carg[].nv` e **nunca** de tabela embutida (RF-124,
+ADR-0027). Não foi possível confirmar antes do simulado que o TSE publica esse
+campo desde o primeiro ciclo, a 0% apurado: os únicos snapshots com `nv` no banco
+são do nosso próprio mock, e o parser marca o campo `optional()`. Ver D9.1 do
+[design da spec 017](../specs/017-deputado-federal/design.md).
+
+Ao receber o primeiro ciclo de cargo 6:
+
+- [ ] `nv` está presente nos **27** envelopes?
+- [ ] **Σ `nv` == 513**? (se não, o denominador do quociente está errado em alguma
+      UF, e isso corrompe a projeção inteira daquela UF)
+- [ ] `nv` já vem **a 0% apurado**, ou só aparece depois do primeiro boletim?
+
+Se `nv` só aparecer com apuração, a tela fica com estado transitório: o total de
+cadeiras cresce durante a noite em vez de fechar em 513 desde o início. O código
+já trata os dois casos; o que muda é o que a tela pode afirmar.
+
 ### Passo 1 — Antes das 9h: descobrir, não adivinhar
 
 ```bash
