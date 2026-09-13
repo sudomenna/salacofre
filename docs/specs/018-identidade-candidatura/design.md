@@ -126,8 +126,9 @@ estruturado.
 
 ```ts
 interface CandidatosUfSlice {
-  /** ISO 8601 — quando ESTE arquivo foi escrito. */
-  ts: string;
+  uf: string;                     // sigla; "BR" para cargo 1
+  /** Cargo como TOKEN: "pres" | "gov" | "sen" | "dep" (não código numérico). */
+  cargo: Cargo;
   /**
    * RF-150 — frescor da FONTE, do header `Last-Modified` da resposta HTTP do
    * arquivo do TSE. **Nunca** o `last_modified` do catálogo CKAN (22/07 e
@@ -137,9 +138,12 @@ interface CandidatosUfSlice {
    * hora do cálculo. São relógios distintos e a tela não pode fundi-los.
    */
   fonte_ts: string;
-  uf: string;                     // sigla; "BR" para cargo 1
-  /** Código numérico do TSE — o caminho do arquivo usa o TOKEN (`dep`), o corpo usa o código. */
-  cargo: 1 | 3 | 5 | 6;
+  /**
+   * ISO 8601 — quando ESTE arquivo foi gerado. Separado de `fonte_ts` de propósito:
+   * a tela precisa poder dizer "dado do TSE de X, importado por nós em Y" sem
+   * fundir as duas datas (constituição § 8).
+   */
+  gerado_ts: string;
   /** Publicáveis nesta fatia. Só quem tem `ST_CANDIDATO_INSERIDO_URNA = "SIM"`. */
   candidatos: CandidatoIdentidade[];
 }
@@ -155,8 +159,8 @@ interface CandidatoIdentidade {
   nome: string;
   /** Sigla do partido. Entra em `partyChipInk`, nunca em `colorForParty` como área (D7). */
   partido: string;
-  /** Nome da federação quando houver; `null` em partido isolado. */
-  federacao: string | null;
+  /** Nome da federação quando houver; `null` em partido isolado. Não vira cor — sigla composta cai em `outros` (ADR-0024). */
+  federacao?: string;
   /**
    * `DS_SITUACAO_JULGAMENTO` **cru**, como o TSE publica.
    *
@@ -167,10 +171,17 @@ interface CandidatoIdentidade {
    * — valor desconhecido do TSE passa adiante como veio.
    */
   situacao_julgamento: string;
-  /** `true` quando `situacao_julgamento` NÃO começa em "DEFERIDO" — o gatilho de exibição do aviso. */
+  /**
+   * `true` quando `situacao_julgamento` NÃO é **exatamente igual** a `"DEFERIDO"`.
+   * Inclui "INDEFERIDO", "DEFERIDO EM PRAZO RECURSAL OU COM RECURSO" (84 candidaturas),
+   * e outros estados de julgamento não-triviais. Valor desconhecido é `true` (fail-closed,
+   * ADR-0040 item 3). É **calculado na publicação, nunca no componente** — essa é a decisão:
+   * o ADR-0040 proíbe usar a situação como filtro e manda exibi-la como texto honesto, e uma
+   * regra editorial dessa delicadeza não pode viver espalhada em `if`s de JSX.
+   */
   sob_ressalva: boolean;
-  /** URL pública da foto no Blob, ou `null` quando não há (RF-151 → avatar de fallback). */
-  foto_url: string | null;
+  /** `true` se foto publicada para este `sqcand` existe. Não guardamos a URL — é derivável. */
+  foto_ok: boolean;
 }
 ```
 
@@ -183,31 +194,82 @@ Ordem: `numero` ascendente. Determinismo (constituição § 6) e neutralidade
 corrida"). Ordenar por nome ou por partido introduziria um critério editorial
 onde não deve haver nenhum.
 
-Tamanho estimado, **não medido**: ~250 B por candidatura → a maior fatia
-(cargo 6 em SP, ~500 candidaturas publicáveis) fica na casa de 125 KB. Cabe no
-Blob com folga; não caberia no Global Config. Medir na implementação.
+Tamanho medido em 13/09: **1.061 candidaturas publicáveis em cargo 6 (Deputado Federal) em SP**,
+fatia de **211,6 KB** — a maior entre as 82 fatias do Blob. Razão do tamanho
+maior que o estimado: cargo 6 tem mais nomes completos longos do que os demais,
+e `nome` (~25 B médio por candidatura) representa ~28 KB da fatia. Cabe no Blob
+com folga; não caberia no Global Config.
 
 ### O índice (`candidatos/index.json`)
 
 ```ts
 interface CandidatosIndex {
+  /** Hora da nossa publicação. */
   ts: string;
+  /** Hora da fonte TSE (Last-Modified do Portal de Dados Abertos). */
   fonte_ts: string;
-  /** Uma entrada por fatia efetivamente publicada. Ausência = não publicado. */
-  fatias: Array<{
-    uf: string;
-    cargo: 1 | 3 | 5 | 6;
-    /** Publicáveis nesta fatia. Alimenta a guarda de encolhimento do RF-152. */
-    total: number;
-  }>;
-  /** Σ `fatias[].total`. Baseline medido em 13/09: **7.698** nos quatro cargos. */
-  total_publicaveis: number;
+  /** Σ de candidaturas publicáveis nos quatro cargos. Baseline confirmado em 13/09: **7.698**. */
+  total: number;
+  /** Por cargo e UF: quantas candidaturas publicáveis. Estrutura: `{ <cargo_token>: { <uf>: <contagem> } }`. */
+  por_cargo_uf: {
+    pres: { BR: number };
+    gov: { [uf: string]: number };
+    sen: { [uf: string]: number };
+    dep: { [uf: string]: number };
+  };
+}
+```
+
+Exemplo medido em 13/09 (83 objetos publicados: 82 fatias + 1 índice):
+
+```json
+{
+  "ts": "2026-09-12T22:41:35Z",
+  "fonte_ts": "2026-09-12T22:35:46Z",
+  "total": 7698,
+  "por_cargo_uf": {
+    "pres": { "BR": 12 },
+    "gov": { "AC": 4, "AL": 8, ... },
+    "sen": { "AC": 3, "AL": 2, ... },
+    "dep": { "AC": 48, "AL": 123, ... }
+  }
 }
 ```
 
 Ele resolve a ambiguidade do 404 e é a **base de comparação** do RF-152: o ciclo
-novo confronta seu `total_publicaveis` contra o do índice vigente antes de
+novo confronta seu `total` contra o do índice vigente antes de
 escrever qualquer coisa.
+
+### Snapshot confirmado por HTTP 200 (13/09)
+
+Publicação verificada e alcançável: **83 objetos** (82 fatias de UF × cargo + 1 índice),
+todos com status 200:
+
+- **pres**: 1 fatia (BR)
+- **gov**: 27 fatias (uma por UF)
+- **sen**: 27 fatias (uma por UF)
+- **dep**: 27 fatias (uma por UF)
+- **index.json**: 1
+
+Total publicável nacional: **7.698 candidaturas**. Composição:
+- Presidente: 12
+- Governadores: 180
+- Senadores: 285
+- Deputados Federais: 7.221
+
+Dados consolidados no índice `fonte_ts="2026-09-12T22:35:46Z"` (último HTTP 200 do Portal de Dados Abertos do TSE).
+
+### Armadilha de dados: `coligacao_nome` usa valores-sentinela
+
+A coluna `coligacao_nome` do cadastro TSE publica três valores **distintos de nome real**:
+
+| Valor | Registros | Percentual |
+|---|---|---|
+| `"PARTIDO ISOLADO"` | 5.246 | 68,1% |
+| `"FEDERAÇÃO"` | 2.259 | 29,3% |
+| Nome de coligação real | 193 | **2,5%** (91 nomes distintos) |
+
+**Risco de apresentação**: publicar o sentinela cru faria 7.505 cards dizerem "Coligação: PARTIDO ISOLADO" — texto falso ao leitor. **Filtro aplicado**: igualdade exata com `"FEDERAÇÃO"` ou `"PARTIDO ISOLADO"`; nenhuma das 91 coligações reais começa com essas palavras-chave, então a regra é segura. O campo `federacao` no contrato já é dedicado à federação; `coligacao` não aparece no publicável (cabe no Postgres mas não na fatia de publicação — ver D1). O texto de coligação (quando aplicável) é transportado pela federação.
 
 ## D3 — Emenda ao contrato de `EdgeUfRow.top_candidatos`
 

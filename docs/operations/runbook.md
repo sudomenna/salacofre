@@ -31,6 +31,21 @@ Existe porque a integração Git **já caiu uma vez e ficou 4 meses caída sem n
 
 Documento operacional com procedimentos para cenários críticos. Versão completa: `RUNBOOK.md` na raiz do repo (a ser criado em F6).
 
+## Verificação pós-deploy (obrigatória)
+
+**Procedimento**: após qualquer deploy em produção, testar a home **manualmente** (não automático).
+
+```bash
+# Em navegador, após deploy:
+# 1. Abrir https://salacofre.com.br em incógnito
+# 2. Confirmar que a página exibe "Aguardando o primeiro boletim…"
+# 3. **Não deve exibir resultado com votos reais** (ex: "PT 15.240.321 votos 43,5%")
+```
+
+**Por quê**: `app/(pres)/page.tsx` usava uma fixture hardcoded do modelo que renderizava em produção quando não deveria. Risco agora mitigado (verificado em 13/09), mas o fallback de conveniência é pegadio — uma segunda linha de defesa vale. Se vir resultado real em menos de 2 semanas da apuração, é sinal de corrupção no fallback.
+
+**Blocker**: se a home exibir resultado fora de `development`, não prosseguir com qualquer teste no público — dados falsos publicados são violação da constituição § 8.
+
 ## Cenários cobertos
 
 - **TSE indisponível** (>60s, >5min, >15min) — diagnóstico, banner, escalada.
@@ -189,8 +204,12 @@ Checklist:
 
 ```bash
 set -a; . ./.env.local; set +a
-node --experimental-strip-types data-pipeline/candidatos-import.ts [--force]
+pnpm candidatos:import [--force]
 ```
+
+Internamente usa `tsx` — o loader de strip-types não resolve o alias `@/` que
+`lib/blob/write.ts` usa, e falharia antes da primeira linha. Mesmo motivo de
+`pnpm edge-config:smoke` e `pnpm replay-2022`.
 
 **Argumentos**:
 - Sem flag: baixa arquivos do TSE se houver mudança detectada via header `Last-Modified` (GET Range). Se nenhuma mudança, ciclo para sem escrever.
@@ -210,9 +229,12 @@ node --experimental-strip-types data-pipeline/candidatos-import.ts [--force]
 [candidatos-import] Publicáveis: 7698 (limite 2%: 7544 mín)
 [candidatos-import] Fotos: 387 encontradas no Acre (amostra), 0 órfãs
 [candidatos-import] Blob: <N> fotos gravadas em candidatos/foto/<UF>/
-[candidatos-import] Índice: candidatos/index.json publicado (760 bytes)
+[candidatos-import] Fatias: 82 candidatos/uf/<SIGLA>/<cargo>.json gravadas
 [candidatos-import] Ciclo completo: <duração>
 ```
+
+⚠️ **O índice `candidatos/index.json` NÃO é publicado pelo importador.** Quem publica
+é `data-pipeline/candidatos-publish.ts` (ver seção abaixo).
 
 ### Guarda de encolhimento (RF-152)
 
@@ -243,6 +265,75 @@ node --experimental-strip-types data-pipeline/candidatos-import.ts --skip-db --f
 ```
 
 (Nota: `--skip-db` ainda não existe em 13/09 — será adicionado se necessário em operação real.)
+
+### Publicação das fatias e índice (pós-importação)
+
+**Quem publica**: `data-pipeline/candidatos-publish.ts` (script `pnpm candidatos:publish`).
+
+**Quando rodar**: **DEPOIS** do importador de fotos concluir com sucesso. A ordem crítica é:
+
+| # | Comando | O que faz | O que NÃO faz |
+|---|---|---|---|
+| 1 | `pnpm candidatos:import` | Baixa os dois CSVs do TSE e grava **só no Postgres** (tabelas `candidatos` e `partidos`). Deixa `foto_ok = false` em todas. | **Não toca no Blob.** Não baixa foto. Não publica nada visível. |
+| 2 | `pnpm candidatos:fotos` | Baixa os 28 ZIPs de foto, sobe os JPEGs para `candidatos/foto/<UF>/<sqcand>.jpg` no Blob e marca `foto_ok = true` no Postgres. | Não republica as fatias — quem lê as fatias continua vendo o `foto_ok` antigo. |
+| 3 | `pnpm candidatos:publish` | Lê o Postgres e escreve **as 82 fatias `candidatos/uf/<UF>/<cargo>.json` E o `candidatos/index.json`** no Blob. É o único passo que torna o dado visível ao site. | — |
+
+⚠️ **A ordem não é sugestão.** O passo 3 fotografa o estado do banco no instante em que roda. Se rodar
+antes do passo 2, as fatias saem com `foto_ok: false` para todo mundo, e os cartões caem no avatar de
+iniciais **mesmo com as fotos já no ar** — sem erro, sem alarme, só errado na tela. Já aconteceu em
+13/09: a primeira publicação pegou 446 de 7.698 fotos porque as duas trilhas rodavam em paralelo.
+
+Corolário: **toda vez que o passo 1 ou o 2 rodar de novo, o passo 3 precisa rodar depois.**
+
+### ⚠️ Publicar não é o mesmo que aparecer — a janela de 1 hora
+
+`lib/blob/candidatos.ts` lê a fatia com `next: { revalidate: 3600 }`
+(`CANDIDATOS_REVALIDATE_SECONDS`). Depois de `pnpm candidatos:publish`, **o site continua
+servindo a fatia anterior por até uma hora**, sem erro e sem aviso — a página renderiza
+normalmente, só com o dado velho.
+
+Medido em 13/09, e custou uma hora de diagnóstico: as fotos estavam no ar, a fatia publicada
+dizia `foto_ok: true`, e a tela mostrava iniciais. A mesma URL devolvia corpos diferentes para
+`curl` (versão nova) e para o servidor Next (versão anterior, retida no Data Cache). Apagar
+`.next/cache` **não basta** — só `rm -rf .next` inteiro liberou.
+
+| Leitor | `revalidate` | Consequência |
+|---|---|---|
+| `lib/blob/candidatos.ts` | **3600 s** | Cadastro muda pouco; 1 h de defasagem é aceitável — **desde que quem opera saiba.** |
+| `lib/blob/uf-detail.ts` | 60 s | Apuração. **Não afetado** pela janela longa. |
+| `lib/blob/deputado-uf.ts` | 60 s | Apuração. **Não afetado.** |
+
+**Na noite de 04/10 isto não atrapalha a apuração** — os dois leitores do resultado usam 60 s. A
+janela de 1 h vale só para o cadastro de candidaturas.
+
+**Como verificar que o dado novo chegou** (em vez de confiar que chegou):
+
+```bash
+# o que o Blob tem agora
+curl -s https://<store>.public.blob.vercel-storage.com/candidatos/index.json | grep -o '"gerado_ts":"[^"]*"'
+# o que a página está mostrando — compare o carimbo de frescor na tela
+```
+
+Se precisar do dado imediatamente em produção, o caminho é um redeploy (que zera o Data Cache),
+não esperar a hora passar.
+
+
+**Como rodar manualmente**:
+
+```bash
+set -a; . ./.env.local; set +a
+pnpm candidatos:publish
+```
+
+Roda com `tsx` (mesmo motivo de `candidatos:import` acima). Saída esperada:
+
+```
+[candidatos-publish] Lendo snapshot do banco...
+[candidatos-publish] Publicáveis por cargo/UF: <contagem>
+[candidatos-publish] 82 fatias gravadas (maior: candidatos/uf/SP/dep.json, 211,6 KB)
+[candidatos-publish] Índice gravado: candidatos/index.json (<bytes> bytes)
+[candidatos-publish] Publicação concluída
+```
 
 ### Armadilha: User-Agent e bloqueio do TSE
 
