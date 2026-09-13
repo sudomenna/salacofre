@@ -99,9 +99,16 @@ function buildPayload(buckets: Array<EdgeUfRow["bucket"]>, comParticipacao = tru
     margem_projetada_ci: [10, 18] as [number, number],
     chamada: buckets[i % buckets.length] === "chamada",
     swing_vs_2022: 0,
+    // Spec 018 / ADR-0042 — `nome`/`partido` viajam na PRÓPRIA linha da UF, e
+    // é de lá que `<GovernorCard />` os lê. Antes desta spec a fixture os
+    // omitia e o componente caía no índice sobre `national.candidatos` — que
+    // em cargo 3 é a união de 27 corridas sob o mesmo espaço de `id`, ou seja,
+    // exatamente o defeito que o ADR-0042 previne. Payload pós-018; o caso
+    // pré-018 (campos ausentes → placeholder) tem teste dedicado em
+    // `tests/unit/components/GovernorCard.test.tsx`, caso "(j)".
     top_candidatos: [
-      { id: 1, pct: 52 },
-      { id: 2, pct: 38 },
+      { id: 1, pct: 52, nome: "Tarcísio", partido: "REP" },
+      { id: 2, pct: 38, nome: "Boulos", partido: "PSOL" },
     ],
     vai_a_2t: null,
     bucket: buckets[i % buckets.length] ?? "indefinido",

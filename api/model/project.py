@@ -1732,6 +1732,14 @@ def extract_partido_by_cand(
     zonas seria dado corrompido do TSE, e neste caso a primeira leitura é
     tão defensável quanto qualquer outra — o que importa é que duas
     execuções sobre o mesmo dado deem o mesmo resultado.
+
+    **O dicionário pode ser plano, e isso é decisão registrada — ADR-0042
+    item 1.** Em cargo majoritário o número na urna É o número do partido:
+    13 é PT em qualquer UF, então a sigla é função do número. **NOME não
+    herda essa propriedade** e por isso `extract_identidade_by_cand` (logo
+    abaixo) é chaveado pelo par `(uf, numero)`. Não uniformize as duas
+    assinaturas: colapsar a de nome nesta poria o candidato a governador do
+    PT de São Paulo nos outros 26 estados.
     """
     out: dict[int, str] = {}
     for s in snapshots:
@@ -1746,6 +1754,95 @@ def extract_partido_by_cand(
             if isinstance(sg, str) and sg.strip():
                 out[cod] = sg.strip()
     return out
+
+
+def extract_identidade_by_cand(
+    snapshots: list[LatestSnapshot], cargo: int | None = None
+) -> dict[tuple[str, int], dict[str, str]]:
+    """`{(uf, número na urna): {"nome": ..., "sqcand": ...}}` — RF-143/RF-144.
+
+    **Por que a chave é o PAR `(uf, numero)` e não o número sozinho.**
+    `extract_partido_by_cand` (logo acima) pode ser um dicionário plano
+    chaveado só pelo número, e está certo: em cargo majoritário o número na
+    urna **É** o número do partido — 13 é PT em qualquer UF do país, então a
+    sigla é função do número e não da UF. Nome **não** tem essa propriedade.
+    Todo candidato a governador do PT do Brasil concorre sob o número 13; um
+    dicionário plano com "primeira leitura não-vazia vence" poria o nome do
+    candidato de São Paulo nos outros 26 estados, arbitrariamente, conforme a
+    ordem de leitura do banco. Hoje a tela diz "Candidato 13" — feio, mas
+    verdadeiro; nome de outro estado seria mentira com aparência de dado.
+
+    Isto é decisão registrada — [ADR-0042], itens 1 e 4. **Não "uniformize"
+    as duas funções sob a mesma assinatura**: a assimetria é o ponto, não um
+    descuido. `tests/unit/model/test_identidade_cand.py` tem um caso (SP e BA
+    compartilhando o número 13, nomes diferentes) que é impossível de passar
+    com um dicionário plano — é essa a rede.
+
+    `nmu` (nome na urna) antes de `nm` (nome completo), o mesmo critério que
+    `api/model/deputado.py` já aplica: é o nome pelo qual o eleitor conhece o
+    candidato e o que o próprio TSE exibe. Candidato sem nenhum dos dois
+    **não entra** no mapa — uma entrada com `nome: ""` faria o consumidor
+    renderizar um rótulo vazio em vez de cair no placeholder `"Candidato {n}"`,
+    trocando um fallback honesto por um buraco na tela.
+
+    `sqcand` viaja junto porque é a identidade **global e estável** do
+    candidato (ADR-0042 item 2) e a chave que liga esta linha à foto
+    (ADR-0041). Sai como **string**: `ea20-schema.ts` o declara
+    `z.string()` obrigatório dentro de `cand[]`, e ele tem 11 **ou** 12
+    dígitos — convertê-lo a número sobrevive, mas convida ao erro de compará-lo
+    como texto entre larguras diferentes, onde `"99…"` (11) vence `"100…"`
+    (12) em silêncio.
+
+    Determinismo (constituição § 6): varredura na ordem de `fetch_snapshots`,
+    primeira leitura não-vazia vence — igual ao irmão. Zero query nova: lê os
+    snapshots que o ciclo já leu. A UF vem de `s["uf"]`, que `fetch_snapshots`
+    já devolve em cada linha, então o laço de UF fica aqui, fora de
+    `_iter_cands`.
+    """
+    out: dict[tuple[str, int], dict[str, str]] = {}
+    for s in snapshots:
+        uf_raw = s.get("uf")
+        if not isinstance(uf_raw, str) or not uf_raw.strip():
+            continue
+        uf = uf_raw.strip().upper()
+        for c in _iter_cands(s.get("payload"), cargo=cargo):
+            try:
+                numero = int(c.get("n"))
+            except (TypeError, ValueError):
+                continue
+            chave = (uf, numero)
+            if chave in out:
+                continue
+            nome = _nome_de_urna(c)
+            if not nome:
+                continue
+            identidade: dict[str, str] = {"nome": nome}
+            sq = c.get("sqcand")
+            if sq is not None and str(sq).strip():
+                identidade["sqcand"] = str(sq).strip()
+            out[chave] = identidade
+    return out
+
+
+def _nome_de_urna(cand: dict[str, Any]) -> str:
+    """`nmu` (nome na urna) → `nm` (nome completo) → `""`.
+
+    Os dois primeiros degraus da cadeia do RF-144. O terceiro (fatia do
+    cadastro de candidaturas) e o quarto (`"Candidato {n}"`) moram nos
+    chamadores, porque só eles sabem a corrida e o número.
+
+    Devolve `""` — nunca `None` — quando o EA20 não traz nenhum dos dois;
+    quem chama decide o que fazer com o vazio, e o contrato de
+    `extract_identidade_by_cand` é não registrar a entrada.
+    """
+    for chave in ("nmu", "nm"):
+        raw = cand.get(chave)
+        if raw is None:
+            continue
+        texto = str(raw).strip()
+        if texto:
+            return texto
+    return ""
 
 
 def compute_p_passa_2t(
@@ -2670,6 +2767,7 @@ def build_uf_payloads(
     vagas: int | None = None,
     partido_by_cand: dict[int, str] | None = None,
     relogio_by_uf: dict[str, RelogioDoDado] | None = None,
+    identidade_by_cand: dict[tuple[str, int], dict[str, str]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Constrói payloads canônicos `EdgePayloadUf` por UF (S04/F2).
 
@@ -2705,6 +2803,14 @@ def build_uf_payloads(
       - `partido_by_cand` (RF-107): `{cand: sigla}` de
         `extract_partido_by_cand`. Tem PRECEDÊNCIA sobre o `partido` das
         linhas nacionais, que em produção nunca foi populado.
+
+    Spec 018 (RF-144) acrescenta um quarto, pela mesma disciplina:
+      - `identidade_by_cand`: `{(uf, numero): {"nome", "sqcand"}}` de
+        `extract_identidade_by_cand`. Vira `candidatos[].nome` (no lugar do
+        `"Candidato {id}"` literal) e `candidatos[].sqcand`. **A chave é o
+        par, nunca o número sozinho** — ADR-0042; ver a docstring do
+        extrator para o porquê. Ausente → o placeholder de sempre, que é a
+        razão de o parâmetro ser opcional e não obrigatório.
 
     Retorna `{uf_sigla: EdgePayloadUf}`. Cada payload tem ~5–10 KB em
     UF típica, podendo chegar a 30–40 KB em SP (645 municípios + 480
@@ -2814,9 +2920,17 @@ def build_uf_payloads(
             partido_cand = (partido_by_cand or {}).get(cid) or str(
                 nat.get("partido", "—")
             )
+            # Spec 018 / RF-144 — o nome real, resolvido pelo par `(uf, numero)`
+            # e NUNCA pelo número sozinho (ADR-0042): aqui `sigla` é a UF desta
+            # corrida, e é ela que desambigua o 13 de São Paulo do 13 da Bahia.
+            # `identidade_by_cand` ausente (caller legado, fixture antiga,
+            # `model_fallback_tier`) → o placeholder de sempre, não erro: os
+            # campos novos são opcionais de propósito.
+            identidade_cand = (identidade_by_cand or {}).get((sigla, cid)) or {}
+            nome_cand = identidade_cand.get("nome") or f"Candidato {cid}"
             candidato_payload: dict[str, Any] = {
                 "id": cid,
-                "nome": f"Candidato {cid}",
+                "nome": nome_cand,
                 "partido": partido_cand,
                 # CSS var literal — consumida direto em `style={{ background: c.cor }}`
                 # no front-end. Sem `var(...)` o browser ignora silenciosamente.
@@ -2832,6 +2946,14 @@ def build_uf_payloads(
                     "upper": pct_proj_upper,
                 },
             }
+            # Spec 018 / ADR-0042 item 2 — a identidade GLOBAL do candidato,
+            # que é o que liga esta linha à foto (ADR-0041). String, sempre:
+            # tem 11 ou 12 dígitos, e comparar as duas larguras como texto
+            # ordena errado em silêncio. Só entra quando o EA20 o trouxe —
+            # ausência é ausência, não string vazia.
+            sqcand_cand = identidade_cand.get("sqcand")
+            if sqcand_cand:
+                candidato_payload["sqcand"] = sqcand_cand
             # E2/E2b (plano § A/C) — base "comparecimento" alternativa,
             # só presente quando `_uf_projection_row` a calculou (sempre
             # o caso na Fase 1, exceto callers legados de teste que não
@@ -3106,6 +3228,7 @@ def build_edge_payload(
     total_cadeiras: int | None = None,
     dado_ts: str | None = None,
     pares_atrasados: int | None = None,
+    identidade_by_cand: dict[tuple[str, int], dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Monta o shape canônico `EdgePayload` (lib/edge-config/types.ts).
 
@@ -3125,6 +3248,15 @@ def build_edge_payload(
         (81 no Senado), para a tela poder distinguir as vagas EM DISPUTA
         do total. Sem ele o bloco sai sem o denominador maior, nunca com
         um número inventado.
+
+    Spec 018 acrescenta `identidade_by_cand` (opcional, `{(uf, numero):
+    {"nome", "sqcand"}}` de `extract_identidade_by_cand`), com DOIS destinos
+    de regra diferente:
+      - `por_uf[].top_candidatos[]` (RF-144) ganha `nome`/`partido`/`sqcand`
+        em **todo** cargo — ali a UF é conhecida, então o par resolve.
+      - `national.candidatos[].nome` (RF-145) só em **cargo 1**. Cargo 3 e 5
+        MANTÊM o placeholder: o bloco nacional desses cargos é a união de 27
+        corridas sob o mesmo espaço de `id`. Ver o comentário longo no corpo.
 
     Fase 1a (RF-020.1, D3/D4/D5/D6) acrescenta 3 parâmetros opcionais,
     todos com default `None` (compat retroativa — sem eles o payload sai
@@ -3278,6 +3410,33 @@ def build_edge_payload(
             municipio_aggregates
         )
 
+    # Spec 018 / RF-145 — nome real no bloco NACIONAL **só em cargo 1**.
+    #
+    # Em cargo 3 (Governador) e 5 (Senador) `national.candidatos` não é uma
+    # corrida: é a UNIÃO de 27 corridas sob o mesmo espaço de `id`, com `rank`
+    # reiniciando a cada UF — o próprio `GovernorCard.tsx` já registra isso em
+    # comentário. Ali o `id` 13 não identifica uma pessoa, identifica "o número
+    # 13 nalguma UF", e qualquer nome atribuído seria ambíguo POR CONSTRUÇÃO,
+    # não apenas impreciso. O placeholder `"Candidato {id}"` é feio e
+    # verdadeiro; o nome do governador de um estado nos outros 26 seria bonito
+    # e falso. Em cargo 1 existe de fato uma corrida nacional única — 13
+    # candidaturas, 13 números distintos, medido contra o registro de 2026 —
+    # então o par `(uf, numero)` degenera: o mesmo número traz o mesmo nome em
+    # qualquer UF, e colapsar por número não perde informação.
+    #
+    # ⚠️ "Melhorar" isto depois estendendo a cargo 3/5 é exatamente o defeito
+    # que o ADR-0042 existe para prevenir. `test_national_sem_nome_em_cargo_3_5`
+    # é o teste que grita.
+    identidade_nacional: dict[int, dict[str, str]] = {}
+    if int(cargo) == 1 and identidade_by_cand:
+        # Determinismo (§ 6): varredura por chave ordenada, primeira vence.
+        for (_uf_ident, numero_ident) in sorted(identidade_by_cand):
+            if numero_ident in identidade_nacional:
+                continue
+            identidade_nacional[numero_ident] = identidade_by_cand[
+                (_uf_ident, numero_ident)
+            ]
+
     national_candidatos: list[dict[str, Any]] = []
     pct_atual_outros_sum = 0.0
     for r in sorted_national:
@@ -3293,9 +3452,12 @@ def build_edge_payload(
         )
         if rank >= 4:
             pct_atual_outros_sum += pct_atual_cand
+        ident_nat = identidade_nacional.get(cid) or {}
         candidato_nat: dict[str, Any] = {
             "id": cid,
-            "nome": f"Candidato {r['candidato_id']}",
+            # RF-145: `identidade_nacional` está VAZIO fora do cargo 1 — ver o
+            # bloco que a constrói. Não é uma condição a acrescentar aqui.
+            "nome": ident_nat.get("nome") or f"Candidato {r['candidato_id']}",
             # Spec 016 — a sigla vem do próprio EA20 (`par.sg`, colhido por
             # `extract_partido_by_cand`). O `"—"` continua sendo o valor
             # quando o snapshot não carrega a hierarquia de partido (payload
@@ -3319,6 +3481,12 @@ def build_edge_payload(
             "p_passa_2t": float(r.get("p_passa_2t") or 0.0),
             "p_fecha_1t": float(r.get("p_fecha_1t") or 0.0),
         }
+        # ADR-0042 item 2 / ADR-0041 — identidade global, é o que endereça a
+        # foto. Segue a mesma porta do nome: `identidade_nacional` só tem
+        # conteúdo em cargo 1, então cargo 3/5 não ganha `sqcand` no nacional.
+        sqcand_nat = ident_nat.get("sqcand")
+        if sqcand_nat:
+            candidato_nat["sqcand"] = sqcand_nat
         # Plano § B (E2/E2b) — base "comparecimento" nacional, agregada de
         # `national_estimates_comparecimento` (mesmo bootstrap agregado de
         # `estimates_c_by_uf`, ver `_do_project`). `pct_atual` fica `None`
@@ -3418,13 +3586,35 @@ def build_edge_payload(
                 )
 
         # S05/F4c (ADR-0017) — top-3 candidatos da UF, tie-break por id ASC.
-        top_candidatos = [
-            {
-                "id": int(r["candidato_id"]),
+        #
+        # Spec 018 / RF-144 + ADR-0042 item 3: a linha da UF passa a carregar
+        # a própria identidade (`nome`/`partido`/`sqcand`) em vez de obrigar o
+        # consumidor a cruzar `id` contra `national.candidatos`. Esse cruzamento
+        # é o defeito: em cargo 3/5 o bloco nacional é a união de 27 corridas,
+        # e resolver nome por `id` sozinho ali entrega o candidato de outro
+        # estado. Aqui `sigla` é a UF desta corrida — a chave é o par.
+        #
+        # Os três campos são OPCIONAIS e só entram quando resolvidos: um
+        # payload sem eles (pré-018, ou sob `model_fallback_tier`) continua
+        # renderizando o placeholder na tela, que é o contrato de degradação.
+        top_candidatos: list[dict[str, Any]] = []
+        for r in ordered[:3]:
+            cid_top = int(r["candidato_id"])
+            item_top: dict[str, Any] = {
+                "id": cid_top,
                 "pct": float(r.get("pct_projetado") or 0.0),
             }
-            for r in ordered[:3]
-        ]
+            ident_top = (identidade_by_cand or {}).get((sigla, cid_top)) or {}
+            nome_top = ident_top.get("nome")
+            if nome_top:
+                item_top["nome"] = nome_top
+            sqcand_top = ident_top.get("sqcand")
+            if sqcand_top:
+                item_top["sqcand"] = sqcand_top
+            partido_top = (partido_by_cand or {}).get(cid_top)
+            if partido_top:
+                item_top["partido"] = partido_top
+            top_candidatos.append(item_top)
 
         # vai_a_2t: aplicável apenas a governador 1T (cargo=3, turno=1).
         # Para presidente, a decisão de 2T é NACIONAL — null por UF.
@@ -4484,6 +4674,13 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
             # Sem ela a contagem "vagas por partido" não existe.
             partido_by_cand = extract_partido_by_cand(snapshots, cargo=req.cargo)
 
+            # Spec 018 / RF-144 — o NOME, lido do mesmo EA20 do mesmo ciclo.
+            # Chaveado pelo par `(uf, numero)`, nunca pelo número sozinho
+            # (ADR-0042). Zero query nova: varre os `snapshots` já lidos acima.
+            identidade_by_cand = extract_identidade_by_cand(
+                snapshots, cargo=req.cargo
+            )
+
             # Persistência append-only (constituição § 10).
             insert_projections(conn, uf_rows + national_rows)
             conn.commit()
@@ -4522,6 +4719,9 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 # ADR-0038 D1/D2 — o segundo relógio, ao lado de `ts_iso`.
                 dado_ts=relogio.dado_ts,
                 pares_atrasados=relogio.pares_atrasados,
+                # Spec 018 — RF-144 em `top_candidatos`, RF-145 no nacional
+                # (que filtra por cargo 1 lá dentro, não aqui).
+                identidade_by_cand=identidade_by_cand,
             )
             # S04/F2 — payloads UF ricos (candidatos com votos, municípios,
             # séries temporais). Envia junto do nacional; endpoint Node
@@ -4549,6 +4749,8 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 # ADR-0038 D2 — relógio do dado por UF, medido só sobre os
                 # pares daquela UF.
                 relogio_by_uf=relogio_uf,
+                # Spec 018 / RF-144 — nome real no lugar de "Candidato {id}".
+                identidade_by_cand=identidade_by_cand,
             )
             post_edge_write(edge_payload, payloads_uf=uf_payloads)
         except Exception as edge_exc:  # noqa: BLE001 — never block the response

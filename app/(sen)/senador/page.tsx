@@ -128,8 +128,19 @@ function emptyPayload(): EdgePayload {
  *
  * `EdgeUfRow.top_candidatos` já vem ordenado por `pct_projetado` desc e
  * cortado em 3 pelo orchestrator — que é exatamente o que esta tela precisa
- * com duas vagas: os dois que entram e o primeiro que fica de fora. Os nomes
- * e partidos vêm de `national.candidatos`, indexado por id.
+ * com duas vagas: os dois que entram e o primeiro que fica de fora.
+ *
+ * **Spec 018 / ADR-0042 — nome e partido vêm da própria linha da UF.** Até a
+ * spec 018 esta função os buscava em `national.candidatos` indexado por `id`,
+ * e isso estava errado por construção: no Senado o bloco nacional é a **união
+ * de 27 corridas** sob o mesmo espaço de `id`, então `id === 13` ali não
+ * identifica uma pessoa — identifica "o número 13 nalguma UF". Como em cargo
+ * majoritário o número na urna É o número do partido, todo senador do PT do
+ * país concorre sob o 13, e o índice entregava o candidato de um estado
+ * arbitrário para os outros 26. `uf.top_candidatos[]` é resolvido pelo par
+ * `(uf, numero)` no orchestrator e já sabe de que estado é.
+ *
+ * `porId` fica só para `cor`, que é função do RANK e não da identidade.
  */
 function topDaUf(
   uf: EdgeUfRow,
@@ -140,8 +151,12 @@ function topDaUf(
     return {
       id: t.id,
       pct: t.pct,
-      nome: c?.nome ?? `Candidatura ${t.id}`,
-      partido: c?.partido ?? "—",
+      // Fallback para payload PRÉ-018 (campo ausente): o placeholder de
+      // sempre, e deliberadamente NÃO uma volta ao índice nacional —
+      // "Candidatura 13" é feio e verdadeiro; o nome do senador de outro
+      // estado seria bonito e falso.
+      nome: t.nome ?? `Candidatura ${t.id}`,
+      partido: t.partido ?? "—",
       cor: c?.cor ?? "var(--color-cand-other)",
     };
   });

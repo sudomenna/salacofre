@@ -145,10 +145,14 @@ function nacional(over: Partial<EdgePayload> = {}): EdgePayload {
         margem_projetada_ci: [-1, 3],
         chamada: false,
         swing_vs_2022: null,
+        // Spec 018 / ADR-0042 — nome e partido vêm da linha da UF, não mais
+        // do índice sobre `national.candidatos` (que no Senado é a união de
+        // 27 corridas sob o mesmo espaço de `id`). Payload pós-018; o caso
+        // pré-018 tem teste dedicado — "(g2)".
         top_candidatos: [
-          { id: 1, pct: 40 },
-          { id: 2, pct: 30 },
-          { id: 3, pct: 29 },
+          { id: 1, pct: 40, nome: "Ana Lima", partido: "PT", sqcand: "250002553928" },
+          { id: 2, pct: 30, nome: "Bruno Reis", partido: "PL", sqcand: "250002553929" },
+          { id: 3, pct: 29, nome: "Célia Mota", partido: "MDB", sqcand: "50002553930" },
         ],
         vai_a_2t: null,
         bucket: "indefinido",
@@ -163,9 +167,9 @@ function nacional(over: Partial<EdgePayload> = {}): EdgePayload {
         chamada: false,
         swing_vs_2022: null,
         top_candidatos: [
-          { id: 11, pct: 45 },
-          { id: 12, pct: 28 },
-          { id: 13, pct: 20 },
+          { id: 11, pct: 45, nome: "Eva Prado", partido: "PSD", sqcand: "250002553931" },
+          { id: 12, pct: 28, nome: "Fábio Cruz", partido: "PP", sqcand: "250002553932" },
+          { id: 13, pct: 20, nome: "Gil Souza", partido: "PDT", sqcand: "50002553933" },
         ],
         vai_a_2t: null,
         bucket: "indefinido",
@@ -280,6 +284,58 @@ describe("/senador (T-09)", () => {
     expect(sp).toContain("Bruno Reis");
     // O 3º não ocupa vaga — não pode aparecer como se ocupasse.
     expect(sp).not.toContain("Célia Mota");
+  });
+
+  it("(g2) payload PRÉ-018 (sem `nome` em top_candidatos) → placeholder, nunca o nome do índice nacional", async () => {
+    // Spec 018 / ADR-0042. Mutação alvo: remover o fallback, ou fazê-lo voltar
+    // a `porId` sobre `national.candidatos` — que no Senado é a união de 27
+    // corridas sob o mesmo espaço de `id`, e devolveria "Ana Lima" em
+    // qualquer estado só porque o número bate.
+    const base = nacional();
+    readProjectionMock.mockResolvedValue({
+      ...base,
+      por_uf: base.por_uf.map((uf) => ({
+        ...uf,
+        top_candidatos: uf.top_candidatos.map((t) => ({ id: t.id, pct: t.pct })),
+      })),
+    });
+    const doc = await render(SenadoPage());
+    const sp = doc.querySelector("[data-uf='SP']")?.textContent ?? "";
+
+    expect(sp).toContain("Candidatura 1");
+    expect(sp).not.toContain("Ana Lima");
+    expect(sp).not.toContain("Bruno Reis");
+  });
+
+  it("(g3) duas UFs com o MESMO número exibem nomes diferentes", async () => {
+    // Em cargo majoritário o número na urna é o número do partido, então o
+    // mesmo número concorre em todos os estados. A fixture já tem "Eva Prado"
+    // (id 11) liderando o RJ; damos a SP um 11 com outro nome — os dois
+    // ocupando vaga, para que ambos apareçam — e conferimos que os cards não
+    // se contaminam.
+    const base = nacional();
+    readProjectionMock.mockResolvedValue({
+      ...base,
+      por_uf: base.por_uf.map((uf) =>
+        uf.sigla === "SP"
+          ? {
+              ...uf,
+              top_candidatos: [
+                { id: 11, pct: 40, nome: "Helena de SP", partido: "PSD" },
+                ...uf.top_candidatos.slice(1),
+              ],
+            }
+          : uf,
+      ),
+    });
+    const doc = await render(SenadoPage());
+    const sp = doc.querySelector("[data-uf='SP']")?.textContent ?? "";
+    const rj = doc.querySelector("[data-uf='RJ']")?.textContent ?? "";
+
+    expect(sp).toContain("Helena de SP");
+    expect(sp).not.toContain("Eva Prado");
+    expect(rj).toContain("Eva Prado");
+    expect(rj).not.toContain("Helena de SP");
   });
 
   it("(h) RF-108: cadência em texto, e SEM a afirmação de nível de estado", async () => {
