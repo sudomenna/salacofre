@@ -211,7 +211,7 @@ NFRs cobertos em [../nfr/](../nfr/) — 34 RNFs (RNF-001..RNF-034). Cada spec li
 - ADR-0036 (Cargo 6 em granularidade zona fatiada em 6) — `accepted`, emenda ADR-0026 (cargo 5 idem em 11/09)
 - ADR-0037 (UF sem faixa entra como constante no IC95 nacional) — `accepted`
 
-Spec 016 (Senador) — `draft`, implementada em S07. Spec 017 (Deputado Federal) — **`implementing` desde 12/09**, implementada ponta a ponta; todos os RFs com cobertura verificada (testes passando com mutação após reprova do gate constitucional em 13/09 às 03:04, corrigida em commit 5f8f32c). Ciclo completo de aprovação dos 4 gates em progresso (constitution-guard rodando novamente após fix, a11y-perf-auditor e rf-coverage-checker pendentes confirmação).
+Spec 016 (Senador) — `draft`, implementada em S07. Spec 017 (Deputado Federal) — **`shipped` em 13/09**, com os 4 gates aprovados: `rf-coverage-checker` PASS (12 RFs), `constitution-guard` PASS **na reexecução** (a primeira rodada reprovou — `<DeputadoMetodologia>` afirmava ao leitor uma granularidade que o ADR-0036 tinha acabado de inverter; corrigido em `8cd955f`), `a11y-perf-auditor` PASS (Lighthouse a11y 100/100, axe 0 violações em 12 combinações, bundle idêntico byte a byte), e `spec-syncer` executado. RF-127 completo desde `2bcee57` — o intervalo de cadeiras existe, e a marcação de cadeira indefinida **coexiste** com ele.
 
 ## Como manter atualizado
 

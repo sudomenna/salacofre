@@ -1316,7 +1316,7 @@
     {
       "id": "017-deputado-federal",
       "title": "Deputado Federal — corrida proporcional com projeção de cadeiras",
-      "status": "implementing",
+      "status": "shipped",
       "priority": "M",
       "personas": [
         "P1",
@@ -1383,10 +1383,7 @@
         "0036",
         "0037"
       ],
-      "ship_blocked_on": [
-        "gate-a11y-perf",
-        "gate-constitution-rerun"
-      ],
+      "ship_blocked_on": [],
       "opens_after": "2026-09-11",
       "notes": "nota 2026-09-13: todos os RFs implementados com cobertura de teste. RF-127 intervalo de cadeiras implementado via bootstrap por agremiação em `api/model/cadeiras_bootstrap.py` (testes em `tests/unit/model/test_cadeiras_bootstrap.py`); intervalo coexiste com marcação de cadeira indefinida. RF-120 e RF-128 reescritos em 13/09 para conformidade com ADR-0036/0037 após reprova do gate constitucional (RF-120 agora descreve 6 fatias de zona, RF-128 agora diz 30 min em vez de 15 min). Fora de escopo: insights (D10), GET /api/projection?cargo=deputado-federal (mesmo estado do Senador)."
     }
