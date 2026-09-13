@@ -943,3 +943,228 @@ export interface UfPayloadInput extends EdgePayloadUf {
    */
   series_temporais?: EdgeUfSeriesTemporais;
 }
+
+// ---------------------------------------------------------------------------
+// Deputado Federal — a corrida PROPORCIONAL (spec 017 / ADR-0026 / ADR-0027)
+// ---------------------------------------------------------------------------
+
+/**
+ * Payload nacional de Deputado Federal. Chave `projection-current-dep-t1` —
+ * o mesmo esquema do ADR-0012 (`projection-current-<token>-t<turno>`), com o
+ * token `"dep"` que `lib/config/cargos.ts` já declara. Nenhuma máquina de
+ * chaves nova.
+ *
+ * ## Por que este tipo existe em vez de reusar `EdgePayload` (design 017, D1)
+ *
+ * `EdgePayload.national` é `EdgeNational`, e `EdgeNational` é inteiramente
+ * majoritário: `candidato_a_id`/`candidato_b_id`, `needle_position`,
+ * `needle_band`, `p_segundo_turno_overall`, `cenarios_2t`,
+ * `vai_a_2t_nacional`. Numa corrida proporcional nenhum desses campos tem
+ * referente — não existe líder da corrida, não existe duelo, não existe
+ * segundo turno.
+ *
+ * O risco de reusar não é estético. Oito campos obrigatórios teriam de ser
+ * preenchidos com valores inventados, e qualquer consumidor que já lê
+ * `EdgeNational` (`<NationalNeedle>`, `<HeadlineScore>`, `/api/projection`)
+ * renderizaria uma agulha e um "líder" para a Câmara dos Deputados.
+ *
+ * O precedente de `composicao_vagas?` pendurado em `EdgePayload` para o
+ * Senador **não** se aplica: Senador é majoritário e `EdgeNational` cabe nele
+ * de verdade.
+ *
+ * A consequência é que o read path precisa distinguir o cargo. A trava está
+ * em `lib/edge-config/reader.ts`: `readProjection` só aceita cargo
+ * majoritário (`CargoMajoritario`), então `readProjection({ cargo: "dep" })`
+ * não compila. Quem quer este payload chama `readDeputadoProjection()`.
+ *
+ * ## A visão nacional é soma nossa, não um agregado do TSE (design 017, D3)
+ *
+ * O TSE não publica arquivo `br-` para o cargo 6 (`temArquivoBr: false` em
+ * `lib/config/cargos.ts`), e `compute_national` — que agrega por `cand.n`,
+ * o número de urna — **não serve** aqui: no proporcional esse número se
+ * repete entre UFs e entre partidos. A bancada é a soma das 27 corridas
+ * estaduais, reconciliada por `cod` de agremiação. A tela precisa dizer isso
+ * (constituição § 8).
+ */
+export interface EdgePayloadDeputado {
+  /** Timestamp ISO 8601 do momento em que o modelo rodou. */
+  ts: string;
+  /** Discriminante do payload. Sempre 6 — é o que separa este tipo de `EdgePayload`. */
+  cargo: 6;
+  /** Deputado Federal é turno único (`temSegundoTurno: false`). */
+  turno: 1;
+  /** % apurado somado sobre as 27 UFs (0–100). */
+  pct_apurado_total: number;
+  /** UFs com pelo menos um boletim (0–27). */
+  ufs_apuradas: number;
+  /**
+   * RF-128 — cadência do cron deste cargo, em minutos, **declarada pelo
+   * produtor do payload**. A tela lê daqui; nenhum número de minuto é escrito
+   * à mão no JSX (design 017, D8).
+   *
+   * O contrato do design 017 escreve `15`, que é a cadência de hoje
+   * (`vercel.ts`). O tipo aqui é `number`, e não o literal `15`, por dois
+   * motivos: uma mudança de cadência passa a ser mudança de **dado** em vez
+   * de mudança de tipo, e o teste que prova que a tela DERIVA o número (em
+   * vez de imprimi-lo) precisa poder injetar um valor diferente de 15 — com
+   * o literal, esse teste não compilaria e a garantia de D8 ficaria sem prova.
+   */
+  atualizacao_min: number;
+  bancada: EdgeBancadaNacional;
+  por_uf: EdgeDeputadoUfRow[];
+  /**
+   * Frases curtas geradas por template — NUNCA LLM (ADR-0005,
+   * constituição § 2).
+   */
+  insights: string[];
+  composition: EdgeComposition;
+}
+
+/**
+ * A bancada da Câmara como a projeção a vê: soma de `cadeiras` por agremiação
+ * sobre as 27 UFs.
+ *
+ * Os três contadores de UF (`ufs_calculadas`, `ufs_aguardando`) e os dois de
+ * cadeira (`total_cadeiras`, `cadeiras_atribuidas`) existem porque **a soma
+ * não fecha durante a apuração**. Sem eles, o leitor que somar a lista por
+ * agremiação e comparar com 513 conclui que sumiram cadeiras, quando o que
+ * falta é apuração.
+ */
+export interface EdgeBancadaNacional {
+  /**
+   * RF-124 — o tamanho da Câmara. Vem da **soma dos `lugares_a_preencher`
+   * publicados**, nunca de constante embutida: a redistribuição pelo Censo
+   * 2022 (PLP 177/2023) tem desfecho não confirmado, e errar o denominador do
+   * quociente corrompe a projeção inteira de uma UF.
+   */
+  total_cadeiras: number;
+  /**
+   * Σ `por_agremiacao[].cadeiras`. **Menor** que `total_cadeiras` enquanto
+   * houver UF sem dado — é a diferença que a tela precisa nomear.
+   */
+  cadeiras_atribuidas: number;
+  /** UFs em que a distribuição de cadeiras já rodou. */
+  ufs_calculadas: number;
+  /** UFs sem boletim suficiente. `ufs_calculadas + ufs_aguardando === 27`. */
+  ufs_aguardando: number;
+  /**
+   * Ordenado por `cadeiras` desc, depois `sigla` asc — desempate explícito,
+   * constituição § 6. O consumidor reaplica a mesma regra em vez de confiar
+   * na ordem recebida.
+   */
+  por_agremiacao: EdgeAgremiacaoBancada[];
+}
+
+/**
+ * Uma agremiação (partido isolado ou federação) na bancada nacional.
+ *
+ * RF-122: federação é **uma** agremiação, com identidade própria e os
+ * partidos componentes legíveis. Coligação (`agr[].tp === "c"`) é anomalia a
+ * logar no pipeline, nunca a exibir — ela não existe em eleição proporcional
+ * desde a EC 97/2017.
+ */
+export interface EdgeAgremiacaoBancada {
+  /** `agr[].n` — o número da agremiação, estável nacionalmente. É a chave de reconciliação entre UFs. */
+  cod: string;
+  sigla: string;
+  nome: string;
+  tipo: "partido" | "federacao";
+  /**
+   * RF-122 — siglas dos partidos componentes. `[]` em partido isolado.
+   * Origem: `agr[].par[].sg` no EA20.
+   */
+  componentes: string[];
+  /**
+   * O partido que dá a **cor** — ADR-0024 linha 41: "federação usa a cor do
+   * partido-líder". Componente com mais votos nominais, desempatado por sigla
+   * ascendente (constituição § 6: sem desempate, a mesma federação mudaria de
+   * cor entre dois ciclos, e o ADR exige cor estável a noite toda).
+   *
+   * Em partido isolado vale `sigla`. É essa igualdade que **elimina o ramo
+   * especial na tela**: o consumidor chama `colorForParty(sigla_lider)` e
+   * pronto, sem perguntar `tipo`.
+   *
+   * No nacional é o líder medido sobre a soma das 27 UFs — **não** a moda dos
+   * líderes estaduais. Pode divergir do líder de uma UF específica, e isso é
+   * esperado, não defeito.
+   *
+   * Sigla sem token em `app/tokens-party.css` cai em `--party-outros`, que é o
+   * fallback documentado do ADR-0024. Envelope degradado que não traga o campo
+   * cai no mesmo lugar: `colorForParty(undefined)` devolve `outros`, então
+   * sigla nova nunca vira cor ausente nem erro visual.
+   */
+  sigla_lider: string;
+  /**
+   * RF-125.1 — candidatos **efetivamente eleitos**. NUNCA `vagas_obtidas`,
+   * que é o bookkeeping do denominador da média (Res.-TSE 23.677 art. 11 § 5º,
+   * ADI 5.420) e conta o quociente partidário inteiro ainda que não
+   * preenchido — numa UF de 10 vagas, a soma de `vagas_obtidas` dá 11.
+   *
+   * `vagas_obtidas` não atravessa a fronteira do payload, sob nome nenhum
+   * (design 017, D2).
+   */
+  cadeiras: number;
+  /**
+   * RF-127 — intervalo de 95% do número de cadeiras, `[inferior, superior]`.
+   *
+   * **Opcional por decisão de contrato** (design 017, D7): o caminho honesto
+   * é rodar `distribuir_cadeiras` sobre cada resample do bootstrap e tomar o
+   * percentil, e o custo disso ainda não foi medido contra a janela do cron.
+   * O ponto central publica agora; o intervalo entra sem mudar o contrato
+   * quando a medição disser que cabe.
+   *
+   * A tela tem de renderizar corretamente **com e sem** este campo.
+   */
+  cadeiras_ci95?: [number, number];
+  /**
+   * RF-127 — quantas das `cadeiras` foram atribuídas em rodada de sobra com
+   * margem apertada. É a metade de RF-127 que sai sem depender de D7: a
+   * cadeira marcada é exibida como indefinida, não com firmeza falsa.
+   */
+  cadeiras_indefinidas?: number;
+  /** RF-130 — votos dados a candidatos. */
+  votos_nominais: number;
+  /**
+   * RF-130 — votos dados à legenda (`v.vl` no EA20; existe neste cargo e não
+   * nos majoritários). **Separado, nunca somado em silêncio**: legenda decide
+   * cadeira, e escondê-la dentro de um total esconde o fato.
+   */
+  votos_legenda: number;
+  /** `votos_nominais + votos_legenda` — os válidos da agremiação (ADR-0027). */
+  votos_validos: number;
+  /** % sobre os votos válidos nacionais (0–100). */
+  pct_votos: number;
+}
+
+/**
+ * Uma linha da tabela "estado a estado" do nacional. É **resumo**: a lista
+ * nominal de eleitos e o detalhe por agremiação ficam no objeto de Blob
+ * (`DeputadoUfDetail`, `lib/blob/deputado-uf.ts`), porque crescem com a
+ * cobertura e o Global Config tem 1 MB para três cargos (RF-129, ADR-0026
+ * item 4).
+ */
+export interface EdgeDeputadoUfRow {
+  sigla: string;
+  pct_apurado: number; // 0–100
+  /**
+   * RF-124 — `carg[].nv`, as vagas que esta UF elege. `null` quando o TSE
+   * ainda não publicou: um `0` ali seria lido como "esta UF não elege
+   * ninguém", e um default embutido corromperia o quociente.
+   */
+  lugares_a_preencher: number | null;
+  /** RF-123 — `votos_válidos / lugares_a_preencher` com o arredondamento do art. 106. `null` sem dado. */
+  quociente_eleitoral: number | null;
+  /** Cadeiras já distribuídas nesta UF. */
+  cadeiras_definidas: number;
+  /** Cadeiras que o algoritmo não conseguiu preencher (sem candidato acima do piso). */
+  vagas_nao_preenchidas: number;
+  /**
+   * Open question 3 da spec: empate de médias que sobrevive aos dois
+   * desempates (maior votação total, depois maior nominal). A norma não prevê
+   * sorteio — a decisão é **marcar como indeterminado**, nunca escolher.
+   * Aqui é só a contagem; a lista nominal está no payload de UF.
+   */
+  empates_indeterminados: number;
+  /** A agremiação com mais cadeiras na UF. `null` enquanto não há distribuição. */
+  lider: { cod: string; sigla: string; cadeiras: number } | null;
+}

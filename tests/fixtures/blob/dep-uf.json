@@ -1,0 +1,4290 @@
+{
+  "SP": {
+    "ts": "2026-10-04T22:15:00-03:00",
+    "cargo": 6,
+    "turno": 1,
+    "uf": "SP",
+    "pct_apurado": 68.9,
+    "lugares_a_preencher": 70,
+    "quociente_eleitoral": 180000,
+    "quociente_eleitoral_tse": 180000,
+    "totalizacao_final": false,
+    "divergencias": [],
+    "agremiacoes": [
+      {
+        "cod": "22",
+        "sigla": "PL",
+        "nome": "Partido Liberal",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PL",
+        "votos_nominais": 2320550,
+        "votos_legenda": 180043,
+        "votos_validos": 2500593,
+        "pct_votos": 19.85,
+        "quociente_partidario": 13,
+        "cadeiras": 14,
+        "eleitos": [
+          {
+            "sqcand": 110843,
+            "nome": "PL · Candidatura SP-01",
+            "partido": "PL",
+            "votos": 1044248,
+            "ordem": 1
+          },
+          {
+            "sqcand": 110850,
+            "nome": "PL · Candidatura SP-02",
+            "partido": "PL",
+            "votos": 348083,
+            "ordem": 2
+          },
+          {
+            "sqcand": 110857,
+            "nome": "PL · Candidatura SP-03",
+            "partido": "PL",
+            "votos": 174041,
+            "ordem": 3
+          },
+          {
+            "sqcand": 110864,
+            "nome": "PL · Candidatura SP-04",
+            "partido": "PL",
+            "votos": 104425,
+            "ordem": 4
+          },
+          {
+            "sqcand": 110871,
+            "nome": "PL · Candidatura SP-05",
+            "partido": "PL",
+            "votos": 69617,
+            "ordem": 5
+          },
+          {
+            "sqcand": 110878,
+            "nome": "PL · Candidatura SP-06",
+            "partido": "PL",
+            "votos": 49726,
+            "ordem": 6
+          },
+          {
+            "sqcand": 110885,
+            "nome": "PL · Candidatura SP-07",
+            "partido": "PL",
+            "votos": 37295,
+            "ordem": 7
+          },
+          {
+            "sqcand": 110892,
+            "nome": "PL · Candidatura SP-08",
+            "partido": "PL",
+            "votos": 29007,
+            "ordem": 8
+          },
+          {
+            "sqcand": 110899,
+            "nome": "PL · Candidatura SP-09",
+            "partido": "PL",
+            "votos": 23206,
+            "ordem": 9
+          },
+          {
+            "sqcand": 110906,
+            "nome": "PL · Candidatura SP-10",
+            "partido": "PL",
+            "votos": 18986,
+            "ordem": 10
+          },
+          {
+            "sqcand": 110913,
+            "nome": "PL · Candidatura SP-11",
+            "partido": "PL",
+            "votos": 15822,
+            "ordem": 11
+          },
+          {
+            "sqcand": 110920,
+            "nome": "PL · Candidatura SP-12",
+            "partido": "PL",
+            "votos": 13388,
+            "ordem": 12
+          },
+          {
+            "sqcand": 110927,
+            "nome": "PL · Candidatura SP-13",
+            "partido": "PL",
+            "votos": 11475,
+            "ordem": 13
+          },
+          {
+            "sqcand": 110934,
+            "nome": "PL · Candidatura SP-14",
+            "partido": "PL",
+            "votos": 9945,
+            "ordem": 14
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 110941,
+            "nome": "PL · Candidatura SP-15",
+            "partido": "PL",
+            "votos": 8702,
+            "ordem": 15
+          },
+          {
+            "sqcand": 110948,
+            "nome": "PL · Candidatura SP-16",
+            "partido": "PL",
+            "votos": 7678,
+            "ordem": 16
+          },
+          {
+            "sqcand": 110955,
+            "nome": "PL · Candidatura SP-17",
+            "partido": "PL",
+            "votos": 6825,
+            "ordem": 17
+          },
+          {
+            "sqcand": 110962,
+            "nome": "PL · Candidatura SP-18",
+            "partido": "PL",
+            "votos": 6107,
+            "ordem": 18
+          },
+          {
+            "sqcand": 110969,
+            "nome": "PL · Candidatura SP-19",
+            "partido": "PL",
+            "votos": 5496,
+            "ordem": 19
+          }
+        ]
+      },
+      {
+        "cod": "44",
+        "sigla": "UNIÃO",
+        "nome": "União Brasil",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "UNIÃO",
+        "votos_nominais": 1505621,
+        "votos_legenda": 89316,
+        "votos_validos": 1594937,
+        "pct_votos": 12.66,
+        "quociente_partidario": 8,
+        "cadeiras": 9,
+        "eleitos": [
+          {
+            "sqcand": 111074,
+            "nome": "UNIÃO · Candidatura SP-01",
+            "partido": "UNIÃO",
+            "votos": 677529,
+            "ordem": 1
+          },
+          {
+            "sqcand": 111081,
+            "nome": "UNIÃO · Candidatura SP-02",
+            "partido": "UNIÃO",
+            "votos": 225843,
+            "ordem": 2
+          },
+          {
+            "sqcand": 111088,
+            "nome": "UNIÃO · Candidatura SP-03",
+            "partido": "UNIÃO",
+            "votos": 112922,
+            "ordem": 3
+          },
+          {
+            "sqcand": 111095,
+            "nome": "UNIÃO · Candidatura SP-04",
+            "partido": "UNIÃO",
+            "votos": 67753,
+            "ordem": 4
+          },
+          {
+            "sqcand": 111102,
+            "nome": "UNIÃO · Candidatura SP-05",
+            "partido": "UNIÃO",
+            "votos": 45169,
+            "ordem": 5
+          },
+          {
+            "sqcand": 111109,
+            "nome": "UNIÃO · Candidatura SP-06",
+            "partido": "UNIÃO",
+            "votos": 32263,
+            "ordem": 6
+          },
+          {
+            "sqcand": 111116,
+            "nome": "UNIÃO · Candidatura SP-07",
+            "partido": "UNIÃO",
+            "votos": 24197,
+            "ordem": 7
+          },
+          {
+            "sqcand": 111123,
+            "nome": "UNIÃO · Candidatura SP-08",
+            "partido": "UNIÃO",
+            "votos": 18820,
+            "ordem": 8
+          },
+          {
+            "sqcand": 111130,
+            "nome": "UNIÃO · Candidatura SP-09",
+            "partido": "UNIÃO",
+            "votos": 15056,
+            "ordem": 9
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 111137,
+            "nome": "UNIÃO · Candidatura SP-10",
+            "partido": "UNIÃO",
+            "votos": 12319,
+            "ordem": 10
+          },
+          {
+            "sqcand": 111144,
+            "nome": "UNIÃO · Candidatura SP-11",
+            "partido": "UNIÃO",
+            "votos": 10266,
+            "ordem": 11
+          },
+          {
+            "sqcand": 111151,
+            "nome": "UNIÃO · Candidatura SP-12",
+            "partido": "UNIÃO",
+            "votos": 8686,
+            "ordem": 12
+          },
+          {
+            "sqcand": 111158,
+            "nome": "UNIÃO · Candidatura SP-13",
+            "partido": "UNIÃO",
+            "votos": 7445,
+            "ordem": 13
+          },
+          {
+            "sqcand": 111165,
+            "nome": "UNIÃO · Candidatura SP-14",
+            "partido": "UNIÃO",
+            "votos": 6453,
+            "ordem": 14
+          }
+        ]
+      },
+      {
+        "cod": "13",
+        "sigla": "FE BRASIL",
+        "nome": "Federação Brasil da Esperança",
+        "tipo": "federacao",
+        "componentes": ["PT", "PCdoB", "PV"],
+        "sigla_lider": "PT",
+        "votos_nominais": 1457537,
+        "votos_legenda": 93034,
+        "votos_validos": 1550571,
+        "pct_votos": 12.31,
+        "quociente_partidario": 8,
+        "cadeiras": 9,
+        "eleitos": [
+          {
+            "sqcand": 110976,
+            "nome": "FE BRASIL · Candidatura SP-01",
+            "partido": "PT",
+            "votos": 655892,
+            "ordem": 1
+          },
+          {
+            "sqcand": 110983,
+            "nome": "FE BRASIL · Candidatura SP-02",
+            "partido": "PCdoB",
+            "votos": 218631,
+            "ordem": 2
+          },
+          {
+            "sqcand": 110990,
+            "nome": "FE BRASIL · Candidatura SP-03",
+            "partido": "PV",
+            "votos": 109315,
+            "ordem": 3
+          },
+          {
+            "sqcand": 110997,
+            "nome": "FE BRASIL · Candidatura SP-04",
+            "partido": "PT",
+            "votos": 65589,
+            "ordem": 4
+          },
+          {
+            "sqcand": 111004,
+            "nome": "FE BRASIL · Candidatura SP-05",
+            "partido": "PCdoB",
+            "votos": 43726,
+            "ordem": 5
+          },
+          {
+            "sqcand": 111011,
+            "nome": "FE BRASIL · Candidatura SP-06",
+            "partido": "PV",
+            "votos": 31233,
+            "ordem": 6
+          },
+          {
+            "sqcand": 111018,
+            "nome": "FE BRASIL · Candidatura SP-07",
+            "partido": "PT",
+            "votos": 23425,
+            "ordem": 7
+          },
+          {
+            "sqcand": 111025,
+            "nome": "FE BRASIL · Candidatura SP-08",
+            "partido": "PCdoB",
+            "votos": 18219,
+            "ordem": 8
+          },
+          {
+            "sqcand": 111032,
+            "nome": "FE BRASIL · Candidatura SP-09",
+            "partido": "PV",
+            "votos": 14575,
+            "ordem": 9,
+            "indefinido": true
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 111039,
+            "nome": "FE BRASIL · Candidatura SP-10",
+            "partido": "PT",
+            "votos": 11925,
+            "ordem": 10
+          },
+          {
+            "sqcand": 111046,
+            "nome": "FE BRASIL · Candidatura SP-11",
+            "partido": "PCdoB",
+            "votos": 9938,
+            "ordem": 11
+          },
+          {
+            "sqcand": 111053,
+            "nome": "FE BRASIL · Candidatura SP-12",
+            "partido": "PV",
+            "votos": 8409,
+            "ordem": 12
+          },
+          {
+            "sqcand": 111060,
+            "nome": "FE BRASIL · Candidatura SP-13",
+            "partido": "PT",
+            "votos": 7208,
+            "ordem": 13
+          },
+          {
+            "sqcand": 111067,
+            "nome": "FE BRASIL · Candidatura SP-14",
+            "partido": "PCdoB",
+            "votos": 6247,
+            "ordem": 14
+          }
+        ]
+      },
+      {
+        "cod": "15",
+        "sigla": "MDB",
+        "nome": "Movimento Democrático Brasileiro",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "MDB",
+        "votos_nominais": 1257620,
+        "votos_legenda": 55136,
+        "votos_validos": 1312756,
+        "pct_votos": 10.42,
+        "quociente_partidario": 7,
+        "cadeiras": 7,
+        "eleitos": [
+          {
+            "sqcand": 111256,
+            "nome": "MDB · Candidatura SP-01",
+            "partido": "MDB",
+            "votos": 565929,
+            "ordem": 1
+          },
+          {
+            "sqcand": 111263,
+            "nome": "MDB · Candidatura SP-02",
+            "partido": "MDB",
+            "votos": 188643,
+            "ordem": 2
+          },
+          {
+            "sqcand": 111270,
+            "nome": "MDB · Candidatura SP-03",
+            "partido": "MDB",
+            "votos": 94322,
+            "ordem": 3
+          },
+          {
+            "sqcand": 111277,
+            "nome": "MDB · Candidatura SP-04",
+            "partido": "MDB",
+            "votos": 56593,
+            "ordem": 4
+          },
+          {
+            "sqcand": 111284,
+            "nome": "MDB · Candidatura SP-05",
+            "partido": "MDB",
+            "votos": 37729,
+            "ordem": 5
+          },
+          {
+            "sqcand": 111291,
+            "nome": "MDB · Candidatura SP-06",
+            "partido": "MDB",
+            "votos": 26949,
+            "ordem": 6
+          },
+          {
+            "sqcand": 111298,
+            "nome": "MDB · Candidatura SP-07",
+            "partido": "MDB",
+            "votos": 20212,
+            "ordem": 7
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 111305,
+            "nome": "MDB · Candidatura SP-08",
+            "partido": "MDB",
+            "votos": 15720,
+            "ordem": 8
+          },
+          {
+            "sqcand": 111312,
+            "nome": "MDB · Candidatura SP-09",
+            "partido": "MDB",
+            "votos": 12576,
+            "ordem": 9
+          },
+          {
+            "sqcand": 111319,
+            "nome": "MDB · Candidatura SP-10",
+            "partido": "MDB",
+            "votos": 10290,
+            "ordem": 10
+          },
+          {
+            "sqcand": 111326,
+            "nome": "MDB · Candidatura SP-11",
+            "partido": "MDB",
+            "votos": 8575,
+            "ordem": 11
+          },
+          {
+            "sqcand": 111333,
+            "nome": "MDB · Candidatura SP-12",
+            "partido": "MDB",
+            "votos": 7256,
+            "ordem": 12
+          }
+        ]
+      },
+      {
+        "cod": "11",
+        "sigla": "PP",
+        "nome": "Progressistas",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PP",
+        "votos_nominais": 1133791,
+        "votos_legenda": 90605,
+        "votos_validos": 1224396,
+        "pct_votos": 9.72,
+        "quociente_partidario": 6,
+        "cadeiras": 7,
+        "eleitos": [
+          {
+            "sqcand": 111172,
+            "nome": "PP · Candidatura SP-01",
+            "partido": "PP",
+            "votos": 510206,
+            "ordem": 1
+          },
+          {
+            "sqcand": 111179,
+            "nome": "PP · Candidatura SP-02",
+            "partido": "PP",
+            "votos": 170069,
+            "ordem": 2
+          },
+          {
+            "sqcand": 111186,
+            "nome": "PP · Candidatura SP-03",
+            "partido": "PP",
+            "votos": 85034,
+            "ordem": 3
+          },
+          {
+            "sqcand": 111193,
+            "nome": "PP · Candidatura SP-04",
+            "partido": "PP",
+            "votos": 51021,
+            "ordem": 4
+          },
+          {
+            "sqcand": 111200,
+            "nome": "PP · Candidatura SP-05",
+            "partido": "PP",
+            "votos": 34014,
+            "ordem": 5
+          },
+          {
+            "sqcand": 111207,
+            "nome": "PP · Candidatura SP-06",
+            "partido": "PP",
+            "votos": 24296,
+            "ordem": 6
+          },
+          {
+            "sqcand": 111214,
+            "nome": "PP · Candidatura SP-07",
+            "partido": "PP",
+            "votos": 18222,
+            "ordem": 7
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 111221,
+            "nome": "PP · Candidatura SP-08",
+            "partido": "PP",
+            "votos": 14172,
+            "ordem": 8
+          },
+          {
+            "sqcand": 111228,
+            "nome": "PP · Candidatura SP-09",
+            "partido": "PP",
+            "votos": 11338,
+            "ordem": 9
+          },
+          {
+            "sqcand": 111235,
+            "nome": "PP · Candidatura SP-10",
+            "partido": "PP",
+            "votos": 9276,
+            "ordem": 10
+          },
+          {
+            "sqcand": 111242,
+            "nome": "PP · Candidatura SP-11",
+            "partido": "PP",
+            "votos": 7730,
+            "ordem": 11
+          },
+          {
+            "sqcand": 111249,
+            "nome": "PP · Candidatura SP-12",
+            "partido": "PP",
+            "votos": 6541,
+            "ordem": 12
+          }
+        ]
+      },
+      {
+        "cod": "10",
+        "sigla": "REPUBLICANOS",
+        "nome": "Republicanos",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "REPUBLICANOS",
+        "votos_nominais": 1009163,
+        "votos_legenda": 72469,
+        "votos_validos": 1081632,
+        "pct_votos": 8.58,
+        "quociente_partidario": 6,
+        "cadeiras": 6,
+        "eleitos": [
+          {
+            "sqcand": 111340,
+            "nome": "REPUBLICANOS · Candidatura SP-01",
+            "partido": "REPUBLICANOS",
+            "votos": 454123,
+            "ordem": 1
+          },
+          {
+            "sqcand": 111347,
+            "nome": "REPUBLICANOS · Candidatura SP-02",
+            "partido": "REPUBLICANOS",
+            "votos": 151374,
+            "ordem": 2
+          },
+          {
+            "sqcand": 111354,
+            "nome": "REPUBLICANOS · Candidatura SP-03",
+            "partido": "REPUBLICANOS",
+            "votos": 75687,
+            "ordem": 3
+          },
+          {
+            "sqcand": 111361,
+            "nome": "REPUBLICANOS · Candidatura SP-04",
+            "partido": "REPUBLICANOS",
+            "votos": 45412,
+            "ordem": 4
+          },
+          {
+            "sqcand": 111368,
+            "nome": "REPUBLICANOS · Candidatura SP-05",
+            "partido": "REPUBLICANOS",
+            "votos": 30275,
+            "ordem": 5
+          },
+          {
+            "sqcand": 111375,
+            "nome": "REPUBLICANOS · Candidatura SP-06",
+            "partido": "REPUBLICANOS",
+            "votos": 21625,
+            "ordem": 6
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 111382,
+            "nome": "REPUBLICANOS · Candidatura SP-07",
+            "partido": "REPUBLICANOS",
+            "votos": 16219,
+            "ordem": 7
+          },
+          {
+            "sqcand": 111389,
+            "nome": "REPUBLICANOS · Candidatura SP-08",
+            "partido": "REPUBLICANOS",
+            "votos": 12615,
+            "ordem": 8
+          },
+          {
+            "sqcand": 111396,
+            "nome": "REPUBLICANOS · Candidatura SP-09",
+            "partido": "REPUBLICANOS",
+            "votos": 10092,
+            "ordem": 9
+          },
+          {
+            "sqcand": 111403,
+            "nome": "REPUBLICANOS · Candidatura SP-10",
+            "partido": "REPUBLICANOS",
+            "votos": 8257,
+            "ordem": 10
+          },
+          {
+            "sqcand": 111410,
+            "nome": "REPUBLICANOS · Candidatura SP-11",
+            "partido": "REPUBLICANOS",
+            "votos": 6881,
+            "ordem": 11
+          }
+        ]
+      },
+      {
+        "cod": "45",
+        "sigla": "FE PSDB CID",
+        "nome": "Federação PSDB Cidadania",
+        "tipo": "federacao",
+        "componentes": ["PSDB", "Cidadania"],
+        "sigla_lider": "PSDB",
+        "votos_nominais": 892599,
+        "votos_legenda": 53953,
+        "votos_validos": 946552,
+        "pct_votos": 7.51,
+        "quociente_partidario": 5,
+        "cadeiras": 5,
+        "eleitos": [
+          {
+            "sqcand": 111480,
+            "nome": "FE PSDB CID · Candidatura SP-01",
+            "partido": "PSDB",
+            "votos": 401670,
+            "ordem": 1
+          },
+          {
+            "sqcand": 111487,
+            "nome": "FE PSDB CID · Candidatura SP-02",
+            "partido": "Cidadania",
+            "votos": 133890,
+            "ordem": 2
+          },
+          {
+            "sqcand": 111494,
+            "nome": "FE PSDB CID · Candidatura SP-03",
+            "partido": "PSDB",
+            "votos": 66945,
+            "ordem": 3
+          },
+          {
+            "sqcand": 111501,
+            "nome": "FE PSDB CID · Candidatura SP-04",
+            "partido": "Cidadania",
+            "votos": 40167,
+            "ordem": 4
+          },
+          {
+            "sqcand": 111508,
+            "nome": "FE PSDB CID · Candidatura SP-05",
+            "partido": "PSDB",
+            "votos": 26778,
+            "ordem": 5
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 111515,
+            "nome": "FE PSDB CID · Candidatura SP-06",
+            "partido": "Cidadania",
+            "votos": 19127,
+            "ordem": 6
+          },
+          {
+            "sqcand": 111522,
+            "nome": "FE PSDB CID · Candidatura SP-07",
+            "partido": "PSDB",
+            "votos": 14345,
+            "ordem": 7
+          },
+          {
+            "sqcand": 111529,
+            "nome": "FE PSDB CID · Candidatura SP-08",
+            "partido": "Cidadania",
+            "votos": 11157,
+            "ordem": 8
+          },
+          {
+            "sqcand": 111536,
+            "nome": "FE PSDB CID · Candidatura SP-09",
+            "partido": "PSDB",
+            "votos": 8926,
+            "ordem": 9
+          },
+          {
+            "sqcand": 111543,
+            "nome": "FE PSDB CID · Candidatura SP-10",
+            "partido": "Cidadania",
+            "votos": 7303,
+            "ordem": 10
+          }
+        ]
+      },
+      {
+        "cod": "55",
+        "sigla": "PSD",
+        "nome": "Partido Social Democrático",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PSD",
+        "votos_nominais": 723336,
+        "votos_legenda": 38070,
+        "votos_validos": 761406,
+        "pct_votos": 6.04,
+        "quociente_partidario": 4,
+        "cadeiras": 4,
+        "eleitos": [
+          {
+            "sqcand": 111417,
+            "nome": "PSD · Candidatura SP-01",
+            "partido": "PSD",
+            "votos": 325501,
+            "ordem": 1
+          },
+          {
+            "sqcand": 111424,
+            "nome": "PSD · Candidatura SP-02",
+            "partido": "PSD",
+            "votos": 108500,
+            "ordem": 2
+          },
+          {
+            "sqcand": 111431,
+            "nome": "PSD · Candidatura SP-03",
+            "partido": "PSD",
+            "votos": 54250,
+            "ordem": 3
+          },
+          {
+            "sqcand": 111438,
+            "nome": "PSD · Candidatura SP-04",
+            "partido": "PSD",
+            "votos": 32550,
+            "ordem": 4
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 111445,
+            "nome": "PSD · Candidatura SP-05",
+            "partido": "PSD",
+            "votos": 21700,
+            "ordem": 5
+          },
+          {
+            "sqcand": 111452,
+            "nome": "PSD · Candidatura SP-06",
+            "partido": "PSD",
+            "votos": 15500,
+            "ordem": 6
+          },
+          {
+            "sqcand": 111459,
+            "nome": "PSD · Candidatura SP-07",
+            "partido": "PSD",
+            "votos": 11625,
+            "ordem": 7
+          },
+          {
+            "sqcand": 111466,
+            "nome": "PSD · Candidatura SP-08",
+            "partido": "PSD",
+            "votos": 9042,
+            "ordem": 8
+          },
+          {
+            "sqcand": 111473,
+            "nome": "PSD · Candidatura SP-09",
+            "partido": "PSD",
+            "votos": 7233,
+            "ordem": 9
+          }
+        ]
+      },
+      {
+        "cod": "50",
+        "sigla": "FE PSOL REDE",
+        "nome": "Federação PSOL Rede",
+        "tipo": "federacao",
+        "componentes": ["PSOL", "REDE"],
+        "sigla_lider": "PSOL",
+        "votos_nominais": 603610,
+        "votos_legenda": 53202,
+        "votos_validos": 656812,
+        "pct_votos": 5.21,
+        "quociente_partidario": 3,
+        "cadeiras": 4,
+        "eleitos": [
+          {
+            "sqcand": 111606,
+            "nome": "FE PSOL REDE · Candidatura SP-01",
+            "partido": "PSOL",
+            "votos": 271625,
+            "ordem": 1
+          },
+          {
+            "sqcand": 111613,
+            "nome": "FE PSOL REDE · Candidatura SP-02",
+            "partido": "REDE",
+            "votos": 90542,
+            "ordem": 2
+          },
+          {
+            "sqcand": 111620,
+            "nome": "FE PSOL REDE · Candidatura SP-03",
+            "partido": "PSOL",
+            "votos": 45271,
+            "ordem": 3
+          },
+          {
+            "sqcand": 111627,
+            "nome": "FE PSOL REDE · Candidatura SP-04",
+            "partido": "REDE",
+            "votos": 27162,
+            "ordem": 4
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 111634,
+            "nome": "FE PSOL REDE · Candidatura SP-05",
+            "partido": "PSOL",
+            "votos": 18108,
+            "ordem": 5
+          },
+          {
+            "sqcand": 111641,
+            "nome": "FE PSOL REDE · Candidatura SP-06",
+            "partido": "REDE",
+            "votos": 12935,
+            "ordem": 6
+          },
+          {
+            "sqcand": 111648,
+            "nome": "FE PSOL REDE · Candidatura SP-07",
+            "partido": "PSOL",
+            "votos": 9701,
+            "ordem": 7
+          },
+          {
+            "sqcand": 111655,
+            "nome": "FE PSOL REDE · Candidatura SP-08",
+            "partido": "REDE",
+            "votos": 7545,
+            "ordem": 8
+          },
+          {
+            "sqcand": 111662,
+            "nome": "FE PSOL REDE · Candidatura SP-09",
+            "partido": "PSOL",
+            "votos": 6036,
+            "ordem": 9
+          }
+        ]
+      },
+      {
+        "cod": "12",
+        "sigla": "PDT",
+        "nome": "Partido Democrático Trabalhista",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PDT",
+        "votos_nominais": 508345,
+        "votos_legenda": 40031,
+        "votos_validos": 548376,
+        "pct_votos": 4.35,
+        "quociente_partidario": 3,
+        "cadeiras": 3,
+        "eleitos": [
+          {
+            "sqcand": 111550,
+            "nome": "PDT · Candidatura SP-01",
+            "partido": "PDT",
+            "votos": 228755,
+            "ordem": 1
+          },
+          {
+            "sqcand": 111557,
+            "nome": "PDT · Candidatura SP-02",
+            "partido": "PDT",
+            "votos": 76252,
+            "ordem": 2
+          },
+          {
+            "sqcand": 111564,
+            "nome": "PDT · Candidatura SP-03",
+            "partido": "PDT",
+            "votos": 38126,
+            "ordem": 3
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 111571,
+            "nome": "PDT · Candidatura SP-04",
+            "partido": "PDT",
+            "votos": 22876,
+            "ordem": 4
+          },
+          {
+            "sqcand": 111578,
+            "nome": "PDT · Candidatura SP-05",
+            "partido": "PDT",
+            "votos": 15250,
+            "ordem": 5
+          },
+          {
+            "sqcand": 111585,
+            "nome": "PDT · Candidatura SP-06",
+            "partido": "PDT",
+            "votos": 10893,
+            "ordem": 6
+          },
+          {
+            "sqcand": 111592,
+            "nome": "PDT · Candidatura SP-07",
+            "partido": "PDT",
+            "votos": 8170,
+            "ordem": 7
+          },
+          {
+            "sqcand": 111599,
+            "nome": "PDT · Candidatura SP-08",
+            "partido": "PDT",
+            "votos": 6354,
+            "ordem": 8
+          }
+        ]
+      },
+      {
+        "cod": "30",
+        "sigla": "NOVO",
+        "nome": "Partido Novo",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "NOVO",
+        "votos_nominais": 389478,
+        "votos_legenda": 32492,
+        "votos_validos": 421970,
+        "pct_votos": 3.35,
+        "quociente_partidario": 2,
+        "cadeiras": 2,
+        "eleitos": [
+          {
+            "sqcand": 111669,
+            "nome": "NOVO · Candidatura SP-01",
+            "partido": "NOVO",
+            "votos": 175265,
+            "ordem": 1
+          },
+          {
+            "sqcand": 111676,
+            "nome": "NOVO · Candidatura SP-02",
+            "partido": "NOVO",
+            "votos": 58422,
+            "ordem": 2
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 111683,
+            "nome": "NOVO · Candidatura SP-03",
+            "partido": "NOVO",
+            "votos": 29211,
+            "ordem": 3
+          },
+          {
+            "sqcand": 111690,
+            "nome": "NOVO · Candidatura SP-04",
+            "partido": "NOVO",
+            "votos": 17527,
+            "ordem": 4
+          },
+          {
+            "sqcand": 111697,
+            "nome": "NOVO · Candidatura SP-05",
+            "partido": "NOVO",
+            "votos": 11684,
+            "ordem": 5
+          },
+          {
+            "sqcand": 111704,
+            "nome": "NOVO · Candidatura SP-06",
+            "partido": "NOVO",
+            "votos": 8346,
+            "ordem": 6
+          },
+          {
+            "sqcand": 111711,
+            "nome": "NOVO · Candidatura SP-07",
+            "partido": "NOVO",
+            "votos": 6259,
+            "ordem": 7
+          }
+        ]
+      }
+    ],
+    "vagas_nao_preenchidas": 0,
+    "empates_indeterminados": []
+  },
+  "MG": {
+    "ts": "2026-10-04T22:15:00-03:00",
+    "cargo": 6,
+    "turno": 1,
+    "uf": "MG",
+    "pct_apurado": 77.4,
+    "lugares_a_preencher": 53,
+    "quociente_eleitoral": 180000,
+    "quociente_eleitoral_tse": 180001,
+    "totalizacao_final": false,
+    "divergencias": [
+      {
+        "o_que": "quociente_eleitoral",
+        "nosso": 180000,
+        "tse": 180001,
+        "detalhe": "UF inteira. 1 voto de diferença no total de válidos. Esperado antes da totalização final (tf != 's')."
+      }
+    ],
+    "agremiacoes": [
+      {
+        "cod": "13",
+        "sigla": "FE BRASIL",
+        "nome": "Federação Brasil da Esperança",
+        "tipo": "federacao",
+        "componentes": ["PT", "PCdoB", "PV"],
+        "sigla_lider": "PT",
+        "votos_nominais": 1754583,
+        "votos_legenda": 94293,
+        "votos_validos": 1848876,
+        "pct_votos": 19.38,
+        "quociente_partidario": 10,
+        "cadeiras": 10,
+        "eleitos": [
+          {
+            "sqcand": 104102,
+            "nome": "FE BRASIL · Candidatura MG-01",
+            "partido": "PT",
+            "votos": 789562,
+            "ordem": 1
+          },
+          {
+            "sqcand": 104109,
+            "nome": "FE BRASIL · Candidatura MG-02",
+            "partido": "PCdoB",
+            "votos": 263187,
+            "ordem": 2
+          },
+          {
+            "sqcand": 104116,
+            "nome": "FE BRASIL · Candidatura MG-03",
+            "partido": "PV",
+            "votos": 131594,
+            "ordem": 3
+          },
+          {
+            "sqcand": 104123,
+            "nome": "FE BRASIL · Candidatura MG-04",
+            "partido": "PT",
+            "votos": 78956,
+            "ordem": 4
+          },
+          {
+            "sqcand": 104130,
+            "nome": "FE BRASIL · Candidatura MG-05",
+            "partido": "PCdoB",
+            "votos": 52637,
+            "ordem": 5
+          },
+          {
+            "sqcand": 104137,
+            "nome": "FE BRASIL · Candidatura MG-06",
+            "partido": "PV",
+            "votos": 37598,
+            "ordem": 6
+          },
+          {
+            "sqcand": 104144,
+            "nome": "FE BRASIL · Candidatura MG-07",
+            "partido": "PT",
+            "votos": 28199,
+            "ordem": 7
+          },
+          {
+            "sqcand": 104151,
+            "nome": "FE BRASIL · Candidatura MG-08",
+            "partido": "PCdoB",
+            "votos": 21932,
+            "ordem": 8
+          },
+          {
+            "sqcand": 104158,
+            "nome": "FE BRASIL · Candidatura MG-09",
+            "partido": "PV",
+            "votos": 17546,
+            "ordem": 9
+          },
+          {
+            "sqcand": 104165,
+            "nome": "FE BRASIL · Candidatura MG-10",
+            "partido": "PT",
+            "votos": 14356,
+            "ordem": 10
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 104172,
+            "nome": "FE BRASIL · Candidatura MG-11",
+            "partido": "PCdoB",
+            "votos": 11963,
+            "ordem": 11
+          },
+          {
+            "sqcand": 104179,
+            "nome": "FE BRASIL · Candidatura MG-12",
+            "partido": "PV",
+            "votos": 10123,
+            "ordem": 12
+          },
+          {
+            "sqcand": 104186,
+            "nome": "FE BRASIL · Candidatura MG-13",
+            "partido": "PT",
+            "votos": 8677,
+            "ordem": 13
+          },
+          {
+            "sqcand": 104193,
+            "nome": "FE BRASIL · Candidatura MG-14",
+            "partido": "PCdoB",
+            "votos": 7520,
+            "ordem": 14
+          },
+          {
+            "sqcand": 104200,
+            "nome": "FE BRASIL · Candidatura MG-15",
+            "partido": "PV",
+            "votos": 6580,
+            "ordem": 15
+          }
+        ]
+      },
+      {
+        "cod": "22",
+        "sigla": "PL",
+        "nome": "Partido Liberal",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PL",
+        "votos_nominais": 1377486,
+        "votos_legenda": 134573,
+        "votos_validos": 1512059,
+        "pct_votos": 15.85,
+        "quociente_partidario": 8,
+        "cadeiras": 9,
+        "eleitos": [
+          {
+            "sqcand": 104004,
+            "nome": "PL · Candidatura MG-01",
+            "partido": "PL",
+            "votos": 619869,
+            "ordem": 1
+          },
+          {
+            "sqcand": 104011,
+            "nome": "PL · Candidatura MG-02",
+            "partido": "PL",
+            "votos": 206623,
+            "ordem": 2
+          },
+          {
+            "sqcand": 104018,
+            "nome": "PL · Candidatura MG-03",
+            "partido": "PL",
+            "votos": 103311,
+            "ordem": 3
+          },
+          {
+            "sqcand": 104025,
+            "nome": "PL · Candidatura MG-04",
+            "partido": "PL",
+            "votos": 61987,
+            "ordem": 4
+          },
+          {
+            "sqcand": 104032,
+            "nome": "PL · Candidatura MG-05",
+            "partido": "PL",
+            "votos": 41325,
+            "ordem": 5
+          },
+          {
+            "sqcand": 104039,
+            "nome": "PL · Candidatura MG-06",
+            "partido": "PL",
+            "votos": 29518,
+            "ordem": 6
+          },
+          {
+            "sqcand": 104046,
+            "nome": "PL · Candidatura MG-07",
+            "partido": "PL",
+            "votos": 22138,
+            "ordem": 7
+          },
+          {
+            "sqcand": 104053,
+            "nome": "PL · Candidatura MG-08",
+            "partido": "PL",
+            "votos": 17219,
+            "ordem": 8
+          },
+          {
+            "sqcand": 104060,
+            "nome": "PL · Candidatura MG-09",
+            "partido": "PL",
+            "votos": 13775,
+            "ordem": 9,
+            "indefinido": true
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 104067,
+            "nome": "PL · Candidatura MG-10",
+            "partido": "PL",
+            "votos": 11270,
+            "ordem": 10
+          },
+          {
+            "sqcand": 104074,
+            "nome": "PL · Candidatura MG-11",
+            "partido": "PL",
+            "votos": 9392,
+            "ordem": 11
+          },
+          {
+            "sqcand": 104081,
+            "nome": "PL · Candidatura MG-12",
+            "partido": "PL",
+            "votos": 7947,
+            "ordem": 12
+          },
+          {
+            "sqcand": 104088,
+            "nome": "PL · Candidatura MG-13",
+            "partido": "PL",
+            "votos": 6812,
+            "ordem": 13
+          },
+          {
+            "sqcand": 104095,
+            "nome": "PL · Candidatura MG-14",
+            "partido": "PL",
+            "votos": 5904,
+            "ordem": 14
+          }
+        ]
+      },
+      {
+        "cod": "44",
+        "sigla": "UNIÃO",
+        "nome": "União Brasil",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "UNIÃO",
+        "votos_nominais": 1151921,
+        "votos_legenda": 51758,
+        "votos_validos": 1203679,
+        "pct_votos": 12.62,
+        "quociente_partidario": 6,
+        "cadeiras": 7,
+        "eleitos": [
+          {
+            "sqcand": 104207,
+            "nome": "UNIÃO · Candidatura MG-01",
+            "partido": "UNIÃO",
+            "votos": 518364,
+            "ordem": 1
+          },
+          {
+            "sqcand": 104214,
+            "nome": "UNIÃO · Candidatura MG-02",
+            "partido": "UNIÃO",
+            "votos": 172788,
+            "ordem": 2
+          },
+          {
+            "sqcand": 104221,
+            "nome": "UNIÃO · Candidatura MG-03",
+            "partido": "UNIÃO",
+            "votos": 86394,
+            "ordem": 3
+          },
+          {
+            "sqcand": 104228,
+            "nome": "UNIÃO · Candidatura MG-04",
+            "partido": "UNIÃO",
+            "votos": 51836,
+            "ordem": 4
+          },
+          {
+            "sqcand": 104235,
+            "nome": "UNIÃO · Candidatura MG-05",
+            "partido": "UNIÃO",
+            "votos": 34558,
+            "ordem": 5
+          },
+          {
+            "sqcand": 104242,
+            "nome": "UNIÃO · Candidatura MG-06",
+            "partido": "UNIÃO",
+            "votos": 24684,
+            "ordem": 6
+          },
+          {
+            "sqcand": 104249,
+            "nome": "UNIÃO · Candidatura MG-07",
+            "partido": "UNIÃO",
+            "votos": 18513,
+            "ordem": 7
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 104256,
+            "nome": "UNIÃO · Candidatura MG-08",
+            "partido": "UNIÃO",
+            "votos": 14399,
+            "ordem": 8
+          },
+          {
+            "sqcand": 104263,
+            "nome": "UNIÃO · Candidatura MG-09",
+            "partido": "UNIÃO",
+            "votos": 11519,
+            "ordem": 9
+          },
+          {
+            "sqcand": 104270,
+            "nome": "UNIÃO · Candidatura MG-10",
+            "partido": "UNIÃO",
+            "votos": 9425,
+            "ordem": 10
+          },
+          {
+            "sqcand": 104277,
+            "nome": "UNIÃO · Candidatura MG-11",
+            "partido": "UNIÃO",
+            "votos": 7854,
+            "ordem": 11
+          },
+          {
+            "sqcand": 104284,
+            "nome": "UNIÃO · Candidatura MG-12",
+            "partido": "UNIÃO",
+            "votos": 6646,
+            "ordem": 12
+          }
+        ]
+      },
+      {
+        "cod": "15",
+        "sigla": "MDB",
+        "nome": "Movimento Democrático Brasileiro",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "MDB",
+        "votos_nominais": 935477,
+        "votos_legenda": 89142,
+        "votos_validos": 1024619,
+        "pct_votos": 10.74,
+        "quociente_partidario": 5,
+        "cadeiras": 6,
+        "eleitos": [
+          {
+            "sqcand": 104361,
+            "nome": "MDB · Candidatura MG-01",
+            "partido": "MDB",
+            "votos": 420965,
+            "ordem": 1
+          },
+          {
+            "sqcand": 104368,
+            "nome": "MDB · Candidatura MG-02",
+            "partido": "MDB",
+            "votos": 140322,
+            "ordem": 2
+          },
+          {
+            "sqcand": 104375,
+            "nome": "MDB · Candidatura MG-03",
+            "partido": "MDB",
+            "votos": 70161,
+            "ordem": 3
+          },
+          {
+            "sqcand": 104382,
+            "nome": "MDB · Candidatura MG-04",
+            "partido": "MDB",
+            "votos": 42096,
+            "ordem": 4
+          },
+          {
+            "sqcand": 104389,
+            "nome": "MDB · Candidatura MG-05",
+            "partido": "MDB",
+            "votos": 28064,
+            "ordem": 5
+          },
+          {
+            "sqcand": 104396,
+            "nome": "MDB · Candidatura MG-06",
+            "partido": "MDB",
+            "votos": 20046,
+            "ordem": 6
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 104403,
+            "nome": "MDB · Candidatura MG-07",
+            "partido": "MDB",
+            "votos": 15034,
+            "ordem": 7
+          },
+          {
+            "sqcand": 104410,
+            "nome": "MDB · Candidatura MG-08",
+            "partido": "MDB",
+            "votos": 11693,
+            "ordem": 8
+          },
+          {
+            "sqcand": 104417,
+            "nome": "MDB · Candidatura MG-09",
+            "partido": "MDB",
+            "votos": 9355,
+            "ordem": 9
+          },
+          {
+            "sqcand": 104424,
+            "nome": "MDB · Candidatura MG-10",
+            "partido": "MDB",
+            "votos": 7654,
+            "ordem": 10
+          },
+          {
+            "sqcand": 104431,
+            "nome": "MDB · Candidatura MG-11",
+            "partido": "MDB",
+            "votos": 6378,
+            "ordem": 11
+          }
+        ]
+      },
+      {
+        "cod": "11",
+        "sigla": "PP",
+        "nome": "Progressistas",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PP",
+        "votos_nominais": 885001,
+        "votos_legenda": 63553,
+        "votos_validos": 948554,
+        "pct_votos": 9.94,
+        "quociente_partidario": 5,
+        "cadeiras": 5,
+        "eleitos": [
+          {
+            "sqcand": 104291,
+            "nome": "PP · Candidatura MG-01",
+            "partido": "PP",
+            "votos": 398250,
+            "ordem": 1
+          },
+          {
+            "sqcand": 104298,
+            "nome": "PP · Candidatura MG-02",
+            "partido": "PP",
+            "votos": 132750,
+            "ordem": 2
+          },
+          {
+            "sqcand": 104305,
+            "nome": "PP · Candidatura MG-03",
+            "partido": "PP",
+            "votos": 66375,
+            "ordem": 3
+          },
+          {
+            "sqcand": 104312,
+            "nome": "PP · Candidatura MG-04",
+            "partido": "PP",
+            "votos": 39825,
+            "ordem": 4
+          },
+          {
+            "sqcand": 104319,
+            "nome": "PP · Candidatura MG-05",
+            "partido": "PP",
+            "votos": 26550,
+            "ordem": 5
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 104326,
+            "nome": "PP · Candidatura MG-06",
+            "partido": "PP",
+            "votos": 18964,
+            "ordem": 6
+          },
+          {
+            "sqcand": 104333,
+            "nome": "PP · Candidatura MG-07",
+            "partido": "PP",
+            "votos": 14223,
+            "ordem": 7
+          },
+          {
+            "sqcand": 104340,
+            "nome": "PP · Candidatura MG-08",
+            "partido": "PP",
+            "votos": 11063,
+            "ordem": 8
+          },
+          {
+            "sqcand": 104347,
+            "nome": "PP · Candidatura MG-09",
+            "partido": "PP",
+            "votos": 8850,
+            "ordem": 9
+          },
+          {
+            "sqcand": 104354,
+            "nome": "PP · Candidatura MG-10",
+            "partido": "PP",
+            "votos": 7241,
+            "ordem": 10
+          }
+        ]
+      },
+      {
+        "cod": "10",
+        "sigla": "REPUBLICANOS",
+        "nome": "Republicanos",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "REPUBLICANOS",
+        "votos_nominais": 646300,
+        "votos_legenda": 29746,
+        "votos_validos": 676046,
+        "pct_votos": 7.09,
+        "quociente_partidario": 3,
+        "cadeiras": 4,
+        "eleitos": [
+          {
+            "sqcand": 104438,
+            "nome": "REPUBLICANOS · Candidatura MG-01",
+            "partido": "REPUBLICANOS",
+            "votos": 290835,
+            "ordem": 1
+          },
+          {
+            "sqcand": 104445,
+            "nome": "REPUBLICANOS · Candidatura MG-02",
+            "partido": "REPUBLICANOS",
+            "votos": 96945,
+            "ordem": 2
+          },
+          {
+            "sqcand": 104452,
+            "nome": "REPUBLICANOS · Candidatura MG-03",
+            "partido": "REPUBLICANOS",
+            "votos": 48473,
+            "ordem": 3
+          },
+          {
+            "sqcand": 104459,
+            "nome": "REPUBLICANOS · Candidatura MG-04",
+            "partido": "REPUBLICANOS",
+            "votos": 29084,
+            "ordem": 4
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 104466,
+            "nome": "REPUBLICANOS · Candidatura MG-05",
+            "partido": "REPUBLICANOS",
+            "votos": 19389,
+            "ordem": 5
+          },
+          {
+            "sqcand": 104473,
+            "nome": "REPUBLICANOS · Candidatura MG-06",
+            "partido": "REPUBLICANOS",
+            "votos": 13849,
+            "ordem": 6
+          },
+          {
+            "sqcand": 104480,
+            "nome": "REPUBLICANOS · Candidatura MG-07",
+            "partido": "REPUBLICANOS",
+            "votos": 10387,
+            "ordem": 7
+          },
+          {
+            "sqcand": 104487,
+            "nome": "REPUBLICANOS · Candidatura MG-08",
+            "partido": "REPUBLICANOS",
+            "votos": 8079,
+            "ordem": 8
+          },
+          {
+            "sqcand": 104494,
+            "nome": "REPUBLICANOS · Candidatura MG-09",
+            "partido": "REPUBLICANOS",
+            "votos": 6463,
+            "ordem": 9
+          }
+        ]
+      },
+      {
+        "cod": "45",
+        "sigla": "FE PSDB CID",
+        "nome": "Federação PSDB Cidadania",
+        "tipo": "federacao",
+        "componentes": ["PSDB", "Cidadania"],
+        "sigla_lider": "PSDB",
+        "votos_nominais": 565920,
+        "votos_legenda": 28534,
+        "votos_validos": 594454,
+        "pct_votos": 6.23,
+        "quociente_partidario": 3,
+        "cadeiras": 3,
+        "eleitos": [
+          {
+            "sqcand": 104557,
+            "nome": "FE PSDB CID · Candidatura MG-01",
+            "partido": "PSDB",
+            "votos": 254664,
+            "ordem": 1
+          },
+          {
+            "sqcand": 104564,
+            "nome": "FE PSDB CID · Candidatura MG-02",
+            "partido": "Cidadania",
+            "votos": 84888,
+            "ordem": 2
+          },
+          {
+            "sqcand": 104571,
+            "nome": "FE PSDB CID · Candidatura MG-03",
+            "partido": "PSDB",
+            "votos": 42444,
+            "ordem": 3
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 104578,
+            "nome": "FE PSDB CID · Candidatura MG-04",
+            "partido": "Cidadania",
+            "votos": 25466,
+            "ordem": 4
+          },
+          {
+            "sqcand": 104585,
+            "nome": "FE PSDB CID · Candidatura MG-05",
+            "partido": "PSDB",
+            "votos": 16978,
+            "ordem": 5
+          },
+          {
+            "sqcand": 104592,
+            "nome": "FE PSDB CID · Candidatura MG-06",
+            "partido": "Cidadania",
+            "votos": 12127,
+            "ordem": 6
+          },
+          {
+            "sqcand": 104599,
+            "nome": "FE PSDB CID · Candidatura MG-07",
+            "partido": "PSDB",
+            "votos": 9095,
+            "ordem": 7
+          },
+          {
+            "sqcand": 104606,
+            "nome": "FE PSDB CID · Candidatura MG-08",
+            "partido": "Cidadania",
+            "votos": 7074,
+            "ordem": 8
+          }
+        ]
+      },
+      {
+        "cod": "55",
+        "sigla": "PSD",
+        "nome": "Partido Social Democrático",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PSD",
+        "votos_nominais": 530197,
+        "votos_legenda": 51797,
+        "votos_validos": 581994,
+        "pct_votos": 6.1,
+        "quociente_partidario": 3,
+        "cadeiras": 3,
+        "eleitos": [
+          {
+            "sqcand": 104501,
+            "nome": "PSD · Candidatura MG-01",
+            "partido": "PSD",
+            "votos": 238589,
+            "ordem": 1
+          },
+          {
+            "sqcand": 104508,
+            "nome": "PSD · Candidatura MG-02",
+            "partido": "PSD",
+            "votos": 79530,
+            "ordem": 2
+          },
+          {
+            "sqcand": 104515,
+            "nome": "PSD · Candidatura MG-03",
+            "partido": "PSD",
+            "votos": 39765,
+            "ordem": 3
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 104522,
+            "nome": "PSD · Candidatura MG-04",
+            "partido": "PSD",
+            "votos": 23859,
+            "ordem": 4
+          },
+          {
+            "sqcand": 104529,
+            "nome": "PSD · Candidatura MG-05",
+            "partido": "PSD",
+            "votos": 15906,
+            "ordem": 5
+          },
+          {
+            "sqcand": 104536,
+            "nome": "PSD · Candidatura MG-06",
+            "partido": "PSD",
+            "votos": 11361,
+            "ordem": 6
+          },
+          {
+            "sqcand": 104543,
+            "nome": "PSD · Candidatura MG-07",
+            "partido": "PSD",
+            "votos": 8521,
+            "ordem": 7
+          },
+          {
+            "sqcand": 104550,
+            "nome": "PSD · Candidatura MG-08",
+            "partido": "PSD",
+            "votos": 6627,
+            "ordem": 8
+          }
+        ]
+      },
+      {
+        "cod": "12",
+        "sigla": "PDT",
+        "nome": "Partido Democrático Trabalhista",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PDT",
+        "votos_nominais": 484995,
+        "votos_legenda": 41030,
+        "votos_validos": 526025,
+        "pct_votos": 5.51,
+        "quociente_partidario": 2,
+        "cadeiras": 3,
+        "eleitos": [
+          {
+            "sqcand": 104613,
+            "nome": "PDT · Candidatura MG-01",
+            "partido": "PDT",
+            "votos": 218248,
+            "ordem": 1
+          },
+          {
+            "sqcand": 104620,
+            "nome": "PDT · Candidatura MG-02",
+            "partido": "PDT",
+            "votos": 72749,
+            "ordem": 2
+          },
+          {
+            "sqcand": 104627,
+            "nome": "PDT · Candidatura MG-03",
+            "partido": "PDT",
+            "votos": 36375,
+            "ordem": 3
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 104634,
+            "nome": "PDT · Candidatura MG-04",
+            "partido": "PDT",
+            "votos": 21825,
+            "ordem": 4
+          },
+          {
+            "sqcand": 104641,
+            "nome": "PDT · Candidatura MG-05",
+            "partido": "PDT",
+            "votos": 14550,
+            "ordem": 5
+          },
+          {
+            "sqcand": 104648,
+            "nome": "PDT · Candidatura MG-06",
+            "partido": "PDT",
+            "votos": 10393,
+            "ordem": 6
+          },
+          {
+            "sqcand": 104655,
+            "nome": "PDT · Candidatura MG-07",
+            "partido": "PDT",
+            "votos": 7795,
+            "ordem": 7
+          },
+          {
+            "sqcand": 104662,
+            "nome": "PDT · Candidatura MG-08",
+            "partido": "PDT",
+            "votos": 6062,
+            "ordem": 8
+          }
+        ]
+      },
+      {
+        "cod": "50",
+        "sigla": "FE PSOL REDE",
+        "nome": "Federação PSOL Rede",
+        "tipo": "federacao",
+        "componentes": ["PSOL", "REDE"],
+        "sigla_lider": "PSOL",
+        "votos_nominais": 375212,
+        "votos_legenda": 31742,
+        "votos_validos": 406954,
+        "pct_votos": 4.27,
+        "quociente_partidario": 2,
+        "cadeiras": 2,
+        "eleitos": [
+          {
+            "sqcand": 104669,
+            "nome": "FE PSOL REDE · Candidatura MG-01",
+            "partido": "PSOL",
+            "votos": 168845,
+            "ordem": 1
+          },
+          {
+            "sqcand": 104676,
+            "nome": "FE PSOL REDE · Candidatura MG-02",
+            "partido": "REDE",
+            "votos": 56282,
+            "ordem": 2
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 104683,
+            "nome": "FE PSOL REDE · Candidatura MG-03",
+            "partido": "PSOL",
+            "votos": 28141,
+            "ordem": 3
+          },
+          {
+            "sqcand": 104690,
+            "nome": "FE PSOL REDE · Candidatura MG-04",
+            "partido": "REDE",
+            "votos": 16885,
+            "ordem": 4
+          },
+          {
+            "sqcand": 104697,
+            "nome": "FE PSOL REDE · Candidatura MG-05",
+            "partido": "PSOL",
+            "votos": 11256,
+            "ordem": 5
+          },
+          {
+            "sqcand": 104704,
+            "nome": "FE PSOL REDE · Candidatura MG-06",
+            "partido": "REDE",
+            "votos": 8040,
+            "ordem": 6
+          },
+          {
+            "sqcand": 104711,
+            "nome": "FE PSOL REDE · Candidatura MG-07",
+            "partido": "PSOL",
+            "votos": 6030,
+            "ordem": 7
+          }
+        ]
+      },
+      {
+        "cod": "30",
+        "sigla": "NOVO",
+        "nome": "Partido Novo",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "NOVO",
+        "votos_nominais": 200269,
+        "votos_legenda": 16472,
+        "votos_validos": 216741,
+        "pct_votos": 2.27,
+        "quociente_partidario": 1,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 104718,
+            "nome": "NOVO · Candidatura MG-01",
+            "partido": "NOVO",
+            "votos": 90121,
+            "ordem": 1
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 104725,
+            "nome": "NOVO · Candidatura MG-02",
+            "partido": "NOVO",
+            "votos": 30040,
+            "ordem": 2
+          },
+          {
+            "sqcand": 104732,
+            "nome": "NOVO · Candidatura MG-03",
+            "partido": "NOVO",
+            "votos": 15020,
+            "ordem": 3
+          },
+          {
+            "sqcand": 104739,
+            "nome": "NOVO · Candidatura MG-04",
+            "partido": "NOVO",
+            "votos": 9012,
+            "ordem": 4
+          },
+          {
+            "sqcand": 104746,
+            "nome": "NOVO · Candidatura MG-05",
+            "partido": "NOVO",
+            "votos": 6008,
+            "ordem": 5
+          },
+          {
+            "sqcand": 104753,
+            "nome": "NOVO · Candidatura MG-06",
+            "partido": "NOVO",
+            "votos": 4291,
+            "ordem": 6
+          }
+        ]
+      }
+    ],
+    "vagas_nao_preenchidas": 0,
+    "empates_indeterminados": []
+  },
+  "RJ": {
+    "ts": "2026-10-04T22:15:00-03:00",
+    "cargo": 6,
+    "turno": 1,
+    "uf": "RJ",
+    "pct_apurado": 83.8,
+    "lugares_a_preencher": 46,
+    "quociente_eleitoral": 180000,
+    "quociente_eleitoral_tse": 180000,
+    "totalizacao_final": false,
+    "divergencias": [],
+    "agremiacoes": [
+      {
+        "cod": "22",
+        "sigla": "PL",
+        "nome": "Partido Liberal",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PL",
+        "votos_nominais": 1719410,
+        "votos_legenda": 163843,
+        "votos_validos": 1883253,
+        "pct_votos": 22.74,
+        "quociente_partidario": 10,
+        "cadeiras": 10,
+        "eleitos": [
+          {
+            "sqcand": 107721,
+            "nome": "PL · Candidatura RJ-01",
+            "partido": "PL",
+            "votos": 773735,
+            "ordem": 1
+          },
+          {
+            "sqcand": 107728,
+            "nome": "PL · Candidatura RJ-02",
+            "partido": "PL",
+            "votos": 257912,
+            "ordem": 2
+          },
+          {
+            "sqcand": 107735,
+            "nome": "PL · Candidatura RJ-03",
+            "partido": "PL",
+            "votos": 128956,
+            "ordem": 3
+          },
+          {
+            "sqcand": 107742,
+            "nome": "PL · Candidatura RJ-04",
+            "partido": "PL",
+            "votos": 77373,
+            "ordem": 4
+          },
+          {
+            "sqcand": 107749,
+            "nome": "PL · Candidatura RJ-05",
+            "partido": "PL",
+            "votos": 51582,
+            "ordem": 5
+          },
+          {
+            "sqcand": 107756,
+            "nome": "PL · Candidatura RJ-06",
+            "partido": "PL",
+            "votos": 36845,
+            "ordem": 6
+          },
+          {
+            "sqcand": 107763,
+            "nome": "PL · Candidatura RJ-07",
+            "partido": "PL",
+            "votos": 27633,
+            "ordem": 7
+          },
+          {
+            "sqcand": 107770,
+            "nome": "PL · Candidatura RJ-08",
+            "partido": "PL",
+            "votos": 21493,
+            "ordem": 8
+          },
+          {
+            "sqcand": 107777,
+            "nome": "PL · Candidatura RJ-09",
+            "partido": "PL",
+            "votos": 17194,
+            "ordem": 9
+          },
+          {
+            "sqcand": 107784,
+            "nome": "PL · Candidatura RJ-10",
+            "partido": "PL",
+            "votos": 14068,
+            "ordem": 10
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 107791,
+            "nome": "PL · Candidatura RJ-11",
+            "partido": "PL",
+            "votos": 11723,
+            "ordem": 11
+          },
+          {
+            "sqcand": 107798,
+            "nome": "PL · Candidatura RJ-12",
+            "partido": "PL",
+            "votos": 9920,
+            "ordem": 12
+          },
+          {
+            "sqcand": 107805,
+            "nome": "PL · Candidatura RJ-13",
+            "partido": "PL",
+            "votos": 8503,
+            "ordem": 13
+          },
+          {
+            "sqcand": 107812,
+            "nome": "PL · Candidatura RJ-14",
+            "partido": "PL",
+            "votos": 7369,
+            "ordem": 14
+          },
+          {
+            "sqcand": 107819,
+            "nome": "PL · Candidatura RJ-15",
+            "partido": "PL",
+            "votos": 6448,
+            "ordem": 15
+          }
+        ]
+      },
+      {
+        "cod": "13",
+        "sigla": "FE BRASIL",
+        "nome": "Federação Brasil da Esperança",
+        "tipo": "federacao",
+        "componentes": ["PT", "PCdoB", "PV"],
+        "sigla_lider": "PT",
+        "votos_nominais": 1004706,
+        "votos_legenda": 95739,
+        "votos_validos": 1100445,
+        "pct_votos": 13.29,
+        "quociente_partidario": 6,
+        "cadeiras": 6,
+        "eleitos": [
+          {
+            "sqcand": 107826,
+            "nome": "FE BRASIL · Candidatura RJ-01",
+            "partido": "PT",
+            "votos": 452118,
+            "ordem": 1
+          },
+          {
+            "sqcand": 107833,
+            "nome": "FE BRASIL · Candidatura RJ-02",
+            "partido": "PCdoB",
+            "votos": 150706,
+            "ordem": 2
+          },
+          {
+            "sqcand": 107840,
+            "nome": "FE BRASIL · Candidatura RJ-03",
+            "partido": "PV",
+            "votos": 75353,
+            "ordem": 3
+          },
+          {
+            "sqcand": 107847,
+            "nome": "FE BRASIL · Candidatura RJ-04",
+            "partido": "PT",
+            "votos": 45212,
+            "ordem": 4
+          },
+          {
+            "sqcand": 107854,
+            "nome": "FE BRASIL · Candidatura RJ-05",
+            "partido": "PCdoB",
+            "votos": 30141,
+            "ordem": 5
+          },
+          {
+            "sqcand": 107861,
+            "nome": "FE BRASIL · Candidatura RJ-06",
+            "partido": "PV",
+            "votos": 21529,
+            "ordem": 6
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 107868,
+            "nome": "FE BRASIL · Candidatura RJ-07",
+            "partido": "PT",
+            "votos": 16147,
+            "ordem": 7
+          },
+          {
+            "sqcand": 107875,
+            "nome": "FE BRASIL · Candidatura RJ-08",
+            "partido": "PCdoB",
+            "votos": 12559,
+            "ordem": 8
+          },
+          {
+            "sqcand": 107882,
+            "nome": "FE BRASIL · Candidatura RJ-09",
+            "partido": "PV",
+            "votos": 10047,
+            "ordem": 9
+          },
+          {
+            "sqcand": 107889,
+            "nome": "FE BRASIL · Candidatura RJ-10",
+            "partido": "PT",
+            "votos": 8220,
+            "ordem": 10
+          },
+          {
+            "sqcand": 107896,
+            "nome": "FE BRASIL · Candidatura RJ-11",
+            "partido": "PCdoB",
+            "votos": 6850,
+            "ordem": 11
+          }
+        ]
+      },
+      {
+        "cod": "11",
+        "sigla": "PP",
+        "nome": "Progressistas",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PP",
+        "votos_nominais": 967348,
+        "votos_legenda": 43465,
+        "votos_validos": 1010813,
+        "pct_votos": 12.21,
+        "quociente_partidario": 5,
+        "cadeiras": 6,
+        "eleitos": [
+          {
+            "sqcand": 107973,
+            "nome": "PP · Candidatura RJ-01",
+            "partido": "PP",
+            "votos": 435307,
+            "ordem": 1
+          },
+          {
+            "sqcand": 107980,
+            "nome": "PP · Candidatura RJ-02",
+            "partido": "PP",
+            "votos": 145102,
+            "ordem": 2
+          },
+          {
+            "sqcand": 107987,
+            "nome": "PP · Candidatura RJ-03",
+            "partido": "PP",
+            "votos": 72551,
+            "ordem": 3
+          },
+          {
+            "sqcand": 107994,
+            "nome": "PP · Candidatura RJ-04",
+            "partido": "PP",
+            "votos": 43531,
+            "ordem": 4
+          },
+          {
+            "sqcand": 108001,
+            "nome": "PP · Candidatura RJ-05",
+            "partido": "PP",
+            "votos": 29020,
+            "ordem": 5
+          },
+          {
+            "sqcand": 108008,
+            "nome": "PP · Candidatura RJ-06",
+            "partido": "PP",
+            "votos": 20729,
+            "ordem": 6
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 108015,
+            "nome": "PP · Candidatura RJ-07",
+            "partido": "PP",
+            "votos": 15547,
+            "ordem": 7
+          },
+          {
+            "sqcand": 108022,
+            "nome": "PP · Candidatura RJ-08",
+            "partido": "PP",
+            "votos": 12092,
+            "ordem": 8
+          },
+          {
+            "sqcand": 108029,
+            "nome": "PP · Candidatura RJ-09",
+            "partido": "PP",
+            "votos": 9673,
+            "ordem": 9
+          },
+          {
+            "sqcand": 108036,
+            "nome": "PP · Candidatura RJ-10",
+            "partido": "PP",
+            "votos": 7915,
+            "ordem": 10
+          },
+          {
+            "sqcand": 108043,
+            "nome": "PP · Candidatura RJ-11",
+            "partido": "PP",
+            "votos": 6596,
+            "ordem": 11
+          }
+        ]
+      },
+      {
+        "cod": "44",
+        "sigla": "UNIÃO",
+        "nome": "União Brasil",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "UNIÃO",
+        "votos_nominais": 755567,
+        "votos_legenda": 61262,
+        "votos_validos": 816829,
+        "pct_votos": 9.87,
+        "quociente_partidario": 4,
+        "cadeiras": 5,
+        "eleitos": [
+          {
+            "sqcand": 107903,
+            "nome": "UNIÃO · Candidatura RJ-01",
+            "partido": "UNIÃO",
+            "votos": 340005,
+            "ordem": 1
+          },
+          {
+            "sqcand": 107910,
+            "nome": "UNIÃO · Candidatura RJ-02",
+            "partido": "UNIÃO",
+            "votos": 113335,
+            "ordem": 2
+          },
+          {
+            "sqcand": 107917,
+            "nome": "UNIÃO · Candidatura RJ-03",
+            "partido": "UNIÃO",
+            "votos": 56668,
+            "ordem": 3
+          },
+          {
+            "sqcand": 107924,
+            "nome": "UNIÃO · Candidatura RJ-04",
+            "partido": "UNIÃO",
+            "votos": 34001,
+            "ordem": 4
+          },
+          {
+            "sqcand": 107931,
+            "nome": "UNIÃO · Candidatura RJ-05",
+            "partido": "UNIÃO",
+            "votos": 22667,
+            "ordem": 5,
+            "indefinido": true
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 107938,
+            "nome": "UNIÃO · Candidatura RJ-06",
+            "partido": "UNIÃO",
+            "votos": 16191,
+            "ordem": 6
+          },
+          {
+            "sqcand": 107945,
+            "nome": "UNIÃO · Candidatura RJ-07",
+            "partido": "UNIÃO",
+            "votos": 12143,
+            "ordem": 7
+          },
+          {
+            "sqcand": 107952,
+            "nome": "UNIÃO · Candidatura RJ-08",
+            "partido": "UNIÃO",
+            "votos": 9445,
+            "ordem": 8
+          },
+          {
+            "sqcand": 107959,
+            "nome": "UNIÃO · Candidatura RJ-09",
+            "partido": "UNIÃO",
+            "votos": 7556,
+            "ordem": 9
+          },
+          {
+            "sqcand": 107966,
+            "nome": "UNIÃO · Candidatura RJ-10",
+            "partido": "UNIÃO",
+            "votos": 6182,
+            "ordem": 10
+          }
+        ]
+      },
+      {
+        "cod": "55",
+        "sigla": "PSD",
+        "nome": "Partido Social Democrático",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PSD",
+        "votos_nominais": 705798,
+        "votos_legenda": 42662,
+        "votos_validos": 748460,
+        "pct_votos": 9.04,
+        "quociente_partidario": 4,
+        "cadeiras": 4,
+        "eleitos": [
+          {
+            "sqcand": 108169,
+            "nome": "PSD · Candidatura RJ-01",
+            "partido": "PSD",
+            "votos": 317609,
+            "ordem": 1
+          },
+          {
+            "sqcand": 108176,
+            "nome": "PSD · Candidatura RJ-02",
+            "partido": "PSD",
+            "votos": 105870,
+            "ordem": 2
+          },
+          {
+            "sqcand": 108183,
+            "nome": "PSD · Candidatura RJ-03",
+            "partido": "PSD",
+            "votos": 52935,
+            "ordem": 3
+          },
+          {
+            "sqcand": 108190,
+            "nome": "PSD · Candidatura RJ-04",
+            "partido": "PSD",
+            "votos": 31761,
+            "ordem": 4
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 108197,
+            "nome": "PSD · Candidatura RJ-05",
+            "partido": "PSD",
+            "votos": 21174,
+            "ordem": 5
+          },
+          {
+            "sqcand": 108204,
+            "nome": "PSD · Candidatura RJ-06",
+            "partido": "PSD",
+            "votos": 15124,
+            "ordem": 6
+          },
+          {
+            "sqcand": 108211,
+            "nome": "PSD · Candidatura RJ-07",
+            "partido": "PSD",
+            "votos": 11343,
+            "ordem": 7
+          },
+          {
+            "sqcand": 108218,
+            "nome": "PSD · Candidatura RJ-08",
+            "partido": "PSD",
+            "votos": 8822,
+            "ordem": 8
+          },
+          {
+            "sqcand": 108225,
+            "nome": "PSD · Candidatura RJ-09",
+            "partido": "PSD",
+            "votos": 7058,
+            "ordem": 9
+          }
+        ]
+      },
+      {
+        "cod": "10",
+        "sigla": "REPUBLICANOS",
+        "nome": "Republicanos",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "REPUBLICANOS",
+        "votos_nominais": 681962,
+        "votos_legenda": 59301,
+        "votos_validos": 741263,
+        "pct_votos": 8.95,
+        "quociente_partidario": 4,
+        "cadeiras": 4,
+        "eleitos": [
+          {
+            "sqcand": 108106,
+            "nome": "REPUBLICANOS · Candidatura RJ-01",
+            "partido": "REPUBLICANOS",
+            "votos": 306883,
+            "ordem": 1
+          },
+          {
+            "sqcand": 108113,
+            "nome": "REPUBLICANOS · Candidatura RJ-02",
+            "partido": "REPUBLICANOS",
+            "votos": 102294,
+            "ordem": 2
+          },
+          {
+            "sqcand": 108120,
+            "nome": "REPUBLICANOS · Candidatura RJ-03",
+            "partido": "REPUBLICANOS",
+            "votos": 51147,
+            "ordem": 3
+          },
+          {
+            "sqcand": 108127,
+            "nome": "REPUBLICANOS · Candidatura RJ-04",
+            "partido": "REPUBLICANOS",
+            "votos": 30688,
+            "ordem": 4
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 108134,
+            "nome": "REPUBLICANOS · Candidatura RJ-05",
+            "partido": "REPUBLICANOS",
+            "votos": 20459,
+            "ordem": 5
+          },
+          {
+            "sqcand": 108141,
+            "nome": "REPUBLICANOS · Candidatura RJ-06",
+            "partido": "REPUBLICANOS",
+            "votos": 14613,
+            "ordem": 6
+          },
+          {
+            "sqcand": 108148,
+            "nome": "REPUBLICANOS · Candidatura RJ-07",
+            "partido": "REPUBLICANOS",
+            "votos": 10960,
+            "ordem": 7
+          },
+          {
+            "sqcand": 108155,
+            "nome": "REPUBLICANOS · Candidatura RJ-08",
+            "partido": "REPUBLICANOS",
+            "votos": 8525,
+            "ordem": 8
+          },
+          {
+            "sqcand": 108162,
+            "nome": "REPUBLICANOS · Candidatura RJ-09",
+            "partido": "REPUBLICANOS",
+            "votos": 6820,
+            "ordem": 9
+          }
+        ]
+      },
+      {
+        "cod": "15",
+        "sigla": "MDB",
+        "nome": "Movimento Democrático Brasileiro",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "MDB",
+        "votos_nominais": 564640,
+        "votos_legenda": 41848,
+        "votos_validos": 606488,
+        "pct_votos": 7.32,
+        "quociente_partidario": 3,
+        "cadeiras": 3,
+        "eleitos": [
+          {
+            "sqcand": 108050,
+            "nome": "MDB · Candidatura RJ-01",
+            "partido": "MDB",
+            "votos": 254088,
+            "ordem": 1
+          },
+          {
+            "sqcand": 108057,
+            "nome": "MDB · Candidatura RJ-02",
+            "partido": "MDB",
+            "votos": 84696,
+            "ordem": 2
+          },
+          {
+            "sqcand": 108064,
+            "nome": "MDB · Candidatura RJ-03",
+            "partido": "MDB",
+            "votos": 42348,
+            "ordem": 3
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 108071,
+            "nome": "MDB · Candidatura RJ-04",
+            "partido": "MDB",
+            "votos": 25409,
+            "ordem": 4
+          },
+          {
+            "sqcand": 108078,
+            "nome": "MDB · Candidatura RJ-05",
+            "partido": "MDB",
+            "votos": 16939,
+            "ordem": 5
+          },
+          {
+            "sqcand": 108085,
+            "nome": "MDB · Candidatura RJ-06",
+            "partido": "MDB",
+            "votos": 12099,
+            "ordem": 6
+          },
+          {
+            "sqcand": 108092,
+            "nome": "MDB · Candidatura RJ-07",
+            "partido": "MDB",
+            "votos": 9075,
+            "ordem": 7
+          },
+          {
+            "sqcand": 108099,
+            "nome": "MDB · Candidatura RJ-08",
+            "partido": "MDB",
+            "votos": 7058,
+            "ordem": 8
+          }
+        ]
+      },
+      {
+        "cod": "50",
+        "sigla": "FE PSOL REDE",
+        "nome": "Federação PSOL Rede",
+        "tipo": "federacao",
+        "componentes": ["PSOL", "REDE"],
+        "sigla_lider": "PSOL",
+        "votos_nominais": 464729,
+        "votos_legenda": 38224,
+        "votos_validos": 502953,
+        "pct_votos": 6.07,
+        "quociente_partidario": 2,
+        "cadeiras": 3,
+        "eleitos": [
+          {
+            "sqcand": 108330,
+            "nome": "FE PSOL REDE · Candidatura RJ-01",
+            "partido": "PSOL",
+            "votos": 209128,
+            "ordem": 1
+          },
+          {
+            "sqcand": 108337,
+            "nome": "FE PSOL REDE · Candidatura RJ-02",
+            "partido": "REDE",
+            "votos": 69709,
+            "ordem": 2
+          },
+          {
+            "sqcand": 108344,
+            "nome": "FE PSOL REDE · Candidatura RJ-03",
+            "partido": "PSOL",
+            "votos": 34855,
+            "ordem": 3
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 108351,
+            "nome": "FE PSOL REDE · Candidatura RJ-04",
+            "partido": "REDE",
+            "votos": 20913,
+            "ordem": 4
+          },
+          {
+            "sqcand": 108358,
+            "nome": "FE PSOL REDE · Candidatura RJ-05",
+            "partido": "PSOL",
+            "votos": 13942,
+            "ordem": 5
+          },
+          {
+            "sqcand": 108365,
+            "nome": "FE PSOL REDE · Candidatura RJ-06",
+            "partido": "REDE",
+            "votos": 9958,
+            "ordem": 6
+          },
+          {
+            "sqcand": 108372,
+            "nome": "FE PSOL REDE · Candidatura RJ-07",
+            "partido": "PSOL",
+            "votos": 7469,
+            "ordem": 7
+          },
+          {
+            "sqcand": 108379,
+            "nome": "FE PSOL REDE · Candidatura RJ-08",
+            "partido": "REDE",
+            "votos": 5809,
+            "ordem": 8
+          }
+        ]
+      },
+      {
+        "cod": "45",
+        "sigla": "FE PSDB CID",
+        "nome": "Federação PSDB Cidadania",
+        "tipo": "federacao",
+        "componentes": ["PSDB", "Cidadania"],
+        "sigla_lider": "PSDB",
+        "votos_nominais": 369722,
+        "votos_legenda": 25280,
+        "votos_validos": 395002,
+        "pct_votos": 4.77,
+        "quociente_partidario": 2,
+        "cadeiras": 2,
+        "eleitos": [
+          {
+            "sqcand": 108232,
+            "nome": "FE PSDB CID · Candidatura RJ-01",
+            "partido": "PSDB",
+            "votos": 166375,
+            "ordem": 1
+          },
+          {
+            "sqcand": 108239,
+            "nome": "FE PSDB CID · Candidatura RJ-02",
+            "partido": "Cidadania",
+            "votos": 55458,
+            "ordem": 2
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 108246,
+            "nome": "FE PSDB CID · Candidatura RJ-03",
+            "partido": "PSDB",
+            "votos": 27729,
+            "ordem": 3
+          },
+          {
+            "sqcand": 108253,
+            "nome": "FE PSDB CID · Candidatura RJ-04",
+            "partido": "Cidadania",
+            "votos": 16637,
+            "ordem": 4
+          },
+          {
+            "sqcand": 108260,
+            "nome": "FE PSDB CID · Candidatura RJ-05",
+            "partido": "PSDB",
+            "votos": 11092,
+            "ordem": 5
+          },
+          {
+            "sqcand": 108267,
+            "nome": "FE PSDB CID · Candidatura RJ-06",
+            "partido": "Cidadania",
+            "votos": 7923,
+            "ordem": 6
+          },
+          {
+            "sqcand": 108274,
+            "nome": "FE PSDB CID · Candidatura RJ-07",
+            "partido": "PSDB",
+            "votos": 5942,
+            "ordem": 7
+          }
+        ]
+      },
+      {
+        "cod": "12",
+        "sigla": "PDT",
+        "nome": "Partido Democrático Trabalhista",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PDT",
+        "votos_nominais": 288494,
+        "votos_legenda": 13278,
+        "votos_validos": 301772,
+        "pct_votos": 3.64,
+        "quociente_partidario": 1,
+        "cadeiras": 2,
+        "eleitos": [
+          {
+            "sqcand": 108281,
+            "nome": "PDT · Candidatura RJ-01",
+            "partido": "PDT",
+            "votos": 129822,
+            "ordem": 1
+          },
+          {
+            "sqcand": 108288,
+            "nome": "PDT · Candidatura RJ-02",
+            "partido": "PDT",
+            "votos": 43274,
+            "ordem": 2
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 108295,
+            "nome": "PDT · Candidatura RJ-03",
+            "partido": "PDT",
+            "votos": 21637,
+            "ordem": 3
+          },
+          {
+            "sqcand": 108302,
+            "nome": "PDT · Candidatura RJ-04",
+            "partido": "PDT",
+            "votos": 12982,
+            "ordem": 4
+          },
+          {
+            "sqcand": 108309,
+            "nome": "PDT · Candidatura RJ-05",
+            "partido": "PDT",
+            "votos": 8655,
+            "ordem": 5
+          },
+          {
+            "sqcand": 108316,
+            "nome": "PDT · Candidatura RJ-06",
+            "partido": "PDT",
+            "votos": 6182,
+            "ordem": 6
+          },
+          {
+            "sqcand": 108323,
+            "nome": "PDT · Candidatura RJ-07",
+            "partido": "PDT",
+            "votos": 4637,
+            "ordem": 7
+          }
+        ]
+      },
+      {
+        "cod": "30",
+        "sigla": "NOVO",
+        "nome": "Partido Novo",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "NOVO",
+        "votos_nominais": 161321,
+        "votos_legenda": 11400,
+        "votos_validos": 172721,
+        "pct_votos": 2.09,
+        "quociente_partidario": 0,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 108386,
+            "nome": "NOVO · Candidatura RJ-01",
+            "partido": "NOVO",
+            "votos": 72594,
+            "ordem": 1
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 108393,
+            "nome": "NOVO · Candidatura RJ-02",
+            "partido": "NOVO",
+            "votos": 24198,
+            "ordem": 2
+          },
+          {
+            "sqcand": 108400,
+            "nome": "NOVO · Candidatura RJ-03",
+            "partido": "NOVO",
+            "votos": 12099,
+            "ordem": 3
+          },
+          {
+            "sqcand": 108407,
+            "nome": "NOVO · Candidatura RJ-04",
+            "partido": "NOVO",
+            "votos": 7259,
+            "ordem": 4
+          },
+          {
+            "sqcand": 108414,
+            "nome": "NOVO · Candidatura RJ-05",
+            "partido": "NOVO",
+            "votos": 4840,
+            "ordem": 5
+          },
+          {
+            "sqcand": 108421,
+            "nome": "NOVO · Candidatura RJ-06",
+            "partido": "NOVO",
+            "votos": 3457,
+            "ordem": 6
+          }
+        ]
+      }
+    ],
+    "vagas_nao_preenchidas": 0,
+    "empates_indeterminados": []
+  },
+  "RR": {
+    "ts": "2026-10-04T22:15:00-03:00",
+    "cargo": 6,
+    "turno": 1,
+    "uf": "RR",
+    "pct_apurado": 57.4,
+    "lugares_a_preencher": 8,
+    "quociente_eleitoral": 180000,
+    "quociente_eleitoral_tse": 180000,
+    "totalizacao_final": false,
+    "divergencias": [],
+    "agremiacoes": [
+      {
+        "cod": "22",
+        "sigla": "PL",
+        "nome": "Partido Liberal",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PL",
+        "votos_nominais": 243108,
+        "votos_legenda": 11990,
+        "votos_validos": 255098,
+        "pct_votos": 17.72,
+        "quociente_partidario": 1,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 108869,
+            "nome": "PL · Candidatura RR-01",
+            "partido": "PL",
+            "votos": 109399,
+            "ordem": 1
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 108876,
+            "nome": "PL · Candidatura RR-02",
+            "partido": "PL",
+            "votos": 36466,
+            "ordem": 2
+          },
+          {
+            "sqcand": 108883,
+            "nome": "PL · Candidatura RR-03",
+            "partido": "PL",
+            "votos": 18233,
+            "ordem": 3
+          },
+          {
+            "sqcand": 108890,
+            "nome": "PL · Candidatura RR-04",
+            "partido": "PL",
+            "votos": 10940,
+            "ordem": 4
+          },
+          {
+            "sqcand": 108897,
+            "nome": "PL · Candidatura RR-05",
+            "partido": "PL",
+            "votos": 7293,
+            "ordem": 5
+          },
+          {
+            "sqcand": 108904,
+            "nome": "PL · Candidatura RR-06",
+            "partido": "PL",
+            "votos": 5209,
+            "ordem": 6
+          }
+        ]
+      },
+      {
+        "cod": "13",
+        "sigla": "FE BRASIL",
+        "nome": "Federação Brasil da Esperança",
+        "tipo": "federacao",
+        "componentes": ["PT", "PCdoB", "PV"],
+        "sigla_lider": "PT",
+        "votos_nominais": 183072,
+        "votos_legenda": 17007,
+        "votos_validos": 200079,
+        "pct_votos": 13.89,
+        "quociente_partidario": 1,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 108911,
+            "nome": "FE BRASIL · Candidatura RR-01",
+            "partido": "PT",
+            "votos": 82382,
+            "ordem": 1
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 108918,
+            "nome": "FE BRASIL · Candidatura RR-02",
+            "partido": "PCdoB",
+            "votos": 27461,
+            "ordem": 2
+          },
+          {
+            "sqcand": 108925,
+            "nome": "FE BRASIL · Candidatura RR-03",
+            "partido": "PV",
+            "votos": 13730,
+            "ordem": 3
+          },
+          {
+            "sqcand": 108932,
+            "nome": "FE BRASIL · Candidatura RR-04",
+            "partido": "PT",
+            "votos": 8238,
+            "ordem": 4
+          },
+          {
+            "sqcand": 108939,
+            "nome": "FE BRASIL · Candidatura RR-05",
+            "partido": "PCdoB",
+            "votos": 5492,
+            "ordem": 5
+          },
+          {
+            "sqcand": 108946,
+            "nome": "FE BRASIL · Candidatura RR-06",
+            "partido": "PV",
+            "votos": 3923,
+            "ordem": 6
+          }
+        ]
+      },
+      {
+        "cod": "44",
+        "sigla": "UNIÃO",
+        "nome": "União Brasil",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "UNIÃO",
+        "votos_nominais": 188556,
+        "votos_legenda": 8472,
+        "votos_validos": 197028,
+        "pct_votos": 13.68,
+        "quociente_partidario": 1,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 108953,
+            "nome": "UNIÃO · Candidatura RR-01",
+            "partido": "UNIÃO",
+            "votos": 84850,
+            "ordem": 1
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 108960,
+            "nome": "UNIÃO · Candidatura RR-02",
+            "partido": "UNIÃO",
+            "votos": 28283,
+            "ordem": 2
+          },
+          {
+            "sqcand": 108967,
+            "nome": "UNIÃO · Candidatura RR-03",
+            "partido": "UNIÃO",
+            "votos": 14142,
+            "ordem": 3
+          },
+          {
+            "sqcand": 108974,
+            "nome": "UNIÃO · Candidatura RR-04",
+            "partido": "UNIÃO",
+            "votos": 8485,
+            "ordem": 4
+          },
+          {
+            "sqcand": 108981,
+            "nome": "UNIÃO · Candidatura RR-05",
+            "partido": "UNIÃO",
+            "votos": 5657,
+            "ordem": 5
+          },
+          {
+            "sqcand": 108988,
+            "nome": "UNIÃO · Candidatura RR-06",
+            "partido": "UNIÃO",
+            "votos": 4040,
+            "ordem": 6
+          }
+        ]
+      },
+      {
+        "cod": "11",
+        "sigla": "PP",
+        "nome": "Progressistas",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PP",
+        "votos_nominais": 170112,
+        "votos_legenda": 14592,
+        "votos_validos": 184704,
+        "pct_votos": 12.83,
+        "quociente_partidario": 1,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 108995,
+            "nome": "PP · Candidatura RR-01",
+            "partido": "PP",
+            "votos": 76550,
+            "ordem": 1
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 109002,
+            "nome": "PP · Candidatura RR-02",
+            "partido": "PP",
+            "votos": 25517,
+            "ordem": 2
+          },
+          {
+            "sqcand": 109009,
+            "nome": "PP · Candidatura RR-03",
+            "partido": "PP",
+            "votos": 12758,
+            "ordem": 3
+          },
+          {
+            "sqcand": 109016,
+            "nome": "PP · Candidatura RR-04",
+            "partido": "PP",
+            "votos": 7655,
+            "ordem": 4
+          },
+          {
+            "sqcand": 109023,
+            "nome": "PP · Candidatura RR-05",
+            "partido": "PP",
+            "votos": 5103,
+            "ordem": 5
+          },
+          {
+            "sqcand": 109030,
+            "nome": "PP · Candidatura RR-06",
+            "partido": "PP",
+            "votos": 3645,
+            "ordem": 6
+          }
+        ]
+      },
+      {
+        "cod": "10",
+        "sigla": "REPUBLICANOS",
+        "nome": "Republicanos",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "REPUBLICANOS",
+        "votos_nominais": 125305,
+        "votos_legenda": 10014,
+        "votos_validos": 135319,
+        "pct_votos": 9.4,
+        "quociente_partidario": 0,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 109079,
+            "nome": "REPUBLICANOS · Candidatura RR-01",
+            "partido": "REPUBLICANOS",
+            "votos": 56387,
+            "ordem": 1
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 109086,
+            "nome": "REPUBLICANOS · Candidatura RR-02",
+            "partido": "REPUBLICANOS",
+            "votos": 18796,
+            "ordem": 2
+          },
+          {
+            "sqcand": 109093,
+            "nome": "REPUBLICANOS · Candidatura RR-03",
+            "partido": "REPUBLICANOS",
+            "votos": 9398,
+            "ordem": 3
+          },
+          {
+            "sqcand": 109100,
+            "nome": "REPUBLICANOS · Candidatura RR-04",
+            "partido": "REPUBLICANOS",
+            "votos": 5639,
+            "ordem": 4
+          },
+          {
+            "sqcand": 109107,
+            "nome": "REPUBLICANOS · Candidatura RR-05",
+            "partido": "REPUBLICANOS",
+            "votos": 3759,
+            "ordem": 5
+          },
+          {
+            "sqcand": 109114,
+            "nome": "REPUBLICANOS · Candidatura RR-06",
+            "partido": "REPUBLICANOS",
+            "votos": 2685,
+            "ordem": 6
+          }
+        ]
+      },
+      {
+        "cod": "15",
+        "sigla": "MDB",
+        "nome": "Movimento Democrático Brasileiro",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "MDB",
+        "votos_nominais": 104392,
+        "votos_legenda": 5842,
+        "votos_validos": 110234,
+        "pct_votos": 7.66,
+        "quociente_partidario": 0,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 109037,
+            "nome": "MDB · Candidatura RR-01",
+            "partido": "MDB",
+            "votos": 46976,
+            "ordem": 1
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 109044,
+            "nome": "MDB · Candidatura RR-02",
+            "partido": "MDB",
+            "votos": 15659,
+            "ordem": 2
+          },
+          {
+            "sqcand": 109051,
+            "nome": "MDB · Candidatura RR-03",
+            "partido": "MDB",
+            "votos": 7829,
+            "ordem": 3
+          },
+          {
+            "sqcand": 109058,
+            "nome": "MDB · Candidatura RR-04",
+            "partido": "MDB",
+            "votos": 4698,
+            "ordem": 4
+          },
+          {
+            "sqcand": 109065,
+            "nome": "MDB · Candidatura RR-05",
+            "partido": "MDB",
+            "votos": 3132,
+            "ordem": 5
+          },
+          {
+            "sqcand": 109072,
+            "nome": "MDB · Candidatura RR-06",
+            "partido": "MDB",
+            "votos": 2237,
+            "ordem": 6
+          }
+        ]
+      },
+      {
+        "cod": "55",
+        "sigla": "PSD",
+        "nome": "Partido Social Democrático",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PSD",
+        "votos_nominais": 94532,
+        "votos_legenda": 4662,
+        "votos_validos": 99194,
+        "pct_votos": 6.89,
+        "quociente_partidario": 0,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 109121,
+            "nome": "PSD · Candidatura RR-01",
+            "partido": "PSD",
+            "votos": 42539,
+            "ordem": 1,
+            "indefinido": true
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 109128,
+            "nome": "PSD · Candidatura RR-02",
+            "partido": "PSD",
+            "votos": 14180,
+            "ordem": 2
+          },
+          {
+            "sqcand": 109135,
+            "nome": "PSD · Candidatura RR-03",
+            "partido": "PSD",
+            "votos": 7090,
+            "ordem": 3
+          },
+          {
+            "sqcand": 109142,
+            "nome": "PSD · Candidatura RR-04",
+            "partido": "PSD",
+            "votos": 4254,
+            "ordem": 4
+          },
+          {
+            "sqcand": 109149,
+            "nome": "PSD · Candidatura RR-05",
+            "partido": "PSD",
+            "votos": 2836,
+            "ordem": 5
+          },
+          {
+            "sqcand": 109156,
+            "nome": "PSD · Candidatura RR-06",
+            "partido": "PSD",
+            "votos": 2026,
+            "ordem": 6
+          }
+        ]
+      },
+      {
+        "cod": "45",
+        "sigla": "FE PSDB CID",
+        "nome": "Federação PSDB Cidadania",
+        "tipo": "federacao",
+        "componentes": ["PSDB", "Cidadania"],
+        "sigla_lider": "PSDB",
+        "votos_nominais": 91660,
+        "votos_legenda": 6477,
+        "votos_validos": 98137,
+        "pct_votos": 6.82,
+        "quociente_partidario": 0,
+        "cadeiras": 0,
+        "eleitos": [],
+        "suplentes": [
+          {
+            "sqcand": 109163,
+            "nome": "FE PSDB CID · Candidatura RR-01",
+            "partido": "PSDB",
+            "votos": 41247,
+            "ordem": 1
+          },
+          {
+            "sqcand": 109170,
+            "nome": "FE PSDB CID · Candidatura RR-02",
+            "partido": "Cidadania",
+            "votos": 13749,
+            "ordem": 2
+          },
+          {
+            "sqcand": 109177,
+            "nome": "FE PSDB CID · Candidatura RR-03",
+            "partido": "PSDB",
+            "votos": 6875,
+            "ordem": 3
+          },
+          {
+            "sqcand": 109184,
+            "nome": "FE PSDB CID · Candidatura RR-04",
+            "partido": "Cidadania",
+            "votos": 4125,
+            "ordem": 4
+          },
+          {
+            "sqcand": 109191,
+            "nome": "FE PSDB CID · Candidatura RR-05",
+            "partido": "PSDB",
+            "votos": 2750,
+            "ordem": 5
+          }
+        ]
+      },
+      {
+        "cod": "50",
+        "sigla": "FE PSOL REDE",
+        "nome": "Federação PSOL Rede",
+        "tipo": "federacao",
+        "componentes": ["PSOL", "REDE"],
+        "sigla_lider": "PSOL",
+        "votos_nominais": 65476,
+        "votos_legenda": 3014,
+        "votos_validos": 68490,
+        "pct_votos": 4.76,
+        "quociente_partidario": 0,
+        "cadeiras": 0,
+        "eleitos": [],
+        "suplentes": [
+          {
+            "sqcand": 109233,
+            "nome": "FE PSOL REDE · Candidatura RR-01",
+            "partido": "PSOL",
+            "votos": 29464,
+            "ordem": 1
+          },
+          {
+            "sqcand": 109240,
+            "nome": "FE PSOL REDE · Candidatura RR-02",
+            "partido": "REDE",
+            "votos": 9821,
+            "ordem": 2
+          },
+          {
+            "sqcand": 109247,
+            "nome": "FE PSOL REDE · Candidatura RR-03",
+            "partido": "PSOL",
+            "votos": 4911,
+            "ordem": 3
+          },
+          {
+            "sqcand": 109254,
+            "nome": "FE PSOL REDE · Candidatura RR-04",
+            "partido": "REDE",
+            "votos": 2946,
+            "ordem": 4
+          },
+          {
+            "sqcand": 109261,
+            "nome": "FE PSOL REDE · Candidatura RR-05",
+            "partido": "PSOL",
+            "votos": 1964,
+            "ordem": 5
+          }
+        ]
+      },
+      {
+        "cod": "12",
+        "sigla": "PDT",
+        "nome": "Partido Democrático Trabalhista",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PDT",
+        "votos_nominais": 51134,
+        "votos_legenda": 3613,
+        "votos_validos": 54747,
+        "pct_votos": 3.8,
+        "quociente_partidario": 0,
+        "cadeiras": 0,
+        "eleitos": [],
+        "suplentes": [
+          {
+            "sqcand": 109198,
+            "nome": "PDT · Candidatura RR-01",
+            "partido": "PDT",
+            "votos": 23010,
+            "ordem": 1
+          },
+          {
+            "sqcand": 109205,
+            "nome": "PDT · Candidatura RR-02",
+            "partido": "PDT",
+            "votos": 7670,
+            "ordem": 2
+          },
+          {
+            "sqcand": 109212,
+            "nome": "PDT · Candidatura RR-03",
+            "partido": "PDT",
+            "votos": 3835,
+            "ordem": 3
+          },
+          {
+            "sqcand": 109219,
+            "nome": "PDT · Candidatura RR-04",
+            "partido": "PDT",
+            "votos": 2301,
+            "ordem": 4
+          },
+          {
+            "sqcand": 109226,
+            "nome": "PDT · Candidatura RR-05",
+            "partido": "PDT",
+            "votos": 1534,
+            "ordem": 5
+          }
+        ]
+      },
+      {
+        "cod": "30",
+        "sigla": "NOVO",
+        "nome": "Partido Novo",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "NOVO",
+        "votos_nominais": 35492,
+        "votos_legenda": 1479,
+        "votos_validos": 36971,
+        "pct_votos": 2.57,
+        "quociente_partidario": 0,
+        "cadeiras": 0,
+        "eleitos": [],
+        "suplentes": [
+          {
+            "sqcand": 109268,
+            "nome": "NOVO · Candidatura RR-01",
+            "partido": "NOVO",
+            "votos": 15971,
+            "ordem": 1
+          },
+          {
+            "sqcand": 109275,
+            "nome": "NOVO · Candidatura RR-02",
+            "partido": "NOVO",
+            "votos": 5324,
+            "ordem": 2
+          },
+          {
+            "sqcand": 109282,
+            "nome": "NOVO · Candidatura RR-03",
+            "partido": "NOVO",
+            "votos": 2662,
+            "ordem": 3
+          },
+          {
+            "sqcand": 109289,
+            "nome": "NOVO · Candidatura RR-04",
+            "partido": "NOVO",
+            "votos": 1597,
+            "ordem": 4
+          },
+          {
+            "sqcand": 109296,
+            "nome": "NOVO · Candidatura RR-05",
+            "partido": "NOVO",
+            "votos": 1065,
+            "ordem": 5
+          }
+        ]
+      }
+    ],
+    "vagas_nao_preenchidas": 1,
+    "empates_indeterminados": []
+  },
+  "AP": {
+    "ts": "2026-10-04T22:15:00-03:00",
+    "cargo": 6,
+    "turno": 1,
+    "uf": "AP",
+    "pct_apurado": 87.9,
+    "lugares_a_preencher": 8,
+    "quociente_eleitoral": 180000,
+    "quociente_eleitoral_tse": 180000,
+    "totalizacao_final": false,
+    "divergencias": [],
+    "agremiacoes": [
+      {
+        "cod": "13",
+        "sigla": "FE BRASIL",
+        "nome": "Federação Brasil da Esperança",
+        "tipo": "federacao",
+        "componentes": ["PT", "PCdoB", "PV"],
+        "sigla_lider": "PT",
+        "votos_nominais": 249762,
+        "votos_legenda": 17649,
+        "votos_validos": 267411,
+        "pct_votos": 18.57,
+        "quociente_partidario": 1,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 100497,
+            "nome": "FE BRASIL · Candidatura AP-01",
+            "partido": "PT",
+            "votos": 112393,
+            "ordem": 1
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 100504,
+            "nome": "FE BRASIL · Candidatura AP-02",
+            "partido": "PCdoB",
+            "votos": 37464,
+            "ordem": 2
+          },
+          {
+            "sqcand": 100511,
+            "nome": "FE BRASIL · Candidatura AP-03",
+            "partido": "PV",
+            "votos": 18732,
+            "ordem": 3
+          },
+          {
+            "sqcand": 100518,
+            "nome": "FE BRASIL · Candidatura AP-04",
+            "partido": "PT",
+            "votos": 11239,
+            "ordem": 4
+          },
+          {
+            "sqcand": 100525,
+            "nome": "FE BRASIL · Candidatura AP-05",
+            "partido": "PCdoB",
+            "votos": 7493,
+            "ordem": 5
+          },
+          {
+            "sqcand": 100532,
+            "nome": "FE BRASIL · Candidatura AP-06",
+            "partido": "PV",
+            "votos": 5352,
+            "ordem": 6
+          }
+        ]
+      },
+      {
+        "cod": "22",
+        "sigla": "PL",
+        "nome": "Partido Liberal",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PL",
+        "votos_nominais": 202141,
+        "votos_legenda": 14284,
+        "votos_validos": 216425,
+        "pct_votos": 15.03,
+        "quociente_partidario": 1,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 100455,
+            "nome": "PL · Candidatura AP-01",
+            "partido": "PL",
+            "votos": 90963,
+            "ordem": 1
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 100462,
+            "nome": "PL · Candidatura AP-02",
+            "partido": "PL",
+            "votos": 30321,
+            "ordem": 2
+          },
+          {
+            "sqcand": 100469,
+            "nome": "PL · Candidatura AP-03",
+            "partido": "PL",
+            "votos": 15161,
+            "ordem": 3
+          },
+          {
+            "sqcand": 100476,
+            "nome": "PL · Candidatura AP-04",
+            "partido": "PL",
+            "votos": 9096,
+            "ordem": 4
+          },
+          {
+            "sqcand": 100483,
+            "nome": "PL · Candidatura AP-05",
+            "partido": "PL",
+            "votos": 6064,
+            "ordem": 5
+          },
+          {
+            "sqcand": 100490,
+            "nome": "PL · Candidatura AP-06",
+            "partido": "PL",
+            "votos": 4332,
+            "ordem": 6
+          }
+        ]
+      },
+      {
+        "cod": "44",
+        "sigla": "UNIÃO",
+        "nome": "União Brasil",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "UNIÃO",
+        "votos_nominais": 159803,
+        "votos_legenda": 9839,
+        "votos_validos": 169642,
+        "pct_votos": 11.78,
+        "quociente_partidario": 0,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 100539,
+            "nome": "UNIÃO · Candidatura AP-01",
+            "partido": "UNIÃO",
+            "votos": 71911,
+            "ordem": 1
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 100546,
+            "nome": "UNIÃO · Candidatura AP-02",
+            "partido": "UNIÃO",
+            "votos": 23970,
+            "ordem": 2
+          },
+          {
+            "sqcand": 100553,
+            "nome": "UNIÃO · Candidatura AP-03",
+            "partido": "UNIÃO",
+            "votos": 11985,
+            "ordem": 3
+          },
+          {
+            "sqcand": 100560,
+            "nome": "UNIÃO · Candidatura AP-04",
+            "partido": "UNIÃO",
+            "votos": 7191,
+            "ordem": 4
+          },
+          {
+            "sqcand": 100567,
+            "nome": "UNIÃO · Candidatura AP-05",
+            "partido": "UNIÃO",
+            "votos": 4794,
+            "ordem": 5
+          },
+          {
+            "sqcand": 100574,
+            "nome": "UNIÃO · Candidatura AP-06",
+            "partido": "UNIÃO",
+            "votos": 3424,
+            "ordem": 6
+          }
+        ]
+      },
+      {
+        "cod": "11",
+        "sigla": "PP",
+        "nome": "Progressistas",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PP",
+        "votos_nominais": 131250,
+        "votos_legenda": 6329,
+        "votos_validos": 137579,
+        "pct_votos": 9.55,
+        "quociente_partidario": 0,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 100581,
+            "nome": "PP · Candidatura AP-01",
+            "partido": "PP",
+            "votos": 59063,
+            "ordem": 1
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 100588,
+            "nome": "PP · Candidatura AP-02",
+            "partido": "PP",
+            "votos": 19688,
+            "ordem": 2
+          },
+          {
+            "sqcand": 100595,
+            "nome": "PP · Candidatura AP-03",
+            "partido": "PP",
+            "votos": 9844,
+            "ordem": 3
+          },
+          {
+            "sqcand": 100602,
+            "nome": "PP · Candidatura AP-04",
+            "partido": "PP",
+            "votos": 5906,
+            "ordem": 4
+          },
+          {
+            "sqcand": 100609,
+            "nome": "PP · Candidatura AP-05",
+            "partido": "PP",
+            "votos": 3938,
+            "ordem": 5
+          },
+          {
+            "sqcand": 100616,
+            "nome": "PP · Candidatura AP-06",
+            "partido": "PP",
+            "votos": 2813,
+            "ordem": 6
+          }
+        ]
+      },
+      {
+        "cod": "10",
+        "sigla": "REPUBLICANOS",
+        "nome": "Republicanos",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "REPUBLICANOS",
+        "votos_nominais": 114449,
+        "votos_legenda": 7435,
+        "votos_validos": 121884,
+        "pct_votos": 8.46,
+        "quociente_partidario": 0,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 100665,
+            "nome": "REPUBLICANOS · Candidatura AP-01",
+            "partido": "REPUBLICANOS",
+            "votos": 51502,
+            "ordem": 1
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 100672,
+            "nome": "REPUBLICANOS · Candidatura AP-02",
+            "partido": "REPUBLICANOS",
+            "votos": 17167,
+            "ordem": 2
+          },
+          {
+            "sqcand": 100679,
+            "nome": "REPUBLICANOS · Candidatura AP-03",
+            "partido": "REPUBLICANOS",
+            "votos": 8584,
+            "ordem": 3
+          },
+          {
+            "sqcand": 100686,
+            "nome": "REPUBLICANOS · Candidatura AP-04",
+            "partido": "REPUBLICANOS",
+            "votos": 5150,
+            "ordem": 4
+          },
+          {
+            "sqcand": 100693,
+            "nome": "REPUBLICANOS · Candidatura AP-05",
+            "partido": "REPUBLICANOS",
+            "votos": 3433,
+            "ordem": 5
+          },
+          {
+            "sqcand": 100700,
+            "nome": "REPUBLICANOS · Candidatura AP-06",
+            "partido": "REPUBLICANOS",
+            "votos": 2452,
+            "ordem": 6
+          }
+        ]
+      },
+      {
+        "cod": "55",
+        "sigla": "PSD",
+        "nome": "Partido Social Democrático",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PSD",
+        "votos_nominais": 112178,
+        "votos_legenda": 8444,
+        "votos_validos": 120622,
+        "pct_votos": 8.38,
+        "quociente_partidario": 0,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 100707,
+            "nome": "PSD · Candidatura AP-01",
+            "partido": "PSD",
+            "votos": 50480,
+            "ordem": 1
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 100714,
+            "nome": "PSD · Candidatura AP-02",
+            "partido": "PSD",
+            "votos": 16827,
+            "ordem": 2
+          },
+          {
+            "sqcand": 100721,
+            "nome": "PSD · Candidatura AP-03",
+            "partido": "PSD",
+            "votos": 8413,
+            "ordem": 3
+          },
+          {
+            "sqcand": 100728,
+            "nome": "PSD · Candidatura AP-04",
+            "partido": "PSD",
+            "votos": 5048,
+            "ordem": 4
+          },
+          {
+            "sqcand": 100735,
+            "nome": "PSD · Candidatura AP-05",
+            "partido": "PSD",
+            "votos": 3365,
+            "ordem": 5
+          },
+          {
+            "sqcand": 100742,
+            "nome": "PSD · Candidatura AP-06",
+            "partido": "PSD",
+            "votos": 2404,
+            "ordem": 6
+          }
+        ]
+      },
+      {
+        "cod": "45",
+        "sigla": "FE PSDB CID",
+        "nome": "Federação PSDB Cidadania",
+        "tipo": "federacao",
+        "componentes": ["PSDB", "Cidadania"],
+        "sigla_lider": "PSDB",
+        "votos_nominais": 93185,
+        "votos_legenda": 8213,
+        "votos_validos": 101398,
+        "pct_votos": 7.04,
+        "quociente_partidario": 0,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 100749,
+            "nome": "FE PSDB CID · Candidatura AP-01",
+            "partido": "PSDB",
+            "votos": 41933,
+            "ordem": 1
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 100756,
+            "nome": "FE PSDB CID · Candidatura AP-02",
+            "partido": "Cidadania",
+            "votos": 13978,
+            "ordem": 2
+          },
+          {
+            "sqcand": 100763,
+            "nome": "FE PSDB CID · Candidatura AP-03",
+            "partido": "PSDB",
+            "votos": 6989,
+            "ordem": 3
+          },
+          {
+            "sqcand": 100770,
+            "nome": "FE PSDB CID · Candidatura AP-04",
+            "partido": "Cidadania",
+            "votos": 4193,
+            "ordem": 4
+          },
+          {
+            "sqcand": 100777,
+            "nome": "FE PSDB CID · Candidatura AP-05",
+            "partido": "PSDB",
+            "votos": 2796,
+            "ordem": 5
+          },
+          {
+            "sqcand": 100784,
+            "nome": "FE PSDB CID · Candidatura AP-06",
+            "partido": "Cidadania",
+            "votos": 1997,
+            "ordem": 6
+          }
+        ]
+      },
+      {
+        "cod": "15",
+        "sigla": "MDB",
+        "nome": "Movimento Democrático Brasileiro",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "MDB",
+        "votos_nominais": 93851,
+        "votos_legenda": 5567,
+        "votos_validos": 99418,
+        "pct_votos": 6.9,
+        "quociente_partidario": 0,
+        "cadeiras": 1,
+        "eleitos": [
+          {
+            "sqcand": 100623,
+            "nome": "MDB · Candidatura AP-01",
+            "partido": "MDB",
+            "votos": 42233,
+            "ordem": 1,
+            "indefinido": true
+          }
+        ],
+        "suplentes": [
+          {
+            "sqcand": 100630,
+            "nome": "MDB · Candidatura AP-02",
+            "partido": "MDB",
+            "votos": 14078,
+            "ordem": 2
+          },
+          {
+            "sqcand": 100637,
+            "nome": "MDB · Candidatura AP-03",
+            "partido": "MDB",
+            "votos": 7039,
+            "ordem": 3
+          },
+          {
+            "sqcand": 100644,
+            "nome": "MDB · Candidatura AP-04",
+            "partido": "MDB",
+            "votos": 4223,
+            "ordem": 4
+          },
+          {
+            "sqcand": 100651,
+            "nome": "MDB · Candidatura AP-05",
+            "partido": "MDB",
+            "votos": 2816,
+            "ordem": 5
+          },
+          {
+            "sqcand": 100658,
+            "nome": "MDB · Candidatura AP-06",
+            "partido": "MDB",
+            "votos": 2011,
+            "ordem": 6
+          }
+        ]
+      },
+      {
+        "cod": "12",
+        "sigla": "PDT",
+        "nome": "Partido Democrático Trabalhista",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PDT",
+        "votos_nominais": 84496,
+        "votos_legenda": 6458,
+        "votos_validos": 90954,
+        "pct_votos": 6.32,
+        "quociente_partidario": 0,
+        "cadeiras": 0,
+        "eleitos": [],
+        "suplentes": [
+          {
+            "sqcand": 100791,
+            "nome": "PDT · Candidatura AP-01",
+            "partido": "PDT",
+            "votos": 38023,
+            "ordem": 1
+          },
+          {
+            "sqcand": 100798,
+            "nome": "PDT · Candidatura AP-02",
+            "partido": "PDT",
+            "votos": 12674,
+            "ordem": 2
+          },
+          {
+            "sqcand": 100805,
+            "nome": "PDT · Candidatura AP-03",
+            "partido": "PDT",
+            "votos": 6337,
+            "ordem": 3
+          },
+          {
+            "sqcand": 100812,
+            "nome": "PDT · Candidatura AP-04",
+            "partido": "PDT",
+            "votos": 3802,
+            "ordem": 4
+          },
+          {
+            "sqcand": 100819,
+            "nome": "PDT · Candidatura AP-05",
+            "partido": "PDT",
+            "votos": 2535,
+            "ordem": 5
+          }
+        ]
+      },
+      {
+        "cod": "50",
+        "sigla": "FE PSOL REDE",
+        "nome": "Federação PSOL Rede",
+        "tipo": "federacao",
+        "componentes": ["PSOL", "REDE"],
+        "sigla_lider": "PSOL",
+        "votos_nominais": 64859,
+        "votos_legenda": 4361,
+        "votos_validos": 69220,
+        "pct_votos": 4.81,
+        "quociente_partidario": 0,
+        "cadeiras": 0,
+        "eleitos": [],
+        "suplentes": [
+          {
+            "sqcand": 100826,
+            "nome": "FE PSOL REDE · Candidatura AP-01",
+            "partido": "PSOL",
+            "votos": 29187,
+            "ordem": 1
+          },
+          {
+            "sqcand": 100833,
+            "nome": "FE PSOL REDE · Candidatura AP-02",
+            "partido": "REDE",
+            "votos": 9729,
+            "ordem": 2
+          },
+          {
+            "sqcand": 100840,
+            "nome": "FE PSOL REDE · Candidatura AP-03",
+            "partido": "PSOL",
+            "votos": 4864,
+            "ordem": 3
+          },
+          {
+            "sqcand": 100847,
+            "nome": "FE PSOL REDE · Candidatura AP-04",
+            "partido": "REDE",
+            "votos": 2919,
+            "ordem": 4
+          },
+          {
+            "sqcand": 100854,
+            "nome": "FE PSOL REDE · Candidatura AP-05",
+            "partido": "PSOL",
+            "votos": 1946,
+            "ordem": 5
+          }
+        ]
+      },
+      {
+        "cod": "30",
+        "sigla": "NOVO",
+        "nome": "Partido Novo",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "NOVO",
+        "votos_nominais": 42312,
+        "votos_legenda": 3136,
+        "votos_validos": 45448,
+        "pct_votos": 3.16,
+        "quociente_partidario": 0,
+        "cadeiras": 0,
+        "eleitos": [],
+        "suplentes": [
+          {
+            "sqcand": 100861,
+            "nome": "NOVO · Candidatura AP-01",
+            "partido": "NOVO",
+            "votos": 19040,
+            "ordem": 1
+          },
+          {
+            "sqcand": 100868,
+            "nome": "NOVO · Candidatura AP-02",
+            "partido": "NOVO",
+            "votos": 6347,
+            "ordem": 2
+          },
+          {
+            "sqcand": 100875,
+            "nome": "NOVO · Candidatura AP-03",
+            "partido": "NOVO",
+            "votos": 3173,
+            "ordem": 3
+          },
+          {
+            "sqcand": 100882,
+            "nome": "NOVO · Candidatura AP-04",
+            "partido": "NOVO",
+            "votos": 1904,
+            "ordem": 4
+          },
+          {
+            "sqcand": 100889,
+            "nome": "NOVO · Candidatura AP-05",
+            "partido": "NOVO",
+            "votos": 1269,
+            "ordem": 5
+          }
+        ]
+      }
+    ],
+    "vagas_nao_preenchidas": 0,
+    "empates_indeterminados": ["12", "50"]
+  }
+}

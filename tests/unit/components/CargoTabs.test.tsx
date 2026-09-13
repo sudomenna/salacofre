@@ -6,11 +6,15 @@
  * S07/Bloco 1).
  *
  * O que estes testes travam:
- *   - as quatro abas de cargo (decisão D5, 2026-09-07), com Deputado Federal
- *     ainda **desabilitado de forma acessível** — `aria-disabled` + a razão
- *     legível, nunca um `<a>` que levaria a 404. Senador saiu do modo
- *     desabilitado em 2026-09-11 (spec 016), e passou a ser um link como
- *     Presidente e Governador;
+ *   - as quatro abas de cargo (decisão D5, 2026-09-07), **todas navegáveis**
+ *     desde 2026-09-12. Senador saiu do modo desabilitado em 2026-09-11
+ *     (spec 016) e Deputado Federal em 2026-09-12 (spec 017), quando as rotas
+ *     `/deputado-federal` e `/uf/[sigla]/deputado-federal` passaram a existir.
+ *     O modo desabilitado (`aria-disabled` + razão legível, nunca um `<a>` que
+ *     leva a 404) continua no `<TabBar>` e coberto lá — aqui o que se trava é
+ *     que nenhuma aba voltou para ele em silêncio;
+ *   - o rótulo de Deputado: visível "Deputado", nome acessível "Deputado
+ *     Federal" (WCAG 2.5.3, Label in Name). Ligar a aba não podia mexer nisso;
  *   - o shell inteiro é RSC: nenhum arquivo da cadeia
  *     `layout → TopBar → CargoTabs → TabBar` declara `"use client"` nem usa
  *     hook. Isso é orçamento, não estilo: o shell renderiza acima da dobra em
@@ -64,37 +68,47 @@ describe("<CargoTabs /> — abas de cargo do shell global", () => {
     ).toEqual(["pres", "gov", "sen", "dep"]);
   });
 
-  it("(b) Presidente, Governador e Senador são links reais (zero JS)", () => {
+  it("(b) os quatro cargos são links reais (zero JS)", () => {
     const doc = parse(<CargoTabs />);
     const links = [...doc.querySelectorAll("a")];
 
-    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/", "/governador", "/senador"]);
-    expect(links.map((a) => a.getAttribute("data-value"))).toEqual(["pres", "gov", "sen"]);
+    expect(links.map((a) => a.getAttribute("href"))).toEqual([
+      "/",
+      "/governador",
+      "/senador",
+      "/deputado-federal",
+    ]);
+    expect(links.map((a) => a.getAttribute("data-value"))).toEqual(["pres", "gov", "sen", "dep"]);
   });
 
-  it("(c) Deputado Federal não é link — é span aria-disabled", () => {
+  it("(c) nenhuma aba está desabilitada — e nenhuma promete um cargo que não existe", () => {
+    // Asserção negativa: o defeito que este teste caça é uma aba voltar ao
+    // modo `<span aria-disabled>` (ou nascer nele) sem ninguém notar — ela
+    // continuaria no lugar, com o rótulo certo, e simplesmente não navegaria.
     const doc = parse(<CargoTabs />);
 
-    for (const value of ["dep"]) {
-      const el = doc.querySelector(`[data-value='${value}']`);
-      expect(el?.tagName).toBe("SPAN");
-      expect(el?.getAttribute("href")).toBeNull();
-      expect(el?.getAttribute("aria-disabled")).toBe("true");
-    }
+    expect(doc.querySelectorAll("[aria-disabled]").length).toBe(0);
+    expect(doc.querySelectorAll("[data-disabled='true']").length).toBe(0);
+    expect(doc.body.textContent).not.toMatch(/ainda não coberto/i);
+    expect(doc.querySelector("[data-value='dep']")?.tagName).toBe("A");
   });
 
-  it("(d) o motivo da indisponibilidade é legível por leitor de tela, não só title", () => {
+  it("(d) o rótulo visível de Deputado é prefixo do nome acessível (WCAG 2.5.3)", () => {
+    // "Deputado Federal" não cabe numa coluna de 1/4 de 430px, então o visível
+    // é "Deputado" e o " Federal" fica em `sr-only`. A regra Label in Name
+    // exige que o rótulo visível seja PREFIXO do nome acessível — trocar a
+    // ordem (ou perder o `sr-only`) quebra o comando de voz "clicar Deputado
+    // Federal". Ligar a aba em 2026-09-12 não podia mexer nisso.
     const doc = parse(<CargoTabs />);
-    const dep = doc.querySelector("[data-value='dep']");
+    const dep = doc.querySelector("[data-value='dep'] > span");
+    const nomeAcessivel = (dep?.textContent ?? "").replace(/\s*\(página atual\)\s*/, "").trim();
 
-    // `title` cobre o hover do mouse...
-    expect(dep?.getAttribute("title")).toMatch(/ainda não coberto/i);
-    // ...mas `title` não é anunciado de forma confiável em modo de leitura,
-    // então o mesmo texto existe como conteúdo visualmente escondido.
-    const sr = [...(dep?.querySelectorAll(".sr-only") ?? [])].find((el) =>
-      /ainda não coberto/i.test(el.textContent ?? ""),
-    );
-    expect(sr?.textContent).toBe(dep?.getAttribute("title"));
+    expect(nomeAcessivel).toBe("Deputado Federal");
+    expect(nomeAcessivel.startsWith("Deputado")).toBe(true);
+    // O " Federal" não pode ser visível: se virar texto normal, a coluna
+    // quebra em duas linhas a 430px (o defeito do ADR-0029 § 3).
+    const escondido = [...(dep?.querySelectorAll(".sr-only") ?? [])].map((el) => el.textContent);
+    expect(escondido).toContain(" Federal");
   });
 
   it("(e) o rótulo visível continua sendo o nome do cargo", () => {
@@ -119,8 +133,12 @@ describe("<CargoTabs /> — abas de cargo do shell global", () => {
 
     // O portador do estado é um texto por aba navegável, que o
     // `CargoTabs.module.css` revela só sob `body:has(main[data-trilha=…])`.
-    const flags = [...doc.querySelectorAll("a .sr-only")];
-    expect(flags.length).toBe(3);
+    // Um por aba navegável. O `<span class="sr-only"> Federal</span>` da aba
+    // de Deputado também casa com o seletor, por isso o filtro pelo texto.
+    const flags = [...doc.querySelectorAll("a .sr-only")].filter((el) =>
+      /página atual/.test(el.textContent ?? ""),
+    );
+    expect(flags.length).toBe(4);
     for (const flag of flags) {
       expect(flag.textContent).toContain("página atual");
       // `sr-only` (geometria) + a classe local do módulo (display: none até a

@@ -11,9 +11,15 @@
  * (tornaria dinâmicas as 54 páginas de UF hoje pré-renderizadas estáticas) ou
  * um slot de parallel route (`app/@cargo/...`), que exigiria duplicar
  * `generateStaticParams` em segmentos dinâmicos de slot. Nenhuma é aceitável
- * aqui. A trilha, porém, JÁ está no DOM: `main[data-trilha="pres"|"gov"|"sen"]`.
- * `:has()` lê esse atributo de dentro do `<body>` e marca a aba — zero JS,
- * zero render dinâmico, sem duplicar informação.
+ * aqui. A trilha, porém, JÁ está no DOM:
+ * `main[data-trilha="pres"|"gov"|"sen"|"dep"]`. `:has()` lê esse atributo de
+ * dentro do `<body>` e marca a aba — zero JS, zero render dinâmico, sem
+ * duplicar informação.
+ *
+ * As quatro trilhas aparecem nos TRÊS blocos abaixo (cor, sublinhado,
+ * `.flag`). Acrescentar uma aba navegável e esquecer um dos três a deixa
+ * meio-marcada; o teste (g) de `tests/unit/components/CargoTabs.test.tsx`
+ * confronta este arquivo com o TSX nos dois sentidos.
  *
  * Degradação: sem suporte a `:has()` (pré-Chrome 105 / Safari 15.4 /
  * Firefox 121) nenhuma aba fica marcada — a navegação continua íntegra e o
@@ -30,7 +36,8 @@
  * de autor sobre ele ganha sem precisar de `!important`. */
 body:has(main[data-trilha="pres"]) .cargoTabs [data-value="pres"] > span,
 body:has(main[data-trilha="gov"]) .cargoTabs [data-value="gov"] > span,
-body:has(main[data-trilha="sen"]) .cargoTabs [data-value="sen"] > span {
+body:has(main[data-trilha="sen"]) .cargoTabs [data-value="sen"] > span,
+body:has(main[data-trilha="dep"]) .cargoTabs [data-value="dep"] > span {
   color: var(--text-primary);
 }
 
@@ -39,7 +46,8 @@ body:has(main[data-trilha="sen"]) .cargoTabs [data-value="sen"] > span {
  * O item já é `position: relative` (itemStyle do TabBar). */
 body:has(main[data-trilha="pres"]) .cargoTabs [data-value="pres"]::after,
 body:has(main[data-trilha="gov"]) .cargoTabs [data-value="gov"]::after,
-body:has(main[data-trilha="sen"]) .cargoTabs [data-value="sen"]::after {
+body:has(main[data-trilha="sen"]) .cargoTabs [data-value="sen"]::after,
+body:has(main[data-trilha="dep"]) .cargoTabs [data-value="dep"]::after {
   content: "";
   position: absolute;
   top: -1px;
@@ -60,7 +68,8 @@ body:has(main[data-trilha="sen"]) .cargoTabs [data-value="sen"]::after {
 
 body:has(main[data-trilha="pres"]) .cargoTabs [data-value="pres"] .flag,
 body:has(main[data-trilha="gov"]) .cargoTabs [data-value="gov"] .flag,
-body:has(main[data-trilha="sen"]) .cargoTabs [data-value="sen"] .flag {
+body:has(main[data-trilha="sen"]) .cargoTabs [data-value="sen"] .flag,
+body:has(main[data-trilha="dep"]) .cargoTabs [data-value="dep"] .flag {
   display: inline;
 }
 

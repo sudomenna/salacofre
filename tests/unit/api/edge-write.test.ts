@@ -23,11 +23,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/edge-config/writer", () => ({
   writeProjection: vi.fn(),
+  writeDeputadoProjection: vi.fn(),
 }));
 
 // Import post-mock
 import { POST } from "@/app/api/internal/edge-write/route";
-import { writeProjection } from "@/lib/edge-config/writer";
+import { writeDeputadoProjection, writeProjection } from "@/lib/edge-config/writer";
 
 // ---------------------------------------------------------------------------
 // Env management
@@ -77,6 +78,39 @@ function validBody() {
       por_uf: [{ sigla: "SP" /* shape passthrough — só `sigla` matters here */ }, { sigla: "RJ" }],
       insights: [],
       composition: { pre_election: 1, model: 0, actual_results: 0 },
+    },
+  };
+}
+
+/**
+ * Body mínimo do envelope PROPORCIONAL (spec 017 / design 017 § D1 e D5).
+ *
+ * Não é `validBody()` com o cargo trocado: o envelope é outro — `bancada` no
+ * lugar de `national`, mais `atualizacao_min` (RF-128). É essa diferença que
+ * a rota usa para escolher o writer.
+ */
+function validDeputadoBody(): {
+  payload: Record<string, unknown>;
+  payloads_uf?: Record<string, unknown>;
+} {
+  return {
+    payload: {
+      ts: "2026-10-04T20:00:00Z",
+      cargo: 6 as const,
+      turno: 1 as const,
+      pct_apurado_total: 12.5,
+      ufs_apuradas: 3,
+      atualizacao_min: 15,
+      bancada: {
+        total_cadeiras: 513,
+        cadeiras_atribuidas: 70,
+        ufs_calculadas: 3,
+        ufs_aguardando: 24,
+        por_agremiacao: [],
+      },
+      por_uf: [{ sigla: "SP" }, { sigla: "RJ" }],
+      insights: [],
+      composition: { pre_election: 0, model: 1, actual_results: 0 },
     },
   };
 }
@@ -160,17 +194,57 @@ describe("POST /api/internal/edge-write — body validation", () => {
     expect(writeProjection).not.toHaveBeenCalled();
   });
 
-  it("aceita os cargos novos 5 (Senador) e 6 (Deputado Federal)", async () => {
-    for (const cargo of [5, 6]) {
-      vi.mocked(writeProjection).mockClear();
-      const body = validBody();
-      // biome-ignore lint/suspicious/noExplicitAny: o tipo do fixture é o payload presidencial
-      (body.payload as any).cargo = cargo;
-      const res = await POST(makeRequest(body, { "x-model-secret": "test-secret-xyz" }));
+  it("aceita o cargo 5 (Senador) no envelope majoritário", async () => {
+    vi.mocked(writeProjection).mockClear();
+    const body = validBody();
+    // biome-ignore lint/suspicious/noExplicitAny: o tipo do fixture é o payload presidencial
+    (body.payload as any).cargo = 5;
+    const res = await POST(makeRequest(body, { "x-model-secret": "test-secret-xyz" }));
 
-      expect(res.status, `cargo ${cargo} deveria passar na validação`).toBe(200);
-      expect(writeProjection).toHaveBeenCalled();
-    }
+    expect(res.status).toBe(200);
+    expect(writeProjection).toHaveBeenCalled();
+  });
+
+  it("cargo 6 no envelope MAJORITÁRIO é rejeitado — não é só um campo a menos", async () => {
+    // Até 2026-09-12 este body passava e chamava `writeProjection`. Duplamente
+    // errado: ia para a chave `projection-current-pres-t1` (ver a correção de
+    // `cargoFromTseNumeric`) e, se tivesse ido para a chave certa, iria sem
+    // `bancada` — o payload inteiro da corrida proporcional. Asserção
+    // negativa: o caminho majoritário não pode voltar a aceitar cargo 6.
+    vi.mocked(writeProjection).mockClear();
+    vi.mocked(writeDeputadoProjection).mockClear();
+    const body = validBody();
+    // biome-ignore lint/suspicious/noExplicitAny: o tipo do fixture é o payload presidencial
+    (body.payload as any).cargo = 6;
+    const res = await POST(makeRequest(body, { "x-model-secret": "test-secret-xyz" }));
+
+    expect(res.status).toBe(400);
+    expect(writeProjection).not.toHaveBeenCalled();
+    expect(writeDeputadoProjection).not.toHaveBeenCalled();
+  });
+
+  it("cargo 6 no envelope de Deputado vai para writeDeputadoProjection, não writeProjection", async () => {
+    vi.mocked(writeProjection).mockClear();
+    vi.mocked(writeDeputadoProjection).mockClear();
+    const res = await POST(
+      makeRequest(validDeputadoBody(), { "x-model-secret": "test-secret-xyz" }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(writeDeputadoProjection).toHaveBeenCalledTimes(1);
+    // A trava de D1: o envelope proporcional NUNCA passa pelo caminho
+    // majoritário, cujo `EdgeNational` não tem referente nesta corrida.
+    expect(writeProjection).not.toHaveBeenCalled();
+  });
+
+  it("rejeita sigla inválida dentro de payloads_uf do cargo 6 — ela vira caminho de Blob", async () => {
+    vi.mocked(writeDeputadoProjection).mockClear();
+    const body = validDeputadoBody();
+    body.payloads_uf = { SP: { uf: "S/P", agremiacoes: [] } };
+    const res = await POST(makeRequest(body, { "x-model-secret": "test-secret-xyz" }));
+
+    expect(res.status).toBe(400);
+    expect(writeDeputadoProjection).not.toHaveBeenCalled();
   });
 
   it("retorna 400 quando uma sigla de por_uf não formaria chave válida", async () => {

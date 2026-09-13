@@ -6,12 +6,21 @@
  *
  * Quatro abas, decisão D5 do usuário (2026-09-07):
  *   Presidente `/` · Governador `/governador` · Senador `/senador` ·
- *   Deputado Federal.
+ *   Deputado Federal `/deputado-federal`.
  *
- * Senador saiu do modo desabilitado em 2026-09-11, com a implementação da
- * spec 016: a rota existe e responde. Deputado Federal (spec 017) continua
- * como `<span aria-disabled="true">` com a razão em `title` e em `sr-only`,
- * nunca um `<a>` que levaria a 404 (o `<TabBar>` implementa esse modo).
+ * **As quatro navegam desde 2026-09-12.** Senador saiu do modo desabilitado em
+ * 2026-09-11 (spec 016) e Deputado Federal em 2026-09-12 (spec 017), quando as
+ * rotas `/deputado-federal` e `/uf/[sigla]/deputado-federal` passaram a
+ * existir. O modo desabilitado — `<span aria-disabled="true">` com a razão em
+ * `title` e em `sr-only`, nunca um `<a>` que levaria a 404 — continua
+ * implementado no `<TabBar>` e coberto por teste lá; ele simplesmente não tem
+ * mais usuário aqui.
+ *
+ * ⚠️ Ligar uma aba é **três** edições, não uma: `href` aqui, `<CurrentFlag />`
+ * no rótulo, e o par de regras em `CargoTabs.module.css`
+ * (`body:has(main[data-trilha="…"])`). Sem a terceira, a aba navega mas nunca
+ * se marca como atual — e ninguém percebe. O teste (g) do
+ * `CargoTabs.test.tsx` existe exatamente para essa terceira.
  *
  * ## Aba atual sem JS e sem tornar a rota dinâmica
  *
@@ -72,9 +81,6 @@ function CurrentFlag() {
   return <span className={`sr-only ${styles.flag}`}> (página atual)</span>;
 }
 
-const EM_BREVE =
-  "Cargo ainda não coberto pela SalaCofre. Esta aba fica indisponível até a apuração deste cargo entrar no ar.";
-
 const ITEMS = [
   {
     value: "pres",
@@ -108,6 +114,7 @@ const ITEMS = [
   },
   {
     value: "dep",
+    href: "/deputado-federal",
     // "Deputado Federal" não cabe numa coluna de 1/4 de 430px: quebrava em
     // duas linhas e esticava a barra inteira (o defeito que o ADR-0029 § 3
     // atribuía à posição da navegação, mas que sobrevive à mudança de
@@ -116,13 +123,16 @@ const ITEMS = [
     // DOM em `sr-only`, então o NOME ACESSÍVEL segue sendo "Deputado Federal"
     // — o rótulo visível é prefixo do acessível, que é o que a WCAG 2.5.3
     // (Label in Name) exige.
+    //
+    // NÃO mexer no rótulo ao ligar a aba: o `<CurrentFlag />` entra DEPOIS do
+    // `sr-only` do " Federal", para que o nome acessível continue começando
+    // por "Deputado Federal".
     label: (
       <>
         Deputado<span className="sr-only"> Federal</span>
+        <CurrentFlag />
       </>
     ),
-    disabled: true,
-    disabledReason: EM_BREVE,
   },
 ] as const;
 

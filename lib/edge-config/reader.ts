@@ -38,7 +38,28 @@ import {
   legacyUfAliasKey,
   ufProjectionKey,
 } from "@/lib/edge-config/keys";
-import type { EdgePayload, EdgePayloadUf } from "@/lib/edge-config/types";
+import type { EdgePayload, EdgePayloadDeputado, EdgePayloadUf } from "@/lib/edge-config/types";
+
+/**
+ * Os cargos cujo payload **é** um `EdgePayload` — isto é, os majoritários.
+ *
+ * Existe para tornar a decisão D1 do design 017 impossível de violar por
+ * engano. `EdgePayload.national` é `EdgeNational`, que é inteiramente
+ * majoritário (`candidato_a_id`, `needle_position`, `p_segundo_turno_overall`,
+ * `cenarios_2t`); a corrida proporcional de Deputado Federal não tem referente
+ * para nenhum desses campos, e por isso tem tipo próprio
+ * (`EdgePayloadDeputado`).
+ *
+ * Sem esta restrição, `readProjection({ cargo: "dep" })` compilaria e
+ * devolveria o payload de Deputado **tipado como `EdgePayload`** — o consumidor
+ * leria `payload.national.candidato_a_id`, receberia `undefined` em runtime e
+ * renderizaria uma agulha e um "líder" para a Câmara. O design 017 é literal
+ * quanto a isso: "`readProjection` não pode devolver `EdgePayloadDeputado`
+ * tipado como `EdgePayload`".
+ *
+ * Quem quer o payload de Deputado chama {@link readDeputadoProjection}.
+ */
+export type CargoMajoritario = Exclude<Cargo, "dep">;
 
 /**
  * Tenta cada chave em ordem e devolve o primeiro valor não-vazio.
@@ -95,7 +116,7 @@ async function getFirst<T>(keys: readonly string[]): Promise<T | null> {
  * @param opts.turno  Override do turno ativo. Default: `currentPresidentialTurno()`.
  */
 export async function readProjection(opts: {
-  cargo: Cargo;
+  cargo: CargoMajoritario;
   turno?: Turno;
 }): Promise<EdgePayload | null> {
   if (!process.env.EDGE_CONFIG) return null;
@@ -179,7 +200,7 @@ export async function readNationalProjection(): Promise<EdgePayload | null> {
  *                    transição passada para o turno corrente.
  */
 export async function readArchivedProjection(opts: {
-  cargo: Cargo;
+  cargo: CargoMajoritario;
   turno?: Turno;
 }): Promise<EdgePayload | null> {
   if (!process.env.EDGE_CONFIG) return null;
@@ -217,7 +238,7 @@ export async function readArchivedProjection(opts: {
  */
 export async function readUfProjection(
   sigla: string,
-  opts: { cargo: Cargo; turno?: Turno },
+  opts: { cargo: CargoMajoritario; turno?: Turno },
 ): Promise<EdgePayloadUf | null> {
   if (!process.env.EDGE_CONFIG) return null;
   // O calendário responde só pelo TURNO presidencial (ADR-0028). O cargo é
@@ -246,6 +267,41 @@ export async function readUfProjection(
           ]
         : []),
     ]);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Lê o payload nacional de **Deputado Federal** — chave
+ * `projection-current-dep-t1` (design 017 § D1, ADR-0012).
+ *
+ * Função separada, e não um ramo de `readProjection`, porque o tipo de retorno
+ * é outro: `EdgePayloadDeputado` não tem `national`, tem `bancada`. Ver
+ * {@link CargoMajoritario} para o porquê de a separação estar no tipo e não
+ * numa convenção de chamada.
+ *
+ * Sem alias legado e sem chave com dois-pontos: esta chave nasce em
+ * 2026-09-12, depois da emenda de separador do ADR-0012 (2026-09-08) e depois
+ * do fim do alias `projection-current` (que só existiu para a corrida
+ * presidencial). Nunca houve dado publicado sob o esquema antigo para este
+ * cargo, então não há nada para o qual degradar — uma leitura a mais no
+ * caminho de miss seria custo sem contrapartida.
+ *
+ * Não recebe `turno`: Deputado Federal é turno único
+ * (`temSegundoTurno: false` em `lib/config/cargos.ts`). Um parâmetro de turno
+ * aqui só abriria a porta para uma chave `-t2` que nunca é escrita.
+ *
+ * Retorna `null` quando `EDGE_CONFIG` está ausente (dev/preview sem
+ * credencial) ou quando a chave ainda não foi gravada. O caller degrada —
+ * a página renderiza a estrutura inteira com "aguardando apuração"
+ * (constituição § 3 e § 7).
+ */
+export async function readDeputadoProjection(): Promise<EdgePayloadDeputado | null> {
+  if (!process.env.EDGE_CONFIG) return null;
+
+  try {
+    return (await get<EdgePayloadDeputado>(currentProjectionKey("dep", 1))) ?? null;
   } catch {
     return null;
   }

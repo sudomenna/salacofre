@@ -22,9 +22,9 @@
  *   > dois ad hoc."
  *
  * Por isso os dois recursos saem daqui: {@link ufDetailBlobPathname} (municípios
- * + séries, ADR-0032) e {@link deputadoUfBlobPathname} (ADR-0026, ainda sem
- * consumidor — o cargo 6 não é ingerido hoje). Os dois são a MESMA função de
- * base ({@link blobPathname}), com qualificadores diferentes.
+ * + séries, ADR-0032) e {@link deputadoUfBlobPathname} (drill-down de Deputado
+ * Federal, ADR-0026). Os dois são a MESMA função de base
+ * ({@link blobPathname}), com qualificadores diferentes.
  *
  * ## O esquema
  *
@@ -160,10 +160,15 @@ export function ufDetailBlobPathname(sigla: string, cargo: Cargo, turno: Turno):
  * `deputado/uf/<SIGLA>.json` — sem cargo nem turno: Deputado se decide em turno
  * único e não divide caminho com nenhuma outra corrida.
  *
- * **Ainda sem consumidor**: o cargo 6 não é ingerido hoje. Existe aqui, e não
- * no futuro código de Deputado, porque o ADR-0032 exige que os dois recursos
- * saiam do mesmo esquema — se o construtor nascer junto do consumidor, nasce um
- * segundo padrão.
+ * Nasceu antes do consumidor, e de propósito: o ADR-0032 exige que os dois
+ * recursos saiam do mesmo esquema, e um construtor que nasce junto do
+ * consumidor nasce como segundo padrão. O consumidor chegou em 2026-09-12 —
+ * `lib/blob/deputado-uf.ts` (leitura) e `writeDeputadoProjection` em
+ * `lib/edge-config/writer.ts` (escrita).
+ *
+ * ⚠️ O comentário anterior dizia "o cargo 6 não é ingerido hoje". Isso deixou
+ * de ser verdade em **2026-09-11**, quando a ingestão do cargo 6 entrou
+ * (27 alvos de nível UF, cron de 15 min).
  */
 export function deputadoUfBlobPathname(sigla: string): string {
   const uf = normaliseSigla(sigla, "deputadoUfBlobPathname");

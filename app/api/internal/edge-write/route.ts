@@ -58,9 +58,9 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { CARGOS_TSE, type CargoTse } from "@/lib/config/cargos";
+import { CARGOS_TSE, type CargoTse, cargoInfo, isCargoTse } from "@/lib/config/cargos";
 import { GLOBAL_CONFIG_KEY_PATTERN } from "@/lib/edge-config/keys";
-import { writeProjection } from "@/lib/edge-config/writer";
+import { writeDeputadoProjection, writeProjection } from "@/lib/edge-config/writer";
 import { logError, logInfo } from "@/lib/tse/log";
 
 // ---------------------------------------------------------------------------
@@ -176,6 +176,105 @@ const bodySchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Cargo PROPORCIONAL — envelope próprio (spec 017, design 017 § D1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Deputado Federal não cabe no schema acima, e a diferença não é de campo
+ * solto: `national` (`EdgeNational`) é inteiramente majoritário — agulha,
+ * duelo A×B, probabilidade de 2º turno. Numa corrida proporcional nenhum
+ * desses campos tem referente. O envelope é `EdgePayloadDeputado`, com
+ * `bancada` no lugar de `national`, e o destino é `writeDeputadoProjection`.
+ *
+ * Até 2026-09-12 esta rota aceitava cargo 6 pelo schema majoritário e
+ * chamava `writeProjection`. O efeito era duplamente errado: o payload ia
+ * para a chave `projection-current-pres-t1` (ver a nota de correção em
+ * `cargoFromTseNumeric`, `lib/edge-config/writer.ts`) e, se tivesse ido para
+ * a chave certa, iria sem `bancada`.
+ *
+ * Como no schema majoritário, a validação é de **superfície** — o shape
+ * canônico vive em `lib/edge-config/types.ts` e em `lib/blob/deputado-uf.ts`.
+ * Duplicar a estrutura inteira aqui produziria divergência silenciosa entre
+ * TS e Python ao primeiro campo novo.
+ */
+const deputadoPorUfRowSchema = z
+  .object({
+    sigla: z
+      .string()
+      .regex(SIGLA_UF_PATTERN, "sigla de UF deve ter exatamente 2 letras (linha de por_uf)"),
+  })
+  .passthrough();
+
+/**
+ * Cada valor de `payloads_uf`, no ramo de cargo 6, é um `DeputadoUfDetail`
+ * destinado ao **Blob** (`deputado/uf/<SIGLA>.json`, RF-129) — não um
+ * `EdgePayloadUf` de Global Config.
+ *
+ * `uf` é validado aqui, na borda, pelo mesmo motivo que `por_uf[].sigla`: ela
+ * entra literalmente no caminho do blob, e é o único componente do caminho que
+ * não é literal de código. Barrar com 400 explicativo é melhor que falhar
+ * dentro do `Promise.allSettled` do writer como uma UF silenciosamente
+ * ausente do CDN.
+ */
+const deputadoUfDetailSchema = z
+  .object({
+    uf: z
+      .string()
+      .regex(
+        SIGLA_UF_PATTERN,
+        `sigla de UF deve ter exatamente 2 letras — ela entra literalmente no caminho do ` +
+          `Vercel Blob (deputado/uf/<SIGLA>.json, ver lib/blob/paths.ts)`,
+      ),
+  })
+  .passthrough();
+
+const deputadoBodySchema = z.object({
+  payload: z
+    .object({
+      ts: z.string(),
+      cargo: z.literal(6),
+      // Turno único (`temSegundoTurno: false`). Um `2` aqui é payload
+      // malformado, não uma corrida que existe.
+      turno: z.literal(1),
+      pct_apurado_total: z.number(),
+      ufs_apuradas: z.number(),
+      /** RF-128 — a cadência é declarada pelo produtor; a tela deriva dela. */
+      atualizacao_min: z.number(),
+      bancada: z
+        .object({
+          total_cadeiras: z.number(),
+          cadeiras_atribuidas: z.number(),
+          ufs_calculadas: z.number(),
+          ufs_aguardando: z.number(),
+          por_agremiacao: z.array(z.unknown()),
+        })
+        .passthrough(),
+      por_uf: z.array(deputadoPorUfRowSchema),
+      insights: z.array(z.string()),
+      composition: z.object({
+        pre_election: z.number(),
+        model: z.number(),
+        actual_results: z.number(),
+      }),
+    })
+    .passthrough(),
+  payloads_uf: z.record(z.string(), deputadoUfDetailSchema).optional(),
+});
+
+/**
+ * O cargo declarado no body é proporcional?
+ *
+ * Lido do JSON cru, ANTES de escolher o schema — é ele que decide qual
+ * envelope validar. Um cargo ausente, não-numérico ou fora da tabela canônica
+ * responde `false` e cai no schema majoritário, que devolve o 400 com a
+ * mensagem correta sobre o cargo.
+ */
+function bodyDeclaresProportionalCargo(raw: unknown): boolean {
+  const cargo = (raw as { payload?: { cargo?: unknown } } | null)?.payload?.cargo;
+  return typeof cargo === "number" && isCargoTse(cargo) && cargoInfo(cargo).proporcional;
+}
+
+// ---------------------------------------------------------------------------
 // POST handler
 // ---------------------------------------------------------------------------
 
@@ -212,6 +311,48 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       },
       { status: 400 },
     );
+  }
+
+  // --------------------------------------------------------------------------
+  // 2b. Ramo PROPORCIONAL — envelope próprio, chave própria, Blob próprio
+  // --------------------------------------------------------------------------
+  if (bodyDeclaresProportionalCargo(rawBody)) {
+    const parsedDep = deputadoBodySchema.safeParse(rawBody);
+    if (!parsedDep.success) {
+      return NextResponse.json(
+        { error: "invalid_body", detail: parsedDep.error.issues.slice(0, 10) },
+        { status: 400 },
+      );
+    }
+
+    // biome-ignore lint/suspicious/noExplicitAny: bridge boundary; shape garantido pelo Python
+    const depPayload = parsedDep.data.payload as any;
+    // biome-ignore lint/suspicious/noExplicitAny: bridge boundary; shape garantido pelo Python
+    const detalhes = parsedDep.data.payloads_uf as Record<string, any> | undefined;
+
+    try {
+      await writeDeputadoProjection(depPayload, detalhes);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logError("edge-write falhou — payload não publicado", {
+        durationMs: Date.now() - t0,
+        error: message,
+      });
+      return NextResponse.json({ error: "edge_write_failed", detail: message }, { status: 500 });
+    }
+
+    // UMA chave de Global Config. O detalhe por UF vai para o Blob e falha de
+    // forma independente (RF-129, ADR-0032 item 3), então não entra nesta
+    // contagem — contá-lo aqui faria a resposta prometer uma publicação que
+    // este número não atesta.
+    logInfo("edge-write ok", {
+      keysWritten: 1,
+      blobsEnviados: Object.keys(detalhes ?? {}).length,
+      durationMs: Date.now() - t0,
+      cargo: depPayload.cargo,
+      turno: depPayload.turno,
+    });
+    return NextResponse.json({ ok: true, keys_written: 1 });
   }
 
   const parsed = bodySchema.safeParse(rawBody);
