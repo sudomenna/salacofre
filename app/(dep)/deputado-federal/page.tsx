@@ -656,9 +656,13 @@ function AguardandoNacional() {
         </p>
       </Panel>
 
-      {/* Sem payload não há cadência declarada — `cadenciaMinutos={0}` faz o
-          bloco calar sobre ela, em vez de inventar um número (§ D8). */}
-      <DeputadoMetodologia pctApurado={0} cadenciaMinutos={0} />
+      {/* Sem payload não há cadência declarada nem granularidade a explicar:
+          `cadenciaMinutos={0}` e `temDado={false}` fazem o bloco calar sobre as
+          duas, em vez de inventar (§ D8). O `temDado` existe porque a primeira
+          versão desta correção publicou, neste exato estado, a frase "lemos o
+          boletim que o TSE publica por estado" — falso, porque aqui não se leu
+          nada ainda. */}
+      <DeputadoMetodologia pctApurado={0} cadenciaMinutos={0} temDado={false} />
 
       <Footer />
     </main>

@@ -257,6 +257,22 @@ describe("/deputado-federal (T-11)", () => {
     expect(doc.body.textContent).not.toContain("400 cadeiras");
   });
 
+  it("(c3) sem payload, a tela NÃO afirma granularidade nenhuma — nem a antiga, nem a nova", async () => {
+    // Defeito publicado em produção em 13/09 e corrigido no mesmo dia: a
+    // primeira versão de `temIntervalo` tinha dois ramos, e o estado "não há
+    // dado algum" caía no ramo "sem faixa", fazendo a tela dizer "lemos o
+    // boletim que o TSE publica por estado". Falso: aqui não se leu nada. São
+    // três estados. Asserção negativa sobre os DOIS textos de granularidade.
+    readDeputadoProjectionMock.mockResolvedValue(null);
+    const doc = await render(DeputadoFederalPage());
+    const metodologia = doc.querySelector("[data-testid='dep-metodologia']")?.textContent ?? "";
+
+    expect(metodologia).not.toMatch(/boletim que o TSE publica por estado/);
+    expect(metodologia).not.toMatch(/zonas eleitorais/);
+    // Mas continua dizendo o que sempre foi verdade: não é projeção.
+    expect(metodologia).toMatch(/não são uma projeção/);
+  });
+
   it("(c0) a11y: a contagem e a faixa têm rótulo próprio — não se distinguem só por posição", async () => {
     // Achado do gate de a11y de 2026-09-13. A linha mostra dois números —
     // "89" (cadeiras agora) e "85 a 93" (a faixa). Para quem enxerga, a coluna

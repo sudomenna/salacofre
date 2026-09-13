@@ -633,9 +633,15 @@ export default async function UFDeputadoFederalPage({ params }: UFDeputadoPagePr
           `Metodologia` (página nacional) para o porquê de este bloco não ser o
           `<ForecastTransparency>` das outras rotas: ele desenharia uma barra
           "Modelo 31,1%" sobre um número em que não há modelo nenhum. */}
+      {/* `temDado` é `detail !== null`, não `row !== null`: sem o detalhe do
+          Blob não há agremiação nenhuma, e afirmar granularidade aí seria o
+          mesmo defeito que a tela nacional publicou em 13/09 — o resumo pode
+          ter chegado enquanto o Blob falhou (RF-129), e nesse estado não se
+          sabe dizer de onde o voto veio. */}
       <DeputadoMetodologia
         pctApurado={pctApurado}
         cadenciaMinutos={cadencia}
+        temDado={detail !== null}
         temIntervalo={agremiacoes.some((a) => a.cadeiras_ci95 !== undefined)}
         variant="uf"
       />

@@ -75,6 +75,19 @@ export interface DeputadoMetodologiaProps {
    * `<ForecastTransparency>` já usa para a frase equivalente.
    */
   temIntervalo?: boolean;
+  /**
+   * `false` quando ainda não há payload nenhum — a tela está em "aguardando o
+   * primeiro boletim".
+   *
+   * ⚠️ **Nasceu de um defeito publicado em 2026-09-13.** A primeira versão
+   * desta prop tinha só dois ramos: com faixa e sem faixa. O estado "sem dado
+   * algum" caía no segundo e a tela afirmava, em produção, "lemos o boletim
+   * que o TSE publica por estado" — falso: não líamos nada ainda. Eram três
+   * estados, não dois. Sem payload o bloco **cala** sobre granularidade, pela
+   * mesma razão que já calava sobre cadência (`cadenciaMinutos = 0`): não
+   * inventar o que não se sabe.
+   */
+  temDado?: boolean;
   /** `"uf"` só troca o título; o texto é o mesmo, porque o método é o mesmo. */
   variant?: "national" | "uf";
 }
@@ -83,6 +96,7 @@ export function DeputadoMetodologia({
   pctApurado,
   cadenciaMinutos,
   temIntervalo = false,
+  temDado = true,
   variant = "national",
 }: DeputadoMetodologiaProps) {
   return (
@@ -105,7 +119,7 @@ export function DeputadoMetodologia({
         regras do Código Eleitoral aplicada aos votos <strong>já apurados</strong> — a resposta para
         "como ficaria a bancada se a contagem parasse agora". Com {formatPercent(pctApurado)}{" "}
         apurado, ela ainda muda.{" "}
-        {temIntervalo ? (
+        {!temDado ? null : temIntervalo ? (
           <>
             O intervalo ao lado de cada bancada mede o quanto o número balança entre as zonas
             eleitorais <strong>já apuradas</strong>: sorteamos mil combinações delas e refazemos a
