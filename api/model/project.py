@@ -73,6 +73,7 @@ import numpy as np
 from pydantic import BaseModel, Field, ValidationError
 
 from api.model.cargos import (
+    ATUALIZACAO_MIN_DEPUTADO,
     Granularidade,
     cargo_info,
     granularidade as cargo_granularidade,
@@ -85,6 +86,13 @@ from api.model.cadeiras_bootstrap import (
     IntervaloCadeiras,
     intervalo_de_cadeiras,
     intervalo_nacional,
+)
+from api.model.dado_ts import (
+    RelogioDoDado,
+    lag_segundos,
+    limiar_alarme_segundos,
+    relogio_do_dado,
+    relogio_por_uf,
 )
 from api.model.deputado import (
     EntradaProporcional,
@@ -2661,6 +2669,7 @@ def build_uf_payloads(
     p_eleito_by_uf: dict[str, dict[int, float]] | None = None,
     vagas: int | None = None,
     partido_by_cand: dict[int, str] | None = None,
+    relogio_by_uf: dict[str, RelogioDoDado] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Constrói payloads canônicos `EdgePayloadUf` por UF (S04/F2).
 
@@ -3022,9 +3031,21 @@ def build_uf_payloads(
         needle_position = max(-1.0, min(1.0, margem / 20.0))
         needle_band = _needle_band(needle_position)
 
+        # ADR-0038 D2 — cada UF carrega o relógio dos PARES DELA, não uma fatia
+        # do nacional: a ingestão degrada regionalmente (rede específica, lock
+        # preso num fan-out parcial) sem que o agregado nacional acuse nada.
+        # UF ausente do mapa (caller legado, ou nenhum par daquela UF no ciclo)
+        # publica `null` nos dois — que é o estado "hora do dado indisponível",
+        # nunca um substituto fabricado.
+        relogio_uf = (relogio_by_uf or {}).get(sigla)
+
         uf_payload: dict[str, Any] = {
             "uf": sigla,
             "ts": ts_iso,
+            "dado_ts": relogio_uf.dado_ts if relogio_uf is not None else None,
+            "pares_atrasados": (
+                relogio_uf.pares_atrasados if relogio_uf is not None else None
+            ),
             "cargo": int(cargo),
             "turno": int(turno),
             "pct_apurado": pct_apurado_uf,
@@ -3083,6 +3104,8 @@ def build_edge_payload(
     vagas: int | None = None,
     vagas_em_disputa: int | None = None,
     total_cadeiras: int | None = None,
+    dado_ts: str | None = None,
+    pares_atrasados: int | None = None,
 ) -> dict[str, Any]:
     """Monta o shape canônico `EdgePayload` (lib/edge-config/types.ts).
 
@@ -3519,7 +3542,15 @@ def build_edge_payload(
     )
 
     return {
+        # DOIS relógios, de propósito (ADR-0038 D1): `ts` é a hora em que o
+        # modelo rodou — não muda de nome, de valor nem de significado — e
+        # `dado_ts` é a hora que o TSE carimbou no boletim mais recente que
+        # entrou nesta conta. Quando a ingestão para, o primeiro continua
+        # andando e o segundo congela: é essa diferença que a tela precisa
+        # poder mostrar.
         "ts": ts_iso,
+        "dado_ts": dado_ts,
+        "pares_atrasados": pares_atrasados,
         "cargo": int(cargo),
         "turno": int(turno),
         "pct_apurado_total": float(pct_apurado_total),
@@ -3615,6 +3646,107 @@ def _alert_slack(severity: str, msg: str, **ctx: Any) -> None:
         _log("warn", "slack alert failed", error=str(exc))
 
 
+def _relogio_do_ciclo(
+    snapshots: list[LatestSnapshot], *, cargo: int, turno: int
+) -> tuple[RelogioDoDado, dict[str, RelogioDoDado]]:
+    """O relógio do DADO deste ciclo — nacional e por UF — já logado e alarmado.
+
+    ADR-0038 D1/D2/D3. Recebe a lista em granularidade de **par** (pré-merge no
+    ramo majoritário: depois de `merge_pairs_into_zonas` o `dg`/`hg` sobrevive
+    só do par dominante de cada zona, `zona_merge.py:52`) e devolve o que os
+    construtores de payload precisam carimbar.
+
+    Os três efeitos que este ponto concentra, e que por isso não se repetem nos
+    dois ramos do modelo:
+
+      1. **Log da ausência, com a causa.** O payload só sabe `null`; o log sabe
+         por quê. `dg`/`hg` são obrigatórios no schema Zod que valida todo
+         snapshot antes do insert (`lib/tse/ea20-schema.ts:337-338`), então
+         ausência em produção é o TSE publicando fora do próprio dicionário —
+         mas a mesma ausência é o normal das fixtures de replay, que foram
+         gravadas com o envelope podado (`tests/fixtures/replay-2022/
+         snapshots.json`: só `carg,e,s,v`). Campo ILEGÍVEL, ao contrário de
+         campo ausente, não tem versão benigna — fixture podada não tem o que
+         estar quebrado — e por isso sai em `error`, não em `warn`.
+      2. **Alarme de dado parado** via `_alert_slack`, no limiar do cargo
+         (×3 da cadência, `dado_ts.limiar_alarme_segundos`). Inerte sem
+         `SLACK_WEBHOOK_URL`, que hoje não está configurada: até lá o alarme é
+         só o log estruturado, por decisão do dono.
+      3. **Uma linha de `info` por ciclo** com os dois relógios lado a lado —
+         é o que torna RNF-006 ("defasagem TSE → tela") verificável de fato,
+         em vez de inferida da cadência do cron.
+    """
+    nacional = relogio_do_dado(snapshots, cargo=cargo)
+    por_uf = relogio_por_uf(snapshots, cargo=cargo)
+
+    if nacional.n_malformados:
+        _log(
+            "error",
+            "dg/hg ilegível no envelope do TSE — pares fora do relógio do dado",
+            cargo=cargo,
+            turno=turno,
+            n_malformados=nacional.n_malformados,
+            n_pares=nacional.n_pares,
+        )
+
+    if nacional.dado_ts is None and nacional.n_pares:
+        _log(
+            "warn",
+            "nenhum par do ciclo tem dg/hg legível — dado_ts publicado como null "
+            "(envelope podado de fixture, ou boletim real fora do dicionário do TSE)",
+            cargo=cargo,
+            turno=turno,
+            n_pares=nacional.n_pares,
+            n_sem_campos=nacional.n_sem_campos,
+            n_malformados=nacional.n_malformados,
+        )
+        return nacional, por_uf
+
+    if nacional.dado_ts is None:
+        # Ciclo sem nenhuma linha. Quem chama já loga "sem snapshots" com mais
+        # contexto — repetir aqui só duplicaria a linha.
+        return nacional, por_uf
+
+    lag = lag_segundos(nacional.dado_ts)
+    limiar = limiar_alarme_segundos(cargo)
+    _log(
+        "info",
+        "relogio_do_dado",
+        cargo=cargo,
+        turno=turno,
+        dado_ts=nacional.dado_ts,
+        lag_seconds=None if lag is None else round(lag, 1),
+        limiar_seconds=limiar,
+        pares_atrasados=nacional.pares_atrasados,
+        n_pares=nacional.n_pares,
+        n_sem_campos=nacional.n_sem_campos,
+    )
+
+    if limiar is not None and lag is not None and lag > limiar:
+        _log(
+            "error",
+            "dado do TSE parado — o modelo está recalculando sobre dado que não avança",
+            cargo=cargo,
+            turno=turno,
+            dado_ts=nacional.dado_ts,
+            lag_seconds=round(lag, 1),
+            limiar_seconds=limiar,
+            pares_atrasados=nacional.pares_atrasados,
+        )
+        _alert_slack(
+            "error",
+            "dado do TSE parado",
+            cargo=cargo,
+            turno=turno,
+            dado_ts=nacional.dado_ts,
+            lag_seconds=round(lag, 1),
+            limiar_seconds=limiar,
+            pares_atrasados=nacional.pares_atrasados,
+        )
+
+    return nacional, por_uf
+
+
 def post_edge_write(
     payload: dict[str, Any],
     payloads_uf: dict[str, dict[str, Any]] | None = None,
@@ -3705,15 +3837,11 @@ def post_edge_write(
 # ---------------------------------------------------------------------------
 
 
-#: Cadência declarada da corrida proporcional, em minutos (RF-128, ADR-0026
-#: item 5). Entra no payload para que a tela não a escreva à mão — foi assim
-#: que quatro frases do Senador viraram falsas em 11/09.
-#:
-#: 30, não 15, desde 2026-09-13: o cargo 6 saiu de granularidade UF (um cron
-#: `*/15`) para ZONA fatiada em 6 (`sliceTargets`, `lib/tse/targets.ts`) — os
-#: crons de `vercel.ts` disparam uma fatia a cada 5 min, e a volta completa
-#: das 6 fatias (garantia de que toda UF foi revisitada) leva 30 min, não 15.
-ATUALIZACAO_MIN_DEPUTADO = 30
+#: `ATUALIZACAO_MIN_DEPUTADO` (=30) mudou para `api/model/cargos.py` em
+#: 2026-09-13 (ADR-0038 D3) e continua importado no topo deste módulo — o nome
+#: e o uso em `construir_payload_deputado` não mudaram. Foi para lá porque o
+#: limiar de alarme de dado parado precisa derivar dela sem que `dado_ts.py`
+#: importe `project.py` (a seta aponta para cá, não daqui).
 
 #: UFs da eleição. Não é configuração nem contagem do ciclo: é quantas
 #: circunscrições a Câmara tem. Derivar de quem já apurou faria
@@ -3878,6 +4006,16 @@ def _do_project_proporcional(
             )
 
     eleitorado_total_by_uf = _eleitorado_total_by_uf(eleitorado)
+
+    # ADR-0038 D1/D2 — o relógio do dado sai da lista de PARES, antes das
+    # agregações de `deputado.py`: `combinar_entradas` soma voto e
+    # `_entradas_por_zona` agrupa por zona; nenhuma das duas carrega `dg`/`hg`
+    # adiante, e depois delas não há mais par para medir. Este ramo não passa
+    # por `merge_pairs_into_zonas` — a lista lida em `fetch_snapshots` já é a
+    # granularidade certa (~6.110 alvos desde o ADR-0036).
+    relogio, relogio_uf = _relogio_do_ciclo(
+        snapshots, cargo=req.cargo, turno=req.turno
+    )
 
     por_uf: dict[str, list[LatestSnapshot]] = {}
     for row in snapshots:
@@ -4095,6 +4233,11 @@ def _do_project_proporcional(
         ufs_conhecidas=max(UFS_DA_ELEICAO, len(ufs)),
         pct_apurado_total=pct_apurado_total,
         cadeiras_ci95_nacional=cadeiras_ci95_nacional,
+        # ADR-0038 D1/D2 — o relógio do dado, nacional e por UF. `ts_iso`
+        # acima segue sendo a hora do cálculo, sem mudança.
+        dado_ts=relogio.dado_ts,
+        pares_atrasados=relogio.pares_atrasados,
+        relogio_by_uf=relogio_uf,
     )
 
     try:
@@ -4174,6 +4317,15 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
             # é mantido para a guarda de sanidade logo abaixo — comparar o
             # ANTES e o DEPOIS do merge é o que detecta multiplicação.
             raw_snapshots = fetch_snapshots(conn, req.cargo, req.turno)
+            # ADR-0038 D1/D2 — o relógio do dado sai daqui, do PRÉ-merge, e não
+            # de `snapshots`: `merge_pairs_into_zonas` preserva `dg`/`hg` só do
+            # par dominante de cada zona (`zona_merge.py:52`, metadado de
+            # envelope não-aditivo), então medir depois esconderia todos os
+            # pares não-dominantes — justamente os que ficam para trás quando a
+            # ingestão degrada.
+            relogio, relogio_uf = _relogio_do_ciclo(
+                raw_snapshots, cargo=req.cargo, turno=req.turno
+            )
             snapshots = merge_pairs_into_zonas(raw_snapshots)
             # Plano § B — 2022 SAI da projeção de candidatos (decisão E1);
             # `historical` fica NÃO-FATAL e sem uso no cálculo — só existe
@@ -4367,6 +4519,9 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 vagas=vagas_do_cargo if vagas_do_cargo >= 2 else None,
                 vagas_em_disputa=cargo_vagas_em_disputa(req.cargo),
                 total_cadeiras=cargo_total_cadeiras(req.cargo),
+                # ADR-0038 D1/D2 — o segundo relógio, ao lado de `ts_iso`.
+                dado_ts=relogio.dado_ts,
+                pares_atrasados=relogio.pares_atrasados,
             )
             # S04/F2 — payloads UF ricos (candidatos com votos, municípios,
             # séries temporais). Envia junto do nacional; endpoint Node
@@ -4391,6 +4546,9 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 p_eleito_by_uf=p_eleito_by_uf,
                 vagas=vagas_do_cargo if vagas_do_cargo >= 2 else None,
                 partido_by_cand=partido_by_cand,
+                # ADR-0038 D2 — relógio do dado por UF, medido só sobre os
+                # pares daquela UF.
+                relogio_by_uf=relogio_uf,
             )
             post_edge_write(edge_payload, payloads_uf=uf_payloads)
         except Exception as edge_exc:  # noqa: BLE001 — never block the response

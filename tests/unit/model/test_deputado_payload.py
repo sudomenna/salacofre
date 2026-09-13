@@ -1075,7 +1075,19 @@ def test_uf_com_mais_de_uma_linha_de_zona_loga_info_nao_warn(
     assert any(
         "mais de uma linha (zona)" in m and '"level": "info"' in m for m in mensagens
     ), mensagens
-    assert not any('"level": "warn"' in m for m in mensagens), mensagens
+    # O `warn` que este teste proíbe é o da GRANULARIDADE — "mais de uma linha
+    # por UF" não pode soar como incidente num caminho que virou o normal.
+    # Desde o ADR-0038 o ciclo também avisa quando nenhum par traz `dg`/`hg`
+    # legível, e os envelopes sintéticos daqui não trazem: esse warn é sobre
+    # outro assunto (o relógio do dado) e tem teste próprio em
+    # `test_dado_ts.py`. Filtrar por assunto, e não afrouxar para "qualquer
+    # warn serve", é o que mantém a tripwire original de pé.
+    warns_de_zona = [
+        m
+        for m in mensagens
+        if '"level": "warn"' in m and "dg/hg" not in m and "dado_ts" not in m
+    ]
+    assert not warns_de_zona, warns_de_zona
 
 
 def test_ciclo_do_cargo_6_nao_passa_por_compute_national(
@@ -1486,3 +1498,94 @@ def test_ciclo_proporcional_fica_calado_quando_a_premissa_se_confirma(
     # errado.
     multiplicacao = [a for a in alertas if "multiplicação" in a[1]]
     assert not multiplicacao, f"alarme falso com a premissa confirmada: {multiplicacao}"
+# ADR-0038 — o relógio do DADO no payload do cargo 6
+# ---------------------------------------------------------------------------
+
+
+def _com_relogio(envelope: dict[str, Any], dg: str, hg: str) -> dict[str, Any]:
+    """O mesmo envelope, com o carimbo de geração que todo EA20 real traz no
+    topo (`lib/tse/ea20-schema.ts:337-338`, ambos obrigatórios)."""
+    return {**envelope, "dg": dg, "hg": hg}
+
+
+def test_payload_do_deputado_carrega_os_dois_relogios() -> None:
+    """`ts` (hora do cálculo) e `dado_ts` (hora do boletim) convivem — é a
+    diferença entre os dois que revela ingestão parada (ADR-0038 D1)."""
+    from api.model.dado_ts import RelogioDoDado
+
+    ufs = [_uf("SP", _envelope_simples(3000, 1000))]
+    relogio_sp = RelogioDoDado(
+        dado_ts="2026-10-04T23:15:30+00:00",
+        pares_atrasados=4,
+        n_pares=210,
+        n_sem_campos=0,
+        n_malformados=0,
+    )
+
+    payload, detalhes = _payload(
+        ufs,
+        ts_iso="2026-10-04T23:59:00+00:00",
+        dado_ts="2026-10-04T23:15:30+00:00",
+        pares_atrasados=9,
+        relogio_by_uf={"SP": relogio_sp},
+    )
+
+    assert payload["ts"] == "2026-10-04T23:59:00+00:00"
+    assert payload["dado_ts"] == "2026-10-04T23:15:30+00:00"
+    assert payload["pares_atrasados"] == 9
+    assert detalhes["SP"]["ts"] == "2026-10-04T23:59:00+00:00"
+    assert detalhes["SP"]["dado_ts"] == "2026-10-04T23:15:30+00:00"
+    assert detalhes["SP"]["pares_atrasados"] == 4
+
+
+def test_payload_do_deputado_sem_relogio_publica_null_e_nao_copia_o_ts() -> None:
+    """O `null` é um estado publicável ("hora do dado indisponível"); copiar
+    `ts` no lugar dele devolveria a mentira que o ADR-0038 foi escrito para
+    tirar da tela."""
+    payload, detalhes = _payload(
+        [_uf("SP", _envelope_simples(3000, 1000))],
+        ts_iso="2026-10-04T23:59:00+00:00",
+    )
+
+    assert payload["dado_ts"] is None
+    assert payload["pares_atrasados"] is None
+    assert detalhes["SP"]["dado_ts"] is None
+    assert detalhes["SP"]["pares_atrasados"] is None
+    assert payload["ts"] == "2026-10-04T23:59:00+00:00"
+
+
+def test_ciclo_do_cargo_6_publica_o_dado_ts_lido_dos_envelopes(
+    ciclo_deputado,
+) -> None:
+    """Ponta a ponta: `dg`/`hg` de cada par entram em `fetch_snapshots`, o
+    máximo vira `dado_ts` nacional e cada UF carrega o máximo DELA."""
+    sp = _snapshot("SP", _com_relogio(_envelope_dez_vagas(), "04/10/2026", "20:15:30"))
+    rj = _snapshot("RJ", _com_relogio(_envelope_simples(3000, 1000), "04/10/2026", "19:00:00"))
+
+    status, _resposta, publicados = ciclo_deputado([sp, rj])
+    assert status == 200
+
+    payload, detalhes = publicados[0]
+    # 20:15:30 BRT = 23:15:30 UTC — o mais recente dos dois.
+    assert payload["dado_ts"] == "2026-10-04T23:15:30+00:00"
+    assert payload["pares_atrasados"] == 1, "RJ está 75 min atrás do máximo"
+    assert detalhes["SP"]["dado_ts"] == "2026-10-04T23:15:30+00:00"
+    assert detalhes["RJ"]["dado_ts"] == "2026-10-04T22:00:00+00:00"
+    # O relógio do cálculo continua sendo outro campo, com outro valor.
+    assert payload["ts"] != payload["dado_ts"]
+
+
+def test_ciclo_do_cargo_6_com_envelope_podado_publica_null(ciclo_deputado) -> None:
+    """As fixtures sintéticas — e as do replay 2022 — não têm `dg`/`hg`. O
+    ciclo roda inteiro, publica bancada, e o relógio do dado sai `null`."""
+    status, resposta, publicados = ciclo_deputado(
+        [_snapshot("SP", _envelope_simples(3000, 1000))]
+    )
+
+    assert status == 200
+    assert resposta["computed"] is True
+    payload, detalhes = publicados[0]
+    assert payload["dado_ts"] is None
+    assert payload["pares_atrasados"] is None
+    assert detalhes["SP"]["dado_ts"] is None
+    assert isinstance(payload["ts"], str), "a hora do cálculo continua publicada"

@@ -54,6 +54,7 @@ from fractions import Fraction
 from typing import Any
 
 from api.model.cadeiras import Agremiacao, ResultadoCadeiras
+from api.model.dado_ts import RelogioDoDado
 from api.model.deputado import (
     Divergencia,
     EntradaProporcional,
@@ -352,8 +353,15 @@ def construir_detalhe_uf(
     cargo: int,
     turno: int,
     divergencias: list[dict[str, Any]],
+    relogio: RelogioDoDado | None = None,
 ) -> dict[str, Any]:
-    """`DeputadoUfDetail` (D6) — o payload que vai para `deputado/uf/<SIGLA>.json`."""
+    """`DeputadoUfDetail` (D6) — o payload que vai para `deputado/uf/<SIGLA>.json`.
+
+    `relogio` (ADR-0038 D2) é o relógio do dado medido só sobre os pares desta
+    UF. `None` — o default — publica `dado_ts`/`pares_atrasados` como `null`,
+    que é o estado "hora do dado indisponível neste ciclo"; nunca cai para
+    `ts_iso`, que é a hora do cálculo e responde a outra pergunta.
+    """
     entrada = dados.entrada
     resultado = dados.resultado
 
@@ -422,7 +430,12 @@ def construir_detalhe_uf(
     agremiacoes.sort(key=lambda a: (-a["cadeiras"], -a["votos_validos"], a["sigla"], a["cod"]))
 
     return {
+        # `ts` = hora do cálculo; `dado_ts` = hora do boletim mais recente
+        # desta UF (ADR-0038 D1). Os dois convivem: quando a ingestão para, o
+        # primeiro anda e o segundo congela.
         "ts": ts_iso,
+        "dado_ts": relogio.dado_ts if relogio is not None else None,
+        "pares_atrasados": relogio.pares_atrasados if relogio is not None else None,
         "cargo": cargo,
         "turno": turno,
         "uf": dados.uf,
@@ -607,6 +620,9 @@ def construir_payload_deputado(
     ufs_conhecidas: int,
     pct_apurado_total: float,
     cadeiras_ci95_nacional: dict[str, tuple[int, int]] | None = None,
+    dado_ts: str | None = None,
+    pares_atrasados: int | None = None,
+    relogio_by_uf: dict[str, RelogioDoDado] | None = None,
 ) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     """Monta `EdgePayloadDeputado` (D5) e o mapa `sigla → DeputadoUfDetail` (D6).
 
@@ -622,6 +638,14 @@ def construir_payload_deputado(
     `cadeiras_bootstrap.intervalo_nacional`. `None` — o default — publica o
     payload sem faixa nenhuma, que é o estado correto enquanto não houver duas
     zonas apuradas em nenhuma UF.
+
+    `dado_ts`/`pares_atrasados`/`relogio_by_uf` (ADR-0038 D1/D2) são o relógio
+    do DADO — a hora que o TSE carimbou, não a que o modelo rodou. Chegam
+    prontos de `_relogio_do_ciclo` (`project.py`); este módulo transporta e
+    nunca deriva: derivar aqui daria uma segunda resposta para a mesma pergunta
+    na mesma tela. Todos `None` por default — o payload sai com os dois campos
+    explicitamente nulos, que é "hora do dado indisponível", nunca a ausência
+    da chave.
     """
     ordenadas = sorted(ufs, key=lambda d: d.uf)
     detalhes: dict[str, dict[str, Any]] = {}
@@ -633,6 +657,7 @@ def construir_payload_deputado(
             cargo=cargo,
             turno=turno,
             divergencias=divergencias_por_uf.get(dados.uf, []),
+            relogio=(relogio_by_uf or {}).get(dados.uf),
         )
         detalhes[dados.uf] = detalhe
         pares.append((dados, detalhe))
@@ -640,7 +665,13 @@ def construir_payload_deputado(
     bancada = _bancada_nacional(pares, ufs_conhecidas, cadeiras_ci95_nacional)
 
     payload = {
+        # Os dois relógios, lado a lado (ADR-0038 D1): `ts` é quando o modelo
+        # rodou — inalterado — e `dado_ts` é quando o TSE gerou o boletim mais
+        # recente do ciclo. `atualizacao_min` abaixo diz de quanto em quanto
+        # tempo o segundo DEVERIA avançar.
         "ts": ts_iso,
+        "dado_ts": dado_ts,
+        "pares_atrasados": pares_atrasados,
         "cargo": cargo,
         "turno": turno,
         "pct_apurado_total": round(float(pct_apurado_total), 5),

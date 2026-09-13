@@ -128,6 +128,50 @@ TOTAL_CADEIRAS: dict[int, int] = {5: 81}
 VAGAS_EM_DISPUTA_2026: dict[int, int] = {5: 54}
 
 
+# ---------------------------------------------------------------------------
+# Cadência de ingestão por cargo — base do limiar de "dado parado" (ADR-0038 D3)
+# ---------------------------------------------------------------------------
+
+#: Cadência declarada da corrida proporcional, em minutos (RF-128, ADR-0026
+#: item 5). Entra no payload para que a tela não a escreva à mão — foi assim
+#: que quatro frases do Senador viraram falsas em 11/09.
+#:
+#: 30, não 15, desde 2026-09-13: o cargo 6 saiu de granularidade UF (um cron
+#: `*/15`) para ZONA fatiada em 6 (`sliceTargets`, `lib/tse/targets.ts`) — os
+#: crons de `vercel.ts` disparam uma fatia a cada 5 min, e a volta completa
+#: das 6 fatias (garantia de que toda UF foi revisitada) leva 30 min, não 15.
+#:
+#: Mudou de casa em 2026-09-13 (ADR-0038 D3): nasceu em `api/model/project.py`
+#: e continua reexportado de lá (`from api.model.cargos import
+#: ATUALIZACAO_MIN_DEPUTADO`), então nenhum uso anterior quebra. Veio para cá
+#: porque o limiar de alarme precisa **derivar** dela — repetir "30" em
+#: `api/model/dado_ts.py` seria o segundo número a manter à mão, exatamente o
+#: que o ADR proíbe — e `dado_ts.py` não pode importar de `project.py`, que é
+#: quem importa `dado_ts`.
+ATUALIZACAO_MIN_DEPUTADO = 30
+
+#: Cadência de ingestão de cada cargo, em **segundos**. É o intervalo entre
+#: duas leituras COMPLETAS do universo de alvos daquele cargo — não o intervalo
+#: entre dois disparos de cron.
+#:
+#: A distinção só importa no cargo 6, e importa muito: `vercel.ts:192-240` tem
+#: seis crons de 5 em 5 minutos, um por fatia (`/api/ingest/deputado-federal/
+#: 1..6`). Derivar "300s" desse `*/5` diria que toda zona é revisitada a cada
+#: 5 min, quando na verdade cada uma é revisitada uma vez por volta completa —
+#: 30 min (ADR-0036). Um limiar de alarme calibrado nos 5 min gritaria em todo
+#: ciclo saudável de Deputado.
+#:
+#: Cargo desconhecido fica FORA do dicionário de propósito: sem cadência
+#: declarada não há limiar honesto a aplicar, e `cadencia_segundos` devolve
+#: `None` em vez de um default que alarmaria no ritmo errado.
+CADENCIA_SEGUNDOS: dict[int, int] = {
+    1: 60,  # Presidente — ADR-0011 (cadência de 60s)
+    3: 60,  # Governador — ADR-0011, mesmo cron
+    5: 300,  # Senador — ADR-0026 nota (b): 5 min, mantidos na volta para zona
+    6: ATUALIZACAO_MIN_DEPUTADO * 60,  # Deputado — ADR-0036: 6 fatias × 5 min
+}
+
+
 def total_cadeiras(cd: int) -> int | None:
     """Tamanho da casa legislativa do cargo, ou `None` quando não se aplica."""
     return TOTAL_CADEIRAS.get(int(cd))
@@ -136,6 +180,15 @@ def total_cadeiras(cd: int) -> int | None:
 def vagas_em_disputa(cd: int) -> int | None:
     """Cadeiras renovadas em 2026, ou `None` quando não se aplica."""
     return VAGAS_EM_DISPUTA_2026.get(int(cd))
+
+
+def cadencia_segundos(cd: int) -> int | None:
+    """Intervalo entre duas varreduras COMPLETAS do cargo, em segundos.
+
+    `None` para cargo sem cadência declarada — o chamador não tem limiar a
+    aplicar e não deve inventar um (ver `CADENCIA_SEGUNDOS`).
+    """
+    return CADENCIA_SEGUNDOS.get(int(cd))
 
 
 def cargo_info(cd: int) -> CargoInfo | None:

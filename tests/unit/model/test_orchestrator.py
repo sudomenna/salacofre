@@ -1909,6 +1909,122 @@ def test_build_uf_payloads_sem_eleitores_nem_capital_omite_campos() -> None:
 
 
 # ---------------------------------------------------------------------------
+# ADR-0038 — o relógio do DADO no payload majoritário (D1/D2)
+# ---------------------------------------------------------------------------
+
+
+def _linha_com_relogio(
+    *,
+    cod_municipio_tse: int,
+    te: int,
+    hg: str,
+    uf: str = "SP",
+    cod_zona: int = 1,
+) -> dict[str, Any]:
+    """Um par (município, zona) com `e.te` e `hg` sob controle do teste.
+
+    `te` decide qual par é o DOMINANTE da zona no `merge_pairs_into_zonas`
+    (`zona_merge.py:52`) — e portanto de quem o `dg`/`hg` sobreviveria se o
+    relógio do dado fosse medido depois do merge.
+    """
+    envelope = _synthetic_payload({100: 55.0, 200: 45.0})
+    envelope["e"] = {**envelope["e"], "te": str(te)}
+    envelope["hg"] = hg
+    return {
+        "cargo": 1,
+        "turno": 1,
+        "uf": uf,
+        "cod_municipio_tse": cod_municipio_tse,
+        "cod_zona": cod_zona,
+        "pct_apurado": 100.0,
+        "payload": envelope,
+    }
+
+
+def test_dado_ts_majoritario_vem_dos_pares_antes_do_merge_de_zona(
+    fake_db,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR-0038 D1 — a fonte é `raw_snapshots`, não `snapshots`.
+
+    A zona tem dois pares: o dominante (maior `e.te`) carimbado às 18h e uma
+    fatia pequena carimbada às 20h15. `merge_pairs_into_zonas` preserva
+    `dg`/`hg` só do dominante, então um relógio lido DEPOIS do merge publicaria
+    18h — escondendo o boletim mais novo e, pior, escondendo 100% dos pares
+    não-dominantes quando eles é que ficarem para trás.
+    """
+    from api.model import project as proj_mod
+
+    snapshots = [
+        _linha_com_relogio(cod_municipio_tse=71072, te=5000, hg="18:00:00"),
+        _linha_com_relogio(cod_municipio_tse=71080, te=10, hg="20:15:30"),
+    ]
+    fake_db(snapshots, [], [{"ano": 2026, "uf": "SP", "cod_zona": 1, "eleitores_aptos": 100_000}])
+
+    publicados: list[tuple[dict, dict]] = []
+    monkeypatch.setattr(
+        proj_mod,
+        "post_edge_write",
+        lambda payload, payloads_uf=None: publicados.append((payload, payloads_uf or {})),
+    )
+
+    status, _resposta = proj_mod._do_project(
+        json.dumps({"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}).encode()
+    )
+
+    assert status == 200
+    payload, uf_payloads = publicados[0]
+    # 20:15:30 BRT = 23:15:30 UTC — o par NÃO dominante.
+    assert payload["dado_ts"] == "2026-10-04T23:15:30+00:00"
+    # O dominante ficou 2h15 atrás do máximo do ciclo — muito além das 2
+    # cadências de 60s do cargo 1.
+    assert payload["pares_atrasados"] == 1
+    assert uf_payloads["SP"]["dado_ts"] == "2026-10-04T23:15:30+00:00"
+    assert uf_payloads["SP"]["pares_atrasados"] == 1
+    # `ts` continua sendo a hora do cálculo — outro campo, outro valor.
+    assert payload["ts"] != payload["dado_ts"]
+
+
+def test_payload_majoritario_sem_dg_hg_publica_null_sem_cair_para_o_ts(
+    fake_db,
+    minimal_dataset,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Envelope podado (o formato das fixtures do replay 2022): o ciclo roda
+    inteiro e publica `dado_ts: null`, jamais a hora do cálculo no lugar."""
+    from api.model import project as proj_mod
+
+    snapshots, historical, eleitorado = minimal_dataset
+    podados = [
+        {
+            **s,
+            "payload": {k: v for k, v in s["payload"].items() if k not in ("dg", "hg")},
+        }
+        for s in snapshots
+    ]
+    fake_db(podados, historical, eleitorado)
+
+    publicados: list[tuple[dict, dict]] = []
+    monkeypatch.setattr(
+        proj_mod,
+        "post_edge_write",
+        lambda payload, payloads_uf=None: publicados.append((payload, payloads_uf or {})),
+    )
+
+    status, resposta = proj_mod._do_project(
+        json.dumps({"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}).encode()
+    )
+
+    assert status == 200
+    assert resposta["computed"] is True
+    payload, uf_payloads = publicados[0]
+    assert payload["dado_ts"] is None
+    assert payload["pares_atrasados"] is None
+    assert uf_payloads["SP"]["dado_ts"] is None
+    assert isinstance(payload["ts"], str)
+
+
+# ---------------------------------------------------------------------------
 # A trava anti-multiplicação está LIGADA ao ciclo majoritário (2026-09-13)
 #
 # `check_zona_merge_sanity` tinha 10 testes unitários verdes e nenhum que
