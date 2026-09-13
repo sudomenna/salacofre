@@ -33,4 +33,15 @@ describe("<Footer />", () => {
     );
     expect(links.length).toBeGreaterThan(0);
   });
+
+  it("(d) link para `/candidatos` — a única entrada global da rota (spec 018)", () => {
+    // `/candidatos` NÃO entra no `<CargoTabs>`: "Deputado Federal" já não cabe
+    // em 1/4 de 430px e uma quinta aba quebraria a barra (comentário no topo de
+    // `CargoTabs.tsx`). Sem este link, a rota fica órfã — alcançável só por URL
+    // digitada. Asserção pelo `href`, não pelo rótulo: o texto pode mudar, o
+    // destino não.
+    const doc = parse(<Footer />);
+    const href = Array.from(doc.querySelectorAll("a")).map((a) => a.getAttribute("href"));
+    expect(href).toContain("/candidatos");
+  });
 });

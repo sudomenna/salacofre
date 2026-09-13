@@ -32,7 +32,17 @@ export function Footer() {
         </a>
         . SalaCofre 2026.
       </p>
-      <p className="mt-2 text-xs">
+      {/*
+        `/candidatos` (spec 018, T-13) entra AQUI e não no `<CargoTabs>`: o
+        próprio `CargoTabs.tsx` registra que "Deputado Federal" já não cabe em
+        1/4 de 430px, e uma quinta coluna quebraria a barra em todos os
+        breakpoints. É rota de nível superior, como `/sobre-o-modelo` — e o
+        footer é a única entrada global que não custa pixel acima da dobra.
+      */}
+      <p className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs">
+        <Link href="/candidatos" style={{ color: "var(--color-text-muted)" }}>
+          Candidatos
+        </Link>
         <Link href="/sobre-o-modelo" style={{ color: "var(--color-text-muted)" }}>
           Sobre o modelo
         </Link>
