@@ -1363,10 +1363,10 @@
         "0035"
       ],
       "ship_blocked_on": [
-        "modulo-cadeiras-golden-2022",
-        "tabela-cadeiras-por-uf"
+        "telas-e-payload"
       ],
-      "opens_after": "2026-09-11"
+      "opens_after": "2026-09-11",
+      "nota_2026_09_12": "Cálculo de cadeiras implementado e VALIDADO: golden contra 2022 dá 511/513, com a fase 1 (quociente partidário + cláusula dos 10%) exata nas 27 UFs. A degradação pré-acordada de 19/09 não será acionada pelo método. Falta payload, read path do Blob e as 2 telas."
     }
   ]
 }

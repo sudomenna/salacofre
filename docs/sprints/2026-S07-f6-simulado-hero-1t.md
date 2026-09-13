@@ -477,9 +477,22 @@ pipeline (P0) e do redesign (P1).
       ADR-0026 desde 07/09, formalizado em 11/09. ✅ Correção verificada no Planalto: os artigos estão no **Código Eleitoral (Lei 4.737/1965)**, não na
       Lei 9.504 como o ADR-0026 cita; o **art. 111 foi declarado inconstitucional** (STF, ADI
       7228/7263/7325) e substituído pelo art. 12-A da Res.-TSE 23.677/2021.
-- [x] **Modelo da 016** — `api/model/p_eleito.py` implementado com testes unit; projeção por zona (ADR-0021 reaproveitado).
-- [ ] **Telas de 016** — RF-105..108 e RF-104 (margem 2º↔3º)
-- [ ] **Telas de 017** — RF-127..130
+- [x] **Modelo da 016** — `p_eleito` em `api/model/p_vitoria.py` (12 testes); projeção zona a zona
+      reaproveitando o ADR-0021. ⚠️ Uma versão anterior desta linha citava
+      `api/model/p_eleito.py`, arquivo que **não existe**.
+- [x] **Telas da 016 entregues** (11/09, commit `2cebe73` + correções `bffa66f`/`dfabf23`):
+      `/senador` e `/uf/[sigla]/senador`, aba habilitada, RF-104 (margem 2º↔3º) a RF-108.
+      Gate de a11y **PASS** — 0 violações em 16 combinações; RNF-024 (teclado) verificado.
+      Pendentes só o mapa municipal e "maiores colégios", fora do escopo pré-simulado.
+- [x] **Modelo da 017 — cálculo de cadeiras validado** (12/09). `api/model/deputado.py` faz a ponte
+      EA20 → `cadeiras.py` (federação como UMA agremiação, `sqcand` como identidade, `carg[].nv`
+      como fonte das vagas). **Golden de 2022: 511/513 cadeiras**, fase 1 exata nas 27 UFs
+      (`tests/unit/model/test_cadeiras_golden_2022.py`). A degradação de 19/09 **não será acionada
+      por causa do método** — ele passou.
+- [x] **Conferência ao vivo contra o TSE** — `conferir_contra_tse` compara nossa distribuição com
+      `carg[].qe` e `agr[].vag`, publicados pelo próprio TSE. Só conclusiva com `tf == "s"`.
+- [ ] **Payload e telas da 017** — `EdgePayload*` de Deputado, escritor e leitor do Blob
+      (`deputado/uf/<SIGLA>.json`), as 2 rotas e a aba. **Nada disso existe.** É o que sobrou.
 - [ ] **Gate G2** (24/09): 4 gates + `model-validator` para a 016; `rf-coverage-checker` para 017 (cobertura baixa esperada — specs em draft)
 
 > **Degradação pré-acordada da 017** (decidida em 07/09, não re-discutir): se em 19/09 o módulo

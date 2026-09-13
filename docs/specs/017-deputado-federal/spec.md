@@ -11,7 +11,7 @@ apis: [GET /api/ingest/deputado-federal, POST /api/ingest/deputado-federal, GET 
 components: [ResultPanel, ChancesPanel, CargoTabs, RaceHeader, ForecastTransparency]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-006, RNF-007a, RNF-022, RNF-023, RNF-024]
 adrs: [0001, 0012, 0020, 0021, 0026, 0027, 0028, 0032, 0034, 0035]
-ship_blocked_on: [modulo-cadeiras-golden-2022, tabela-cadeiras-por-uf]
+ship_blocked_on: [telas-e-payload]
 opens_after: 2026-09-11
 ---
 
@@ -22,10 +22,25 @@ opens_after: 2026-09-11
 
 ## Status
 
-`draft`. Escrita em 2026-09-11. É a spec mais arriscada do produto: a conversão
-de votos em cadeiras é um algoritmo jurídico de três fases, com um artigo do
-Código Eleitoral **declarado inconstitucional** e substituído por resolução do
-TSE. O método está fixado no [ADR-0027](../../architecture/adrs/0027-conversao-votos-em-cadeiras-deputado-federal.md).
+`draft`. Escrita em 2026-09-11; **o cálculo de cadeiras foi implementado e
+validado em 2026-09-12**.
+
+### O que está pronto
+
+| camada | estado |
+|---|---|
+| Ingestão (cargo 6, 27 alvos UF, cron de 15 min) | ✅ `9ee5871` |
+| Método de cadeiras (ADR-0027) | ✅ `api/model/cadeiras.py`, 21 casos de borda |
+| Ponte EA20 → cadeiras | ✅ `api/model/deputado.py`, 28 testes |
+| **Golden contra 2022 (RF-126)** | ✅ **511/513 cadeiras**, fase 1 exata nas 27 UFs |
+| Conferência ao vivo contra o TSE | ✅ `conferir_contra_tse` — compara com `carg[].qe` e `agr[].vag` |
+| Payload (`EdgePayload*` de Deputado) | ❌ não existe |
+| Read path do Blob (`deputado/uf/<SIGLA>.json`) | ❌ escritor e leitor não existem |
+| Telas `/deputado-federal` e `/uf/[sigla]/deputado-federal` | ❌ não existem |
+| Aba no `CargoTabs` | ❌ segue `disabled: true`, sem `href` |
+
+**A degradação de 19/09 não será acionada por causa do cálculo** — ele passou. O
+que resta é payload e UI, que é trabalho de engenharia sem incerteza de método.
 
 ## Objetivo
 
@@ -155,14 +170,20 @@ art. 11 § 5º, ADI 5.420).
 - Rationale: com a variável errada, uma UF de 10 vagas exibiria 11 — a vaga não ocupada vai para as
   sobras, possivelmente para outro partido, e seria contada duas vezes.
 
-**RF-126 — Testes golden contra 2022**
+**RF-126 — Testes golden contra 2022** ✅ **cumprido em 2026-09-12**
 
 WHEN o módulo de cadeiras é alterado, the system SHALL reproduzir a distribuição
 oficial de cadeiras de 2022 para todas as 27 UFs.
 
+**Resultado medido**: **511 das 513** cadeiras, candidato por candidato
+(`tests/unit/model/test_cadeiras_golden_2022.py`). A fase 1 (quociente
+partidário + cláusula dos 10%) é **exata nas 27 UFs**. As 2 divergências estão
+em rodada de sobras, nomeadas no teste, e viraram a open question 4 abaixo.
+
 **Aceitação**:
 - Given os votos de 2022 por (UF, agremiação), when o módulo roda, then a
-  distribuição bate com a oficial em cada UF.
+  distribuição bate com a oficial em cada UF — **511/513**, com as 2 exceções
+  nomeadas; o teste falha se surgir uma terceira **ou se uma das duas sumir**.
 - ⚠️ O gabarito tem de ser o resultado **recalculado** após a ADI 7228: os
   embargos julgados em 13/03/2025 derrubaram a modulação, e a decisão **retroage
   a 2022**. Usar os números proclamados à época produziria um golden errado que
@@ -227,6 +248,25 @@ continua sendo ingerido e persistido de todo jeito (append-only, constituição 
 para que 2030 comece com histórico.
 
 ## Open questions
+
+4. **As duas cadeiras de 2022 que a aritmética não explica.** MG (NELY AQUINO,
+   PODE) e RS (BIBO NUNES, PL), ambas "ELEITO POR MÉDIA". Nos dois casos o TSE
+   deu a vaga à agremiação de **menor** média, tendo a de maior média candidato
+   acima do piso de 20% — o que a leitura literal do art. 109 I não admite.
+   Descartado pelo dado: o quociente de MG bate por duas fontes independentes
+   (210.400, ao voto), os votos nominais batem exatamente entre os dois datasets
+   do TSE, e a ordem não muda incluindo ou excluindo legenda da média.
+   Hipótese **não confirmada**: decisão judicial posterior — `DS_SIT_TOT_TURNO`
+   registra o desfecho jurídico, que não precisa coincidir com a aritmética.
+   Ambos são troca entre duas agremiações, forma típica desse tipo de decisão.
+   **Não bloqueia o ship**: 511/513 com fase 1 exata é evidência suficiente de
+   que o método está certo. Reabrir se o simulado mostrar padrão parecido.
+
+5. **O golden exercita, mas não discrimina, o arredondamento do art. 106.**
+   Quatro UFs de 2022 caem na fração exata de 0,5 (AP, MT, SC, TO), mas 1 voto
+   de diferença no quociente não move cadeira nelas — verificado por mutação.
+   Quem protege a regra são os casos sintéticos de `test_cadeiras.py`. Registrado
+   para que ninguém trate o golden como prova completa.
 
 1. **"Candidato com ≥20% do QE" — precisa estar não eleito?** O texto do art. 109
    § 2º não qualifica. A leitura operacional é que sim (a cadeira precisa ser

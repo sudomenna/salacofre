@@ -126,18 +126,18 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-106 | Rótulo explícito de duas vagas | M | [016](../specs/016-senador/) | `<RaceHeader />` | integration (`senador.test.tsx`) |
 | RF-107 | Composição nacional das 54 vagas (T-09) | M | [016](../specs/016-senador/) | `<ChancesPanel />` | integration (`senador.test.tsx`) |
 | RF-108 | Transparência de cadência | M | [016](../specs/016-senador/) | `<ForecastTransparency />` | integration (`senador.test.tsx`) |
-| RF-120 | Ingestão do cargo 6 a cada 15 minutos | M | [017](../specs/017-deputado-federal/) | — | — |
-| RF-121 | Votos de legenda preservados | M | [017](../specs/017-deputado-federal/) | — | — |
-| RF-122 | Federação conta como uma agremiação | M | [017](../specs/017-deputado-federal/) | — | — |
-| RF-123 | Quociente eleitoral com o arredondamento da lei | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_cadeiras.py::test_caso1_*`, 3 casos: 0,5 exato desce, sem erro de float) |
-| RF-124 | Número de vagas NUNCA hardcoded | M | [017](../specs/017-deputado-federal/) | — | — |
-| RF-125 | Distribuição em três fases, conforme ADR-0027 | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_cadeiras.py`) |
-| RF-125.1 | Cadeiras exibidas ≠ vagas obtidas para o denominador | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_cadeiras.py`) |
-| RF-126 | Testes golden contra 2022 | M | [017](../specs/017-deputado-federal/) | — | **— (lacuna declarada)** — `test_cadeiras.py` cobre os 9 casos de borda do ADR-0027, **não** o golden. Falta o dado: o CSV no disco é por partido e a fase 1 precisa por candidato. ⚠️ Gabarito tem de ser o **recalculado** pós-ADI 7228. Ver `risks.md`. |
-| RF-127 | Bancada projetada com incerteza explícita | M | [017](../specs/017-deputado-federal/) | `<ResultPanel>` | — |
-| RF-128 | Cadência de 15 minutos visível | M | [017](../specs/017-deputado-federal/) | `<ForecastTransparency />` | — |
-| RF-129 | Drill-down por UF vem do Blob | M | [017](../specs/017-deputado-federal/) | — | — |
-| RF-130 | Voto de legenda visível | M | [017](../specs/017-deputado-federal/) | — | — |
+| RF-120 | Ingestão do cargo 6 a cada 15 minutos | M | [017](../specs/017-deputado-federal/) | — | unit (`tse/targets.test.ts` — 27 alvos de nível UF, sem tocar o banco); cron em `vercel.ts` |
+| RF-121 | Votos de legenda preservados | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_deputado.py` — legenda do agregado e fallback pela soma dos partidos); golden 2022 usa legenda real |
+| RF-122 | Federação conta como uma agremiação | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_deputado.py::test_federacao_vira_uma_agremiacao*`, verificado por mutação); `test_cadeiras.py::test_caso6_*` mede 2 cadeiras de diferença |
+| RF-123 | Quociente eleitoral com o arredondamento da lei | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_cadeiras.py::test_caso1_*`, 3 casos). ⚠️ O golden de 2022 **exercita** mas **não discrimina** esta regra — ver `test_cadeiras_golden_2022.py::test_o_golden_exercita_mas_nao_discrimina_o_arredondamento` |
+| RF-124 | Número de vagas NUNCA hardcoded | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_deputado.py` — `lugares_a_preencher` sai de `carg[].nv`; ausente vira `None`, nunca palpite) |
+| RF-125 | Distribuição em três fases, conforme ADR-0027 | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_cadeiras.py`, 9 casos de borda do ADR-0027) + `test_cadeiras_golden_2022.py` (511/513 cadeiras reais) |
+| RF-125.1 | Cadeiras exibidas ≠ vagas obtidas para o denominador | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_cadeiras.py::test_caso2b_*`) + golden 2022 (Σ cadeiras == vagas nas 27 UFs) |
+| RF-126 | Testes golden contra 2022 | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_cadeiras_golden_2022.py`) — **511/513 cadeiras de 2022**; fase 1 exata nas 27 UFs; 2 divergências nomeadas (MG, RS) sem explicação pelo dado |
+| RF-127 | Bancada projetada com incerteza explícita | M | [017](../specs/017-deputado-federal/) | `<ResultPanel>` | — (telas não implementadas) |
+| RF-128 | Cadência de 15 minutos visível | M | [017](../specs/017-deputado-federal/) | `<ForecastTransparency />` | — (telas não implementadas) |
+| RF-129 | Drill-down por UF vem do Blob | M | [017](../specs/017-deputado-federal/) | — | — (leitor de Blob de Deputado não existe; `deputadoUfBlobPathname` sem caller) |
+| RF-130 | Voto de legenda visível | M | [017](../specs/017-deputado-federal/) | — | — (telas não implementadas) |
 
 ## RFs adicionados pelas specs (não estavam no PRD)
 
