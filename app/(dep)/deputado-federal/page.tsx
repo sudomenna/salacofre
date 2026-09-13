@@ -59,8 +59,12 @@
  *   - Constituição § 1 (não oficial), § 2 (cores por token), § 3 (degrada),
  *     § 4 (lista textual), § 6 (ordenação determinística), § 8 (transparência).
  *
- * ISR: 60 s (ADR-0011). O payload é reescrito a cada 15 min pelo cron do
- * cargo; revalidar em 900 s só serviria para atrasar a primeira aparição.
+ * ISR: 60 s (ADR-0011). O payload é reescrito a cada **30 min** — a volta
+ * completa das 6 fatias do cron do cargo (ADR-0036, 2026-09-13; era 15 min
+ * enquanto a ingestão era por UF). Revalidar em 1.800 s só serviria para
+ * atrasar a primeira aparição. A cadência exibida na tela NÃO vem daqui:
+ * sai de `atualizacao_min` do payload (§ D8) — este comentário é sobre o
+ * cache, não sobre a prosa.
  */
 
 import type { Metadata } from "next";
