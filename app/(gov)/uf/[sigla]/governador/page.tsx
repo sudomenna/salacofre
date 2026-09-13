@@ -97,6 +97,7 @@ import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { DadoParadoBanner } from "@/components/atoms/banners/DadoParadoBanner";
 import { DetailFreshness, DetailUnavailable } from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
+import { CandidaturasAguardando } from "@/components/blocks/CandidaturasAguardando";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { MunicipioExplorer } from "@/components/blocks/MunicipioExplorer";
 import type { MunicipioRow } from "@/components/blocks/MunicipioTable";
@@ -326,14 +327,31 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
   }
 
   if (!payload) {
+    // RF-149 — cargo 3 nesta UF: a corrida é estadual, e a fatia também.
+    const grade = await CandidaturasAguardando({ cargo: 3, uf: sigla });
+
     return (
-      <main data-trilha="gov" className="mx-auto flex min-h-screen max-w-page flex-col px-5 py-6">
-        <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
-          Governador {sigla} — Aguardando dados
-        </h1>
-        <p className="mt-2 text-sm" style={{ color: "var(--color-text-muted)" }}>
-          A projeção para esta corrida começa quando o TSE divulgar os primeiros boletins.
-        </p>
+      <main
+        data-trilha="gov"
+        className="mx-auto flex min-h-screen max-w-page flex-col px-5 py-6"
+        style={{ gap: "var(--space-6)" }}
+      >
+        <div>
+          <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
+            Governador {sigla} — Aguardando dados
+          </h1>
+          <p
+            className="mt-2 text-sm"
+            data-testid="uf-gov-aguardando"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            A projeção para esta corrida começa quando o TSE divulgar os primeiros boletins.
+          </p>
+        </div>
+
+        {/* Acrescentar, nunca substituir: a grade entra DEPOIS do parágrafo. */}
+        {grade}
+
         <Footer />
       </main>
     );

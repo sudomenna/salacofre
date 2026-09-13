@@ -19,7 +19,14 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { CandidatosGrid } from "@/components/blocks/CandidatosGrid";
+import {
+  ancoraCandidato,
+  CANDIDATOS_LIMITE_MAX,
+  CANDIDATOS_POR_PAGINA,
+  CandidatosGrid,
+  ordenarCandidatosPorNumero,
+  parseLimite,
+} from "@/components/blocks/CandidatosGrid";
 import type { CandidatoIdentidade } from "@/lib/blob/candidatos";
 
 const ORIGINAL_BASE = process.env.BLOB_PUBLIC_BASE_URL;
@@ -172,6 +179,145 @@ describe("<CandidatosGrid /> — ordem (constituição §§ 2 e 6)", () => {
     const copia = [...entrada];
     render(entrada);
     expect(entrada.map((c) => c.numero)).toEqual(copia.map((c) => c.numero));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Corte de exibição — o bloco continua puro; quem corta é o chamador
+// ---------------------------------------------------------------------------
+
+describe("<CandidatosGrid /> — `total` é o da corrida, não o da fatia", () => {
+  it("(i) sem `total`, a lista recebida É a corrida", () => {
+    const doc = render([cand(13, "A"), cand(22, "B")]);
+    expect(doc.querySelector("[data-testid='candidatos-grid-contagem']")?.textContent).toBe(
+      "2 candidaturas",
+    );
+  });
+
+  it("(j) com `total`, a contagem é o total REAL mesmo desenhando 2 cartões", () => {
+    // Mutação que deve derrubá-lo: a contagem voltar a sair de
+    // `candidatos.length`. A tela diria "2 candidaturas" numa corrida de 1.061.
+    const doc = parse(
+      <CandidatosGrid
+        candidatos={[cand(13, "A"), cand(22, "B")]}
+        total={1061}
+        uf="SP"
+        rotulo="Candidaturas"
+        textoVazio="vazio"
+      />,
+    );
+
+    const contagem = doc.querySelector("[data-testid='candidatos-grid-contagem']");
+    expect(contagem?.getAttribute("data-total")).toBe("1061");
+    expect(contagem?.textContent).toBe("1.061 candidaturas");
+    // E os cartões continuam sendo só os recebidos — o bloco não inventa fatia.
+    expect(doc.querySelectorAll("[data-testid='candidate-card']")).toHaveLength(2);
+  });
+
+  it("(j2) a contagem leva separador de milhar pt-BR, não o número cru", () => {
+    const doc = parse(
+      <CandidatosGrid
+        candidatos={[cand(13, "A")]}
+        total={1061}
+        uf="SP"
+        rotulo="Candidaturas"
+        textoVazio="vazio"
+      />,
+    );
+    expect(
+      doc.querySelector("[data-testid='candidatos-grid-contagem']")?.textContent,
+    ).not.toContain("1061");
+  });
+
+  it("(j3) `total` não abre exceção ao estado vazio: 0 desenhado é estado vazio", () => {
+    // Mutação que deve derrubá-lo: trocar a guarda do vazio de
+    // `ordenados.length` para `totalReal`. Uma busca sem resultado numa corrida
+    // de 1.061 renderizaria um `<ul>` vazio em silêncio (RF-147).
+    const doc = parse(
+      <CandidatosGrid
+        candidatos={[]}
+        total={1061}
+        uf="SP"
+        rotulo="Candidaturas"
+        textoVazio="Nenhuma candidatura desta corrida casa com a busca."
+      />,
+    );
+    expect(doc.querySelector("[data-testid='candidatos-grid-lista']")).toBeNull();
+    expect(doc.querySelector("[data-testid='candidatos-grid-vazio']")?.textContent).toBe(
+      "Nenhuma candidatura desta corrida casa com a busca.",
+    );
+  });
+});
+
+describe("<CandidatosGrid /> — âncora estável por célula", () => {
+  it("(k) cada <li> tem `id` no formato de `ancoraCandidato`, na ordem da grade", () => {
+    // Mutação que deve derrubá-lo: remover o `id` — o `href="#c-60"` do
+    // "carregar mais" vira link morto, sem erro nenhum no navegador.
+    const doc = render([cand(50, "C"), cand(13, "A"), cand(22, "B")]);
+    const ids = [...doc.querySelectorAll("li")].map((li) => li.getAttribute("id"));
+
+    expect(ids).toEqual([ancoraCandidato(0), ancoraCandidato(1), ancoraCandidato(2)]);
+  });
+
+  it("(k2) o `id` acompanha a ORDEM por número, não a de entrada", () => {
+    // `c-0` tem que ser o menor número. Se o id saísse da ordem de entrada, a
+    // âncora apontaria para uma célula diferente a cada render do mesmo dado.
+    const doc = render([cand(50, "C"), cand(13, "A"), cand(22, "B")]);
+    const primeiro = doc.getElementById(ancoraCandidato(0));
+    expect(primeiro?.querySelector("[data-testid='candidate-card-numero']")?.textContent).toBe(
+      "13",
+    );
+  });
+});
+
+describe("parseLimite — degrada fechado, e tem teto", () => {
+  it("(l) ausente ou vazio → o default de 60", () => {
+    for (const raw of [undefined, "", "   ", [] as string[]]) {
+      expect(parseLimite(raw)).toBe(CANDIDATOS_POR_PAGINA);
+    }
+  });
+
+  it("(m) lixo, negativo e zero → o default, nunca a lista inteira", () => {
+    // Mutação que deve derrubá-lo: `Number.parseInt` (aceita `60abc` como 60),
+    // ou `Number(x) || 60` (aceita `-5`).
+    for (const raw of ["abc", "-5", "0", "1.5", "60abc", "+120", "1e9", " 60 abc"]) {
+      expect(parseLimite(raw), `?limite=${raw}`).toBe(CANDIDATOS_POR_PAGINA);
+    }
+  });
+
+  it("(n) valor válido passa; valor absurdo é limitado ao teto", () => {
+    expect(parseLimite("120")).toBe(120);
+    expect(parseLimite(" 240 ")).toBe(240);
+    expect(parseLimite("999999999")).toBe(CANDIDATOS_LIMITE_MAX);
+    // Cadeia de dígitos que vira `Infinity` na conversão: é pedido de "tudo",
+    // não pedido malformado — cai no teto, não no default.
+    expect(parseLimite("9".repeat(400))).toBe(CANDIDATOS_LIMITE_MAX);
+  });
+
+  it("(n2) array de query string usa o primeiro valor, como os outros filtros", () => {
+    expect(parseLimite(["120", "999"])).toBe(120);
+  });
+
+  it("(n3) o teto cobre a maior corrida real, senão 'ver todas' truncaria", () => {
+    // SP cargo 6 tem 1.061 publicáveis (13/09). Um teto abaixo disso faria
+    // "ver todas" cortar em silêncio no maior estado do país.
+    expect(CANDIDATOS_LIMITE_MAX).toBeGreaterThan(1061);
+  });
+});
+
+describe("ordenarCandidatosPorNumero", () => {
+  it("(o) ordena por número sem mutar a entrada", () => {
+    const entrada = [cand(50, "C"), cand(13, "A"), cand(22, "B")];
+    const saida = ordenarCandidatosPorNumero(entrada);
+
+    expect(saida.map((c) => c.numero)).toEqual([13, 22, 50]);
+    expect(entrada.map((c) => c.numero)).toEqual([50, 13, 22]);
+  });
+
+  it("(o2) é idempotente — a grade reordenar depois do chamador não muda nada", () => {
+    const uma = ordenarCandidatosPorNumero([cand(50, "C"), cand(13, "A")]);
+    const duas = ordenarCandidatosPorNumero(uma);
+    expect(duas.map((c) => c.sqcand)).toEqual(uma.map((c) => c.sqcand));
   });
 });
 

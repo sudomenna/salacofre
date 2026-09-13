@@ -4,7 +4,13 @@
  * Suspense boundary de `/candidatos` (T-13), mostrado enquanto a fatia do Blob
  * resolve.
  *
- * Server Component puro — zero JS (RF-146, RNF-007a em 148,7 KiB de 150).
+ * Server Component puro — zero JS (RF-146). Medido em 13/09 no build de
+ * produção: a rota baixa as mesmas 8 requisições de `/sobre-o-modelo`, 150.285 B
+ * gz sem o chunk `nomodule` — abaixo do piso de framework registrado
+ * (RNF-007a-floor, 153.482 B). Pela definição vigente do RNF-007a (ADR-0030:
+ * total medido − piso), o above-the-fold de aplicação é zero e a folga é o
+ * orçamento inteiro de 150 KB, não os "1,3 KiB" que esta linha afirmava com a
+ * métrica de escopo antigo.
  *
  * ## O esqueleto tem as medidas reais, não medidas bonitas
  *

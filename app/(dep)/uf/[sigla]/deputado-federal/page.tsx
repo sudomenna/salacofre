@@ -52,6 +52,7 @@ import { notFound } from "next/navigation";
 
 import { DadoParadoBanner } from "@/components/atoms/banners/DadoParadoBanner";
 import { Panel } from "@/components/atoms/surfaces/Panel";
+import { CandidaturasAguardando } from "@/components/blocks/CandidaturasAguardando";
 import { DeputadoMetodologia } from "@/components/blocks/DeputadoMetodologia";
 import { Footer } from "@/components/layout/Footer";
 import {
@@ -268,16 +269,37 @@ export default async function UFDeputadoFederalPage({ params }: UFDeputadoPagePr
 
   // Nem resumo nem detalhe: não há o que dizer sobre este estado ainda.
   if (!row && !detail) {
+    // RF-149 — cargo 6 nesta UF. É a maior grade do produto (1.131 candidaturas
+    // publicáveis em SP), e é a que mais rende: quem se candidatou a deputado
+    // federal pelo estado do leitor é justamente o que não cabe em lugar nenhum
+    // da cédula. `<CandidatosGrid>` já cobre o custo com `content-visibility` e
+    // `loading="lazy"`, e `/candidatos?cargo=6&uf=SP` já provou o caminho.
+    const grade = await CandidaturasAguardando({ cargo: 6, uf: sigla });
+
     return (
-      <main data-trilha="dep" className="mx-auto flex min-h-screen max-w-page flex-col px-5 py-6">
-        <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
-          {DEPUTADO.label} {sigla} — Aguardando dados
-        </h1>
-        <p className="mt-2 text-sm" style={{ color: "var(--color-text-muted)" }}>
-          A apuração deste estado começa a aparecer aqui quando o TSE divulgar o primeiro boletim.
-          Turno único, sistema proporcional: as cadeiras vão para as agremiações, e só depois são
-          ocupadas pelos candidatos mais votados dentro de cada uma.
-        </p>
+      <main
+        data-trilha="dep"
+        className="mx-auto flex min-h-screen max-w-page flex-col px-5 py-6"
+        style={{ gap: "var(--space-6)" }}
+      >
+        <div>
+          <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
+            {DEPUTADO.label} {sigla} — Aguardando dados
+          </h1>
+          <p
+            className="mt-2 text-sm"
+            data-testid="uf-dep-aguardando"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            A apuração deste estado começa a aparecer aqui quando o TSE divulgar o primeiro boletim.
+            Turno único, sistema proporcional: as cadeiras vão para as agremiações, e só depois são
+            ocupadas pelos candidatos mais votados dentro de cada uma.
+          </p>
+        </div>
+
+        {/* Acrescentar, nunca substituir: a grade entra DEPOIS do parágrafo. */}
+        {grade}
+
         <Footer />
       </main>
     );

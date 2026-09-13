@@ -48,6 +48,22 @@ import fixture from "@/tests/fixtures/edge-config/projection-current.json" with 
  */
 const readNationalProjectionMock = vi.fn();
 const readArchivedProjectionMock = vi.fn();
+/**
+ * RF-149 (spec 018) — o estado "aguardando dados" desta rota passou a ler a
+ * fatia de candidaturas do Blob. Sem este mock o arquivo faz uma requisição de
+ * REDE de verdade (`BLOB_PUBLIC_BASE_URL` vem do `.env.local`), que o happy-dom
+ * bloqueia por CORS e que degrada para `fetch_error`: passaria, mas por
+ * acidente, devagar e dependendo do mundo lá fora. `not_configured` é a
+ * degradação declarada — a grade não renderiza, e o que este arquivo mede
+ * continua sendo exatamente o que ele media antes.
+ *
+ * A grade em si é testada em `tests/unit/pages/aguardando-candidatos.test.tsx`.
+ */
+vi.mock("@/lib/blob/candidatos", () => ({
+  readCandidatosUf: () =>
+    Promise.resolve({ status: "unavailable", reason: "not_configured", url: null }) as never,
+}));
+
 vi.mock("@/lib/edge-config/reader", () => ({
   readNationalProjection: () => readNationalProjectionMock(),
   readArchivedProjection: (opts?: unknown) => readArchivedProjectionMock(opts),

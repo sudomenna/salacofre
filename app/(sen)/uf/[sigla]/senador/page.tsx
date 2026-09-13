@@ -49,6 +49,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Panel } from "@/components/atoms/surfaces/Panel";
+import { CandidaturasAguardando } from "@/components/blocks/CandidaturasAguardando";
 import { ChancesPanel } from "@/components/blocks/ChancesPanel";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { ResultPanel } from "@/components/blocks/ResultPanel";
@@ -202,15 +203,32 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
   }
 
   if (!payload) {
+    // RF-149 — cargo 5 nesta UF.
+    const grade = await CandidaturasAguardando({ cargo: 5, uf: sigla });
+
     return (
-      <main data-trilha="sen" className="mx-auto flex min-h-screen max-w-page flex-col px-5 py-6">
-        <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
-          Senado {sigla} — Aguardando dados
-        </h1>
-        <p className="mt-2 text-sm" style={{ color: "var(--color-text-muted)" }}>
-          São {VAGAS_PADRAO} vagas por estado, em turno único. A projeção desta corrida começa
-          quando o TSE divulgar o primeiro boletim de {sigla}.
-        </p>
+      <main
+        data-trilha="sen"
+        className="mx-auto flex min-h-screen max-w-page flex-col px-5 py-6"
+        style={{ gap: "var(--space-6)" }}
+      >
+        <div>
+          <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
+            Senado {sigla} — Aguardando dados
+          </h1>
+          <p
+            className="mt-2 text-sm"
+            data-testid="uf-sen-aguardando"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            São {VAGAS_PADRAO} vagas por estado, em turno único. A projeção desta corrida começa
+            quando o TSE divulgar o primeiro boletim de {sigla}.
+          </p>
+        </div>
+
+        {/* Acrescentar, nunca substituir: a grade entra DEPOIS do parágrafo. */}
+        {grade}
+
         <Footer />
       </main>
     );

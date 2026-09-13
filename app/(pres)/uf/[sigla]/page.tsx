@@ -125,6 +125,7 @@ import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { DadoParadoBanner } from "@/components/atoms/banners/DadoParadoBanner";
 import { DetailFreshness, DetailUnavailable } from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
+import { CandidaturasAguardando } from "@/components/blocks/CandidaturasAguardando";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { MunicipioExplorer } from "@/components/blocks/MunicipioExplorer";
 import type { MunicipioRow } from "@/components/blocks/MunicipioTable";
@@ -393,22 +394,37 @@ export default async function UFPage({ params }: UFPageProps) {
   // Pré-eleição absoluta OR Edge Config vazio. UX gentil (constituição § 3), e
   // nenhum número inventado: a tela não afirma percentual, contagem nem hora.
   if (!payload) {
+    // RF-149 — a corrida desta tela é a NACIONAL: as candidaturas a Presidente
+    // na cédula de qualquer estado são as mesmas 12 do país, e a fatia mora sob
+    // `BR` (design 018 § D1). `sigla` endereça a projeção, não o cadastro.
+    const grade = await CandidaturasAguardando({ cargo: 1, uf: "BR" });
+
     return (
-      <main data-trilha="pres" className="mx-auto flex min-h-screen max-w-page flex-col px-5 py-6">
+      <main
+        data-trilha="pres"
+        className="mx-auto flex min-h-screen max-w-page flex-col px-5 py-6"
+        style={{ gap: "var(--space-6)" }}
+      >
         {/* O `<UFBreadcrumb>` saiu daqui junto com o da página cheia (D23):
             manter a navegação só no caminho de erro deixaria duas gramáticas
             para a mesma rota. Quem volta usa o `<CargoTabs>` do shell. */}
-        <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
-          {sigla} — Aguardando dados
-        </h1>
-        <p
-          className="mt-2 text-sm"
-          data-testid="uf-aguardando"
-          style={{ color: "var(--color-text-muted)" }}
-        >
-          A projeção para esta UF começa quando o TSE divulgar os primeiros boletins. Não oficial.
-          Fonte: TSE.
-        </p>
+        <div>
+          <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
+            {sigla} — Aguardando dados
+          </h1>
+          <p
+            className="mt-2 text-sm"
+            data-testid="uf-aguardando"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            A projeção para esta UF começa quando o TSE divulgar os primeiros boletins. Não oficial.
+            Fonte: TSE.
+          </p>
+        </div>
+
+        {/* Acrescentar, nunca substituir: a grade entra DEPOIS do parágrafo. */}
+        {grade}
+
         <Footer />
       </main>
     );

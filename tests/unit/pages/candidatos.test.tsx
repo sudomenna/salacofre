@@ -98,6 +98,30 @@ beforeEach(() => {
 
 // ---------------------------------------------------------------------------
 
+describe("revalidate do segmento × CANDIDATOS_REVALIDATE_SECONDS", () => {
+  it("o literal da rota bate com a constante do leitor", async () => {
+    // Os dois números TÊM que ser iguais, e não dá para importar um no outro:
+    // o Next exige literal estaticamente analisável no `export const
+    // revalidate` e o build falha com "Invalid segment configuration export
+    // detected" se a gente tentar (medido em 2026-09-13).
+    //
+    // Já divergiram uma vez — a constante foi para 43.200 s e o literal ficou
+    // em 3.600, com um comentário dizendo que eram "o mesmo". Este teste é o
+    // que substitui o import que a plataforma não deixa fazer: se alguém mexer
+    // num e esquecer o outro, reprova aqui, não em produção doze horas depois.
+    const rota = await import("@/app/(cand)/candidatos/page");
+    // `importActual`: este arquivo mocka `@/lib/blob/candidatos`, e comparar o
+    // literal da rota contra o dublê não provaria nada.
+    const { CANDIDATOS_REVALIDATE_SECONDS } =
+      await vi.importActual<typeof import("@/lib/blob/candidatos")>("@/lib/blob/candidatos");
+
+    expect(rota.revalidate).toBe(CANDIDATOS_REVALIDATE_SECONDS);
+    // Literal dos dois lados: se ambos forem alterados juntos por engano
+    // (ex. alinhar com os 60 s dos leitores de apuração), esta linha reprova.
+    expect(rota.revalidate).toBe(43_200);
+  });
+});
+
 describe("/candidatos — default e leitura de UMA fatia (RF-146)", () => {
   it("(a) sem filtro, lê Presidente em BR — uma fatia, nunca as 27×4", () => {
     return render().then(({ doc }) => {
@@ -346,6 +370,271 @@ describe("/candidatos — atribuição e frescor (RF-150)", () => {
   it("(u) o footer global continua trazendo 'Não oficial' (constituição § 1)", async () => {
     const { doc } = await render();
     expect(doc.body.textContent).toContain("Não oficial");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Paginação de exibição — 60 por vez, "carregar mais" sem JavaScript
+// ---------------------------------------------------------------------------
+
+/**
+ * `n` candidaturas com números 1..n, **entregues em ordem decrescente**.
+ *
+ * A inversão não é decorativa: se a página cortar antes de ordenar, as 60
+ * exibidas serão as de MAIOR número (1.061..1.002) em vez das 60 primeiras.
+ * Uma fixture já ordenada deixaria essa mutação passar sem ser vista.
+ */
+function muitos(n: number): CandidatoIdentidade[] {
+  return Array.from({ length: n }, (_, i) => {
+    const numero = n - i;
+    return cand({
+      sqcand: `2500${String(numero).padStart(8, "0")}`,
+      numero,
+      nome_urna: `CAND ${numero}`,
+      nome: `Candidato ${numero}`,
+    });
+  });
+}
+
+/** A fatia real que motivou o corte: cargo 6 em SP, 1.061 publicáveis. */
+function sp1061(): CandidatosUfResult {
+  return ok(slice({ uf: "SP", cargo: "dep", candidatos: muitos(1061) }));
+}
+
+function cartoes(doc: Document): number {
+  return doc.querySelectorAll("[data-testid='candidate-card']").length;
+}
+
+function numeros(doc: Document): number[] {
+  return [...doc.querySelectorAll("[data-testid='candidate-card-numero']")].map((el) =>
+    Number(el.textContent),
+  );
+}
+
+describe("/candidatos — corte de exibição de 60", () => {
+  beforeEach(() => {
+    readCandidatosUfMock.mockResolvedValue(sp1061());
+  });
+
+  it("(w) SP/dep sem `limite` desenha EXATAMENTE 60 cartões, não 1.061", async () => {
+    // Mutação que deve derrubá-lo: remover o `.slice(0, filtros.limite)`.
+    // O HTML de 1.061 cartões media 4.015.398 bytes no build de produção.
+    const { doc } = await render({ cargo: "6", uf: "SP" });
+    expect(cartoes(doc)).toBe(60);
+  });
+
+  it("(x) a contagem na tela é 1.061 — o total REAL, nunca o da fatia cortada", async () => {
+    // Mutação que deve derrubá-lo: passar `exibidos.length` como `total` à
+    // grade (ou não passar `total` nenhum). A tela diria "60 candidaturas"
+    // numa corrida de 1.061 — mentira por generalização, constituição § 8.
+    const { doc } = await render({ cargo: "6", uf: "SP" });
+    const contagem = doc.querySelector("[data-testid='candidatos-grid-contagem']");
+
+    expect(contagem?.getAttribute("data-total")).toBe("1061");
+    expect(contagem?.textContent).toBe("1.061 candidaturas");
+    // Asserção NEGATIVA: o número da fatia não pode aparecer como se fosse o
+    // tamanho da corrida.
+    expect(contagem?.textContent).not.toContain("60 candidaturas");
+  });
+
+  it("(x2) o texto abaixo da grade diz mostrando E total, os dois do dado", async () => {
+    const { doc } = await render({ cargo: "6", uf: "SP" });
+    const p = doc.querySelector("[data-testid='candidatos-paginacao-contagem']");
+
+    expect(p?.getAttribute("data-mostrando")).toBe("60");
+    expect(p?.getAttribute("data-total")).toBe("1061");
+    expect(p?.textContent).toContain("Mostrando 60 de 1.061");
+  });
+
+  it("(y) `?limite=120` desenha 120 — o parâmetro é obedecido", async () => {
+    // Mutação que deve derrubá-lo: ignorar `params.limite` e cortar sempre em
+    // `CANDIDATOS_POR_PAGINA`.
+    const { doc } = await render({ cargo: "6", uf: "SP", limite: "120" });
+    expect(cartoes(doc)).toBe(120);
+  });
+
+  it("(z) entrada inválida em `limite` degrada FECHADO para 60", async () => {
+    // Mutação que deve derrubá-lo: `Number.parseInt` sem guarda (aceitaria
+    // `60abc`), ou `Number(x) || 60` (aceitaria `-5`, que vira lista vazia).
+    for (const limite of ["abc", "-5", "0", "1.5", "60abc", " ", "+120", "1e9"]) {
+      const { doc } = await render({ cargo: "6", uf: "SP", limite });
+      expect(cartoes(doc), `?limite=${limite} deveria cair no default`).toBe(60);
+    }
+  });
+
+  it("(z2) `?limite=999999999` é limitado ao teto de sanidade", async () => {
+    // Mutação que deve derrubá-lo: não validar o teto. A fatia tem 2.100 para
+    // que o teto (2.000) seja o que corta — com 1.061, os dois caminhos
+    // renderizariam o mesmo e o caso não provaria nada.
+    readCandidatosUfMock.mockResolvedValue(
+      ok(slice({ uf: "SP", cargo: "dep", candidatos: muitos(2100) })),
+    );
+    const { doc } = await render({ cargo: "6", uf: "SP", limite: "999999999" });
+
+    expect(cartoes(doc)).toBe(2000);
+    // E a tela continua honesta sobre o tamanho real da corrida.
+    expect(
+      doc
+        .querySelector("[data-testid='candidatos-paginacao-contagem']")
+        ?.getAttribute("data-total"),
+    ).toBe("2100");
+  });
+
+  it("(z3) as 60 exibidas são as de MENOR número — ordena antes de cortar", async () => {
+    // Mutação que deve derrubá-lo: `visiveis.slice(0, limite)` antes de
+    // ordenar, ou ordenar por nome/partido. A fixture chega em ordem
+    // decrescente: cortar sem ordenar entregaria 1.061..1.002.
+    const { doc } = await render({ cargo: "6", uf: "SP" });
+    const ns = numeros(doc);
+
+    expect(ns).toHaveLength(60);
+    expect(ns[0]).toBe(1);
+    expect(ns[59]).toBe(60);
+    expect(ns).toEqual([...ns].sort((a, b) => a - b));
+  });
+});
+
+describe("/candidatos — 'carregar mais' é link, não botão (RF-146)", () => {
+  beforeEach(() => {
+    readCandidatosUfMock.mockResolvedValue(sp1061());
+  });
+
+  it("(aa) é um <a href> com fragmento `#c-60`, e não existe <button> novo", async () => {
+    // Mutação que deve derrubá-lo: virar `<button onClick>` (exigiria ilha
+    // client, e a rota é zero de aplicação), ou perder o fragmento.
+    const { doc } = await render({ cargo: "6", uf: "SP" });
+    const mais = doc.querySelector("[data-testid='candidatos-carregar-mais']");
+
+    expect(mais?.tagName).toBe("A");
+    const href = mais?.getAttribute("href") ?? "";
+    expect(href).toContain("limite=120");
+    expect(href.endsWith("#c-60")).toBe(true);
+
+    // O único `<button>` da página continua sendo o submit do filtro.
+    const botoes = [...doc.querySelectorAll("button")];
+    expect(botoes.map((b) => b.getAttribute("data-testid"))).toEqual(["filtro-submit"]);
+  });
+
+  it("(bb) a âncora aponta para um elemento QUE EXISTE na página de destino", async () => {
+    // ⚠️ O caso que justifica o arquivo. Um `href="#c-60"` sem elemento de
+    // `id="c-60"` **não dá erro**: o navegador simplesmente não rola, e o
+    // leitor volta ao topo achando que o produto quebrou. Só um teste pega.
+    //
+    // Mutação que deve derrubá-lo: remover o `id` do `<li>`, ou mudar o formato
+    // da âncora num dos dois lados (`ancoraCandidato` existe para que não haja
+    // dois lados).
+    const primeira = await render({ cargo: "6", uf: "SP" });
+    const href =
+      primeira.doc
+        .querySelector("[data-testid='candidatos-carregar-mais']")
+        ?.getAttribute("href") ?? "";
+
+    const corte = href.indexOf("#");
+    expect(corte, `href sem fragmento: ${href}`).toBeGreaterThan(-1);
+    const query = href.slice(0, corte);
+    const fragmento = href.slice(corte + 1);
+    expect(fragmento).toBeTruthy();
+
+    const params = Object.fromEntries(new URLSearchParams(query.replace(/^\?/, "")));
+    const segunda = await render(params as Record<string, string>);
+
+    const alvo = segunda.doc.getElementById(fragmento);
+    expect(alvo, `nenhum elemento com id="${fragmento}" na página de destino`).not.toBeNull();
+    expect(alvo?.tagName).toBe("LI");
+    // E é de fato a PRIMEIRA candidatura da fatia nova — número 61, porque a
+    // ordem é por número e as 60 anteriores são 1..60.
+    expect(alvo?.querySelector("[data-testid='candidate-card-numero']")?.textContent).toBe("61");
+  });
+
+  it("(cc) 'ver todas' carrega a corrida inteira num clique só", async () => {
+    const { doc } = await render({ cargo: "6", uf: "SP" });
+    const todas = doc.querySelector("[data-testid='candidatos-ver-todas']");
+
+    expect(todas?.tagName).toBe("A");
+    expect(todas?.getAttribute("href")).toContain("limite=1061");
+    expect(todas?.textContent).toContain("1.061");
+  });
+
+  it("(dd) os links preservam cargo, UF e busca — não jogam o leitor no default", async () => {
+    // Mutação que deve derrubá-lo: montar o href só com `limite`. O clique
+    // devolveria Presidente/BR, que é o filtro de outra pessoa.
+    readCandidatosUfMock.mockResolvedValue(
+      ok(slice({ uf: "SP", cargo: "dep", candidatos: muitos(200) })),
+    );
+    const { doc } = await render({ cargo: "6", uf: "SP", q: "cand" });
+    const href =
+      doc.querySelector("[data-testid='candidatos-carregar-mais']")?.getAttribute("href") ?? "";
+    const params = new URLSearchParams(href.slice(0, href.indexOf("#")).replace(/^\?/, ""));
+
+    expect(params.get("cargo")).toBe("6");
+    expect(params.get("uf")).toBe("SP");
+    expect(params.get("q")).toBe("cand");
+  });
+
+  it("(ee) sem busca, a URL não carrega um `q=` vazio", async () => {
+    const { doc } = await render({ cargo: "6", uf: "SP" });
+    const href =
+      doc.querySelector("[data-testid='candidatos-carregar-mais']")?.getAttribute("href") ?? "";
+    expect(href).not.toContain("q=");
+  });
+});
+
+describe("/candidatos — corrida pequena não ganha paginação", () => {
+  it("(ff) UF com menos de 60 não mostra link nenhum, nem o texto de corte", async () => {
+    // Mutação que deve derrubá-lo: emitir o bloco incondicionalmente. Um
+    // "carregar mais" que não carrega nada é ruído, e um "mostrando 12 de 12"
+    // é redundância que pede para ser lida como aviso.
+    readCandidatosUfMock.mockResolvedValue(
+      ok(slice({ uf: "BR", cargo: "pres", candidatos: muitos(12) })),
+    );
+    const { doc } = await render();
+
+    expect(cartoes(doc)).toBe(12);
+    expect(doc.querySelector("[data-testid='candidatos-paginacao']")).toBeNull();
+    expect(doc.querySelector("[data-testid='candidatos-carregar-mais']")).toBeNull();
+    expect(doc.querySelector("[data-testid='candidatos-ver-todas']")).toBeNull();
+    // O total continua na tela — o que sai é o aparato, não a informação.
+    expect(doc.querySelector("[data-testid='candidatos-grid-contagem']")?.textContent).toBe(
+      "12 candidaturas",
+    );
+  });
+
+  it("(gg) exatamente 60 também não paginam — a fronteira é `>`, não `>=`", async () => {
+    readCandidatosUfMock.mockResolvedValue(
+      ok(slice({ uf: "SP", cargo: "dep", candidatos: muitos(60) })),
+    );
+    const { doc } = await render({ cargo: "6", uf: "SP" });
+
+    expect(cartoes(doc)).toBe(60);
+    expect(doc.querySelector("[data-testid='candidatos-paginacao']")).toBeNull();
+  });
+
+  it("(hh) `?limite=` que cobre o total apaga os links, sem apagar o total", async () => {
+    readCandidatosUfMock.mockResolvedValue(
+      ok(slice({ uf: "SP", cargo: "dep", candidatos: muitos(120) })),
+    );
+    const { doc } = await render({ cargo: "6", uf: "SP", limite: "120" });
+
+    expect(cartoes(doc)).toBe(120);
+    expect(doc.querySelector("[data-testid='candidatos-paginacao']")).toBeNull();
+    expect(doc.querySelector("[data-testid='candidatos-grid-contagem']")?.textContent).toBe(
+      "120 candidaturas",
+    );
+  });
+});
+
+describe("/candidatos — o corte é de exibição, e a busca vem antes dele", () => {
+  it("(ii) a busca filtra a corrida INTEIRA, não os 60 desenhados", async () => {
+    // Mutação que deve derrubá-lo: cortar antes de `filtrarPorNome`. Quem
+    // procurasse o número 900 numa corrida de 1.061 receberia "nenhum
+    // resultado" — a busca ficaria cega para 94% da lista.
+    readCandidatosUfMock.mockResolvedValue(sp1061());
+    const { doc } = await render({ cargo: "6", uf: "SP", q: "CAND 900" });
+
+    expect(numeros(doc)).toEqual([900]);
+    expect(doc.querySelector("[data-testid='candidatos-grid-contagem']")?.textContent).toBe(
+      "1 candidatura",
+    );
   });
 });
 

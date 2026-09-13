@@ -8,12 +8,25 @@
  *
  * ## Zero JavaScript de aplicação (RF-146, RF-147)
  *
- * **RNF-007a está em 148,7 KiB de 150.** Sobram 1,3 KiB — menos que uma ilha
- * client mínima. Consequências, todas visíveis no código abaixo:
+ * Medido em 13/09 contra o build de produção: esta rota baixa as **mesmas 8
+ * requisições** de `/sobre-o-modelo`, a rota mais simples do site — 150.285 B
+ * gz descontado o chunk `nomodule`, abaixo do piso de framework registrado
+ * (RNF-007a-floor, 153.482 B, `docs/nfr/performance.md`). Pela definição
+ * vigente do RNF-007a (ADR-0030: **total medido − piso**), o above-the-fold de
+ * aplicação desta rota é zero, e a folga é o orçamento inteiro de 150 KB.
+ *
+ * ⚠️ Uma versão anterior deste bloco dizia "148,7 KiB de 150, sobram 1,3 KiB".
+ * Aquele número media o **escopo antigo** da métrica, abandonado em 2026-09-07
+ * — a folga real é de dezenas de KiB, não de 1,3. O que NÃO mudou é a
+ * consequência, e ela é o motivo de o bloco existir: a rota é zero de
+ * aplicação, e qualquer fronteira de cliente aberta aqui deixaria de ser.
+ * Consequências, todas visíveis no código abaixo:
  *
  *   - filtro e busca por `<form method="get">` + `searchParams`. Sem `useState`,
  *     sem `onChange`, sem debounce. Funciona com JavaScript desligado, que é
  *     critério de aceitação do RF-147, não cortesia;
+ *   - a paginação é `<a href="?limite=…#c-60">`, não um botão com handler —
+ *     ver "Uma fatia por vez" abaixo;
  *   - tudo Server Component, inclusive o campo de busca
  *     (`<SearchField>`, a variante não-controlada de
  *     `components/atoms/controls/SearchInput.tsx`);
@@ -35,12 +48,26 @@
  * nacional. `readCandidatosUf` nunca lança: fatia ausente vira estado honesto
  * com a moldura da página inteira (constituição § 7), nunca 500.
  *
+ * E dentro da fatia, **60 por vez** (`CANDIDATOS_POR_PAGINA`). Uma fatia já é
+ * grande demais para desenhar inteira: cargo 6 em SP tem 1.061 publicáveis, e
+ * o HTML de 1.061 cartões media 4.015.398 bytes no build de produção. Gzip
+ * resolve a rede (109 KB), não a construção do DOM no celular fraco.
+ *
+ *   - `?limite=` controla o corte; entrada inválida degrada **fechado** para 60,
+ *     como `?cargo=99` e `?uf=ZZ` já fazem (`parseLimite`);
+ *   - "carregar mais" é um `<a href>` com **fragmento** (`?limite=120#c-60`),
+ *     nunca um `<button>`: sem JavaScript, e a âncora é o que o torna
+ *     equivalente a um botão. Sem ela o leitor volta ao topo e a solução fica
+ *     pior que o botão que ela substitui;
+ *   - o corte é de **exibição**. Nenhuma conta olha a lista cortada — nesta
+ *     tela não há conta nenhuma, e a contagem exibida é sempre o total real.
+ *
  * ## Prosa derivada, nunca literal (design 018 § D8)
  *
  * Nenhuma contagem, data ou rótulo de cargo escrito à mão. `fonte_ts` sai do
- * payload, a contagem sai de `candidatos.length`, o rótulo do cargo sai de
- * `lib/config/cargos.ts`. A lição custou quatro frases falsas de uma vez na
- * spec 017 quando a granularidade do Senador mudou.
+ * payload, a contagem sai do tamanho da lista **antes do corte**, o rótulo do
+ * cargo sai de `lib/config/cargos.ts`. A lição custou quatro frases falsas de
+ * uma vez na spec 017 quando a granularidade do Senador mudou.
  */
 
 import type { Metadata } from "next";
@@ -48,7 +75,19 @@ import type { CSSProperties } from "react";
 
 import { SearchField } from "@/components/atoms/controls/SearchInput";
 import { Panel } from "@/components/atoms/surfaces/Panel";
-import { CandidatosGrid } from "@/components/blocks/CandidatosGrid";
+import {
+  ancoraCandidato,
+  CANDIDATOS_LIMITE_MAX,
+  CANDIDATOS_POR_PAGINA,
+  CandidatosGrid,
+  formatarContagem,
+  ordenarCandidatosPorNumero,
+  parseLimite,
+} from "@/components/blocks/CandidatosGrid";
+// RF-150 — a atribuição de licença cc-by vive num bloco só desde 13/09, quando
+// o RF-149 trouxe a segunda superfície que a exibe. Ver o cabeçalho de
+// `CandidaturasFonte.tsx`.
+import { CandidaturasFonte } from "@/components/blocks/CandidaturasFonte";
 import { Footer } from "@/components/layout/Footer";
 import {
   type CandidatoIdentidade,
@@ -62,17 +101,28 @@ import {
   cargoToken,
   parseCargoSegment,
 } from "@/lib/config/cargos";
-import { TZ } from "@/lib/utils/format";
 
 /**
- * 1 hora, o mesmo de `CANDIDATOS_REVALIDATE_SECONDS`.
+ * 12 horas — tem que bater com `CANDIDATOS_REVALIDATE_SECONDS`.
+ *
+ * ⚠️ **Precisa ser um literal.** O Next exige que os `export const` de
+ * configuração de segmento sejam estaticamente analisáveis; trocar por
+ * `CANDIDATOS_REVALIDATE_SECONDS` importado faz o build falhar com "Invalid
+ * segment configuration export detected" — medido em 13/09, não suposto. Então
+ * o número é duplicado por imposição da plataforma, não por descuido.
+ *
+ * E já divergiu: quando a constante virou 43.200 s, este literal ficou em
+ * 3.600 com um comentário afirmando que eram "o mesmo". Como não dá para
+ * importar, a sincronia é garantida por teste —
+ * `tests/unit/pages/candidatos.test.tsx` compara os dois e reprova se
+ * divergirem. É o teste que substitui o import.
  *
  * Identidade de candidatura não é dado vivo: quem se candidatou, com que número
  * e por que partido está fechado desde o registro. O único campo que ainda se
- * move é `situacao_julgamento`, e uma defasagem de até 1h nele é honesta desde
- * que a tela date o dado — o que ela faz (RF-150).
+ * move é `situacao_julgamento`, e a defasagem só é honesta porque a tela data o
+ * dado (RF-150).
  */
-export const revalidate = 3600;
+export const revalidate = 43_200;
 
 export const metadata: Metadata = {
   title: "Candidatos 2026 — SalaCofre",
@@ -153,6 +203,11 @@ interface Filtros {
    * mantém o formulário preenchido depois do submit (RF-148).
    */
   busca: string;
+  /**
+   * Quantas candidaturas **desenhar**. Nunca quantas existem, nunca quantas
+   * entram numa conta. Já validado e limitado ao teto por `parseLimite`.
+   */
+  limite: number;
   invalido: boolean;
 }
 
@@ -180,6 +235,11 @@ function lerFiltros(params: Record<string, string | string[] | undefined>): Filt
     cargo: cargo ?? CARGO_DEFAULT,
     uf: ufRaw && ufValida ? ufRaw : UF_DEFAULT,
     busca,
+    // `?limite=abc`, `?limite=-5` e `?limite=0` NÃO marcam a página como
+    // inválida: são ruído num parâmetro de exibição, não um pedido de corrida
+    // que não existe. Degradam para 60 e a página segue — `?cargo=99` é outra
+    // coisa, porque ali o leitor pediu um cargo que o produto não cobre.
+    limite: parseLimite(params.limite),
     invalido,
   };
 }
@@ -211,70 +271,6 @@ function filtrarPorNome(
   if (!alvo) return candidatos;
   return candidatos.filter(
     (c) => dobra(c.nome_urna).includes(alvo) || dobra(c.nome).includes(alvo),
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Frescor da fonte (RF-150)
-// ---------------------------------------------------------------------------
-
-/**
- * `fonte_ts` legível, no fuso de Brasília.
- *
- * Devolve `null` quando a string não é data — e aí a tela omite o carimbo em
- * vez de escrever "Invalid Date". "Fonte: TSE" continua, porque aquilo é
- * obrigação da licença cc-by e não depende de o carimbo ser parseável.
- */
-function formatarFonteTs(iso: string): string | null {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return new Intl.DateTimeFormat("pt-BR", {
-    timeZone: TZ,
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
-}
-
-/**
- * Bloco de atribuição — obrigatório sempre que a tela mostra nome ou foto do
- * cadastro (RF-150).
- *
- * Três coisas distintas, e a separação é o ponto:
- *   1. **"Fonte: TSE"** — obrigação da licença cc-by do Portal de Dados
- *      Abertos (ADR-0039), não escolha editorial. É adicional ao "Não oficial.
- *      Fonte: TSE." do footer global (constituição § 1), e fica aqui porque é
- *      aqui que o dado está.
- *   2. **o carimbo de frescor** — `fonte_ts`, o `Last-Modified` da resposta do
- *      arquivo do TSE. É primo do `dado_ts` da apuração (ADR-0038) e **não é**
- *      ele: são relógios diferentes, com cadências diferentes, e fundi-los
- *      confundiria o leitor sobre o que está datado.
- *   3. **o aviso de volatilidade** — a lista muda até o fim da apuração
- *      (RF-141, último critério).
- */
-function FonteTse({ fonteTs }: { fonteTs: string | null }) {
-  const carimbo = fonteTs ? formatarFonteTs(fonteTs) : null;
-
-  return (
-    <p
-      data-testid="candidatos-fonte"
-      style={{
-        font: "var(--type-data)",
-        color: "var(--text-secondary)",
-        margin: "0 0 var(--space-4)",
-      }}
-    >
-      Fonte: TSE — Portal de Dados Abertos.
-      {carimbo ? (
-        <>
-          {" "}
-          Cadastro publicado pelo TSE em <span data-testid="candidatos-fonte-ts">{carimbo}</span>.
-        </>
-      ) : null}{" "}
-      A lista de candidaturas muda até o fim da apuração.
-    </p>
   );
 }
 
@@ -437,6 +433,126 @@ function Filtros({ filtros }: { filtros: Filtros }) {
 }
 
 // ---------------------------------------------------------------------------
+// Paginação sem JavaScript
+// ---------------------------------------------------------------------------
+
+/**
+ * A query desta mesma corrida com outro `limite`.
+ *
+ * Montada a partir dos filtros **validados**, nunca dos `searchParams` crus:
+ * refletir de volta o que o leitor mandou seria reintroduzir `?cargo=99` na
+ * própria URL que a página emite. `q` só entra quando há busca, para a URL de
+ * "carregar mais" não crescer um `&q=` vazio a cada clique.
+ */
+function urlComLimite(filtros: Filtros, limite: number, ancora: string): string {
+  const qs = new URLSearchParams({
+    cargo: String(filtros.cargo),
+    uf: filtros.uf,
+  });
+  if (filtros.busca.trim()) qs.set("q", filtros.busca);
+  qs.set("limite", String(limite));
+  return `?${qs.toString()}#${ancora}`;
+}
+
+/**
+ * "Mostrando 60 de 1.061" + os dois links. Só existe quando há mais.
+ *
+ * ## Por que `<a>` e não `<button>`
+ *
+ * Um botão exigiria handler, handler exige ilha client, e a rota inteira é zero
+ * de aplicação (ver o cabeçalho). O link resolve com navegação do navegador — e
+ * o que o torna **equivalente** ao botão é o fragmento: `#c-60` devolve o leitor
+ * à primeira candidatura da fatia nova, exatamente onde ele parou. Sem ele o
+ * navegador iria para o topo, e 60 cartões acima do ponto de leitura é pior que
+ * o botão que o link substitui.
+ *
+ * ## Por que o total real aparece sempre
+ *
+ * "Mostrando 60" sozinho deixaria o leitor sem saber que a lista continua —
+ * uma omissão que se lê como "esta corrida tem 60 candidatos". O número que
+ * aparece ao lado é o da corrida inteira (constituição § 8).
+ *
+ * ## Por que "ver todas" existe
+ *
+ * SP tem 1.061 publicáveis: 18 cliques até o fim. Quem quer a lista completa
+ * — para usar Ctrl+F, para conferir, para imprimir — pede uma vez só.
+ */
+function Paginacao({
+  filtros,
+  mostrando,
+  total,
+}: {
+  filtros: Filtros;
+  mostrando: number;
+  total: number;
+}) {
+  if (mostrando >= total) return null;
+
+  const ancora = ancoraCandidato(mostrando);
+  // O teto de sanidade é o limite dos DOIS links. Sem esta linha, "ver todas"
+  // numa corrida acima do teto emitiria `?limite=2500`, o `parseLimite`
+  // devolveria 2.000 e o rótulo teria prometido 2.500 — o corte silencioso que
+  // o teto existe para evitar viraria mentira na tela.
+  const alcancavel = Math.min(total, CANDIDATOS_LIMITE_MAX);
+  const proximo = Math.min(mostrando + CANDIDATOS_POR_PAGINA, alcancavel);
+  const passo = proximo - mostrando;
+
+  const link: CSSProperties = {
+    color: "var(--accent-text)",
+    // `--tap-min` de altura: o alvo de toque do RNF-024 vale para link, não só
+    // para botão. `inline-flex` porque um `<a>` inline ignora `height`.
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: "var(--tap-min)",
+    font: "var(--type-label)",
+  };
+
+  return (
+    <div
+      data-testid="candidatos-paginacao"
+      style={{ marginTop: "var(--space-5)", display: "flex", flexDirection: "column" }}
+    >
+      <p
+        data-testid="candidatos-paginacao-contagem"
+        data-mostrando={mostrando}
+        data-total={total}
+        style={{ font: "var(--type-data)", color: "var(--text-secondary)", margin: 0 }}
+      >
+        {/* Os dois números saem do dado. Nenhum literal — design 018 § D8. */}
+        Mostrando {formatarContagem(mostrando)} de {formatarContagem(total)} candidaturas.
+      </p>
+
+      {/*
+        `passo === 0` só acontece quando o leitor já está no teto de sanidade
+        numa corrida maior que ele. Aí não há mais o que oferecer, e a contagem
+        acima continua dizendo a verdade sobre o tamanho real da corrida.
+      */}
+      {passo > 0 ? (
+        <div className="flex flex-wrap items-center" style={{ gap: "var(--space-5)" }}>
+          <a
+            data-testid="candidatos-carregar-mais"
+            href={urlComLimite(filtros, proximo, ancora)}
+            style={link}
+          >
+            Carregar mais {formatarContagem(passo)}
+          </a>
+
+          <a
+            data-testid="candidatos-ver-todas"
+            href={urlComLimite(filtros, alcancavel, ancora)}
+            style={link}
+          >
+            {alcancavel === total
+              ? `Ver todas as ${formatarContagem(total)}`
+              : `Ver as ${formatarContagem(alcancavel)} primeiras`}
+          </a>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Página
 // ---------------------------------------------------------------------------
 
@@ -457,6 +573,17 @@ export default async function CandidatosPage({ searchParams }: PageProps) {
 
   const slice = resultado?.status === "ok" ? resultado.slice : null;
   const visiveis = slice ? filtrarPorNome(slice.candidatos, filtros.busca) : [];
+
+  // ⚠️ ORDENA ANTES DE CORTAR. Invertido, "as 60 primeiras" seriam 60
+  // candidaturas na ordem de leitura do Blob apresentadas como as 60 de menor
+  // número — critério editorial acidental numa tela que não pode ter nenhum
+  // (constituição § 2). A grade reordena depois; a operação é idempotente.
+  const ordenados = ordenarCandidatosPorNumero(visiveis);
+  const total = ordenados.length;
+  // O único corte do arquivo, e ele é de EXIBIÇÃO. Nada aqui alimenta conta de
+  // cadeira, percentual ou projeção — esta tela não faz conta nenhuma, e a
+  // contagem que ela mostra vem de `total`, não de `exibidos.length`.
+  const exibidos = ordenados.slice(0, filtros.limite);
 
   // O rótulo da seção sai do cargo e da UF **lidos**, não dos pedidos: se a
   // fatia veio, ela é autodescritiva e é ela que manda.
@@ -517,7 +644,7 @@ export default async function CandidatosPage({ searchParams }: PageProps) {
         titleId="candidatos-corrida-heading"
         headingLevel={2}
       >
-        <FonteTse fonteTs={slice?.fonte_ts ?? null} />
+        <CandidaturasFonte fonteTs={slice?.fonte_ts ?? null} />
 
         {filtros.invalido ? (
           <p
@@ -536,16 +663,20 @@ export default async function CandidatosPage({ searchParams }: PageProps) {
             {TEXTO_INDISPONIVEL[resultado.reason]}
           </p>
         ) : (
-          <CandidatosGrid
-            candidatos={visiveis}
-            uf={ufExibida}
-            rotulo={`Candidaturas a ${info.label} em ${ufExibida}`}
-            textoVazio={
-              filtros.busca.trim()
-                ? "Nenhuma candidatura desta corrida casa com a busca."
-                : "Nenhuma candidatura publicada para este filtro."
-            }
-          />
+          <>
+            <CandidatosGrid
+              candidatos={exibidos}
+              total={total}
+              uf={ufExibida}
+              rotulo={`Candidaturas a ${info.label} em ${ufExibida}`}
+              textoVazio={
+                filtros.busca.trim()
+                  ? "Nenhuma candidatura desta corrida casa com a busca."
+                  : "Nenhuma candidatura publicada para este filtro."
+              }
+            />
+            <Paginacao filtros={filtros} mostrando={exibidos.length} total={total} />
+          </>
         )}
       </Panel>
 

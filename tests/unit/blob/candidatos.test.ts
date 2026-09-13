@@ -112,7 +112,7 @@ describe("readCandidatosUf — leitura", () => {
 
     const result = await readCandidatosUf("SP", "dep");
 
-    expect(spy).toHaveBeenCalledWith(URL_SP_DEP, { next: { revalidate: 3600 } });
+    expect(spy).toHaveBeenCalledWith(URL_SP_DEP, { next: { revalidate: 43_200 } });
     expect(result.status).toBe("ok");
     expect(candidatosFrom(result)).toHaveLength(2);
     if (result.status === "ok") {
@@ -123,10 +123,10 @@ describe("readCandidatosUf — leitura", () => {
     }
   });
 
-  it("revalida a cada 1 hora — não os 60 s dos leitores de apuração", async () => {
+  it("revalida a cada 12 horas — não os 60 s dos leitores de apuração", async () => {
     // Literal de um lado, constante do outro: se alguém alinhar a cadência
     // deste leitor com a dos irmãos "por consistência", reprova aqui.
-    expect(CANDIDATOS_REVALIDATE_SECONDS).toBe(3600);
+    expect(CANDIDATOS_REVALIDATE_SECONDS).toBe(43_200);
 
     const spy = mockFetch(async () => new Response(JSON.stringify(fatia()), { status: 200 }));
     await readCandidatosUf("SP", "dep");
@@ -134,7 +134,7 @@ describe("readCandidatosUf — leitura", () => {
     const init = spy.mock.calls.at(-1)?.[1] as RequestInit & {
       next?: { revalidate?: number };
     };
-    expect(init.next?.revalidate).toBe(3600);
+    expect(init.next?.revalidate).toBe(43_200);
   });
 
   it("não passa AbortSignal — um signal desabilitaria o Data Cache do Next", async () => {
@@ -148,7 +148,7 @@ describe("readCandidatosUf — leitura", () => {
   it("sigla em minúscula resolve para o mesmo caminho canônico", async () => {
     const spy = mockFetch(async () => new Response(JSON.stringify(fatia()), { status: 200 }));
     await readCandidatosUf("sp", "dep");
-    expect(spy).toHaveBeenCalledWith(URL_SP_DEP, { next: { revalidate: 3600 } });
+    expect(spy).toHaveBeenCalledWith(URL_SP_DEP, { next: { revalidate: 43_200 } });
   });
 
   it("cada cargo tem o seu caminho", async () => {
@@ -157,7 +157,7 @@ describe("readCandidatosUf — leitura", () => {
     );
     await readCandidatosUf("SP", "sen");
     expect(spy).toHaveBeenCalledWith(`${BASE}/candidatos/uf/SP/sen.json`, {
-      next: { revalidate: 3600 },
+      next: { revalidate: 43_200 },
     });
   });
 });
