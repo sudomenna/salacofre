@@ -11,7 +11,7 @@ apis: [GET /api/ingest/deputado-federal, POST /api/ingest/deputado-federal, GET 
 components: [CargoTabs, DeputadoMetodologia, VoteBar, Figure, Panel, Footer]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-006, RNF-007a, RNF-022, RNF-023, RNF-024]
 adrs: [0001, 0012, 0020, 0021, 0026, 0027, 0028, 0032, 0034, 0035, 0036, 0037]
-ship_blocked_on: [telas-e-payload]
+ship_blocked_on: [gate-a11y-perf, gate-constitution-rerun]
 opens_after: 2026-09-11
 ---
 
