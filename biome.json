@@ -77,7 +77,10 @@
       }
     },
     {
-      "includes": ["tests/fixtures/replay-2022/snapshots.json"],
+      "includes": [
+        "tests/fixtures/replay-2022/snapshots.json",
+        "tests/fixtures/model/cadeiras-golden-2022.json"
+      ],
       "formatter": { "enabled": false },
       "linter": { "enabled": false }
     }
