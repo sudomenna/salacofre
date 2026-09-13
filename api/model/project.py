@@ -1341,12 +1341,18 @@ def _uf_projection_row(
             "n_zonas": est["n_zonas"],
             "n_zonas_imputadas": est["n_zonas_imputadas"],
             # RF-102 (spec 016) — a unidade em que a regra de três foi
-            # aplicada. `"zona"` em Presidente/Governador; `"uf"` em Senador e
-            # Deputado Federal, que o ADR-0026 item 1 ingere por UF (27 GETs
-            # por ciclo em vez de ~6.110). Não é detalhe interno: é a diferença
-            # que a tela precisa declarar ao leitor (RF-108), porque uma
-            # projeção feita sobre um único boletim agregado da UF não tem a
-            # mesma natureza da que agrega ~200 zonas independentes.
+            # aplicada. Não é detalhe interno: é a diferença que a tela precisa
+            # declarar ao leitor (RF-108), porque uma projeção feita sobre um
+            # único boletim agregado da UF não tem a mesma natureza da que
+            # agrega ~98 zonas independentes.
+            #
+            # ⚠️ Corrigido em 2026-09-13. Este comentário afirmava `"uf"` para
+            # "Senador e Deputado Federal, que o ADR-0026 item 1 ingere por UF
+            # (27 GETs por ciclo)". Os dois saíram: Senador em 11/09 (nota "(b)"
+            # do ADR-0026) e Deputado no ADR-0036 (13/09) — hoje os quatro
+            # cargos são `"zona"` por padrão, e `"uf"` só aparece sob os
+            # interruptores. E o cargo 6 nem chega nesta função: ver a docstring
+            # de `compute_uf_projections` logo abaixo.
             "granularidade": granularidade,
         },
     }

@@ -168,7 +168,8 @@ export interface DeputadoUfDetail {
  * 60 s, e **não** os 900 s do cron deste cargo: quem manda no piso é o
  * `cacheControlMaxAge` que `lib/blob/write.ts` grava no objeto (60 s, o mínimo
  * que o Blob aceita). Revalidar em 900 s só faria a página servir um detalhe
- * até 15 minutos mais velho do que o CDN já tem disponível.
+ * até 30 minutos mais velho do que o CDN já tem disponível (era 15 antes do
+ * ADR-0036 — a volta completa das 6 fatias passou a levar 30 min).
  */
 export const DEPUTADO_UF_REVALIDATE_SECONDS = 60;
 

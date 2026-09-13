@@ -1187,7 +1187,9 @@ export async function writeDeputadoProjection(
  * separadamente. Um `ts` comum aos dois esconderia justamente a divergência
  * que ele deveria revelar.
  *
- * Volume por ciclo: até 27 `put()`, a cada 15 minutos.
+ * Volume por ciclo: até 27 `put()`, a cada **30 minutos** — a volta completa
+ * das 6 fatias do cron do cargo (ADR-0036, 13/09; era 15 min quando isto foi
+ * escrito, com a ingestão em granularidade UF).
  */
 async function writeDeputadoUfDetails(
   details: readonly DeputadoUfDetail[],

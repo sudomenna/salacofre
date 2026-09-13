@@ -23,9 +23,14 @@
  *     017 põe a suplência nominal explicitamente fora desta janela. Exibi-los
  *     somaria ~55 nomes a um estado como SP sem responder à pergunta da noite,
  *     que é quem se elegeu.
- *   - **Mapa e municípios.** O cargo 6 é ingerido por UF (ADR-0026 item 1):
- *     não há dado municipal para desenhar. Um bloco vazio afirmando
- *     indisponibilidade sugeriria que o dado existe e não chegou.
+ *   - **Mapa e municípios.** ⚠️ Corrigido em 2026-09-13: esta linha dizia que
+ *     "o cargo 6 é ingerido por UF (ADR-0026 item 1): não há dado municipal
+ *     para desenhar". O ADR-0036 inverteu o fato — o cargo 6 lê o par
+ *     (município, zona). É a MESMA frase que virou incidente na tela irmã
+ *     nesta madrugada (ver `8cd955f`), aqui em docstring em vez de DOM.
+ *     A ausência do mapa virou **escopo, não falta de dado**: desenhar o
+ *     recorte municipal de uma corrida proporcional é decisão que ninguém
+ *     tomou. Razão falsa é pior que nenhuma.
  *   - **2º turno.** `temSegundoTurno: false` na tabela canônica.
  *   - **Líder da corrida.** Não existe: elege-se um conjunto de cadeiras.
  *
