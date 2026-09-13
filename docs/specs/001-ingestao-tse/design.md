@@ -57,7 +57,9 @@ Limites documentados pelo TSE ([ADR-0020](../../architecture/adrs/0020-conformid
 limite; **404 malformado também pode bloquear**, com limiar não divulgado.
 
 **Implementação**: `lib/tse/rate-limiter.ts` — token bucket com relógio e `sleep` injetáveis;
-`getTseRateLimiter()` é o singleton lido de `TSE_MAX_RPS` (**default 30 req/s**). `fetchEA20()`
+`getTseRateLimiter(cargo?)` é o singleton de processo; sem `TSE_MAX_RPS` no ambiente ele usa o
+teto **do cargo** (`lib/config/cargos.ts`, `rpsMax`: **25 req/s** para Presidente, Governador e
+Senador; **5 req/s** para Deputado Federal; **5** quando o caller não informa cargo). `fetchEA20()`
 chama `await getTseRateLimiter().acquire()` **antes de cada tentativa**, inclusive retries —
 controle de **taxa**, complementar (não substituto) ao `INGEST_CONCURRENCY`, que só limita quantas
 requisições ficam simultaneamente em voo.
@@ -174,7 +176,7 @@ Duas rotas nova:
 O lock anti-overlap é **por cargo** — `notes.cargo` em `ingest_log` — permitindo que Presidente e Governador rodem concorrentemente em processos separados, cada um com seu próprio rate limiter singleton (`lib/tse/rate-limiter.ts`).
 
 Mudanças de operação:
-- `TSE_MAX_RPS` default 30→**50** (cada invocação `/api/ingest/[cargo]` roda ≤50 rps; duas simultâneas somam ≤100 rps, teto documentado do TSE, RF-010.3).
+- `TSE_MAX_RPS` deixou de ter default único e passou a ser **teto por cargo** (`lib/config/cargos.ts`): **25 rps** Presidente/Governador/Senador, **5 rps** Deputado Federal. Pior caso com os quatro crons simultâneos: 25+25+25+5 = **80 rps**, abaixo do teto documentado de 100 (RF-010.3). Histórico: 30 → 50 → 40 (fase de dois cargos) → por cargo em 11/09 (ADR-0026); em 13/09 o ADR-0036 pôs Deputado em zona sem mexer no rps, fatiando a varredura em 6.
 - `maxDuration` 180→**300** s (fan-out por par chega a ~6.100 arquivos por cargo).
 - Lock window 3→**6 min** (≥ `maxDuration`, evita overlap de dois ciclos do mesmo cargo).
 

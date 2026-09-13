@@ -15,7 +15,7 @@ source: PRD.md § 23.5
 > Os itens abaixo são as obrigações que **de fato** existem.
 
 - [ ] **User-Agent com contato definido** — `lib/tse/client.ts:60` hoje é `SalaCofre/1.0 (+https://salacofre.com.br; contato: pendente)`. Substituir `contato: pendente` por URL ou e-mail público verificável. **Nunca** reintroduzir menção a cadastro. Owner: Tiago Menna. Prazo: 15/09 (1ª janela do simulado).
-- [ ] **`TSE_MAX_RPS` calibrado no simulado** — o default 30 é estimativa de segurança, não medição. Valor final vem das janelas de 15–17/09 e 22–24/09 (ver [tse-simulados.md](../testing/tse-simulados.md)), com `rateLimited == 0` em ciclo completo.
+- [ ] **Tetos de rps calibrados no simulado** — os valores de `rpsMax` em `lib/config/cargos.ts` (25 / 25 / 25 / 5, agregado 80) são estimativa de segurança, não medição. ⚠️ Em produção `TSE_MAX_RPS` fica **ausente**: é override global e anularia o teto por cargo. Valor final vem das janelas de 15–17/09 e 22–24/09 (ver [tse-simulados.md](../testing/tse-simulados.md)), com `rateLimited == 0` em ciclo completo.
 - [ ] **`TSE_COD_ELEICAO` de produção configurado** — formato `ele2026/<n>`, obtido do `ele-c.json` de produção ou de comunicado oficial. Em 05/09 o `ele-c.json` ainda está em `ele2024`. **Jamais adivinhar** — URL malformada pode bloquear o IP por 10 min.
 - [ ] **`pnpm tse:watch` rodando externamente** (cron fora da Vercel, diário) até 04/10 — detecta publicação dos códigos de 2026 e mudança em qualquer dos 9 leiautes.
 - [ ] **Decisão de fan-out registrada** — UF/BR só, ou híbrido com zona nas UFs sinalizadas pelo EA14 (o modelo precisa de zona para o swing, RF-011/012). Decisão humana, após medir no simulado.

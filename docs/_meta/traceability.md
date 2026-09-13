@@ -37,7 +37,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-010 | Conformidade com Res. TSE 23.751/2026 (arts. 264–269) | M | [001](../specs/001-ingestao-tse/) | — | — |
 | RF-010.1 | Integridade dado oficial (append-only, sem alteração) | M | [001](../specs/001-ingestao-tse/) | — | unit |
 | RF-010.2 | Projeção rotulada como conteúdo derivado | M | [001](../specs/001-ingestao-tse/) | — | unit |
-| RF-010.3 | Rate limiter saída ≤40 rps por invocação, ≤80 agregado | M | [001](../specs/001-ingestao-tse/) | — | unit (por invocação **e agregada** — `rate-limiter.test.ts`, RF-010.3 item 2) |
+| RF-010.3 | Rate limiter saída no teto por cargo (25 / 25 / 25 / 5, `cargos.ts`), ≤50 ceiling, ≤80 agregado | M | [001](../specs/001-ingestao-tse/) | — | unit (por invocação **e agregada** — `rate-limiter.test.ts`, RF-010.3 item 2) |
 | RF-010.4 | Requisição condicional (304 conta para cota) | M | [001](../specs/001-ingestao-tse/) | — | unit (`client.test.ts` — `If-None-Match`, 304, e assert de que o 304 consome token do rate limiter) |
 | RF-010.5 | Proibição sondar URL adivinhada | M | [001](../specs/001-ingestao-tse/) | — | unit (`no-url-probing.test.ts` — varredura de fonte: o host do TSE só pode aparecer nas 2 constantes de base URL) + `targets.test.ts` (builders) |
 | RF-010.6 | Identificação honesta no User-Agent | M | [001](../specs/001-ingestao-tse/) | — | unit |

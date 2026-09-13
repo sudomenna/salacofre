@@ -271,7 +271,7 @@ Ligar o cron (`CRON_ENABLED=true`) e deixar rodar a janela inteira. Exportar ao 
 ### Decisões que dependem destes dados
 
 1. **Fan-out de produção** — UF/BR só, ou híbrido com granularidade de zona nas UFs sinalizadas pelo EA14 (`TSE_ACOMPANHAMENTO=on`)? O modelo precisa de zona para o swing (RF-011/012). Ver [runbook § dimensionamento do fan-out](../operations/runbook.md#tse--dimensionamento-do-fan-out-revisado-em-2026-09-05). **Decisão do usuário, após medir.**
-2. **`TSE_MAX_RPS` de produção** — o default é **50** (`lib/tse/rate-limiter.ts`, teto/ceiling também 50), estimativa de segurança, não medição.
+2. **`TSE_MAX_RPS` de produção** — não há mais default único: o teto é **por cargo** (`lib/config/cargos.ts`, `rpsMax`), **25 rps** para Presidente/Governador/Senador e **5 rps** para Deputado Federal, com ceiling de 50. ⚠️ Definir `TSE_MAX_RPS` sobrepõe **todos** os cargos de uma vez — em produção, deixe ausente; use só na janela supervisionada. Os valores atuais são estimativa de segurança, não medição.
 3. **`INGEST_CONCURRENCY` e `maxDuration`** — recalibrar com `duration_ms` real.
 4. **`EA15Schema` e o path do EA15** — ajustar ao arquivo real coletado no passo 3.
 

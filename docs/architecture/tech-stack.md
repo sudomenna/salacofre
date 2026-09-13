@@ -31,7 +31,7 @@ source: PRD.md § 10
 | Estado quente | Vercel Edge Config | latest | Replicado nos PoPs, <15ms; limite 512KB total (ADR-0001, emendado ADR-0026) |
 | Storage objeto | Vercel Blob | latest | PMTiles, raw archives; ⚠️ **S07 planejado**: drill-down de UF de Deputado Federal (`deputado:uf:<sigla>.json`, exceção ao ADR-0001) |
 | Cron | Vercel Cron | latest | Trigger do ingest em **duas rotas**: `/api/ingest` (todos os cargos, manual) e `/api/ingest/[cargo]` (Pres/Gov isolados, cron produção, 60s); futura expansão (S08): Senador 5min, Deputado 15min (ADR-0035 D3) |
-| Rate limit TSE | Python + Node.js | — | `TSE_MAX_RPS_DEFAULT` = **40 rps** (teto 50 rps por processo; pior caso 2×40=80 rps < 100 rps documentado; ADR-0035 D3 emendado) |
+| Rate limit TSE | Python + Node.js | — | Teto **por cargo** em `lib/config/cargos.ts` (`rpsMax`): **25 rps** Presidente/Governador/Senador, **5 rps** Deputado Federal. Ceiling 50 por processo; pior caso agregado dos 4 crons 25+25+25+5 = **80 rps** < 100 documentado (ADR-0026 nota 11/09; ADR-0036). `TSE_MAX_RPS_DEFAULT` = 5 vale só para caller sem cargo |
 | Config | `vercel.ts` (`@vercel/config`) | latest | TS-typed, dynamic |
 | MDX | `@next/mdx` | latest | Página `/sobre-o-modelo` |
 | Validação | Zod | latest | Schema do TSE, payloads de API |

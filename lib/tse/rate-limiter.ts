@@ -19,9 +19,11 @@
  *     sleep injetados (sem `setTimeout` real nos testes).
  *   - `getTseRateLimiter()` é o singleton usado em produção, lendo
  *     `TSE_MAX_RPS` do ambiente quando definida; senão o `rpsMax` do cargo
- *     (`lib/config/cargos.ts`: 35 para Presidente/Governador, 5 para
- *     Senador/Deputado). Clamp 1..50 — nunca deixamos configurar acima do
- *     limite documentado do TSE por engano.
+ *     (`lib/config/cargos.ts`: 25 para Presidente, Governador e Senador;
+ *     5 para Deputado Federal — os quatro em granularidade zona, 6.110 alvos
+ *     cada, sendo que o cargo 6 varre em 6 fatias desde o ADR-0036). Clamp
+ *     1..50 — nunca deixamos configurar acima do limite documentado do TSE
+ *     por engano.
  *   - Chamadas concorrentes a `acquire()` são serializadas via uma cadeia de
  *     Promises (`chain`), garantindo que a N-ésima chamada simultânea espere
  *     o tempo cumulativo correto em vez de todas computarem a mesma espera
@@ -145,30 +147,50 @@ export function createTokenBucket(opts: TokenBucketOptions): TokenBucket {
  *  consumisse cota). Teto exigido por RF-010.3 da spec 001 — não elevar
  *  sem revisar a spec e o ADR-0020.
  *
- * Default 40 (2026-09-11, ADR-0035 D3 emendado pela auditoria constitucional
- * do mesmo dia): desde o cron por cargo, CADA invocação de
- * `/api/ingest/[cargo]` roda num rate limiter de PROCESSO separado (Fluid
- * Compute isola instâncias por invocação concorrente) — os cargos 1 e 3
- * podem ingerir ao mesmo tempo, e os dois buckets NÃO se coordenam.
+ * NÃO existe mais um default único. Desde 2026-09-11 (ADR-0026, nota do mesmo
+ * dia) o teto padrão é **por cargo**, e a fonte canônica é o campo `rpsMax` de
+ * `lib/config/cargos.ts` — 25 rps para Presidente, Governador e Senador e
+ * 5 rps para Deputado Federal, os quatro em granularidade zona com 6.110
+ * alvos cada. `TSE_MAX_RPS_DEFAULT`, logo abaixo, vale só para o caller que
+ * não informa cargo. Mudar qualquer um desses números é mudar `cargos.ts`,
+ * não este arquivo.
  *
- * A primeira versão desta mudança pôs o default em 50, o que dava pior caso
- * de 2 × 50 = exatamente 100 rps: a borda documentada do TSE, sem folga
- * nenhuma para retry, para o HEAD do `tse-watch`, para o 304 (que conta) nem
- * para qualquer outro processo no mesmo IP. A constituição § 1 exige teto
- * "**bem abaixo** do limite documentado" — e "exatamente no limite" não
- * satisfaz esse texto. Default 40 devolve margem real: pior caso agregado 80
- * rps, 20% abaixo do teto. Custo: 6.110 GETs a 40 rps ≈ 153 s por cargo,
- * bem dentro do `maxDuration` de 300 s.
+ * Por que por cargo. CADA invocação de `/api/ingest/[cargo]` roda num rate
+ * limiter de PROCESSO separado (o Fluid Compute isola instâncias por invocação
+ * concorrente) e os buckets NÃO se coordenam, então o que o TSE vê no IP é a
+ * SOMA. Não são mais dois cargos: são **quatro**, com crons próprios em
+ * `vercel.ts` que podem cair no mesmo minuto. Com o default único de 40 o pior
+ * caso era 4 × 40 = **160 rps**, acima do teto do TSE — medido em 2026-09-11.
+ *
+ * A calibragem atual mantém o pior caso agregado em **80 rps**
+ * (25 + 25 + 25 + 5 = `piorCasoAgregadoRps()`), 20% abaixo do teto documentado.
+ * A constituição § 1 exige teto "**bem abaixo** do limite documentado", e é
+ * essa folga — não o valor por invocação isolado — que satisfaz o texto: ela é
+ * o que sobra para retry, para o HEAD do `tse-watch`, para o 304 (que conta) e
+ * para qualquer outro processo no mesmo IP. Um default de 50 por invocação já
+ * foi tentado e recusado pela auditoria constitucional de 11/09, justamente
+ * porque punha o agregado em exatamente 100: "no limite" não é "bem abaixo".
+ *
+ * Custo do lado do ciclo: 6.110 GETs a 25 rps ≈ **244 s** por cargo pesado,
+ * dentro do `maxDuration` de 300 s mas com menos folga que antes — daí a
+ * medição de `duration_ms` no simulado 1 ser obrigatória. Deputado Federal, a
+ * 5 rps, levaria ~1.222 s se pedisse os 6.110 de uma vez; por isso o ADR-0036
+ * o divide em **6 fatias** de ~1.019 alvos (~204 s cada), e não sobe o rps
+ * dele: é o teto agregado que manda, não o conforto do cargo.
  *
  * O CEILING segue em 50 para que uma janela SUPERVISIONADA (simulado, com
  * alguém lendo `rateLimited` em tempo real) possa subir via `TSE_MAX_RPS`
- * deliberadamente. Produção desassistida usa o default.
+ * deliberadamente. Produção desassistida usa o teto do cargo. ⚠️ `TSE_MAX_RPS`
+ * é override GLOBAL: ela substitui o teto de todos os cargos de uma vez, então
+ * um valor alto multiplica pelo número de crons simultâneos.
  *
- * Pendência registrada: dois buckets independentes garantem a média, não o
- * pico instantâneo. Um limitador coordenado entre invocações (contador
+ * Pendência registrada: buckets independentes garantem a média, não o pico
+ * instantâneo. Um limitador coordenado entre invocações (contador
  * compartilhado) é a solução completa — decidir depois do simulado 1, com
- * `rateLimited` medido. Era 30 quando um único ciclo cobria todos os cargos
- * sequencialmente (nunca duas invocações reais em paralelo no mesmo IP). */
+ * `rateLimited` medido. Histórico do default: 30 quando um único ciclo cobria
+ * todos os cargos sequencialmente; 50 e depois 40 na fase de dois cargos
+ * concorrentes (ADR-0035 D3 e a auditoria que o emendou); por cargo desde a
+ * entrada de Senador e Deputado. */
 const TSE_MAX_RPS_CEILING = 50;
 const TSE_MAX_RPS_FLOOR = 1;
 /** Default quando o caller não informa cargo — o teto dos cargos leves, que é
