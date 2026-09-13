@@ -376,7 +376,7 @@ Passos operacionais transcritos do plano. Registrar tudo em [`../testing/tse-sim
 - [ ] **2.** Obter o `codEleicao` do simulado a partir do `ele-c.json` do ambiente sim / comunicado.
       Env de **preview**: `TSE_BASE_URL=https://resultados-sim.tse.jus.br/oficial`,
       `TSE_COD_ELEICAO=ele2026/<n>`, `INGEST_WINDOW=9-17`, `TSE_MAX_RPS=20`,
-      `TSE_TARGETS_WHITELIST=SP:1,SP:3`, `TSE_ACOMPANHAMENTO=off`.
+      `TSE_TARGETS_WHITELIST=SP:1,SP:3,SP:5,SP:6` (era `SP:1,SP:3`; os cargos 5 e 6 eram rejeitados **no código** até `bafe601`), `TSE_ACOMPANHAMENTO=off`.
 - [ ] **3.** Baixar 1 EA20, 1 EA15 e o EA14 → `tests/fixtures/tse/2026-sim/`; rodar `EA20Schema.parse`;
       diff vs 2022; confirmar o valor real de `f`; diff do EA15 vs o stub.
 - [ ] **4.** Ciclo manual (`curl -X POST … /api/ingest`); conferir `rateLimited=0`, `changed>0`,
@@ -517,7 +517,7 @@ pipeline (P0) e do redesign (P1).
 - [x] **Spec 016 — Senador** escrita (`docs/specs/016-senador/spec.md`, `draft`): RF-100 a RF-108.
       Ingestão implementada e medida em 11/09; modelo + payload + rotas T-09 e T-10 implementadas. Falta: gates de a11y/cobertura.
 - [x] **Spec 017 — Deputado Federal** implementação concluída (12/09):
-      RF-120 a RF-130. Módulo de cadeiras implementado: **21 testes dos casos de borda** do ADR-0027 + **golden contra 2022 (511/513 cadeiras)**. Ingestão cargo 6 em 27 alvos UF com cron 15min. Payload `EdgePayloadDeputado` (nacional + UF em Blob). Read path `lib/blob/deputado-uf.ts::readDeputadoUfDetail()`. Telas `/deputado-federal` e `/uf/[sigla]/deputado-federal` com aba habilitada. Componente `<DeputadoMetodologia>` (não reutiliza `<ForecastTransparency>` — design.md D9). ⚠️ Fora de escopo S07: intervalo de cadeiras CI95 (D7 — requer bootstrap por agremiação), projeção de votos (hoje só apurado — D9), insights templates (sai vazio — D10), `/api/projection?cargo=deputado-federal` endpoint (não implementado). Registro em `design.md` § D7–D10.
+      RF-120 a RF-130. Módulo de cadeiras implementado: **21 testes dos casos de borda** do ADR-0027 + **golden contra 2022 (511/513 cadeiras)**. Ingestão cargo 6 em ~6.110 alvos de par município×zona, varridos em 6 fatias com volta completa a cada 30 min ([ADR-0036](../architecture/adrs/0036-deputado-federal-granularidade-zona-fatiada.md), 13/09 — era 27 alvos UF com cron de 15 min até então). Payload `EdgePayloadDeputado` (nacional + UF em Blob). Read path `lib/blob/deputado-uf.ts::readDeputadoUfDetail()`. Telas `/deputado-federal` e `/uf/[sigla]/deputado-federal` com aba habilitada. Componente `<DeputadoMetodologia>` (não reutiliza `<ForecastTransparency>` — design.md D9). ⚠️ Fora de escopo S07 — **lista revista em 13/09**: o intervalo de cadeiras CI95 **saiu da lista, foi entregue** (`api/model/cadeiras_bootstrap.py`, ADR-0036 + ADR-0037). Seguem fora: projeção de **votos** (o número central continua sendo o apurado — D9), insights templates (sai vazio — D10), `/api/projection?cargo=deputado-federal` (não implementado, mesmo estado do Senador). Registro em `design.md` § D7–D10.
 - [x] **ADR-0027** (`accepted` 11/09) — método de conversão de votos em cadeiras. Citado como dependência pelo
       ADR-0026 desde 07/09, formalizado em 11/09. ✅ Correção verificada no Planalto: os artigos estão no **Código Eleitoral (Lei 4.737/1965)**, não na
       Lei 9.504 como o ADR-0026 cita; o **art. 111 foi declarado inconstitucional** (STF, ADI
@@ -542,8 +542,11 @@ pipeline (P0) e do redesign (P1).
       `<ForecastTransparency>` compartilhado imprimiria "Modelo 28,6%" num cargo sem modelo).
       Contrato em `docs/specs/017-deputado-federal/design.md` (D1–D10), escrito **antes** da
       implementação para que os dois lados fossem construídos em paralelo sem divergir.
-      **4 gates PASS**; spec em `implementing`, não `shipped` — falta o intervalo de RF-127,
-      que depende do bootstrap de voto por agremiação (custo medido: 11,1 s contra teto de 60).
+      **Spec `shipped` em 13/09**, com os 4 gates aprovados. O `constitution-guard` **reprovou na
+      primeira rodada** — `<DeputadoMetodologia>` afirmava ao leitor uma granularidade que o
+      ADR-0036 tinha invertido três horas antes — e passou na reexecução (`8cd955f`).
+      O intervalo de RF-127 **entrou** (`2bcee57`): bootstrap de voto por agremiação em
+      `api/model/cadeiras_bootstrap.py`, custo medido de 10,63 s contra teto de 60.
 - [ ] **Gate G2** (24/09): 4 gates + `model-validator` para a 016; `rf-coverage-checker` para 017 — **já rodou em 12/09: PASS**, 12 RFs cobertos, 2 parciais por escopo registrado (design.md D7/D9). A previsão de "cobertura baixa" não se confirmou
 
 > **Degradação pré-acordada da 017** (decidida em 07/09, não re-discutir): se em 19/09 o módulo

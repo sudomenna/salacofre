@@ -45,7 +45,7 @@ Documentação Spec-Driven Development (SDD) do SalaCofre — plataforma web pú
 | 012 | [Dashboard /_status](./specs/012-dashboard-status/) | draft | M | T-07 |
 | 013 | [Página de Manutenção](./specs/013-pagina-manutencao/) | ready | M | T-08 |
 | 016 | [Senador](./specs/016-senador/) | draft | M | T-09, T-10 |
-| 017 | [Deputado Federal](./specs/017-deputado-federal/) | implementing | M | T-11, T-12 |
+| 017 | [Deputado Federal](./specs/017-deputado-federal/) | shipped | M | T-11, T-12 |
 
 Cada spec contém `spec.md` (requirements em EARS) e `design.md` (decisões técnicas). `tasks.md` será adicionado no início da implementação de cada uma.
 

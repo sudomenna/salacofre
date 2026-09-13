@@ -1,6 +1,7 @@
 # Prompt de retomada — cole isto numa sessão nova
 
-> Gerado em **2026-09-13**, madrugada. Substitui a versão de 12/09, que nasceu com dois erros.
+> Gerado em **2026-09-13** às 00h59 e **atualizado às 05h**, depois de mais 19 commits.
+> Substitui a versão de 12/09, que nasceu com dois erros.
 > Se hoje não for 13/09, **recalcule os dias** até 15/09 (simulado 1) e 04/10 (1º turno).
 
 ---
@@ -14,7 +15,33 @@ Continuando o SalaCofre. Leia primeiro, nesta ordem:
 5. `docs/testing/tse-simulados.md` — **Passo 0 e Passo 0b** são o que importa no dia 15
 6. `docs/constitution.md` — está em **1.4**
 
-**Branch `main`, árvore limpa, tudo empurrado.** `origin/main` = `512dee3` (ou mais recente).
+**Branch `main`, árvore limpa, tudo empurrado.** `origin/main` = `45b79e1` (ou mais recente).
+
+## ⏱️ O que mudou entre 00h59 e 05h — isto reescreve boa parte do que vem abaixo
+
+| o texto abaixo diz | hoje |
+|---|---|
+| spec 017 em `implementing`; **"RF-127 completo"** listado como trabalho a fazer | **`shipped`**, RF-127 **completo e no ar** |
+| Deputado ingerido por UF, 27 alvos, cron de 15 min | **~6.110 alvos de par município×zona**, 6 fatias, volta de **30 min** (ADR-0036) |
+| baseline 1.708 vitest / 333 pytest | **1.750 vitest / 374 pytest** |
+
+**ADRs novos**: **0036** (granularidade fatiada do cargo 6) e **0037** (UF sem faixa entra como
+constante no IC95 nacional da bancada).
+
+**Cinco defeitos silenciosos achados e corrigidos**, todos da mesma família — *a verificação
+confirmava a forma e não o conteúdo*: o interruptor de emergência congelava o dado em vez de
+reverter; a whitelist do preview rejeitava os cargos 5 e 6 **no código** (o simulado rodaria verde
+sem tocar em Senador nem Deputado); uma escotilha de diagnóstico desativava o interruptor; a tela
+afirmava ao leitor uma granularidade desfeita três horas antes; e a trava contra multiplicação de
+votos **não estava ligada ao ciclo** do cargo 6 — com o ADR afirmando por escrito que estava.
+
+⚠️ **Uma dívida nova, com prazo 04/10**, em `docs/reference/risks.md`: a trava de sanidade agora
+cobre o cargo 6, mas **nenhum dos dois ramos tinha teste provando que ela está ligada** — isso foi
+escrito em 13/09. Se o Passo 0 do simulado reprovar, a premissa da fatia cai e os votos multiplicam.
+
+⚠️ **Pode haver trabalho de outra sessão não commitado**: `dado_ts` (separar a hora do dado da hora
+do cálculo), alarme de apuração parada e ADR-0038 estavam prontos e aguardando decisão às 05h.
+**Confira o git.**
 
 **Confira o git antes de acreditar em qualquer coisa que este arquivo afirme.** A versão anterior
 deste prompt dizia que havia dois commits não empurrados (estavam empurrados) e mandava terminar a
@@ -67,12 +94,19 @@ de errar do projeto.
 
 **3. Trabalho técnico que não depende de ninguém**, em ordem de valor:
 
-- **RF-127 completo** — o bootstrap de voto por agremiação. É o que falta para a tela de Deputado
-  deixar de ser retrato do apurado e virar projeção. **Custo já medido e dentro do teto**
-  (11,1 s contra 60 s; `scripts/bench-deputado.py`). O obstáculo é modelagem, não CPU.
-- **Contraste de cor de partido** — PSOL 2,08 e NOVO 2,72 contra piso de 3:1 da WCAG 1.4.11.
-  É do gerador da paleta e alcança o mapa nacional. **Prazo: antes de 04/10.**
-- **e2e/a11y das 2 rotas novas** e `GET /api/projection?cargo=deputado-federal`.
+- ~~**RF-127 completo**~~ — **feito em 13/09** (`api/model/cadeiras_bootstrap.py`). O intervalo de
+  cadeiras existe e está no ar. ⚠️ Atenção ao que ele **não** é: mede a variação entre as zonas
+  **já apuradas**, e **não** o voto que falta chegar — no cargo 6 continua sem projeção de voto
+  (design § D9). Quem sinaliza o que pode virar é a marcação de cadeira indefinida.
+- **Contraste de cor de partido** — **a maior pendência técnica agora.** PSOL 2,08 e NOVO 2,72
+  contra piso de 3:1 da WCAG 1.4.11. ⚠️ O gerador da paleta registra **quatro** valores abaixo do
+  piso, não dois — PSB 2,20 e o cinza de fallback 2,39 também. É do gerador, alcança o mapa
+  nacional e a ficha de estado. **Prazo: antes de 04/10.**
+- **e2e/a11y das rotas de Deputado e de `/sobre-o-modelo`** — elas **não estão** em
+  `tests/e2e/a11y-audit.spec.ts` nem em `perf-budget.spec.ts`; foram auditadas à mão em 13/09, sem
+  rede contra regressão. Mais `GET /api/projection?cargo=deputado-federal`, ainda não implementado.
+- **SEO 91/100 em todo o site** (meta 95): falta `metadataBase` em `app/layout.tsx`, o que deixa a
+  URL canônica relativa. Pré-existente e site-wide, confirmado numa rota não tocada.
 
 **4. Minha decisão pendente:** `SLACK_WEBHOOK_URL`. Sem ela **não há alarme nenhum** na noite da
 apuração — uma falha vira silêncio, não aviso.

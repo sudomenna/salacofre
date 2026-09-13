@@ -162,13 +162,13 @@ nenhuma do TSE):
 | `TSE_BASE_URL` | `https://resultados-sim.tse.jus.br/oficial` | ambiente de simulado |
 | `INGEST_WINDOW` | `9-17` | ⚠️ o default é `17-04` e **excluiria o simulado inteiro** |
 | `TSE_MAX_RPS` | `20` | conservador na primeira janela |
-| `TSE_TARGETS_WHITELIST` | `SP:1,SP:3` | começar pequeno |
+| `TSE_TARGETS_WHITELIST` | `SP:1,SP:3,SP:5,SP:6` | ⚠️ **corrigido em 13/09.** Era `SP:1,SP:3` — e `parseWhitelist` **rejeitava no código** os cargos 5 e 6 (validação literal `!== 1 && !== 3`, escrita quando a eleição tinha dois cargos). Como a whitelist só vale em `preview`, **Senador e Deputado eram inalcançáveis no único ambiente com dado real antes de 04/10**: o simulado rodaria verde sem tocar em nenhum dos dois. Conserto do código em `bafe601`, valor atualizado na Vercel no mesmo dia |
 | `TSE_ACOMPANHAMENTO` | `off` | só ligar em 16/17, depois do EA15 mapeado |
-| `TSE_GRANULARIDADE` | `zona` | **não** `uf` — o modo `uf` quebra o modelo |
+| `TSE_GRANULARIDADE` | `zona` | **não** `uf` — o modo `uf` quebra o modelo. Hoje é redundante (os **quatro** cargos são `zona` por padrão desde o [ADR-0036](../architecture/adrs/0036-deputado-federal-granularidade-zona-fatiada.md)), e chegou a **desativar em silêncio** o interruptor de emergência do cargo 6 até a precedência ser invertida em `bafe601` — o específico passa a vencer o global |
 | `CRON_ENABLED` | `false` | os primeiros ciclos são manuais |
 
 **Falta uma só**: `TSE_COD_ELEICAO`, no escopo **preview**, com o valor obtido no Passo 1.
-Ela não tem default e `lib/tse/targets.ts:285` **lança** sem ela.
+Ela não tem default e `getCodEleicao` (`lib/tse/targets.ts`) **lança** sem ela.
 
 Vigia automática rodando de hora em hora desde 13/09 (`vigia-tse-2026`, em
 `~/.claude/scheduled-tasks/`): roda `pnpm tse:watch --once` contra produção e contra o simulado, e
