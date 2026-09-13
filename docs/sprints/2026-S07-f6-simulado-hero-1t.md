@@ -493,7 +493,7 @@ pipeline (P0) e do redesign (P1).
       `carg[].qe` e `agr[].vag`, publicados pelo próprio TSE. Só conclusiva com `tf == "s"`.
 - [ ] **Payload e telas da 017** — `EdgePayload*` de Deputado, escritor e leitor do Blob
       (`deputado/uf/<SIGLA>.json`), as 2 rotas e a aba. **Nada disso existe.** É o que sobrou.
-- [ ] **Gate G2** (24/09): 4 gates + `model-validator` para a 016; `rf-coverage-checker` para 017 (cobertura baixa esperada — specs em draft)
+- [ ] **Gate G2** (24/09): 4 gates + `model-validator` para a 016; `rf-coverage-checker` para 017 — **já rodou em 12/09: PASS**, 12 RFs cobertos, 2 parciais por escopo registrado (design.md D7/D9). A previsão de "cobertura baixa" não se confirmou
 
 > **Degradação pré-acordada da 017** (decidida em 07/09, não re-discutir): se em 19/09 o módulo
 > de cadeiras não passar nos golden de 2022, a spec shippa como "parcial por partido/federação,

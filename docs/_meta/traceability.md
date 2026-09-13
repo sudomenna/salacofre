@@ -206,7 +206,7 @@ NFRs cobertos em [../nfr/](../nfr/) — 34 RNFs (RNF-001..RNF-034). Cada spec li
 
 **Novos em 2026-09-11** (Fase 8, S07):
 - ADR-0027 (Conversão de votos em cadeiras para Deputado Federal) — `accepted`, fecha lacuna do ADR-0026
-- Specs 016 (Senador) e 017 (Deputado Federal) — ambas `draft`, implementadas em S07
+- Spec 016 (Senador) — `draft`, implementada em S07. Spec 017 (Deputado Federal) — **`implementing` desde 12/09**, implementada ponta a ponta com os 4 gates PASS; falta o intervalo de RF-127 para `shipped` (design.md D7)
 
 ## Como manter atualizado
 

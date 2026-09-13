@@ -1,7 +1,7 @@
 ---
 id: 017-deputado-federal
 title: Deputado Federal — corrida proporcional com projeção de cadeiras
-status: draft
+status: implementing
 priority: M
 personas: [P1, P2, P3]
 screens: [T-11, T-12]
@@ -22,8 +22,15 @@ opens_after: 2026-09-11
 
 ## Status
 
-`draft`. Escrita em 2026-09-11; **o cálculo de cadeiras foi implementado e
-validado em 2026-09-12**.
+`implementing` desde 2026-09-12. Escrita em 2026-09-11; cálculo de cadeiras
+validado em 12/09 (511/513) e a spec implementada ponta a ponta no mesmo dia,
+com os **4 gates aprovados** (`rf-coverage-checker`, `constitution-guard`,
+`a11y-perf-auditor`, `spec-syncer`).
+
+**Não é `shipped`** porque o RF-127 saiu pela metade: a marcação de cadeira
+indefinida entrou, o **intervalo** não — falta o bootstrap de voto por
+agremiação (design.md D7, custo medido e dentro do teto). Promover quando ele
+entrar, mirando 04/10.
 
 ### O que está pronto
 

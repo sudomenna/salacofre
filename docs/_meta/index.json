@@ -1298,7 +1298,7 @@
     {
       "id": "017-deputado-federal",
       "title": "Deputado Federal — corrida proporcional com projeção de cadeiras",
-      "status": "draft",
+      "status": "implementing",
       "priority": "M",
       "personas": [
         "P1",
@@ -1363,7 +1363,9 @@
         "0034",
         "0035"
       ],
-      "ship_blocked_on": [],
+      "ship_blocked_on": [
+        "rf-127-intervalo-de-cadeiras"
+      ],
       "opens_after": "2026-09-11",
       "notes": "nota 2026-09-12: spec implementada ponta a ponta (payload, Blob, 2 telas, aba). Componentes conferidos por import real nas duas páginas — ResultPanel, ChancesPanel, RaceHeader e ForecastTransparency NÃO são usados. ForecastTransparency é ausência deliberada (design.md D9): ele calcula pctModel = 100 − pctApurado e imprimiria \"Modelo 28,6%\" num cargo sem modelo. Fora de escopo: intervalo de cadeiras (D7), insights (D10), GET /api/projection?cargo=deputado-federal (mesmo estado do Senador)."
     }
