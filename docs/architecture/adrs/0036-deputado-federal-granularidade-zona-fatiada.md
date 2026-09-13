@@ -87,11 +87,20 @@ generalizado.
 (município, zona), unidade de ingestão fixada pelo ADR-0035 para os demais cargos — em vez
 de `"uf"`. Isso muda `lib/config/cargos.ts:184` (fora do escopo desta tarefa de
 documentação; a implementação corre em paralelo). Não há mudança na fonte do dado nem no
-schema: é o mesmo builder `buildEA20UrlZona` já usado por Presidente, Governador e Senador,
-o mesmo `merge_pairs_into_zonas`/`check_zona_merge_sanity` (`api/model/zona_merge.py`,
-ADR-0035 D2) que recompõe pares em zona antes do estimador, e o mesmo contrato de entrada do
-bootstrap — nenhuma linha nova de código de modelo, só uma mudança de qual arquivo é pedido
-ao TSE.
+schema: é o mesmo builder `buildEA20UrlZona` já usado por Presidente, Governador e Senador.
+
+> ⚠️ **Correção 2026-09-13 (pós-publicação).** A redação original desta alínea dizia que o
+> cargo 6 passaria a usar "o mesmo `merge_pairs_into_zonas`/`check_zona_merge_sanity` que
+> recompõe pares em zona antes do estimador". **É falso, e a parte que importa não é a
+> nomenclatura.** `merge_pairs_into_zonas` e `check_zona_merge_sanity` são chamados **só no
+> ramo majoritário** (`api/model/project.py:4143` e `:4171`). O ramo proporcional lê
+> `fetch_snapshots` direto (`:3832`) e soma os pares por `combinar_entradas`
+> (`api/model/deputado.py:412`). Erro apontado por outra sessão em 13/09, verificado nos dois
+> ramos — a frase entrou porque eu a afirmei no briefing e ninguém a conferiu contra o código.
+>
+> **A consequência operacional está registrada em Consequências → Negativas** e é o motivo
+> desta correção existir: a trava de sanidade contra multiplicação de votos **não acompanha**
+> o cargo 6.
 
 **`rpsMax` do cargo 6 não muda: continua 5.** O teto por cargo não é reaberto por este ADR.
 `piorCasoAgregadoRps()` (`lib/config/cargos.ts:248-250`) soma os quatro `rpsMax` —
@@ -167,21 +176,40 @@ diagnóstico") ou um equivalente específico ao cargo 6 — que devolva o cargo 
 ## Consequências
 
 **Positivas**:
-- RF-127 fica possível: a unidade de reamostragem do bootstrap, depois de
-  `merge_pairs_into_zonas` recompor os pares em zona, passa a ser a **zona real** — 2.644
+- RF-127 fica possível: a unidade de reamostragem do bootstrap, depois de os pares serem
+  agrupados por `cod_zona` (em `_entradas_por_zona`, **não** por `merge_pairs_into_zonas`,
+  que é do ramo majoritário), passa a ser a **zona real** — 2.644
   zonas distintas `(uf, cod_zona)` no país (medido em `zonas`, 2026-09-13), média de **97,9
   zonas por UF**. Nenhuma UF fica com `k_a = 1`.
-- O cargo 6 passa a usar o mesmo caminho de ingestão dos outros três cargos (mesmo builder
-  de URL, mesmo `merge_pairs_into_zonas`, mesma trava de sanidade
-  `check_zona_merge_sanity`) — menos código de exceção no pipeline, e o mesmo Passo 0 do
-  simulado que já valida os outros três cargos passa a valer para Deputado sem trabalho
-  extra.
+- O cargo 6 passa a usar o mesmo **caminho de ingestão** dos outros três cargos (mesmo
+  builder de URL, mesma tabela `zonas`, mesmos alvos) — menos código de exceção no pipeline.
+  ⚠️ **Corrigido em 13/09**: isto vale para a ingestão, **não** para a agregação. Os dois
+  ramos do modelo continuam distintos, e a trava de sanidade não é compartilhada — ver
+  Negativas.
 - Nenhum dado novo é inventado: o par (município, zona) já é publicado pelo TSE para o cargo
   6 (mesma tabela oficial que já cobre os outros três,
   `tse_docs/txt/tse-ea20-arquivo-de-resultado-unificado.txt`); a mudança pede um arquivo
   diferente do mesmo cargo, não cria uma nova fonte.
 
 **Negativas**:
+- ⚠️ **A trava de sanidade contra multiplicação de votos NÃO cobre o cargo 6 — e esta
+  decisão é o que criou a exposição.** `check_zona_merge_sanity` (`api/model/zona_merge.py`)
+  é chamada apenas no ramo majoritário (`api/model/project.py:4171`): ela compara o ANTES e
+  o DEPOIS de `merge_pairs_into_zonas` e, se a razão `Σ e.te dos pares / eleitorado da zona`
+  for compatível com multiplicação (`>= 1,8`), loga `error` e aciona o Slack. O ramo
+  proporcional não passa por lá: lê `fetch_snapshots` direto (`:3832`) e soma os pares em
+  `combinar_entradas` (`api/model/deputado.py:412`), **sem nenhuma guarda**.
+
+  Antes desta decisão o cargo 6 não tinha exposição nenhuma — um arquivo por UF, nada a
+  somar. Depois dela, se a premissa da fatia por município (Passo 0,
+  `docs/testing/tse-simulados.md`) for falsa, os votos de Deputado multiplicam por até 8× em
+  ~62% das zonas **em silêncio**, enquanto os outros três cargos gritam. O `Passo 0` decide a
+  premissa antes do simulado, mas a trava de runtime é a rede para o caso de algo mudar no
+  meio da apuração — e ela não existe aqui.
+
+  Registrado como **dívida aberta, com prazo 04/10**. A redação original deste ADR afirmava o
+  contrário (que a trava vinha junto), o que escondeu a lacuna por algumas horas — ver a
+  correção na Decisão.
 - **A cadência de atualização cai pela metade**: 30 min contra os 15 min que o ADR-0026
   havia fixado e que a UI hoje anuncia (`vercel.ts:143`, comentário "atualizado a cada 15
   min"). O texto da tela de Deputado precisa mudar para **"atualizado a cada 30 min"** —
@@ -223,8 +251,10 @@ diagnóstico") ou um equivalente específico ao cargo 6 — que devolva o cargo 
   por cargo) e nota "2026-09-11 (b)" (Senador uf→zona pelo mesmo diagnóstico), emendados por
   este ADR. Nota de emenda aplicada ao `## Status`.
 - [ADR-0035](0035-par-municipio-zona-unidade-de-ingestao.md) — D1/D2 fixam o par (município,
-  zona) como unidade de ingestão e `merge_pairs_into_zonas` como recomposição em memória,
-  reaproveitados aqui sem alteração; D3 fixa o precedente de segmento de rota para
+  zona) como unidade de ingestão, reaproveitada aqui sem alteração. ⚠️ `merge_pairs_into_zonas`
+  e a trava `check_zona_merge_sanity` que o acompanha **não** são reaproveitados: são do ramo
+  majoritário, e o proporcional soma por `combinar_entradas` — ver a correção na Decisão e a
+  dívida em Negativas; D3 fixa o precedente de segmento de rota para
   distinguir invocações e a trava anti-overlap por cargo, que este ADR estende para
   `(cargo, fatia)`.
 - [ADR-0006](0006-bootstrap-nao-bayesiano.md) — bootstrap não-paramétrico cuja unidade de
