@@ -181,6 +181,18 @@ verde. `check_zona_merge_sanity` é a rede enquanto isso.
 
 ## Comandos
 
+⚠️ **`pnpm test -- <arquivo>` NÃO filtra — roda a suíte inteira.** O `--` não é consumido pelo
+pnpm: chega ao vitest como argumento (`vitest run -- tests/...`) e o filtro posicional não se
+aplica. **A forma que filtra é `pnpm exec vitest run <caminho>`** (ou `npx vitest run <caminho>`).
+
+Medido em 13/09, lado a lado: a forma correta leva **0,72 s** (1 arquivo, 66 testes); a forma com
+`--` não terminou em 40 s. E a prova não é a duração — é o conteúdo do log: apareceram
+`model_project_ok` e `zona_merge`, de testes de **integração** que o arquivo pedido não contém.
+
+Custou uma madrugada a uma sessão paralela, que passou horas convencida de estar rodando alvos
+isolados enquanto disputava o mesmo Neon de dev com outra. Nada no output acusa — o único sinal é
+o tempo, que se lê como "a suíte é lenta mesmo", o que ela de fato é.
+
 ```bash
 set -a; . ./.env.local; set +a            # antes de tudo que toque banco ou Vercel
 pnpm typecheck && pnpm lint && pnpm test
