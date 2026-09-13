@@ -60,10 +60,12 @@
  *     ausente). Exceção final agrega o que falhou.
  */
 
-import { ufDetailBlobPathname } from "@/lib/blob/paths";
+import type { DeputadoUfDetail } from "@/lib/blob/deputado-uf";
+import { deputadoUfBlobPathname, ufDetailBlobPathname } from "@/lib/blob/paths";
 import { splitUfPayload, type UfDetailBlob } from "@/lib/blob/uf-detail";
 import { putJson } from "@/lib/blob/write";
 import type { Cargo, Turno } from "@/lib/config/calendar";
+import { type CargoTse, cargoInfo, cargoToken } from "@/lib/config/cargos";
 import {
   assertValidGlobalConfigKey,
   currentProjectionKey,
@@ -71,7 +73,12 @@ import {
   legacyUfAliasKey,
   ufProjectionKey,
 } from "@/lib/edge-config/keys";
-import type { EdgePayload, EdgePayloadUf, UfPayloadInput } from "@/lib/edge-config/types";
+import type {
+  EdgePayload,
+  EdgePayloadDeputado,
+  EdgePayloadUf,
+  UfPayloadInput,
+} from "@/lib/edge-config/types";
 import { logError, logInfo, logWarn } from "@/lib/tse/log";
 
 // ---------------------------------------------------------------------------
@@ -703,14 +710,26 @@ interface WriteFailure {
 }
 
 /**
- * Mapeia o cargo numérico do TSE (1=Presidente, 3=Governador) para o
- * literal `Cargo` ("pres" | "gov") usado nas chaves nomeadas (ADR-0012).
- * Cargos fora dos 2 cobertos pelo SalaCofre caem em "pres" por
- * defensividade — não há semântica útil para encerrar com erro aqui,
- * o orchestrator nunca emite outros valores.
+ * Mapeia o cargo numérico do TSE para o token de chave (ADR-0012) — `1` →
+ * `"pres"`, `3` → `"gov"`, `5` → `"sen"`, `6` → `"dep"`.
+ *
+ * ⚠️ **Corrigido em 2026-09-12.** Até aqui o corpo era
+ * `return cargoTse === 3 ? "gov" : "pres";`, com o comentário dizendo que
+ * "cargos fora dos 2 cobertos caem em 'pres' por defensividade" e que "o
+ * orchestrator nunca emite outros valores". As duas premissas caducaram em
+ * 2026-09-11, quando Senador (5) e Deputado Federal (6) entraram na ingestão
+ * e na tabela canônica: um payload de cargo 5 era gravado em
+ * `projection-current-pres-t1` e **sobrescrevia a projeção presidencial** com
+ * a corrida do Senado. Nenhum erro em lugar nenhum — a chave é válida e o
+ * JSON é válido; só o conteúdo é de outra eleição.
+ *
+ * O default silencioso era o defeito. Agora o mapeamento vem da tabela única
+ * (`lib/config/cargos.ts`) e um código não coberto **lança**: falhar um ciclo
+ * é recuperável no ciclo seguinte; publicar a corrida errada sob a chave certa
+ * não é.
  */
-function cargoFromTseNumeric(cargoTse: number): Cargo {
-  return cargoTse === 3 ? "gov" : "pres";
+function cargoFromTseNumeric(cargoTse: CargoTse): Cargo {
+  return cargoToken(cargoTse);
 }
 
 /**
@@ -770,6 +789,21 @@ export async function writeProjection(
   payload: EdgePayload,
   payloadsUf?: Record<string, UfPayloadInput>,
 ): Promise<void> {
+  // Cargo PROPORCIONAL não passa por aqui (design 017 § D1). O tipo já
+  // impediria — `EdgePayloadDeputado` não é atribuível a `EdgePayload` —, mas
+  // esta função recebe `any` na prática: a ponte `/api/internal/edge-write`
+  // faz `parsed.data.payload as any`, e ali um payload de cargo 6 entraria
+  // sem `national` e gravaria um objeto sem agulha e sem candidatos sob a
+  // chave `projection-current-dep-t1`. A guarda é de runtime porque o furo é
+  // de runtime.
+  if (cargoInfo(payload.cargo).proporcional) {
+    throw new Error(
+      `writeProjection: cargo ${payload.cargo} é proporcional e não usa o envelope ` +
+        `EdgePayload (design 017 § D1 — EdgeNational é inteiramente majoritário). ` +
+        `Use writeDeputadoProjection().`,
+    );
+  }
+
   // Resolve a chave nomeada via cargo/turno do payload. ADR-0012:
   // orchestrator é a fonte de verdade — payload.cargo/turno reflete a
   // corrida sendo gravada, NÃO a corrida ativa pelo calendário.
@@ -1021,6 +1055,171 @@ async function writeUfDetails(details: readonly UfDetailBlob[]): Promise<BlobWri
 
   if (summary.failures.length > 0) {
     logError("blob uf detail write failures", {
+      failed: summary.failures.length,
+      total: details.length,
+      detail: summary.failures
+        .map((f) => `${f.key}: ${f.message}`)
+        .join("; ")
+        .slice(0, 800),
+    });
+  }
+
+  return summary;
+}
+
+// ---------------------------------------------------------------------------
+// Deputado Federal — spec 017 / design 017 § D1, D5, D6
+// ---------------------------------------------------------------------------
+
+/**
+ * Materializa a projeção de **Deputado Federal**:
+ *
+ *   - 1 chave nacional `projection-current-dep-t1` no Global Config (D5);
+ *   - N objetos `deputado/uf/<SIGLA>.json` no Vercel Blob (D6, RF-129).
+ *
+ * ## Por que é uma função separada e não um ramo de `writeProjection`
+ *
+ * Porque o envelope é outro. `writeProjection` recebe `EdgePayload`, cujo
+ * `national` é `EdgeNational` — inteiramente majoritário. Enfiar a corrida
+ * proporcional ali obrigaria a inventar oito campos, e é exatamente isso que a
+ * decisão D1 do design 017 recusa. A simetria com `writeProjection` é de
+ * **política**, não de tipo: mesma guarda de tamanho de store, mesmo
+ * best-effort por chave, mesma independência entre Global Config e Blob.
+ *
+ * ## Nenhum alias
+ *
+ * `writeProjection` grava também `projection-current` e
+ * `projection-uf-<SIGLA>` — aliases legados de S04, que existiram só para a
+ * corrida presidencial. Este cargo nasce depois deles; replicá-los aqui
+ * criaria chaves que ninguém lê e que competiriam pelo 1 MB do store.
+ *
+ * ## Blob e Global Config falham de forma independente (ADR-0032 item 3)
+ *
+ * Uma falha de Blob **não** entra na exceção agregada: ela é logada como
+ * `error` ("blob deputado uf write failures") e o ciclo segue. O resumo
+ * publicado vale mais que um ciclo marcado vermelho, e a página degrada por
+ * seção com "detalhe indisponível" explícito no DOM (RF-129, constituição § 7).
+ * É essa linha de log que o runbook precisa vigiar.
+ *
+ * @param payload   Payload nacional (`EdgePayloadDeputado`).
+ * @param detalhes  Mapa `sigla → DeputadoUfDetail`. Ausente ⇒ nada vai para o
+ *                  Blob e cada página de UF degrada com "detalhe
+ *                  indisponível" — nunca com um resumo mentiroso.
+ * @throws Error quando a chave de Global Config falha. Falhas de Blob não
+ *         entram aqui (ver acima).
+ */
+export async function writeDeputadoProjection(
+  payload: EdgePayloadDeputado,
+  detalhes?: Record<string, DeputadoUfDetail>,
+): Promise<void> {
+  // Turno único (`temSegundoTurno: false`): a chave é sempre `-t1`. Não sai
+  // de `payload.turno` para que um payload malformado com `turno: 2` não
+  // inaugure uma chave que nenhum leitor consulta.
+  const nationalKey = currentProjectionKey(cargoToken(6), 1);
+  const nationalJson = JSON.stringify(payload);
+
+  if (nationalJson.length > EDGE_CONFIG_NATIONAL_WARN_BYTES) {
+    logWarn("global-config national payload oversize (S05 budget)", {
+      key: nationalKey,
+      bytes: nationalJson.length,
+      threshold: EDGE_CONFIG_NATIONAL_WARN_BYTES,
+      storeLimit: GLOBAL_CONFIG_STORE_LIMIT_BYTES,
+    });
+  }
+  if (nationalJson.length > EDGE_CONFIG_SIZE_WARN_BYTES) {
+    logWarn("global-config projection oversize", {
+      key: nationalKey,
+      bytes: nationalJson.length,
+      threshold: EDGE_CONFIG_SIZE_WARN_BYTES,
+      storeLimit: GLOBAL_CONFIG_STORE_LIMIT_BYTES,
+    });
+  }
+
+  // Guarda de tamanho do STORE (não da requisição) — roda ANTES de gravar,
+  // nunca lança, nunca aborta. Uma chave só: o detalhe por UF deste cargo não
+  // toca o Global Config.
+  await guardStoreSize([{ key: nationalKey, bytes: itemBytes(nationalKey, nationalJson) }]);
+
+  // Blob em paralelo com o Global Config — os dois read paths são
+  // independentes e serializá-los só somaria latência ao ciclo.
+  const blobWrites = writeDeputadoUfDetails(Object.values(detalhes ?? {}));
+
+  let failure: WriteFailure | null = null;
+  try {
+    await writeEdgePayload(nationalKey, payload);
+  } catch (err) {
+    failure = { key: nationalKey, message: err instanceof Error ? err.message : String(err) };
+  }
+
+  // Colhe o Blob ANTES de decidir sobre a exceção: mesmo num ciclo que falhou
+  // no Global Config, o detalhe por UF pode ter publicado, e o log precisa
+  // dizer isso.
+  const blob = await blobWrites;
+
+  if (failure) {
+    throw new Error(`writeDeputadoProjection: ${failure.key}: ${failure.message}`);
+  }
+
+  logInfo("global-config deputado projection written", {
+    namedKey: nationalKey,
+    nationalBytes: nationalJson.length,
+    ufs: payload.por_uf.length,
+    cadeirasAtribuidas: payload.bancada.cadeiras_atribuidas,
+    totalCadeiras: payload.bancada.total_cadeiras,
+    blobWritten: blob.written,
+    blobSkipped: blob.skipped,
+    blobFailed: blob.failures.length,
+    blobBytes: blob.bytes,
+  });
+}
+
+/**
+ * Publica o detalhe de cada UF de Deputado Federal no Blob — best-effort e em
+ * paralelo, a mesma política por chave do Global Config: uma UF com problema
+ * transitório não cancela as outras 26.
+ *
+ * **Nunca lança.** Falhas voltam no sumário e são logadas como `error`.
+ *
+ * O `ts` de cada objeto é carimbado **aqui**, no instante da gravação, e não
+ * herdado do payload nacional — mesma decisão (e mesma razão) de
+ * `splitUfPayload`: as duas escritas não são atômicas entre si, um ciclo pode
+ * publicar o resumo e falhar o detalhe, e a UI precisa poder datar os dois
+ * separadamente. Um `ts` comum aos dois esconderia justamente a divergência
+ * que ele deveria revelar.
+ *
+ * Volume por ciclo: até 27 `put()`, a cada 15 minutos.
+ */
+async function writeDeputadoUfDetails(
+  details: readonly DeputadoUfDetail[],
+): Promise<BlobWriteSummary> {
+  const summary: BlobWriteSummary = { written: 0, skipped: 0, bytes: 0, failures: [] };
+  if (details.length === 0) return summary;
+
+  const carimbo = new Date().toISOString();
+
+  const results = await Promise.allSettled(
+    details.map(async (detail) => {
+      const pathname = deputadoUfBlobPathname(detail.uf);
+      return putJson(pathname, { ...detail, ts: carimbo, uf: detail.uf.toUpperCase() });
+    }),
+  );
+
+  results.forEach((result, i) => {
+    const detail = details[i];
+    if (result.status === "fulfilled") {
+      if (result.value.status === "written") summary.written += 1;
+      else summary.skipped += 1;
+      summary.bytes += result.value.bytes;
+      return;
+    }
+    summary.failures.push({
+      key: detail ? `deputado/uf/${detail.uf}` : `deputado/uf/<index-${i}>`,
+      message: result.reason instanceof Error ? result.reason.message : String(result.reason),
+    });
+  });
+
+  if (summary.failures.length > 0) {
+    logError("blob deputado uf write failures", {
       failed: summary.failures.length,
       total: details.length,
       detail: summary.failures
