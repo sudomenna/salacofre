@@ -343,6 +343,38 @@
       ],
       "note": "D1: novos campos dado_ts (max dg/hg convertido p/ UTC, null quando ausente) e pares_atrasados nos três envelopes (EdgePayload/EdgePayloadUf/EdgePayloadDeputado) — ts existente NÃO muda de nome nem de significado (continua 'hora em que o modelo rodou'); payload sem o campo novo (rollout) cai no texto atual, nunca fabrica substituto. D2: dado_ts é o MÁXIMO (raw_snapshots pré-merge no ramo majoritário, project.py:4142; snapshots no ramo proporcional, project.py:3832 — desde o ADR-0036 os quatro cargos chegam em granularidade de par, ~6.110 linhas); mínimo cru rejeitado (sempre velho por razões legítimas); pares_atrasados conta pares >2 cadências atrás do dado_ts DO PRÓPRIO CICLO (não de now()), pra distinguir 'um par se mexeu, 6.109 não' de lull legítimo do TSE. D3: limiar de alarme = 3x a cadência do cargo (60s/300s/1.800s — Deputado é 30min desde o ADR-0036, ATUALIZACAO_MIN_DEPUTADO em project.py:3716; a versão anterior deste ADR usava 15min e registrava a divergência como questão aberta, agora resolvida pelo ADR-0036), via _alert_slack já existente, inerte sem SLACK_WEBHOOK_URL (não configurada, pendência do usuário). D4: banner amarelo + último valor conhecido (constituição §7) gatilhado por dado_ts, dá corpo ao estado 'Erro de dados' que a spec 003 já descrevia sem nenhum componente implementá-lo. D5: DetailFreshness está CORRETO para o que mede (Blob atrasado do resumo, escritas best-effort não-atômicas) — ganha sinal independente de dado_ts ao lado, não reescrita; clamp do data-lag-minutes negativo (~-1 no ciclo saudável); zero cobertura de teste hoje. Replay 2022 roda com dado_ts=null (fixture podada sem dg/hg) — não quebra o gate OT-4. Nota: ramo proporcional (cargo 6) NÃO chama merge_pairs_into_zonas — agrega via combinar_entradas (api/model/deputado.py:412); dado_ts é extraído de `snapshots` antes dessa agregação, mesmo papel que raw_snapshots tem no ramo majoritário.",
       "path": "docs/architecture/adrs/0038-dado-ts-hora-do-dado-nao-hora-do-calculo.md"
+    },
+    {
+      "id": "0039",
+      "title": "Portal de Dados Abertos do TSE (não DivulgaCandContas REST) como fonte de identidade de candidatura — nome, foto e partido, sem PII",
+      "status": "accepted",
+      "date": "2026-09-13",
+      "note": "consulta_cand_2026.zip (20.939 linhas) + consulta_cand_complementar_2026.zip (join 1:1 por SQ_CANDIDATO) + 28 ZIPs de foto por UF, licença cc-by; DivulgaCandContas REST descartado (não documentado, sem CORS, sem bulk por UF, 200 vazio relatado em 2026); recorte de PII exclui CPF/e-mail/título de eleitor (constituição § 5); frescor (fonte_ts) vem do header Last-Modified via GET Range (HEAD é 403), nunca do metadado do catálogo CKAN (comprovadamente morto); bloqueio de User-Agent na Akamai contra data-pipeline/_tse-common.ts:70 é pré-requisito de implementação; EA20 permanece autoridade na noite da apuração, CSV nunca o sobrepõe.",
+      "path": "docs/architecture/adrs/0039-portal-dados-abertos-tse-identidade-candidatura.md"
+    },
+    {
+      "id": "0040",
+      "title": "Publicabilidade de candidatura via ST_CANDIDATO_INSERIDO_URNA, fail-closed — situação de julgamento é texto ao lado do candidato, nunca um segundo filtro",
+      "status": "accepted",
+      "date": "2026-09-13",
+      "note": "lista principal tem CD_SITUACAO_CANDIDATURA=#NE em 100% das 20.939 linhas mesmo a 2 dias do prazo de julgamento; publicavel = (ST_CANDIDATO_INSERIDO_URNA === 'SIM'), qualquer outro valor/ausência é false; DS_SITUACAO_JULGAMENTO nunca é filtro adicional — 743 candidaturas indeferidas em prazo recursal continuam SIM na urna e recebem voto, excluí-las mentiria por omissão; motivo_cassacao_2026.zip não é filtro (743 de 988 continuam SIM); reimportação diária até ~20/09, 2-3 dias até 01/10, obrigatória em 02-03/10 — nunca existe 'lista final' antes da apuração.",
+      "path": "docs/architecture/adrs/0040-publicabilidade-candidatura-fail-closed.md"
+    },
+    {
+      "id": "0041",
+      "title": "Foto de candidato como binário no mesmo módulo de escrita do Blob, cache de 1 ano — não os 60s do JSON de apuração",
+      "status": "accepted",
+      "date": "2026-09-13",
+      "note": "lib/blob/write.ts e lib/blob/paths.ts eram JSON-only; novo putBinary() na mesma tríade de putJson (access/allowOverwrite/addRandomSuffix); blobPathname ganha 3º parâmetro extension (default '.json', preserva os 3 chamadores existentes); BLOB_IMMUTABLE_MAX_AGE_SECONDS=31536000 (1 ano) para foto, nunca os 60s do JSON reescrito por ciclo; unoptimized no next/image (fonte já vem 161x225px, tamanho de render — otimizar é custo puro); caminho candidatos/foto/<UF>/<SQ_CANDIDATO>.jpg; ensaio AC 2026-09-13: 387 fotos para 387 candidaturas, join 1:1 por SQ_CANDIDATO sem órfã.",
+      "path": "docs/architecture/adrs/0041-foto-candidato-blob-binario-cache-um-ano.md"
+    },
+    {
+      "id": "0042",
+      "title": "(cargo, UF, número na urna) é a chave de identidade de candidatura para nome — não o número sozinho, que só é seguro para partido",
+      "status": "accepted",
+      "date": "2026-09-13",
+      "note": "extract_partido_by_cand (project.py:1712) é plano por número e está correto SÓ porque em cargo majoritário número=partido; copiado como extract_nome_by_cand poria o governador do PT de SP em 26 estados. GovernorCard.tsx:130 e senador/page.tsx:139 já resolvem nome por id sozinho — o defeito é alcançável hoje. EdgeUfRow.top_candidatos passa de {id,pct} para {id,pct,nome?,partido?,sqcand?}. Bloco nacional de cargo 3/5 mantém placeholder 'Candidato {id}' (união de 27 corridas, nome seria ambíguo); só cargo 1 recebe nome no nacional. (cargo,uf,numero) NÃO é único na fonte: 52 colisões brutas, 4 após filtro de publicabilidade (ADR-0040) — todas DC-BA sob recurso, dois pares com mesmo nome no mesmo número. Sem UNIQUE INDEX; função de resolução determinística (publicável → DEFERIDO → maior sqcand → EA20 tem precedência absoluta). sqcand é a chave global estável, coexiste com (cargo,uf,numero). EMENDA os contratos de payload das specs 016-senador e 017-deputado-federal (não ADR-to-ADR amends) — propagação de frontmatter adrs: e do texto das specs pendente via spec-syncer.",
+      "path": "docs/architecture/adrs/0042-cargo-uf-numero-chave-identidade-candidatura.md"
     }
   ],
   "nfr": {
@@ -1402,6 +1434,73 @@
       "ship_blocked_on": [],
       "opens_after": "2026-09-11",
       "notes": "nota 2026-09-13: todos os RFs implementados com cobertura de teste. RF-127 intervalo de cadeiras implementado via bootstrap por agremiação em `api/model/cadeiras_bootstrap.py` (testes em `tests/unit/model/test_cadeiras_bootstrap.py`); intervalo coexiste com marcação de cadeira indefinida. RF-120 e RF-128 reescritos em 13/09 para conformidade com ADR-0036/0037 após reprova do gate constitucional (RF-120 agora descreve 6 fatias de zona, RF-128 agora diz 30 min em vez de 15 min). Fora de escopo: insights (D10), GET /api/projection?cargo=deputado-federal (mesmo estado do Senador)."
+    },
+    {
+      "id": "018-identidade-candidatura",
+      "title": "Identidade de candidatura 2026 — nome, foto e partido",
+      "status": "draft",
+      "priority": "M",
+      "personas": [
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "screens": [
+        "T-13",
+        "T-14"
+      ],
+      "requirements": [
+        "RF-140",
+        "RF-141",
+        "RF-142",
+        "RF-143",
+        "RF-144",
+        "RF-145",
+        "RF-146",
+        "RF-147",
+        "RF-148",
+        "RF-149",
+        "RF-150",
+        "RF-151",
+        "RF-152"
+      ],
+      "depends_on": [
+        "001-ingestao-tse",
+        "002-modelo-estatistico",
+        "016-senador",
+        "017-deputado-federal"
+      ],
+      "apis": [],
+      "components": [
+        "CandidatoAvatar",
+        "CandidatoCard",
+        "CandidatosGrid",
+        "CandidatosFiltros",
+        "CandidaturasFonte",
+        "Panel",
+        "Footer"
+      ],
+      "nfr": [
+        "RNF-002",
+        "RNF-003",
+        "RNF-007a",
+        "RNF-019",
+        "RNF-022",
+        "RNF-023",
+        "RNF-024"
+      ],
+      "adrs": [
+        "0039",
+        "0040",
+        "0041",
+        "0042"
+      ],
+      "amends": [
+        "016-senador",
+        "017-deputado-federal"
+      ],
+      "ship_blocked_on": [],
+      "notes": "Escrita em 2026-09-13 após medição de arquivo real do TSE (20.939 candidaturas, 7.698 publicáveis nos 4 cargos do produto). Tabelas `candidatos` (22 colunas) e `partidos` (30 linhas) implementadas em migration 0008. Importador `data-pipeline/candidatos-import.ts` com script `pnpm candidatos:import`. Rota `/candidatos` (RSC, sem JS novo). Enriquecimento de `EdgeUfRow.top_candidatos` com nome, partido e sqcand (emenda aos contratos de specs 016/017). Quatro ADRs decidem (0039–0042): fonte (Portal de Dados Abertos TSE), publicabilidade fail-closed, foto binária 1 ano cache, chave de identidade (cargo,uf,numero) + sqcand. Nota 2026-09-13: divergência corrigida em design.md — tabela é `candidatos` não `candidaturas`, `numero` é integer não text (medido: 8.323 registros, 0 com zero à esquerda). Pendências abertas: User-Agent completo antes de 15/09 (contato verificável), medição de Global Config ao entrar nome/partido/sqcand, vice e suplente (escopo não decidido), cadência de checagem contra CDN não verificada contra limite."
     }
   ]
 }

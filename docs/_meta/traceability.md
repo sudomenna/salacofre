@@ -138,6 +138,19 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-128 | Cadência de 30 minutos visível | M | [017](../specs/017-deputado-federal/) | `<DeputadoMetodologia>` | ✅ Telas implementadas. `<ForecastTransparency />` deliberadamente NÃO reutilizado (design.md D9: cadências variam por cargo; ForecastTransparency calcula pctModel = 100 − pctApurado, inválido para cargo 6 sem modelo). A cadência é LIDA de `atualizacao_min` do payload, nunca literal no JSX (design.md D8) — teste injeta 7 e exige que a tela diga 7 (ciclo completo: 6 fatias × 5 min = 30 min, ADR-0036) |
 | RF-129 | Drill-down por UF vem do Blob | M | [017](../specs/017-deputado-federal/) | — | ✅ Implementado: `lib/blob/deputado-uf.ts::readDeputadoUfDetail()` + testes (`tests/unit/blob/deputado-uf.test.ts`). Payload `DeputadoUfDetail` em `deputado/uf/<SIGLA>.json` |
 | RF-130 | Voto de legenda visível | M | [017](../specs/017-deputado-federal/) | `<VoteBar>`, `<Figure>` | ✅ Telas `/deputado-federal` (nacional) e `/uf/[sigla]/deputado-federal` (UF) implementadas. Separa nominais e legenda (design.md D4, D6) |
+| RF-140 | Ingestão do cadastro de candidaturas, dois pacotes unidos por `SQ_CANDIDATO` | M | [018](../specs/018-identidade-candidatura/) | — | unit (`data-pipeline/tests/unit/data-pipeline/candidatos-parse.test.ts`), integration (ingestão real contra TSE em 12/09) |
+| RF-141 | Publicabilidade fail-closed; situação de julgamento é texto, nunca filtro | M | [018](../specs/018-identidade-candidatura/) | — | unit (`candidatos-parse.test.ts::test_publicavel_fail_closed*`, asserts de 7.698 publicáveis), integration |
+| RF-142 | Foto de candidato no Blob, binária, cache de um ano | M | [018](../specs/018-identidade-candidatura/) | — | unit (`tests/unit/blob/write.test.ts::test_putBinary_cacheControlMaxAge_imutavel`), integration (387 fotos Acre) |
+| RF-143 | Chave de identidade e resolução determinística de colisão | M | [018](../specs/018-identidade-candidatura/) | — | unit (`candidatos-resolve.test.ts::test_resolve_candidato_4_colisoes_bahia_determinismo`, teste de mutação contra os 4 casos) |
+| RF-144 | Nome real no payload de UF, resolvido em quatro degraus | M | [018](../specs/018-identidade-candidatura/) | — | integration (testes de cadeia em `tests/unit/model/test_candidato_nome.py`) |
+| RF-145 | Nome real proibido no bloco nacional de cargo 3 e 5 | M | [018](../specs/018-identidade-candidatura/) | — | unit (`tests/unit/model/test_candidato_nome.py::test_national_candidatos_sem_nome_real_cargo_3_5`) |
+| RF-146 | Rota `/candidatos` | M | [018](../specs/018-identidade-candidatura/) | `<CandidatosGrid>`, `<CandidatosFiltros>`, `<CandidaturasFonte>` | ✅ Implementado em 13/09: `app/candidatos/page.tsx` RSC, lê Blob via `readCandidatosIndex()`, sem JS novo (RNF-007a) |
+| RF-147 | Filtro por cargo e por UF, sem JavaScript | M | [018](../specs/018-identidade-candidatura/) | `<CandidatosFiltros>` | unit (formulário com `method="get"`, `searchParams` parseados sem erro) |
+| RF-148 | Busca por nome | M | [018](../specs/018-identidade-candidatura/) | `<CandidatosFiltros>`, grade | unit (busca case-insensitive, com acento) |
+| RF-149 | Grade de candidatos no estado "aguardando dados" de cada cargo | M | [018](../specs/018-identidade-candidatura/) | `<CandidatosGrid>` (por composição no estado "aguardando") | integration (ordem: parágrafo honesto primeiro, grade abaixo, não substituição) |
+| RF-150 | "Fonte: TSE" visível e carimbo de frescor | M | [018](../specs/018-identidade-candidatura/) | `<CandidaturasFonte>` | unit (injeta `fonte_ts`, tela diz aquele valor — nunca literal) |
+| RF-151 | Fallback de avatar quando não há foto | M | [018](../specs/018-identidade-candidatura/) | `<CandidatoAvatar>` | unit (dimensões 161×225 sem foto, CLS zero, sem `colorForParty` como área) |
+| RF-152 | Cadência de reimportação e guarda de encolhimento | M | [018](../specs/018-identidade-candidatura/) | — | unit (`candidatos-import.test.ts::test_encolhimento_aborta_98_pctile`, `test_encolhimento_janela_critica_02_03_outubro`) |
 
 ## RFs adicionados pelas specs (não estavam no PRD)
 
@@ -186,10 +199,23 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-128 | Cadência de 30 minutos visível | [017](../specs/017-deputado-federal/) |
 | RF-129 | Drill-down por UF vem do Blob | [017](../specs/017-deputado-federal/) |
 | RF-130 | Voto de legenda visível | [017](../specs/017-deputado-federal/) |
+| RF-140 | Ingestão do cadastro de candidaturas | [018](../specs/018-identidade-candidatura/) |
+| RF-141 | Publicabilidade fail-closed | [018](../specs/018-identidade-candidatura/) |
+| RF-142 | Foto de candidato no Blob | [018](../specs/018-identidade-candidatura/) |
+| RF-143 | Chave de identidade e resolução | [018](../specs/018-identidade-candidatura/) |
+| RF-144 | Nome real no payload de UF | [018](../specs/018-identidade-candidatura/) |
+| RF-145 | Nome real proibido em cargo 3/5 | [018](../specs/018-identidade-candidatura/) |
+| RF-146 | Rota `/candidatos` | [018](../specs/018-identidade-candidatura/) |
+| RF-147 | Filtro por cargo e UF | [018](../specs/018-identidade-candidatura/) |
+| RF-148 | Busca por nome | [018](../specs/018-identidade-candidatura/) |
+| RF-149 | Grade no estado "aguardando" | [018](../specs/018-identidade-candidatura/) |
+| RF-150 | "Fonte: TSE" e carimbo de frescor | [018](../specs/018-identidade-candidatura/) |
+| RF-151 | Fallback de avatar | [018](../specs/018-identidade-candidatura/) |
+| RF-152 | Cadência de reimportação e guarda | [018](../specs/018-identidade-candidatura/) |
 
 ## Cobertura
 
-**60 RFs originais do PRD** + 42 RFs adicionados nas specs (RF-005.1-4, RF-006.1-5, RF-012.1-2, RF-058.1-2, RF-010.1-6, RF-020.1-3, RF-030.7-9, RF-061-63, RF-100-108, RF-120-130+125.1) = **102 RFs no total**. Todos mapeados pra alguma spec.
+**60 RFs originais do PRD** + 55 RFs adicionados nas specs (RF-005.1-4, RF-006.1-5, RF-012.1-2, RF-058.1-2, RF-010.1-6, RF-020.1-3, RF-030.7-9, RF-061-63, RF-100-108, RF-120-130+125.1, RF-140-152) = **115 RFs no total**. Todos mapeados pra alguma spec.
 
 ## RNFs
 

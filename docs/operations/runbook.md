@@ -175,6 +175,91 @@ Checklist:
 - [ ] Janela aberta ou override ativo
 - [ ] Verificar logs Vercel (`vercel logs`) — webhook timeout (3s) faz fire-and-forget falhar silenciosamente
 
+## Candidatos — importação de cadastro (spec 018, RF-152)
+
+**Escopo**: Importação recorrente do Portal de Dados Abertos do TSE (candidatos + fotos + partidos). Roda fora do request path, como `eleitorado-import` e `zonas-import`.
+
+### Cadência
+
+- **Até ~20/09**: Diária (oportunista, sem aviso prévio)
+- **21/09 até 01/10**: A cada 2–3 dias
+- **02–03/10**: **Obrigatória** — última janela de confirmação antes da apuração (ADR-0040, RF-152)
+
+### Como rodar manualmente
+
+```bash
+set -a; . ./.env.local; set +a
+node --experimental-strip-types data-pipeline/candidatos-import.ts [--force]
+```
+
+**Argumentos**:
+- Sem flag: baixa arquivos do TSE se houver mudança detectada via header `Last-Modified` (GET Range). Se nenhuma mudança, ciclo para sem escrever.
+- `--force`: ignora `Last-Modified` e reimporta tudo (use só em emergência ou em 02–03/10 se o ciclo anterior falhou).
+
+### Saída esperada (13/09)
+
+```
+[0008] ok: candidatos
+[0008] ok: partidos
+[0008] ok: ix_cand_cargo_uf
+[0008] ok: ix_cand_publicavel
+[0008] ok: ix_cand_busca
+[0008] candidatos: 20939 linhas, 7698 publicáveis nos 4 cargos
+[0008] partidos: 30 registros
+[candidatos-import] Frescor: <data/hora> (Last-Modified do TSE)
+[candidatos-import] Publicáveis: 7698 (limite 2%: 7544 mín)
+[candidatos-import] Fotos: 387 encontradas no Acre (amostra), 0 órfãs
+[candidatos-import] Blob: <N> fotos gravadas em candidatos/foto/<UF>/
+[candidatos-import] Índice: candidatos/index.json publicado (760 bytes)
+[candidatos-import] Ciclo completo: <duração>
+```
+
+### Guarda de encolhimento (RF-152)
+
+Se uma reimportação produzir **menos de 98%** da contagem anterior, o ciclo **aborta** e publica um alerta (sem alterar o Blob):
+
+```
+[candidatos-import] AVISO: encolhimento detectado
+  Anterior: 7698 publicáveis
+  Novo:     7540 publicáveis
+  Queda: 2,07% (máximo permitido: 2%)
+  Ação: use --force para confirmar a mudança, ou investigue
+```
+
+### Onde olhar em emergência
+
+Se o ciclo disso errado:
+
+1. **Logs**: `pnpm candidatos:import 2>&1 | tee /tmp/import-log.txt`
+2. **Banco**: `psql $DATABASE_URL -c "SELECT COUNT(*), COUNT(*) FILTER (WHERE publicavel) FROM candidatos;"`
+3. **Blob**: `vercel env pull` + ler Vercel Blob storage (bucket `candidatos`) via CLI da Vercel
+4. **Index**: `curl https://<BLOB-URL>/candidatos/index.json`
+
+Se o Blob ficou corrompido mas Postgres está OK:
+
+```bash
+# Reescrever só as fotos e o index:
+node --experimental-strip-types data-pipeline/candidatos-import.ts --skip-db --force
+```
+
+(Nota: `--skip-db` ainda não existe em 13/09 — será adicionado se necessário em operação real.)
+
+### Armadilha: User-Agent e bloqueio do TSE
+
+O download dos arquivos usa `TSE_ETL_USER_AGENT` de `data-pipeline/_tse-common.ts:70`. Atualmente:
+
+```
+SalaCofre-ETL/0.1
+```
+
+**Se a Akamai bloquear o download com 403**, adicionar o field de contato (atualmente pendente):
+
+```
+SalaCofre-ETL/0.1 (contato: menna@outsiders.digital)
+```
+
+Mas primeiro **verifique se a URL de base está correta** (deve ser `https://cdn.tse.jus.br/`, não outro host).
+
 ## Modelo — profiling baseline (T13 spec 002 · RNF-006)
 
 Baseline de `computed_duration_ms` do endpoint `/api/model/project` (orquestrador T12). A meta operacional é **p95 < 2000ms** ([RNF-006](../nfr/performance.md)), com sub-meta interna **p95 < 1500ms** para deixar ≥500ms de folga ao I/O Postgres (Neon) que entra na conta em produção.
