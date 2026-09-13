@@ -327,6 +327,22 @@
       "date": "2026-09-13",
       "note": "decisão já implementada em `2bcee57` (`api/model/cadeiras_bootstrap.py:454-458`) junto com o ADR-0036; formaliza a agregação nacional do RF-127 — UF sem faixa soma seu ponto repetido nas réplicas, e a guarda pré-existente (`medida`, `:445-463`) segue suprimindo a faixa só quando NENHUMA UF da agremiação tem faixa própria. Consequência a acompanhar (não corrigida aqui): faixa nacional parcialmente constante fica mais estreita que o real e não se declara como tal na UI — tensiona constituição § 8.",
       "path": "docs/architecture/adrs/0037-uf-sem-faixa-entra-como-constante-no-nacional.md"
+    },
+    {
+      "id": "0038",
+      "title": "Hora do dado do TSE (dg/hg) como campo dado_ts explícito no payload, não a hora em que o modelo rodou — alarme de pipeline parado via _alert_slack, inerte até SLACK_WEBHOOK_URL existir",
+      "status": "accepted",
+      "date": "2026-09-13",
+      "amends": [
+        "0001",
+        "0011",
+        "0012",
+        "0026",
+        "0032",
+        "0036"
+      ],
+      "note": "D1: novos campos dado_ts (max dg/hg convertido p/ UTC, null quando ausente) e pares_atrasados nos três envelopes (EdgePayload/EdgePayloadUf/EdgePayloadDeputado) — ts existente NÃO muda de nome nem de significado (continua 'hora em que o modelo rodou'); payload sem o campo novo (rollout) cai no texto atual, nunca fabrica substituto. D2: dado_ts é o MÁXIMO (raw_snapshots pré-merge no ramo majoritário, project.py:4142; snapshots no ramo proporcional, project.py:3832 — desde o ADR-0036 os quatro cargos chegam em granularidade de par, ~6.110 linhas); mínimo cru rejeitado (sempre velho por razões legítimas); pares_atrasados conta pares >2 cadências atrás do dado_ts DO PRÓPRIO CICLO (não de now()), pra distinguir 'um par se mexeu, 6.109 não' de lull legítimo do TSE. D3: limiar de alarme = 3x a cadência do cargo (60s/300s/1.800s — Deputado é 30min desde o ADR-0036, ATUALIZACAO_MIN_DEPUTADO em project.py:3716; a versão anterior deste ADR usava 15min e registrava a divergência como questão aberta, agora resolvida pelo ADR-0036), via _alert_slack já existente, inerte sem SLACK_WEBHOOK_URL (não configurada, pendência do usuário). D4: banner amarelo + último valor conhecido (constituição §7) gatilhado por dado_ts, dá corpo ao estado 'Erro de dados' que a spec 003 já descrevia sem nenhum componente implementá-lo. D5: DetailFreshness está CORRETO para o que mede (Blob atrasado do resumo, escritas best-effort não-atômicas) — ganha sinal independente de dado_ts ao lado, não reescrita; clamp do data-lag-minutes negativo (~-1 no ciclo saudável); zero cobertura de teste hoje. Replay 2022 roda com dado_ts=null (fixture podada sem dg/hg) — não quebra o gate OT-4. Nota: ramo proporcional (cargo 6) NÃO chama merge_pairs_into_zonas — agrega via combinar_entradas (api/model/deputado.py:412); dado_ts é extraído de `snapshots` antes dessa agregação, mesmo papel que raw_snapshots tem no ramo majoritário.",
+      "path": "docs/architecture/adrs/0038-dado-ts-hora-do-dado-nao-hora-do-calculo.md"
     }
   ],
   "nfr": {
