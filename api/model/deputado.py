@@ -45,12 +45,17 @@ esperado: a comparação só é conclusiva com `tf == "s"` (totalização final)
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Literal
 
 from api.model.cadeiras import Agremiacao, Candidato, ResultadoCadeiras
 
 CARGO_DEPUTADO_FEDERAL = 6
+
+#: Prefixo do `cod` de uma agremiação do tipo `"c"` (coligação) — anomalia de
+#: dado em cargo proporcional (ADR-0027, caso de borda 7). Exportado porque o
+#: caller precisa detectá-la sem reconstruir a string.
+PREFIXO_COLIGACAO = "coligacao:"
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +112,29 @@ def _cod_candidato(cand: dict[str, Any]) -> int | None:
     return int(texto) if texto.isdigit() else None
 
 
+def _texto(raw: Any) -> str:
+    """Campo de texto do EA20, normalizado — nunca `None` para a tela.
+
+    A sigla de partido **inapto** vem com `**` à direita no EA20 (dicionário
+    oficial, elemento `par.sg`). O asterisco é um marcador de situação
+    cadastral, não parte da sigla: exibi-lo colaria `PP**` no rótulo de uma
+    barra. Ele é removido aqui, e a informação de inaptidão não é usada em
+    lugar nenhum do produto hoje — se um dia for, tem de ser um campo próprio,
+    não um sufixo de string.
+    """
+    if raw is None:
+        return ""
+    return str(raw).strip().rstrip("*").strip()
+
+
+def _componentes(raw: Any) -> tuple[str, ...]:
+    """`"PT/PCdoB/PV"` → `("PT", "PCdoB", "PV")` (campo `com` do EA20)."""
+    if raw is None:
+        return ()
+    partes = [_texto(p) for p in str(raw).split("/")]
+    return tuple(p for p in partes if p)
+
+
 def _raiz(payload: Any) -> dict[str, Any] | None:
     """Desembrulha o `abr[0]` que alguns níveis do EA20 usam."""
     if not isinstance(payload, dict):
@@ -122,6 +150,40 @@ def _raiz(payload: Any) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 
 
+TipoAgremiacao = Literal["partido", "federacao", "coligacao"]
+
+
+@dataclass(frozen=True)
+class IdentidadeAgremiacao:
+    """Quem é a agremiação — nome, sigla, tipo, composição.
+
+    Vive **fora** de `cadeiras.Agremiacao` de propósito (design 017 D4): aquele
+    dataclass é o contrato do algoritmo do ADR-0027 e não tem nada a ganhar
+    conhecendo nome de partido. A identidade viaja num mapa paralelo chaveado
+    pelo mesmo `cod` (`agr[].n`), e o algoritmo continua magro.
+    """
+
+    cod: str
+    sigla: str
+    nome: str
+    tipo: TipoAgremiacao
+    #: Siglas dos partidos componentes. `()` em partido isolado (RF-122).
+    componentes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class IdentidadeCandidato:
+    """Quem é o candidato. Chaveado por `sqcand`, **nunca** por `cand.n`."""
+
+    sqcand: int
+    nome: str
+    #: Sigla do partido dentro da agremiação — numa federação, distingue os
+    #: componentes (RF-122); num partido isolado, repete a sigla da agremiação.
+    partido: str
+    #: `cod` da agremiação a que pertence.
+    agremiacao: str
+
+
 @dataclass(frozen=True)
 class EntradaProporcional:
     """Tudo que um envelope EA20 de cargo proporcional oferece ao cálculo."""
@@ -135,6 +197,21 @@ class EntradaProporcional:
     vagas_tse: dict[str, int]
     #: `tf == "s"` — só com totalização final a conferência é conclusiva.
     totalizacao_final: bool
+    #: `cod` → identidade da agremiação. Paralelo a `agremiacoes` (D4).
+    identidade_agremiacoes: dict[str, IdentidadeAgremiacao] = field(default_factory=dict)
+    #: `sqcand` → identidade do candidato. Paralelo aos `Candidato` (D4).
+    identidade_candidatos: dict[int, IdentidadeCandidato] = field(default_factory=dict)
+
+    @property
+    def tem_coligacao(self) -> bool:
+        """Há agremiação do tipo `"c"` — anomalia em cargo proporcional.
+
+        Coligação proporcional é vedada desde 2020 (CF art. 17 § 1º, EC
+        97/2017). O ADR-0027 (caso de borda 7) manda **não processá-la como
+        agremiação válida**; quem decide o que fazer com a UF inteira é o
+        caller, que é quem sabe alertar.
+        """
+        return any(a.cod.startswith(PREFIXO_COLIGACAO) for a in self.agremiacoes)
 
 
 def extrair_entrada_proporcional(
@@ -153,6 +230,20 @@ def extrair_entrada_proporcional(
     encontrá-la aqui é anomalia de dado, não caso a processar (ADR-0027, caso de
     borda 7). Elas saem em `agremiacoes` com `cod` prefixado por `"coligacao:"`
     para que o caller possa logar — nunca silenciosamente somadas.
+
+    ## Identidade (design 017 D4)
+
+    Nome, sigla, tipo e composição saem em `identidade_agremiacoes`; nome e
+    partido de cada candidato, em `identidade_candidatos`. Dois mapas paralelos,
+    não campos novos em `Agremiacao`/`Candidato` — o contrato do algoritmo do
+    ADR-0027 continua sendo só voto e código.
+
+    **A sigla da agremiação não existe no EA20.** `agr[]` publica `n`, `nm`,
+    `tp` e `com`, mas **não** `sg` (dicionário oficial, `carg[].agr[]`). Ela é
+    derivada: federação pega a sigla de `carg[].fed[]` com o mesmo número
+    (`fed[].sg`); partido isolado pega a do seu único `par[].sg`. É o único
+    ponto em que `fed[]` é lida — e mesmo aqui só por identidade: nenhum voto e
+    nenhum candidato passam por ela.
     """
     raiz = _raiz(payload)
     if raiz is None:
@@ -174,6 +265,17 @@ def extrair_entrada_proporcional(
         qe = carg.get("qe")
         agremiacoes: list[Agremiacao] = []
         vagas_tse: dict[str, int] = {}
+        identidade_agr: dict[str, IdentidadeAgremiacao] = {}
+        identidade_cand: dict[int, IdentidadeCandidato] = {}
+
+        # `fed[]` só para IDENTIDADE (sigla/composição da federação) — nunca
+        # para voto ou candidato, que chegam exclusivamente por `agr[]`.
+        federacoes: dict[str, dict[str, Any]] = {}
+        for fed in carg.get("fed") or []:
+            if isinstance(fed, dict):
+                numero_fed = str(fed.get("n", "")).strip()
+                if numero_fed:
+                    federacoes[numero_fed] = fed
 
         for agr in carg.get("agr") or []:
             if not isinstance(agr, dict):
@@ -182,14 +284,18 @@ def extrair_entrada_proporcional(
             numero = str(agr.get("n", "")).strip()
             if not numero:
                 continue
-            cod = f"coligacao:{numero}" if tipo == "c" else numero
+            cod = f"{PREFIXO_COLIGACAO}{numero}" if tipo == "c" else numero
 
             candidatos: list[Candidato] = []
             legenda_dos_partidos = 0
+            siglas_par: list[str] = []
             for par in agr.get("par") or []:
                 if not isinstance(par, dict):
                     continue
                 legenda_dos_partidos += _int(par.get("tvtl"))
+                sigla_par = _texto(par.get("sg"))
+                if sigla_par:
+                    siglas_par.append(sigla_par)
                 for cand in par.get("cand") or []:
                     if not isinstance(cand, dict):
                         continue
@@ -203,6 +309,23 @@ def extrair_entrada_proporcional(
                             nascimento=_nascimento(cand.get("dt")),
                         )
                     )
+                    # `nmu` (nome na urna) antes de `nm` (nome completo): é o
+                    # nome pelo qual o eleitor conhece o candidato e o que o
+                    # próprio TSE exibe. `nm` fica de reserva.
+                    identidade_cand[cod_cand] = IdentidadeCandidato(
+                        sqcand=cod_cand,
+                        nome=_texto(cand.get("nmu")) or _texto(cand.get("nm")),
+                        partido=sigla_par,
+                        agremiacao=cod,
+                    )
+
+            identidade_agr[cod] = _identidade_agremiacao(
+                cod=cod,
+                tipo_bruto=tipo,
+                agr=agr,
+                siglas_par=siglas_par,
+                fed=federacoes.get(numero),
+            )
 
             # `agr[].tvtl` é o agregado publicado; a soma dos `par[].tvtl` é o
             # mesmo número por construção. Preferimos o agregado quando existe,
@@ -223,9 +346,154 @@ def extrair_entrada_proporcional(
             quociente_eleitoral_tse=_int(qe, default=0) or None,
             vagas_tse=vagas_tse,
             totalizacao_final=totalizacao_final,
+            identidade_agremiacoes=identidade_agr,
+            identidade_candidatos=identidade_cand,
         )
 
     return EntradaProporcional([], None, None, {}, totalizacao_final)
+
+
+def _identidade_agremiacao(
+    *,
+    cod: str,
+    tipo_bruto: str,
+    agr: dict[str, Any],
+    siglas_par: list[str],
+    fed: dict[str, Any] | None,
+) -> IdentidadeAgremiacao:
+    """Nome, sigla, tipo e composição de uma `agr[]` (D4).
+
+    `tp` do EA20 → tipo do payload: `"i"` → `"partido"`, `"f"` → `"federacao"`,
+    `"c"` → `"coligacao"` (anomalia — nunca exibida, sempre logada).
+
+    A sigla vem, nesta ordem: `fed[].sg` (só federação), a sigla do único
+    `par[]` (partido isolado), o nome da agremiação, e por fim o próprio número.
+    Nunca fica vazia: uma barra sem rótulo é pior que uma barra com o número.
+    """
+    tipo: TipoAgremiacao = (
+        "federacao" if tipo_bruto == "f" else "coligacao" if tipo_bruto == "c" else "partido"
+    )
+    nome = _texto(agr.get("nm"))
+
+    if tipo == "federacao":
+        sigla = _texto((fed or {}).get("sg")) or nome or cod
+        # `com` sai da própria agremiação quando publicado; `fed[].com` é o
+        # mesmo dado no dicionário de federações. A lista de `par[].sg` é o
+        # último recurso — ela é a composição de fato, só não vem ordenada
+        # pelo TSE, por isso não é a primeira escolha.
+        componentes = (
+            _componentes(agr.get("com"))
+            or _componentes((fed or {}).get("com"))
+            or tuple(siglas_par)
+        )
+    elif tipo == "partido":
+        sigla = (siglas_par[0] if siglas_par else "") or nome or cod
+        # RF-122 / D5: partido isolado sai com `componentes` vazio — repetir a
+        # própria sigla ali faria a tela desenhar "PT (PT)".
+        componentes = ()
+    else:
+        sigla = nome or cod
+        componentes = _componentes(agr.get("com")) or tuple(siglas_par)
+
+    return IdentidadeAgremiacao(
+        cod=cod,
+        sigla=sigla,
+        nome=nome or sigla,
+        tipo=tipo,
+        componentes=componentes,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Combinação de envelopes — a defesa contra o `Map.set` sobre linhas de par
+# ---------------------------------------------------------------------------
+
+
+def combinar_entradas(entradas: list[EntradaProporcional]) -> EntradaProporcional:
+    """Soma N envelopes da MESMA UF em uma entrada só.
+
+    O cargo 6 é ingerido em granularidade UF (ADR-0026 item 1): o caso normal é
+    **um** envelope por UF, e aí esta função devolve o objeto original,
+    inalterado. Ela existe para o caso anormal — uma UF com linhas de
+    `(município, zona)` no banco, vindas de um ciclo em modo `zona` ou de uma
+    escotilha de diagnóstico.
+
+    Nesse caso a única coisa certa a fazer com os votos é **somar**: escolher
+    uma linha e descartar as outras é o modo de falha que esta base já pagou
+    caro desde a migration 0006 (ADR-0035) — o número sai plausível, menor, e
+    sem erro nenhum.
+
+    O que **não** é somado, porque somar seria inventar:
+
+      - `quociente_eleitoral_tse` e `vagas_tse` viram `None`/`{}`. São grandezas
+        da circunscrição inteira; a versão publicada num arquivo de zona não
+        é conferível contra a nossa conta da UF, e `conferir_contra_tse`
+        acusaria divergência que não existe.
+      - `lugares_a_preencher` é o **máximo** dos publicados — a circunscrição é
+        a mesma para todas as linhas, e vaga não encolhe.
+      - `totalizacao_final` só é verdadeira se **todas** as linhas o disserem.
+    """
+    if not entradas:
+        return EntradaProporcional([], None, None, {}, False)
+    if len(entradas) == 1:
+        return entradas[0]
+
+    legenda_por_cod: dict[str, int] = {}
+    votos_por_cand: dict[str, dict[int, int]] = {}
+    nascimento_por_cand: dict[int, int | None] = {}
+    ordem_cods: list[str] = []
+    ordem_cands: dict[str, list[int]] = {}
+    identidade_agr: dict[str, IdentidadeAgremiacao] = {}
+    identidade_cand: dict[int, IdentidadeCandidato] = {}
+
+    for entrada in entradas:
+        for agremiacao in entrada.agremiacoes:
+            cod = agremiacao.cod
+            if cod not in legenda_por_cod:
+                legenda_por_cod[cod] = 0
+                votos_por_cand[cod] = {}
+                ordem_cands[cod] = []
+                ordem_cods.append(cod)
+            legenda_por_cod[cod] += agremiacao.votos_legenda
+            for cand in agremiacao.candidatos:
+                if cand.cod not in votos_por_cand[cod]:
+                    votos_por_cand[cod][cand.cod] = 0
+                    ordem_cands[cod].append(cand.cod)
+                votos_por_cand[cod][cand.cod] += cand.votos_nominais
+                if nascimento_por_cand.get(cand.cod) is None:
+                    nascimento_por_cand[cand.cod] = cand.nascimento
+        for cod, ident in entrada.identidade_agremiacoes.items():
+            identidade_agr.setdefault(cod, ident)
+        for sq, ident_c in entrada.identidade_candidatos.items():
+            identidade_cand.setdefault(sq, ident_c)
+
+    agremiacoes = [
+        Agremiacao(
+            cod=cod,
+            votos_legenda=legenda_por_cod[cod],
+            candidatos=tuple(
+                Candidato(
+                    cod=sq,
+                    votos_nominais=votos_por_cand[cod][sq],
+                    nascimento=nascimento_por_cand.get(sq),
+                )
+                for sq in ordem_cands[cod]
+            ),
+        )
+        for cod in ordem_cods
+    ]
+
+    lugares = [e.lugares_a_preencher for e in entradas if e.lugares_a_preencher is not None]
+
+    return EntradaProporcional(
+        agremiacoes=agremiacoes,
+        lugares_a_preencher=max(lugares) if lugares else None,
+        quociente_eleitoral_tse=None,
+        vagas_tse={},
+        totalizacao_final=all(e.totalizacao_final for e in entradas),
+        identidade_agremiacoes=identidade_agr,
+        identidade_candidatos=identidade_cand,
+    )
 
 
 # ---------------------------------------------------------------------------

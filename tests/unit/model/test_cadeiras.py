@@ -265,6 +265,37 @@ def test_caso5_empate_de_votos_elege_o_mais_idoso() -> None:
     assert r.eleitos["A"][0].cod == 11, "elegeu o mais novo"
 
 
+def test_empate_que_a_norma_nao_resolve_sai_como_dado_e_como_frase() -> None:
+    """Duas saídas do mesmo fato, e a de máquina não é extraída da de humano.
+
+    Cenário: duas agremiações idênticas em tudo que a norma usa para desempatar
+    — mesma média, mesma votação total, mesma votação nominal do candidato que
+    disputa a vaga (Res. 23.677 art. 11 §§ 6º–7º esgotados). A norma não prevê
+    sorteio, então o módulo **registra** e a tela marca como indeterminado.
+
+    `empates_agremiacoes` é o dado (a tela marca barras por código);
+    `empates_indeterminados` é a frase (o log é lido por gente). Quem precisa
+    do código não pode ir buscá-lo dentro do texto: a frase pode ser reescrita
+    a qualquer momento, e este é um caso raro o bastante para a quebra passar
+    despercebida.
+    """
+    r = distribuir_cadeiras([_ag("A", 400, 100), _ag("B", 400, 100)], 3)
+
+    assert r.empates_agremiacoes == [["A", "B"]], "o cenário deixou de empatar"
+    assert len(r.empates_indeterminados) == 1
+    assert "A" in r.empates_indeterminados[0] and "B" in r.empates_indeterminados[0]
+    # A vaga continua sendo atribuída — marcar como indeterminado é sobre o que
+    # a tela diz, não sobre deixar cadeira no ar.
+    assert sum(r.cadeiras.values()) == 3
+
+
+def test_distribuicao_sem_empate_nao_registra_nada() -> None:
+    r = distribuir_cadeiras([_ag("A", 1000), _ag("B", 400)], 2)
+
+    assert r.empates_agremiacoes == []
+    assert r.empates_indeterminados == []
+
+
 def test_caso6_federacao_conta_como_uma_agremiacao() -> None:
     """Lei 9.096 art. 11-A + Lei 9.504 art. 6º-A — federação é UMA agremiação.
 

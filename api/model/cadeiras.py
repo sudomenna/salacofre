@@ -107,8 +107,19 @@ class ResultadoCadeiras:
     suplentes: dict[str, list[Candidato]]
     #: Vagas que sobraram sem ninguém a quem atribuir (listas esgotadas).
     vagas_nao_preenchidas: int = 0
-    #: Desempates que a norma não resolve — exibir como indeterminado, nunca escolher.
+    #: Desempates que a norma não resolve, em frase legível — **para humano**.
+    #: Serve a log e a mensagem de erro; não é fonte de dado de máquina.
     empates_indeterminados: list[str] = field(default_factory=list)
+    #: Os mesmos empates, em dado: uma lista de códigos de agremiação por
+    #: empate, na mesma ordem de `empates_indeterminados`.
+    #:
+    #: Existe porque a tela precisa marcar barras, e quem precisava do código
+    #: estava extraindo-o de dentro da frase acima, procurando `'cod'` no texto.
+    #: Funcionava, tinha teste, e quebraria em silêncio na primeira vez que
+    #: alguém reescrevesse a mensagem — num caso (empate que sobrevive aos dois
+    #: desempates da Res. 23.677 art. 11 §§ 6º–7º) raro o bastante para ninguém
+    #: notar. A frase continua existindo para o humano; o dado sai daqui.
+    empates_agremiacoes: list[list[str]] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -225,6 +236,7 @@ def distribuir_cadeiras(
     vagas_obtidas: dict[str, int] = {a.cod: 0 for a in agremiacoes}
     qp: dict[str, int] = {a.cod: 0 for a in agremiacoes}
     empates: list[str] = []
+    empates_cods: list[list[str]] = []
 
     # Fila de candidatos por agremiação, já na ordem de ocupação.
     fila: dict[str, list[Candidato]] = {a.cod: _ordenar_candidatos(a.candidatos) for a in agremiacoes}
@@ -315,10 +327,13 @@ def distribuir_cadeiras(
             == chave_melhor
         ]
         if empatados:
+            envolvidos = sorted([melhor, *empatados])
+            # Duas saídas do MESMO fato, e nenhuma derivada da outra: a frase
+            # para o humano ler, a lista para a máquina consumir.
             empates.append(
-                f"vaga disputada em empate não resolvido pela norma entre "
-                f"{sorted([melhor, *empatados])}"
+                f"vaga disputada em empate não resolvido pela norma entre {envolvidos}"
             )
+            empates_cods.append(envolvidos)
 
         cand = _proximo_nao_eleito(melhor, piso_cand)
         assert cand is not None  # garantido pelo filtro de `concorrentes`
@@ -350,4 +365,5 @@ def distribuir_cadeiras(
         suplentes=suplentes,
         vagas_nao_preenchidas=restantes,
         empates_indeterminados=empates,
+        empates_agremiacoes=empates_cods,
     )

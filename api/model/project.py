@@ -74,10 +74,22 @@ from pydantic import BaseModel, Field, ValidationError
 
 from api.model.cargos import (
     Granularidade,
+    cargo_info,
     granularidade as cargo_granularidade,
     total_cadeiras as cargo_total_cadeiras,
     vagas_em_disputa as cargo_vagas_em_disputa,
     vagas_por_uf as cargo_vagas_por_uf,
+)
+from api.model.cadeiras import distribuir_cadeiras
+from api.model.deputado import (
+    combinar_entradas,
+    conferir_contra_tse,
+    extrair_entrada_proporcional,
+)
+from api.model.deputado_payload import (
+    UfProporcional,
+    construir_payload_deputado,
+    normalizar_divergencia,
 )
 from api.model.extrapolation import (
     CandidatoEstimate,
@@ -2127,6 +2139,21 @@ def _national_votos_por_candidato(
     return votos, total
 
 
+class CargoProporcionalError(ValueError):
+    """Cargo proporcional entrou onde só cabe corrida majoritária.
+
+    Não é um erro de digitação de quem chamou: é a barreira que impede um
+    agregado nacional inválido de sair publicado com cara de válido (design
+    017, D3). Ver `compute_national`.
+    """
+
+
+def _e_proporcional(cargo: int) -> bool:
+    """O cargo elege por lista proporcional? (`lib/config/cargos.ts`)."""
+    info = cargo_info(cargo)
+    return bool(info is not None and info["proporcional"])
+
+
 def compute_national(
     cargo: int,
     turno: int,
@@ -2174,7 +2201,27 @@ def compute_national(
     quando fornecido, popula `rows[*]["votos_projetados"]` com o total
     REAL (em vez de `None`). Assinatura estável para callers legados
     (`replay_batch.py`) que não têm esse dado.
+
+    **Cargo proporcional é RECUSADO** (design 017, D3; `CargoProporcionalError`).
+    Esta função agrega por `candidato_id`, que na corrida proporcional é o
+    número de urna — e ele se repete entre UFs e entre partidos. Agregar por
+    ele funde candidatos distintos: as linhas por UF continuam certas e a linha
+    nacional sai inválida, sem erro nenhum. A visão nacional do Deputado é a
+    **bancada** (`api/model/deputado_payload.py`), que é soma de 27 corridas, e
+    não uma estimativa nacional.
+
+    Raises:
+        CargoProporcionalError: cargo com `proporcional: true` em
+            `lib/config/cargos.ts` (hoje, o 6 — Deputado Federal).
     """
+    if _e_proporcional(cargo):
+        raise CargoProporcionalError(
+            f"cargo {cargo} é proporcional — `compute_national` agrega por número "
+            "de urna, que se repete entre UFs e partidos nesta corrida. A visão "
+            "nacional do Deputado Federal é a bancada somada das 27 UFs "
+            "(`api/model/deputado_payload.py`), não um agregado de candidatos."
+        )
+
     _empty_outros: tuple[np.ndarray, int] = (np.zeros(0, dtype=np.float64), 0)
 
     # Reúne candidatos vistos.
@@ -3452,11 +3499,18 @@ def _alert_slack(severity: str, msg: str, **ctx: Any) -> None:
     """
     webhook_url = os.environ.get("SLACK_WEBHOOK_URL")
     if not webhook_url:
+        # `alerta=` e não `msg=`: `_log(level, msg, **ctx)` já tem um parâmetro
+        # chamado `msg`, e passá-lo de novo por keyword levanta TypeError. O
+        # defeito viveu aqui desde que a função nasceu e só aparecia com
+        # `SLACK_WEBHOOK_URL` ausente **e** um alerta disparando — isto é, em
+        # todo ambiente sem Slack configurado, exatamente no momento em que
+        # algo já tinha dado errado. A função que "nunca levanta" levantava, e
+        # o ciclo inteiro virava 500.
         _log(
             "info",
             "slack alert skipped — SLACK_WEBHOOK_URL ausente",
             severity=severity,
-            msg=msg,
+            alerta=msg,
         )
         return
 
@@ -3576,6 +3630,263 @@ def post_edge_write(
 # ---------------------------------------------------------------------------
 
 
+#: Cadência declarada da corrida proporcional, em minutos (RF-128, ADR-0026
+#: item 5). Entra no payload para que a tela não a escreva à mão — foi assim
+#: que quatro frases do Senador viraram falsas em 11/09.
+ATUALIZACAO_MIN_DEPUTADO = 15
+
+#: UFs da eleição. Não é configuração nem contagem do ciclo: é quantas
+#: circunscrições a Câmara tem. Derivar de quem já apurou faria
+#: `ufs_aguardando` valer zero a noite inteira, e a soma "fecharia" mentindo.
+UFS_DA_ELEICAO = 27
+
+
+def _do_project_proporcional(
+    req: ProjectRequest, t0: int
+) -> tuple[int, dict[str, Any]]:
+    """Ciclo do cargo proporcional — Deputado Federal (spec 017, design D5/D6).
+
+    É um caminho separado do majoritário, e não um `if` dentro dele, porque
+    quase nada do outro se aplica: não há líder da corrida, não há duelo, não há
+    agulha, e o bootstrap por zona não existe (o cargo 6 é ingerido em
+    granularidade **UF**, ADR-0026 item 1 — 27 alvos por ciclo). O que existe é
+    a aritmética do ADR-0027 sobre o voto apurado de cada UF, somada em bancada.
+
+    O que este caminho **não** faz, e por quê:
+
+      - **Não chama `compute_national`.** Ela agrega por número de urna, que se
+        repete no proporcional (D3) — a guarda de lá recusaria de qualquer
+        forma, e recusar é o ponto.
+      - **Não grava em `projections`.** A tabela é de linha por candidato com
+        `pct_projetado`/`p_vitoria`, grandezas que não existem aqui. A
+        persistência append-only da corrida (constituição § 10) é a de
+        `snapshots`, que a ingestão já faz — nada se perde.
+      - **Não projeta voto ainda.** As cadeiras saem do voto **apurado** até o
+        instante do ciclo. O intervalo de RF-127 (`cadeiras_ci95`) é opcional no
+        contrato de propósito (D7) e entra quando a medição de custo permitir.
+    """
+    with _open_conn() as conn:
+        # Uma linha por (uf, município, zona). Em granularidade UF isso é uma
+        # linha por UF, com os sentinelas `cod_zona = 0` / `cod_municipio_tse
+        # = 0` (`lib/tse/targets.ts::buildUfTarget`). Linhas de zona de um
+        # ciclo antigo, se existirem, são SOMADAS por `combinar_entradas` —
+        # nunca escolhidas uma e descartadas as outras.
+        snapshots = fetch_snapshots(conn, req.cargo, req.turno)
+        try:
+            eleitorado = fetch_eleitorado(conn, ano=2026)
+        except Exception as exc:  # noqa: BLE001 — pesa o pct, não decide cadeira
+            # O eleitorado só pondera o `pct_apurado_total`. Perdê-lo degrada
+            # esse número (cai para média simples); derrubar o ciclo por causa
+            # dele apagaria a bancada inteira da tela (constituição § 7).
+            _log("warn", "fetch_eleitorado falhou no ciclo proporcional", error=str(exc))
+            eleitorado = {}
+            try:
+                conn.rollback()
+            except Exception:  # noqa: BLE001 — autocommit ou sem transação
+                pass
+
+    eleitorado_total_by_uf = _eleitorado_total_by_uf(eleitorado)
+
+    por_uf: dict[str, list[LatestSnapshot]] = {}
+    for row in snapshots:
+        sigla = str(row.get("uf") or "").strip().upper()
+        if not sigla or sigla == "BR":
+            continue
+        por_uf.setdefault(sigla, []).append(row)
+
+    if not por_uf:
+        _log(
+            "warn",
+            "sem snapshots para cargo proporcional — modelo nao executa",
+            cargo=req.cargo,
+            turno=req.turno,
+        )
+        duration_ms = (time.perf_counter_ns() - t0) // 1_000_000
+        return 200, ProjectResponse(
+            computed=False,
+            uf_count=0,
+            national_p_vitoria_a=0.0,
+            computed_duration_ms=int(duration_ms),
+        ).model_dump()
+
+    ufs: list[UfProporcional] = []
+    divergencias_por_uf: dict[str, list[dict[str, Any]]] = {}
+    n_calculadas = 0
+
+    for sigla in sorted(por_uf):
+        linhas = por_uf[sigla]
+        entrada = combinar_entradas(
+            [extrair_entrada_proporcional(linha.get("payload"), cargo=req.cargo) for linha in linhas]
+        )
+        # Com uma linha por UF (o caso normal) isto é o próprio pct do
+        # envelope (`s.psa`, o mesmo que a ingestão gravou na coluna). Com mais
+        # de uma, o maior é o menos errado dos números disponíveis — média
+        # ponderada exigiria o eleitorado de cada zona, e o caminho é
+        # defensivo, não o normal. A ocorrência é logada logo abaixo.
+        pct_apurado = max(float(linha.get("pct_apurado") or 0.0) for linha in linhas)
+        if len(linhas) > 1:
+            _log(
+                "warn",
+                "UF de cargo proporcional com mais de um snapshot — votos somados",
+                cargo=req.cargo,
+                turno=req.turno,
+                uf=sigla,
+                n_linhas=len(linhas),
+            )
+
+        resultado = None
+        if entrada.tem_coligacao:
+            # ADR-0027, caso de borda 7: coligação em proporcional é vedada
+            # desde 2020. Achar uma significa que o dado está errado — e
+            # distribuir cadeiras a partir dele publicaria uma bancada falsa
+            # com aparência normal. A UF sai como "aguardando", ruidosamente.
+            _log(
+                "error",
+                "coligação em cargo proporcional — UF fora do cálculo de cadeiras",
+                cargo=req.cargo,
+                turno=req.turno,
+                uf=sigla,
+            )
+            _alert_slack(
+                "error",
+                "coligação em corrida proporcional (vedada desde 2020) — a UF "
+                "ficou sem cálculo de cadeiras neste ciclo",
+                cargo=req.cargo,
+                turno=req.turno,
+                uf=sigla,
+            )
+        elif entrada.lugares_a_preencher is None:
+            # RF-124 — sem `carg[].nv` não há denominador do quociente, e
+            # inventá-lo corromperia a UF inteira. Fica aguardando.
+            _log(
+                "warn",
+                "UF sem `carg[].nv` publicado — cadeiras não calculadas",
+                cargo=req.cargo,
+                turno=req.turno,
+                uf=sigla,
+            )
+        else:
+            calculado = distribuir_cadeiras(entrada.agremiacoes, entrada.lugares_a_preencher)
+            if calculado.quociente_eleitoral < 1:
+                # UF sem voto válido ainda (0% apurado). Um quociente eleitoral
+                # de zero não é um quociente baixo: é a ausência dele. Publicar
+                # `0` faria a tela escrever "quociente eleitoral: 0", e contar a
+                # UF como calculada faria `ufs_aguardando` mentir. Ela fica
+                # aguardando, com as vagas publicadas entrando no total.
+                _log(
+                    "info",
+                    "UF sem voto válido ainda — sem quociente a publicar",
+                    cargo=req.cargo,
+                    turno=req.turno,
+                    uf=sigla,
+                )
+                ufs.append(
+                    UfProporcional(
+                        uf=sigla, pct_apurado=pct_apurado, entrada=entrada, resultado=None
+                    )
+                )
+                continue
+            resultado = calculado
+            n_calculadas += 1
+            divergencias = conferir_contra_tse(resultado, entrada)
+            # `o_que` sai num conjunto fechado (`CHAVES_DE_DIVERGENCIA`) — a
+            # tela rotula a divergência para o leitor e não pode ficar
+            # adivinhando string nossa.
+            divergencias_por_uf[sigla] = [normalizar_divergencia(d) for d in divergencias]
+            if divergencias and entrada.totalizacao_final:
+                # Com totalização final, divergir do TSE é erro — antes dela é
+                # esperado, porque o TSE recalcula a cada boletim.
+                _log(
+                    "error",
+                    "divergência contra o TSE com totalização final",
+                    cargo=req.cargo,
+                    turno=req.turno,
+                    uf=sigla,
+                    divergencias=divergencias_por_uf[sigla],
+                )
+                _alert_slack(
+                    "error",
+                    "cadeiras divergem do TSE com totalização final — "
+                    "a conta do ADR-0027 e a publicada não batem",
+                    cargo=req.cargo,
+                    turno=req.turno,
+                    uf=sigla,
+                    n_divergencias=len(divergencias),
+                )
+
+        ufs.append(
+            UfProporcional(
+                uf=sigla,
+                pct_apurado=pct_apurado,
+                entrada=entrada,
+                resultado=resultado,
+            )
+        )
+
+    # pct_apurado nacional ponderado pelo eleitorado, iterando pela UNIÃO das
+    # UFs conhecidas e das presentes — uma UF que ainda não apurou nada precisa
+    # entrar no DENOMINADOR com peso cheio, senão o número nacional infla
+    # justamente no começo da noite (mesma armadilha documentada em
+    # `build_edge_payload`).
+    pct_num = 0.0
+    pct_den = 0.0
+    pct_by_uf = {d.uf: d.pct_apurado for d in ufs}
+    for sigla in set(eleitorado_total_by_uf) | set(pct_by_uf):
+        peso = eleitorado_total_by_uf.get(sigla, 0)
+        if peso > 0:
+            pct_num += pct_by_uf.get(sigla, 0.0) * peso
+            pct_den += peso
+    if pct_den > 0:
+        pct_apurado_total = pct_num / pct_den
+    else:
+        # Sem a tabela `eleitorado` (banco sem seed, ambiente de teste) o peso
+        # some, mas o número não pode sumir junto: cai para média simples sobre
+        # as UFs da eleição, com a UF ausente contando 0. Menos preciso,
+        # jamais inflado.
+        pct_apurado_total = sum(pct_by_uf.values()) / max(UFS_DA_ELEICAO, len(pct_by_uf))
+
+    ts_iso = datetime.now(timezone.utc).isoformat()
+    payload, detalhes_uf = construir_payload_deputado(
+        ufs=ufs,
+        divergencias_por_uf=divergencias_por_uf,
+        ts_iso=ts_iso,
+        cargo=req.cargo,
+        turno=req.turno,
+        atualizacao_min=ATUALIZACAO_MIN_DEPUTADO,
+        ufs_conhecidas=max(UFS_DA_ELEICAO, len(ufs)),
+        pct_apurado_total=pct_apurado_total,
+    )
+
+    try:
+        post_edge_write(payload, payloads_uf=detalhes_uf)
+    except Exception as edge_exc:  # noqa: BLE001 — publicar nunca derruba o ciclo
+        _log(
+            "warn",
+            "edge-write block failed (cargo proporcional)",
+            error=str(edge_exc),
+            cargo=req.cargo,
+            turno=req.turno,
+        )
+
+    duration_ms = (time.perf_counter_ns() - t0) // 1_000_000
+    _log(
+        "info",
+        "model_project_proporcional_ok",
+        cargo=req.cargo,
+        turno=req.turno,
+        uf_count=n_calculadas,
+        cadeiras_atribuidas=payload["bancada"]["cadeiras_atribuidas"],
+        total_cadeiras=payload["bancada"]["total_cadeiras"],
+        duration_ms=int(duration_ms),
+    )
+    return 200, ProjectResponse(
+        computed=n_calculadas > 0,
+        uf_count=n_calculadas,
+        national_p_vitoria_a=0.0,
+        computed_duration_ms=int(duration_ms),
+    ).model_dump()
+
+
 def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
     """Lógica POST sem I/O HTTP — testável diretamente.
 
@@ -3590,6 +3901,24 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
         return 400, {"error": "invalid_body", "detail": e.errors()}
     except json.JSONDecodeError as e:
         return 400, {"error": "invalid_json", "detail": str(e)}
+
+    # 1b. Cargo proporcional segue por outro caminho inteiro (spec 017, D3):
+    # bancada somada das 27 UFs, sem bootstrap de candidato e sem agulha.
+    if _e_proporcional(req.cargo):
+        try:
+            return _do_project_proporcional(req, t0)
+        except Exception as exc:  # noqa: BLE001 — converter para 500 estruturado
+            trace_id = uuid.uuid4().hex[:12]
+            _log(
+                "error",
+                "model_project_proporcional_failed",
+                trace_id=trace_id,
+                cargo=req.cargo,
+                turno=req.turno,
+                error=str(exc),
+                traceback=traceback.format_exc(),
+            )
+            return 500, {"error": "internal_error", "trace_id": trace_id}
 
     # 2. Seed determinístico (constituição § 6).
     seed_base = derive_seed(req.cargo, req.turno, req.trigger_ts)

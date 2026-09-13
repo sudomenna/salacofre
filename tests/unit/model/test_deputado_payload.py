@@ -1,0 +1,1111 @@
+"""Do cálculo de cadeiras ao payload publicado — spec 017, design D5/D6.
+
+O cálculo já é coberto por `test_cadeiras.py` (21 casos de borda) e pelo golden
+de 2022 (511/513). O que se mede aqui é o **transporte**: o que sai do algoritmo
+chega à tela com a forma certa, sem o campo que não pode atravessar a fronteira,
+e sem perder a soma no caminho.
+
+Três armadilhas específicas deste trecho, todas verificadas por mutação (quebrar
+o código de propósito e conferir que o teste cai):
+
+1. **`vagas_obtidas` vazando** (D2/RF-125.1). Testado por asserção **negativa**:
+   a string não pode ocorrer no JSON serializado. A asserção positiva —
+   "`cadeiras` está certo" — passaria com os dois campos publicados.
+2. **Bancada sobrescrita em vez de somada.** A mesma agremiação aparece em até
+   27 UFs; `dict[cod] = valor` produziria a bancada do último estado lido. É o
+   modo de falha que esta base já pagou desde a migration 0006.
+3. **Agregado nacional por número de urna** (D3). `compute_national` tem de
+   RECUSAR o cargo proporcional — silenciar com um `if` deixaria as linhas por
+   UF certas e a nacional inválida, que é o pior dos dois mundos.
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+import pytest
+
+from api.model.cadeiras import distribuir_cadeiras
+from api.model.deputado import (
+    combinar_entradas,
+    conferir_contra_tse,
+    extrair_entrada_proporcional,
+)
+from api.model.deputado_payload import (
+    UfProporcional,
+    construir_payload_deputado,
+)
+
+# ---------------------------------------------------------------------------
+# Construtores de envelope EA20 — o formato real, em miniatura
+# ---------------------------------------------------------------------------
+
+
+def _cand(sq: int, nome: str, votos: int) -> dict[str, Any]:
+    return {
+        "n": str(1000 + sq),
+        "sqcand": str(sq),
+        "nm": f"{nome} NOME COMPLETO",
+        "nmu": nome,
+        "e": "n",
+        "vap": str(votos),
+        "pvap": "0,00",
+    }
+
+
+def _partido(
+    numero: str, sigla: str, legenda: int, candidatos: list[dict[str, Any]]
+) -> dict[str, Any]:
+    return {
+        "n": numero,
+        "sg": sigla,
+        "nm": f"Partido {sigla}",
+        "tvtl": str(legenda),
+        "cand": candidatos,
+    }
+
+
+def _agr_partido(
+    numero: str, sigla: str, legenda: int, candidatos: list[dict[str, Any]]
+) -> dict[str, Any]:
+    return {
+        "n": numero,
+        "nm": f"Partido {sigla}",
+        "tp": "i",
+        "tvtl": str(legenda),
+        "par": [_partido(numero, sigla, legenda, candidatos)],
+    }
+
+
+def _agr_federacao(
+    numero: str, nome: str, partidos: list[dict[str, Any]], com: str | None = None
+) -> dict[str, Any]:
+    agr: dict[str, Any] = {
+        "n": numero,
+        "nm": nome,
+        "tp": "f",
+        "par": partidos,
+    }
+    if com is not None:
+        agr["com"] = com
+    return agr
+
+
+def _envelope(
+    agremiacoes: list[dict[str, Any]],
+    *,
+    nv: str | None,
+    qe: str | None = None,
+    tf: str = "n",
+    fed: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    carg: dict[str, Any] = {"cd": "6", "agr": agremiacoes}
+    if nv is not None:
+        carg["nv"] = nv
+    if qe is not None:
+        carg["qe"] = qe
+    if fed is not None:
+        carg["fed"] = fed
+    return {"tf": tf, "carg": [carg]}
+
+
+def _uf(
+    sigla: str,
+    envelope: dict[str, Any],
+    pct_apurado: float = 100.0,
+    *,
+    calcular: bool = True,
+) -> UfProporcional:
+    entrada = extrair_entrada_proporcional(envelope)
+    resultado = None
+    if calcular and entrada.lugares_a_preencher is not None:
+        resultado = distribuir_cadeiras(entrada.agremiacoes, entrada.lugares_a_preencher)
+    return UfProporcional(
+        uf=sigla, pct_apurado=pct_apurado, entrada=entrada, resultado=resultado
+    )
+
+
+def _payload(ufs: list[UfProporcional], **kwargs: Any) -> tuple[dict, dict]:
+    return construir_payload_deputado(
+        ufs=ufs,
+        divergencias_por_uf=kwargs.pop("divergencias_por_uf", {}),
+        ts_iso=kwargs.pop("ts_iso", "2026-10-04T21:00:00+00:00"),
+        cargo=kwargs.pop("cargo", 6),
+        turno=kwargs.pop("turno", 1),
+        atualizacao_min=kwargs.pop("atualizacao_min", 15),
+        ufs_conhecidas=kwargs.pop("ufs_conhecidas", 27),
+        pct_apurado_total=kwargs.pop("pct_apurado_total", 100.0),
+    )
+
+
+# ---------------------------------------------------------------------------
+# O cenário central — QP maior que a lista de elegíveis
+# ---------------------------------------------------------------------------
+
+
+def _envelope_dez_vagas() -> dict[str, Any]:
+    """10 vagas, QE exato de 1.000, e um partido com quociente para 3 cadeiras
+    e só 2 candidatos acima dos 10% do QE.
+
+    É o cenário do caso de borda 2b do ADR-0027: `Σ vagas_obtidas` = 11 e
+    `Σ cadeiras` = 10. Sem ele, o teste da asserção negativa não teria poder —
+    num cenário em que as duas grandezas coincidem, publicar a errada passaria.
+
+        A: 2.500 + 900 nominais + 100 legenda = 3.500  → QP 3, só 2 elegíveis
+        B: 1.000 + 900 + 600 + 500            = 3.000  → QP 3, 4 candidatos
+        C: 1.000 + 800 + 700                  = 2.500  → QP 2, 3 candidatos
+        D:   600 + 400                        = 1.000  → QP 1, 2 candidatos
+        ---------------------------------------------
+        válidos = 10.000; 10 vagas; QE = 1.000
+    """
+    return _envelope(
+        [
+            _agr_partido("10", "PA", 100, [_cand(1, "ANA", 2500), _cand(2, "BRUNO", 900)]),
+            _agr_partido(
+                "20",
+                "PB",
+                0,
+                [
+                    _cand(3, "CARLA", 1000),
+                    _cand(4, "DAVI", 900),
+                    _cand(5, "ELIS", 600),
+                    _cand(6, "FABIO", 500),
+                ],
+            ),
+            _agr_partido(
+                "30",
+                "PC",
+                0,
+                [_cand(7, "GIL", 1000), _cand(8, "HELO", 800), _cand(9, "IVO", 700)],
+            ),
+            _agr_partido("40", "PD", 0, [_cand(10, "JOANA", 600), _cand(11, "KAIO", 400)]),
+        ],
+        nv="10",
+    )
+
+
+def test_o_cenario_distingue_cadeiras_de_vagas_obtidas() -> None:
+    """Guarda do próprio cenário: se ele parar de distinguir, o teste seguinte
+    vira decorativo e ninguém percebe."""
+    uf = _uf("SP", _envelope_dez_vagas())
+    assert uf.resultado is not None
+    assert uf.resultado.quociente_eleitoral == 1000
+    assert sum(uf.resultado.cadeiras.values()) == 10
+    assert sum(uf.resultado.vagas_obtidas.values()) == 11, (
+        "o cenário deixou de ter partido com QP acima do nº de elegíveis"
+    )
+
+
+def test_vagas_obtidas_nao_atravessa_a_fronteira() -> None:
+    """RF-125.1 / D2 — asserção NEGATIVA sobre o payload serializado.
+
+    Nem com esse nome nem com outro: o teste procura a string no JSON inteiro,
+    e depois confere a invariante que só a grandeza certa satisfaz
+    (`Σ cadeiras == lugares_a_preencher`).
+    """
+    uf = _uf("SP", _envelope_dez_vagas())
+    payload, detalhes = _payload([uf])
+
+    bruto_uf = json.dumps(detalhes["SP"], ensure_ascii=False)
+    bruto_nacional = json.dumps(payload, ensure_ascii=False)
+
+    assert "vagas_obtidas" not in bruto_uf
+    assert "vagas_obtidas" not in bruto_nacional
+    # 11 é a soma de `vagas_obtidas` neste cenário — se ela vazasse com outro
+    # nome, o número apareceria onde a soma de cadeiras deveria estar.
+    assert sum(a["cadeiras"] for a in detalhes["SP"]["agremiacoes"]) == 10
+    assert detalhes["SP"]["lugares_a_preencher"] == 10
+    assert payload["bancada"]["cadeiras_atribuidas"] == 10
+
+
+def test_cadeiras_por_agremiacao_sao_as_efetivamente_ocupadas() -> None:
+    """O partido com quociente para 3 e 2 candidatos elegíveis sai com **2**."""
+    _, detalhes = _payload([_uf("SP", _envelope_dez_vagas())])
+    por_sigla = {a["sigla"]: a for a in detalhes["SP"]["agremiacoes"]}
+
+    assert por_sigla["PA"]["cadeiras"] == 2, "publicou o quociente, não os eleitos"
+    assert por_sigla["PA"]["quociente_partidario"] == 3
+    assert por_sigla["PB"]["cadeiras"] == 4
+    assert por_sigla["PC"]["cadeiras"] == 3
+    assert por_sigla["PD"]["cadeiras"] == 1
+
+
+# ---------------------------------------------------------------------------
+# RF-130 — legenda visível, nunca somada em silêncio
+# ---------------------------------------------------------------------------
+
+
+def test_voto_de_legenda_sai_separado_do_nominal() -> None:
+    _, detalhes = _payload([_uf("SP", _envelope_dez_vagas())])
+    pa = next(a for a in detalhes["SP"]["agremiacoes"] if a["sigla"] == "PA")
+
+    assert pa["votos_nominais"] == 3400
+    assert pa["votos_legenda"] == 100
+    assert pa["votos_validos"] == 3500, "o total não fecha com a soma das duas partes"
+    assert pa["pct_votos"] == 35.0
+
+
+# ---------------------------------------------------------------------------
+# RF-122 — federação é uma agremiação, com os componentes legíveis
+# ---------------------------------------------------------------------------
+
+
+def test_federacao_sai_com_sigla_propria_e_partidos_componentes() -> None:
+    """A sigla NÃO existe em `agr[]` — vem de `carg[].fed[]` pelo mesmo número."""
+    env = _envelope(
+        [
+            _agr_federacao(
+                "99",
+                "Federação Brasil da Esperança",
+                [
+                    _partido("13", "PT", 200, [_cand(1, "ANA", 3000)]),
+                    _partido("65", "PCdoB", 100, [_cand(2, "BRUNO", 500)]),
+                ],
+            ),
+            _agr_partido("20", "PB", 0, [_cand(3, "CARLA", 1200)]),
+        ],
+        nv="2",
+        fed=[
+            {
+                "n": "99",
+                "nm": "Federação Brasil da Esperança",
+                "sg": "FE BRASIL",
+                "com": "PT/PCdoB",
+                "npar": ["13", "65"],
+            }
+        ],
+    )
+    _, detalhes = _payload([_uf("SP", env)])
+    agremiacoes = detalhes["SP"]["agremiacoes"]
+
+    fed = next(a for a in agremiacoes if a["cod"] == "99")
+    assert fed["tipo"] == "federacao"
+    assert fed["sigla"] == "FE BRASIL"
+    assert fed["componentes"] == ["PT", "PCdoB"], "partidos componentes ilegíveis"
+    assert fed["votos_validos"] == 200 + 100 + 3000 + 500, "federação não somou os par[]"
+
+    isolado = next(a for a in agremiacoes if a["cod"] == "20")
+    assert isolado["tipo"] == "partido"
+    assert isolado["sigla"] == "PB"
+    assert isolado["componentes"] == [], "partido isolado não tem composição a exibir"
+
+
+def test_candidato_carrega_o_partido_dentro_da_federacao() -> None:
+    """Numa federação, saber de qual partido é o eleito é o ponto (RF-122)."""
+    env = _envelope(
+        [
+            _agr_federacao(
+                "99",
+                "Fed",
+                [
+                    _partido("13", "PT", 0, [_cand(1, "ANA", 3000)]),
+                    _partido("65", "PCdoB", 0, [_cand(2, "BRUNO", 2000)]),
+                ],
+                com="PT/PCdoB",
+            )
+        ],
+        nv="2",
+    )
+    _, detalhes = _payload([_uf("SP", env)])
+    eleitos = detalhes["SP"]["agremiacoes"][0]["eleitos"]
+
+    assert [e["nome"] for e in eleitos] == ["ANA", "BRUNO"]
+    assert [e["partido"] for e in eleitos] == ["PT", "PCdoB"]
+    assert [e["sqcand"] for e in eleitos] == [1, 2], "identidade não é o sqcand"
+    assert [e["ordem"] for e in eleitos] == [1, 2]
+
+
+# ---------------------------------------------------------------------------
+# ADR-0024 — a federação usa a cor do partido-líder
+# ---------------------------------------------------------------------------
+
+
+def _federacao(numero: str, nome: str, partidos: list[tuple[str, str, int, int]]) -> dict[str, Any]:
+    """Federação com `(numero, sigla, votos_nominais, legenda)` por componente."""
+    return _agr_federacao(
+        numero,
+        nome,
+        [
+            _partido(num, sg, legenda, [_cand(int(num) * 100 + i, f"CAND {sg}", votos)])
+            for i, (num, sg, votos, legenda) in enumerate(partidos)
+        ],
+        com="/".join(p[1] for p in partidos),
+    )
+
+
+def test_federacao_declara_o_partido_lider_para_a_tela_poder_pintar() -> None:
+    """Sem este campo, toda federação cai em `--party-outros` — as maiores
+    bancadas da Câmara sairiam cinza na tela principal (ADR-0024)."""
+    env = _envelope(
+        [_federacao("99", "Fed", [("13", "PT", 3000, 0), ("65", "PCdoB", 500, 0)])],
+        nv="2",
+    )
+    _, detalhes = _payload([_uf("SP", env)])
+    fed = detalhes["SP"]["agremiacoes"][0]
+
+    assert fed["tipo"] == "federacao"
+    assert fed["sigla_lider"] == "PT"
+
+
+def test_partido_isolado_lidera_a_si_mesmo() -> None:
+    """`sigla_lider == sigla` — a tela não precisa de caso especial."""
+    _, detalhes = _payload([_uf("SP", _envelope_dez_vagas())])
+
+    for agremiacao in detalhes["SP"]["agremiacoes"]:
+        assert agremiacao["sigla_lider"] == agremiacao["sigla"]
+
+
+def test_lider_da_federacao_e_medido_em_votos_nominais() -> None:
+    """Votos nominais do componente — não contagem de candidatos, não o total
+    da agremiação.
+
+    O PT entra aqui com voto de legenda alto (9.000) e voto nominal baixo
+    (1.000); o PV, com 2.000 nominais e nenhuma legenda. O líder é o PV.
+
+    **Ressalva honesta sobre o que este teste prova.** A metade "não é legenda"
+    da afirmação é um registro de decisão, não uma propriedade discriminada: o
+    voto de legenda por partido componente (`par[].tvtl`) não é guardado pelo
+    extrator, então nenhuma mutação do código atual consegue usá-lo. O que o
+    teste de fato discrimina é o critério — trocar "soma de votos nominais" por
+    "número de candidatos" o derruba, e essa é a implementação errada plausível.
+    """
+    env = _envelope(
+        [
+            _federacao(
+                "99",
+                "Fed",
+                [("13", "PT", 1000, 9000), ("44", "PV", 2000, 0), ("65", "PCdoB", 900, 0)],
+            )
+        ],
+        nv="2",
+    )
+    _, detalhes = _payload([_uf("SP", env)])
+
+    assert detalhes["SP"]["agremiacoes"][0]["sigla_lider"] == "PV"
+
+
+def test_empate_entre_componentes_desempata_por_sigla_ascendente() -> None:
+    """Determinismo (constituição § 6) — e o ADR-0024 exige cor estável a noite
+    inteira. Sem critério declarado, dois ciclos sobre o MESMO dado poderiam
+    pintar a federação de cores diferentes."""
+    env = _envelope(
+        [_federacao("99", "Fed", [("13", "PT", 2000, 0), ("65", "PCdoB", 2000, 0)])],
+        nv="2",
+    )
+    _, detalhes = _payload([_uf("SP", env)])
+
+    assert detalhes["SP"]["agremiacoes"][0]["sigla_lider"] == "PCdoB"
+
+
+def test_lider_nacional_e_a_soma_das_27_nao_a_moda_dos_estados() -> None:
+    """Contar "em quantos estados cada componente lidera" daria a Roraima o
+    mesmo peso de São Paulo e trocaria de resposta conforme a ordem de
+    apuração — a cor mudaria no meio da noite.
+
+    Aqui o PV lidera no AC (que apura primeiro, em ordem alfabética) e o PT
+    lidera no Brasil. O líder nacional diferir do líder de uma UF é esperado.
+    """
+    ac = _envelope(
+        [_federacao("99", "Fed", [("13", "PT", 100, 0), ("44", "PV", 300, 0)])], nv="2"
+    )
+    sp = _envelope(
+        [_federacao("99", "Fed", [("13", "PT", 5000, 0), ("44", "PV", 200, 0)])], nv="2"
+    )
+    payload, detalhes = _payload([_uf("AC", ac), _uf("SP", sp)])
+
+    assert detalhes["AC"]["agremiacoes"][0]["sigla_lider"] == "PV"
+    assert detalhes["SP"]["agremiacoes"][0]["sigla_lider"] == "PT"
+    assert payload["bancada"]["por_agremiacao"][0]["sigla_lider"] == "PT", (
+        "o líder nacional veio de um estado em vez da soma dos 27"
+    )
+
+
+def test_agremiacao_sem_componente_identificavel_nao_fica_sem_lider() -> None:
+    """Envelope degradado: `sigla_lider` cai na sigla da agremiação, por um
+    caminho declarado — nunca string vazia."""
+    env = _envelope(
+        [{"n": "10", "nm": "Partido X", "tp": "i", "par": [
+            {"n": "10", "cand": [_cand(1, "ANA", 500)]}]}],
+        nv="1",
+    )
+    _, detalhes = _payload([_uf("SP", env)])
+    agremiacao = detalhes["SP"]["agremiacoes"][0]
+
+    assert agremiacao["sigla_lider"] == agremiacao["sigla"] == "Partido X"
+
+
+def test_suplentes_saem_limitados_a_cinco() -> None:
+    env = _envelope(
+        [
+            _agr_partido(
+                "10",
+                "PA",
+                0,
+                [_cand(i, f"C{i}", 1000 - i * 10) for i in range(1, 12)],
+            )
+        ],
+        nv="2",
+    )
+    _, detalhes = _payload([_uf("SP", env)])
+    agremiacao = detalhes["SP"]["agremiacoes"][0]
+
+    assert agremiacao["cadeiras"] == 2
+    assert len(agremiacao["suplentes"]) == 5, "a lista de suplentes não foi cortada"
+    assert [s["ordem"] for s in agremiacao["suplentes"]] == [1, 2, 3, 4, 5]
+
+
+# ---------------------------------------------------------------------------
+# D5 — a bancada é SOMA de 27 corridas
+# ---------------------------------------------------------------------------
+
+
+def _envelope_simples(pa_votos: int, pb_votos: int, vagas: int = 2) -> dict[str, Any]:
+    return _envelope(
+        [
+            _agr_partido("10", "PA", 0, [_cand(1, "ANA", pa_votos)]),
+            _agr_partido("20", "PB", 0, [_cand(2, "BRUNO", pb_votos)]),
+        ],
+        nv=str(vagas),
+    )
+
+
+def test_bancada_soma_as_ufs_em_vez_de_sobrescrever() -> None:
+    """A mesma agremiação aparece em 27 UFs — `dict[cod] = x` daria a última."""
+    ufs = [
+        _uf("SP", _envelope_simples(3000, 1000)),
+        _uf("RJ", _envelope_simples(1000, 3000)),
+    ]
+    payload, _ = _payload(ufs)
+    por_cod = {a["cod"]: a for a in payload["bancada"]["por_agremiacao"]}
+
+    assert por_cod["10"]["cadeiras"] == 2, "a bancada nacional não somou as duas UFs"
+    assert por_cod["20"]["cadeiras"] == 2
+    assert por_cod["10"]["votos_validos"] == 4000
+    assert payload["bancada"]["cadeiras_atribuidas"] == 4
+    assert payload["bancada"]["total_cadeiras"] == 4
+
+
+def test_bancada_ordena_por_cadeiras_e_desempata_por_sigla() -> None:
+    """Determinismo (constituição § 6): ordenação com desempate declarado."""
+    ufs = [
+        # PB leva 2 cadeiras; PA e PC levam 1 cada (empate a desempatar).
+        _uf(
+            "SP",
+            _envelope(
+                [
+                    _agr_partido("10", "PA", 0, [_cand(1, "ANA", 1000)]),
+                    _agr_partido("20", "PB", 0, [_cand(2, "BRUNO", 2100), _cand(3, "CID", 1900)]),
+                    _agr_partido("30", "PC", 0, [_cand(4, "DORA", 1000)]),
+                ],
+                nv="4",
+            ),
+        )
+    ]
+    payload, _ = _payload(ufs)
+    ordem = [(a["sigla"], a["cadeiras"]) for a in payload["bancada"]["por_agremiacao"]]
+
+    assert ordem == [("PB", 2), ("PA", 1), ("PC", 1)]
+
+
+def test_ufs_aguardando_fecha_a_conta_das_27() -> None:
+    """Sem esse número, o leitor conclui que sumiram cadeiras (D5)."""
+    payload, _ = _payload([_uf("SP", _envelope_simples(3000, 1000))])
+    bancada = payload["bancada"]
+
+    assert bancada["ufs_calculadas"] == 1
+    assert bancada["ufs_aguardando"] == 26
+    assert bancada["ufs_calculadas"] + bancada["ufs_aguardando"] == 27
+
+
+def test_uf_sem_nv_publicado_nao_inventa_quociente() -> None:
+    """RF-124 — sem `carg[].nv` não há denominador, e chutar corrompe a UF."""
+    sem_nv = _uf("AC", _envelope_simples(3000, 1000), calcular=False)
+    assert sem_nv.entrada.lugares_a_preencher == 2  # sanidade do helper
+
+    entrada_sem = extrair_entrada_proporcional(
+        _envelope([_agr_partido("10", "PA", 0, [_cand(1, "ANA", 10)])], nv=None)
+    )
+    uf_sem = UfProporcional(uf="AC", pct_apurado=12.0, entrada=entrada_sem, resultado=None)
+
+    payload, detalhes = _payload([uf_sem])
+
+    assert detalhes["AC"]["lugares_a_preencher"] is None
+    assert detalhes["AC"]["quociente_eleitoral"] is None
+    assert detalhes["AC"]["agremiacoes"][0]["cadeiras"] == 0
+    assert payload["bancada"]["total_cadeiras"] == 0, "somou vaga que o TSE não publicou"
+    assert payload["bancada"]["ufs_calculadas"] == 0
+    assert payload["por_uf"][0]["lider"] is None
+
+
+def test_linha_de_uf_traz_o_lider_e_a_contagem_de_empates() -> None:
+    payload, _ = _payload([_uf("SP", _envelope_dez_vagas(), pct_apurado=42.5)])
+    linha = payload["por_uf"][0]
+
+    assert linha["sigla"] == "SP"
+    assert linha["pct_apurado"] == 42.5
+    assert linha["lugares_a_preencher"] == 10
+    assert linha["quociente_eleitoral"] == 1000
+    assert linha["cadeiras_definidas"] == 10
+    assert linha["vagas_nao_preenchidas"] == 0
+    assert linha["empates_indeterminados"] == 0
+    assert linha["lider"] == {"cod": "20", "sigla": "PB", "cadeiras": 4}
+
+
+def test_cadencia_e_totais_saem_do_payload_nao_da_tela() -> None:
+    """RF-128 / D8 — `15 min` e o total de cadeiras são dado, não texto no JSX."""
+    payload, _ = _payload([_uf("SP", _envelope_dez_vagas())], atualizacao_min=15)
+
+    assert payload["atualizacao_min"] == 15
+    assert payload["cargo"] == 6
+    assert payload["turno"] == 1
+    assert payload["insights"] == []
+    assert payload["composition"] == {
+        "pre_election": 0.0,
+        "model": 0.0,
+        "actual_results": 1.0,
+    }
+    assert "national" not in payload, (
+        "payload de Deputado não pode carregar o bloco majoritário (D1) — um "
+        "consumidor de `EdgeNational` desenharia agulha e líder para a Câmara"
+    )
+
+
+# ---------------------------------------------------------------------------
+# RF-127 — a metade que sai agora: marcar o que ainda pode mudar de dono
+# ---------------------------------------------------------------------------
+
+
+def _indefinidos(detalhe: dict[str, Any]) -> set[str]:
+    return {
+        eleito["nome"]
+        for agremiacao in detalhe["agremiacoes"]
+        for eleito in agremiacao["eleitos"]
+        if eleito.get("indefinido")
+    }
+
+
+def test_cadeira_de_sobra_apertada_sai_marcada_com_apuracao_parcial() -> None:
+    """Com metade dos votos por apurar, a cadeira ganha por média de 750 contra
+    500 (margem de 33%) ainda pode trocar de dono — e a tela precisa dizer."""
+    _, detalhes = _payload([_uf("SP", _envelope_dez_vagas(), pct_apurado=50.0)])
+
+    # As duas cadeiras de sobra deste cenário: a 4ª de PB (DAVI... FABIO) e a
+    # 3ª de PC (IVO). As de quociente partidário nunca são marcadas.
+    assert _indefinidos(detalhes["SP"]) == {"FABIO", "IVO"}
+
+
+def test_nada_fica_indefinido_com_a_uf_totalmente_apurada() -> None:
+    """Em 100% apurado a fatia que falta é zero — firmeza deixa de ser falsa."""
+    _, detalhes = _payload([_uf("SP", _envelope_dez_vagas(), pct_apurado=100.0)])
+    assert _indefinidos(detalhes["SP"]) == set()
+
+
+def test_margem_maior_que_a_fatia_por_apurar_nao_e_marcada() -> None:
+    """A marcação é comparação, não carimbo: 90% apurado e margem de 33% não
+    dá indefinido."""
+    _, detalhes = _payload([_uf("SP", _envelope_dez_vagas(), pct_apurado=90.0)])
+    assert _indefinidos(detalhes["SP"]) == set()
+
+
+def test_totalizacao_final_encerra_a_indefinicao_mesmo_com_psa_atrasado() -> None:
+    """`tf == "s"` é o TSE dizendo que não vem mais voto.
+
+    O `s.psa` pode ficar em 99,9 por arredondamento; a totalização final é o
+    fato. Marcar cadeira como indefinida depois dela contradiria o dado.
+    """
+    env = _envelope_dez_vagas()
+    env["tf"] = "s"
+    _, detalhes = _payload([_uf("SP", env, pct_apurado=50.0)])
+
+    assert detalhes["SP"]["totalizacao_final"] is True
+    assert _indefinidos(detalhes["SP"]) == set()
+
+
+def test_bancada_nacional_conta_as_cadeiras_indefinidas() -> None:
+    payload, _ = _payload([_uf("SP", _envelope_dez_vagas(), pct_apurado=50.0)])
+    por_cod = {a["cod"]: a for a in payload["bancada"]["por_agremiacao"]}
+
+    assert por_cod["20"]["cadeiras_indefinidas"] == 1
+    assert por_cod["30"]["cadeiras_indefinidas"] == 1
+    assert por_cod["10"]["cadeiras_indefinidas"] == 0, (
+        "cadeira de quociente partidário não depende de sobra"
+    )
+
+
+def test_intervalo_de_cadeiras_fica_ausente_enquanto_nao_for_calculado() -> None:
+    """D7 — `cadeiras_ci95` é opcional. Ausente é honesto; `[n, n]` seria falso."""
+    payload, detalhes = _payload([_uf("SP", _envelope_dez_vagas())])
+
+    assert all("cadeiras_ci95" not in a for a in payload["bancada"]["por_agremiacao"])
+    assert all("cadeiras_ci95" not in a for a in detalhes["SP"]["agremiacoes"])
+
+
+# ---------------------------------------------------------------------------
+# Empate que a norma não resolve (spec 017, open question 3)
+# ---------------------------------------------------------------------------
+
+
+def _envelope_empatado() -> dict[str, Any]:
+    """Duas agremiações idênticas em tudo que a norma usa para desempatar:
+    mesma média, mesma votação total, mesma votação nominal do candidato que
+    disputa a vaga (Res. 23.677 art. 11 §§ 6º–7º esgotados)."""
+    return _envelope(
+        [
+            _agr_partido("10", "PA", 0, [_cand(1, "ANA", 400), _cand(2, "BRUNO", 100)]),
+            _agr_partido("20", "PB", 0, [_cand(3, "CARLA", 400), _cand(4, "DAVI", 100)]),
+        ],
+        nv="3",
+    )
+
+
+def test_empate_indeterminado_sai_como_codigo_de_agremiacao() -> None:
+    """D6 pede os códigos — a tela marca barras, não lê frase de log."""
+    uf = _uf("SP", _envelope_empatado())
+    assert uf.resultado is not None
+    assert uf.resultado.empates_indeterminados, "o cenário deixou de empatar"
+
+    payload, detalhes = _payload([uf])
+
+    assert detalhes["SP"]["empates_indeterminados"] == ["10", "20"]
+    assert payload["por_uf"][0]["empates_indeterminados"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Conferência contra o próprio TSE
+# ---------------------------------------------------------------------------
+
+
+def test_divergencia_contra_o_tse_entra_no_payload_da_uf() -> None:
+    env = _envelope_dez_vagas()
+    env["carg"][0]["qe"] = "1234"  # o TSE diz outro quociente
+    uf = _uf("SP", env)
+    assert uf.resultado is not None
+    divergencias = [
+        {"o_que": d.o_que, "nosso": d.nosso, "tse": d.tse, "detalhe": d.detalhe}
+        for d in conferir_contra_tse(uf.resultado, uf.entrada)
+    ]
+
+    _, detalhes = _payload([uf], divergencias_por_uf={"SP": divergencias})
+
+    assert detalhes["SP"]["quociente_eleitoral"] == 1000
+    assert detalhes["SP"]["quociente_eleitoral_tse"] == 1234
+    assert detalhes["SP"]["divergencias"][0]["o_que"] == "quociente_eleitoral"
+    assert detalhes["SP"]["totalizacao_final"] is False
+
+
+def test_o_que_da_divergencia_sai_num_conjunto_fechado() -> None:
+    """A tela mapeia `o_que` para uma frase. `cadeiras[22]` — com o código da
+    agremiação embutido — geraria uma chave nova por agremiação, e a tela
+    ficaria adivinhando strings nossas.
+    """
+    from api.model.deputado import Divergencia
+    from api.model.deputado_payload import CHAVES_DE_DIVERGENCIA, normalizar_divergencia
+
+    linha = normalizar_divergencia(
+        Divergencia(o_que="cadeiras[22]", nosso=13, tse=14, detalhe="sobras ou 10%/20%")
+    )
+
+    assert linha["o_que"] == "cadeiras"
+    assert linha["o_que"] in CHAVES_DE_DIVERGENCIA
+    assert "22" in linha["detalhe"], "o código da agremiação sumiu do payload"
+    assert linha["nosso"] == 13 and linha["tse"] == 14
+
+
+def test_chave_desconhecida_passa_adiante_em_vez_de_sumir() -> None:
+    """Uma comparação nova em `deputado.py` sem entrada neste mapa é melhor
+    exibida sem rótulo bonito do que silenciosamente descartada."""
+    from api.model.deputado import Divergencia
+    from api.model.deputado_payload import normalizar_divergencia
+
+    linha = normalizar_divergencia(Divergencia(o_que="coisa_nova", nosso=1, tse=2))
+    assert linha["o_que"] == "coisa_nova"
+
+
+def test_ciclo_publica_divergencia_com_chave_normalizada(ciclo_deputado) -> None:
+    env = _envelope_dez_vagas()
+    env["carg"][0]["agr"][0]["vag"] = "99"  # o TSE diz 99 cadeiras para PA
+    _status, _resposta, publicados = ciclo_deputado([_snapshot("SP", env)])
+    _payload_nac, detalhes = publicados[0]
+
+    chaves = {d["o_que"] for d in detalhes["SP"]["divergencias"]}
+    assert chaves == {"cadeiras"}, f"chave fora do conjunto fechado: {chaves}"
+
+
+def test_sem_divergencia_o_campo_sai_vazio_nao_ausente() -> None:
+    _, detalhes = _payload([_uf("SP", _envelope_dez_vagas())])
+    assert detalhes["SP"]["divergencias"] == []
+
+
+# ---------------------------------------------------------------------------
+# D3 — `compute_national` recusa cargo proporcional
+# ---------------------------------------------------------------------------
+
+
+def test_compute_national_recusa_cargo_proporcional() -> None:
+    """Recusa explícita, não `if` silencioso: agregar por número de urna no
+    proporcional funde candidatos de UFs e partidos diferentes."""
+    import numpy as np
+
+    from api.model.project import CargoProporcionalError, compute_national
+
+    estimates = {"SP": {1234: np.array([0.4, 0.5, 0.6])}}
+
+    with pytest.raises(CargoProporcionalError):
+        compute_national(
+            cargo=6,
+            turno=1,
+            estimates_by_uf=estimates,
+            eleitorado_total_by_uf={"SP": 1000},
+        )
+
+
+@pytest.mark.parametrize("cargo", [1, 3, 5])
+def test_compute_national_continua_valendo_para_cargo_majoritario(cargo: int) -> None:
+    import numpy as np
+
+    from api.model.project import compute_national
+
+    estimates = {
+        "SP": {
+            100: np.array([0.55, 0.56, 0.54]),
+            200: np.array([0.45, 0.44, 0.46]),
+        }
+    }
+    rows, _p_a, cand_a, cand_b, _outros = compute_national(
+        cargo=cargo,
+        turno=1,
+        estimates_by_uf=estimates,
+        eleitorado_total_by_uf={"SP": 1000},
+    )
+
+    assert len(rows) == 2
+    assert (cand_a, cand_b) == (100, 200)
+
+
+# ---------------------------------------------------------------------------
+# Combinação de envelopes — soma, nunca sobrescrita
+# ---------------------------------------------------------------------------
+
+
+def test_duas_linhas_da_mesma_uf_somam_os_votos() -> None:
+    """O modo de falha padrão desde a migration 0006: escolher uma linha de par
+    e descartar as outras devolve um número menor, plausível e sem erro."""
+    a = extrair_entrada_proporcional(_envelope_simples(1000, 500))
+    b = extrair_entrada_proporcional(_envelope_simples(2000, 700))
+
+    combinada = combinar_entradas([a, b])
+    por_cod = {ag.cod: ag for ag in combinada.agremiacoes}
+
+    assert por_cod["10"].votos_totais == 3000
+    assert por_cod["20"].votos_totais == 1200
+    assert len(por_cod["10"].candidatos) == 1, "o mesmo sqcand virou dois candidatos"
+    assert por_cod["10"].candidatos[0].votos_nominais == 3000
+
+
+def test_combinacao_de_uma_linha_so_devolve_a_propria_entrada() -> None:
+    """O caso normal (um envelope por UF) não paga nada nem muda nada."""
+    a = extrair_entrada_proporcional(_envelope_simples(1000, 500))
+    assert combinar_entradas([a]) is a
+
+
+def test_combinacao_nao_confere_contra_qe_parcial_do_tse() -> None:
+    """`qe`/`vag` de um arquivo de zona não são conferíveis contra a conta da
+    UF inteira — mantê-los acusaria divergência inexistente."""
+    env = _envelope_simples(1000, 500)
+    env["carg"][0]["qe"] = "700"
+    env["carg"][0]["agr"][0]["vag"] = "1"
+    a = extrair_entrada_proporcional(env)
+    b = extrair_entrada_proporcional(env)
+
+    combinada = combinar_entradas([a, b])
+
+    assert combinada.quociente_eleitoral_tse is None
+    assert combinada.vagas_tse == {}
+    assert combinada.lugares_a_preencher == 2
+
+
+# ---------------------------------------------------------------------------
+# O ciclo inteiro — `_do_project` com cargo 6
+# ---------------------------------------------------------------------------
+
+
+class _FakeCursor:
+    """Só as duas queries que o caminho proporcional faz. Qualquer outra é
+    erro de teste — e falha alto, em vez de devolver vazio."""
+
+    def __init__(self, conn: "_FakeConn") -> None:
+        self._conn = conn
+        self._rows: list[tuple] = []
+
+    def execute(self, sql: str, params: tuple) -> None:
+        self._conn.sqls.append(sql)
+        if "FROM snapshots" in sql:
+            cargo, turno = params
+            self._rows = [
+                (s["uf"], s.get("cod_municipio_tse", 0), s["cod_zona"], s["pct_apurado"], s["payload"])
+                for s in self._conn.snapshots
+                if s["cargo"] == cargo and s["turno"] == turno
+            ]
+        elif "FROM eleitorado" in sql:
+            if self._conn.eleitorado_quebrado:
+                raise RuntimeError('relation "eleitorado" does not exist')
+            self._rows = [(uf, 0, aptos) for uf, aptos in self._conn.eleitorado.items()]
+        else:
+            raise AssertionError(f"query inesperada no caminho proporcional: {sql[:80]}")
+
+    def fetchall(self) -> list[tuple]:
+        return self._rows
+
+    def __enter__(self) -> "_FakeCursor":
+        return self
+
+    def __exit__(self, *a: Any) -> None:
+        return None
+
+
+class _FakeConn:
+    def __init__(
+        self,
+        snapshots: list[dict],
+        eleitorado: dict[str, int],
+        eleitorado_quebrado: bool = False,
+    ) -> None:
+        self.snapshots = snapshots
+        self.eleitorado = eleitorado
+        self.eleitorado_quebrado = eleitorado_quebrado
+        self.sqls: list[str] = []
+
+    def cursor(self) -> _FakeCursor:
+        return _FakeCursor(self)
+
+    def commit(self) -> None:  # pragma: no cover - não usado no caminho proporcional
+        raise AssertionError("caminho proporcional não escreve no banco")
+
+    def rollback(self) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
+
+    def __enter__(self) -> "_FakeConn":
+        return self
+
+    def __exit__(self, *a: Any) -> None:
+        return None
+
+
+@pytest.fixture
+def ciclo_deputado(monkeypatch: pytest.MonkeyPatch):
+    """Roda `_do_project` para o cargo 6 e devolve o que teria ido ao Edge."""
+    from api.model import project as proj
+
+    def _rodar(
+        snapshots: list[dict],
+        eleitorado: dict[str, int] | None = None,
+        eleitorado_quebrado: bool = False,
+    ) -> tuple[int, dict, list[tuple[dict, dict]]]:
+        # `{}` é um caso de teste (banco sem eleitorado), não "use o default" —
+        # por isso o sentinel é `None`, e não a falsidade do dict.
+        if eleitorado is None:
+            eleitorado = {"SP": 30_000_000, "RJ": 12_000_000}
+        conn = _FakeConn(snapshots, eleitorado, eleitorado_quebrado)
+        publicados: list[tuple[dict, dict]] = []
+        monkeypatch.setattr(proj, "_open_conn", lambda: conn)
+        monkeypatch.setattr(
+            proj,
+            "post_edge_write",
+            lambda payload, payloads_uf=None: publicados.append((payload, payloads_uf or {})),
+        )
+        status, resposta = proj._do_project(
+            json.dumps({"cargo": 6, "turno": 1, "trigger_ts": "2026-10-04T21:00:00Z"}).encode()
+        )
+        return status, resposta, publicados
+
+    return _rodar
+
+
+def _snapshot(uf: str, envelope: dict[str, Any], pct: float = 100.0) -> dict[str, Any]:
+    """Linha como a ingestão de nível `uf` grava: sentinelas em zona/município
+    (`lib/tse/targets.ts::buildUfTarget`)."""
+    return {
+        "cargo": 6,
+        "turno": 1,
+        "uf": uf,
+        "cod_municipio_tse": 0,
+        "cod_zona": 0,
+        "pct_apurado": pct,
+        "payload": envelope,
+    }
+
+
+def test_ciclo_do_cargo_6_publica_bancada_e_detalhe_por_uf(ciclo_deputado) -> None:
+    status, resposta, publicados = ciclo_deputado(
+        [
+            _snapshot("SP", _envelope_dez_vagas()),
+            _snapshot("RJ", _envelope_simples(3000, 1000)),
+        ]
+    )
+
+    assert status == 200
+    assert resposta["computed"] is True
+    assert resposta["uf_count"] == 2
+    assert len(publicados) == 1
+
+    payload, detalhes = publicados[0]
+    assert payload["cargo"] == 6
+    assert payload["atualizacao_min"] == 15
+    assert payload["bancada"]["total_cadeiras"] == 12
+    assert payload["bancada"]["cadeiras_atribuidas"] == 12
+    assert sorted(detalhes) == ["RJ", "SP"]
+    assert detalhes["SP"]["uf"] == "SP"
+    assert "vagas_obtidas" not in json.dumps(publicados[0], ensure_ascii=False)
+
+
+def test_ciclo_do_cargo_6_nao_passa_por_compute_national(
+    ciclo_deputado, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D3 — o caminho proporcional não pode nem encostar no agregado por
+    número de urna. Se encostar, este teste derruba o ciclo."""
+    from api.model import project as proj
+
+    def _proibido(**kwargs: Any):  # pragma: no cover - só roda se houver bug
+        raise AssertionError("cargo proporcional chegou em compute_national")
+
+    monkeypatch.setattr(proj, "compute_national", _proibido)
+
+    status, _resposta, publicados = ciclo_deputado([_snapshot("SP", _envelope_dez_vagas())])
+
+    assert status == 200
+    assert publicados
+
+
+def test_pct_apurado_nacional_e_ponderado_e_a_uf_ausente_pesa_zero(
+    ciclo_deputado,
+) -> None:
+    """A UF que ainda não apurou entra no DENOMINADOR com peso cheio — sem
+    isso o número nacional infla justamente no começo da noite."""
+    _status, _resposta, publicados = ciclo_deputado(
+        [_snapshot("SP", _envelope_dez_vagas(), pct=100.0)],
+        {"SP": 30_000_000, "RJ": 10_000_000},
+    )
+    payload, _detalhes = publicados[0]
+
+    assert payload["pct_apurado_total"] == 75.0
+    assert payload["ufs_apuradas"] == 1
+
+
+def test_banco_sem_eleitorado_degrada_o_pct_sem_apagar_a_bancada(
+    ciclo_deputado,
+) -> None:
+    """Constituição § 7 — o eleitorado só pondera um número; perdê-lo não pode
+    levar as cadeiras junto."""
+    status, resposta, publicados = ciclo_deputado(
+        [_snapshot("SP", _envelope_dez_vagas(), pct=100.0)], {}
+    )
+    payload, _detalhes = publicados[0]
+
+    assert status == 200
+    assert resposta["uf_count"] == 1
+    assert payload["bancada"]["cadeiras_atribuidas"] == 10
+    # Média simples sobre as 27 UFs da eleição: uma apurada a 100%.
+    assert payload["pct_apurado_total"] == pytest.approx(100 / 27, abs=1e-4)
+
+
+def test_uf_sem_voto_ainda_fica_aguardando_sem_quociente_zero(ciclo_deputado) -> None:
+    """Quociente eleitoral 0 não é quociente baixo: é a ausência dele.
+
+    A UF que ainda não tem voto válido publica as vagas (`carg[].nv` existe
+    desde antes da urna abrir) e nada mais. Contá-la como "calculada" faria
+    `ufs_aguardando` mentir, e publicar `quociente_eleitoral: 0` poria um
+    número falso na tela.
+    """
+    zerada = _envelope(
+        [
+            _agr_partido("10", "PA", 0, [_cand(1, "ANA", 0)]),
+            _agr_partido("20", "PB", 0, [_cand(2, "BRUNO", 0)]),
+        ],
+        nv="8",
+    )
+    _status, resposta, publicados = ciclo_deputado(
+        [_snapshot("SP", _envelope_dez_vagas()), _snapshot("RJ", zerada, pct=0.0)]
+    )
+    payload, detalhes = publicados[0]
+    linha_rj = next(linha for linha in payload["por_uf"] if linha["sigla"] == "RJ")
+
+    assert resposta["uf_count"] == 1
+    assert detalhes["RJ"]["quociente_eleitoral"] is None
+    assert linha_rj["lugares_a_preencher"] == 8, "as vagas publicadas continuam visíveis"
+    assert linha_rj["cadeiras_definidas"] == 0
+    assert linha_rj["vagas_nao_preenchidas"] == 0, (
+        "vaga 'não preenchida' é a que sobrou de uma distribuição — não houve nenhuma"
+    )
+    assert payload["bancada"]["ufs_calculadas"] == 1
+    assert payload["bancada"]["ufs_aguardando"] == 26
+    assert payload["bancada"]["total_cadeiras"] == 18, (
+        "o total de cadeiras soma o `nv` das duas UFs, calculadas ou não (RF-124)"
+    )
+
+
+def test_query_de_eleitorado_quebrada_nao_derruba_o_ciclo(ciclo_deputado) -> None:
+    """A tabela `eleitorado` pondera um percentual. Se a query falhar, o que
+    não pode acontecer é a bancada inteira sumir junto (constituição § 7)."""
+    status, resposta, publicados = ciclo_deputado(
+        [_snapshot("SP", _envelope_dez_vagas())], eleitorado_quebrado=True
+    )
+    payload, _detalhes = publicados[0]
+
+    assert status == 200
+    assert resposta["uf_count"] == 1
+    assert payload["bancada"]["cadeiras_atribuidas"] == 10
+
+
+def test_uf_com_coligacao_fica_fora_do_calculo_de_cadeiras(ciclo_deputado) -> None:
+    """ADR-0027, caso de borda 7 — coligação proporcional é vedada desde 2020.
+
+    Encontrar uma significa dado corrompido: distribuir cadeiras a partir dele
+    publicaria uma bancada falsa com aparência normal.
+    """
+    env = _envelope_dez_vagas()
+    env["carg"][0]["agr"].append(
+        {
+            "n": "77",
+            "nm": "Coligação Impossível",
+            "tp": "c",
+            "par": [_partido("77", "PX", 0, [_cand(90, "ZEZE", 900)])],
+        }
+    )
+
+    status, resposta, publicados = ciclo_deputado([_snapshot("SP", env)])
+    payload, detalhes = publicados[0]
+
+    assert status == 200
+    assert resposta["uf_count"] == 0, "a UF com coligação entrou no cálculo"
+    assert payload["bancada"]["cadeiras_atribuidas"] == 0
+    assert payload["bancada"]["ufs_aguardando"] == 27
+    assert detalhes["SP"]["quociente_eleitoral"] is None
+
+
+def test_alerta_sem_slack_configurado_nao_derruba_o_ciclo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regressão de um defeito achado ao escrever o caminho proporcional.
+
+    `_alert_slack` promete não levantar (constituição § 7), mas sem
+    `SLACK_WEBHOOK_URL` ela chamava `_log(level, msg, msg=...)` — dois valores
+    para o mesmo parâmetro, `TypeError`. Ou seja: em todo ambiente sem Slack,
+    o primeiro alerta derrubava o ciclo que o alerta existia para reportar.
+    """
+    from api.model.project import _alert_slack
+
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    _alert_slack("error", "mensagem de alerta", cargo=6, uf="SP")
+
+
+def test_ciclo_sem_snapshot_nao_publica_payload_vazio(ciclo_deputado) -> None:
+    status, resposta, publicados = ciclo_deputado([])
+
+    assert status == 200
+    assert resposta["computed"] is False
+    assert resposta["uf_count"] == 0
+    assert publicados == [], "publicou bancada zerada por cima da anterior"

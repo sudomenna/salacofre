@@ -319,6 +319,117 @@ def test_conferencia_acusa_cadeira_divergente() -> None:
     assert divs[0].tse == 99
 
 
+# ---------------------------------------------------------------------------
+# Identidade (design 017 D4) — o que a tela precisa e o algoritmo não
+# ---------------------------------------------------------------------------
+
+
+def test_sigla_da_federacao_vem_de_fed_porque_agr_nao_tem_sigla() -> None:
+    """`agr[]` publica `n`, `nm`, `tp` e `com` — **não** `sg`.
+
+    O design 017 (D4) supunha `agr[].sg`; o dicionário oficial não o tem. A
+    sigla da federação sai de `carg[].fed[]` com o mesmo número — é o único uso
+    de `fed[]`, e mesmo esse é só identidade: voto e candidato continuam
+    chegando exclusivamente por `agr[]`.
+    """
+    env = _envelope(
+        [
+            {
+                "n": "99",
+                "nm": "Federação Brasil da Esperança",
+                "tp": "f",
+                "par": [
+                    {"n": "13", "sg": "PT", "nm": "Partido A", "cand": [_cand(1, "1310", 10)]},
+                    {"n": "65", "sg": "PCdoB", "nm": "Partido B", "cand": [_cand(2, "6510", 5)]},
+                ],
+            }
+        ]
+    )
+    env["carg"][0]["fed"] = [
+        {"n": "99", "nm": "Federação Brasil da Esperança", "sg": "FE BRASIL",
+         "com": "PT/PCdoB", "npar": ["13", "65"]}
+    ]
+
+    ident = extrair_entrada_proporcional(env).identidade_agremiacoes["99"]
+
+    assert ident.sigla == "FE BRASIL"
+    assert ident.tipo == "federacao"
+    assert ident.componentes == ("PT", "PCdoB")
+
+
+def test_partido_isolado_pega_a_sigla_do_proprio_par_e_nao_tem_componentes() -> None:
+    env = _envelope(
+        [{"n": "13", "nm": "Partido dos Trabalhadores", "tp": "i", "tvtl": "0", "par": [
+            {"n": "13", "sg": "PT", "nm": "Partido dos Trabalhadores",
+             "cand": [_cand(1, "1310", 100)]}]}]
+    )
+    ident = extrair_entrada_proporcional(env).identidade_agremiacoes["13"]
+
+    assert ident.sigla == "PT"
+    assert ident.nome == "Partido dos Trabalhadores"
+    assert ident.tipo == "partido"
+    assert ident.componentes == (), "partido isolado não pode listar a si mesmo"
+
+
+def test_sigla_de_partido_inapto_perde_o_marcador_de_asterisco() -> None:
+    """O EA20 marca partido inapto com `**` à direita da sigla. É situação
+    cadastral, não nome — exibir `PP**` numa barra seria colar dado de outro
+    domínio no rótulo."""
+    env = _envelope(
+        [{"n": "11", "nm": "Progressistas", "tp": "i", "tvtl": "0", "par": [
+            {"n": "11", "sg": "PP**", "nm": "Progressistas", "cand": [_cand(1, "1110", 10)]}]}]
+    )
+    assert extrair_entrada_proporcional(env).identidade_agremiacoes["11"].sigla == "PP"
+
+
+def test_agremiacao_sem_nome_nem_sigla_cai_no_numero_nunca_em_branco() -> None:
+    """Degradação (constituição § 7): barra com número é pior que barra com
+    sigla, e muito melhor que barra anônima."""
+    env = _envelope([{"n": "77", "tp": "i", "par": [{"n": "77", "cand": [_cand(1, "7710", 10)]}]}])
+    ident = extrair_entrada_proporcional(env).identidade_agremiacoes["77"]
+
+    assert ident.sigla == "77"
+    assert ident.nome == "77"
+
+
+def test_identidade_do_candidato_traz_nome_de_urna_e_partido() -> None:
+    """`nmu` antes de `nm`: é o nome pelo qual o eleitor conhece o candidato.
+
+    E `partido` é a sigla **dentro** da agremiação — numa federação é o que
+    distingue os componentes (RF-122).
+    """
+    env = _envelope(
+        [{"n": "99", "nm": "Fed", "tp": "f", "par": [
+            {"n": "13", "sg": "PT", "nm": "A", "cand": [_cand(1, "1310", 100)]},
+            {"n": "65", "sg": "PCdoB", "nm": "B", "cand": [_cand(2, "6510", 50)]}]}]
+    )
+    identidades = extrair_entrada_proporcional(env).identidade_candidatos
+
+    assert identidades[1].nome == "Cand 1", "usou o nome completo em vez do de urna"
+    assert identidades[1].partido == "PT"
+    assert identidades[2].partido == "PCdoB"
+    assert identidades[2].agremiacao == "99", "candidato perdeu o vínculo com a agremiação"
+
+
+def test_coligacao_e_detectavel_sem_reconstruir_string() -> None:
+    env = _envelope(
+        [{"n": "77", "nm": "Coligação Y", "tp": "c", "par": [
+            {"n": "30", "sg": "PC", "nm": "C", "cand": [_cand(1, "3010", 100)]}]}]
+    )
+    entrada = extrair_entrada_proporcional(env)
+
+    assert entrada.tem_coligacao is True
+    assert entrada.identidade_agremiacoes["coligacao:77"].tipo == "coligacao"
+
+
+def test_envelope_sem_coligacao_nao_dispara_o_alarme() -> None:
+    env = _envelope(
+        [{"n": "10", "nm": "A", "tp": "i", "par": [
+            {"n": "10", "sg": "PA", "nm": "A", "cand": [_cand(1, "1010", 100)]}]}]
+    )
+    assert extrair_entrada_proporcional(env).tem_coligacao is False
+
+
 def test_conferencia_nao_inventa_divergencia_quando_o_tse_omite() -> None:
     """Sem `qe` nem `vag` publicados, não há o que conferir — e silêncio é certo."""
     env = _envelope(
