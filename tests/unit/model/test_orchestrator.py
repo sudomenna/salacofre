@@ -23,6 +23,7 @@ manual (smoke).
 
 from __future__ import annotations
 
+import copy
 import json
 from datetime import datetime, timezone
 from typing import Any
@@ -241,6 +242,28 @@ class FakeCursor:
                     chave = (e["uf"], e["cod_zona"])
                     por_zona[chave] = por_zona.get(chave, 0) + int(e["eleitores_aptos"])
                 self._last_rows = [(u, z, v) for (u, z), v in por_zona.items()]
+        elif "FROM candidatos" in sql:
+            # fetch_identidade_cadastro (spec 018, RF-144 degrau 3). Vazio por
+            # default — a maioria das fixturas não carrega cadastro e a cadeia
+            # de nome fica só com os degraus do EA20. Precisa estar despachada
+            # mesmo assim: a função engole a exceção para degradar
+            # (constituição § 7), então sem este ramo o `AssertionError` do
+            # `else` sumiria e `unsupported_sqls` seria a única testemunha.
+            #
+            # Colunas na ORDEM da query: uf, numero, sq_candidato, nome,
+            # nome_urna, situacao_julgamento, publicavel, cargo.
+            (cargo,) = params
+            self._last_rows = [
+                (
+                    c["uf"], c["numero"], c["sq_candidato"], c["nome"],
+                    c.get("nome_urna", c["nome"]),
+                    c.get("situacao_julgamento", "DEFERIDO"),
+                    c.get("publicavel", True),
+                    c["cargo"],
+                )
+                for c in self._conn.candidatos
+                if c["cargo"] == cargo and c.get("publicavel", True)
+            ]
         elif "FROM zonas z" in sql or "JOIN municipios" in sql:
             # fetch_zona_municipio — sem fixture, devolve vazio.
             self._last_rows = []
@@ -276,10 +299,14 @@ class FakeConn:
         snapshots: list[dict],
         historical: list[dict],
         eleitorado: list[dict],
+        candidatos: list[dict] | None = None,
     ) -> None:
         self.snapshots = snapshots
         self.historical = historical
         self.eleitorado = eleitorado
+        # Spec 018 / RF-144 degrau 3 — cadastro de candidaturas. Default vazio:
+        # só o teste que exercita o degrau o preenche.
+        self.candidatos = candidatos or []
         self.inserted: list[dict] = []
         self.committed = False
         # Auditoria de dispatch — ver `FakeCursor.execute`.
@@ -316,8 +343,9 @@ def fake_db(monkeypatch: pytest.MonkeyPatch):
         snapshots: list[dict],
         historical: list[dict],
         eleitorado: list[dict],
+        candidatos: list[dict] | None = None,
     ) -> FakeConn:
-        conn = FakeConn(snapshots, historical, eleitorado)
+        conn = FakeConn(snapshots, historical, eleitorado, candidatos)
         state["conn"] = conn
         monkeypatch.setattr(proj_mod, "_open_conn", lambda: conn)
         return conn
@@ -694,6 +722,173 @@ def test_edge_payload_orders_candidatos_by_leader_first(
     )
     # Needle aponta para o líder (>= 0).
     assert national["needle_position"] >= 0.0
+
+
+def _sem_nome_no_ea20(payload: dict[str, Any]) -> dict[str, Any]:
+    """Cópia do envelope com `nm`/`nmu` removidos de cada `cand[]`.
+
+    É o estado que o degrau 3 existe para cobrir: o boletim traz a LINHA DE
+    VOTO do candidato (número, votos) mas não o nome. A fixture padrão do
+    orchestrator sempre traz nome, então sem esta poda o cadastro nunca seria
+    consultado de verdade e o teste abaixo passaria com o merge desligado.
+    """
+    copia = copy.deepcopy(payload)
+    for carg in copia.get("carg", []):
+        for agr in carg.get("agr", []):
+            for par in agr.get("par", []):
+                for cand in par.get("cand", []):
+                    cand.pop("nm", None)
+                    cand.pop("nmu", None)
+    return copia
+
+
+def test_cadastro_preenche_o_nome_que_o_boletim_nao_trouxe(
+    fake_db, minimal_dataset, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Spec 018 / RF-144 degrau 3, **ponta a ponta dentro de `_do_project`**.
+
+    Os testes de `test_identidade_cadastro.py` cobrem a query, o desempate e a
+    fusão em isolamento. Este cobre a COSTURA: as três linhas de `_do_project`
+    que chamam `fetch_identidade_cadastro` e `merge_identidade_cadastro` antes
+    de `build_edge_payload`. Sem ele, apagar essa chamada deixaria toda a
+    suíte verde e o nome real nunca chegaria ao payload em produção.
+
+    O cadastro guarda candidatura presidencial sob `uf = "BR"` (medido: cargo 1
+    tem exatamente uma UF distinta no arquivo do TSE), e o payload a procura
+    por `("SP", 100)` / `("RJ", 100)` — então este teste também é a prova de
+    que a expansão de `"BR"` acontece no caminho real, não só na função pura.
+    """
+    from api.model.project import _do_project, urllib as proj_urllib
+
+    snapshots, historical, eleitorado = minimal_dataset
+    snapshots = [
+        {**s, "payload": _sem_nome_no_ea20(s["payload"])} for s in snapshots
+    ]
+    cadastro = [
+        {
+            "uf": "BR", "numero": 100, "cargo": 1,
+            "sq_candidato": "280000600001",
+            "nome": "NOME COMPLETO DO CADASTRO",
+            "nome_urna": "NOME DE URNA DO CADASTRO",
+        },
+        {
+            "uf": "BR", "numero": 200, "cargo": 1,
+            "sq_candidato": "280000600002",
+            "nome": "SEGUNDO COLOCADO",
+        },
+        # Não publicável: presente no cadastro, invisível para o payload.
+        {
+            "uf": "BR", "numero": 999, "cargo": 1,
+            "sq_candidato": "280000600003",
+            "nome": "FORA DA URNA", "publicavel": False,
+        },
+    ]
+    fake_db(snapshots, historical, eleitorado, cadastro)
+
+    monkeypatch.setenv("MODEL_SECRET", "test-secret")
+    monkeypatch.setenv("INTERNAL_BASE_URL", "http://localhost:13000")
+
+    captured: dict[str, Any] = {}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):  # noqa: ANN204
+            return self
+
+        def __exit__(self, *a):  # noqa: ANN001,ANN204
+            return None
+
+    def fake_urlopen(req, timeout=10):  # noqa: ANN001,ARG001
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr(proj_urllib.request, "urlopen", fake_urlopen)
+
+    status, _ = _do_project(
+        json.dumps(
+            {"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}
+        ).encode("utf-8")
+    )
+    assert status == 200
+
+    payload = captured["body"]["payload"]
+    por_uf = {u["sigla"]: u for u in payload["por_uf"]}
+    tops = {
+        sigla: {t["id"]: t for t in linha["top_candidatos"]}
+        for sigla, linha in por_uf.items()
+    }
+
+    # O nome de urna do cadastro, nas DUAS UFs — é a expansão de "BR".
+    assert tops["SP"][100]["nome"] == "NOME DE URNA DO CADASTRO"
+    assert tops["RJ"][100]["nome"] == "NOME DE URNA DO CADASTRO"
+    assert tops["SP"][100]["sqcand"] == "280000600001"
+    # Sem nome de urna, cai no nome completo — nunca no placeholder.
+    assert tops["SP"][200]["nome"] == "SEGUNDO COLOCADO"
+
+    # Cargo 1: o bloco nacional TAMBÉM recebe (RF-145 só cala cargo 3 e 5).
+    nomes_nacionais = {c["id"]: c["nome"] for c in payload["national"]["candidatos"]}
+    assert nomes_nacionais[100] == "NOME DE URNA DO CADASTRO"
+
+    # A não-publicável não aparece em lugar nenhum do payload.
+    assert "FORA DA URNA" not in json.dumps(payload, ensure_ascii=False)
+
+
+def test_o_boletim_vence_o_cadastro_no_caminho_real(
+    fake_db, minimal_dataset, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A mesma costura, na direção contrária: com `nmu` presente no EA20, o
+    cadastro não encosta no nome.
+
+    Sem este teste, inverter a precedência dentro de `_do_project` (passar o
+    cadastro como base e o EA20 como fallback) passaria o teste acima.
+    """
+    from api.model.project import _do_project, urllib as proj_urllib
+
+    snapshots, historical, eleitorado = minimal_dataset
+    cadastro = [
+        {
+            "uf": "BR", "numero": 100, "cargo": 1,
+            "sq_candidato": "280000600001",
+            "nome": "NOME DO CADASTRO", "nome_urna": "NOME DO CADASTRO",
+        },
+    ]
+    fake_db(snapshots, historical, eleitorado, cadastro)
+
+    monkeypatch.setenv("MODEL_SECRET", "test-secret")
+    monkeypatch.setenv("INTERNAL_BASE_URL", "http://localhost:13000")
+
+    captured: dict[str, Any] = {}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):  # noqa: ANN204
+            return self
+
+        def __exit__(self, *a):  # noqa: ANN001,ANN204
+            return None
+
+    def fake_urlopen(req, timeout=10):  # noqa: ANN001,ARG001
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr(proj_urllib.request, "urlopen", fake_urlopen)
+
+    status, _ = _do_project(
+        json.dumps(
+            {"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}
+        ).encode("utf-8")
+    )
+    assert status == 200
+
+    payload = captured["body"]["payload"]
+    assert "NOME DO CADASTRO" not in json.dumps(payload, ensure_ascii=False)
+    por_uf = {u["sigla"]: u for u in payload["por_uf"]}
+    tops = {t["id"]: t for t in por_uf["SP"]["top_candidatos"]}
+    assert tops[100]["nome"] == "CANDIDATO 100"
+    # E o `sqcand` é o do BOLETIM, não o do cadastro — a fusão é por entrada.
+    assert tops[100]["sqcand"] == "1000000000001"
 
 
 def test_handler_class_importable() -> None:
@@ -1681,6 +1876,7 @@ def test_todas_as_sqls_de_project_sao_despachadas(fake_db) -> None:
         fetch_municipio_aggregates,
         fetch_municipio_eleitorado,
         fetch_series_temporais,
+        fetch_identidade_cadastro,
         fetch_snapshots,
         fetch_zona_municipio,
     )
@@ -1705,6 +1901,11 @@ def test_todas_as_sqls_de_project_sao_despachadas(fake_db) -> None:
     assert _fetch_eleitorado_por_par(conn, ano=2026) == {("SP", 71072, 1): 350}
     assert fetch_zona_municipio(conn) == {}
     assert fetch_series_temporais(conn, cargo=1, turno=1) == {}
+    # Spec 018 / RF-144 degrau 3 — sem fixture de cadastro o mapa sai vazio,
+    # mas a SQL precisa ter sido RECONHECIDA; `fetch_identidade_cadastro`
+    # degrada para `{}` em qualquer exceção, então só `unsupported_sqls`
+    # distingue "sem cadastro" de "SQL que o mock não conhece mais".
+    assert fetch_identidade_cadastro(conn, cargo=1) == {}
     # Aridade de 6 colunas preservada: se o mock tivesse devolvido outra coisa,
     # `fetch_municipio_aggregates` ignoraria a linha e o dict sairia vazio.
     agregados = fetch_municipio_aggregates(conn, cargo=1, turno=1)

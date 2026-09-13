@@ -66,6 +66,7 @@ import traceback
 import urllib.error
 import urllib.request
 import uuid
+from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
 from typing import Any, TypedDict
 
@@ -1843,6 +1844,284 @@ def _nome_de_urna(cand: dict[str, Any]) -> str:
         if texto:
             return texto
     return ""
+
+
+# ---------------------------------------------------------------------------
+# RF-144 degrau 3 — o CADASTRO de candidaturas (tabela `candidatos`)
+#
+# Os degraus 1 e 2 (EA20 `nmu`, EA20 `nm`) moram em `_nome_de_urna`/
+# `extract_identidade_by_cand`, acima. O degrau 4 (`f"Candidato {n}"`) mora nos
+# construtores de payload. Este bloco é o degrau 3, e ele é **fallback**: só
+# alcança o par `(uf, numero)` que o boletim não nomeou.
+#
+# Por que o EA20 vence sempre (ADR-0039, precedência absoluta e unidirecional):
+# quem está em `cand[]` do boletim é quem está concorrendo de fato — inclusive
+# a substituição de última hora que ainda não propagou ao CSV, e o candidato
+# indeferido que continua na urna porque ela já foi programada. O cadastro
+# decide, no máximo, se a linha do boletim tem nome ou cai no placeholder.
+#
+# Espelho em TypeScript: `data-pipeline/candidatos-resolve.ts`. As duas
+# implementações precisam concordar — são a mesma regra do ADR-0042 item 5
+# aplicada dos dois lados do pipeline.
+# ---------------------------------------------------------------------------
+
+
+def _deferido(candidatura: Mapping[str, Any]) -> bool:
+    """`DS_SITUACAO_JULGAMENTO` começa em `DEFERIDO` — degrau (b) do ADR-0042.
+
+    ⚠️ `"INDEFERIDO EM PRAZO RECURSAL OU COM RECURSO"` **não** começa em
+    `DEFERIDO` (começa em `IN`), e é exatamente essa distinção que separa
+    ARIEL CAPISTRANO de ESTÊVÃO no caso real `3|BA|27`. Usar `in` no lugar de
+    `startswith` colapsaria os dois e o desempate cairia no sequencial,
+    escolhendo o INDEFERIDO — em silêncio.
+    """
+    return str(candidatura.get("situacao_julgamento") or "").lstrip().startswith(
+        "DEFERIDO"
+    )
+
+
+def resolver_candidatura(
+    cargo: int,
+    uf: str,
+    numero: int,
+    candidaturas: Iterable[Mapping[str, Any]],
+) -> Mapping[str, Any] | None:
+    """Quem concorre com `numero` na corrida `(cargo, uf)` — ADR-0042 item 5.
+
+    Gêmea de `resolverCandidato` em `data-pipeline/candidatos-resolve.ts`.
+    Mesmos degraus, mesma ordem, mesmo resultado:
+
+      a. só candidatura **publicável** (ADR-0040, fail-closed);
+      b. entre as publicáveis, prefere `situacao_julgamento` começando em
+         `DEFERIDO`;
+      c. desempate final pelo **maior `sq_candidato`** (registro mais recente).
+
+    O degrau (d) — "o EA20 vence a–c" — não mora aqui: mora em
+    `merge_identidade_cadastro`, que é quem enxerga os dois lados.
+
+    ⚠️ **`sq_candidato` é comparado como NÚMERO, nunca como texto.** O
+    sequencial tem 11 **ou** 12 dígitos (1.995 de 8.323 nos quatro cargos do
+    produto, medido em 2026-09-13), e em comparação textual `"99…"` de 11
+    dígitos vence `"100…"` de 12 — o desempate escolhe o registro errado sem
+    erro, sem log e sem teste vermelho. `int()` aqui não é cosmético; é a
+    mesma armadilha que o `BigInt` do lado TypeScript existe para fechar.
+
+    Determinismo (constituição § 6): o vencedor sai de comparação **total**
+    entre os candidatos, não da posição na lista — a ordem de leitura do banco
+    não muda o resultado. `None` quando ninguém publicável casa: nunca um
+    palpite.
+    """
+    uf_alvo = str(uf).strip().upper()
+    melhor: Mapping[str, Any] | None = None
+    melhor_deferido = False
+
+    for c in candidaturas:
+        # Degrau (a) — fail-closed. Este guard é o que decide; o `WHERE
+        # publicavel` da query é só o recorte barato que evita trazer as 625
+        # linhas fora da urna pela rede.
+        if not c.get("publicavel"):
+            continue
+        try:
+            if (
+                int(c["cargo"]) != int(cargo)
+                or str(c["uf"]).strip().upper() != uf_alvo
+                or int(c["numero"]) != int(numero)
+            ):
+                continue
+            sq_novo = int(c["sq_candidato"])
+        except (KeyError, TypeError, ValueError):
+            continue
+
+        deferido = _deferido(c)
+        if melhor is None:
+            melhor, melhor_deferido = c, deferido
+            continue
+        # Degrau (b) — DEFERIDO ganha de não-DEFERIDO, qualquer sequencial.
+        if deferido != melhor_deferido:
+            if deferido:
+                melhor, melhor_deferido = c, True
+            continue
+        # Degrau (c) — empatados em (b), vence o maior sequencial.
+        if sq_novo > int(melhor["sq_candidato"]):
+            melhor, melhor_deferido = c, deferido
+
+    return melhor
+
+
+def fetch_identidade_cadastro(
+    conn, cargo: int
+) -> dict[tuple[str, int], dict[str, str]]:
+    """`{(uf, numero): {"nome", "sqcand"}}` lido da tabela `candidatos`.
+
+    O degrau 3 do RF-144. Mesma forma de saída de
+    `extract_identidade_by_cand` — de propósito: `merge_identidade_cadastro`
+    junta os dois mapas sem conversão, e um campo a mais aqui viraria peso
+    morto (o `partido` continua vindo de `extract_partido_by_cand`, que é
+    plano por decisão registrada no ADR-0042 item 1).
+
+    ⚠️ **Chave é o par `(uf, numero)`, nunca o número sozinho** — é o ADR-0042
+    inteiro. Em cargo 1 a UF do cadastro é a string literal `"BR"` (as 12
+    candidaturas presidenciais publicáveis moram sob ela, medido); a expansão
+    de `"BR"` para as UFs do ciclo é feita em `merge_identidade_cadastro`,
+    não aqui, para que esta função devolva o cadastro como ele é.
+
+    ⚠️ **Não filtra por `turno`.** A tabela só tem `turno = 1`: o TSE não
+    republica o cadastro para o 2º turno. Um `AND turno = %s` devolveria zero
+    linha em 25/10 e o degrau sumiria em silêncio, exatamente o modo de falha
+    que um default de enum produz.
+
+    **Uma query por ciclo, não uma por candidato.** São ≤ 285 linhas em cargo
+    1/3/5 e 7.221 em cargo 6; o agrupamento e o desempate rodam em memória.
+    `ORDER BY` explícito para que o log do ciclo seja reproduzível
+    (constituição § 6) — o desempate em si já é independente de ordem.
+
+    **Degrada, nunca derruba** (constituição § 7): tabela ausente (o replay
+    2022 roda contra um banco sem cadastro de 2026), permissão negada, query
+    lenta demais — qualquer falha vira `{}` com log `warn`, e a cadeia do
+    RF-144 cai no degrau 4 (`"Candidato {n}"`) como caía antes desta função
+    existir.
+    """
+    sql = """
+        SELECT uf, numero, sq_candidato, nome, nome_urna,
+               situacao_julgamento, publicavel, cargo
+        FROM candidatos
+        WHERE cargo = %s AND publicavel
+        ORDER BY uf, numero, sq_candidato
+    """
+    t0 = time.perf_counter_ns()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, (int(cargo),))
+            rows = cur.fetchall()
+    except Exception as exc:  # noqa: BLE001 — sem cadastro o ciclo segue
+        _log(
+            "warn",
+            "fetch_identidade_cadastro failed, RF-144 cai no placeholder",
+            cargo=int(cargo),
+            error=str(exc),
+        )
+        try:
+            conn.rollback()
+        except Exception:  # noqa: BLE001 — autocommit ou sem tx
+            pass
+        return {}
+
+    # Agrupa por `(uf, numero)` e resolve cada grupo com a MESMA função que o
+    # lado TypeScript usa. Grupo de 1 (o caso de 99,95 % das chaves) passa pelo
+    # mesmo caminho dos 4 grupos colidentes — sem atalho que só o caso raro
+    # exercita.
+    grupos: dict[tuple[str, int], list[dict[str, Any]]] = {}
+    for r in rows:
+        try:
+            uf = str(r[0]).strip().upper()
+            numero = int(r[1])
+        except (TypeError, ValueError):
+            continue
+        if not uf:
+            continue
+        grupos.setdefault((uf, numero), []).append(
+            {
+                "uf": uf,
+                "numero": numero,
+                "sq_candidato": r[2],
+                "nome": r[3],
+                "nome_urna": r[4],
+                "situacao_julgamento": r[5],
+                "publicavel": r[6],
+                "cargo": r[7],
+            }
+        )
+
+    out: dict[tuple[str, int], dict[str, str]] = {}
+    for (uf, numero) in sorted(grupos):
+        vencedora = resolver_candidatura(cargo, uf, numero, grupos[(uf, numero)])
+        if vencedora is None:
+            continue
+        # Nome de urna antes do nome completo — o mesmo critério dos degraus 1
+        # e 2 do EA20 (`nmu` antes de `nm`) e o nome pelo qual o eleitor
+        # conhece o candidato. `NM_URNA_CANDIDATO` nunca vem vazio (0 em
+        # 20.939 linhas), mas o fallback existe porque o contrato é do
+        # arquivo, não da medição de um dia.
+        nome = str(vencedora.get("nome_urna") or "").strip() or str(
+            vencedora.get("nome") or ""
+        ).strip()
+        if not nome:
+            # Mesma regra de `extract_identidade_by_cand`: entrada sem nome
+            # faria a tela renderizar rótulo vazio em vez de cair no
+            # placeholder honesto.
+            continue
+        entrada: dict[str, str] = {"nome": nome}
+        sq = vencedora.get("sq_candidato")
+        if sq is not None and str(sq).strip():
+            # String, sempre (ADR-0042 item 2): 11 ou 12 dígitos, e é a chave
+            # que endereça a foto (ADR-0041).
+            entrada["sqcand"] = str(sq).strip()
+        out[(uf, numero)] = entrada
+
+    _log(
+        "info",
+        "fetch_identidade_cadastro ok",
+        cargo=int(cargo),
+        linhas=len(rows),
+        chaves=len(out),
+        colisoes=sum(1 for g in grupos.values() if len(g) > 1),
+        duration_ms=(time.perf_counter_ns() - t0) // 1_000_000,
+    )
+    return out
+
+
+def merge_identidade_cadastro(
+    identidade_ea20: dict[tuple[str, int], dict[str, str]],
+    cadastro: dict[tuple[str, int], dict[str, str]],
+    ufs_do_ciclo: Iterable[Any],
+) -> dict[tuple[str, int], dict[str, str]]:
+    """Funde o cadastro **por baixo** do EA20 — degrau (d) do ADR-0042 item 5.
+
+    O EA20 tem precedência **absoluta**: uma chave que o boletim nomeou não é
+    tocada. A fusão é por ENTRADA, não por campo — o cadastro não completa o
+    `sqcand` de uma entrada cujo nome veio do EA20. A razão é concreta: numa
+    substituição de última hora o boletim traz a pessoa nova e o cadastro
+    ainda resolve o par para a pessoa velha; costurar o `sqcand` do cadastro
+    ao nome do EA20 penduraria a **foto errada** no nome certo — um erro que
+    não tem como aparecer em log, só na tela. (Na prática o caso não chega a
+    existir, porque `extract_identidade_by_cand` só registra entrada quando há
+    nome, e nome e `sqcand` saem do mesmo `cand[]`; a regra está escrita para
+    que continue assim se aquele contrato mudar.)
+
+    **`"BR"` expande para as UFs do ciclo.** Em cargo 1 o cadastro guarda as 12
+    candidaturas presidenciais sob `uf = "BR"`, enquanto o payload as procura
+    por `("SP", 13)`, `("BA", 13)`, … Sem a expansão o degrau 3 seria inerte
+    justamente no único cargo em que o número identifica uma pessoa no país
+    inteiro. Expandir é seguro exatamente ali e em lugar nenhum mais: cargos
+    3, 5 e 6 têm 27 UFs reais no cadastro e zero linha `"BR"` (medido).
+
+    Determinismo (§ 6): varredura por chave ordenada e UFs ordenadas; nada de
+    ordem de `set`. Devolve um dicionário **novo** — o mapa do EA20 que entrou
+    continua intacto para quem ainda o tiver em mãos.
+    """
+    out: dict[tuple[str, int], dict[str, str]] = {
+        chave: dict(valor) for chave, valor in identidade_ea20.items()
+    }
+    if not cadastro:
+        return out
+
+    ufs = sorted(
+        {
+            u.strip().upper()
+            for u in ufs_do_ciclo
+            if isinstance(u, str) and u.strip()
+        }
+    )
+
+    for chave_cad in sorted(cadastro):
+        uf_cad, numero = chave_cad
+        alvos = ufs if uf_cad == "BR" else [uf_cad]
+        for uf in alvos:
+            if (uf, numero) in out:
+                continue  # o EA20 já nomeou esta corrida — degrau (d).
+            out[(uf, numero)] = dict(cadastro[chave_cad])
+
+    return out
 
 
 def compute_p_passa_2t(
@@ -4679,6 +4958,17 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
             # (ADR-0042). Zero query nova: varre os `snapshots` já lidos acima.
             identidade_by_cand = extract_identidade_by_cand(
                 snapshots, cargo=req.cargo
+            )
+
+            # Spec 018 / RF-144 degrau 3 — o CADASTRO, só onde o boletim não
+            # chegou. UMA query por ciclo (não uma por candidato), e o merge
+            # põe o cadastro POR BAIXO do EA20: quem o boletim nomeou não é
+            # tocado (ADR-0039, precedência absoluta). Tabela ausente ou query
+            # falhando → `{}` e a cadeia cai no degrau 4, como antes.
+            identidade_by_cand = merge_identidade_cadastro(
+                identidade_by_cand,
+                fetch_identidade_cadastro(conn, req.cargo),
+                (s.get("uf") for s in snapshots),
             )
 
             # Persistência append-only (constituição § 10).
