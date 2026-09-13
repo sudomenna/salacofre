@@ -3843,6 +3843,40 @@ def _do_project_proporcional(
             except Exception:  # noqa: BLE001 — autocommit ou sem transação
                 pass
 
+    # Guarda de sanidade do cargo proporcional (2026-09-13). Mesma trava dos
+    # majoritários, no modo sem merge (`merged_rows=None`): soma `e.te` dos
+    # pares de cada zona e compara com o eleitorado real dela.
+    #
+    # Por que só agora: até o ADR-0036 o cargo 6 vinha em granularidade UF —
+    # um arquivo por estado, nada a somar, exposição zero. O ADR passou a
+    # somar ~6.110 pares e **afirmou por escrito que esta trava vinha junto**,
+    # o que era falso: `check_zona_merge_sanity` só era chamada no ramo
+    # majoritário. Enquanto isso, se a premissa da fatia por município (Passo
+    # 0 do simulado) fosse falsa, a bancada da Câmara sairia multiplicada por
+    # até 8× em silêncio, com os outros três cargos gritando ao lado.
+    #
+    # Não aborta o ciclo (constituição § 7): torna ruidoso, não fatal.
+    if eleitorado:
+        n_violacoes_pares = check_zona_merge_sanity(snapshots, None, eleitorado)
+        if n_violacoes_pares:
+            _log(
+                "error",
+                "zona_merge_sanity (proporcional): ciclo com zonas em violação "
+                "confirmada — possível multiplicação de votos por par",
+                cargo=req.cargo,
+                turno=req.turno,
+                n_violacoes=n_violacoes_pares,
+            )
+            _alert_slack(
+                "error",
+                "zona_merge_sanity (proporcional): possível multiplicação de "
+                "votos de Deputado Federal (premissa da fatia por município "
+                "pode estar violada) — ver logs do ciclo para UF/zona/razão",
+                cargo=req.cargo,
+                turno=req.turno,
+                n_violacoes=n_violacoes_pares,
+            )
+
     eleitorado_total_by_uf = _eleitorado_total_by_uf(eleitorado)
 
     por_uf: dict[str, list[LatestSnapshot]] = {}

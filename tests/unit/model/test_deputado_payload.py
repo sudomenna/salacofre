@@ -908,7 +908,17 @@ class _FakeCursor:
         elif "FROM eleitorado" in sql:
             if self._conn.eleitorado_quebrado:
                 raise RuntimeError('relation "eleitorado" does not exist')
-            self._rows = [(uf, 0, aptos) for uf, aptos in self._conn.eleitorado.items()]
+            # `eleitorado_zonas` existe para a guarda de sanidade do ciclo
+            # proporcional, que lê por `(uf, cod_zona)` real — o default
+            # continua emitindo a zona-sentinela, como os testes anteriores
+            # esperam.
+            if self._conn.eleitorado_zonas is not None:
+                self._rows = [
+                    (uf, zona, aptos)
+                    for (uf, zona), aptos in self._conn.eleitorado_zonas.items()
+                ]
+            else:
+                self._rows = [(uf, 0, aptos) for uf, aptos in self._conn.eleitorado.items()]
         else:
             raise AssertionError(f"query inesperada no caminho proporcional: {sql[:80]}")
 
@@ -928,10 +938,12 @@ class _FakeConn:
         snapshots: list[dict],
         eleitorado: dict[str, int],
         eleitorado_quebrado: bool = False,
+        eleitorado_zonas: dict[tuple[str, int], int] | None = None,
     ) -> None:
         self.snapshots = snapshots
         self.eleitorado = eleitorado
         self.eleitorado_quebrado = eleitorado_quebrado
+        self.eleitorado_zonas = eleitorado_zonas
         self.sqls: list[str] = []
 
     def cursor(self) -> _FakeCursor:
@@ -962,13 +974,14 @@ def ciclo_deputado(monkeypatch: pytest.MonkeyPatch):
         snapshots: list[dict],
         eleitorado: dict[str, int] | None = None,
         eleitorado_quebrado: bool = False,
+        eleitorado_zonas: dict[tuple[str, int], int] | None = None,
         trigger_ts: str = "2026-10-04T21:00:00Z",
     ) -> tuple[int, dict, list[tuple[dict, dict]]]:
         # `{}` é um caso de teste (banco sem eleitorado), não "use o default" —
         # por isso o sentinel é `None`, e não a falsidade do dict.
         if eleitorado is None:
             eleitorado = {"SP": 30_000_000, "RJ": 12_000_000}
-        conn = _FakeConn(snapshots, eleitorado, eleitorado_quebrado)
+        conn = _FakeConn(snapshots, eleitorado, eleitorado_quebrado, eleitorado_zonas)
         publicados: list[tuple[dict, dict]] = []
         monkeypatch.setattr(proj, "_open_conn", lambda: conn)
         monkeypatch.setattr(
@@ -1370,3 +1383,93 @@ def test_cada_uf_sorteia_as_proprias_zonas(ciclo_deputado) -> None:
         a["cod"]: a["cadeiras"] for a in detalhes["RJ"]["agremiacoes"]
     }, "as duas UFs precisam ter o MESMO ponto para o teste medir só o sorteio"
     assert sp != rj
+
+
+# ---------------------------------------------------------------------------
+# A guarda de sanidade está LIGADA ao ciclo proporcional (2026-09-13)
+#
+# Os testes unitários de `check_zona_merge_sanity` cobrem a função. Não cobrem
+# o fio: mutar a chamada para fora de `_do_project_proporcional` passava nos
+# 370 testes. Uma trava que ninguém verifica estar ligada é uma trava que some
+# no primeiro refactor — e esta só é exercitada na noite em que importa.
+# ---------------------------------------------------------------------------
+
+
+def _snapshot_par(
+    uf: str, cod_municipio_tse: int, cod_zona: int, envelope: dict[str, Any], te: int
+) -> dict[str, Any]:
+    """Linha de par (município, zona) — o que a ingestão grava desde o
+    ADR-0036 — com `e.te`, que é o campo que a guarda compara."""
+    payload = dict(envelope)
+    payload["e"] = {"te": str(te)}
+    return {
+        "cargo": 6,
+        "turno": 1,
+        "uf": uf,
+        "cod_municipio_tse": cod_municipio_tse,
+        "cod_zona": cod_zona,
+        "pct_apurado": 100.0,
+        "payload": payload,
+    }
+
+
+def test_ciclo_proporcional_aciona_a_guarda_quando_a_premissa_da_fatia_cai(
+    ciclo_deputado, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Dois pares da MESMA zona trazendo, cada um, o eleitorado da zona
+    inteira (1.000 contra 1.000 reais) — razão 2,0, o sinal de que o arquivo
+    do par não traz a fatia. O ciclo tem de gritar.
+
+    Sem isto, se a premissa do Passo 0 cair, a bancada da Câmara sai
+    multiplicada por até 8× **em silêncio**, enquanto os outros três cargos
+    disparam alarme.
+    """
+    from api.model import project as proj
+
+    alertas: list[tuple] = []
+    monkeypatch.setattr(
+        proj, "_alert_slack", lambda level, msg, **ctx: alertas.append((level, msg, ctx))
+    )
+
+    env = _envelope_de_zona("10")
+    status, _resposta, _pub = ciclo_deputado(
+        [
+            _snapshot_par("SP", 71072, 1, env, te=1_000),
+            _snapshot_par("SP", 67016, 1, env, te=1_000),
+        ],
+        eleitorado_zonas={("SP", 1): 1_000},
+    )
+
+    assert status == 200, "a guarda NÃO pode abortar o ciclo (constituição § 7)"
+    assert alertas, "a guarda não acionou o alarme — a chamada saiu do ciclo?"
+    nivel, mensagem, ctx = alertas[0]
+    assert nivel == "error"
+    assert "multiplicação" in mensagem
+    assert ctx["n_violacoes"] == 1
+
+
+def test_ciclo_proporcional_fica_calado_quando_a_premissa_se_confirma(
+    ciclo_deputado, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """O outro lado, sem o qual o teste acima passaria com uma guarda que
+    grita sempre: os mesmos dois pares trazendo cada um a sua FATIA (500 +
+    520 contra 1.000) não geram alarme nenhum.
+    """
+    from api.model import project as proj
+
+    alertas: list[tuple] = []
+    monkeypatch.setattr(
+        proj, "_alert_slack", lambda level, msg, **ctx: alertas.append((level, msg, ctx))
+    )
+
+    env = _envelope_de_zona("10")
+    status, _resposta, _pub = ciclo_deputado(
+        [
+            _snapshot_par("SP", 71072, 1, env, te=500),
+            _snapshot_par("SP", 67016, 1, env, te=520),
+        ],
+        eleitorado_zonas={("SP", 1): 1_000},
+    )
+
+    assert status == 200
+    assert not alertas, f"alarme falso com a premissa confirmada: {alertas}"

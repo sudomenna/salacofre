@@ -525,7 +525,7 @@ _RATIO_VIOLACAO = 1.8
 
 def check_zona_merge_sanity(
     raw_rows: list[SnapshotRow],
-    merged_rows: list[SnapshotRow],
+    merged_rows: list[SnapshotRow] | None,
     eleitorado: dict[tuple[str, int], int],
 ) -> int:
     """Guarda de sanidade: a premissa de que o EA20 de zona publica só a
@@ -561,15 +561,34 @@ def check_zona_merge_sanity(
     Devolve o número de zonas em estado de **violação confirmada**
     (`razao >= 1.8`). Zonas na faixa cinzenta (`1.5 <= razao < 1.8`) geram
     um log `warn` mas não entram nessa contagem.
+
+    **`merged_rows=None` — o modo do cargo proporcional (2026-09-13).** O
+    ramo do cargo 6 não chama `merge_pairs_into_zonas`: lê `fetch_snapshots`
+    direto e soma os pares em `api.model.deputado.combinar_entradas`. Até o
+    ADR-0036 isso não expunha nada — o cargo vinha em granularidade UF, um
+    arquivo por estado, e não havia o que somar. Depois dele, passou a somar
+    ~6.110 pares **sem guarda nenhuma**, enquanto os outros três cargos
+    gritavam; o ADR chegou a afirmar por escrito que a trava vinha junto, o
+    que era falso (corrigido em 13/09).
+
+    Com `merged_rows=None`, `te_somado` é calculado somando `e.te` dos
+    próprios pares do grupo. É **idêntico** ao valor que sairia do merge —
+    `te` está em `_E_ADITIVOS`, ou seja, `merge_pairs_into_zonas` faz
+    exatamente essa soma — então os dois modos medem a mesma coisa, com os
+    mesmos limiares e a mesma semântica de log. Uma guarda só, dois
+    chamadores: duas implementações divergiriam com o tempo, e é o tipo de
+    divergência que só aparece na noite em que ela importa.
     """
     grupos: dict[tuple[str, int], list[SnapshotRow]] = {}
     for r in raw_rows:
         chave = (str(r.get("uf")), int(r.get("cod_zona") or 0))
         grupos.setdefault(chave, []).append(r)
 
-    merged_by_key: dict[tuple[str, int], SnapshotRow] = {
-        (str(r.get("uf")), int(r.get("cod_zona") or 0)): r for r in merged_rows
-    }
+    merged_by_key: dict[tuple[str, int], SnapshotRow] = (
+        {(str(r.get("uf")), int(r.get("cod_zona") or 0)): r for r in merged_rows}
+        if merged_rows is not None
+        else {}
+    )
 
     n_violacoes = 0
     for chave, pares in grupos.items():
@@ -584,12 +603,17 @@ def check_zona_merge_sanity(
         if not eleitores_zona:
             continue
 
-        merged = merged_by_key.get(chave)
-        if merged is None:
-            continue
-        payload = merged.get("payload")
-        e_node = payload.get("e") if isinstance(payload, dict) else None
-        te_somado = _num(e_node.get("te")) if isinstance(e_node, dict) else None
+        if merged_rows is None:
+            # Modo proporcional: não há linha mesclada — soma `e.te` dos pares
+            # do grupo, que é o que o merge produziria (`te` é aditivo).
+            te_somado: float | None = sum(_te_of(r) for r in efetivos)
+        else:
+            merged = merged_by_key.get(chave)
+            if merged is None:
+                continue
+            payload = merged.get("payload")
+            e_node = payload.get("e") if isinstance(payload, dict) else None
+            te_somado = _num(e_node.get("te")) if isinstance(e_node, dict) else None
         if te_somado is None or te_somado <= 0:
             continue
 

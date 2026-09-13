@@ -36,6 +36,17 @@ def _raw(uf: str, cod_municipio_tse: int, cod_zona: int) -> dict[str, Any]:
     }
 
 
+def _raw_com_te(uf: str, cod_municipio_tse: int, cod_zona: int, te: float) -> dict[str, Any]:
+    """Linha crua COM `e.te` — o modo `merged_rows=None` (cargo proporcional)
+    soma este campo dos pares em vez de ler a linha mesclada."""
+    return {
+        "uf": uf,
+        "cod_municipio_tse": cod_municipio_tse,
+        "cod_zona": cod_zona,
+        "payload": {"e": {"te": str(te)}},
+    }
+
+
 def _merged(uf: str, cod_zona: int, te: float) -> dict[str, Any]:
     """Linha mesclada — só o que a guarda lê (`payload.e.te`)."""
     return {
@@ -241,3 +252,81 @@ def test_agrega_violacoes_de_varias_zonas_no_mesmo_ciclo() -> None:
     n_violacoes = check_zona_merge_sanity(raw, merged, eleitorado)
 
     assert n_violacoes == 2
+
+
+# ---------------------------------------------------------------------------
+# Modo `merged_rows=None` — o ramo proporcional (cargo 6), ADR-0036 + correção
+# de 2026-09-13. Ver a docstring de `check_zona_merge_sanity`.
+# ---------------------------------------------------------------------------
+
+
+def test_sem_merged_rows_soma_te_dos_pares_e_detecta_multiplicacao(caplog) -> None:
+    """O cargo 6 não passa por `merge_pairs_into_zonas` — soma os pares em
+    `combinar_entradas`. Sem esta guarda no modo `None`, a multiplicação por
+    fatia passaria em SILÊNCIO só nesse cargo, enquanto os outros três gritam.
+
+    Dois pares trazendo a zona inteira (1.000 cada) contra um eleitorado de
+    1.000: razão 2,0, acima do limiar de violação confirmada (1,8).
+    """
+    raw = [
+        _raw_com_te("MG", 41238, 9, te=1_000),
+        _raw_com_te("MG", 41254, 9, te=1_000),
+    ]
+    eleitorado = {("MG", 9): 1_000}
+
+    with caplog.at_level("INFO", logger="api.model.zona_merge"):
+        n_violacoes = check_zona_merge_sanity(raw, None, eleitorado)
+
+    assert n_violacoes == 1
+    erros = [r for r in caplog.records if '"level": "error"' in r.message]
+    assert len(erros) == 1
+    assert "MG" in erros[0].message
+    assert '"cod_zona": 9' in erros[0].message
+    assert '"n_pares": 2' in erros[0].message
+
+
+def test_sem_merged_rows_premissa_da_fatia_confirmada_e_silenciosa(caplog) -> None:
+    """O outro lado: pares trazendo cada um a sua FATIA (500 + 520) contra
+    eleitorado de 1.000 — razão ~1,02, dentro da faixa ok. Silêncio.
+
+    Sem este caso, um teste que só afirmasse "detecta multiplicação" passaria
+    com uma guarda que grita sempre.
+    """
+    raw = [
+        _raw_com_te("MG", 41238, 9, te=500),
+        _raw_com_te("MG", 41254, 9, te=520),
+    ]
+    eleitorado = {("MG", 9): 1_000}
+
+    with caplog.at_level("INFO", logger="api.model.zona_merge"):
+        n_violacoes = check_zona_merge_sanity(raw, None, eleitorado)
+
+    assert n_violacoes == 0
+    assert not any("zona_merge_sanity" in r.message for r in caplog.records)
+
+
+def test_os_dois_modos_medem_a_mesma_coisa() -> None:
+    """Equivalência: `te` é aditivo (`_E_ADITIVOS`), então somar `e.te` dos
+    pares dá o mesmo que ler o `e.te` da linha mesclada. Se os dois modos
+    divergirem, um dos cargos passa a ser julgado por régua diferente — e a
+    divergência só apareceria na noite em que importa.
+    """
+    raw = [
+        _raw_com_te("SP", 71072, 1, te=1_200),
+        _raw_com_te("SP", 67016, 1, te=1_300),
+    ]
+    eleitorado = {("SP", 1): 1_250}
+    merged = [_merged("SP", 1, te=2_500)]  # 1.200 + 1.300
+
+    assert check_zona_merge_sanity(raw, None, eleitorado) == check_zona_merge_sanity(
+        raw, merged, eleitorado
+    )
+
+
+def test_sem_merged_rows_zona_de_par_unico_segue_ignorada() -> None:
+    """Zona com um par só não pôde ter sido multiplicada por soma — mesmo
+    critério do modo com merge, mantido no modo novo."""
+    raw = [_raw_com_te("AC", 1120, 3, te=99_999)]
+    eleitorado = {("AC", 3): 1_000}
+
+    assert check_zona_merge_sanity(raw, None, eleitorado) == 0
