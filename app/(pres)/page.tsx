@@ -160,6 +160,7 @@ import { Panel } from "@/components/atoms/surfaces/Panel";
 import { ApuracaoMeta } from "@/components/blocks/ApuracaoMeta";
 import { BreakingNewsTicker } from "@/components/blocks/BreakingNewsTicker";
 import { BulletinPanel } from "@/components/blocks/BulletinPanel";
+import { CandidaturasAguardando } from "@/components/blocks/CandidaturasAguardando";
 import { ChancesPanel } from "@/components/blocks/ChancesPanel";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { HeadlineScore } from "@/components/blocks/HeadlineScore";
@@ -188,6 +189,32 @@ import nationalFixtureT2 from "@/tests/fixtures/edge-config/projection-current-t
  * aqui injetamos apenas os campos textuais para sharing previews em redes
  * sociais. `siteName` e `locale` aplicam o padrão pt_BR.
  */
+/**
+ * 60 segundos — a mesma cadência das três páginas de cargo irmãs
+ * (`(gov)/governador`, `(sen)/senador`, `(dep)/deputado-federal`, todas com
+ * `export const revalidate = 60`) e do ciclo de apuração do ADR-0011.
+ *
+ * ⚠️ **Esta declaração faltava, e a home era a única sem ela.** Consequência
+ * medida em 13/09 no `pnpm build`: a coluna `Revalidate` de `┌ ○ /` vinha
+ * VAZIA — a página era estática congelada no build, enquanto as irmãs
+ * mostravam `1m`. O painel da esquerda (`<ResultPanel>`, `<HeadlineScore>`) é
+ * Server Component sem polling: quem o atualiza é a regeneração da rota.
+ * Congelada, ele serviria na noite de 04/10 o dado do último deploy.
+ *
+ * O mapa não sofria do mesmo mal porque `<PersistentMapFrame>` é Client
+ * Component e busca `/api/projection` a cada 5 s — foi isso que mascarou o
+ * defeito: a metade direita da tela se movia e a esquerda não.
+ *
+ * O achado veio de rebote: ao compor a grade de candidaturas, o `fetch` de
+ * `readCandidatosUf` (12 h) passou a ser o único com cadência declarada na
+ * rota, e a home herdou `Revalidate 12h`. Melhor que congelada, e ainda assim
+ * 720× pior que as irmãs. Daí a declaração explícita.
+ *
+ * Não conflita com as 12 h da fatia de candidaturas: a rota regenera a cada
+ * 60 s, e o `fetch` do cadastro mantém o cache próprio.
+ */
+export const revalidate = 60;
+
 export const metadata: Metadata = {
   title: "SalaCofre — Apuração presidencial 2026",
   description:
@@ -308,7 +335,16 @@ function ResultTitle() {
  * `<ForecastTransparency pctApurado={0}>` é o único número da tela, e é o
  * verdadeiro: zero por cento apurado.
  */
-function AguardandoNacional() {
+async function AguardandoNacional() {
+  // RF-149 — a grade de "quem está concorrendo", ABAIXO do parágrafo honesto.
+  //
+  // Resolvida aqui, e não montada como `<CandidaturasAguardando />` na árvore,
+  // por uma razão de renderizador: `renderToStaticMarkup` (o que os testes de
+  // integração usam) não renderiza componentes assíncronos. Resolver o nó antes
+  // de devolver a árvore funciona nos dois mundos — RSC e teste — e mantém o
+  // teste de ORDEM possível sem um harness de streaming.
+  const grade = await CandidaturasAguardando({ cargo: 1, uf: "BR" });
+
   return (
     <main
       data-trilha="pres"
@@ -329,11 +365,28 @@ function AguardandoNacional() {
           data-testid="pres-aguardando"
           style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
         >
+          {/*
+            ⚠️ Emenda de UMA oração, em 2026-09-13, e só porque o RF-149 a
+            tornou falsa. O texto dizia "a lista de candidaturas também vem do
+            dado publicado, e por isso ainda não há nomes nem números nesta
+            tela" — verdade enquanto a tela era só este parágrafo, mentira no
+            instante em que a grade de 12 candidaturas passou a renderizar logo
+            abaixo, com nome e número. Deixá-la seria publicar, na mesma tela,
+            uma frase desmentida pelo bloco seguinte (constituição § 8).
+
+            O que a emenda NÃO fez: mexer nas outras orações. "Aguardando o
+            primeiro boletim", o "não oficial" e a "Fonte: TSE" são as partes
+            que os testes travam e que três correções anteriores acertaram.
+          */}
           Aguardando o primeiro boletim. O placar, a projeção e o mapa por estado aparecem aqui
-          assim que o TSE divulgar a apuração — a lista de candidaturas também vem do dado
-          publicado, e por isso ainda não há nomes nem números nesta tela. Não oficial. Fonte: TSE.
+          assim que o TSE divulgar a apuração — nenhum voto foi contado ainda, então não há
+          percentual nem liderança nesta tela. Não oficial. Fonte: TSE.
         </p>
       </Panel>
+
+      {/* RF-149 — acrescentar, nunca substituir: a grade vem DEPOIS do
+          parágrafo acima, e é `null` quando o Blob não responde. */}
+      {grade}
 
       <Panel kicker="Metodologia">
         <ForecastTransparency pctApurado={0} />
@@ -372,7 +425,10 @@ export default async function HomePage() {
   // O gate é a AUSÊNCIA DE LISTA, não um percentual em zero: 0% apurado COM
   // candidaturas publicadas é um estado legítimo da noite eleitoral (a corrida
   // existe, ninguém apurou ainda) e continua caindo no fluxo normal.
-  if (!payload || payload.national.candidatos.length === 0) return <AguardandoNacional />;
+  // `await` em vez de `<AguardandoNacional />`: o ramo aguardando lê o Blob de
+  // candidaturas (RF-149) e precisa devolver a árvore já resolvida — ver o
+  // comentário dentro da função.
+  if (!payload || payload.national.candidatos.length === 0) return await AguardandoNacional();
 
   const { national, por_uf, pct_apurado_total, ufs_apuradas, ts, insights, composition, turno } =
     payload;
