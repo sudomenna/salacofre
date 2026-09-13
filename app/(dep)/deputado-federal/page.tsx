@@ -368,11 +368,17 @@ export default async function DeputadoFederalPage() {
                     borderBottom: "1px solid var(--border-hairline)",
                   }}
                 >
-                  <span
-                    data-testid="bancada-cadeiras"
-                    style={{ font: "var(--type-figure-sm)", color: "var(--text-primary)" }}
-                  >
-                    {agr.cadeiras}
+                  {/* O rótulo é IRMÃO do número, não filho: `bancada-cadeiras`
+                      precisa continuar valendo exatamente a contagem, porque é
+                      sobre ela que RF-125.1 faz a asserção de que a tela mostra
+                      `cadeiras` e nunca `vagas_obtidas`. Sem isto, o leitor de
+                      tela ouve "89 ... 85 a 93" e adivinha qual é qual — a
+                      distinção existe só na posição visual (WCAG 1.3.1). Achado
+                      do gate de a11y de 13/09; o axe não pega, porque não é
+                      regra técnica. Padrão de `StateResultSheet.tsx:223`. */}
+                  <span style={{ font: "var(--type-figure-sm)", color: "var(--text-primary)" }}>
+                    <span data-testid="bancada-cadeiras">{agr.cadeiras}</span>
+                    <span className="sr-only"> cadeiras conquistadas</span>
                   </span>
 
                   <span className="min-w-0 flex flex-col" style={{ gap: "var(--space-1)" }}>
@@ -430,12 +436,21 @@ export default async function DeputadoFederalPage() {
                     </span>
                   </span>
 
+                  {/* O rótulo precede o número e fica FORA do `data-testid`, que
+                      continua valendo exatamente o texto visível. E nada aqui usa
+                      `aria-hidden`: o teste (m4) conta `span[aria-hidden]` para
+                      conferir os pontos de cor, e um a mais o quebraria — um
+                      seletor existente é contrato, não detalhe. */}
                   <span
                     className="text-right"
-                    data-testid="bancada-intervalo"
                     style={{ font: "var(--type-data)", color: "var(--text-muted)" }}
                   >
-                    {intervalo ? `${intervalo} cadeiras` : "—"}
+                    <span className="sr-only">
+                      {intervalo ? "faixa provável: " : "faixa não disponível "}
+                    </span>
+                    <span data-testid="bancada-intervalo">
+                      {intervalo ? `${intervalo} cadeiras` : "—"}
+                    </span>
                   </span>
                 </li>
               );

@@ -257,6 +257,49 @@ describe("/deputado-federal (T-11)", () => {
     expect(doc.body.textContent).not.toContain("400 cadeiras");
   });
 
+  it("(c0) a11y: a contagem e a faixa têm rótulo próprio — não se distinguem só por posição", async () => {
+    // Achado do gate de a11y de 2026-09-13. A linha mostra dois números —
+    // "89" (cadeiras agora) e "85 a 93" (a faixa). Para quem enxerga, a coluna
+    // resolve. Para quem ouve, "89 ... 85 a 93" sem rótulo é adivinhação:
+    // significado transmitido só por posição, WCAG 1.3.1. O axe não pega isso
+    // porque não é regra técnica — por isso o teste existe aqui.
+    readDeputadoProjectionMock.mockResolvedValue(
+      nacional({
+        bancada: {
+          ...nacional().bancada,
+          por_agremiacao: [agr({ cadeiras: 89, cadeiras_ci95: [85, 93] })],
+        },
+      }),
+    );
+    const doc = await render(DeputadoFederalPage());
+
+    // O rótulo é IRMÃO do número (o `data-testid` continua valendo só o texto
+    // visível, porque RF-125.1 afirma sobre ele). Então a leitura acessível é a
+    // da célula inteira — que é o que o leitor de tela percorre.
+    const celulaCadeiras = doc.querySelector("[data-testid='bancada-cadeiras']")?.parentElement;
+    const celulaFaixa = doc.querySelector("[data-testid='bancada-intervalo']")?.parentElement;
+
+    expect(celulaCadeiras?.textContent).toMatch(/89\s*cadeiras conquistadas/);
+    expect(celulaFaixa?.textContent).toMatch(/faixa provável:\s*85 a 93 cadeiras/);
+    // E o número visível segue intocado — o rótulo não vaza para a tela.
+    expect(doc.querySelector("[data-testid='bancada-cadeiras']")?.textContent).toBe("89");
+  });
+
+  it("(c0b) a11y: sem faixa, o travessão não fica mudo para o leitor de tela", async () => {
+    // "—" sozinho é lido como travessão ou silêncio: o leitor não saberia que
+    // existe uma coluna de faixa e que ela está vazia. Esse é o estado do modo
+    // de emergência e do começo da noite, então não é caso de borda raro.
+    readDeputadoProjectionMock.mockResolvedValue(
+      nacional({ bancada: { ...nacional().bancada, por_agremiacao: [agr()] } }),
+    );
+    const doc = await render(DeputadoFederalPage());
+    const faixa = doc.querySelector("[data-testid='bancada-intervalo']");
+
+    expect(faixa?.parentElement?.textContent).toMatch(/faixa não disponível/);
+    // O travessão continua sendo o que a tela mostra — o rótulo é só para quem ouve.
+    expect(faixa?.textContent).toBe("—");
+  });
+
   it("(c1) RF-127/§8: com faixa no payload, a tela NÃO afirma que lê o boletim do estado", async () => {
     // Regressão de 2026-09-13, achada pelo gate constitucional. Até aquele dia
     // este bloco afirmava, sem condição, "Lemos o boletim que o TSE publica por

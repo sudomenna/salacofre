@@ -421,8 +421,11 @@ export default async function UFDeputadoFederalPage({ params }: UFDeputadoPagePr
                         columnGap: "var(--space-3)",
                       }}
                     >
-                      <span data-testid="uf-cadeiras" style={{ font: "var(--type-figure-sm)" }}>
-                        {agr.cadeiras}
+                      {/* Rótulo IRMÃO do número — ver a nota gêmea na tela
+                          nacional para o porquê de não ser filho. */}
+                      <span style={{ font: "var(--type-figure-sm)" }}>
+                        <span data-testid="uf-cadeiras">{agr.cadeiras}</span>
+                        <span className="sr-only"> cadeiras conquistadas</span>
                       </span>
                       <span className="min-w-0 flex flex-col" style={{ gap: "var(--space-1)" }}>
                         <span
@@ -467,12 +470,17 @@ export default async function UFDeputadoFederalPage({ params }: UFDeputadoPagePr
                           </span>
                         </span>
                       </span>
+                      {/* Ver a nota gêmea na tela nacional. */}
                       <span
                         className="text-right"
-                        data-testid="uf-intervalo"
                         style={{ font: "var(--type-data)", color: "var(--text-muted)" }}
                       >
-                        {intervalo ? `${intervalo} cadeiras` : "—"}
+                        <span className="sr-only">
+                          {intervalo ? "faixa provável: " : "faixa não disponível "}
+                        </span>
+                        <span data-testid="uf-intervalo">
+                          {intervalo ? `${intervalo} cadeiras` : "—"}
+                        </span>
                       </span>
                     </div>
 
