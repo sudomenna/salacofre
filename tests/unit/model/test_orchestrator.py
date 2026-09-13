@@ -1906,3 +1906,100 @@ def test_build_uf_payloads_sem_eleitores_nem_capital_omite_campos() -> None:
     municipio = out["MG"]["municipios"][0]
     assert "eleitores" not in municipio
     assert "capital" not in municipio
+
+
+# ---------------------------------------------------------------------------
+# A trava anti-multiplicação está LIGADA ao ciclo majoritário (2026-09-13)
+#
+# `check_zona_merge_sanity` tinha 10 testes unitários verdes e nenhum que
+# provasse que ela é CHAMADA. Mutar a chamada para fora do ciclo passava na
+# suíte inteira — nos dois ramos. O ramo proporcional ganhou o teste de fio em
+# `test_deputado_payload.py`; este é o do majoritário.
+#
+# A mutação que isto tem que matar é a que o código SOBREVIVE — trocar o
+# resultado por zero violações, não apagar a linha. Apagar dá `NameError` e
+# qualquer teste fica vermelho pelo motivo errado: mediria o compilador.
+# ---------------------------------------------------------------------------
+
+
+def _par(uf: str, cod_municipio_tse: int, cod_zona: int) -> dict[str, Any]:
+    """Linha de par (município, zona) — a unidade de ingestão desde a
+    migration 0006. O envelope sintético traz `e.te = 1000` fixo."""
+    return {
+        "cargo": 1,
+        "turno": 1,
+        "uf": uf,
+        "cod_municipio_tse": cod_municipio_tse,
+        "cod_zona": cod_zona,
+        "pct_apurado": 100.0,
+        "payload": _synthetic_payload({100: 55.0, 200: 45.0}),
+    }
+
+
+def test_ciclo_majoritario_aciona_a_guarda_quando_a_premissa_da_fatia_cai(
+    fake_db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Dois pares da MESMA zona, cada um trazendo `e.te = 1000`, contra uma
+    zona de 1.000 eleitores: razão 2,0, acima do limiar de violação.
+
+    É o sinal de que o arquivo do par não traz a fatia do município e sim a
+    zona inteira — a premissa que o Passo 0 do simulado decide. Se cair sem
+    que ninguém grite, Presidente/Governador/Senador saem multiplicados.
+    """
+    from api.model import project as proj
+
+    alertas: list[tuple] = []
+    monkeypatch.setattr(
+        proj, "_alert_slack", lambda level, msg, **ctx: alertas.append((level, msg, ctx))
+    )
+
+    fake_db(
+        snapshots=[_par("SP", 71072, 1), _par("SP", 67016, 1)],
+        historical=[],
+        eleitorado=[{"ano": 2026, "uf": "SP", "cod_zona": 1, "eleitores_aptos": 1_000}],
+    )
+    body = json.dumps(
+        {"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}
+    ).encode("utf-8")
+
+    status, _payload = proj._do_project(body)
+
+    assert status == 200, "a guarda NÃO pode abortar o ciclo (constituição § 7)"
+    # Filtra por ESTE alarme: o mesmo ciclo tem outros (dado parado, por
+    # exemplo), e assumir `alertas[0]` deixaria o teste vermelho pela razão
+    # errada quando outro disparasse antes — mandando consertar o lugar errado.
+    multiplicacao = [a for a in alertas if "multiplicação" in a[1]]
+    assert multiplicacao, f"a guarda não acionou — a chamada saiu do ciclo? alertas={alertas}"
+    nivel, _msg, ctx = multiplicacao[0]
+    assert nivel == "error"
+    assert ctx["n_violacoes"] == 1
+
+
+def test_ciclo_majoritario_fica_calado_quando_a_premissa_se_confirma(
+    fake_db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """O outro lado, sem o qual o teste acima passaria com uma guarda que
+    grita sempre: os mesmos dois pares contra uma zona de 2.000 eleitores dão
+    razão 1,0 — a premissa da fatia confirmada. Silêncio.
+    """
+    from api.model import project as proj
+
+    alertas: list[tuple] = []
+    monkeypatch.setattr(
+        proj, "_alert_slack", lambda level, msg, **ctx: alertas.append((level, msg, ctx))
+    )
+
+    fake_db(
+        snapshots=[_par("SP", 71072, 1), _par("SP", 67016, 1)],
+        historical=[],
+        eleitorado=[{"ano": 2026, "uf": "SP", "cod_zona": 1, "eleitores_aptos": 2_000}],
+    )
+    body = json.dumps(
+        {"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}
+    ).encode("utf-8")
+
+    status, _payload = proj._do_project(body)
+
+    assert status == 200
+    multiplicacao = [a for a in alertas if "multiplicação" in a[1]]
+    assert not multiplicacao, f"alarme falso com a premissa confirmada: {multiplicacao}"

@@ -133,12 +133,45 @@ const TEST_UF_LIST = sql.join(
 
 const VENV_PY = resolve(process.cwd(), ".venv-model/bin/python3.14");
 
+/** O que `api/model/project.py` precisa para sequer subir: `numpy` e
+ *  `pydantic` no import do módulo (`:72-73`), `psycopg` dentro de
+ *  `_open_conn` (`:226`). Faltando qualquer um, o runner morre no import e a
+ *  falha chega como erro de produto, não como skip. */
+const MODULOS_EXIGIDOS = ["numpy", "pydantic", "psycopg"] as const;
+
+/**
+ * `true` se este interpretador consegue importar o que o modelo precisa.
+ *
+ * ⚠️ **Por que não basta existir (2026-09-13).** A versão anterior perguntava
+ * só "existe algum `python3.14`?" — `existsSync` no venv, senão `which`. Num
+ * git worktree o `.venv-model` **não existe** (ele fica só no repositório
+ * principal), o fallback pegava o `python3.14` do PATH, e esse não tem
+ * `pydantic`: **5 testes falhavam com `ModuleNotFoundError`** em vez de
+ * pularem. Custou tempo real de duas sessões, e o sintoma era o pior
+ * possível — falha que parece bug de produto e é de ambiente.
+ *
+ * Mesma classe de defeito que atravessou aquela madrugada: **a verificação
+ * confirmava a forma e não o conteúdo.** A guarda respondia "existe um
+ * interpretador" quando a pergunta era "existe um interpretador que roda o
+ * nosso código".
+ */
+function podeImportar(bin: string): boolean {
+  try {
+    execFileSync(bin, ["-c", `import ${MODULOS_EXIGIDOS.join(", ")}`], {
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function pythonBinary(): string | null {
-  if (existsSync(VENV_PY)) return VENV_PY;
-  // Fallback: tenta system python3.14 — se não tiver, devolve null e skipamos.
+  if (existsSync(VENV_PY) && podeImportar(VENV_PY)) return VENV_PY;
+  // Fallback: `python3.14` do PATH — só serve se tiver as dependências.
   try {
     const out = execFileSync("which", ["python3.14"], { encoding: "utf8" }).trim();
-    return out || null;
+    return out && podeImportar(out) ? out : null;
   } catch {
     return null;
   }
@@ -432,7 +465,8 @@ const SKIP = !HAS_DB || !PY_BIN;
 const SKIP_REASON = !HAS_DB
   ? "DATABASE_URL ausente"
   : !PY_BIN
-    ? "python3.14 não disponível (venv ou PATH)"
+    ? `python3.14 indisponível ou sem as dependências do modelo (${MODULOS_EXIGIDOS.join(", ")}) — ` +
+      "num git worktree o .venv-model não existe; rode a suíte no repositório principal"
     : "";
 
 // ---------------------------------------------------------------------------
