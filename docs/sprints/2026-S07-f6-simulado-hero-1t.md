@@ -302,25 +302,70 @@ fonte de verdade visual, com ajuste que o painel de resultado substitui os 6 ter
 - [ ] **E2E Playwright (Fase 5 de 05/09)** — ainda diferida para S08+. Smoke visual local OK em todas 4 rotas.
 - [ ] **Gates finais** — pendentes após modelo convergir (tentativa 3 OT-4 no simulado 1)
 
-### ⏳ Pendências abertas ao fim de 11/09 — entram no simulado 1 ou dependem do usuário
+### ⏳ Pendências abertas ao fim de 13/09 — atualizado
 
-Registrado em `docs/_meta/handoff-2026-09-11.md`. Nenhuma destas foi esquecida; todas têm dono.
+Substitui a lista de 11/09. Todas têm dono.
 
-- [ ] **`rf-coverage-checker`** — nada bloqueia. Decide se a spec 001 pode fechar.
-- [ ] **`a11y-perf-auditor`** nas 2 rotas de UF — **bloqueado por dado**: o Blob nunca recebeu
-      escrita, o painel novo renderiza "detalhe indisponível". Destrava com o token do Edge Config.
-- [ ] **`EDGE_CONFIG_TOKEN`** (usuário) — escopo do time, não pessoal. Depois: `pnpm edge-config:smoke`.
-- [ ] **Chamado ao TSE** (usuário, prazo 12/09) — `pnpm tse:watch --once` segue sem sinal de 2026.
-- [ ] **Decisão: specs 016/017 (Senador, Deputado) continuam no escopo?** Nada avançou em 11/09.
-      Regra de desistência pré-acordada em 07/09 não foi acionada.
-- [ ] **Decisão: push dos 89 commits** para o GitHub — nunca saíram desta máquina.
+**Do usuário:**
+- [ ] **Resposta do chamado ao TSE** — aberto 13/09. Sem o `codEleicao` a ingestão não roda em
+      ambiente nenhum (`lib/tse/targets.ts:285` lança). Vigia automática de hora em hora avisa.
+      ⚠️ Nada até a manhã de 15/09 → o protocolo **para no Passo 1**.
+- [ ] **`SLACK_WEBHOOK_URL`** — sem ela **não há alarme nenhum** na noite da apuração.
+- [x] ~~`EDGE_CONFIG_TOKEN`~~ · ~~variáveis de produção~~ · ~~rolling releases~~ ·
+      ~~integração Git~~ — feitos em 12–13/09.
+
+**Técnicas:**
+- [ ] **RF-127 completo** — bootstrap de voto por agremiação. Custo medido (11,1 s contra teto de
+      60 s); o obstáculo é modelagem, não CPU.
+- [ ] **Contraste de cor de partido (WCAG 1.4.11)** — PSOL 2,08 / NOVO 2,72 contra piso de 3:1, em
+      modo claro. É do gerador da paleta e alcança o mapa nacional. **Prazo: antes de 04/10.**
+- [ ] **`GET /api/projection?cargo=deputado-federal`** — mesmo estado do Senador.
+- [ ] **e2e/a11y das 2 rotas novas** em `tests/e2e/a11y-audit.spec.ts`.
+- [ ] **Pós-outubro**: token da Vercel de prazo curto, fora do texto puro.
+
+**Herdadas de 11/09, ainda abertas:**
 - [ ] **Boa Esperança do Norte (MT, cód. TSE 73709)** — município novo ausente de `municipios`,
-      hoje pulado por `--skip-orphans`. Precisa do código IBGE; não chutar.
-- [ ] **`psa = Σsa/Σsi` ou `Σsa/Σts`?** — implementado como `Σsa/Σsi`; fixtures sintéticas não
-      decidem. Resolve no Passo 0 do dia 15.
-- [ ] **Limitador coordenado entre invocações** — hoje 2 buckets independentes a 40 rps (agregado
-      80, teto do TSE 100). Garante a média, não o pico. Decidir com `rateLimited` medido.
-- [ ] **EA12 online no ciclo** — hoje é script offline; só vale se o diff EA12 × tabela der > 0.
+      pulado por `--skip-orphans`. Precisa do código IBGE; não chutar.
+- [ ] **`psa = Σsa/Σsi` ou `Σsa/Σts`?** — resolve no Passo 0 do dia 15.
+- [ ] **Limitador coordenado entre invocações** — decidir com `rateLimited` medido.
+- [ ] **EA12 online no ciclo** — só vale se o diff EA12 × tabela der > 0.
+- [x] ~~`rf-coverage-checker`~~ · ~~`a11y-perf-auditor` nas rotas de UF~~ — rodaram em 12/09.
+- [x] ~~Decisão sobre specs 016/017~~ — ambas entregues; a degradação não foi acionada.
+- [x] ~~Push dos commits~~ — `origin/main` sincronizado.
+
+### ✅ Fase 9 — Operação: descobrir que nada estava no ar — 12–13/09
+
+Não estava no plano. Apareceu ao tentar publicar a spec 017 e virou o achado mais importante da
+sprint.
+
+- [x] **A produção servia o build de 17/05** — 122 commits atrás. Nada do pipeline, do modelo ou
+      das telas jamais foi ao ar. **Isso reenquadra achados anteriores**: os defeitos do gravador,
+      da rota sob *private folder* e do `MODEL_SECRET` ausente nunca puderam se manifestar, e
+      qualquer medição de produção feita até aqui mediu o build de maio.
+- [x] **Duas causas independentes**, ambas invisíveis pelo painel:
+      (a) uma *rolling release* parada desde **17/05 06:58** nos 10%, esperando aprovação manual —
+      toda publicação posterior entrou em fila;
+      (b) o **GitHub App da Vercel desinstalado** — a autorização OAuth continuava, e por isso
+      login e painel funcionavam. Identificar o usuário e ler o repositório são permissões
+      diferentes.
+- [x] **Instalar o app não bastou** — o webhook do projeto precisou de `vercel git disconnect` +
+      `connect`. O `connect` sozinho responde *"already connected"* e não faz nada.
+- [x] **Rolling releases desligadas**; `git push` volta a disparar build, **provado** com
+      `source: git`.
+- [x] **Deploy hook criado e testado** (`emergencia-dia-d`) — rota de fuga documentada no topo do
+      runbook. Rota de fuga não testada é a que mais falha quando é acionada.
+- [x] **Primeira gravação real no Global Config** da história do projeto. Provou que o separador
+      `:` do ADR-0012 **nunca teria funcionado** (a API devolve 400), que o store cabe (106 B de
+      1 MB) e que o `ecfg_` documentado está correto.
+- [x] **Variáveis de produção e de preview** configuradas e conferidas por API. O preview está
+      armado para o simulado com 7 variáveis; falta só `TSE_COD_ELEICAO`.
+- [x] **Vigia automática do TSE** de hora em hora (`~/.claude/scheduled-tasks/vigia-tse-2026`).
+
+> **Lição durável da fase**: todo indicador visual dizia que estava tudo certo — painel
+> "conectado", metadados corretos, repositório visível. A única prova que valeu foi medir o
+> comportamento pela API. Vale para deploy, e vale para teste.
+
+---
 
 ### ⏳ Fase 4 — Simulado 1 (15–17/09) — protocolo
 
@@ -491,8 +536,14 @@ pipeline (P0) e do redesign (P1).
       por causa do método** — ele passou.
 - [x] **Conferência ao vivo contra o TSE** — `conferir_contra_tse` compara nossa distribuição com
       `carg[].qe` e `agr[].vag`, publicados pelo próprio TSE. Só conclusiva com `tf == "s"`.
-- [ ] **Payload e telas da 017** — `EdgePayload*` de Deputado, escritor e leitor do Blob
-      (`deputado/uf/<SIGLA>.json`), as 2 rotas e a aba. **Nada disso existe.** É o que sobrou.
+- [x] **Payload e telas da 017** — entregues em 12/09 (`d131595`, `41a4156`, `d8f25d6`).
+      `api/model/deputado_payload.py`, `lib/blob/deputado-uf.ts`, `app/(dep)/` com as 2 rotas,
+      aba `dep` habilitada, e `components/blocks/DeputadoMetodologia.tsx` (novo — o
+      `<ForecastTransparency>` compartilhado imprimiria "Modelo 28,6%" num cargo sem modelo).
+      Contrato em `docs/specs/017-deputado-federal/design.md` (D1–D10), escrito **antes** da
+      implementação para que os dois lados fossem construídos em paralelo sem divergir.
+      **4 gates PASS**; spec em `implementing`, não `shipped` — falta o intervalo de RF-127,
+      que depende do bootstrap de voto por agremiação (custo medido: 11,1 s contra teto de 60).
 - [ ] **Gate G2** (24/09): 4 gates + `model-validator` para a 016; `rf-coverage-checker` para 017 — **já rodou em 12/09: PASS**, 12 RFs cobertos, 2 parciais por escopo registrado (design.md D7/D9). A previsão de "cobertura baixa" não se confirmou
 
 > **Degradação pré-acordada da 017** (decidida em 07/09, não re-discutir): se em 19/09 o módulo

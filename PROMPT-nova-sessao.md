@@ -1,170 +1,169 @@
 # Prompt de retomada — cole isto numa sessão nova
 
-> Gerado em 2026-09-12. Substitui a versão anterior (estado de 11/09).
-> Se hoje **não** for 12/09, ajuste as datas e recalcule os dias até 15/09 e 04/10.
+> Gerado em **2026-09-13**, madrugada. Substitui a versão de 12/09, que nasceu com dois erros.
+> Se hoje não for 13/09, **recalcule os dias** até 15/09 (simulado 1) e 04/10 (1º turno).
 
 ---
 
 Continuando o SalaCofre. Leia primeiro, nesta ordem:
 
-1. `docs/_meta/handoff-2026-09-12.md` — estado atual, comece por aqui
-2. `docs/_meta/handoff-2026-09-11-noite.md` — os cinco defeitos silenciosos da
-   véspera e as lições; leia as seções **"Lições desta sessão"** e
-   **"A prosa que ficou para trás"**
-3. `docs/architecture/adrs/0027-conversao-votos-em-cadeiras-deputado-federal.md` —
-   o método de cadeiras, com o texto legal vigente e a jurisprudência
-4. `docs/specs/017-deputado-federal/spec.md` — a tabela do `## Status` diz o que
-   falta
-5. `docs/constitution.md` — está em **1.4**
-6. `docs/sprints/2026-S07-f6-simulado-hero-1t.md` — sprint ativa, **Fase 8**
-7. `docs/testing/tse-simulados.md` — **o Passo 0 é a coisa mais importante do dia 15**
+1. `docs/_meta/handoff-2026-09-13.md` — **comece por aqui**, é o estado completo
+2. `docs/reference/risks.md` — as **quatro primeiras linhas** de *Riscos ativos* reenquadram o projeto
+3. `docs/operations/runbook.md` — a rota de fuga de deploy está no topo, de propósito
+4. `docs/specs/017-deputado-federal/design.md` — D1 a D10, o contrato do payload de Deputado
+5. `docs/testing/tse-simulados.md` — **Passo 0 e Passo 0b** são o que importa no dia 15
+6. `docs/constitution.md` — está em **1.4**
 
-Branch `main`, árvore limpa exceto três arquivos soltos em `tse_docs/` que **não
-são do projeto**. **Dois commits ainda não empurrados** (`e896114`, `562a4ab`).
+**Branch `main`, árvore limpa, tudo empurrado.** `origin/main` = `512dee3` (ou mais recente).
 
-Hoje é **2026-09-12** — ajuste se for outro dia. Simulados do TSE em 15–17/09 e
-22–24/09; 1º turno em **04/10**.
+**Confira o git antes de acreditar em qualquer coisa que este arquivo afirme.** A versão anterior
+deste prompt dizia que havia dois commits não empurrados (estavam empurrados) e mandava terminar a
+spec 017 (já terminada). Documento envelhece; o disco não mente.
 
-Qualquer coisa que toque o banco exige `set -a; . ./.env.local; set +a` antes.
+**Baselines** (medidos 2× em 13/09): **1.708 vitest** (1 pulado) · **333 pytest**
+(`.venv-model/bin/python3.14`) · typecheck limpo · lint com **5 erros e 5 avisos pré-existentes**
+(não tente consertá-los) · nenhuma cross-ref quebrada.
+Gate OT-4 **reprovando**: MAE@1h PT 2,3623pp (teto 2) / cobertura 82,5% (piso 90) — bloqueia a
+**spec 002**, não a 017.
 
-**Baselines**: **1.629 vitest** · **277 pytest** (`.venv-model/bin/python3.14`) ·
-typecheck limpo · lint com **5 erros e 5 avisos pré-existentes** (não tente
-consertá-los) · nenhuma cross-ref quebrada.
-Gate OT-4 **reprovando**: MAE@1h PT 2,3623pp (teto 2) / cobertura 82,5% (piso 90).
-Ele bloqueia a **spec 002**, não as 016/017.
+⚠️ `pnpm test` exige `set -a; . ./.env.local; set +a` antes — sem isso 10 arquivos de banco falham
+e parece regressão. E os testes de integração sobem Python (~11 s cada): **sob carga, um deles
+reprova de forma intermitente**. Rode de novo com a máquina ociosa antes de investigar.
 
 ---
 
 ## Como falar comigo
 
-**Não sou engenheiro.** `CLAUDE.md § 0` é regra: comece pela consequência, não
-pelo mecanismo; termo técnico só sem substituto e explicado na mesma frase;
-analogia concreta antes de abstração. A regra **não** vale para ADR, commit, spec
-nem briefing de subagent — ali a precisão de vocabulário é obrigatória. Quando eu
-perguntar algo técnico direto, responda no nível da pergunta.
+**Não sou engenheiro.** `CLAUDE.md § 0` é regra: comece pela consequência, não pelo mecanismo;
+termo técnico só sem substituto e explicado na mesma frase; analogia concreta antes de abstração.
+Não vale para ADR, commit, spec nem briefing de subagent — ali precisão de vocabulário é
+obrigatória. Quando eu perguntar algo técnico direto, responda no nível da pergunta.
+
+---
+
+## O estado, em cinco linhas
+
+- **A spec 017 (Deputado Federal) está implementada** e passou nos 4 gates. Status `implementing`.
+- **O site está no ar com o código atual.** Até 13/09 ele servia o build de **17 de maio**.
+- **`git push` volta a publicar sozinho** — provado com `source: git`, não pelo painel.
+- **Existe uma rota de fuga de deploy**, criada e testada, documentada no topo do runbook.
+- **O que falta para o simulado depende do TSE**, e há uma vigia automática esperando a resposta.
 
 ---
 
 ## O que fazer, na ordem
 
-**1. Terminar a spec 017 (Deputado Federal).** O cálculo de cadeiras está pronto
-e **validado contra a eleição de 2022: 511 das 513 cadeiras**, com a fase do
-quociente partidário exata nas 27 UFs. A régua de desistência de 19/09 **não
-será acionada por causa do método**. Falta, nesta ordem:
+**1. Nada, até o TSE responder.** O chamado foi aberto em 13/09. Sem o `codEleicao`, a ingestão
+não roda em ambiente nenhum — `lib/tse/targets.ts:285` **lança** sem ele. A vigia
+(`~/.claude/scheduled-tasks/vigia-tse-2026`) roda de hora em hora e avisa.
 
-- **Payload** — não existe nenhum tipo de agremiação, cadeira, legenda ou
-  quociente em `lib/edge-config/types.ts`.
-  ⚠️ `cadeiras` vai à tela; `vagas_obtidas` **nunca** (ADR-0027, caso 2b) — numa
-  UF de 10 vagas a segunda exibiria 11.
-- **Ligar o modelo** — hoje `cargo=6` roda em `api/model/project.py` e produz
-  **lixo no agregado nacional**: `compute_national` não tem branch por cargo e
-  agrega por número de urna, que colide entre UFs. Nenhuma chamada a
-  `api/model/cadeiras.py` existe em `_do_project`.
-- **Read path do Blob** — `deputadoUfBlobPathname` existe em
-  `lib/blob/paths.ts:168-171` e **não tem caller**. Molde:
-  `lib/blob/uf-detail.ts::readUfDetail`.
-- **Telas** `/deputado-federal` e `/uf/[sigla]/deputado-federal`, e habilitar a
-  aba `"dep"` em `components/layout/CargoTabs.tsx` (hoje `disabled: true`, sem
-  `href`).
+⚠️ Se nada chegar até a manhã de **15/09**, o protocolo do simulado **para no Passo 1**. Não
+prosseguir por tentativa e erro: um 404 por URL adivinhada bloqueia o IP por 10 minutos e queima
+uma das quatro janelas de teste.
 
-**2. Gates**: `rf-coverage-checker`, `constitution-guard`, `a11y-perf-auditor`,
-`spec-syncer`.
+**2. Quando o código chegar:** criar `TSE_COD_ELEICAO` **só no preview** (as outras 7 variáveis do
+simulado já estão lá), e rodar o **Passo 0** — `pnpm verify-fatia-premise`. É a pergunta mais cara
+de errar do projeto.
 
-**3. Minhas pendências** — `docs/reference/risks.md` § "Tarefas do usuário":
-o chamado ao TSE (**prazo venceu em 12/09**) e o `EDGE_CONFIG_TOKEN`, que
-destrava **só** a gravação no Global Config.
+**3. Trabalho técnico que não depende de ninguém**, em ordem de valor:
+
+- **RF-127 completo** — o bootstrap de voto por agremiação. É o que falta para a tela de Deputado
+  deixar de ser retrato do apurado e virar projeção. **Custo já medido e dentro do teto**
+  (11,1 s contra 60 s; `scripts/bench-deputado.py`). O obstáculo é modelagem, não CPU.
+- **Contraste de cor de partido** — PSOL 2,08 e NOVO 2,72 contra piso de 3:1 da WCAG 1.4.11.
+  É do gerador da paleta e alcança o mapa nacional. **Prazo: antes de 04/10.**
+- **e2e/a11y das 2 rotas novas** e `GET /api/projection?cargo=deputado-federal`.
+
+**4. Minha decisão pendente:** `SLACK_WEBHOOK_URL`. Sem ela **não há alarme nenhum** na noite da
+apuração — uma falha vira silêncio, não aviso.
 
 ---
 
 ## Não reabra
 
-ADR-0035 (D1 par como unidade de ingestão, D2 soma exata sem rateio, D3 cron por
-cargo); as **duas emendas ao ADR-0026** — (a) cron por segmento de rota, não
-`?cargos=`; (b) Senador ingerido por **zona**, não UF; o teto de requisições por
-cargo (**25** rps para Presidente/Governador/Senador, **5** para Deputado — pior
-caso agregado 80, contra o teto de 100 do TSE); as 8 linhas com capital primeiro
-no painel de colégios; D21/D22/D23 do ADR-0034 e as quatro exceções
-constitucionais; a degradação pré-acordada da 017.
+D1 a D10 de `docs/specs/017-deputado-federal/design.md` — em especial **D1** (Deputado não reusa
+`EdgePayload`), **D2** (`vagas_obtidas` não vai à tela) e **D9** (a tela não chama o número de
+projeção). ADR-0035 D1/D2/D3. As duas emendas ao ADR-0026. O teto de rps por cargo. D21/D22/D23 do
+ADR-0034 e as quatro exceções constitucionais. A degradação pré-acordada da 017, que **não** foi
+acionada — o método passou com 511/513.
 
 ---
 
 ## O risco que ainda importa mais que todo o resto
 
-**Não foi verificado que o arquivo do par traz a *fatia* da zona naquele
-município, e não a zona inteira.** Se a premissa cair,
-`merge_pairs_into_zonas` **multiplica os votos por até 8×** em ~62% das zonas.
+**Não foi verificado que o arquivo do par traz a *fatia* da zona naquele município, e não a zona
+inteira.** Se a premissa cair, `merge_pairs_into_zonas` **multiplica os votos por até 8×** em ~62%
+das zonas.
 
-Quatro linhas de evidência convergem a favor, nenhuma é prova. **Não teste
-sondando URL** — a constituição § 1 proíbe e um 404 malformado bloqueia o IP por
-10 minutos. O **Passo 0** do protocolo resolve, e virou um comando:
+Quatro linhas de evidência convergem a favor, nenhuma é prova. **Não teste sondando URL** — a
+constituição § 1 proíbe. O **Passo 0** resolve, e virou um comando:
 
 ```bash
 pnpm verify-fatia-premise --fixtures tests/fixtures/tse/2026-sim
 ```
 
-exit 0 = fatia · exit 2 = multiplicação, **pare** · exit 1 = inconclusivo (que
-**não** é sinal verde). `check_zona_merge_sanity` (`api/model/zona_merge.py`) é a
-rede enquanto isso.
+exit 0 = fatia · exit 2 = multiplicação, **pare** · exit 1 = inconclusivo, que **não** é sinal
+verde. `check_zona_merge_sanity` é a rede enquanto isso.
 
 ---
 
 ## Armadilhas que estas sessões pagaram para aprender
 
-1. **Relatório de subagent é hipótese.** Em 11–12/09, **nove** erraram de formas
-   plausíveis — arquivo de teste trocado, cobertura falsa afirmada, um arquivo
-   dado como renomeado que existia, contagem de alvos errada. **Confira no disco,
-   inclusive o que o handoff afirma.**
-2. **Teste que passa não prova nada; teste que reprova, sim.** Seis testes meus
-   passavam sem discriminar o que diziam cobrir. **Verifique por mutação**: quebre
-   o código de propósito e confirme que o teste cai.
-3. **Um teste de referência pode estar medindo com defeito e parecer bom.** O
-   golden de cadeiras deu 505/513 até eu achar que os votos de legenda entravam
-   como zero — o cargo 6 não está no arquivo `_BR` do TSE, só nos de UF. **98% é
-   exatamente a faixa em que isso passa despercebido.**
-4. **A prosa fica para trás quando o dado muda.** Quatro frases na tela viraram
-   falsas ao mudar a granularidade do Senador — uma delas atribuía ao TSE uma
-   limitação que era escolha nossa. Contramedida: asserção **negativa** (o teste
-   proíbe a frase errada) e valores derivados da tabela canônica, nunca literais
-   na página.
-5. **`Map.set` sobre linhas de par** é o modo de falha padrão desde a migration
-   0006. Toda leitura por `(uf, cod_zona)` precisa de `SUM(...) GROUP BY`.
-6. **Não rode `constitution-guard` em paralelo com agente de implementação** — ele
-   faz `git stash` e o working tree some por alguns minutos.
-7. **`*/5` dentro de comentário JSDoc fecha o bloco** e o formatador destrói o
-   arquivo ao tentar formatar o que sobrou. Escreva cadência de cron em prosa.
-8. **Derrube o que subir.** O mock do TSE ficou 1h06 de pé, esquecido.
-9. **Podem existir outras sessões do Claude na mesma pasta.** Confira antes.
-10. **Sites oficiais bloqueiam automação**: `www.tse.jus.br`, `cdn.tse.jus.br`,
-    `ibge.gov.br` e `planalto.gov.br` respondem **403** ou resetam a conexão para
-    cliente não-navegador. O navegador embutido às vezes passa onde o `curl`
-    falha. Por isso os PDFs do TSE estão versionados em `tse_docs/`.
+1. **Relatório de subagent é hipótese.** Onze erraram de formas plausíveis em 11–13/09 — inclusive
+   o `spec-syncer`, que creditou a uma tela quatro componentes que ela não importa. **Confira no
+   disco.**
+2. **Teste que passa não prova nada.** Verifique por **mutação**, você mesmo: quebre o código de
+   propósito e confirme que o teste cai. Três formas distintas de teste decorativo já apareceram.
+3. **Default silencioso em conversor de enum já mordeu 3 vezes.** A última mandava todo payload de
+   Senador para a chave do Presidente. Procure ativamente.
+4. **Painel dizendo "conectado" não é prova de nada.** A integração Git dizia isso por 4 meses
+   enquanto nada era construído. Prova é `source: git` na API.
+5. **Duas camadas podem falhar separado**: o GitHub App instalado (acesso ao repositório) e o
+   webhook do projeto (avisa do push). `vercel git connect` responde *"already connected"* e não
+   faz nada — precisa `disconnect` **e depois** `connect`.
+6. **A ajuda de comando pode mentir.** O `--dpl` de `vercel rolling-release abort` é o destino do
+   rollback, não o canário, apesar do texto dizer o contrário.
+7. **A prosa fica para trás quando o dado muda.** Asserção **negativa** nos testes de tela.
+8. **`Map.set` sobre linhas de par** desde a migration 0006 — toda leitura por `(uf, cod_zona)`
+   precisa de `SUM(...) GROUP BY`.
+9. **Não rode `constitution-guard` em paralelo com agente de implementação** — ele faz `git stash`.
+10. **Podem existir outras sessões do Claude na mesma pasta.** Em 12/09 havia uma. Confira.
 
 ---
 
-## Disco
+## Credenciais e acessos — o que existe nesta máquina
 
-**16 GB livres.** Em `build/` (git-ignored) há **8,3 GB** de dataset do TSE.
-**Pode apagar**: o golden commitado tem 232 KB e não depende dos CSVs — eles só
-servem para regerar a fixture, e `scripts/build-cadeiras-golden.py` diz de onde
-baixar de novo (à mão, pelo portal de dados abertos; o CDN recusa automação).
+- **`gh`** tem duas contas; a ativa é `cneeducacao`, o repositório é `sudomenna/salacofre`, e a
+  conta errada dá 403. Trocar antes do push e **devolver depois**.
+- **A CLI `vercel` está logada em outra conta** (Bruna Puga). O caminho que funciona é
+  `--token="$EDGE_CONFIG_TOKEN" --scope=sudomennas-projects`, ou `curl` na API.
+- **`EDGE_CONFIG_TOKEN`** é de escopo de time e **amplo** — publica, lê e escreve variáveis, lista
+  projetos. Está em texto puro no `.env.local`. **Dívida pós-outubro**: trocar por um de prazo
+  curto.
+- **`VERCEL_DEPLOY_HOOK_URL`** no `.env.local` é **segredo**: quem a tem publica em produção. Não
+  commitar, não colar em chat ou ticket.
 
 ---
 
 ## Comandos
 
 ```bash
-set -a; . ./.env.local; set +a            # obrigatório antes de tudo que toque o banco
-pnpm typecheck && pnpm lint && pnpm test  # 1.629 verdes
-.venv-model/bin/python3.14 -m pytest -q   # 277 verdes
-pnpm list-targets --env production --cargo 6   # 27 (exige TSE_COD_ELEICAO)
-pnpm replay-2022 --dataset tests/fixtures/replay-2022/snapshots.json \
-                 --ground-truth tests/fixtures/replay-2022/ground-truth.json
-pnpm tse:watch --once                     # exit 0 = TSE sem mudança, 2 = mudou
+set -a; . ./.env.local; set +a            # antes de tudo que toque banco ou Vercel
+pnpm typecheck && pnpm lint && pnpm test
+.venv-model/bin/python3.14 -m pytest -q
+pnpm tse:watch --once                     # exit 0 = sem mudança, 2 = mudou
+pnpm verify-fatia-premise --fixtures tests/fixtures/tse/2026-sim
+pnpm edge-config:smoke
 ```
 
-**Push** — o `gh` tem duas contas; a ativa é `cneeducacao`, o repositório é
-`sudomenna/salacofre`, e a conta errada dá 403:
+**Push** (dispara build automático — confirme com `source: git`, não pelo painel):
 
 ```bash
 gh auth switch --user sudomenna && git push origin main && gh auth switch --user cneeducacao
+```
+
+**Publicar sem depender de nada** (rota de fuga, testada em 13/09):
+
+```bash
+curl -s -X POST "$VERCEL_DEPLOY_HOOK_URL" | head -c 200
 ```
