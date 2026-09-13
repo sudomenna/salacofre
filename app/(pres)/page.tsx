@@ -151,6 +151,7 @@ import type { Metadata } from "next";
 
 import { RaceTypeIndicator } from "@/components/atoms/badges/RaceTypeIndicator";
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
+import { DadoParadoBanner } from "@/components/atoms/banners/DadoParadoBanner";
 import { TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { ApuracaoMeta } from "@/components/blocks/ApuracaoMeta";
@@ -168,6 +169,7 @@ import { StateGroupedTable } from "@/components/blocks/StateGroupedTable";
 import { StrongholdsPanel } from "@/components/blocks/StrongholdsPanel";
 import { TurnoOneRecap } from "@/components/blocks/TurnoOneRecap";
 import { Footer } from "@/components/layout/Footer";
+import { avaliarFrescorDado } from "@/lib/config/dado-freshness";
 import { readArchivedProjection, readNationalProjection } from "@/lib/edge-config/reader";
 import type { EdgePayload } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
@@ -272,6 +274,17 @@ export default async function HomePage() {
   const { national, por_uf, pct_apurado_total, ufs_apuradas, ts, insights, composition, turno } =
     payload;
 
+  // ADR-0038 D4 — o relógio do DADO, não o da escrita. `payload.dado_ts` entra
+  // cru: `undefined` (payload pré-ADR, em voo durante o canary) e `null` (o
+  // ciclo não teve `dg`/`hg` parseável) são estados diferentes, e quem os
+  // separa é `avaliarFrescorDado`. Cálculo de servidor sobre um número que já
+  // veio no JSON — nenhuma chamada nova ao TSE, nenhuma query nova.
+  //
+  // O cargo sai do PAYLOAD, não de um `1` literal: o limiar é por cargo (D3) e
+  // um literal aqui seria a mesma classe de constante cravada no JSX que o
+  // design 017 § D8 proíbe.
+  const frescorDado = avaliarFrescorDado(payload.dado_ts, payload.cargo);
+
   // Mode dispatch (S05/F4). `turno === 2` força binary; 1T com 2 cands
   // também cai em binary (defensivo). 1T multi-candidato → multi-1t.
   const mode: "binary" | "multi-1t" =
@@ -334,6 +347,25 @@ export default async function HomePage() {
     >
       {/* Alimenta o selo "23,4% APURADO" do `<TopBar>` (ADR-0029 § 4). */}
       <LivePctLabelStyle pctApurado={pct_apurado_total} />
+
+      {/* ADR-0038 D4 — "o dado do TSE não anda". Primeiro de tudo, e fora de
+          `<Panel>`: é uma faixa de estado sobre a página inteira, como o
+          `<NationalWinnerBanner>` e o ticker logo abaixo (ADR-0029 § 1). Acima
+          do ticker de propósito — quando o dado está parado, saber disso
+          precede ler as chamadas, que também estão paradas.
+
+          Ele só ACRESCENTA: nada abaixo desta linha muda de comportamento por
+          causa dele, e a página continua exibindo o último payload conhecido
+          inteiro (constituição § 7, RNF-010/012). Nos outros três estados de
+          `dado_ts` o componente devolve `null`.
+
+          `frescorDado` é a SEMENTE, não a palavra final: esta rota não declara
+          `revalidate` nem `dynamic`, então o veredito do servidor vale para um
+          instante só. Quem abriu a página às 20h precisa ver o aviso se a
+          ingestão morrer às 20h30, sem recarregar — e o banner faz isso lendo o
+          `dado_ts` que a moldura do mapa já busca a cada 60 s (escopo nacional,
+          o mesmo recorte deste payload). Ver o docstring do componente. */}
+      <DadoParadoBanner frescor={frescorDado} />
 
       {/* S06/F4d — Breaking news ticker. ADR-0029 § 1: faixa fina entre o
           shell e o mapa. É conteúdo ambiente, não hero — por isso continua
@@ -409,7 +441,17 @@ export default async function HomePage() {
           {/* `--space-6` dentro do painel: 24px separa sub-blocos de uma MESMA
               seção; 32px é a medida entre seções (o `gap` do `<main>`). */}
           <div className="flex flex-col" style={{ gap: "var(--space-6)" }}>
-            <ApuracaoMeta pctApurado={pct_apurado_total} ufsApuradas={ufs_apuradas} ts={ts} />
+            {/* `dado_ts` cru e `cargo` do payload — ADR-0038 D1. A terceira
+                figura passa a carregar a hora do TSE em vez da hora em que o
+                modelo rodou; `ts` só volta a aparecer nela no estado
+                "ausente", durante o canary de um deploy. */}
+            <ApuracaoMeta
+              cargo={payload.cargo}
+              dadoTs={payload.dado_ts}
+              pctApurado={pct_apurado_total}
+              ts={ts}
+              ufsApuradas={ufs_apuradas}
+            />
 
             {/* Camada 1 do 2T: `<HeadlineScore />` intocado, com o recap do 1T
                 injetado acima (ADR-0016). O ADR-0017 vale aqui sem nenhuma

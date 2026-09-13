@@ -76,7 +76,9 @@ import { HexCartogramBrasil } from "@/components/blocks/HexCartogramBrasil";
 import { CHIP_STYLE, NationalMapBlock } from "@/components/blocks/NationalMapBlock";
 import { UfLeaderMapLazy } from "@/components/blocks/UfMapsLazy";
 import { UfPicker } from "@/components/layout/UfPicker";
+import { cargoFromToken } from "@/lib/config/cargos";
 import type { EdgePayload, EdgePayloadUf, EdgeUfMunicipio } from "@/lib/edge-config/types";
+import { useDadoFrescorStore } from "@/lib/state/dado-freshness-store";
 
 /** Mesma cadência de escrita do orchestrator (ADR-0011). */
 const REFRESH_MS = 60_000;
@@ -114,18 +116,56 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
   // vez por montagem da moldura (ou seja, uma vez por sessão de navegação
   // dentro do cargo) e revalida a cada 60s. Sem o intervalo o mapa congelaria
   // pela sessão inteira: agora que ele não remonta, ninguém mais o atualiza.
+  //
+  // ADR-0038 D4, segunda metade (2026-09-13) — este é também o único relógio
+  // vivo do `dado_ts` no cliente. O `<DadoParadoBanner>` das páginas é irmão
+  // desta árvore (ele vem do `page.tsx`, esta moldura vem do `layout.tsx`) e
+  // não tinha como saber que o dado do TSE parou depois que a página abriu: o
+  // veredito dele era calculado uma vez, no render de servidor. O payload que
+  // já chega aqui a cada 60s carrega `dado_ts` (`lib/edge-config/types.ts:570`),
+  // então publicá-lo na store (`lib/state/dado-freshness-store.ts`) não custa
+  // requisição nem query novas — é um campo que já vinha e era descartado.
   useEffect(() => {
     const url = cargo === "gov" ? "/api/projection?cargo=gov" : "/api/projection";
+    // Token → código do TSE por função total (`"pres"` → 1, `"gov"` → 3), que
+    // lança em token desconhecido. Um ternário aqui seria a terceira aparição
+    // do mesmo bug nesta base: conversor de enum de cargo com ramo `default`
+    // silencioso publicando na chave errada.
+    const cargoTse = cargoFromToken(cargo);
+    // `getState()`, não o hook: as ações do Zustand têm referência estável, e
+    // assinar a store aqui só rerrenderizaria a moldura à toa.
+    const { registrarPoller, publicarDadoTs } = useDadoFrescorStore.getState();
+    // A baixa é dada no cleanup. O registro é o que AUTORIZA o banner a
+    // reavaliar por tempo — sem ele, o banner fica com o veredito do servidor
+    // em vez de inventar um a partir de uma semente que ninguém atualiza.
+    const darBaixaNoPoller = registrarPoller(cargoTse);
     let vivo = true;
     const buscar = async () => {
       try {
         const res = await fetch(url);
         if (!res.ok) return;
         const json = (await res.json()) as EdgePayload;
-        if (vivo) setPayload(json);
+        if (!vivo) return;
+        setPayload(json);
+        // `json.dado_ts` vai CRU: `undefined` (payload pré-ADR-0038, em voo no
+        // canary) e `null` (ciclo sem `dg`/`hg` parseável) são estados
+        // diferentes, e um `??` aqui é o default silencioso que o ADR-0038 D1
+        // proíbe no payload — não deixa de ser o mesmo erro por acontecer no
+        // estado do cliente.
+        //
+        // Só publica se o payload concordar com o cargo desta moldura. A URL
+        // acima já determina o cargo, então discordar significa que o endpoint
+        // devolveu a corrida errada; publicar isso na chave deste cargo seria
+        // mandar o relógio de um cargo para o banner de outro. Não publicar
+        // deixa o último `dado_ts` conhecido valendo e o relógio de parede
+        // andando — que é a degradação honesta.
+        if (json.cargo === cargoTse) publicarDadoTs(cargoTse, json.dado_ts);
       } catch {
         // Silencioso de propósito: a moldura degrada para o esqueleto, e os
-        // painéis da página (renderizados no servidor) seguem com o dado.
+        // painéis da página (renderizados no servidor) seguem com o dado. Para
+        // o banner, um `fetch` que falha é indistinguível de dado parado — e
+        // deve mesmo acabar acendendo o aviso, porque a página perdeu a
+        // capacidade de confirmar que o TSE avança.
       }
     };
     void buscar();
@@ -133,6 +173,7 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
     return () => {
       vivo = false;
       clearInterval(id);
+      darBaixaNoPoller();
     };
   }, [cargo]);
 

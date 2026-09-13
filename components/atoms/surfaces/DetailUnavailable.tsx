@@ -111,6 +111,22 @@ export function DetailUnavailable({ label, reason, className, style }: DetailUna
  * Abaixo de {@link DETAIL_LAG_TOLERANCE_MINUTES} nada é dito sobre defasagem —
  * a cadência de escrita é de 60 s (ADR-0011) e anunciar "1 minuto mais antigo"
  * a cada carregamento seria ruído constante, não transparência.
+ *
+ * ## O que este sinal NÃO mede — e o segundo sinal que entra ao lado dele
+ *
+ * O [ADR-0038](../../../docs/architecture/adrs/0038-dado-ts-hora-do-dado-nao-hora-do-calculo.md)
+ * D5 investigou este mecanismo e **confirmou que ele está correto para o que
+ * mede**: os dois `ts` comparados aqui são relógios de **escrita**, e a
+ * divergência entre eles é uma falha real e específica — o Blob ficou para trás
+ * da escrita do resumo. Nada aqui muda.
+ *
+ * O que ele não pode detectar, por construção, é a ingestão parada: se o TSE
+ * some, os dois relógios continuam avançando em sincronia a cada ciclo e este
+ * texto fica mudo com o dado congelado há horas. Esse é outro sinal, com outra
+ * causa e outro gatilho (`dado_ts`), e mora no `<DadoParadoBanner>`. As páginas
+ * de UF renderizam os **dois**, lado a lado e em frases separadas: fundir
+ * "o Blob está mais velho que o resumo" com "o TSE parou de publicar" numa
+ * sentença só obrigaria o leitor a adivinhar qual das duas está acontecendo.
  */
 export const DETAIL_LAG_TOLERANCE_MINUTES = 2;
 
@@ -126,9 +142,19 @@ export interface DetailFreshnessProps {
 export function DetailFreshness({ ts, resumoTs, className, style }: DetailFreshnessProps) {
   const detalheMs = Date.parse(ts);
   const resumoMs = Date.parse(resumoTs);
+  // `Math.max(0, …)` — ADR-0038 D5, correção cosmética.
+  //
+  // No ciclo SAUDÁVEL o detalhe é carimbado alguns instantes DEPOIS do resumo
+  // (o Python carimba `ts_iso` → POST → o Node carimba o Blob), então a
+  // subtração dá −1 no caso normal. Era inofensivo no texto, que só aparece a
+  // partir de 2 minutos — mas vazava para `data-lag-minutes` logo abaixo, um
+  // atributo cujo nome promete "minutos de defasagem" e entregava um número
+  // negativo a quem o lesse (teste, inspetor, ferramenta de operação). O clamp
+  // vale no valor exibido E no atributo: são o mesmo número, e um negativo
+  // sobreviver em só um dos dois é como o defeito começa de novo.
   const lagMinutes =
     Number.isFinite(detalheMs) && Number.isFinite(resumoMs)
-      ? Math.floor((resumoMs - detalheMs) / 60_000)
+      ? Math.max(0, Math.floor((resumoMs - detalheMs) / 60_000))
       : 0;
   const atrasado = lagMinutes >= DETAIL_LAG_TOLERANCE_MINUTES;
 

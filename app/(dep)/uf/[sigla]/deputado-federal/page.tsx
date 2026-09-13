@@ -50,6 +50,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { DadoParadoBanner } from "@/components/atoms/banners/DadoParadoBanner";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { DeputadoMetodologia } from "@/components/blocks/DeputadoMetodologia";
 import { Footer } from "@/components/layout/Footer";
@@ -62,6 +63,7 @@ import {
   readDeputadoUfDetail,
 } from "@/lib/blob/deputado-uf";
 import { cargoInfo } from "@/lib/config/cargos";
+import { avaliarFrescorDado, fraseFrescorDado } from "@/lib/config/dado-freshness";
 import { readDeputadoProjection } from "@/lib/edge-config/reader";
 import type { EdgeDeputadoUfRow } from "@/lib/edge-config/types";
 import { formatPercent, formatTimeHMS, formatVotes } from "@/lib/utils/format";
@@ -291,7 +293,28 @@ export default async function UFDeputadoFederalPage({ params }: UFDeputadoPagePr
   const vagasNaoPreenchidas = row?.vagas_nao_preenchidas ?? detail?.vagas_nao_preenchidas ?? 0;
   const agremiacoes = detail ? ordenarAgremiacoes(detail.agremiacoes) : [];
   const cadencia = nacional?.atualizacao_min ?? 0;
-  const carimbo = nacional?.ts ?? detail?.ts ?? null;
+
+  // ── Os relógios desta tela — ADR-0038 D1 ──
+  //
+  // Até 2026-09-13 havia aqui uma linha só: `nacional?.ts ?? detail?.ts ?? null`,
+  // exibida sob o rótulo "Atualizado às". Ela punha num `??` duas coisas
+  // **diferentes**: o carimbo de escrita do RESUMO (Global Config) e o do
+  // DETALHE (Vercel Blob). São escritas independentes e não atômicas — é
+  // literalmente o que o doc-comment de `DeputadoUfDetail.ts` diz, e a razão de
+  // o Blob ter `ts` próprio (ADR-0032). Com o `??`, uma tela alimentada só pelo
+  // Blob afirmava, com o mesmo rótulo de sempre, uma hora de outra fonte.
+  //
+  // Agora são dois nomes, duas frases e nenhum `??` entre eles. E o carimbo
+  // primário deixou de ser relógio de escrita: é `dado_ts`, a hora do TSE.
+  //
+  // `frescor` e `ts` viajam no MESMO objeto de propósito: o `ts` só é lido no
+  // estado "ausente" (payload pré-ADR), e separá-los em duas variáveis abriria
+  // a porta para alguém combinar o frescor de uma fonte com o `ts` da outra —
+  // que é o defeito que esta linha acabou de consertar.
+  const resumoFrescor = nacional
+    ? { frescor: avaliarFrescorDado(nacional.dado_ts, nacional.cargo), ts: nacional.ts }
+    : null;
+  const detalheTs = detail?.ts ?? null;
 
   return (
     <main
@@ -299,6 +322,21 @@ export default async function UFDeputadoFederalPage({ params }: UFDeputadoPagePr
       className="mx-auto flex min-h-screen max-w-page flex-col px-4 py-6 md:px-6 md:py-10"
       style={{ gap: "var(--space-8)" }}
     >
+      {/* ADR-0038 D4. Só quando o resumo nacional chegou: sem ele não há
+          `dado_ts`, e um banner de "parado" montado sobre a ausência da fonte
+          seria alarme fabricado — o estado certo nesse caso é o que a frase do
+          detalhe já diz. Limiar de 5.400 s (90 min): três voltas completas das
+          6 fatias de 30 min (ADR-0036), nunca três vezes os 5 min entre
+          fatias.
+
+          Escopo nacional mesmo numa página de UF, porque o `dado_ts` vem do
+          resumo NACIONAL (é o que esta tela carrega) — não do recorte desta UF.
+          E, como a trilha `(dep)` não tem moldura de mapa, ninguém publica um
+          `dado_ts` vivo para o cargo 6: o veredito segue sendo só o do
+          servidor, sem timer. Reavaliar por tempo sem relógio vivo produziria
+          alarme falso garantido em toda aba aberta por mais de 90 min. */}
+      {resumoFrescor ? <DadoParadoBanner frescor={resumoFrescor.frescor} /> : null}
+
       {/* Seção 1 — o resumo. Sobrevive à ausência do Blob (RF-129). */}
       <Panel
         kicker="Atlas Menna · apuração ao vivo · não oficial"
@@ -375,13 +413,26 @@ export default async function UFDeputadoFederalPage({ params }: UFDeputadoPagePr
             </p>
           ) : null}
 
-          {carimbo ? (
+          {/* Um relógio por frase, e a frase diz de qual fonte ele é. O ramo
+              do resumo é o normal; o do detalhe só existe quando o Global
+              Config não respondeu e a tela está inteiramente sobre o Blob —
+              caso em que dizer "atualizado às" sem dizer "o quê" atribuiria ao
+              resumo uma hora que não é dele. */}
+          {resumoFrescor ? (
             <p
               data-testid="dep-atualizacao"
               style={{ margin: 0, font: "var(--type-data)", color: "var(--text-muted)" }}
             >
-              Atualizado às {formatTimeHMS(carimbo)}
+              {fraseFrescorDado(resumoFrescor.frescor, resumoFrescor.ts)}
               {cadencia > 0 ? `, a cada ${cadencia} ${cadencia === 1 ? "minuto" : "minutos"}` : ""}.
+            </p>
+          ) : detalheTs ? (
+            <p
+              data-testid="dep-atualizacao"
+              style={{ margin: 0, font: "var(--type-data)", color: "var(--text-muted)" }}
+            >
+              Detalhe deste estado gravado às {formatTimeHMS(detalheTs)}. O resumo nacional não
+              chegou neste ciclo.
             </p>
           ) : null}
         </div>

@@ -94,6 +94,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
+import { DadoParadoBanner } from "@/components/atoms/banners/DadoParadoBanner";
 import { DetailFreshness, DetailUnavailable } from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
@@ -102,6 +103,7 @@ import type { MunicipioRow } from "@/components/blocks/MunicipioTable";
 import { ResultPanel } from "@/components/blocks/ResultPanel";
 import { Footer } from "@/components/layout/Footer";
 import { municipiosFrom, readUfDetail, type UfDetailResult } from "@/lib/blob/uf-detail";
+import { avaliarFrescorDado } from "@/lib/config/dado-freshness";
 import { readUfProjection } from "@/lib/edge-config/reader";
 import type {
   EdgePayload,
@@ -340,6 +342,12 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
   // A ordem deste array é o rank exibido — ver `rankByParcial` acima.
   const rankedCandidatos = rankByParcial(payload.candidatos);
 
+  // ADR-0038 D4 — frescor do DADO desta UF, do servidor, a partir do `dado_ts`
+  // que já veio no payload. Cargo do payload, não literal: o limiar é por
+  // cargo (D3) — aqui, os mesmos 180 s do Presidente, porque Governador
+  // compartilha a cadência de 60 s do ADR-0011.
+  const frescorDado = avaliarFrescorDado(payload.dado_ts, payload.cargo);
+
   const candidateColor: Record<number, string> = {};
   const candidateShortName: Record<number, string> = {};
   for (const c of payload.candidatos) {
@@ -362,6 +370,22 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
       className="mx-auto flex min-h-screen max-w-page flex-col px-4 py-6 md:px-6 md:py-10"
       style={{ gap: "var(--space-8)" }}
     >
+      {/* ADR-0038 D4/D5 — o SEGUNDO sinal de frescor desta página, e o
+          primeiro que mede o TSE. Alimentado pelo `dado_ts` do `EdgePayloadUf`
+          desta UF (cru, sem `??`), e deliberadamente separado do
+          `<DetailFreshness>` lá embaixo: aquele compara dois relógios de
+          ESCRITA (o Blob ficou para trás do resumo) e segue correto para o que
+          mede. Causas diferentes, frases diferentes.
+
+          `escopo="uf"` porque este `dado_ts` é o DESTA UF (D2: a ingestão
+          degrada regionalmente sem o nacional acusar nada). O único relógio
+          vivo no cliente é o nacional, que a moldura do mapa publica a cada
+          60 s — e ele é o `max` sobre todos os pares, logo nunca mais velho que
+          o desta UF. O banner sabe usá-lo só no sentido em que isso é válido:
+          nacional parado ⇒ esta UF parada (acende); nacional fresco não prova
+          nada sobre a UF (não apaga o aviso que o servidor já deu). */}
+      <DadoParadoBanner frescor={frescorDado} escopo="uf" />
+
       {/* O coroplético "{sigla} · quem lidera cada município" (RF-034) MUDOU
           DE ENDEREÇO em 2026-09-09 (map-builder): não vive mais aqui — vive
           na coluna do mapa (`<PersistentMapFrame>`, ADR-0033 § 1), que agora

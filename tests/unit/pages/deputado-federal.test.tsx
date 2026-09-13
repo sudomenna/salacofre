@@ -21,7 +21,7 @@
  */
 
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import DeputadoFederalPage from "@/app/(dep)/deputado-federal/page";
 import UFDeputadoFederalPage from "@/app/(dep)/uf/[sigla]/deputado-federal/page";
@@ -1022,5 +1022,134 @@ describe("/uf/[sigla]/deputado-federal (T-12)", () => {
 
     expect(resumo).toContain("70 de 70");
     expect(resumo).not.toContain("0 de 0");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0038 — os dois relógios nas duas telas de Deputado Federal
+// ---------------------------------------------------------------------------
+
+/**
+ * O carimbo destas telas media a hora em que o **modelo** rodou e a chamava de
+ * "Atualizado às". Nesta trilha a diferença é a maior do produto: a varredura é
+ * fatiada em 6, uma fatia a cada 5 min, e a volta completa leva 30 min
+ * (ADR-0036) — o modelo carimba muitas vezes mais do que o conjunto do dado se
+ * renova.
+ *
+ * A tela de UF tinha ainda um segundo defeito, este achado na leitura do
+ * ADR-0038: `nacional?.ts ?? detail?.ts` punha num `??` o relógio de escrita do
+ * RESUMO (Global Config) e o do DETALHE (Blob) — duas escritas independentes,
+ * não atômicas — sob um rótulo só.
+ */
+describe("ADR-0038 — hora do dado, e um relógio por frase", () => {
+  const AGORA = Date.parse("2026-10-04T22:20:00-03:00");
+
+  function comDadoTs(dadoTs: string | null | undefined) {
+    const base = nacional();
+    if (dadoTs === undefined) {
+      // Payload pré-ADR: a CHAVE não existe, e é diferente de existir valendo
+      // `null`. Deletar é a única forma de reproduzir o canary de verdade.
+      const { dado_ts: _omitido, ...semCampo } = { ...base, dado_ts: null };
+      return semCampo as EdgePayloadDeputado;
+    }
+    return { ...base, dado_ts: dadoTs };
+  }
+
+  // O gatilho do banner compara `dado_ts` contra a hora do SERVIDOR (ADR-0038
+  // D4). Sem congelar o relógio, estes testes passariam hoje e virariam
+  // "parado" amanhã — a classe de teste que só falha quando ninguém está
+  // olhando.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(AGORA);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("(cc) nacional: `dado_ts` fresco → o carimbo é a hora do TSE, não a do modelo", async () => {
+    // `ts` do payload é 22:15:00; o dado é de 22:18:30.
+    readDeputadoProjectionMock.mockResolvedValue(comDadoTs("2026-10-04T22:18:30-03:00"));
+    const doc = await render(DeputadoFederalPage());
+    const carimbo = doc.querySelector("[data-testid='dep-atualizacao']")?.textContent ?? "";
+
+    expect(carimbo).toContain("Dado do TSE às 22:18:30");
+    expect(carimbo).not.toContain("22:15:00");
+    expect(carimbo).not.toContain("Atualizado às");
+    // A cadência de RF-128 continua saindo do payload, ao lado do relógio novo.
+    expect(carimbo).toContain("a cada 7 minutos");
+  });
+
+  it("(dd) nacional: `dado_ts` null → diz que não sabe, e não cai para `ts`", async () => {
+    readDeputadoProjectionMock.mockResolvedValue(comDadoTs(null));
+    const doc = await render(DeputadoFederalPage());
+    const carimbo = doc.querySelector("[data-testid='dep-atualizacao']")?.textContent ?? "";
+
+    expect(carimbo).toContain("Hora do dado indisponível neste ciclo");
+    expect(carimbo).not.toContain("22:15:00");
+    expect(carimbo).not.toMatch(/\d{2}:\d{2}:\d{2}/);
+  });
+
+  it("(ee) nacional: chave ausente → a tela se comporta como antes do ADR", async () => {
+    readDeputadoProjectionMock.mockResolvedValue(comDadoTs(undefined));
+    const doc = await render(DeputadoFederalPage());
+    const carimbo = doc.querySelector("[data-testid='dep-atualizacao']")?.textContent ?? "";
+
+    expect(carimbo).toContain("Atualizado às 22:15:00");
+    expect(carimbo).not.toContain("Dado do TSE");
+    expect(carimbo).not.toContain("indisponível");
+    // E nenhum banner novo durante o canary.
+    expect(doc.querySelector("[data-testid='dado-parado-banner']")).toBeNull();
+  });
+
+  it("(ff) nacional: o banner usa os 90 min do cargo 6, não os 3 min do Presidente", async () => {
+    // 40 minutos parados: incidente em qualquer corrida majoritária, ciclo
+    // perfeitamente normal aqui.
+    readDeputadoProjectionMock.mockResolvedValue(comDadoTs("2026-10-04T21:40:00-03:00"));
+    const quarentaMin = await render(DeputadoFederalPage());
+    expect(quarentaMin.querySelector("[data-testid='dado-parado-banner']")).toBeNull();
+
+    // 100 minutos: passou das três voltas completas, acende.
+    readDeputadoProjectionMock.mockResolvedValue(comDadoTs("2026-10-04T20:40:00-03:00"));
+    const cemMin = await render(DeputadoFederalPage());
+    const banner = cemMin.querySelector("[data-testid='dado-parado-banner']");
+
+    expect(banner).not.toBeNull();
+    expect(banner?.getAttribute("data-limiar-seconds")).toBe("5400");
+    expect(banner?.textContent).toContain("a cada 30 minutos");
+    // E a página NÃO some: o último apurado conhecido continua inteiro na tela
+    // (constituição § 7, RNF-010/012).
+    expect(cemMin.querySelector("[data-testid='dep-cadeiras-label']")).not.toBeNull();
+    expect(cemMin.body.textContent).toContain("400 cadeiras");
+  });
+
+  it("(gg) UF: só o Blob respondeu → a frase diz que o carimbo é DO DETALHE", async () => {
+    // Era aqui que o `??` mentia: sem resumo, a tela mostrava a hora de
+    // gravação do Blob sob o mesmo "Atualizado às" que descreve o resumo.
+    readDeputadoProjectionMock.mockResolvedValue(null);
+    readDeputadoUfDetailMock.mockResolvedValue(ok(detalhe()));
+    const doc = await render(UFDeputadoFederalPage(PARAMS_SP));
+    const carimbo = doc.querySelector("[data-testid='dep-atualizacao']")?.textContent ?? "";
+
+    expect(carimbo).toContain("Detalhe deste estado gravado às 22:14:00");
+    expect(carimbo).toContain("O resumo nacional não chegou neste ciclo");
+    expect(carimbo).not.toMatch(/^Atualizado às/);
+    expect(carimbo).not.toContain("Dado do TSE");
+    // Sem resumo não há `dado_ts`, e um banner de "parado" montado sobre a
+    // ausência da fonte seria alarme fabricado.
+    expect(doc.querySelector("[data-testid='dado-parado-banner']")).toBeNull();
+  });
+
+  it("(hh) UF: com resumo, o carimbo é o do resumo — e nunca o do Blob", async () => {
+    readDeputadoProjectionMock.mockResolvedValue(comDadoTs("2026-10-04T22:18:30-03:00"));
+    readDeputadoUfDetailMock.mockResolvedValue(ok(detalhe()));
+    const doc = await render(UFDeputadoFederalPage(PARAMS_SP));
+    const carimbo = doc.querySelector("[data-testid='dep-atualizacao']")?.textContent ?? "";
+
+    expect(carimbo).toContain("Dado do TSE às 22:18:30");
+    // 22:14:00 é o `ts` do Blob. Um `??` entre as duas fontes o traria de volta.
+    expect(carimbo).not.toContain("22:14:00");
+    expect(carimbo).not.toContain("Detalhe deste estado");
   });
 });

@@ -530,6 +530,57 @@ export interface EdgeComposition {
 export interface EdgePayload {
   /** Timestamp ISO 8601 do momento em que o modelo rodou. */
   ts: string;
+  /**
+   * ISO 8601 UTC — **a hora do dado do TSE** (`max(dg, hg)` entre os boletins
+   * que entraram neste ciclo), não a hora em que o modelo rodou. ADR-0038 D1.
+   *
+   * É o SEGUNDO relógio, e `ts` acima continua sendo o primeiro, com o mesmo
+   * significado de sempre. A diferença só importa — e importa muito — no
+   * cenário de incidente: se a ingestão parar, o Python continua rodando sobre
+   * os últimos snapshots do banco e carimbando um `ts` **fresco** sobre dado
+   * **parado**, a cada ciclo, indefinidamente; `dado_ts` congela junto com o
+   * TSE. Quem a tela mostra ao leitor passa a ser este; quem data a **escrita**
+   * — `splitUfPayload` comparando Blob contra resumo (`lib/blob/uf-detail.ts`),
+   * o carimbo de `emptyPayload()`, a validação de borda — continua sendo `ts`.
+   *
+   * ## Três estados na leitura, três textos — nunca um colapsando no outro
+   *
+   * Quem classifica é `avaliarFrescorDado` (`lib/config/dado-freshness.ts`):
+   *
+   *   - `string`  → "Dado do TSE: HH:MM:SS". Passando do limiar do cargo
+   *                 (`limiarDadoParadoSegundos`), acende o banner de D4.
+   *   - `null`    → nenhum boletim do ciclo trouxe `dg`/`hg` parseável. A tela
+   *                 diz "indisponível neste ciclo" e **nunca** fabrica um
+   *                 substituto a partir de `ts`: cair para o outro relógio
+   *                 reintroduziria exatamente o problema que este campo existe
+   *                 para resolver (ADR-0038 D1).
+   *   - ausente   → payload gravado por código anterior ao ADR-0038, ou em voo
+   *                 durante o canary do Rolling Release (constituição § 7). A
+   *                 tela cai para o texto de hoje, associado a `ts`.
+   *
+   * Opcional no tipo porque o terceiro estado é real por alguns minutos a cada
+   * deploy — e é `?:` em vez de `| undefined` justamente para que um payload de
+   * teste ou uma fixture antiga continue compilando. `?:` e `| null` são
+   * estados **diferentes** aqui, e é proibido colapsá-los com `??`.
+   *
+   * Do lado da ESCRITA nada precisou mudar: o `.passthrough()` de
+   * `app/api/internal/edge-write/route.ts` já aceitava o campo antes de ele
+   * existir aqui.
+   */
+  dado_ts?: string | null;
+  /**
+   * Quantos pares município×zona deste ciclo ficaram mais de 2 cadências atrás
+   * do `dado_ts` **do próprio ciclo** — ADR-0038 D2.
+   *
+   * Sinal de OPERAÇÃO, nunca manchete: acende o cenário que o máximo sozinho
+   * esconde — um par avança e os outros ~6.109 não. É relativo ao ciclo, e não
+   * a `now()`, de propósito: quando o TSE simplesmente não tem novidade para
+   * ninguém, todos os pares envelhecem juntos e a distância ao máximo continua
+   * pequena, então o número **não** acende.
+   *
+   * `null`/ausente pelos mesmos dois motivos de `dado_ts`.
+   */
+  pares_atrasados?: number | null;
   cargo: Cargo;
   turno: Turno;
   /** % total apurado da corrida (0–100). */
@@ -805,6 +856,25 @@ export interface EdgePayloadUf {
   /** Sigla de 2 letras maiúsculas (ex. "SP", "DF"). */
   uf: string;
   ts: string;
+  /**
+   * ISO 8601 UTC — a hora do dado do TSE **desta UF** (`max(dg, hg)` entre os
+   * pares da UF que entraram no ciclo). ADR-0038 D1/D2. Ver
+   * {@link EdgePayload.dado_ts} para os três estados e por que `null` e
+   * ausente não podem ser colapsados.
+   *
+   * Por UF, e não só no agregado nacional, porque a ingestão degrada
+   * **regionalmente** — um problema de rede específico, um lock preso que só
+   * afeta parte do fan-out — sem que o nacional acuse nada. É o mesmo
+   * argumento que já deu `ts` próprio ao Blob de detalhe municipal
+   * (ADR-0032).
+   */
+  dado_ts?: string | null;
+  /**
+   * Pares desta UF mais de 2 cadências atrás do `dado_ts` do próprio ciclo —
+   * ADR-0038 D2. Ver {@link EdgePayload.pares_atrasados}. Sinal de operação,
+   * nunca manchete.
+   */
+  pares_atrasados?: number | null;
   cargo: Cargo;
   turno: Turno;
   pct_apurado: number; // 0–100
@@ -991,6 +1061,27 @@ export interface UfPayloadInput extends EdgePayloadUf {
 export interface EdgePayloadDeputado {
   /** Timestamp ISO 8601 do momento em que o modelo rodou. */
   ts: string;
+  /**
+   * ISO 8601 UTC — a hora do dado do TSE do ciclo proporcional. ADR-0038 D1.
+   * Ver {@link EdgePayload.dado_ts} para os três estados.
+   *
+   * A distância entre `ts` e `dado_ts` é **maior** aqui do que em qualquer
+   * outro cargo, e é por isso que o campo importa mais nesta tela: desde o
+   * ADR-0036 a varredura do cargo 6 é fatiada em 6, uma fatia a cada 5 min, e
+   * a volta completa leva 30 min. O modelo roda e carimba `ts` muito mais vezes
+   * do que o conjunto do dado se renova.
+   */
+  dado_ts?: string | null;
+  /**
+   * Pares mais de 2 cadências atrás do `dado_ts` do próprio ciclo — ADR-0038
+   * D2. Ver {@link EdgePayload.pares_atrasados}.
+   *
+   * A unidade é o **par** (município, zona), como nos outros três cargos:
+   * desde o ADR-0036 o cargo 6 também chega ao modelo em granularidade de par
+   * (~6.110 linhas). Antes disso era uma linha por UF, e o número não teria
+   * sinal nenhum — 27 unidades não acusam cobertura parcial.
+   */
+  pares_atrasados?: number | null;
   /** Discriminante do payload. Sempre 6 — é o que separa este tipo de `EdgePayload`. */
   cargo: 6;
   /** Deputado Federal é turno único (`temSegundoTurno: false`). */

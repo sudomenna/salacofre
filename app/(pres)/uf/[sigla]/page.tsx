@@ -122,6 +122,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
+import { DadoParadoBanner } from "@/components/atoms/banners/DadoParadoBanner";
 import { DetailFreshness, DetailUnavailable } from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
@@ -131,6 +132,7 @@ import { ResultPanel } from "@/components/blocks/ResultPanel";
 import { Footer } from "@/components/layout/Footer";
 import { municipiosFrom, readUfDetail, type UfDetailResult } from "@/lib/blob/uf-detail";
 import { currentPresidentialTurno } from "@/lib/config/calendar";
+import { avaliarFrescorDado } from "@/lib/config/dado-freshness";
 import { readUfProjection } from "@/lib/edge-config/reader";
 import type {
   EdgePayload,
@@ -403,6 +405,11 @@ export default async function UFPage({ params }: UFPageProps) {
   // A ordem deste array é o rank exibido — ver `rankByParcial` acima.
   const rankedCandidatos = rankByParcial(payload.candidatos);
 
+  // ADR-0038 D4 — frescor do DADO desta UF, calculado no servidor a partir do
+  // `dado_ts` que já veio no payload. Cargo do payload, não literal: o limiar
+  // é por cargo (D3).
+  const frescorDado = avaliarFrescorDado(payload.dado_ts, payload.cargo);
+
   // O dispatch `binary` | `multi-1t` saiu com os termômetros (D23): o
   // `<ResultPanel>` é o mesmo nos dois turnos — em 2T a corrida tem dois
   // candidatos e a lista simplesmente tem duas linhas.
@@ -430,6 +437,25 @@ export default async function UFPage({ params }: UFPageProps) {
       // separação editorial é feita pelo filete e pelo kicker do `<Panel>`.
       style={{ gap: "var(--space-8)" }}
     >
+      {/* ADR-0038 D4/D5 — o SEGUNDO sinal de frescor desta página, e o
+          primeiro que mede o TSE. `dado_ts` vem do `EdgePayloadUf` desta UF
+          (D2: por UF, porque a ingestão degrada regionalmente sem que o
+          nacional acuse nada), cru, sem `??`.
+
+          Ele NÃO se funde com o `<DetailFreshness>` lá embaixo: aquele compara
+          dois relógios de ESCRITA (o Blob ficou para trás do resumo) e
+          continua correto para o que mede (D5). São duas falhas de causas
+          diferentes, e uma frase só obrigaria o leitor a adivinhar qual das
+          duas está acontecendo.
+
+          `escopo="uf"` porque este `dado_ts` é o DESTA UF. O relógio vivo que a
+          moldura do mapa publica a cada 60 s é o NACIONAL — que é o `max` sobre
+          todos os pares e portanto nunca mais velho que o desta UF. O banner só
+          o usa no sentido em que a desigualdade vale: nacional parado ⇒ esta UF
+          parada (acende sem recarga); nacional fresco não prova nada sobre esta
+          UF (não apaga o aviso que o servidor já tinha dado). */}
+      <DadoParadoBanner frescor={frescorDado} escopo="uf" />
+
       {/* O coroplético "{sigla} · quem lidera cada município" (RF-034)
           MUDOU DE ENDEREÇO em 2026-09-09 (map-builder): não vive mais aqui —
           vive na coluna do mapa (`<PersistentMapFrame>`, ADR-0033 § 1), que

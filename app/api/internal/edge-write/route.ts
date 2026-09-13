@@ -119,10 +119,30 @@ const porUfRowSchema = z
   })
   .passthrough();
 
+/**
+ * Os dois campos de relógio do dado (ADR-0038 D1), na borda.
+ *
+ * O `.passthrough()` dos dois `payload` abaixo já os aceitava **antes** desta
+ * declaração existir — a escrita nunca esteve quebrada e não é isso que estas
+ * duas linhas consertam. Elas existem para (a) dar tipo ao campo em vez de
+ * deixá-lo cair no saco de `unknown` do passthrough, e (b) barrar com 400 um
+ * produtor que mande `dado_ts: 0` ou `dado_ts: "agora"`, que é como um relógio
+ * errado entraria em produção sem ninguém ver.
+ *
+ * `.optional()` **e** `.nullable()`, nessa ordem e sem `.default()`: ausente e
+ * `null` são estados distintos e o payload precisa poder chegar nos dois — um
+ * `.default(null)` apagaria a diferença aqui, na borda, antes de a UI ter
+ * chance de distingui-los (ADR-0038 D1 § "Compatibilidade de leitura").
+ */
+const dadoTsSchema = z.string().nullable().optional();
+const paresAtrasadosSchema = z.number().nullable().optional();
+
 const bodySchema = z.object({
   payload: z
     .object({
       ts: z.string(),
+      dado_ts: dadoTsSchema,
+      pares_atrasados: paresAtrasadosSchema,
       // Derivado da tabela canônica (`lib/config/cargos.ts`): acrescentar um
       // cargo lá passa a bastar. Era `z.union([literal(1), literal(3)])`
       // hardcoded até 2026-09-11.
@@ -232,6 +252,8 @@ const deputadoBodySchema = z.object({
   payload: z
     .object({
       ts: z.string(),
+      dado_ts: dadoTsSchema,
+      pares_atrasados: paresAtrasadosSchema,
       cargo: z.literal(6),
       // Turno único (`temSegundoTurno: false`). Um `2` aqui é payload
       // malformado, não uma corrida que existe.

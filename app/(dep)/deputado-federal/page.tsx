@@ -75,15 +75,17 @@
 
 import type { Metadata } from "next";
 
+import { DadoParadoBanner } from "@/components/atoms/banners/DadoParadoBanner";
 import { VoteBar, type VoteBarSegment } from "@/components/atoms/bars/VoteBar";
 import { Figure } from "@/components/atoms/data/Figure";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { DeputadoMetodologia } from "@/components/blocks/DeputadoMetodologia";
 import { Footer } from "@/components/layout/Footer";
 import { cargoInfo } from "@/lib/config/cargos";
+import { avaliarFrescorDado, fraseFrescorDado } from "@/lib/config/dado-freshness";
 import { readDeputadoProjection } from "@/lib/edge-config/reader";
 import type { EdgeAgremiacaoBancada, EdgePayloadDeputado } from "@/lib/edge-config/types";
-import { formatPercent, formatTimeHMS, formatVotes } from "@/lib/utils/format";
+import { formatPercent, formatVotes } from "@/lib/utils/format";
 import { colorForParty } from "@/lib/utils/party-color";
 import depFixture from "@/tests/fixtures/edge-config/dep-current.json" with { type: "json" };
 
@@ -240,12 +242,29 @@ export default async function DeputadoFederalPage() {
   const segmentos = segmentosDaBancada(payload);
   const aguardandoCadeiras = Math.max(0, bancada.total_cadeiras - bancada.cadeiras_atribuidas);
 
+  // ADR-0038 D4. É nesta trilha que a diferença entre os dois relógios é maior:
+  // o modelo roda e carimba `ts` muito mais vezes do que a varredura de 6
+  // fatias renova o conjunto do dado (volta completa em 30 min, ADR-0036). O
+  // limiar sai de `CADENCIA_SEGUNDOS[6]` × 3 = 5.400 s (90 min) — e não dos
+  // 5 min do intervalo entre fatias, que é a leitura errada do cron.
+  const frescorDado = avaliarFrescorDado(payload.dado_ts, payload.cargo);
+
   return (
     <main
       data-trilha="dep"
       className="mx-auto flex min-h-screen max-w-page flex-col px-4 py-6 md:px-6 md:py-10"
       style={{ gap: "var(--space-8)" }}
     >
+      {/* Escopo nacional (o payload é o do país inteiro), mas esta trilha **não
+          tem moldura de mapa**: `(dep)` não tem `layout.tsx` com
+          `<PersistentMapFrame>`, então ninguém publica um `dado_ts` vivo para o
+          cargo 6 e o banner fica com o veredito do servidor, como antes. É de
+          propósito: sem relógio vivo, reavaliar por tempo faria o lag crescer
+          para sempre e o aviso acenderia falsamente em toda aba deixada aberta
+          por mais de 90 min. Quando esta trilha ganhar um poller de 30 min,
+          basta ele registrar-se na store — este JSX não muda. */}
+      <DadoParadoBanner frescor={frescorDado} />
+
       {/* Seção 1 — o enquadramento da corrida. O `<h1>` é o título deste
           painel (ADR-0029 § 5). */}
       <Panel
@@ -306,7 +325,14 @@ export default async function DeputadoFederalPage() {
 
           {/* RF-128 — o instante do payload. A frequência fica no bloco de
               metodologia, que é onde a explicação do método mora; aqui só o
-              "de quando é este número". */}
+              "de quando é este número".
+
+              ADR-0038 D1: o "de quando" passou a ser a hora do DADO
+              (`dado_ts`), não a hora em que o modelo rodou. `fraseFrescorDado`
+              resolve os quatro estados num lugar só — inclusive o de payload
+              pré-ADR, em que a frase volta a ser exatamente a de antes
+              ("Atualizado às HH:MM:SS"), porque durante o canary a tela se
+              comporta como se comportava. */}
           <p
             data-testid="dep-atualizacao"
             style={{
@@ -315,7 +341,7 @@ export default async function DeputadoFederalPage() {
               color: "var(--text-muted)",
             }}
           >
-            Atualizado às {formatTimeHMS(payload.ts)}
+            {fraseFrescorDado(frescorDado, payload.ts)}
             {payload.atualizacao_min > 0
               ? `, a cada ${payload.atualizacao_min} ${
                   payload.atualizacao_min === 1 ? "minuto" : "minutos"
