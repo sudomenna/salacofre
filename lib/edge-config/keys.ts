@@ -23,12 +23,19 @@
  * descoberta chegaria na noite da apuração, com a gravação recusada e a
  * projeção congelada.
  *
- * Não foi possível verificar empiricamente se a API tolera `:`: a
- * `EDGE_CONFIG` está comentada no `.env.local` desde 18/05, não há token de
- * escrita no ambiente, o `vercel` CLI não está autenticado, e a suíte de
- * ingestão inteira roda contra `fetch` mockado. Diante de um caminho crítico
- * que não dá para testar, a escolha é o padrão documentado — não a tolerância
- * não documentada.
+ * **VERIFICADO EMPIRICAMENTE em 2026-09-12** (`pnpm edge-config:smoke`, passo
+ * (f), com token de escrita real): a API **RECUSA** `:`. Uma chave
+ * `smoke-...:SP:pres:t1` volta `400 validation_error` — *"Key may contain
+ * alphanumeric letters, \"_\" and \"-\" only."*
+ *
+ * Ou seja: o esquema original do ADR-0012, com `:`, **nunca teria funcionado**
+ * — nenhuma projeção jamais seria gravada, em nenhum ambiente. A troca para
+ * `-` não foi conservadorismo; era a única forma correta.
+ *
+ * O comentário anterior aqui dizia que não era possível verificar (sem token,
+ * CLI deslogada, suíte toda mockada) e que, diante de caminho crítico não
+ * testável, a escolha era o padrão documentado. A decisão estava certa e agora
+ * está medida.
  *
  * ## O esquema
  *
