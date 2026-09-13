@@ -373,18 +373,25 @@ export default async function UFPage({ params }: UFPageProps) {
   ]);
   let payload = payloadDoStore;
 
-  // Dev fallback: quando o reader retorna `null` (chave UF ainda não publicada
-  // OR sem EDGE_CONFIG), em desenvolvimento sintetiza a partir do fixture
-  // nacional. Garante que `/uf/SP` renderiza em `pnpm dev` independente de
-  // credencial Vercel — constituição § 3 (UX nunca quebra).
+  // Fallback de DESENVOLVIMENTO: quando o reader retorna `null` (chave UF ainda
+  // não publicada OR sem EDGE_CONFIG), `pnpm dev` sintetiza a partir do fixture
+  // nacional, para que `/uf/SP` possa ser inspecionada de verdade sem
+  // credencial Vercel.
   //
-  // Em produção (NODE_ENV=production), respeita o reader: null = sem payload
-  // genuíno → renderiza "Aguardando dados".
-  if (!payload && process.env.NODE_ENV !== "production") {
+  // O portão é `=== "development"`, e não `!== "production"`, desde 2026-09-13.
+  // A forma antiga já barrava produção — o defeito de `salacofre.vercel.app`
+  // publicando os números da fixture era da HOME, não desta rota —, mas deixava
+  // `NODE_ENV=test` passar, e com isso o caminho honesto abaixo nunca era
+  // exercitado por um teste que não mockasse o reader. Agora as cinco rotas de
+  // cargo usam o MESMO portão (`/`, `/uf/[sigla]`, `/governador`, `/senador`,
+  // `/deputado-federal`), que é o que torna a regra auditável de uma vez só em
+  // vez de cinco leituras que precisam ser comparadas à mão.
+  if (!payload && process.env.NODE_ENV === "development") {
     payload = synthesizeUfFromNational(sigla);
   }
 
-  // Pré-eleição absoluta OR Edge Config vazio. UX gentil (constituição § 3).
+  // Pré-eleição absoluta OR Edge Config vazio. UX gentil (constituição § 3), e
+  // nenhum número inventado: a tela não afirma percentual, contagem nem hora.
   if (!payload) {
     return (
       <main data-trilha="pres" className="mx-auto flex min-h-screen max-w-page flex-col px-5 py-6">
@@ -394,8 +401,13 @@ export default async function UFPage({ params }: UFPageProps) {
         <h1 className="mt-4 text-3xl" style={{ fontFamily: "var(--font-serif)" }}>
           {sigla} — Aguardando dados
         </h1>
-        <p className="mt-2 text-sm" style={{ color: "var(--color-text-muted)" }}>
-          A projeção para esta UF começa quando o TSE divulgar os primeiros boletins.
+        <p
+          className="mt-2 text-sm"
+          data-testid="uf-aguardando"
+          style={{ color: "var(--color-text-muted)" }}
+        >
+          A projeção para esta UF começa quando o TSE divulgar os primeiros boletins. Não oficial.
+          Fonte: TSE.
         </p>
         <Footer />
       </main>

@@ -9,8 +9,11 @@
  * `readNationalProjection()` (ADR-0001) e passa o payload como `fallbackData`
  * para o SWR client que mantém polling vivo (RF-027).
  *
- * Em dev sem `EDGE_CONFIG`, o reader retorna null e o /api/projection cai num
- * fixture local — aqui também caímos no fixture para manter SSR funcional.
+ * Em `pnpm dev` sem `EDGE_CONFIG`, o reader retorna null e o /api/projection
+ * cai num fixture local — aqui também, para manter a rota inspecionável. Fora
+ * do `pnpm dev` a fixture NUNCA é lida: sem payload a página renderiza
+ * `<AguardandoNacional />`. Ver o docstring de `fixturePayload()` para o
+ * defeito de 13/09/2026 que essa guarda corrige.
  *
  * Mode dispatch (S05/F4)
  *   - `mode = "binary"` quando `payload.turno === 2` ou `candidatos.length === 2`.
@@ -207,14 +210,34 @@ export const metadata: Metadata = {
 };
 
 /**
- * Fixture usada quando não há Edge Config (dev local, preview sem credencial
- * e testes). `FIXTURE_VARIANT=t2` troca para o payload de 2º turno.
+ * Fixture de DESENVOLVIMENTO — números inventados, e só eles.
+ * `FIXTURE_VARIANT=t2` troca para o payload de 2º turno.
+ *
+ * ## Por que o chamador precisa de uma guarda (2026-09-13)
+ *
+ * O docstring anterior afirmava que em produção "o reader responde antes e a
+ * fixture nunca é lida". **Era falso**, e foi essa premissa que escondeu o
+ * defeito: `getInitialPayload()` caía aqui de forma INCONDICIONAL, e enquanto
+ * o Global Config de produção estivesse vazio — que é o estado normal até o
+ * primeiro boletim de 04/10/2026 — `salacofre.vercel.app` publicava os números
+ * desta fixture como se fossem apuração ("Candidato PT — 15.240.321 votos —
+ * 43,5%", "23,4% APURADO"). Um site público de eleição inventando resultado é
+ * a pior falha que este projeto pode ter (constituição §§ 1 e 8).
+ *
+ * O reader devolver `null` é o caminho ESPERADO, não a exceção: pré-eleição,
+ * chave ainda não gravada, credencial ausente. Uma rede de segurança que, na
+ * falta de dado, fabrica dado com cara de verdadeiro é pior que não ter rede.
+ *
+ * Por isso a fixture agora só entra sob `NODE_ENV === "development"` — o mesmo
+ * portão que `/governador`, `/senador` e `/deputado-federal` já usavam. Fora do
+ * `pnpm dev` o caminho honesto (`<AguardandoNacional />`) é o que renderiza,
+ * inclusive em teste, onde ele passa a ser exercitado.
  *
  * Por que uma env var e não um parâmetro: a página é um Server Component sem
  * props, e o smoke SSR precisa exercitar o modo `binary` (que só existe com
- * `turno === 2`). Injetar por env mantém `app/page.tsx` com a mesma forma em
- * produção — onde o reader responde antes e a fixture nunca é lida — em vez
- * de reestruturar a página só para testar. Em produção a env não é definida.
+ * `turno === 2`). Injetar por env mantém a página com a mesma forma em
+ * produção, em vez de reestruturá-la só para testar. Em produção a env não é
+ * definida — e, desde a guarda acima, nem seria lida se fosse.
  */
 function fixturePayload(): EdgePayload {
   const variant = process.env.FIXTURE_VARIANT;
@@ -262,15 +285,95 @@ function ResultTitle() {
   );
 }
 
-/** O RSC fornece o estado inicial dos painéis; o mapa da moldura busca o seu. */
-async function getInitialPayload(): Promise<EdgePayload> {
+/**
+ * Estado da home quando não há projeção publicada — pré-eleição, chave ainda
+ * não gravada, Global Config vazio.
+ *
+ * A página **não some** (constituição § 3) e **não inventa número**: nenhuma
+ * contagem, nenhum percentual, nenhum relógio. O que existe aqui é a promessa
+ * do que vai aparecer e de onde ele vem.
+ *
+ * Mesma forma do `<AguardandoNacional />` de `/deputado-federal` e do ramo
+ * `if (!payload)` do irmão desta trilha, `app/(pres)/uf/[sigla]/page.tsx`: um
+ * `<main data-trilha="pres">` com o `<Footer>` DENTRO dele (o shell global não
+ * os fornece), e o bloco de metodologia, que a constituição § 8 exige em toda
+ * página de apuração — inclusive quando ainda não há o que apurar.
+ *
+ * Não é uma violação do ADR-0017: aquele ADR proíbe que um BLOCO suma quando a
+ * FONTE DELE falha dentro de uma página que tem payload — é o caso do
+ * `<DetailUnavailable>` na rota de UF. Aqui não há payload nenhum, e não existe
+ * bloco a preservar; preservar a página inteira preenchida de zeros seria
+ * publicar medição onde não houve medição.
+ *
+ * `<ForecastTransparency pctApurado={0}>` é o único número da tela, e é o
+ * verdadeiro: zero por cento apurado.
+ */
+function AguardandoNacional() {
+  return (
+    <main
+      data-trilha="pres"
+      className="mx-auto flex min-h-screen max-w-page flex-col px-4 py-6 md:px-6 md:py-10"
+      style={{ gap: "var(--space-8)" }}
+    >
+      <TrilhaKicker trilha="pres" crumbs={["Brasil"]} className="-mb-4" />
+
+      <Panel
+        headingLevel={1}
+        kicker="Projeção Atlas Menna · não oficial"
+        rule="none"
+        title="Presidência 2026"
+        titleId="resultado-heading"
+      >
+        <p
+          className="max-w-prose"
+          data-testid="pres-aguardando"
+          style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
+        >
+          Aguardando o primeiro boletim. O placar, a projeção e o mapa por estado aparecem aqui
+          assim que o TSE divulgar a apuração — a lista de candidaturas também vem do dado
+          publicado, e por isso ainda não há nomes nem números nesta tela. Não oficial. Fonte: TSE.
+        </p>
+      </Panel>
+
+      <Panel kicker="Metodologia">
+        <ForecastTransparency pctApurado={0} />
+      </Panel>
+
+      <Footer />
+    </main>
+  );
+}
+
+/**
+ * O RSC fornece o estado inicial dos painéis; o mapa da moldura busca o seu.
+ *
+ * `null` do reader é o caminho esperado (ver o docstring de `fixturePayload`),
+ * e a partir daqui ele NUNCA mais vira dado de fixture fora do `pnpm dev`.
+ */
+async function getInitialPayload(): Promise<EdgePayload | null> {
   const fromEdge = await readNationalProjection();
   if (fromEdge) return fromEdge;
-  return fixturePayload();
+  return process.env.NODE_ENV === "development" ? fixturePayload() : null;
 }
 
 export default async function HomePage() {
   const payload = await getInitialPayload();
+
+  // Dois estados caem na mesma tela honesta, e o segundo não é hipotético:
+  //
+  //   - `null` — o reader não tem o que devolver (pré-eleição, chave ainda não
+  //     gravada, sem credencial fora do `pnpm dev`). É o defeito de 13/09.
+  //   - payload publicado com `candidatos: []` — o orchestrator gravou o
+  //     envelope antes de a lista de candidaturas estar resolvida. O placar
+  //     renderizaria a estrutura do kit com zero linhas dentro: "Apurado 0%",
+  //     barra de maioria vazia, "Boletim HH:MM:SS" com a hora do ciclo. Forma
+  //     de medição sem medição nenhuma.
+  //
+  // O gate é a AUSÊNCIA DE LISTA, não um percentual em zero: 0% apurado COM
+  // candidaturas publicadas é um estado legítimo da noite eleitoral (a corrida
+  // existe, ninguém apurou ainda) e continua caindo no fluxo normal.
+  if (!payload || payload.national.candidatos.length === 0) return <AguardandoNacional />;
+
   const { national, por_uf, pct_apurado_total, ufs_apuradas, ts, insights, composition, turno } =
     payload;
 
