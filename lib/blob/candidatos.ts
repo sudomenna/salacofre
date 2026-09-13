@@ -32,10 +32,17 @@
  * candidatou, com que número e por que partido, está fechado desde o registro, e
  * só muda quando o TSE republica o Portal de Dados Abertos — o que acontece em
  * escala de dias, não de minutos. Revalidar de minuto em minuto seria ida à
- * origem sem chance de encontrar novidade, exatamente na noite em que a latência
- * importa. A única coisa que se move é `situacao_julgamento`, e uma defasagem de
- * até 1 hora nela é honesta desde que a tela date o dado (`fonte_ts`,
- * `gerado_ts`) — constituição § 8.
+ * origem sem chance de encontrar novidade. A única coisa que se move é
+ * `situacao_julgamento`, e uma defasagem de até 12 h nela é honesta **desde que
+ * a tela date o dado** (`fonte_ts`, `gerado_ts`) — constituição § 8. Essa
+ * ressalva não é decorativa: é ela que separa "dado de ontem, e está escrito"
+ * de "dado de ontem apresentado como de agora".
+ *
+ * Nota de honestidade sobre o argumento acima: uma versão anterior deste
+ * comentário dizia que revalidar rápido custaria latência "exatamente na noite
+ * em que a latência importa". **Isso não se sustenta** — este leitor serve a
+ * rota `/candidatos`, que não está no caminho das telas de apuração. O
+ * argumento que vale é o outro: a fonte só muda uma vez por dia.
  */
 
 import type { Cargo } from "@/lib/config/calendar";
@@ -141,10 +148,25 @@ export interface CandidatosUfSlice {
 }
 
 /**
- * Cadência de revalidação do `fetch`, em segundos. 1 hora — ver o cabeçalho
- * deste arquivo para por que difere dos 60 s dos leitores irmãos.
+ * Cadência de revalidação do `fetch`, em segundos. **12 horas** — ver o
+ * cabeçalho deste arquivo para por que difere dos 60 s dos leitores irmãos.
+ *
+ * Decisão do dono do produto em 2026-09-13, contra a recomendação registrada
+ * (5 min). O argumento a favor é sólido: o TSE republica o Portal de Dados
+ * Abertos **uma vez por dia**, então revalidar duas vezes ao dia já cobre
+ * toda novidade que pode existir na fonte; o resto seria ida à origem sem
+ * chance de achar nada.
+ *
+ * ⚠️ O preço, e ele é real: quando **nós** republicamos (`candidatos:publish`),
+ * o site continua servindo a fatia anterior por até 12 h — sem erro e sem
+ * aviso, a página renderiza normal com o dado velho. Isso já custou uma hora
+ * de diagnóstico com a janela de 1 h (fotos no ar, fatia dizendo
+ * `foto_ok: true`, tela mostrando iniciais). Com 12 h, o sintoma dura o dia
+ * inteiro. **O caminho para ver o dado novo imediatamente é um redeploy**, que
+ * zera o Data Cache — está no runbook, seção "Publicar não é o mesmo que
+ * aparecer".
  */
-export const CANDIDATOS_REVALIDATE_SECONDS = 3600;
+export const CANDIDATOS_REVALIDATE_SECONDS = 43_200;
 
 // ---------------------------------------------------------------------------
 // Leitura

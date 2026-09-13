@@ -285,11 +285,11 @@ iniciais **mesmo com as fotos já no ar** — sem erro, sem alarme, só errado n
 
 Corolário: **toda vez que o passo 1 ou o 2 rodar de novo, o passo 3 precisa rodar depois.**
 
-### ⚠️ Publicar não é o mesmo que aparecer — a janela de 1 hora
+### ⚠️ Publicar não é o mesmo que aparecer — a janela de 12 horas
 
-`lib/blob/candidatos.ts` lê a fatia com `next: { revalidate: 3600 }`
+`lib/blob/candidatos.ts` lê a fatia com `next: { revalidate: 43_200 }`
 (`CANDIDATOS_REVALIDATE_SECONDS`). Depois de `pnpm candidatos:publish`, **o site continua
-servindo a fatia anterior por até uma hora**, sem erro e sem aviso — a página renderiza
+servindo a fatia anterior por até 12 horas**, sem erro e sem aviso — a página renderiza
 normalmente, só com o dado velho.
 
 Medido em 13/09, e custou uma hora de diagnóstico: as fotos estavam no ar, a fatia publicada
@@ -299,7 +299,7 @@ dizia `foto_ok: true`, e a tela mostrava iniciais. A mesma URL devolvia corpos d
 
 | Leitor | `revalidate` | Consequência |
 |---|---|---|
-| `lib/blob/candidatos.ts` | **3600 s** | Cadastro muda pouco; 1 h de defasagem é aceitável — **desde que quem opera saiba.** |
+| `lib/blob/candidatos.ts` | **43.200 s (12 h)** | O TSE republica 1×/dia, então revalidar 2×/dia cobre toda novidade da fonte. Decisão do dono do produto em 13/09. **A defasagem só é honesta porque a tela carimba `fonte_ts` — se o carimbo sair, vira mentira.** |
 | `lib/blob/uf-detail.ts` | 60 s | Apuração. **Não afetado** pela janela longa. |
 | `lib/blob/deputado-uf.ts` | 60 s | Apuração. **Não afetado.** |
 
@@ -314,8 +314,13 @@ curl -s https://<store>.public.blob.vercel-storage.com/candidatos/index.json | g
 # o que a página está mostrando — compare o carimbo de frescor na tela
 ```
 
-Se precisar do dado imediatamente em produção, o caminho é um redeploy (que zera o Data Cache),
-não esperar a hora passar.
+Se precisar do dado imediatamente em produção, o caminho é **um redeploy** (que zera o Data
+Cache), não esperar. Com 12 h de janela, esperar não é opção prática: nos dias até 04/10, em que
+o cadastro é reimportado quase todo dia, **publicar sem redeploy significa o site mostrar a lista
+de ontem o dia inteiro.**
+
+➜ **Regra operacional**: `candidatos:publish` e redeploy andam juntos. Publicar sozinho não
+chega ao leitor dentro do mesmo dia.
 
 
 **Como rodar manualmente**:
