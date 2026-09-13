@@ -4,7 +4,7 @@ title: Design — payload, read path e telas do Deputado Federal
 status: draft
 date: 2026-09-12
 spec: ./spec.md
-adrs: [0001, 0012, 0026, 0027, 0032, 0035, 0036]
+adrs: [0001, 0012, 0026, 0027, 0032, 0035, 0036, 0037]
 requirements: [RF-121, RF-122, RF-124, RF-125.1, RF-127, RF-128, RF-129, RF-130]
 ---
 

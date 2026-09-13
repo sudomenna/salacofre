@@ -319,6 +319,14 @@
       "amends": "0026",
       "note": "destrava RF-127 (intervalo de cadeiras, spec 017): em granularidade uf o cargo 6 tinha k_a=1 (1 arquivo por UF), degenerando o bootstrap do IC95 — mesmo diagnóstico que moveu Senador de uf para zona em 2026-09-11 (b). rpsMax do cargo 6 permanece 5 (piorCasoAgregadoRps segue 80); fatiado em 6 sub-ciclos de ~1.019 alvos (~204s cada, /api/ingest/deputado-federal/<n>), volta completa em 30 min (era 15). Requisitos de implementação registrados: trava anti-overlap passa a ser por (cargo, fatia), e é necessário interruptor por env que devolva o cargo 6 a uf sem deploy. Consequência a acompanhar: IC visivelmente mais largo em UFs pequenas (RR 8 zonas, AC 9, AP 10 vs. SP 394, MG 304) — estatisticamente correto, não degeneração, mas exige legibilidade (constituição § 8).",
       "path": "docs/architecture/adrs/0036-deputado-federal-granularidade-zona-fatiada.md"
+    },
+    {
+      "id": "0037",
+      "title": "UF sem faixa própria entra como constante no IC95 nacional de cadeiras, não suprime a faixa nacional inteira",
+      "status": "accepted",
+      "date": "2026-09-13",
+      "note": "decisão já implementada em `2bcee57` (`api/model/cadeiras_bootstrap.py:454-458`) junto com o ADR-0036; formaliza a agregação nacional do RF-127 — UF sem faixa soma seu ponto repetido nas réplicas, e a guarda pré-existente (`medida`, `:445-463`) segue suprimindo a faixa só quando NENHUMA UF da agremiação tem faixa própria. Consequência a acompanhar (não corrigida aqui): faixa nacional parcialmente constante fica mais estreita que o real e não se declara como tal na UI — tensiona constituição § 8.",
+      "path": "docs/architecture/adrs/0037-uf-sem-faixa-entra-como-constante-no-nacional.md"
     }
   ],
   "nfr": {
