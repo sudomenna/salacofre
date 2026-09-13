@@ -109,10 +109,18 @@ export interface CargoInfo {
    * está definida no ambiente (constituição § 1).
    *
    * Por que é por cargo, e não um número só: os quatro crons podem disparar no
-   * MESMO minuto — as cadências de 5 e 15 minutos coincidem com a de 1 minuto
-   * de Presidente e Governador nos minutos 0, 15, 30 e 45. Cada invocação tem
-   * seu próprio bucket (o rate limiter é singleton **de processo**, e o Fluid
-   * Compute isola instâncias), então o que o TSE vê no IP é a **soma**.
+   * MESMO minuto — a cadência de 5 minutos (Senador, e cada fatia de Deputado
+   * Federal desde o ADR-0036) cai sobre a de 1 minuto de Presidente e
+   * Governador **a cada múltiplo de 5**, não só nos minutos 0/15/30/45 como
+   * quando Deputado era um cron único de 15 em 15 min. Cada invocação tem seu
+   * (o rate limiter é singleton **de processo**, e o Fluid Compute isola
+   * instâncias), então o que o TSE vê no IP é a **soma**.
+   *
+   * As 6 fatias do cargo 6 são **intercaladas** em `vercel.ts` (fatia 1 nos
+   * minutos 0 e 30, fatia 2 em 5 e 35, ..., fatia 6 em 25 e 55), de modo que
+   * no máximo UMA delas está no ar por vez. É isso que mantém a contribuição
+   * do Deputado em 5 rps e o agregado em 80 — seis fatias simultâneas dariam
+   * 30 rps só dele, e 105 no total.
    *
    * Medido em 2026-09-11, com todos em 40: pico de **160 rps** com quatro
    * simultâneos e **120** com três — acima do teto documentado de 100, que
@@ -255,9 +263,10 @@ export function parseCargoSegment(raw: string): CargoTse | null {
  * Pior caso agregado de requisições por segundo contra o IP do TSE: todos os
  * cargos cobertos disparando ao mesmo tempo.
  *
- * Não é hipótese — os crons de `vercel.ts` coincidem nos minutos 0, 15, 30 e
- * 45, porque as cadências de 5 e 15 minutos caem sobre a de 1 minuto dos
- * majoritários. O teto documentado do TSE é 100 rps por IP, com bloqueio de
+ * Não é hipótese — os crons de `vercel.ts` coincidem **a cada 5 minutos**,
+ * porque a cadência de 5 min do Senador e das fatias de Deputado Federal cai
+ * sobre a de 1 min dos majoritários. O teto documentado do TSE é 100 rps por
+ * IP, com bloqueio de
  * 10 minutos, e a constituição § 1 exige margem **bem abaixo** disso, não
  * "exatamente no limite".
  */

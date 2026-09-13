@@ -6,7 +6,9 @@ Existe porque duas perguntas decidem o escopo de RF-127 (intervalo de cadeiras)
 e nenhuma das duas se responde no olho:
 
   **(1) quanto custa um ciclo completo das 27 UFs SEM intervalo** — do envelope
-  EA20 ao JSON publicado. É o que o cron de 15 minutos paga hoje.
+  EA20 ao JSON publicado. É o que a volta completa do cargo paga hoje: desde o
+  ADR-0036 (13/09) são 6 fatias intercaladas a cada 5 min, 30 min de volta
+  completa — não mais o cron único de 15 min da fase em que o cargo era por UF.
 
   **(2) quanto custa o intervalo de RF-127** —
   `cadeiras_bootstrap.intervalo_de_cadeiras` nas 27 UFs, incluindo **gerar os

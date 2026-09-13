@@ -213,9 +213,10 @@ let singleton: TokenBucket | null = null;
  * Até hoje o default era **40 para todos**, calibrado quando existiam DOIS
  * cargos: pior caso 2 x 40 = 80 rps, 20% abaixo do teto documentado de 100.
  * Com a entrada de Senador e Deputado (ADR-0026), os quatro crons de
- * `vercel.ts` passam a coincidir nos minutos 0, 15, 30 e 45 — as cadências de
- * 5 e 15 minutos caem sobre a de 1 minuto dos majoritários — e o pior caso
- * medido virou **160 rps**, acima do teto, que bloqueia o IP por 10 minutos.
+ * `vercel.ts` passam a coincidir — à época nos minutos 0, 15, 30 e 45 (cadências
+ * de 5 e 15 min sobre a de 1 min dos majoritários); desde o ADR-0036, que pôs
+ * Deputado em 6 fatias intercaladas de 5 em 5 min, a cada múltiplo de 5 — e o pior
+ * caso medido virou **160 rps**, acima do teto, que bloqueia o IP por 10 min.
  * A constituição § 1 exige "bem abaixo".
  *
  * Cada invocação tem seu próprio bucket (singleton **de processo**; o Fluid
