@@ -431,9 +431,18 @@ export function getGranularidade(cargo?: CargoTse): TseGranularidade {
     cargo === 6 ? process.env.TSE_DEPUTADO_GRANULARIDADE?.trim().toLowerCase() : undefined;
 
   const padraoDoCargo = cargo !== undefined ? cargoInfo(cargo).granularidade : "zona";
-  // Precedência: TSE_GRANULARIDADE (todos os cargos) > TSE_DEPUTADO_GRANULARIDADE
-  // (só cargo 6) > padrão do cargo.
-  const raw = envRaw || overrideDeputadoRaw || padraoDoCargo;
+  // Precedência: TSE_DEPUTADO_GRANULARIDADE (específica do cargo 6) >
+  // TSE_GRANULARIDADE (global) > padrão do cargo. **O mais específico vence.**
+  //
+  // ⚠️ Invertido em 2026-09-13, no mesmo dia em que a ordem oposta foi escrita.
+  // O motivo é concreto, não estético: `TSE_GRANULARIDADE=zona` está setada no
+  // ambiente `preview` desde o armamento do simulado — e, com a ordem anterior,
+  // ela **desativava em silêncio** o interruptor de emergência do cargo 6
+  // justamente no único ambiente onde ele poderia ser testado antes de 04/10.
+  // `TSE_GRANULARIDADE` é declarada no `lib/config/cargos.ts` como "escotilha de
+  // diagnóstico, não configuração de produção"; um interruptor de incidente não
+  // pode perder para uma escotilha de diagnóstico esquecida ligada.
+  const raw = overrideDeputadoRaw || envRaw || padraoDoCargo;
   if ((VALID_GRANULARIDADES as readonly string[]).includes(raw)) {
     return raw as TseGranularidade;
   }
@@ -489,8 +498,24 @@ const TODAS_UFS = [
  *   "SP:1,SP:3"     → SP × Presidente + SP × Governador
  *   "SP:1,RJ:1"     → SP e RJ × Presidente
  *   "SP:1,RJ:3,MG:1,MG:3" → múltiplas combinações
+ *   "SP:5", "SP:6"  → Senador e Deputado Federal (ver correção abaixo)
  *
  * Se a variável estiver ausente ou inválida, usa o default "SP:1".
+ *
+ * ⚠️ **Correção 2026-09-13.** Até esta data a validação era literal —
+ * `if (cargoNum !== 1 && cargoNum !== 3)` — escrita quando a eleição cobria
+ * só dois cargos. Senador (5) e Deputado Federal (6) entraram em 2026-09-11
+ * e a lista **nunca foi atualizada**: qualquer token `SP:5`/`SP:6` era
+ * descartado com um `console.warn` que ninguém lê num cron. Como a whitelist
+ * só vale no ambiente `preview` — que é o do simulado oficial do TSE —, o
+ * efeito era que **os dois cargos novos não podiam ser exercitados no único
+ * ambiente onde há chance de testá-los com dado real antes de 04/10**.
+ *
+ * É a **quarta** ocorrência da mesma família nesta base: constante literal de
+ * cargo que envelheceu em silêncio quando a eleição cresceu de 2 para 4
+ * cargos (ver a nota de `cargoFromTseNumeric` e a memória do projeto). A
+ * validação agora deriva de `isCargoTse`, a fonte única em
+ * `lib/config/cargos.ts` — acrescentar um cargo lá passa a bastar.
  */
 function parseWhitelist(raw: string | undefined): Array<{ uf: string; cargo: CargoTse }> {
   const DEFAULT_WHITELIST = "SP:1";
@@ -511,9 +536,11 @@ function parseWhitelist(raw: string | undefined): Array<{ uf: string; cargo: Car
     const uf = rawUf.trim().toUpperCase();
     const cargoNum = Number(rawCargo.trim());
 
-    if (cargoNum !== 1 && cargoNum !== 3) {
+    // Deriva de `isCargoTse` (fonte única, lib/config/cargos.ts) em vez de
+    // listar cargos aqui — ver a correção de 2026-09-13 no docstring acima.
+    if (!Number.isInteger(cargoNum) || !isCargoTse(cargoNum)) {
       console.warn(
-        `[targets] Cargo inválido "${rawCargo}" em token "${trimmed}" — apenas 1 (Presidente) e 3 (Governador) são suportados. Token ignorado.`,
+        `[targets] Cargo inválido "${rawCargo}" em token "${trimmed}" — cargos cobertos: ${CARGOS_TSE.join(", ")}. Token ignorado.`,
       );
       continue;
     }

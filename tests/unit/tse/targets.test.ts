@@ -327,13 +327,30 @@ describe("getGranularidade — interruptor de emergência do cargo 6 (2026-09-13
     expect(getGranularidade(5)).toBe("zona");
   });
 
-  it("TSE_GRANULARIDADE (global) vence quando os dois estão setados e discordam", () => {
+  it("o ESPECÍFICO vence o global quando os dois estão setados e discordam", () => {
     vi.stubEnv("TSE_GRANULARIDADE", "uf");
     vi.stubEnv("TSE_DEPUTADO_GRANULARIDADE", "zona");
-    // O global pede uf para TODOS; o específico do cargo 6 pediria zona —
-    // a precedência documentada é global > específico > padrão do cargo.
-    expect(getGranularidade(6)).toBe("uf");
+    // Precedência: específico do cargo 6 > global > padrão da tabela.
+    // O cargo 6 obedece ao seu próprio interruptor; os demais, ao global.
+    expect(getGranularidade(6)).toBe("zona");
     expect(getGranularidade(1)).toBe("uf");
+    expect(getGranularidade(3)).toBe("uf");
+    expect(getGranularidade(5)).toBe("uf");
+  });
+
+  it("cenário real do preview: TSE_GRANULARIDADE=zona NÃO desativa o interruptor de emergência", () => {
+    // Regressão de 2026-09-13. `TSE_GRANULARIDADE=zona` está setada no ambiente
+    // `preview` da Vercel desde o armamento do simulado (verificado na API em
+    // 13/09). Com a precedência anterior (global > específico) ela desativava em
+    // SILÊNCIO o interruptor do cargo 6 — justamente no único ambiente onde ele
+    // poderia ser exercitado com dado real antes de 04/10. O operador acionaria
+    // a rede de segurança e nada mudaria, sem erro e sem aviso.
+    vi.stubEnv("TSE_GRANULARIDADE", "zona");
+    vi.stubEnv("TSE_DEPUTADO_GRANULARIDADE", "uf");
+    expect(getGranularidade(6)).toBe("uf");
+    // E os outros três seguem o global, intocados pelo interruptor do cargo 6.
+    expect(getGranularidade(1)).toBe("zona");
+    expect(getGranularidade(5)).toBe("zona");
   });
 
   it("valor inválido é ignorado com warn, cai no padrão do cargo", () => {
@@ -385,6 +402,44 @@ describe("listIngestTargets — granularidade uf (opt-in explícito)", () => {
     expect(targets).toHaveLength(2);
     expect(targets.every((t) => t.nivel === "uf")).toBe(true);
     expect(vi.mocked(db.select)).not.toHaveBeenCalled();
+  });
+
+  it("whitelist aceita os QUATRO cargos cobertos — não só 1 e 3 (regressão 2026-09-13)", async () => {
+    // Até 13/09 a validação era literal (`cargoNum !== 1 && cargoNum !== 3`),
+    // escrita quando a eleição tinha dois cargos. Senador (5) e Deputado (6)
+    // entraram em 11/09 e os tokens deles eram DESCARTADOS com um console.warn
+    // que ninguém lê num cron. Como a whitelist só vale em `preview` — o
+    // ambiente do simulado oficial —, o efeito era que os dois cargos novos
+    // não podiam ser exercitados no único ambiente com chance de testá-los
+    // com dado real antes de 04/10. Quarta ocorrência da mesma família:
+    // constante literal de cargo que envelhece quando a eleição cresce.
+    // Senador e Deputado NÃO entram no ciclo genérico (getActiveCargos default
+    // "1,3"); quem os pede é a rota própria — `/api/ingest/senador` e
+    // `/api/ingest/deputado-federal/<fatia>` — via `opts.cargo`. É esse o
+    // caminho exercitado aqui, porque é o único por onde eles passam.
+    vi.stubEnv("TSE_COD_ELEICAO", "ele2026/619");
+    vi.stubEnv("TSE_CARGOS", "");
+    vi.stubEnv("TSE_TARGETS_WHITELIST", "SP:1,SP:3,SP:5,SP:6");
+
+    const dep = await listIngestTargets("preview", { cargo: 6 });
+    const sen = await listIngestTargets("preview", { cargo: 5 });
+
+    // Antes da correção os dois vinham VAZIOS: `parseWhitelist` descartava
+    // `SP:5` e `SP:6` com um console.warn, e o simulado não tinha como
+    // exercitar nenhum dos dois cargos.
+    expect(dep.map((t) => t.cargo)).toEqual([6]);
+    expect(sen.map((t) => t.cargo)).toEqual([5]);
+  });
+
+  it("whitelist: cargo fora dos cobertos é descartado, e não derruba os válidos", async () => {
+    vi.stubEnv("TSE_COD_ELEICAO", "ele2026/619");
+    vi.stubEnv("TSE_CARGOS", "");
+    vi.stubEnv("TSE_TARGETS_WHITELIST", "SP:99,SP:6");
+
+    const targets = await listIngestTargets("preview", { cargo: 6 });
+
+    // 99 não é cargo desta eleição — cai fora; o 6 sobrevive.
+    expect(targets.map((t) => t.cargo)).toEqual([6]);
   });
 });
 
