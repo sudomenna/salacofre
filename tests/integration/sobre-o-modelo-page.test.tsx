@@ -8,8 +8,12 @@
  * O ponto destes testes é o que a migração **não** podia mudar: o conteúdo. A
  * rota é a peça de transparência metodológica que a constituição § 8 exige, e
  * um restyle não pode encolher, reordenar ou perder nada dela. Por isso as
- * asserções são sobre as oito seções, o rodapé regulatório e as três
- * ilustrações — não sobre estilo, que é justamente o que mudou.
+ * asserções são sobre as seções, o rodapé regulatório e as três ilustrações —
+ * não sobre estilo, que é justamente o que mudou.
+ *
+ * 2026-09-13: a lista de seções cresceu de oito para nove (`sec-cadeiras`).
+ * O conteúdo dessa seção nova é travado em
+ * `tests/unit/pages/sobre-o-modelo.test.tsx`; aqui só a estrutura.
  */
 
 import { renderToStaticMarkup } from "react-dom/server";
@@ -22,29 +26,33 @@ function parse(): Document {
 }
 
 describe("/sobre-o-modelo — restyle em tokens (S07/Bloco 2)", () => {
-  it("(a) as oito seções continuam lá, na mesma ordem", () => {
+  it("(a) as nove seções continuam lá, na mesma ordem", () => {
     const doc = parse();
     const secoes = [...doc.querySelectorAll("article > section")].map((s) =>
       s.getAttribute("aria-labelledby"),
     );
+    // `sec-cadeiras` entrou em 2026-09-13 (RF-127 / ADR-0036 / ADR-0037) entre
+    // a agulha e as limitações: é a segunda faixa que a página precisa
+    // explicar, e ela não é feita como a das corridas majoritárias.
     expect(secoes).toEqual([
       "sec-modelo",
       "sec-regra-de-tres",
       "sec-ci",
       "sec-agulha",
+      "sec-cadeiras",
       "sec-limits",
       "sec-team",
       "sec-fontes",
     ]);
-    // A oitava é o `<aside>` do aviso oficial.
+    // A nona é o `<aside>` do aviso oficial.
     expect(doc.querySelector('aside[aria-label="Aviso oficial"]')).not.toBeNull();
   });
 
-  it("(b) um único <h1>, e os sete <h2> de seção seguem existindo", () => {
+  it("(b) um único <h1>, e os oito <h2> de seção seguem existindo", () => {
     const doc = parse();
     expect(doc.querySelectorAll("h1")).toHaveLength(1);
     expect(doc.querySelector("h1")?.textContent).toBe("Como a SalaCofre faz uma projeção");
-    expect(doc.querySelectorAll("h2")).toHaveLength(7);
+    expect(doc.querySelectorAll("h2")).toHaveLength(8);
   });
 
   it("(c) o rodapé regulatório continua com 'Não oficial' e o link do TSE (constituição § 1)", () => {

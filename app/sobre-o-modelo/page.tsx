@@ -11,6 +11,10 @@ import type { CSSProperties, ReactNode } from "react";
  * das oito seções. O que mudou é de onde vêm as cores, as medidas e as
  * escalas tipográficas.
  *
+ * (2026-09-13: a página passou a ter **nove** seções — entrou "5 · Cadeiras",
+ * a faixa do proporcional, e as seguintes foram renumeradas. O parágrafo acima
+ * continua descrevendo corretamente o que a migração de S07/Bloco 2 fez.)
+ *
  * Por que um objeto de `CSSProperties` e não classes utilitárias: as regras
  * do módulo que sobreviveram são todas de elemento único, e inline é o padrão
  * que os componentes do kit já usam (`Panel`, `Figure`, `CandidateResultRow`).
@@ -285,7 +289,7 @@ function BandTd({ children, style }: { children: ReactNode; style?: CSSPropertie
 export const metadata: Metadata = {
   title: "Sobre o Modelo — SalaCofre",
   description:
-    "Como funciona o modelo estatístico de projeção da SalaCofre: regra de três por zona eleitoral, intervalo de confiança via bootstrap, bandas de probabilidade e limitações conhecidas.",
+    "Como funciona o modelo estatístico de projeção da SalaCofre: regra de três por zona eleitoral, intervalo de confiança via bootstrap, bandas de probabilidade, a faixa de cadeiras da Câmara e limitações conhecidas.",
   alternates: { canonical: "/sobre-o-modelo" },
   openGraph: {
     title: "Sobre o Modelo — SalaCofre",
@@ -552,9 +556,70 @@ export default function SobreOModeloPage() {
           </table>
         </section>
 
-        {/* 5. Limitações */}
+        {/* 5. Cadeiras — a faixa do proporcional (RF-127; ADR-0036, ADR-0037).
+            Os números de método citados nesta seção são constantes de
+            `api/model/cadeiras_bootstrap.py`, não valores de payload:
+              mil embaralhamentos ......... N_RESAMPLES_CADEIRAS
+              2,5% de cada ponta .......... PERCENTIL_INFERIOR / PERCENTIL_SUPERIOR
+              duas zonas com voto ......... MIN_ZONAS_PARA_INTERVALO
+            A contagem de zonas de RR (8) e SP (394) sai do ADR-0036,
+            "Consequências — Negativas" (medido na tabela `zonas`, 2026-09-13).
+
+            Esta seção é o detalhe longo; o resumo curto que o leitor encontra
+            na própria tela de Deputado é `<DeputadoMetodologia>`. As duas
+            precisam concordar sem repetir as mesmas frases. */}
+        <section style={S.section} aria-labelledby="sec-cadeiras">
+          <p style={S.sectionLabel}>5 · Cadeiras</p>
+          <h2 id="sec-cadeiras" style={S.h2}>
+            Uma faixa diferente: as cadeiras da Câmara
+          </h2>
+          <p style={S.body}>
+            A eleição para deputado federal não passa pela regra de três das seções anteriores. O
+            número que aparece ali é a distribuição de cadeiras do Código Eleitoral aplicada aos
+            votos que já chegaram — <strong>nada é esticado para o fim da noite</strong>. A faixa
+            que acompanha cada bancada responde, por isso, a uma pergunta diferente da faixa das
+            outras corridas, e vale dizer qual.
+          </p>
+          <p style={S.body}>
+            Ela mede o quanto a bancada depende de <em>quais</em> zonas eleitorais chegaram
+            primeiro. Um estado é apurado aos pedaços, e cada pedaço vota um pouco diferente do
+            vizinho. Embaralhamos mil vezes o conjunto de zonas que já reportaram voto — sorteando
+            com reposição, como na seção do bootstrap — e refazemos a distribuição de cadeiras
+            inteira, do zero, em cada uma dessas mil versões da noite. A faixa publicada é o que
+            sobra depois de descartar os 2,5% mais altos e os 2,5% mais baixos desse monte de
+            bancadas possíveis.
+          </p>
+          <p style={S.body}>
+            <strong>O que ela não mede é o voto que ainda não chegou</strong> — e este é o ponto
+            mais importante desta seção. Uma faixa estreita aqui não quer dizer que a bancada está
+            perto do número final; quer dizer apenas que as zonas já apuradas concordam entre si. O
+            estado que ainda não abriu metade das suas urnas não tem essa metade dentro da faixa.
+            Quem avisa que ainda há cadeira em disputa é outra marcação, ao lado do número: a
+            cadeira <em>indefinida</em> — aquela que foi ganha na rodada de sobras por uma margem
+            menor do que o volume de votos que falta contar.
+          </p>
+          <p style={S.body}>
+            A faixa sai visivelmente mais larga em uns estados do que em outros, e isso está certo.
+            Roraima tem 8 zonas eleitorais; São Paulo tem 394. Embaralhar oito pedaços produz
+            versões da noite muito mais distintas entre si do que embaralhar 394 — no estado
+            pequeno, cada zona que falta pesa muito mais no total. Faixa larga ali é a medida
+            correta do que se sabe, não defeito de cálculo.
+          </p>
+
+          <div style={S.callout}>
+            <p style={S.calloutLabel}>Quando a faixa não aparece</p>
+            <p>
+              Com menos de duas zonas com voto no estado, não publicamos faixa nenhuma. Havendo uma
+              só, os mil embaralhamentos devolvem sempre exatamente a mesma coisa: a faixa sairia
+              com largura zero, colada no número, e seria lida como certeza absoluta justamente no
+              momento em que menos se sabe. Preferimos não mostrar faixa a mostrar uma que mente.
+            </p>
+          </div>
+        </section>
+
+        {/* 6. Limitações */}
         <section style={S.section} aria-labelledby="sec-limits">
-          <p style={S.sectionLabel}>5 · Limitações</p>
+          <p style={S.sectionLabel}>6 · Limitações</p>
           <h2 id="sec-limits" style={S.h2}>
             O que o modelo <em>não</em> faz bem
           </h2>
@@ -611,12 +676,41 @@ export default function SobreOModeloPage() {
                 — que declaramos na legenda em vez de esconder.
               </div>
             </div>
+
+            {/* ADR-0037: a UF sem faixa própria entra na soma nacional como
+                constante (`vetor += n`, `cadeiras_bootstrap.py::intervalo_nacional`).
+                O próprio ADR registra, em "Consequências — Negativas", que nada
+                na tela distinguia essa faixa de uma inteiramente medida. Este
+                item é essa declaração. */}
+            <div style={S.limitationItem}>
+              <span style={S.limitationNumber}>05</span>
+              <div style={S.limitationBody}>
+                <strong>A faixa nacional de cadeiras é mais estreita do que a realidade.</strong> A
+                bancada nacional de um partido é a soma dos estados, e a faixa dela é montada
+                somando as mil versões de cada estado. Quando um estado ainda não tem faixa própria
+                — menos de duas zonas com voto —, ele entra nessa soma como número fixo, igual nas
+                mil versões. É a única coisa honesta a somar quando não se mediu variação nenhuma,
+                mas o efeito é que aquele estado não acrescenta incerteza ao total: a faixa nacional
+                sai mais apertada do que seria se ele tivesse sido medido. É pior no começo da
+                noite, quando mais estados estão nessa situação, e nada na tela hoje distingue uma
+                faixa nacional inteiramente medida de uma que teve estados entrando como constante.
+                A decisão está registrada no{" "}
+                <a
+                  href="https://github.com/sudomenna/salacofre/blob/main/docs/architecture/adrs/0037-uf-sem-faixa-entra-como-constante-no-nacional.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  ADR-0037
+                </a>
+                .
+              </div>
+            </div>
           </div>
         </section>
 
-        {/* 6. Quem somos */}
+        {/* 7. Quem somos */}
         <section style={S.section} aria-labelledby="sec-team">
-          <p style={S.sectionLabel}>6 · Quem somos</p>
+          <p style={S.sectionLabel}>7 · Quem somos</p>
           <h2 id="sec-team" style={S.h2}>
             O time por trás da SalaCofre
           </h2>
@@ -632,9 +726,9 @@ export default function SobreOModeloPage() {
           </p>
         </section>
 
-        {/* 7. Fontes */}
+        {/* 8. Fontes */}
         <section style={S.section} aria-labelledby="sec-fontes">
-          <p style={S.sectionLabel}>7 · Fontes</p>
+          <p style={S.sectionLabel}>8 · Fontes</p>
           <h2 id="sec-fontes" style={S.h2}>
             De onde vêm os dados
           </h2>
@@ -674,7 +768,7 @@ export default function SobreOModeloPage() {
           </ul>
         </section>
 
-        {/* 8. Disclaimer */}
+        {/* 9. Disclaimer */}
         <aside style={S.disclaimer} aria-label="Aviso oficial">
           <p>
             <strong>Não somos um órgão oficial.</strong> Esta projeção é uma estimativa estatística.

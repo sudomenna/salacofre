@@ -21,6 +21,26 @@ function html(): string {
   return renderToStaticMarkup(<SobreOModeloPage />);
 }
 
+/**
+ * Texto corrido da seção "5 · Cadeiras", sem tags.
+ *
+ * As asserções da faixa de cadeiras precisam ser **locais**: a página inteira
+ * fala de projeção o tempo todo — é o método das outras três corridas — e uma
+ * busca no markup inteiro passaria por acidente. O recorte vai do `id` da
+ * seção até o `</section>` seguinte, o que inclui o callout final dela.
+ */
+function textoSecaoCadeiras(): string {
+  const markup = html();
+  const inicio = markup.indexOf('id="sec-cadeiras"');
+  expect(inicio).toBeGreaterThan(-1);
+  const fim = markup.indexOf("</section>", inicio);
+  expect(fim).toBeGreaterThan(inicio);
+  return markup
+    .slice(inicio, fim)
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ");
+}
+
 describe("/sobre-o-modelo (spec 011 / ADR-0021)", () => {
   it("(a) não descreve swing como método — nem no corpo, nem na metadata", () => {
     const markup = html();
@@ -72,5 +92,76 @@ describe("/sobre-o-modelo (spec 011 / ADR-0021)", () => {
     // por falta de mapeamento 2022 (ADR-0015 superseded pelo ADR-0021).
     expect(markup).not.toContain("bloco político mapeável");
     expect(markup).not.toContain("recolher a projeção");
+  });
+});
+
+/**
+ * A faixa de cadeiras — RF-127, ADR-0036 e ADR-0037.
+ *
+ * Em 2026-09-13 nasceu um **segundo** intervalo no produto, de natureza
+ * diferente do bootstrap dos majoritários: ele reamostra zonas já apuradas e
+ * refaz a distribuição de cadeiras, e no cargo 6 **não há projeção de voto**
+ * (design 017 § D9). A constituição § 8 obriga esta página a detalhar como o
+ * intervalo é construído e quais são as limitações conhecidas — e até este
+ * commit ela não sabia que o segundo intervalo existia.
+ *
+ * Estes testes travam as quatro coisas que precisam estar ditas (o que mede,
+ * o que não mede, por que varia entre estados, quando não aparece), a
+ * limitação do ADR-0037, e proíbem a frase que seria falsa.
+ */
+describe("/sobre-o-modelo — a faixa de cadeiras (RF-127 / ADR-0036 / ADR-0037)", () => {
+  it("(g) explica o que a faixa mede: reamostrar as zonas já apuradas e refazer a conta", () => {
+    const texto = textoSecaoCadeiras();
+    expect(texto).toContain("zonas eleitorais chegaram primeiro");
+    // `N_RESAMPLES_CADEIRAS` e os dois percentis, em prosa.
+    expect(texto).toContain("Embaralhamos mil vezes");
+    expect(texto).toContain("2,5% mais altos");
+    expect(texto).toContain("2,5% mais baixos");
+  });
+
+  it("(h) diz que a faixa NÃO mede o voto que falta, e aponta a cadeira indefinida", () => {
+    const texto = textoSecaoCadeiras();
+    expect(texto).toContain("não mede é o voto que ainda não chegou");
+    // A marcação é quem carrega o "ainda vem voto" (design 017 § D7/§ D9).
+    expect(texto).toContain("indefinida");
+    expect(texto).toContain("rodada de sobras");
+  });
+
+  it("(i) explica por que a faixa é mais larga em estado pequeno — e que isso está certo", () => {
+    const texto = textoSecaoCadeiras();
+    expect(texto).toContain("mais larga em uns estados do que em outros, e isso está certo");
+    expect(texto).toContain("Roraima");
+    expect(texto).toContain("São Paulo");
+  });
+
+  it("(j) diz quando a faixa não aparece: menos de duas zonas com voto", () => {
+    const texto = textoSecaoCadeiras();
+    // `MIN_ZONAS_PARA_INTERVALO`, e o motivo de ela ser omitida em vez de sair
+    // colada no número.
+    expect(texto).toContain("menos de duas zonas com voto");
+    expect(texto).toContain("largura zero");
+  });
+
+  it("(k) declara a limitação do ADR-0037 — a faixa nacional é mais estreita que a realidade", () => {
+    const markup = html();
+    expect(markup).toContain("A faixa nacional de cadeiras é mais estreita do que a realidade.");
+    expect(markup).toContain("entra nessa soma como número fixo");
+    // A parte que não pode ficar subentendida: é pior quanto mais cedo.
+    expect(markup).toContain("pior no começo da noite");
+    expect(markup).toContain("0037-uf-sem-faixa-entra-como-constante-no-nacional.md");
+  });
+
+  it("(l) não afirma que a faixa prevê, projeta ou estima o resultado final", () => {
+    const texto = textoSecaoCadeiras();
+    // Asserção negativa que discrimina: derruba o teste se um verbo de
+    // previsão aparecer com o resultado final por objeto — mas só quando
+    // **não** estiver negado, para que a frase honesta ("ela não prevê o
+    // resultado final") continue permitida. Verificado por mutação nos dois
+    // sentidos.
+    expect(texto).not.toMatch(
+      /(?<!não |nem |nunca |sem )(prev[êe]|projeta|estima|antecipa|adivinha)\w*[^.]{0,60}\b(resultado|n[úu]mero|bancada|total)\s+final/i,
+    );
+    // E a negação precisa estar escrita, não subentendida.
+    expect(texto).toContain("não quer dizer que a bancada está perto do número final");
   });
 });
