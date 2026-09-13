@@ -153,18 +153,26 @@ Registrar: o `codEleicao` obtido, sua **fonte** (`ele-c.json` do ambiente sim / 
 
 ### Passo 2 — Configurar o preview
 
-Ambiente **preview** da Vercel (nunca produção):
+✅ **JÁ FEITO em 13/09** — o preview está armado com tudo, **menos** o código da eleição.
+Criadas via API da Vercel, escopo **preview apenas** (produção não foi tocada — 25 variáveis lá,
+nenhuma do TSE):
 
-| Variável | Valor no dia 15 |
-|---|---|
-| `TSE_BASE_URL` | `https://resultados-sim.tse.jus.br/oficial` |
-| `TSE_COD_ELEICAO` | `ele2026/<n>` — **do passo 1**, jamais chutado |
-| `INGEST_WINDOW` | `9-17` (janela diurna do simulado; o default `17-04` excluiria o teste inteiro) |
-| `TSE_MAX_RPS` | `20` — conservador na primeira janela |
-| `TSE_TARGETS_WHITELIST` | `SP:1,SP:3` — começar pequeno |
-| `TSE_ACOMPANHAMENTO` | `off` — só ligar no dia 16/17, depois do EA15 mapeado |
-| `TSE_GRANULARIDADE` | `zona` (default desde 2026-09-05, E4 — `lib/tse/targets.ts::getGranularidade`; **não** `uf`) |
-| `CRON_ENABLED` | `false` no início — os primeiros ciclos são manuais |
+| Variável | Valor já configurado | Por quê |
+|---|---|---|
+| `TSE_BASE_URL` | `https://resultados-sim.tse.jus.br/oficial` | ambiente de simulado |
+| `INGEST_WINDOW` | `9-17` | ⚠️ o default é `17-04` e **excluiria o simulado inteiro** |
+| `TSE_MAX_RPS` | `20` | conservador na primeira janela |
+| `TSE_TARGETS_WHITELIST` | `SP:1,SP:3` | começar pequeno |
+| `TSE_ACOMPANHAMENTO` | `off` | só ligar em 16/17, depois do EA15 mapeado |
+| `TSE_GRANULARIDADE` | `zona` | **não** `uf` — o modo `uf` quebra o modelo |
+| `CRON_ENABLED` | `false` | os primeiros ciclos são manuais |
+
+**Falta uma só**: `TSE_COD_ELEICAO`, no escopo **preview**, com o valor obtido no Passo 1.
+Ela não tem default e `lib/tse/targets.ts:285` **lança** sem ela.
+
+Vigia automática rodando de hora em hora desde 13/09 (`vigia-tse-2026`, em
+`~/.claude/scheduled-tasks/`): roda `pnpm tse:watch --once` contra produção e contra o simulado, e
+avisa no minuto em que qualquer coisa mudar — inclusive se o simulado deixar de responder 403.
 
 ### Passo 3 — Coleta obrigatória de fixtures e diffs
 
