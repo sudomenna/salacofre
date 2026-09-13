@@ -10,7 +10,7 @@ depends_on: [001-ingestao-tse]
 apis: [POST /api/model/project]
 components: []
 nfr: [RNF-006]
-adrs: [0006, 0007, 0012, 0014, 0018, 0020, 0021, 0023, 0035]
+adrs: [0006, 0007, 0012, 0014, 0018, 0020, 0021, 0023, 0035, 0038]
 ship_blocked_on: [simulado-tse-2026, gate-ot4-reprovando]
 ---
 

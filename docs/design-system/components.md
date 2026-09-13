@@ -38,6 +38,7 @@ last_updated: 2026-09-11
 | `<MapPlaceholder />` | ✅ | (ADR-0010 — fallback client dos wrappers dinâmicos) | `components/atoms/maps/MapPlaceholder.tsx` | — (sem teste dedicado) |
 | `<CandidateRow />` | ✅ | RF-033 | `components/atoms/tables/CandidateRow.tsx` | `tests/unit/components/CandidateRow.test.tsx` |
 | `<WinnerBanner />` | ✅ | RF-032 | `components/atoms/banners/WinnerBanner.tsx` | `tests/unit/components/WinnerBanner.test.tsx` |
+| `<DadoParadoBanner />` | ✅ | (ADR-0038 D4 — degradação graceful quando `dado_ts` excede limiar por cargo) | `components/atoms/banners/DadoParadoBanner.tsx` | `tests/unit/components/DadoParadoBanner.test.tsx` |
 | `<NewsClippingPlaceholder />` | ⛔ órfão | (spec 004 — slot visual, sem RF formal) | `components/atoms/banners/NewsClippingPlaceholder.tsx` | tests não existem; componente órfão desde 08/09 |
 | `<TurnoBadge />` | ✅ S05 | RF-030 ext | `components/atoms/badges/TurnoBadge.tsx` | `tests/unit/components/TurnoBadge.test.tsx` |
 | `<RaceTypeIndicator />` | ✅ S05 | RF-030 ext | `components/atoms/badges/RaceTypeIndicator.tsx` | `tests/unit/components/RaceTypeIndicator.test.tsx` |

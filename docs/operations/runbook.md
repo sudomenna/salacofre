@@ -89,6 +89,29 @@ O valor anterior — `SalaCofre/1.0 (interessado-divulgacao-cadastrado)` — dec
 - TSE sinaliza **mudança de leiaute** em simulado → diff técnico contra [docs/reference/tse-2026-leiautes.md](../reference/tse-2026-leiautes.md); `pnpm tse:watch` detecta mudança nas 9 páginas técnicas.
 - **Bloqueio de IP observado** (429 sustentado, ou silêncio de 10 min) → reduzir `TSE_MAX_RPS`, abrir incidente, registrar em [docs/testing/tse-simulados.md](../testing/tse-simulados.md).
 
+## Alarme de dado parado — limiares por cargo (ADR-0038 D3)
+
+**Quando dispara**: O último boletim TSE recebido (`dado_ts`, extraído de `dg`/`hg` do envelope EA20) ficou mais de **3× a cadência do cargo** atrás do `now()` no servidor.
+
+| Cargo | Cadência | Limiar de alarme |
+|---|---|---|
+| Presidente / Governador (1, 3) | 60s | **180s** (3 min) |
+| Senador (5) | 300s (5 min) | **900s** (15 min) |
+| Deputado Federal (6) | 1.800s (30 min) | **5.400s** (90 min) |
+
+**O que acontece**:
+1. A cada ciclo do modelo, `api/model/project.py` computa `now() - dado_ts` e compara ao limiar.
+2. Se excedido, chama `_alert_slack("error", "dado do TSE parado", cargo=..., turno=..., dado_ts=..., lag_seconds=...)`.
+3. `_alert_slack` verifica se `SLACK_WEBHOOK_URL` está configurada em `os.environ`.
+   - **Se sim**: envia para Slack (canal a definir antes de produção).
+   - **Se não**: loga como "slack alert skipped" — nenhum erro, nenhuma exceção.
+
+**UI associada**: O componente `<DadoParadoBanner />` (planejado, ADR-0038 D4) renderiza um banner amarelo quando `dado_ts > limiar_do_cargo` no payload recebido, com mensagem tipo "Os dados do TSE não avançam há X min — a página segue mostrando o último apurado conhecido".
+
+**Status atual (13/09/2026)**: Alarme **implementado no backend, inerte sem `SLACK_WEBHOOK_URL`**. `SLACK_WEBHOOK_URL` ainda não está configurada em Vercel — **decisão pendente do dono do projeto** sobre qual canal Slack (ou webhook de outro sistema) receber os alertas.
+
+**Quando ativar**: Antes de qualquer corrida real (simulado 15/09 ou 1º turno 04/10), configurar `SLACK_WEBHOOK_URL` em Settings → Environment Variables (Vercel).
+
 ## Testes manuais de alerting (T21 spec 001)
 
 > ### ⛔ Nunca force um erro contra o CDN do TSE
