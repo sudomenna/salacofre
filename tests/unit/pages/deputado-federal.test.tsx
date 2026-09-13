@@ -257,6 +257,47 @@ describe("/deputado-federal (T-11)", () => {
     expect(doc.body.textContent).not.toContain("400 cadeiras");
   });
 
+  it("(c1) RF-127/§8: com faixa no payload, a tela NÃO afirma que lê o boletim do estado", async () => {
+    // Regressão de 2026-09-13, achada pelo gate constitucional. Até aquele dia
+    // este bloco afirmava, sem condição, "Lemos o boletim que o TSE publica por
+    // estado, e não os de cada zona eleitoral". O ADR-0036 inverteu o fato e a
+    // frase virou falsa NA TELA DO LEITOR — o componente não foi tocado por
+    // nenhum dos 5 commits daquela madrugada. Asserção NEGATIVA de propósito:
+    // um teste que só confirmasse o texto novo passaria com o velho ainda lá.
+    readDeputadoProjectionMock.mockResolvedValue(
+      nacional({
+        bancada: {
+          ...nacional().bancada,
+          por_agremiacao: [agr({ cadeiras_ci95: [57, 63] })],
+        },
+      }),
+    );
+    const doc = await render(DeputadoFederalPage());
+    const metodologia = doc.querySelector("[data-testid='dep-metodologia']")?.textContent ?? "";
+
+    expect(metodologia).not.toMatch(/não os de cada zona eleitoral/);
+    expect(metodologia).not.toMatch(/não há mapa de municípios/);
+    // E diz o que a faixa mede — e o que ela não mede (constituição § 8).
+    expect(metodologia).toMatch(/zonas eleitorais/);
+    expect(metodologia).toMatch(/indefinidas/);
+  });
+
+  it("(c2) modo de emergência: sem faixa no payload, a tela explica por que não há intervalo", async () => {
+    // O outro lado do interruptor `TSE_DEPUTADO_GRANULARIDADE=uf` (ADR-0036):
+    // sem zonas não há faixa, e aí a frase sobre ler o boletim do estado volta
+    // a ser verdadeira. É por isso que o texto é derivado do payload e não fixo.
+    readDeputadoProjectionMock.mockResolvedValue(
+      nacional({
+        bancada: { ...nacional().bancada, por_agremiacao: [agr()] },
+      }),
+    );
+    const doc = await render(DeputadoFederalPage());
+    const metodologia = doc.querySelector("[data-testid='dep-metodologia']")?.textContent ?? "";
+
+    expect(metodologia).toMatch(/boletim que o TSE publica por estado/);
+    expect(metodologia).toMatch(/não há\s+intervalo/);
+  });
+
   it("(c) RF-128: a cadência sai de `atualizacao_min`, e a tela não diz '15 minutos'", async () => {
     readDeputadoProjectionMock.mockResolvedValue(nacional());
     const doc = await render(DeputadoFederalPage());

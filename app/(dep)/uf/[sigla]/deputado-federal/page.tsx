@@ -620,7 +620,12 @@ export default async function UFDeputadoFederalPage({ params }: UFDeputadoPagePr
           `Metodologia` (página nacional) para o porquê de este bloco não ser o
           `<ForecastTransparency>` das outras rotas: ele desenharia uma barra
           "Modelo 31,1%" sobre um número em que não há modelo nenhum. */}
-      <DeputadoMetodologia pctApurado={pctApurado} cadenciaMinutos={cadencia} variant="uf" />
+      <DeputadoMetodologia
+        pctApurado={pctApurado}
+        cadenciaMinutos={cadencia}
+        temIntervalo={agremiacoes.some((a) => a.cadeiras_ci95 !== undefined)}
+        variant="uf"
+      />
 
       <Footer />
     </main>

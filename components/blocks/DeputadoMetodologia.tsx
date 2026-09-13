@@ -25,9 +25,17 @@
  *
  * Constituição § 8 pede que o leitor saiba de onde vem o número. Aqui: que
  * **não é projeção** (§ D9 é literal — "a tela não pode chamar isso de
- * projeção"), o percentual apurado, a granularidade de UF (escolha nossa, não
- * limitação do TSE — foi exatamente esse tipo de frase invertida que quebrou a
- * tela de Senador em 11/09) e a cadência.
+ * projeção"), o percentual apurado, o que a faixa de cadeiras mede — e o que
+ * ela **não** mede — e a cadência.
+ *
+ * ⚠️ **2026-09-13.** Este parágrafo afirmava a granularidade de UF sem
+ * condição ("lemos o boletim que o TSE publica por estado, e não os de cada
+ * zona eleitoral... e por isso não há mapa de municípios aqui"). O ADR-0036
+ * inverteu o fato e a frase virou falsa **na tela**, não num comentário. A
+ * granularidade agora entra por `temIntervalo`, derivada do payload. A
+ * justificativa do mapa foi **removida, não reescrita**: com dado de zona a
+ * razão deixou de existir, e a ausência do mapa não precisa de desculpa — uma
+ * razão falsa é pior que nenhuma.
  *
  * A cadência vem do payload (`atualizacao_min`, RF-128 / § D8), nunca de
  * literal. `cadenciaMinutos = 0` significa "não sabemos" — sem payload não há
@@ -48,6 +56,25 @@ export interface DeputadoMetodologiaProps {
    * `0` (ou ausente) ⇒ nenhuma frase de cadência.
    */
   cadenciaMinutos: number;
+  /**
+   * `true` quando o payload trouxe faixa de cadeiras (`cadeiras_ci95`) — o que
+   * só acontece quando há zonas de verdade para reamostrar.
+   *
+   * **Por que é uma prop derivada do payload e não uma frase fixa**: até
+   * 2026-09-13 este bloco afirmava, sem condição, que "lemos o boletim que o
+   * TSE publica por estado, e não os de cada zona eleitoral". O ADR-0036 virou
+   * essa chave e a frase virou **falsa na tela do leitor** — e o componente,
+   * que nenhum dos commits daquela madrugada tocou, seguiu afirmando. É a
+   * mesma classe de defeito que quebrou a tela de Senador em 11/09: prosa que
+   * fica para trás do dado.
+   *
+   * A presença da faixa é o sinal observável certo, e não um `granularidade`
+   * próprio, porque ela acompanha sozinha o interruptor de emergência
+   * (`TSE_DEPUTADO_GRANULARIDADE=uf`): sem zonas não há faixa, e o texto volta
+   * a dizer a verdade sem ninguém lembrar de mudá-lo. Mesmo padrão que
+   * `<ForecastTransparency>` já usa para a frase equivalente.
+   */
+  temIntervalo?: boolean;
   /** `"uf"` só troca o título; o texto é o mesmo, porque o método é o mesmo. */
   variant?: "national" | "uf";
 }
@@ -55,6 +82,7 @@ export interface DeputadoMetodologiaProps {
 export function DeputadoMetodologia({
   pctApurado,
   cadenciaMinutos,
+  temIntervalo = false,
   variant = "national",
 }: DeputadoMetodologiaProps) {
   return (
@@ -76,9 +104,21 @@ export function DeputadoMetodologia({
         Estes números <strong>não são uma projeção</strong>. São a distribuição de cadeiras pelas
         regras do Código Eleitoral aplicada aos votos <strong>já apurados</strong> — a resposta para
         "como ficaria a bancada se a contagem parasse agora". Com {formatPercent(pctApurado)}{" "}
-        apurado, ela ainda muda. Lemos o boletim que o TSE publica por estado, e não os de cada zona
-        eleitoral — é escolha nossa, para caber no limite de requisições do TSE, e por isso não há
-        mapa de municípios aqui.
+        apurado, ela ainda muda.{" "}
+        {temIntervalo ? (
+          <>
+            O intervalo ao lado de cada bancada mede o quanto o número balança entre as zonas
+            eleitorais <strong>já apuradas</strong>: sorteamos mil combinações delas e refazemos a
+            conta em cada uma. Ele não adivinha o voto que ainda falta chegar — isso é o que as
+            cadeiras marcadas como indefinidas apontam.
+          </>
+        ) : (
+          <>
+            Neste momento lemos o boletim que o TSE publica por estado, e não os de cada zona
+            eleitoral — e sem as zonas não há como medir o quanto o número balança, por isso não há
+            intervalo ao lado das bancadas.
+          </>
+        )}
         {cadenciaMinutos > 0 ? (
           <>
             {" "}

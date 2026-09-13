@@ -20,12 +20,18 @@
  *
  * ## Por que esta rota não tem mapa
  *
- * O cargo 6 é ingerido em granularidade **UF** — 27 arquivos por ciclo, um por
- * estado, sem quebra por município ou zona (ADR-0026 item 1; quatro cargos em
- * zona passariam de 24 mil GETs por ciclo). Não há dado municipal para
- * desenhar, e um mapa aqui só poderia repintar o estado inteiro que a lista já
- * nomeia. A rota fica fora do `<AppShellSplit>`/`<PersistentMapFrame>`
- * (ADR-0033 § 1), como `/senador`.
+ * ⚠️ **Corrigido em 2026-09-13.** Este parágrafo dizia que o cargo 6 é
+ * ingerido em granularidade **UF** (27 arquivos por ciclo, sem quebra por
+ * município ou zona) e usava isso para justificar a ausência de mapa. O
+ * ADR-0036 inverteu o fato: o cargo 6 lê o par (município, zona), ~6.110
+ * alvos, varridos em 6 fatias com volta completa a cada 30 min.
+ *
+ * **A ausência do mapa não é mais consequência de falta de dado.** Passou a
+ * ser escopo: a rota fica fora do `<AppShellSplit>`/`<PersistentMapFrame>`
+ * (ADR-0033 § 1), como `/senador`, e desenhar o recorte municipal de uma
+ * corrida proporcional é decisão de produto que ninguém tomou. Registrar a
+ * razão verdadeira importa porque a razão anterior aparecia **na tela do
+ * leitor**, em `<DeputadoMetodologia>`, e ficou falsa junto.
  *
  * ## Nenhum número escrito à mão (design 017 § D8)
  *
@@ -578,6 +584,10 @@ export default async function DeputadoFederalPage() {
       <DeputadoMetodologia
         pctApurado={payload.pct_apurado_total}
         cadenciaMinutos={payload.atualizacao_min}
+        // Derivado do payload, nunca fixo: sem zonas para reamostrar não há
+        // faixa, e o texto do bloco precisa acompanhar sozinho (ADR-0036 fez
+        // a frase anterior virar falsa na tela).
+        temIntervalo={payload.bancada.por_agremiacao.some((a) => a.cadeiras_ci95 !== undefined)}
       />
 
       <Footer />
