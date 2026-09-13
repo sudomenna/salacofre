@@ -647,7 +647,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  // biome-ignore lint/suspicious/noConsole: CLI script
   console.error("[build-replay-fixtures] falha:", err);
   process.exit(1);
 });

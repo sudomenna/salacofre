@@ -49,6 +49,7 @@ export function HexCartogramBrasil({ rows, candidatos, hexRadius = 26 }: HexCart
 
   return (
     <figure className="w-full" aria-labelledby="hex-cartogram-title">
+      {/* biome-ignore lint/a11y/useSemanticElements: `<fieldset>` não existe em SVG; `role="group"` é deliberado — ver comentário abaixo */}
       <svg
         // `role="group"`, NÃO `role="img"`. Este SVG contém 27 links (um por
         // UF) e `role="img"` declara ao leitor de tela que o elemento é uma
@@ -58,6 +59,10 @@ export function HexCartogramBrasil({ rows, candidatos, hexRadius = 26 }: HexCart
         // quatro combinações de viewport × tema da `/governador`.
         // O nome acessível não se perde: vem do mesmo `aria-labelledby`, e o
         // `<figure>` externo também o carrega.
+        //
+        // O biome sugere trocar por `<fieldset>` — impossível: `<fieldset>` não
+        // existe dentro de SVG, e tampouco é um agrupamento de campos de
+        // formulário. Falso-positivo; daí a supressão acima.
         role="group"
         aria-labelledby="hex-cartogram-title hex-cartogram-desc"
         viewBox={`0 0 ${width} ${height}`}

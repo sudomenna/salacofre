@@ -95,7 +95,10 @@ export function Tabs({ options, value, ariaLabel, className }: TabsProps) {
           );
         }
         return (
-          // biome-ignore lint/a11y/useFocusableInteractive: tabs estáticos (decorativos OU disabled) não devem receber foco.
+          // Tabs estáticos (decorativos OU disabled) não recebem foco de
+          // propósito: `tabIndex` é `-1` no disabled e ausente no decorativo.
+          // Sem rede de lint aqui: `useFocusableInteractive` enxerga o atributo
+          // `tabIndex` no JSX e se dá por satisfeita, sem avaliar o ternário.
           <span
             key={opt.id}
             role="tab"

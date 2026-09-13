@@ -635,7 +635,13 @@ a:hover {
   *,
   *::before,
   *::after {
+    /* O `!important` é carga, não descuido: este reset precisa vencer as classes
+     * utilitárias do Tailwind (`transition-*`, `animate-*`) e qualquer `style`
+     * inline. Sem ele o RNF-026 passa a valer só onde ninguém declarou animação
+     * por classe — ou seja, quase em lugar nenhum. */
+    /* biome-ignore lint/complexity/noImportantStyles: reset de prefers-reduced-motion (RNF-026) precisa vencer utilitário Tailwind e style inline */
     animation-duration: 0.01ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: idem — ver comentário acima */
     transition-duration: 0.01ms !important;
   }
 }

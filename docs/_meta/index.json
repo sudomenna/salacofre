@@ -129,10 +129,7 @@
       "status": "accepted",
       "path": "docs/architecture/adrs/0017-transparencia-total-3-camadas.md",
       "note": "parcialmente superado por ADR-0018 no modo multi-1t (apenas Camada 1); emendado por ADR-0029 (formato de linha) e ADR-0034 (D21 — distingue colapso visual de remoção de nós); ver seção Status do arquivo",
-      "amended_by": [
-        "0029",
-        "0034"
-      ]
+      "amended_by": ["0029", "0034"]
     },
     {
       "id": "0018",
@@ -236,10 +233,7 @@
       "status": "accepted",
       "date": "2026-09-07",
       "note": "emenda parcial ADR-0017 (formato de linha das Camadas 2/3) e ADR-0018 (posição do hero, conteúdo inalterado); não supersede nenhum dos dois; emendado por ADR-0033 (D17 — reversão do hero) e por ADR-0034, que fecha essa pendência (ADR-0018 fica superseded)",
-      "amended_by": [
-        "0033",
-        "0034"
-      ],
+      "amended_by": ["0033", "0034"],
       "path": "docs/architecture/adrs/0029-home-mobile-first-mapa-primeiro-fiel-ao-kit.md"
     },
     {
@@ -264,10 +258,7 @@
       "title": "Detalhe municipal e séries por UF em Vercel Blob, não no store do Edge Config — resumo por UF permanece, com correção do limite real (1 MB) e guarda de store inteiro",
       "status": "accepted",
       "date": "2026-09-08",
-      "amends": [
-        "0001",
-        "0026"
-      ],
+      "amends": ["0001", "0026"],
       "amended_by": "0035",
       "note": "generaliza a exceção Vercel Blob do ADR-0026 (antes só Deputado Federal) para o campo municipios/series_temporais de EdgePayloadUf; corrige o limite de Edge Config citado em ADR-0001/ADR-0026 de 512KB (errado) para 1MB (real, produto renomeado Global Config); pré-requisito do usuário para o simulado 1 (15-17/09). Nota 2026-09-11: EdgeUfMunicipio ganha eleitores?/capital? opcionais no mesmo objeto Blob (ADR-0035 D2), sem novo destino de armazenamento",
       "path": "docs/architecture/adrs/0032-detalhe-municipal-vercel-blob.md"
@@ -288,11 +279,7 @@
       "date": "2026-09-10",
       "supersedes": "0018",
       "note": "3 decisões da sessão de 09/09 (D21, D22, D23): (D21) o botão 'Todos os N candidatos' do ResultPanel colapsa visualmente (height:0/overflow:hidden), nunca remove nós — satisfaz ADR-0017/ADR-0029 §7; (D22) ResultPanel do kit (Figure Apurado + Figure Margem + VoteBar + linhas com PARCIAL/PROJ) substitui os seis termômetros do ADR-0018 na home e nas duas rotas de UF — ADR-0018 fica superseded como regra geral, mas sua metodologia segue viva via ADR-0022 em /governador; consequência aceita: brancos/nulos/abstenção saem dessas 3 telas, o dado continua no payload; (D23) poda de BreakingNewsTicker/WinnerBanner/UFBreadcrumb/TrilhaKicker/InsightCard/Needle/RaceStatsCards/MunicipioWaffleGrid/ProjectionThermometers/ApuracaoMeta conforme tabela por rota; emenda ADR-0017 e ADR-0019; fecha a pendência D17 do ADR-0033/ADR-0029",
-      "amends": [
-        "0017",
-        "0019",
-        "0029"
-      ],
+      "amends": ["0017", "0019", "0029"],
       "path": "docs/architecture/adrs/0034-resultpanel-colapso-visual-corte-fora-do-kit.md"
     },
     {
@@ -300,14 +287,7 @@
       "title": "O par (município, zona) como unidade de ingestão e agregação exata por soma, não a zona sozinha nem rateio por eleitorado — cron por cargo, não fan-out único",
       "status": "accepted",
       "date": "2026-09-11",
-      "amends": [
-        "0012",
-        "0020",
-        "0021",
-        "0023",
-        "0032",
-        "0033"
-      ],
+      "amends": ["0012", "0020", "0021", "0023", "0032", "0033"],
       "note": "D1: zonas/eleitorado viram tabelas de pares (uf, cod_municipio_tse, cod_zona) via migration 0006 — o TSE 2026 publica EA20 por par, e a versão anterior (1 município por zona, MIN() arbitrário) perdia ~56% dos alvos e creditava 26,1% do eleitorado/31,2% dos votos ao município errado. Fonte: EA12 quando existir, fallback CSV 2024 + suplemento estreito do histórico (25 pares recuperados, 19 DF). D2: município é soma exata dos pares (sem rateio) via fetch_municipio_aggregates sem o antigo LEFT JOIN zonas; modelo continua por zona via api/model/zona_merge.py (merge em memória, nunca persistido) — ADR-0021/0023 intocados, gate OT-4 idêntico ao dígito antes/depois. D3: cron por cargo (/api/ingest/presidente, /api/ingest/governador) corrige achado de que o cron da Vercel nunca invocou a ingestão real (GET+Bearer, não POST+x-cron-secret); TSE_MAX_RPS 30→50, maxDuration 180→300, lock por cargo; limpeza única de 10.604 snapshots de ensaio autorizada pelo usuário. Risco de primeira grandeza não resolvido: a premissa de que o arquivo por par traz só a fatia da zona (não a zona inteira) não foi verificada contra dado real — guarda de sanidade check_zona_merge_sanity loga violação se a razão indicar multiplicação; resolução esperada no simulado de 15/09.",
       "path": "docs/architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md"
     },
@@ -333,14 +313,7 @@
       "title": "Hora do dado do TSE (dg/hg) como campo dado_ts explícito no payload, não a hora em que o modelo rodou — alarme de pipeline parado via _alert_slack, inerte até SLACK_WEBHOOK_URL existir",
       "status": "accepted",
       "date": "2026-09-13",
-      "amends": [
-        "0001",
-        "0011",
-        "0012",
-        "0026",
-        "0032",
-        "0036"
-      ],
+      "amends": ["0001", "0011", "0012", "0026", "0032", "0036"],
       "note": "D1: novos campos dado_ts (max dg/hg convertido p/ UTC, null quando ausente) e pares_atrasados nos três envelopes (EdgePayload/EdgePayloadUf/EdgePayloadDeputado) — ts existente NÃO muda de nome nem de significado (continua 'hora em que o modelo rodou'); payload sem o campo novo (rollout) cai no texto atual, nunca fabrica substituto. D2: dado_ts é o MÁXIMO (raw_snapshots pré-merge no ramo majoritário, project.py:4142; snapshots no ramo proporcional, project.py:3832 — desde o ADR-0036 os quatro cargos chegam em granularidade de par, ~6.110 linhas); mínimo cru rejeitado (sempre velho por razões legítimas); pares_atrasados conta pares >2 cadências atrás do dado_ts DO PRÓPRIO CICLO (não de now()), pra distinguir 'um par se mexeu, 6.109 não' de lull legítimo do TSE. D3: limiar de alarme = 3x a cadência do cargo (60s/300s/1.800s — Deputado é 30min desde o ADR-0036, ATUALIZACAO_MIN_DEPUTADO em project.py:3716; a versão anterior deste ADR usava 15min e registrava a divergência como questão aberta, agora resolvida pelo ADR-0036), via _alert_slack já existente, inerte sem SLACK_WEBHOOK_URL (não configurada, pendência do usuário). D4: banner amarelo + último valor conhecido (constituição §7) gatilhado por dado_ts, dá corpo ao estado 'Erro de dados' que a spec 003 já descrevia sem nenhum componente implementá-lo. D5: DetailFreshness está CORRETO para o que mede (Blob atrasado do resumo, escritas best-effort não-atômicas) — ganha sinal independente de dado_ts ao lado, não reescrita; clamp do data-lag-minutes negativo (~-1 no ciclo saudável); zero cobertura de teste hoje. Replay 2022 roda com dado_ts=null (fixture podada sem dg/hg) — não quebra o gate OT-4. Nota: ramo proporcional (cargo 6) NÃO chama merge_pairs_into_zonas — agrega via combinar_entradas (api/model/deputado.py:412); dado_ts é extraído de `snapshots` antes dessa agregação, mesmo papel que raw_snapshots tem no ramo majoritário.",
       "path": "docs/architecture/adrs/0038-dado-ts-hora-do-dado-nao-hora-do-calculo.md"
     },
@@ -481,9 +454,7 @@
         "end": "2026-06-21",
         "opened": "2026-05-17",
         "closed": "2026-05-17",
-        "specs_in_flight": [
-          "001-ingestao-tse"
-        ],
+        "specs_in_flight": ["001-ingestao-tse"],
         "path": "docs/sprints/2026-S02-f2-ingestao.md"
       },
       {
@@ -494,9 +465,7 @@
         "end": "2026-07-05",
         "opened": "2026-05-17",
         "closed": "2026-05-17",
-        "specs_in_flight": [
-          "002-modelo-estatistico"
-        ],
+        "specs_in_flight": ["002-modelo-estatistico"],
         "path": "docs/sprints/2026-S03-f3-modelo.md"
       },
       {
@@ -538,14 +507,8 @@
         "end": "2026-08-16",
         "opened": "2026-05-18",
         "closed": "2026-05-18",
-        "specs_in_flight": [
-          "005-pagina-uf-governador",
-          "006-grid-governadores"
-        ],
-        "specs_deferred": [
-          "014-boca-de-urna",
-          "015-drill-down-municipio"
-        ],
+        "specs_in_flight": ["005-pagina-uf-governador", "006-grid-governadores"],
+        "specs_deferred": ["014-boca-de-urna", "015-drill-down-municipio"],
         "path": "docs/sprints/2026-S06-f4d-2t-governadores.md"
       },
       {
@@ -555,9 +518,7 @@
         "status": "active",
         "start": "2026-09-06",
         "end": "2026-09-24",
-        "specs_in_flight": [
-          "002-modelo-estatistico"
-        ],
+        "specs_in_flight": ["002-modelo-estatistico"],
         "specs_evolving": [
           "001-ingestao-tse",
           "003-home-nacional",
@@ -565,9 +526,7 @@
           "005-pagina-uf-governador",
           "006-grid-governadores"
         ],
-        "specs_superseded": [
-          "001.1-tse-json-refactor"
-        ],
+        "specs_superseded": ["001.1-tse-json-refactor"],
         "path": "docs/sprints/2026-S07-f6-simulado-hero-1t.md"
       },
       {
@@ -644,9 +603,7 @@
         "RF-010.6"
       ],
       "depends_on": [],
-      "apis": [
-        "POST /api/ingest"
-      ],
+      "apis": ["POST /api/ingest"],
       "components": [],
       "nfr": [
         "RNF-006",
@@ -659,49 +616,24 @@
         "RNF-033",
         "RNF-034"
       ],
-      "adrs": [
-        "0001",
-        "0002",
-        "0008",
-        "0011",
-        "0012",
-        "0020"
-      ]
+      "adrs": ["0001", "0002", "0008", "0011", "0012", "0020"]
     },
     {
       "id": "001.1-tse-json-refactor",
       "title": "Refactor parser TSE — EA20 (legado) → JSON (2026)",
       "status": "superseded",
-      "superseded_by": [
-        "001-ingestao-tse",
-        "ADR-0020"
-      ],
+      "superseded_by": ["001-ingestao-tse", "ADR-0020"],
       "superseded_at": "2026-09-05",
       "priority": "M",
       "personas": [],
       "screens": [],
-      "requirements": [
-        "RF-001.1",
-        "RF-002.1",
-        "RF-003.1",
-        "RF-004.1",
-        "RF-005.1"
-      ],
-      "depends_on": [
-        "001-ingestao-tse"
-      ],
+      "requirements": ["RF-001.1", "RF-002.1", "RF-003.1", "RF-004.1", "RF-005.1"],
+      "depends_on": ["001-ingestao-tse"],
       "supersedes_parser_only": "001-ingestao-tse",
       "apis": [],
       "components": [],
-      "nfr": [
-        "RNF-006",
-        "RNF-020"
-      ],
-      "adrs": [
-        "0008",
-        "0011",
-        "0020"
-      ]
+      "nfr": ["RNF-006", "RNF-020"],
+      "adrs": ["0008", "0011", "0020"]
     },
     {
       "id": "002-modelo-estatistico",
@@ -725,44 +657,20 @@
         "RF-020.2",
         "RF-020.3"
       ],
-      "depends_on": [
-        "001-ingestao-tse"
-      ],
-      "apis": [
-        "POST /api/model/project"
-      ],
+      "depends_on": ["001-ingestao-tse"],
+      "apis": ["POST /api/model/project"],
       "components": [],
-      "nfr": [
-        "RNF-006"
-      ],
-      "adrs": [
-        "0006",
-        "0007",
-        "0012",
-        "0014",
-        "0018",
-        "0020",
-        "0021",
-        "0023"
-      ],
-      "ship_blocked_on": [
-        "simulado-tse-2026"
-      ]
+      "nfr": ["RNF-006"],
+      "adrs": ["0006", "0007", "0012", "0014", "0018", "0020", "0021", "0023"],
+      "ship_blocked_on": ["simulado-tse-2026"]
     },
     {
       "id": "003-home-nacional",
       "title": "Home Nacional Presidencial (T-01)",
       "status": "shipped",
       "priority": "M",
-      "personas": [
-        "P1",
-        "P2",
-        "P3",
-        "P4"
-      ],
-      "screens": [
-        "T-01"
-      ],
+      "personas": ["P1", "P2", "P3", "P4"],
+      "screens": ["T-01"],
       "requirements": [
         "RF-021",
         "RF-022",
@@ -785,14 +693,8 @@
         "RF-062",
         "RF-063"
       ],
-      "depends_on": [
-        "001-ingestao-tse",
-        "002-modelo-estatistico",
-        "008-interatividade-brushing"
-      ],
-      "apis": [
-        "GET /api/projection"
-      ],
+      "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "008-interatividade-brushing"],
+      "apis": ["GET /api/projection"],
       "components": [
         "HeadlineScore",
         "NationalChoroplethMap",
@@ -855,15 +757,8 @@
       "title": "Página de UF — Presidencial (T-03)",
       "status": "shipped",
       "priority": "M",
-      "personas": [
-        "P1",
-        "P2",
-        "P3",
-        "P4"
-      ],
-      "screens": [
-        "T-03"
-      ],
+      "personas": ["P1", "P2", "P3", "P4"],
+      "screens": ["T-03"],
       "requirements": [
         "RF-031",
         "RF-032",
@@ -881,9 +776,7 @@
         "008-interatividade-brushing",
         "003-home-nacional"
       ],
-      "apis": [
-        "GET /api/projection?uf=<sigla>"
-      ],
+      "apis": ["GET /api/projection?uf=<sigla>"],
       "components": [
         "WinnerBanner",
         "CandidateRow",
@@ -934,14 +827,8 @@
       "status": "shipped",
       "shipped_date": "2026-05-18",
       "priority": "M",
-      "personas": [
-        "P1",
-        "P2",
-        "P3"
-      ],
-      "screens": [
-        "T-04"
-      ],
+      "personas": ["P1", "P2", "P3"],
+      "screens": ["T-04"],
       "requirements": [
         "RF-031",
         "RF-032",
@@ -954,14 +841,8 @@
         "RF-062",
         "RF-063"
       ],
-      "depends_on": [
-        "001-ingestao-tse",
-        "002-modelo-estatistico",
-        "004-pagina-uf-presidencial"
-      ],
-      "apis": [
-        "GET /api/projection?cargo=governador&uf=<sigla>"
-      ],
+      "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "004-pagina-uf-presidencial"],
+      "apis": ["GET /api/projection?cargo=governador&uf=<sigla>"],
       "components": [
         "WinnerBanner",
         "CandidateRow",
@@ -1010,14 +891,8 @@
       "status": "shipped",
       "shipped_date": "2026-05-18",
       "priority": "M",
-      "personas": [
-        "P1",
-        "P2",
-        "P3"
-      ],
-      "screens": [
-        "T-02"
-      ],
+      "personas": ["P1", "P2", "P3"],
+      "screens": ["T-02"],
       "requirements": [
         "RF-021",
         "RF-022",
@@ -1032,14 +907,8 @@
         "RF-062",
         "RF-063"
       ],
-      "depends_on": [
-        "001-ingestao-tse",
-        "002-modelo-estatistico",
-        "005-pagina-uf-governador"
-      ],
-      "apis": [
-        "GET /api/projection?cargo=governador"
-      ],
+      "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "005-pagina-uf-governador"],
+      "apis": ["GET /api/projection?cargo=governador"],
       "components": [
         "GovernorCard",
         "HexCartogramBrasil",
@@ -1052,14 +921,7 @@
         "TrilhaKicker",
         "RaceHeader"
       ],
-      "nfr": [
-        "RNF-001",
-        "RNF-002",
-        "RNF-003",
-        "RNF-022",
-        "RNF-023",
-        "RNF-024"
-      ],
+      "nfr": ["RNF-001", "RNF-002", "RNF-003", "RNF-022", "RNF-023", "RNF-024"],
       "adrs": [
         "0001",
         "0002",
@@ -1080,37 +942,13 @@
       "title": "Interatividade — Brushing & Linking",
       "status": "draft",
       "priority": "M",
-      "personas": [
-        "P1",
-        "P2",
-        "P3"
-      ],
-      "screens": [
-        "T-01",
-        "T-02",
-        "T-03",
-        "T-04",
-        "T-05"
-      ],
-      "requirements": [
-        "RF-045",
-        "RF-046",
-        "RF-047",
-        "RF-048",
-        "RF-049",
-        "RF-050"
-      ],
+      "personas": ["P1", "P2", "P3"],
+      "screens": ["T-01", "T-02", "T-03", "T-04", "T-05"],
+      "requirements": ["RF-045", "RF-046", "RF-047", "RF-048", "RF-049", "RF-050"],
       "depends_on": [],
       "apis": [],
-      "components": [
-        "HoverTooltip",
-        "BottomSheet"
-      ],
-      "nfr": [
-        "RNF-003",
-        "RNF-022",
-        "RNF-024"
-      ],
+      "components": ["HoverTooltip", "BottomSheet"],
+      "nfr": ["RNF-003", "RNF-022", "RNF-024"],
       "adrs": []
     },
     {
@@ -1118,34 +956,13 @@
       "title": "Compartilhamento e Metadados (OG, Share buttons)",
       "status": "draft",
       "priority": "S",
-      "personas": [
-        "P1",
-        "P2"
-      ],
-      "screens": [
-        "T-01",
-        "T-02",
-        "T-03",
-        "T-04"
-      ],
-      "requirements": [
-        "RF-051",
-        "RF-052",
-        "RF-053",
-        "RF-054",
-        "RF-055"
-      ],
-      "depends_on": [
-        "003-home-nacional"
-      ],
+      "personas": ["P1", "P2"],
+      "screens": ["T-01", "T-02", "T-03", "T-04"],
+      "requirements": ["RF-051", "RF-052", "RF-053", "RF-054", "RF-055"],
+      "depends_on": ["003-home-nacional"],
       "apis": [],
       "components": [],
-      "nfr": [
-        "RNF-027",
-        "RNF-028",
-        "RNF-029",
-        "RNF-030"
-      ],
+      "nfr": ["RNF-027", "RNF-028", "RNF-029", "RNF-030"],
       "adrs": []
     },
     {
@@ -1154,21 +971,9 @@
       "status": "draft",
       "priority": "M",
       "personas": [],
-      "screens": [
-        "T-07"
-      ],
-      "requirements": [
-        "RF-056",
-        "RF-057",
-        "RF-058",
-        "RF-059",
-        "RF-060"
-      ],
-      "depends_on": [
-        "001-ingestao-tse",
-        "012-dashboard-status",
-        "013-pagina-manutencao"
-      ],
+      "screens": ["T-07"],
+      "requirements": ["RF-056", "RF-057", "RF-058", "RF-059", "RF-060"],
+      "depends_on": ["001-ingestao-tse", "012-dashboard-status", "013-pagina-manutencao"],
       "apis": [],
       "components": [],
       "nfr": [
@@ -1188,36 +993,18 @@
       "title": "Página Sobre o Modelo (T-06)",
       "status": "shipped",
       "priority": "M",
-      "personas": [
-        "P2",
-        "P3"
-      ],
-      "screens": [
-        "T-06"
-      ],
-      "requirements": [
-        "RF-054"
-      ],
-      "depends_on": [
-        "002-modelo-estatistico"
-      ],
+      "personas": ["P2", "P3"],
+      "screens": ["T-06"],
+      "requirements": ["RF-054"],
+      "depends_on": ["002-modelo-estatistico"],
       "apis": [],
       "components": [
         "ExtrapolationIllustration",
         "ConfidenceBandIllustration",
         "NeedleIllustration"
       ],
-      "nfr": [
-        "RNF-022",
-        "RNF-027",
-        "RNF-030"
-      ],
-      "adrs": [
-        "0005",
-        "0006",
-        "0021",
-        "0025"
-      ],
+      "nfr": ["RNF-022", "RNF-027", "RNF-030"],
+      "adrs": ["0005", "0006", "0021", "0025"],
       "shipped_with_carry_overs": ""
     },
     {
@@ -1226,25 +1013,12 @@
       "status": "draft",
       "priority": "M",
       "personas": [],
-      "screens": [
-        "T-07"
-      ],
-      "requirements": [
-        "RF-056",
-        "RF-057"
-      ],
-      "depends_on": [
-        "001-ingestao-tse",
-        "010-operacao-monitoramento"
-      ],
+      "screens": ["T-07"],
+      "requirements": ["RF-056", "RF-057"],
+      "depends_on": ["001-ingestao-tse", "010-operacao-monitoramento"],
       "apis": [],
       "components": [],
-      "nfr": [
-        "RNF-009",
-        "RNF-032",
-        "RNF-033",
-        "RNF-034"
-      ],
+      "nfr": ["RNF-009", "RNF-032", "RNF-033", "RNF-034"],
       "adrs": []
     },
     {
@@ -1252,78 +1026,41 @@
       "title": "Página de Manutenção (T-08)",
       "status": "ready",
       "priority": "M",
-      "personas": [
-        "eleitor-geral",
-        "midia"
-      ],
-      "screens": [
-        "T-08"
-      ],
-      "requirements": [
-        "RF-058",
-        "RF-058.1",
-        "RF-058.2"
-      ],
+      "personas": ["eleitor-geral", "midia"],
+      "screens": ["T-08"],
+      "requirements": ["RF-058", "RF-058.1", "RF-058.2"],
       "depends_on": [],
       "apis": [],
-      "components": [
-        "MaintenancePageMessage",
-        "TurnoTransitionBanner"
-      ],
-      "nfr": [
-        "RNF-012",
-        "RNF-022",
-        "RNF-028"
-      ],
-      "adrs": [
-        "0001"
-      ]
+      "components": ["MaintenancePageMessage", "TurnoTransitionBanner"],
+      "nfr": ["RNF-012", "RNF-022", "RNF-028"],
+      "adrs": ["0001"]
     },
     {
       "id": "014-boca-de-urna",
       "title": "Boca de urna + recorte demográfico (Datafolha pós-urna)",
       "status": "draft",
       "priority": "S",
-      "personas": [
-        "P1",
-        "P2",
-        "P3"
-      ],
+      "personas": ["P1", "P2", "P3"],
       "screens": [],
       "requirements": [],
-      "depends_on": [
-        "004-pagina-uf-presidencial",
-        "015-drill-down-municipio"
-      ],
+      "depends_on": ["004-pagina-uf-presidencial", "015-drill-down-municipio"],
       "apis": [],
       "components": [],
       "nfr": [],
       "adrs": [],
       "opens_after": "D1-04out2026",
-      "blocked_on": [
-        "fonte-licenciada-datafolha-pos-urna",
-        "decisao-legal-licenciamento"
-      ]
+      "blocked_on": ["fonte-licenciada-datafolha-pos-urna", "decisao-legal-licenciamento"]
     },
     {
       "id": "015-drill-down-municipio",
       "title": "Drill-down município — página /uf/[sigla]/municipio/[cod_ibge]",
       "status": "draft",
       "priority": "S",
-      "personas": [
-        "P1",
-        "P2",
-        "P3"
-      ],
+      "personas": ["P1", "P2", "P3"],
       "screens": [],
       "requirements": [],
-      "depends_on": [
-        "004-pagina-uf-presidencial",
-        "005-pagina-uf-governador"
-      ],
-      "apis": [
-        "GET /api/projection?municipio=<cod_ibge>"
-      ],
+      "depends_on": ["004-pagina-uf-presidencial", "005-pagina-uf-governador"],
+      "apis": ["GET /api/projection?municipio=<cod_ibge>"],
       "components": [],
       "nfr": [],
       "adrs": [],
@@ -1334,15 +1071,8 @@
       "title": "Senador — corrida majoritária de 2 vagas por UF",
       "status": "draft",
       "priority": "M",
-      "personas": [
-        "P1",
-        "P2",
-        "P3"
-      ],
-      "screens": [
-        "T-09",
-        "T-10"
-      ],
+      "personas": ["P1", "P2", "P3"],
+      "screens": ["T-09", "T-10"],
       "requirements": [
         "RF-100",
         "RF-101",
@@ -1354,10 +1084,7 @@
         "RF-107",
         "RF-108"
       ],
-      "depends_on": [
-        "001-ingestao-tse",
-        "002-modelo-estatistico"
-      ],
+      "depends_on": ["001-ingestao-tse", "002-modelo-estatistico"],
       "apis": [
         "GET /api/ingest/senador",
         "POST /api/ingest/senador",
@@ -1371,26 +1098,8 @@
         "RaceHeader",
         "ForecastTransparency"
       ],
-      "nfr": [
-        "RNF-001",
-        "RNF-002",
-        "RNF-003",
-        "RNF-006",
-        "RNF-022",
-        "RNF-023",
-        "RNF-024"
-      ],
-      "adrs": [
-        "0001",
-        "0012",
-        "0020",
-        "0021",
-        "0026",
-        "0028",
-        "0033",
-        "0034",
-        "0035"
-      ],
+      "nfr": ["RNF-001", "RNF-002", "RNF-003", "RNF-006", "RNF-022", "RNF-023", "RNF-024"],
+      "adrs": ["0001", "0012", "0020", "0021", "0026", "0028", "0033", "0034", "0035"],
       "opens_after": "2026-09-11"
     },
     {
@@ -1398,15 +1107,8 @@
       "title": "Deputado Federal — corrida proporcional com projeção de cadeiras",
       "status": "shipped",
       "priority": "M",
-      "personas": [
-        "P1",
-        "P2",
-        "P3"
-      ],
-      "screens": [
-        "T-11",
-        "T-12"
-      ],
+      "personas": ["P1", "P2", "P3"],
+      "screens": ["T-11", "T-12"],
       "requirements": [
         "RF-120",
         "RF-121",
@@ -1421,24 +1123,13 @@
         "RF-129",
         "RF-130"
       ],
-      "depends_on": [
-        "001-ingestao-tse",
-        "002-modelo-estatistico",
-        "016-senador"
-      ],
+      "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "016-senador"],
       "apis": [
         "GET /api/ingest/deputado-federal",
         "POST /api/ingest/deputado-federal",
         "GET /api/projection?cargo=deputado-federal"
       ],
-      "components": [
-        "CargoTabs",
-        "DeputadoMetodologia",
-        "VoteBar",
-        "Figure",
-        "Panel",
-        "Footer"
-      ],
+      "components": ["CargoTabs", "DeputadoMetodologia", "VoteBar", "Figure", "Panel", "Footer"],
       "nfr": [
         "RNF-001",
         "RNF-002",

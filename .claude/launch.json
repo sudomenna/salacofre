@@ -20,13 +20,7 @@
     {
       "name": "prototipo-kit",
       "runtimeExecutable": "python3",
-      "runtimeArgs": [
-        "-m",
-        "http.server",
-        "3001",
-        "--directory",
-        "docs/design-system/atlas-menna"
-      ],
+      "runtimeArgs": ["-m", "http.server", "3001", "--directory", "docs/design-system/atlas-menna"],
       "port": 3001
     }
   ]

@@ -25,7 +25,8 @@
       "!**/coverage",
       "!docs/design-system/atlas-menna",
       "!tse_docs",
-      "!.claude/worktrees"
+      "!.claude/worktrees",
+      "!tests/fixtures/replay-2022/snapshots.json"
     ]
   },
   "formatter": {
