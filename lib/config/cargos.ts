@@ -73,12 +73,9 @@ export interface CargoInfo {
   /**
    * Granularidade de ingestão **padrão** deste cargo (ADR-0026 item 1).
    *
-   * `"zona"` (≈6.110 pares por cargo) é o que o estimador precisa para a regra
-   * de três (ADR-0021, RF-011/012) — é o modo de Presidente e Governador.
-   *
-   * `"uf"` (27 GETs por cargo) é o de Deputado Federal: quatro cargos em zona
-   * passariam de 24 mil GETs por ciclo, inviável sob qualquer `TSE_MAX_RPS`
-   * permitido.
+   * `"zona"` (~6.110 pares por cargo) é o que o estimador precisa para a
+   * regra de três (ADR-0021, RF-011/012) — é o modo de Presidente e
+   * Governador, e desde 2026-09-11 também de Senador e Deputado Federal.
    *
    * **Senador saiu de `"uf"` para `"zona"` em 2026-09-11**, emendando o
    * ADR-0026 item 1. Motivo medido: com um único boletim por estado, o bootstrap
@@ -89,6 +86,19 @@ export interface CargoInfo {
    * (constituição § 6), e a alternativa era publicar o cargo sem chance de
    * eleição. Decisão do usuário, com o custo aceito de baixar os três cargos
    * pesados de 35 para 25 rps.
+   *
+   * **Deputado Federal saiu de `"uf"` para `"zona"` em 2026-09-13**, mesmo
+   * diagnóstico (ADR-0026, nota "2026-09-11 (b)"): um único arquivo por UF só
+   * dá ao bootstrap do RF-127 uma unidade de reamostragem, e o IC95 degenera
+   * do mesmo jeito. A diferença para o Senador é o volume: ~6.110 alvos a
+   * `rpsMax=5` (ver abaixo) levariam ~1.222 s numa invocação só, muito acima
+   * do `maxDuration` de 300 s — por isso a varredura é dividida em 6 fatias
+   * (`/api/ingest/deputado-federal/<1..6>`, `sliceTargets` em
+   * `lib/tse/targets.ts`), cada uma cobrindo ~1/6 do fan-out (~1.019 alvos,
+   * ~204 s), disparadas a cada 5 min — a volta completa das 6 fatias leva
+   * 30 min. Interruptor de emergência específico deste cargo, sem deploy:
+   * `TSE_DEPUTADO_GRANULARIDADE=uf` (`lib/tse/targets.ts::getGranularidade`,
+   * documentado em `docs/operations/runbook.md` § Variáveis de ambiente).
    *
    * `TSE_GRANULARIDADE` no ambiente sobrepõe isto para TODOS os cargos —
    * é escotilha de diagnóstico, não configuração de produção.
@@ -111,12 +121,12 @@ export interface CargoInfo {
    *
    * Calibragem atual — pior caso agregado **80 rps**, 20% abaixo do teto:
    *
-   *   | cargo      | alvos | rps | duração do ciclo |
-   *   |------------|-------|-----|------------------|
-   *   | Presidente | 6.110 |  25 | ~244 s           |
-   *   | Governador | 6.110 |  25 | ~244 s           |
-   *   | Senador    | 6.110 |  25 | ~244 s           |
-   *   | Deputado   |    27 |   5 | ~5 s             |
+   *   | cargo      | alvos | rps | duração do ciclo                        |
+   *   |------------|-------|-----|------------------------------------------|
+   *   | Presidente | 6.110 |  25 | ~244 s                                   |
+   *   | Governador | 6.110 |  25 | ~244 s                                   |
+   *   | Senador    | 6.110 |  25 | ~244 s                                   |
+   *   | Deputado   | 6.110 |   5 | ~1.222 s inteiro; ~204 s POR FATIA (÷6)  |
    *
    * Os pesados caíram de 35 para 25 rps em 2026-09-11, quando Senador passou a
    * ser ingerido por zona (decisão do usuário — ver `granularidade`): três
@@ -125,8 +135,14 @@ export interface CargoInfo {
    * folga que antes — é o custo explícito da decisão, e o que torna a medição
    * de `duration_ms` no simulado 1 obrigatória, não opcional.
    *
-   * Deputado Federal fica em 5 rps porque pede 27 arquivos: entrega em 5 s, e
-   * gastar mais nele seria comprar 4 s de latência ao preço da margem do dia D.
+   * **Deputado Federal NÃO mudou de rps em 2026-09-13**, quando saiu de UF
+   * para zona (ver `granularidade`) — continua em 5, deliberadamente: o
+   * orçamento agregado do IP (80 rps) já está comprometido pelos três
+   * pesados, e Deputado é o cargo com menor urgência editorial dos quatro. O
+   * que mudou foi dividir os ~6.110 alvos em 6 fatias por invocação
+   * (`sliceTargets`, `lib/tse/targets.ts`) em vez de pedir todos numa
+   * invocação só: a 5 rps, uma fatia de ~1.019 alvos leva ~204 s, dentro do
+   * `maxDuration` de 300 s — o total sem fatiar (~1.222 s) não caberia.
    */
   readonly rpsMax: number;
 }
@@ -181,7 +197,7 @@ export const CARGOS: readonly CargoInfo[] = [
     temSegundoTurno: false,
     temArquivoBr: false,
     proporcional: true,
-    granularidade: "uf",
+    granularidade: "zona",
     rpsMax: 5,
   },
 ] as const;

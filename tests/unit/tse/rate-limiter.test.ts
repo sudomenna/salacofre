@@ -11,7 +11,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CARGOS, piorCasoAgregadoRps } from "@/lib/config/cargos";
+import { CARGOS, cargoInfo, piorCasoAgregadoRps } from "@/lib/config/cargos";
 import { createTokenBucket, getTseRateLimiter, resetTseRateLimiter } from "@/lib/tse/rate-limiter";
 
 // ---------------------------------------------------------------------------
@@ -177,18 +177,39 @@ describe("getTseRateLimiter", () => {
     }
   });
 
-  it("o ciclo pesado cabe no maxDuration com o teto do seu cargo", () => {
+  it("o ciclo pesado cabe no maxDuration com o teto do seu cargo (por invocação)", () => {
     // 6.110 alvos por cargo em granularidade zona (medido em 2026-09-11).
     // `maxDuration` das rotas de ingestão é 300 s (ADR-0035 D3).
+    //
+    // Desde 2026-09-13 o cargo 6 (Deputado Federal) NÃO cabe como cargo
+    // INTEIRO numa invocação só (~1.222 s a 5 rps, ver assert isolado abaixo)
+    // — por isso ele é fatiado em `NUM_FATIAS_DEPUTADO` invocações
+    // (`sliceTargets`, `lib/tse/targets.ts`), cada uma cobrindo ~1/6 do
+    // fan-out. Presidente/Governador/Senador seguem cabendo como cargo
+    // INTEIRO, numa invocação só (sem fatia) — só o cargo 6 usa o divisor.
     const ALVOS_ZONA = 6110;
     const MAX_DURATION_S = 300;
+    const NUM_FATIAS_DEPUTADO = 6;
 
     for (const info of CARGOS.filter((c) => c.granularidade === "zona")) {
-      const duracao = ALVOS_ZONA / info.rpsMax;
-      expect(duracao, `cargo ${info.cd} levaria ${duracao.toFixed(0)}s`).toBeLessThan(
-        MAX_DURATION_S,
-      );
+      const alvosPorInvocacao = info.cd === 6 ? ALVOS_ZONA / NUM_FATIAS_DEPUTADO : ALVOS_ZONA;
+      const duracao = alvosPorInvocacao / info.rpsMax;
+      expect(
+        duracao,
+        `cargo ${info.cd} (invocação de ${alvosPorInvocacao} alvos) levaria ${duracao.toFixed(0)}s`,
+      ).toBeLessThan(MAX_DURATION_S);
     }
+  });
+
+  it("o cargo 6 INTEIRO (sem fatiar) NÃO cabe no maxDuration — é por isso que ele fatia", () => {
+    // Trava a premissa do teste acima: se um dia isto passar a caber (rpsMax
+    // subiu, ou maxDuration subiu), o fatiamento de `sliceTargets` pode ter
+    // virado desnecessário — decisão humana, não regressão silenciosa deste
+    // teste.
+    const ALVOS_ZONA = 6110;
+    const MAX_DURATION_S = 300;
+    const duracaoCargoInteiro = ALVOS_ZONA / cargoInfo(6).rpsMax;
+    expect(duracaoCargoInteiro).toBeGreaterThan(MAX_DURATION_S);
   });
 
   // O ceiling existe para janela SUPERVISIONADA (simulado, com alguém lendo

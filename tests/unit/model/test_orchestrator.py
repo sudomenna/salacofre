@@ -24,9 +24,17 @@ manual (smoke).
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from typing import Any
 
 import pytest
+
+#: `ts` default para linhas de fixture que não especificam um — usado só
+#: quando a UF não tem conflito de família (sentinela x zona real), caso em
+#: que `_discard_zero_zona_sentinel_when_real_zonas_exist` nem olha o `ts`.
+#: Os dois testes que exercitam o desempate por frescor passam `"ts"`
+#: explícito e distinto em cada linha da fixture.
+_DEFAULT_TS = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
 # ---------------------------------------------------------------------------
@@ -175,8 +183,10 @@ class FakeCursor:
                 if s["cargo"] == cargo and s["turno"] == turno
             ]
         elif "FROM snapshots" in sql:
-            # fetch_snapshots — 5 colunas desde a migration 0006
-            # (cod_municipio_tse entre uf e cod_zona).
+            # fetch_snapshots — 6 colunas desde 2026-09-13 (cod_municipio_tse
+            # entre uf e cod_zona desde a migration 0006; `ts` entrou para o
+            # desempate sentinela-vs-zona-real por FRESCOR, não mais só por
+            # presença — ver `_discard_zero_zona_sentinel_when_real_zonas_exist`).
             cargo, turno = params
             self._last_rows = [
                 (
@@ -185,6 +195,7 @@ class FakeCursor:
                     s["cod_zona"],
                     s["pct_apurado"],
                     s["payload"],
+                    s.get("ts", _DEFAULT_TS),
                 )
                 for s in self._conn.snapshots
                 if s["cargo"] == cargo and s["turno"] == turno
@@ -1517,27 +1528,42 @@ def test_do_project_e_invariante_a_historical(
 
 
 # ---------------------------------------------------------------------------
-# Achado urgente do plano — sentinela `cod_zona = 0` (modo `uf` quebrado)
+# Sentinela `cod_zona = 0` vs. zonas reais — desempate por FRESCOR (`ts`)
+#
+# Reescrito em 2026-09-13 (review pós-implementação do cargo 6 fatiado): a
+# versão original decidia só por PRESENÇA ("zona real existe? descarta a
+# sentinela"), o que cobria certo a transição `uf` -> `zona` mas quebrava em
+# silêncio a direção OPOSTA — alcançável desde que o interruptor de
+# emergência `TSE_DEPUTADO_GRANULARIDADE=uf` passou a existir: ligá-lo no
+# meio da apuração faria a sentinela NOVA ser descartada em favor dos pares
+# de zona CONGELADOS no instante da virada (snapshots é append-only —
+# ninguém mais escreve pra eles), com o modelo travado sem nenhum sinal
+# visível. Os 4 casos abaixo cobrem as duas direções e os dois casos de
+# família única.
 # ---------------------------------------------------------------------------
 
 
-def test_fetch_snapshots_descarta_sentinela_zona_zero_com_zona_real(
+def test_fetch_snapshots_uf_para_zona_zona_real_mais_recente_vence(
     fake_db,
 ) -> None:
-    """`fetch_snapshots` descarta a linha `cod_zona = 0` de uma UF quando
-    a MESMA UF já tem zonas reais (`cod_zona > 0`) — evita dupla contagem
-    quando um ciclo anterior rodou em modo `uf` e o atual roda em modo
-    `zona` (achado urgente do plano `tem-um-erro-eu-velvety-sprout.md`)."""
+    """Caso 1 — migração `uf` -> `zona` (a que já existia; não pode quebrar).
+
+    Sentinela ANTIGA + zona real NOVA (`ts` maior) -> zona real vence."""
     from api.model.project import fetch_snapshots
+
+    ts_sentinela_antiga = datetime(2026, 10, 4, 18, 0, tzinfo=timezone.utc)
+    ts_zona_real_nova = datetime(2026, 10, 4, 18, 5, tzinfo=timezone.utc)
 
     snapshots = [
         {
             "cargo": 1, "turno": 1, "uf": "SP", "cod_zona": 0,
             "pct_apurado": 40.0, "payload": _synthetic_envelope({100: 50.0}),
+            "ts": ts_sentinela_antiga,
         },
         {
             "cargo": 1, "turno": 1, "uf": "SP", "cod_zona": 1,
             "pct_apurado": 60.0, "payload": _synthetic_envelope({100: 55.0}),
+            "ts": ts_zona_real_nova,
         },
     ]
     conn = fake_db(snapshots, [], [])
@@ -1548,10 +1574,47 @@ def test_fetch_snapshots_descarta_sentinela_zona_zero_com_zona_real(
     assert out[0]["cod_zona"] == 1
 
 
+def test_fetch_snapshots_zona_para_uf_sentinela_mais_recente_vence(
+    fake_db,
+) -> None:
+    """Caso 2 — o DEFEITO relatado pelo orquestrador: reversão `zona` -> `uf`
+    via `TSE_DEPUTADO_GRANULARIDADE=uf` no meio da apuração.
+
+    Pares de zona ANTIGOS (congelados desde antes da virada) + sentinela
+    NOVA (`ts` maior, escrita pelas invocações pós-interruptor) -> a
+    sentinela vence. Com a versão só-por-presença, este teste falharia: ela
+    veria "a UF tem zona real" e descartaria a sentinela nova, mantendo o
+    modelo travado nos pares antigos sem nenhum sinal."""
+    from api.model.project import fetch_snapshots
+
+    ts_zona_real_antiga = datetime(2026, 10, 4, 18, 0, tzinfo=timezone.utc)
+    ts_sentinela_nova = datetime(2026, 10, 4, 18, 10, tzinfo=timezone.utc)
+
+    snapshots = [
+        {
+            "cargo": 6, "turno": 1, "uf": "SP", "cod_zona": 1,
+            "pct_apurado": 60.0, "payload": _synthetic_envelope({100: 55.0}),
+            "ts": ts_zona_real_antiga,
+        },
+        {
+            "cargo": 6, "turno": 1, "uf": "SP", "cod_municipio_tse": 0,
+            "cod_zona": 0, "pct_apurado": 61.0,
+            "payload": _synthetic_envelope({100: 55.5}),
+            "ts": ts_sentinela_nova,
+        },
+    ]
+    conn = fake_db(snapshots, [], [])
+
+    out = fetch_snapshots(conn, cargo=6, turno=1)
+
+    assert len(out) == 1
+    assert out[0]["cod_zona"] == 0
+
+
 def test_fetch_snapshots_mantem_sentinela_zona_zero_sozinha(fake_db) -> None:
-    """Sem NENHUMA zona real na UF, a linha `cod_zona = 0` (modo `uf`,
-    ainda sem migração pra `zona`) é MANTIDA — é o único dado disponível
-    daquela UF."""
+    """Caso 3 — sem NENHUMA zona real na UF, a linha `cod_zona = 0` (modo
+    `uf`, ainda sem migração pra `zona`) é MANTIDA — é o único dado
+    disponível daquela UF. Família única: `ts` nem entra na decisão."""
     from api.model.project import fetch_snapshots
 
     snapshots = [
@@ -1566,6 +1629,31 @@ def test_fetch_snapshots_mantem_sentinela_zona_zero_sozinha(fake_db) -> None:
 
     assert len(out) == 1
     assert out[0]["cod_zona"] == 0
+
+
+def test_fetch_snapshots_mantem_zonas_reais_sozinhas(fake_db) -> None:
+    """Caso 4 — sem NENHUMA sentinela na UF (o caso comum hoje: cargo em
+    zona, interruptor nunca acionado), as zonas reais são MANTIDAS
+    integralmente. Família única: `ts` nem entra na decisão."""
+    from api.model.project import fetch_snapshots
+
+    snapshots = [
+        {
+            "cargo": 1, "turno": 1, "uf": "SP", "cod_zona": 1,
+            "pct_apurado": 60.0, "payload": _synthetic_envelope({100: 55.0}),
+        },
+        {
+            "cargo": 1, "turno": 1, "uf": "SP", "cod_municipio_tse": 2,
+            "cod_zona": 2, "pct_apurado": 70.0,
+            "payload": _synthetic_envelope({100: 58.0}),
+        },
+    ]
+    conn = fake_db(snapshots, [], [])
+
+    out = fetch_snapshots(conn, cargo=1, turno=1)
+
+    assert len(out) == 2
+    assert {s["cod_zona"] for s in out} == {1, 2}
 
 
 # ---------------------------------------------------------------------------

@@ -277,10 +277,24 @@ teto de execução da função.
 mesmo supondo o Python da Vercel 3× mais lento.
 
 **O custo nunca foi o obstáculo.** O que falta é o que alimenta o intervalo: o
-bootstrap de voto **por agremiação**. `extrapolation.py` resampleia
-candidato-por-zona para cargo majoritário; o cargo 6 é ingerido por UF e não tem
-esse caminho. Construí-lo é trabalho de modelagem, não de orçamento de CPU — ver
-D9.
+bootstrap de voto **por agremiação**.
+
+> **Correção 2026-09-13.** A redação anterior dizia que "`extrapolation.py`
+> resampleia candidato-por-zona". **Descreve a implementação antiga.** O código
+> sorteia **zonas** — um único `idx` por UF (`extrapolation.py:264-265`),
+> compartilhado por todos os candidatos e pelas duas bases, exatamente para
+> preservar o pareamento entre eles (docstring em `:69-75`; a mudança está
+> registrada em `project.py:1409-1411`). A conclusão não muda, mas o motivo sim,
+> e ele importa para o desenho novo: o padrão a replicar é **um `idx` de unidades
+> geográficas compartilhado por todas as agremiações**, e o obstáculo real era o
+> cargo 6 ter **uma única unidade geográfica por UF** — não o eixo do sorteio.
+
+O obstáculo foi removido em 2026-09-13: o
+[ADR-0036](../../architecture/adrs/0036-deputado-federal-granularidade-zona-fatiada.md)
+move o cargo 6 para granularidade de par município×zona (2.644 zonas distintas,
+média de 97,9 por UF), varrida em 6 fatias com volta completa a cada 30 min.
+Construir o bootstrap por agremiação sobre essas unidades é trabalho de
+modelagem, não de orçamento de CPU — ver D9.
 
 Enquanto o intervalo não existir, a metade de RF-127 que **sai agora** é a
 marcação, com esta definição (fixada em 12/09, sem constante mágica):

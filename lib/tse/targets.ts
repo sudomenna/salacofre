@@ -339,9 +339,11 @@ export function getActiveCargos(): Array<CargoTse> {
   // Default deliberadamente NÃO é "todos os cargos cobertos". Senador (5) e
   // Deputado Federal (6) têm crons próprios, com cadência distinta (ADR-0026
   // item 1); se entrassem no ciclo genérico de 60 s, um único ciclo pediria
-  // 6.110 + 6.110 + 27 + 27 = 12.274 arquivos, que a 40 rps são ~307 s — acima
-  // do `maxDuration` de 300 s. Quem quer 5/6 pede pelo segmento de rota
-  // (`/api/ingest/senador`), e aí `filterCargos` honra o pedido.
+  // ~4 × 6.110 ≈ 24.440 arquivos — os quatro cargos cobertos são "zona" desde
+  // 2026-09-13 (Deputado Federal foi o último a migrar) — muito além do que
+  // qualquer `TSE_MAX_RPS`/`maxDuration` permitido comporta numa invocação só.
+  // Quem quer 5/6 pede pelo segmento de rota (`/api/ingest/senador`,
+  // `/api/ingest/deputado-federal/<fatia>`), e aí `filterCargos` honra o pedido.
   const DEFAULT_CARGOS = "1,3";
   const raw = (process.env.TSE_CARGOS ?? DEFAULT_CARGOS).trim() || DEFAULT_CARGOS;
 
@@ -411,18 +413,32 @@ export function getGranularidade(cargo?: CargoTse): TseGranularidade {
   // modelo (`eleitorado` não tem linha `(uf, 0)` → peso 0). `uf` segue aceito
   // como opt-in explícito para ciclos leves de diagnóstico.
   //
-  // Desde 2026-09-11 (ADR-0026 item 1) o default é **por cargo**, não global:
-  // Senador e Deputado Federal nascem em `uf` (27 GETs/ciclo), porque quatro
-  // cargos em zona passariam de 24 mil GETs por ciclo. `TSE_GRANULARIDADE`
+  // Desde 2026-09-11 (ADR-0026 item 1) o default é **por cargo**, não global.
+  // Deputado Federal nasceu em `uf` (27 GETs/ciclo) e saiu para `zona` em
+  // 2026-09-13 — mesmo diagnóstico de bootstrap que moveu o Senador em 11/09
+  // (ver `CargoInfo.granularidade`, lib/config/cargos.ts). `TSE_GRANULARIDADE`
   // continua sobrepondo TUDO — é escotilha de diagnóstico, e por isso vem antes.
   const envRaw = process.env.TSE_GRANULARIDADE?.trim().toLowerCase();
+
+  // Interruptor de emergência ESPECÍFICO do cargo 6 (2026-09-13): reverte só
+  // Deputado Federal a `uf` — e, por consequência, à cadência de fato de antes
+  // (o fatiamento em `listIngestTargets` só se aplica a granularidade "zona",
+  // então em "uf" cada uma das 6 invocações por ciclo devolve o agregado
+  // completo de 27 UFs) — sem tocar Presidente/Governador/Senador e sem
+  // deploy. Diferente de `TSE_GRANULARIDADE`, que é global. Documentado em
+  // docs/operations/runbook.md § Variáveis de ambiente.
+  const overrideDeputadoRaw =
+    cargo === 6 ? process.env.TSE_DEPUTADO_GRANULARIDADE?.trim().toLowerCase() : undefined;
+
   const padraoDoCargo = cargo !== undefined ? cargoInfo(cargo).granularidade : "zona";
-  const raw = envRaw || padraoDoCargo;
+  // Precedência: TSE_GRANULARIDADE (todos os cargos) > TSE_DEPUTADO_GRANULARIDADE
+  // (só cargo 6) > padrão do cargo.
+  const raw = envRaw || overrideDeputadoRaw || padraoDoCargo;
   if ((VALID_GRANULARIDADES as readonly string[]).includes(raw)) {
     return raw as TseGranularidade;
   }
   console.warn(
-    `[targets] TSE_GRANULARIDADE inválida: "${raw}" — valores aceitos: "uf" | "zona". Usando default "zona".`,
+    `[targets] TSE_GRANULARIDADE/TSE_DEPUTADO_GRANULARIDADE inválida: "${raw}" — valores aceitos: "uf" | "zona". Usando default "zona".`,
   );
   return "zona";
 }
@@ -539,8 +555,15 @@ function cacheKey(
   baseUrl: string,
   granularidade: string,
   cargoFiltro: CargoTse | undefined,
+  fatia: { indice: number; total: number } | undefined,
 ): string {
-  return `${env}|${codEleicao}|${baseUrl}|${granularidade}|${cargoFiltro ?? "all"}`;
+  // `fatia` PRECISA compor a chave: sem isso, a fatia 1 do cargo 6 (chamada
+  // dentro do mesmo TTL de 5min que a fatia 2) reaproveitaria o cache da
+  // fatia 1 pra responder à fatia 2 — cada invocação varreria sempre o
+  // mesmo sexto do país, o mesmo modo de falha do default silencioso em
+  // conversor de enum que esta base já pagou 3 vezes.
+  const fatiaChave = fatia ? `${fatia.indice}/${fatia.total}` : "all";
+  return `${env}|${codEleicao}|${baseUrl}|${granularidade}|${cargoFiltro ?? "all"}|${fatiaChave}`;
 }
 
 /**
@@ -571,6 +594,22 @@ export interface ListIngestTargetsOptions {
    * o resultado é uma lista vazia — não há fallback silencioso para "todos".
    */
   cargo?: CargoTse;
+  /**
+   * Restringe os alvos DESTE cargo a uma fatia de um total de `total`,
+   * quando a granularidade EFETIVA do cargo (após `getGranularidade`, que já
+   * aplica o interruptor `TSE_DEPUTADO_GRANULARIDADE`) é `"zona"`. Ignorado
+   * silenciosamente para cargos resolvidos em `"uf"` — fatiar um agregado de
+   * 27 alvos não faz sentido, e a regra explícita é "sem fatia, ou cargo em
+   * uf, o comportamento não muda".
+   *
+   * `indice` é 1-based (`1..total`). Introduzido para o cron do cargo 6
+   * (`/api/ingest/deputado-federal/<indice>`, ADR-0026 emenda 2026-09-13):
+   * ~6.110 alvos a 5 rps levariam ~1.222 s numa invocação só, acima do
+   * `maxDuration` de 300 s — divididos em 6 fatias de ~1.019 alvos (~204 s
+   * cada), a varredura completa leva 30 min. Ver `sliceTargets` para o
+   * contrato de cobertura/disjunção.
+   */
+  fatia?: { indice: number; total: number };
 }
 
 /**
@@ -580,11 +619,13 @@ export interface ListIngestTargetsOptions {
  *   - 'preview'    → whitelist via TSE_TARGETS_WHITELIST (default: SP × Presidente).
  *   - 'production' → todas as UFs (ou zonas, conforme `TSE_GRANULARIDADE`) × cargos ativos.
  * @param opts.cargo — restringe a um único cargo (ver `ListIngestTargetsOptions`).
+ * @param opts.fatia — restringe a uma fatia do cargo, só quando ele resolve
+ *   para granularidade "zona" (ver `ListIngestTargetsOptions.fatia`).
  *
  * Cache por 5 minutos no estado do módulo — Fluid Compute reutiliza instâncias,
  * evitando N queries ao Neon por ciclo de 60s. Chave do cache inclui
- * `codEleicao`, o host base (`TSE_BASE_URL`), a granularidade e o cargo —
- * ver `cacheKey`.
+ * `codEleicao`, o host base (`TSE_BASE_URL`), a granularidade, o cargo e a
+ * fatia — ver `cacheKey`.
  *
  * Cobre: RF-001 (descoberta de endpoints), decisão D-4 (whitelist preview).
  */
@@ -596,13 +637,16 @@ export async function listIngestTargets(
   const baseUrl = getTseBaseUrl();
   const cargoFiltro = opts.cargo;
 
-  // Cada cargo tem sua granularidade (ADR-0026 item 1): Presidente e Governador
-  // em zona, Senador e Deputado Federal em UF. O ciclo é montado cargo a cargo e
-  // concatenado — um ciclo de `/api/ingest` com `TSE_CARGOS=1,3,5,6` produz
-  // 6.110 + 6.110 + 27 + 27 alvos, não um modo único para todos.
+  // Cada cargo tem sua granularidade (ADR-0026 item 1, emendado em
+  // 2026-09-13 para o cargo 6): Presidente, Governador, Senador e Deputado
+  // Federal em zona — Deputado tem o interruptor de emergência
+  // `TSE_DEPUTADO_GRANULARIDADE` (ver `getGranularidade`). O ciclo é montado
+  // cargo a cargo e concatenado — um ciclo de `/api/ingest` com
+  // `TSE_CARGOS=1,3,5,6` produziria ~4 × 6.110 ≈ 24.440 alvos, por isso o
+  // default de `getActiveCargos` continua excluindo 5 e 6 (ver comentário lá).
   const cargosDoCiclo = filterCargos(getActiveCargos(), cargoFiltro);
   const assinaturaGranularidade = cargosDoCiclo.map((c) => `${c}:${getGranularidade(c)}`).join(",");
-  const key = cacheKey(env, codEleicao, baseUrl, assinaturaGranularidade, cargoFiltro);
+  const key = cacheKey(env, codEleicao, baseUrl, assinaturaGranularidade, cargoFiltro, opts.fatia);
 
   const now = Date.now();
   const cached = cache.get(key);
@@ -613,23 +657,100 @@ export async function listIngestTargets(
   const targets: Target[] = [];
   for (const cargo of cargosDoCiclo) {
     const granularidade = getGranularidade(cargo);
+    let targetsDoCargo: Target[];
     if (env === "preview") {
-      targets.push(
-        ...(granularidade === "zona"
+      targetsDoCargo =
+        granularidade === "zona"
           ? await buildPreviewTargetsZona(codEleicao, baseUrl, cargo)
-          : buildPreviewTargetsUf(codEleicao, baseUrl, cargo)),
-      );
+          : buildPreviewTargetsUf(codEleicao, baseUrl, cargo);
     } else {
-      targets.push(
-        ...(granularidade === "zona"
+      targetsDoCargo =
+        granularidade === "zona"
           ? await buildProductionTargetsZona(codEleicao, baseUrl, cargo)
-          : buildProductionTargetsUf(codEleicao, baseUrl, cargo)),
-      );
+          : buildProductionTargetsUf(codEleicao, baseUrl, cargo);
     }
+
+    // Fatiamento só é válido em granularidade "zona" (ver docstring de
+    // `ListIngestTargetsOptions.fatia`) — um cargo resolvido em "uf" (padrão
+    // ou via `TSE_DEPUTADO_GRANULARIDADE=uf`) ignora `opts.fatia` por
+    // completo e devolve o agregado inteiro, sem mudança de comportamento.
+    if (opts.fatia !== undefined && granularidade === "zona") {
+      targetsDoCargo = sliceTargets(targetsDoCargo, opts.fatia.indice, opts.fatia.total);
+    }
+
+    targets.push(...targetsDoCargo);
   }
 
   cache.set(key, { targets, expiresAt: now + CACHE_TTL_MS });
   return targets;
+}
+
+// ---------------------------------------------------------------------------
+// Fatiamento determinístico — cron do cargo 6 por fatia (ADR-0026, emenda
+// 2026-09-13)
+// ---------------------------------------------------------------------------
+
+/**
+ * Chave canônica e estável de um target — usada para ORDENAR antes de
+ * fatiar. Não pode depender da ordem em que o Postgres devolve as linhas: a
+ * query de `zonas` em `buildProductionTargetsZona` não tem `ORDER BY`, e o
+ * Postgres não garante ordem estável sem um. Sem esta chave, "a fatia 3 de
+ * agora" poderia não ser "a fatia 3 de daqui a 5 minutos" — a atribuição
+ * dependeria de um acidente do plano de execução do banco, não da
+ * identidade do target.
+ */
+function chaveCanonicaDoTarget(t: Pick<Target, "uf" | "codMunicipioTse" | "codZona">): string {
+  return `${t.uf}|${String(t.codMunicipioTse).padStart(6, "0")}|${String(t.codZona).padStart(5, "0")}`;
+}
+
+/**
+ * sliceTargets — particiona `targets` em `numFatias` fatias quase iguais, de
+ * forma determinística e estável entre invocações.
+ *
+ * Contrato (provado em targets.test.ts por mutação, não só por leitura):
+ *   - **Cobertura exata**: a união de TODAS as fatias (`1..numFatias`) é
+ *     exatamente `targets` — sem sobra.
+ *   - **Disjunção par a par**: nenhum target aparece em mais de uma fatia.
+ *   - **Estabilidade**: a fatia de um target depende só da SUA identidade
+ *     (`uf`, `codMunicipioTse`, `codZona`) — nunca da posição em que chegou
+ *     no array de entrada. Embaralhar `targets` antes de chamar não muda o
+ *     resultado.
+ *
+ * `fatia` é 1-based (`1..numFatias`) — espelha o segmento de rota
+ * `/api/ingest/deputado-federal/<fatia>`. Uma fatia fora de faixa lança em
+ * vez de degradar silenciosamente para a fatia 1 — uma fatia inválida caindo
+ * num default varreria sempre o mesmo sexto do país, o mesmo modo de falha
+ * do default silencioso em conversor de enum que esta base já pagou 3 vezes.
+ */
+export function sliceTargets(
+  targets: readonly Target[],
+  fatia: number,
+  numFatias: number,
+): Target[] {
+  if (!Number.isInteger(numFatias) || numFatias < 1) {
+    throw new Error(`[targets] sliceTargets: numFatias inválido (${numFatias})`);
+  }
+  if (!Number.isInteger(fatia) || fatia < 1 || fatia > numFatias) {
+    throw new Error(`[targets] sliceTargets: fatia ${fatia} fora de 1..${numFatias}`);
+  }
+
+  const ordenados = [...targets].sort((a, b) => {
+    const ka = chaveCanonicaDoTarget(a);
+    const kb = chaveCanonicaDoTarget(b);
+    return ka < kb ? -1 : ka > kb ? 1 : 0;
+  });
+
+  const n = ordenados.length;
+  const base = Math.floor(n / numFatias);
+  const resto = n % numFatias;
+  // As primeiras `resto` fatias levam 1 alvo a mais, pra distribuir o resto
+  // sem deixar uma única fatia desproporcionalmente maior que as outras
+  // (6.110 / 6 = 1.018,33 → 2 fatias de 1.019 + 4 fatias de 1.018).
+  const indiceZeroBased = fatia - 1;
+  const start = indiceZeroBased * base + Math.min(indiceZeroBased, resto);
+  const tamanho = base + (indiceZeroBased < resto ? 1 : 0);
+
+  return ordenados.slice(start, start + tamanho);
 }
 
 // ---------------------------------------------------------------------------

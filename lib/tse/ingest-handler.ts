@@ -280,11 +280,21 @@ export interface RunIngestCycleOptions {
   /**
    * Cargo do ciclo — `undefined` significa "todos os cargos ativos"
    * (`getActiveCargos()`/`TSE_CARGOS`), usado por `/api/ingest` (preview e
-   * uso manual). `1` ou `3` restringe alvos, lock anti-overlap e
+   * uso manual). `1`, `3`, `5` ou `6` restringe alvos, lock anti-overlap e
    * model-trigger a um único cargo — usado por `/api/ingest/[cargo]`
    * (caminho do cron real, ADR-0035 D3).
    */
   cargo?: CargoTse;
+  /**
+   * Fatia deste ciclo, quando o cargo é servido por rota fatiada
+   * (`/api/ingest/deputado-federal/<indice>`, ADR-0026 emenda 2026-09-13).
+   * `undefined` = ciclo não fatiado — o comportamento anterior, inalterado,
+   * inclusive para os outros cargos em granularidade "zona" (Presidente,
+   * Governador e Senador seguem cada um em UMA invocação só, sem fatia).
+   * Restringe `listIngestTargets` a essa fatia e estende a chave do lock
+   * anti-overlap para `(cargo, fatia)` — ver `lib/tse/repository.ts`.
+   */
+  fatia?: { indice: number; total: number };
 }
 
 /**
@@ -303,6 +313,7 @@ async function releaseOverlapLock(opts: {
   turno: number;
   env: string;
   cargo?: number;
+  fatia?: number;
   reason: string;
 }): Promise<void> {
   try {
@@ -316,6 +327,7 @@ async function releaseOverlapLock(opts: {
         turno: opts.turno,
         env: opts.env,
         ...(opts.cargo !== undefined ? { cargo: opts.cargo } : {}),
+        ...(opts.fatia !== undefined ? { fatia: opts.fatia } : {}),
         aborted: opts.reason,
       }),
     });
@@ -398,28 +410,31 @@ export async function runIngestCycle(
   const env = process.env.VERCEL_ENV === "production" ? "production" : "preview";
 
   // --------------------------------------------------------------------------
-  // 3b. Lock anti-overlap simples (RF-002 hardening), agora **por cargo**
-  //     (ADR-0035 D3).
+  // 3b. Lock anti-overlap simples (RF-002 hardening), por **cargo** (ADR-0035
+  //     D3) e, desde 2026-09-13, por **cargo+fatia** (ADR-0026 emenda).
   //
   // `maxDuration` é 300s (2026-09-11 — fan-out por par pode chegar a ~6.100
   // GETs por cargo por ciclo) porque o rate limiter/429 podem alongar um
   // ciclo além do intervalo do cron. Em vez de um lock de banco "de verdade"
   // (SELECT ... FOR UPDATE, advisory lock), usamos a última linha de
-  // `ingest_log` **cujo `notes.cargo` bate com o cargo deste ciclo** (ou sem
-  // `cargo`, quando o ciclo é de todos os cargos): se ela marca
-  // `running: true` e é recente (<6min), um ciclo anterior do MESMO cargo
-  // ainda está em voo (ou travou) — pula este ciclo em vez de rodar em
-  // paralelo. Dois cargos diferentes têm locks independentes — um ciclo do
-  // cargo 1 nunca bloqueia um ciclo do cargo 3 (duas invocações simultâneas
-  // são o desenho esperado, ver ADR-0035 D3 e o comentário de RF-010.3 em
-  // lib/tse/rate-limiter.ts). Falha ao ler o lock é fail-open: um lock
-  // ilegível não deve travar o pipeline inteiro.
+  // `ingest_log` **cuja `(notes.cargo, notes.fatia)` bate com a chave deste
+  // ciclo**: se ela marca `running: true` e é recente (<6min), um ciclo
+  // anterior da MESMA CHAVE ainda está em voo (ou travou) — pula este ciclo
+  // em vez de rodar em paralelo. Chaves diferentes têm locks independentes —
+  // um ciclo do cargo 1 nunca bloqueia um ciclo do cargo 3 (ADR-0035 D3), e a
+  // fatia 1 do cargo 6 nunca bloqueia a fatia 2 (emenda 2026-09-13: sem essa
+  // segunda dimensão, as 6 fatias disparando a cada 5 min se bloqueariam
+  // umas às outras dentro da janela de 6 min, e a varredura nunca fecharia —
+  // ver o comentário de RF-010.3 em lib/tse/rate-limiter.ts para o desenho
+  // geral de concorrência entre invocações). Falha ao ler o lock é
+  // fail-open: um lock ilegível não deve travar o pipeline inteiro.
   // --------------------------------------------------------------------------
 
   const OVERLAP_LOCK_WINDOW_MS = 6 * 60 * 1000;
+  const fatiaDoCiclo = opts.fatia?.indice;
 
   try {
-    const lastRun = await getLastIngestRun(cargoDoCiclo);
+    const lastRun = await getLastIngestRun(cargoDoCiclo, fatiaDoCiclo);
     if (lastRun?.notes?.running === true) {
       const ageMs = Date.now() - lastRun.ts.getTime();
       if (ageMs < OVERLAP_LOCK_WINDOW_MS) {
@@ -428,6 +443,7 @@ export async function runIngestCycle(
           env,
           turno,
           cargo: cargoDoCiclo ?? "all",
+          fatia: fatiaDoCiclo ?? "none",
         });
         return NextResponse.json({ skipped: "overlap" });
       }
@@ -452,6 +468,7 @@ export async function runIngestCycle(
         turno,
         env,
         ...(cargoDoCiclo !== undefined ? { cargo: cargoDoCiclo } : {}),
+        ...(fatiaDoCiclo !== undefined ? { fatia: fatiaDoCiclo } : {}),
       }),
     });
   } catch (err) {
@@ -483,22 +500,29 @@ export async function runIngestCycle(
 
   let targets: Awaited<ReturnType<typeof listIngestTargets>>;
   try {
-    targets = await listIngestTargets(env, { cargo: cargoDoCiclo });
+    targets = await listIngestTargets(env, { cargo: cargoDoCiclo, fatia: opts.fatia });
   } catch (err) {
     logError("listIngestTargets falhou — abortando ciclo", {
       error: serialiseCause(err),
       env,
       cargo: cargoDoCiclo ?? "all",
+      fatia: fatiaDoCiclo ?? "none",
     });
     // Libera o lock anti-overlap ANTES de sair. Sem isto, o marcador
     // `running:true` gravado no passo 3 fica de pé pelos 6 minutos inteiros
-    // de `OVERLAP_LOCK_WINDOW_MS` e bloqueia os próximos ciclos DESTE cargo:
-    // uma falha transitória de `listIngestTargets` (que lê `zonas` no
-    // Postgres) custaria 6 ciclos em vez de 1, no dia D. Mesmo motivo pelo
-    // qual `getActiveCargos()` é isolado com try/catch mais abaixo.
-    // Descoberto em 2026-09-11 exercitando o ciclo contra o mock com
+    // de `OVERLAP_LOCK_WINDOW_MS` e bloqueia os próximos ciclos DESTA CHAVE
+    // (cargo+fatia): uma falha transitória de `listIngestTargets` (que lê
+    // `zonas` no Postgres) custaria 6 ciclos em vez de 1, no dia D. Mesmo
+    // motivo pelo qual `getActiveCargos()` é isolado com try/catch mais
+    // abaixo. Descoberto em 2026-09-11 exercitando o ciclo contra o mock com
     // `TSE_COD_ELEICAO` ausente.
-    await releaseOverlapLock({ turno, env, cargo: cargoDoCiclo, reason: "targets_unavailable" });
+    await releaseOverlapLock({
+      turno,
+      env,
+      cargo: cargoDoCiclo,
+      fatia: fatiaDoCiclo,
+      reason: "targets_unavailable",
+    });
     return NextResponse.json({ error: "targets_unavailable" }, { status: 500 });
   }
 
@@ -508,6 +532,7 @@ export async function runIngestCycle(
     env,
     override,
     cargo: cargoDoCiclo ?? "all",
+    fatia: fatiaDoCiclo ?? "none",
   });
 
   // --------------------------------------------------------------------------
@@ -817,6 +842,7 @@ export async function runIngestCycle(
         turno,
         env,
         ...(cargoDoCiclo !== undefined ? { cargo: cargoDoCiclo } : {}),
+        ...(fatiaDoCiclo !== undefined ? { fatia: fatiaDoCiclo } : {}),
         unchanged,
         not_found: notFoundCount,
         rateLimited: clientStatsSnapshot.rateLimited,
@@ -843,6 +869,7 @@ export async function runIngestCycle(
     turno,
     env,
     cargo: cargoDoCiclo ?? "all",
+    fatia: fatiaDoCiclo ?? "none",
     rateLimited: clientStatsSnapshot.rateLimited,
     waitedMs,
   });
@@ -889,5 +916,6 @@ export async function runIngestCycle(
     errors: errorsCount,
     rateLimited: clientStatsSnapshot.rateLimited,
     waitedMs,
+    ...(fatiaDoCiclo !== undefined ? { fatia: fatiaDoCiclo } : {}),
   });
 }

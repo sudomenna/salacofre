@@ -281,13 +281,21 @@ export async function logIngestRun(args: {
 
 /** Shape do JSON armazenado em `ingest_log.notes` que o route handler
  *  consegue interpretar. Campos além destes (turno, env, etc — ver
- *  lib/tse/ingest-handler.ts) são ignorados aqui; `running` e `cargo` são
- *  usados pelo lock anti-overlap (ADR-0035 D3 — lock por cargo). */
+ *  lib/tse/ingest-handler.ts) são ignorados aqui; `running`, `cargo` e
+ *  `fatia` são usados pelo lock anti-overlap (ADR-0035 D3 — lock por cargo;
+ *  emenda 2026-09-13 — lock por cargo+fatia). */
 export interface LastIngestRunNotes {
   running?: boolean;
-  /** Cargo do ciclo (1|3). Ausente quando o ciclo cobriu todos os cargos
+  /** Cargo do ciclo (1|3|5|6). Ausente quando o ciclo cobriu todos os cargos
    *  ativos (rota `/api/ingest`, sem segmento). */
   cargo?: number;
+  /**
+   * Fatia do ciclo (1-based), quando o cargo é servido por rota fatiada
+   * (`/api/ingest/deputado-federal/<fatia>`, ADR-0026 emenda 2026-09-13).
+   * Ausente para ciclos não fatiados — inclusive para os OUTROS cargos em
+   * "zona" (Presidente, Governador, Senador seguem uma invocação só).
+   */
+  fatia?: number;
   [key: string]: unknown;
 }
 
@@ -296,42 +304,65 @@ export interface LastIngestRun {
   notes: LastIngestRunNotes | null;
 }
 
-/** Quantas linhas recentes de `ingest_log` são examinadas em busca de um
- *  marcador do cargo pedido — ver `getLastIngestRun`. Duas linhas por ciclo
- *  (marcador `running:true` + linha final `running:false`) para até 2
- *  cargos intercalados cobrem folgadamente esta janela. */
+/**
+ * Quantas linhas recentes de `ingest_log` são examinadas em busca de um
+ * marcador do cargo (e, desde 2026-09-13, da fatia) pedidos — ver
+ * `getLastIngestRun`. Dimensionado para o caso que o lock realmente precisa
+ * cobrir: um "double-fire" do MESMO cargo+fatia próximo no tempo (retry do
+ * Vercel Cron, invocação manual duplicada) — nesse caso o marcador anterior
+ * foi escrito há segundos/poucos minutos, e mesmo com até 4 cargos
+ * intercalados escrevendo em `ingest_log` (Presidente/Governador a cada 1
+ * min, Senador a cada 5 min, as 6 fatias de Deputado espalhadas a cada 5
+ * min) ele está bem dentro das últimas 10 linhas. NÃO cobre o caso de uma
+ * fatia especificamente travada há vários minutos em meio a um pico de
+ * escrita dos outros cargos — esse caso já falha aberto (não bloqueia, ver
+ * docstring de `getLastIngestRun`), consistente com o resto do desenho.
+ */
 const LAST_INGEST_RUN_SCAN_LIMIT = 10;
 
 /**
  * getLastIngestRun — lê as últimas linhas de `ingest_log` (por `ts` desc) e
- * devolve a mais recente cujo `notes.cargo` bate com o `cargo` pedido.
+ * devolve a mais recente cujos `notes.cargo`/`notes.fatia` batem com os
+ * pedidos.
  *
  * Usado pelo lock anti-overlap simples do handler de ingestão (RF-002
- * hardening; ADR-0035 D3 — lock **por cargo**): antes de iniciar um ciclo, o
- * handler grava uma linha marcador com `notes.running = true` (e
- * `notes.cargo`, quando o ciclo é restrito a um cargo); ao final, grava outra
- * com `notes.running = false` junto das métricas do ciclo — append-only
- * (constituição § 10), sem UPDATE. Se a linha mais recente DO MESMO CARGO tem
- * `running: true` e é recente (<6min), o handler entende que um ciclo
- * anterior desse cargo ainda está em voo (ou travou) e pula este ciclo em
- * vez de rodar em paralelo. Um ciclo do cargo 1 nunca vê o lock do cargo 3
- * (e vice-versa) — as duas invocações do cron rodam concorrentemente por
- * desenho (ADR-0035 D3).
+ * hardening; ADR-0035 D3 — lock **por cargo**, emenda 2026-09-13 — lock **por
+ * cargo+fatia**): antes de iniciar um ciclo, o handler grava uma linha
+ * marcador com `notes.running = true` (e `notes.cargo`/`notes.fatia`, quando
+ * aplicável); ao final, grava outra com `notes.running = false` junto das
+ * métricas do ciclo — append-only (constituição § 10), sem UPDATE. Se a
+ * linha mais recente DA MESMA CHAVE (cargo+fatia) tem `running: true` e é
+ * recente (<6min), o handler entende que um ciclo anterior dessa chave ainda
+ * está em voo (ou travou) e pula este ciclo em vez de rodar em paralelo.
+ *
+ * A chave é a combinação EXATA de `cargo` e `fatia` — um ciclo do cargo 1
+ * nunca vê o lock do cargo 3 (ADR-0035 D3), e a fatia 1 do cargo 6 nunca vê
+ * o lock da fatia 2 (emenda 2026-09-13): sem essa segunda dimensão, as 6
+ * fatias do cargo 6 disparando a cada 5 min se bloqueariam umas às outras
+ * dentro da janela de 6 min do lock, e a varredura completa nunca fecharia.
  *
  * @param cargo — `undefined` busca a última linha SEM `notes.cargo` (ciclo
- *   de todos os cargos, rota `/api/ingest`); `1`/`3` busca a última linha
- *   cujo `notes.cargo` seja exatamente esse valor.
+ *   de todos os cargos, rota `/api/ingest`); `1`/`3`/`5`/`6` busca a última
+ *   linha cujo `notes.cargo` seja exatamente esse valor.
+ * @param fatia — `undefined` busca a última linha SEM `notes.fatia` (ciclo
+ *   não fatiado); `1..N` busca a última linha cujo `notes.fatia` seja
+ *   exatamente esse valor. Só tem efeito combinado com `cargo` (hoje, só o
+ *   cargo 6 fatia).
  *
  * Retorna `null` quando `ingest_log` está vazia ou nenhuma das últimas
- * `LAST_INGEST_RUN_SCAN_LIMIT` linhas casa com o `cargo` pedido (equivalente
- * a "sem lock conhecido para este cargo" — fail-open, não bloqueia o
- * primeiro ciclo de um cargo novo). `notes` malformado (JSON inválido) é
- * tratado como `notes: null` (não casa com nenhum `cargo` específico) em vez
- * de lançar — um lock que não pode ser lido é tratado como "sem lock".
+ * `LAST_INGEST_RUN_SCAN_LIMIT` linhas casa com `cargo`+`fatia` pedidos
+ * (equivalente a "sem lock conhecido para esta chave" — fail-open, não
+ * bloqueia o primeiro ciclo de uma chave nova). `notes` malformado (JSON
+ * inválido) é tratado como `notes: null` (não casa com nenhuma chave
+ * específica) em vez de lançar — um lock que não pode ser lido é tratado
+ * como "sem lock".
  *
  * @throws IngestError('persist', ...) em erro de banco (não em notes malformado).
  */
-export async function getLastIngestRun(cargo?: CargoTse): Promise<LastIngestRun | null> {
+export async function getLastIngestRun(
+  cargo?: CargoTse,
+  fatia?: number,
+): Promise<LastIngestRun | null> {
   try {
     const rows = await db
       .select({ ts: schema.ingestLog.ts, notes: schema.ingestLog.notes })
@@ -354,8 +385,10 @@ export async function getLastIngestRun(cargo?: CargoTse): Promise<LastIngestRun 
       }
 
       const rowCargo = notes?.cargo;
-      const matches = cargo === undefined ? rowCargo === undefined : rowCargo === cargo;
-      if (matches) {
+      const rowFatia = notes?.fatia;
+      const cargoMatches = cargo === undefined ? rowCargo === undefined : rowCargo === cargo;
+      const fatiaMatches = fatia === undefined ? rowFatia === undefined : rowFatia === fatia;
+      if (cargoMatches && fatiaMatches) {
         return { ts: row.ts, notes };
       }
     }

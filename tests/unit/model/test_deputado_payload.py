@@ -22,6 +22,7 @@ o código de propósito e conferir que o teste cai):
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from typing import Any
 
 import pytest
@@ -830,6 +831,14 @@ def test_combinacao_nao_confere_contra_qe_parcial_do_tse() -> None:
 # ---------------------------------------------------------------------------
 
 
+#: `ts` default para linhas de fixture que não especificam um — usado só
+#: quando a UF não tem conflito de família (sentinela x zona real), caso em
+#: que `_discard_zero_zona_sentinel_when_real_zonas_exist` nem olha o `ts`.
+#: Testes que EXERCITAM o desempate por frescor passam `"ts"` explícito e
+#: distinto em cada linha da fixture — ver `test_uf_com_mais_de_uma_linha_de_zona_loga_info_nao_warn`.
+_DEFAULT_TS = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
 class _FakeCursor:
     """Só as duas queries que o caminho proporcional faz. Qualquer outra é
     erro de teste — e falha alto, em vez de devolver vazio."""
@@ -843,7 +852,14 @@ class _FakeCursor:
         if "FROM snapshots" in sql:
             cargo, turno = params
             self._rows = [
-                (s["uf"], s.get("cod_municipio_tse", 0), s["cod_zona"], s["pct_apurado"], s["payload"])
+                (
+                    s["uf"],
+                    s.get("cod_municipio_tse", 0),
+                    s["cod_zona"],
+                    s["pct_apurado"],
+                    s["payload"],
+                    s.get("ts", _DEFAULT_TS),
+                )
                 for s in self._conn.snapshots
                 if s["cargo"] == cargo and s["turno"] == turno
             ]
@@ -954,12 +970,54 @@ def test_ciclo_do_cargo_6_publica_bancada_e_detalhe_por_uf(ciclo_deputado) -> No
 
     payload, detalhes = publicados[0]
     assert payload["cargo"] == 6
-    assert payload["atualizacao_min"] == 15
+    # 30, não 15, desde 2026-09-13 — ver ATUALIZACAO_MIN_DEPUTADO em
+    # api/model/project.py: o cargo 6 passou a ser ingerido em 6 fatias
+    # disparadas a cada 5 min, e a volta completa leva 30 min.
+    assert payload["atualizacao_min"] == 30
     assert payload["bancada"]["total_cadeiras"] == 12
     assert payload["bancada"]["cadeiras_atribuidas"] == 12
     assert sorted(detalhes) == ["RJ", "SP"]
     assert detalhes["SP"]["uf"] == "SP"
     assert "vagas_obtidas" not in json.dumps(publicados[0], ensure_ascii=False)
+
+
+def test_uf_com_mais_de_uma_linha_de_zona_loga_info_nao_warn(
+    ciclo_deputado, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Desde 2026-09-13 (cargo 6 em granularidade zona, emenda ao ADR-0026
+    item 1) mais de uma linha por UF é o caminho NORMAL — cada par
+    (município, zona) chega como uma linha própria. Não pode soar como aviso
+    operacional (`warn`) num caminho que agora acontece o tempo todo."""
+    linha_a = {
+        "cargo": 6,
+        "turno": 1,
+        "uf": "SP",
+        "cod_municipio_tse": 71072,
+        "cod_zona": 1,
+        "pct_apurado": 50.0,
+        "payload": _envelope_simples(1000, 500),
+    }
+    linha_b = {
+        "cargo": 6,
+        "turno": 1,
+        "uf": "SP",
+        "cod_municipio_tse": 12345,
+        "cod_zona": 2,
+        "pct_apurado": 60.0,
+        "payload": _envelope_simples(2000, 700),
+    }
+
+    with caplog.at_level("INFO", logger="api.model.project"):
+        status, resposta, _publicados = ciclo_deputado([linha_a, linha_b])
+
+    assert status == 200
+    assert resposta["computed"] is True
+
+    mensagens = [r.message for r in caplog.records]
+    assert any(
+        "mais de uma linha (zona)" in m and '"level": "info"' in m for m in mensagens
+    ), mensagens
+    assert not any('"level": "warn"' in m for m in mensagens), mensagens
 
 
 def test_ciclo_do_cargo_6_nao_passa_por_compute_national(

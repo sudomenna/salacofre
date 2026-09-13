@@ -42,6 +42,7 @@ vi.mock("@/lib/db", () => {
 });
 
 import { db } from "@/lib/db";
+import type { Target } from "@/lib/tse/targets";
 import {
   buildEA14Url,
   buildEA15Url,
@@ -56,6 +57,7 @@ import {
   getGranularidade,
   getTseBaseUrl,
   listIngestTargets,
+  sliceTargets,
 } from "@/lib/tse/targets";
 
 afterEach(() => {
@@ -299,6 +301,48 @@ describe("getGranularidade", () => {
 });
 
 // ---------------------------------------------------------------------------
+// getGranularidade — interruptor específico do cargo 6 (TSE_DEPUTADO_GRANULARIDADE)
+// ---------------------------------------------------------------------------
+
+describe("getGranularidade — interruptor de emergência do cargo 6 (2026-09-13)", () => {
+  it("estado 1/2 — ausente: cargo 6 segue o padrão da tabela (zona)", () => {
+    vi.stubEnv("TSE_DEPUTADO_GRANULARIDADE", "");
+    expect(getGranularidade(6)).toBe("zona");
+  });
+
+  it("estado 2/2 — TSE_DEPUTADO_GRANULARIDADE=uf reverte só o cargo 6", () => {
+    vi.stubEnv("TSE_DEPUTADO_GRANULARIDADE", "uf");
+    expect(getGranularidade(6)).toBe("uf");
+  });
+
+  it("é case-insensitive, como TSE_GRANULARIDADE", () => {
+    vi.stubEnv("TSE_DEPUTADO_GRANULARIDADE", "UF");
+    expect(getGranularidade(6)).toBe("uf");
+  });
+
+  it("NÃO afeta outros cargos — Presidente continua em zona", () => {
+    vi.stubEnv("TSE_DEPUTADO_GRANULARIDADE", "uf");
+    expect(getGranularidade(1)).toBe("zona");
+    expect(getGranularidade(3)).toBe("zona");
+    expect(getGranularidade(5)).toBe("zona");
+  });
+
+  it("TSE_GRANULARIDADE (global) vence quando os dois estão setados e discordam", () => {
+    vi.stubEnv("TSE_GRANULARIDADE", "uf");
+    vi.stubEnv("TSE_DEPUTADO_GRANULARIDADE", "zona");
+    // O global pede uf para TODOS; o específico do cargo 6 pediria zona —
+    // a precedência documentada é global > específico > padrão do cargo.
+    expect(getGranularidade(6)).toBe("uf");
+    expect(getGranularidade(1)).toBe("uf");
+  });
+
+  it("valor inválido é ignorado com warn, cai no padrão do cargo", () => {
+    vi.stubEnv("TSE_DEPUTADO_GRANULARIDADE", "municipio");
+    expect(getGranularidade(6)).toBe("zona");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // listIngestTargets — granularidade "uf" (default) — NÃO toca o DB
 // ---------------------------------------------------------------------------
 
@@ -389,6 +433,7 @@ describe("listIngestTargets — granularidade por cargo (ADR-0026 + emenda (b))"
     { cargo: 1, nome: "Presidente" },
     { cargo: 3, nome: "Governador" },
     { cargo: 5, nome: "Senador" },
+    { cargo: 6, nome: "Deputado Federal" },
   ] as const)("cargo $cargo ($nome) enumera UM alvo de zona por par, sem perder nenhum", async ({
     cargo,
   }) => {
@@ -413,12 +458,16 @@ describe("listIngestTargets — granularidade por cargo (ADR-0026 + emenda (b))"
     );
   });
 
-  it("cargo 6 (Deputado Federal) enumera 27 UFs e NÃO toca o banco", async () => {
+  it("cargo 6 (Deputado Federal) com TSE_DEPUTADO_GRANULARIDADE=uf volta a enumerar 27 UFs, sem tocar o banco", async () => {
+    // Interruptor de emergência específico do cargo 6 (2026-09-13) — o caminho
+    // que era o PADRÃO antes desta tarefa, agora só acessível via opt-in.
+    vi.stubEnv("TSE_DEPUTADO_GRANULARIDADE", "uf");
+
     const targets = await listIngestTargets("production", { cargo: 6 });
 
     expect(targets).toHaveLength(27);
     expect(targets.every((t) => t.nivel === "uf" && t.cargo === 6)).toBe(true);
-    // Granularidade UF não lê `zonas` — se ler, o ciclo de 15 min paga uma
+    // Granularidade UF não lê `zonas` — se ler, o ciclo fatiado paga uma
     // consulta ao Postgres por nada.
     expect(vi.mocked(db.select)).not.toHaveBeenCalled();
     // E não há arquivo agregado `br-` para este cargo (só Presidente tem).
@@ -433,6 +482,18 @@ describe("listIngestTargets — granularidade por cargo (ADR-0026 + emenda (b))"
     mockZonasRowsOnce([{ uf: "SP", codMunicipioTse: 71072, codZona: 1 }]);
 
     const targets = await listIngestTargets("production", { cargo: 5 });
+
+    expect(targets.every((t) => t.nivel === "zona")).toBe(true);
+    expect(targets.some((t) => t.nivel === "uf")).toBe(false);
+  });
+
+  it("cargo 6 saiu de UF para zona em 2026-09-13 — a regressão seria silenciosa", async () => {
+    // Mesmo raciocínio do teste do cargo 5, aplicado ao cargo 6: sem
+    // TSE_DEPUTADO_GRANULARIDADE setada, o padrão da tabela é quem decide, e
+    // desde 2026-09-13 esse padrão é "zona" — não "uf".
+    mockZonasRowsOnce([{ uf: "SP", codMunicipioTse: 71072, codZona: 1 }]);
+
+    const targets = await listIngestTargets("production", { cargo: 6 });
 
     expect(targets.every((t) => t.nivel === "zona")).toBe(true);
     expect(targets.some((t) => t.nivel === "uf")).toBe(false);
@@ -542,5 +603,215 @@ describe("listIngestTargets — granularidade zona (opt-in) — cache não cruza
     await listIngestTargets("preview");
     expect(vi.mocked(db.select)).toHaveBeenCalledTimes(1);
     expect(ufTargets.every((t) => t.nivel === "uf")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sliceTargets — fatiamento determinístico (cargo 6, ADR-0026 emenda 2026-09-13)
+// ---------------------------------------------------------------------------
+
+/** Gera `n` targets sintéticos com identidade (uf, codMunicipioTse, codZona)
+ *  distinta — `codMunicipioTse` é único por item, então nenhum outro campo
+ *  precisa variar pra garantir chaves canônicas distintas. */
+function buildTargetsSinteticos(n: number): Target[] {
+  const UFS = ["SP", "RJ", "MG", "BA", "RS", "PR"] as const;
+  const targets: Target[] = [];
+  for (let i = 0; i < n; i++) {
+    targets.push({
+      uf: UFS[i % UFS.length] as string,
+      cargo: 6,
+      nivel: "zona",
+      codMunicipioTse: 10000 + i,
+      codZona: (i % 40) + 1,
+      url: `https://x.test/target-${i}.json`,
+      codEleicao: "ele2026/619",
+    });
+  }
+  return targets;
+}
+
+function chaveDoTarget(t: Target): string {
+  return `${t.uf}|${t.codMunicipioTse}|${t.codZona}`;
+}
+
+describe("sliceTargets", () => {
+  const TOTAL = 6110; // o número real de pares (uf, município, zona) — não decorativo.
+  const NUM_FATIAS = 6;
+
+  it("cobertura exata: a união das 6 fatias é EXATAMENTE o conjunto original, sem sobra", () => {
+    const targets = buildTargetsSinteticos(TOTAL);
+    const chavesOriginais = new Set(targets.map(chaveDoTarget));
+
+    const uniao = new Set<string>();
+    for (let fatia = 1; fatia <= NUM_FATIAS; fatia++) {
+      for (const t of sliceTargets(targets, fatia, NUM_FATIAS)) {
+        uniao.add(chaveDoTarget(t));
+      }
+    }
+
+    expect(uniao.size).toBe(chavesOriginais.size);
+    expect(uniao).toEqual(chavesOriginais);
+  });
+
+  it("disjunção par a par: nenhum target aparece em mais de uma fatia", () => {
+    const targets = buildTargetsSinteticos(TOTAL);
+    const fatiaPorChave = new Map<string, number>();
+
+    for (let fatia = 1; fatia <= NUM_FATIAS; fatia++) {
+      for (const t of sliceTargets(targets, fatia, NUM_FATIAS)) {
+        const chave = chaveDoTarget(t);
+        expect(
+          fatiaPorChave.has(chave),
+          `${chave} já apareceu na fatia ${fatiaPorChave.get(chave)}`,
+        ).toBe(false);
+        fatiaPorChave.set(chave, fatia);
+      }
+    }
+
+    // Soma dos tamanhos == total — disjunção + cobertura juntas provam partição exata.
+    expect(fatiaPorChave.size).toBe(TOTAL);
+  });
+
+  it("tamanhos batem com 6.110 / 6 = 1.018,33 → 2 fatias de 1.019 + 4 fatias de 1.018", () => {
+    const targets = buildTargetsSinteticos(TOTAL);
+    const tamanhos = Array.from(
+      { length: NUM_FATIAS },
+      (_, i) => sliceTargets(targets, i + 1, NUM_FATIAS).length,
+    );
+
+    expect(tamanhos.reduce((a, b) => a + b, 0)).toBe(TOTAL);
+    expect(tamanhos.filter((n) => n === 1019)).toHaveLength(2);
+    expect(tamanhos.filter((n) => n === 1018)).toHaveLength(4);
+  });
+
+  it("estabilidade: embaralhar a ordem de entrada NÃO muda a fatia de nenhum target", () => {
+    const targets = buildTargetsSinteticos(1000);
+    // Embaralho determinístico (Fisher-Yates com seed fixo) — não precisa ser
+    // aleatório de verdade, só precisar ser uma ordem DIFERENTE da original.
+    const embaralhados = [...targets];
+    let seed = 42;
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+    for (let i = embaralhados.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      const tmp = embaralhados[i];
+      embaralhados[i] = embaralhados[j] as Target;
+      embaralhados[j] = tmp as Target;
+    }
+    expect(embaralhados.map(chaveDoTarget).join(",")).not.toBe(
+      targets.map(chaveDoTarget).join(","),
+    );
+
+    for (let fatia = 1; fatia <= NUM_FATIAS; fatia++) {
+      const original = new Set(sliceTargets(targets, fatia, NUM_FATIAS).map(chaveDoTarget));
+      const embaralhado = new Set(sliceTargets(embaralhados, fatia, NUM_FATIAS).map(chaveDoTarget));
+      expect(embaralhado).toEqual(original);
+    }
+  });
+
+  it("lança para fatia fora de 1..numFatias, em vez de degradar pra fatia 1", () => {
+    const targets = buildTargetsSinteticos(10);
+    expect(() => sliceTargets(targets, 0, 6)).toThrow();
+    expect(() => sliceTargets(targets, 7, 6)).toThrow();
+    expect(() => sliceTargets(targets, -1, 6)).toThrow();
+    expect(() => sliceTargets(targets, 1.5, 6)).toThrow();
+  });
+
+  it("lança para numFatias inválido", () => {
+    const targets = buildTargetsSinteticos(10);
+    expect(() => sliceTargets(targets, 1, 0)).toThrow();
+    expect(() => sliceTargets(targets, 1, -1)).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listIngestTargets — opts.fatia (cargo 6 fatiado, ADR-0026 emenda 2026-09-13)
+// ---------------------------------------------------------------------------
+
+describe("listIngestTargets — opts.fatia", () => {
+  beforeEach(() => {
+    vi.stubEnv("TSE_COD_ELEICAO", "ele2026/619");
+  });
+
+  function paresSinteticos(
+    n: number,
+  ): Array<{ uf: string; codMunicipioTse: number; codZona: number }> {
+    const UFS = ["SP", "RJ", "MG", "BA", "RS", "PR"];
+    return Array.from({ length: n }, (_, i) => ({
+      uf: UFS[i % UFS.length] as string,
+      codMunicipioTse: 20000 + i,
+      codZona: (i % 40) + 1,
+    }));
+  }
+
+  it("as 6 fatias combinadas cobrem todos os pares, sem sobra nem repetição", async () => {
+    const pares = paresSinteticos(120);
+
+    const uniao = new Set<string>();
+    for (let fatia = 1; fatia <= 6; fatia++) {
+      mockZonasRowsOnce(pares);
+      const targets = await listIngestTargets("production", {
+        cargo: 6,
+        fatia: { indice: fatia, total: 6 },
+      });
+      for (const t of targets) {
+        const chave = `${t.uf}|${t.codMunicipioTse}|${t.codZona}`;
+        expect(uniao.has(chave), `par ${chave} apareceu em mais de uma fatia`).toBe(false);
+        uniao.add(chave);
+      }
+    }
+
+    expect(uniao.size).toBe(pares.length);
+  });
+
+  it("fatia entra na chave do cache — fatia 1 e fatia 2 não reaproveitam a mesma entrada", async () => {
+    const pares = paresSinteticos(12);
+    mockZonasRowsOnce(pares);
+    const fatia1 = await listIngestTargets("production", {
+      cargo: 6,
+      fatia: { indice: 1, total: 6 },
+    });
+    expect(vi.mocked(db.select)).toHaveBeenCalledTimes(1);
+
+    mockZonasRowsOnce(pares);
+    const fatia2 = await listIngestTargets("production", {
+      cargo: 6,
+      fatia: { indice: 2, total: 6 },
+    });
+    expect(vi.mocked(db.select)).toHaveBeenCalledTimes(2);
+
+    // Sem a fatia na chave do cache, fatia2 devolveria os MESMOS alvos que
+    // fatia1 (cache hit espúrio) — este assert falharia nesse cenário.
+    const chaves1 = new Set(fatia1.map((t) => `${t.uf}|${t.codMunicipioTse}|${t.codZona}`));
+    const chaves2 = new Set(fatia2.map((t) => `${t.uf}|${t.codMunicipioTse}|${t.codZona}`));
+    expect(chaves1).not.toEqual(chaves2);
+  });
+
+  it("cargo em UF (interruptor TSE_DEPUTADO_GRANULARIDADE=uf) ignora fatia — devolve o agregado completo sempre", async () => {
+    vi.stubEnv("TSE_DEPUTADO_GRANULARIDADE", "uf");
+
+    const fatia1 = await listIngestTargets("production", {
+      cargo: 6,
+      fatia: { indice: 1, total: 6 },
+    });
+    const fatia2 = await listIngestTargets("production", {
+      cargo: 6,
+      fatia: { indice: 2, total: 6 },
+    });
+
+    expect(fatia1).toHaveLength(27);
+    expect(fatia2).toHaveLength(27);
+    expect(vi.mocked(db.select)).not.toHaveBeenCalled();
+  });
+
+  it("sem opts.fatia, cargo 6 em zona devolve a lista INTEIRA (comportamento inalterado)", async () => {
+    const pares = paresSinteticos(12);
+    mockZonasRowsOnce(pares);
+
+    const targets = await listIngestTargets("production", { cargo: 6 });
+
+    expect(targets).toHaveLength(pares.length);
   });
 });

@@ -233,27 +233,74 @@ def _open_conn():
 def _discard_zero_zona_sentinel_when_real_zonas_exist(
     snapshots: list[LatestSnapshot],
 ) -> list[LatestSnapshot]:
-    """Descarta a linha sentinela `cod_zona = 0` de uma UF quando a MESMA
-    UF já tem zonas reais (`cod_zona > 0`) — achado urgente do plano
-    `tem-um-erro-eu-velvety-sprout.md`: `lib/tse/targets.ts:410` grava a
-    linha de ingestão em nível `uf` com `cod_zona = 0`; se um ciclo
-    anterior rodou em modo `uf` e o ciclo atual roda em modo `zona`, os
-    dois tipos de linha coexistem em `snapshots` (append-only, nunca
-    apagadas) — sem este filtro, a zona-sentinela SOMARIA em cima das
-    zonas reais (dupla contagem).
+    """Por UF, escolhe entre a família sentinela (`cod_zona = 0`) e a
+    família de zonas reais (`cod_zona > 0`) por FRESCOR (`ts`), não mais só
+    por presença — achado do relatório de review de 2026-09-13.
 
-    Quando uma UF só tem a zona-sentinela (nenhuma zona real ainda
-    ingerida), ela é MANTIDA — é o único dado disponível daquela UF.
+    Origem (achado urgente do plano `tem-um-erro-eu-velvety-sprout.md`):
+    `lib/tse/targets.ts` grava a linha de ingestão em nível `uf` com
+    `cod_zona = 0`; como `snapshots` é append-only (constituição § 10), um
+    ciclo que já rodou num modo deixa linhas paradas para sempre quando o
+    cargo muda de modo — as duas famílias coexistem sem este filtro, e
+    somar as duas seria dupla contagem.
+
+    A versão original (só por PRESENÇA — "zona real existe? descarta a
+    sentinela") cobria certo a transição `uf` → `zona` (histórico: modo
+    `uf` era o default até 2026-09-05/11, todas as UFs tinham zona real
+    quando o cargo migrava). Mas depois de 2026-09-13 o interruptor de
+    emergência `TSE_DEPUTADO_GRANULARIDADE=uf` (cargo 6) tornou a direção
+    OPOSTA alcançável em produção, no meio da apuração: alguém liga o
+    interruptor, a ingestão passa a gravar `(uf, 0, 0)` frescas, mas os
+    pares `(uf, município, zona)` de antes da virada continuam sendo o
+    `rn = 1` das SUAS PRÓPRIAS chaves (nada de novo chega para eles) — só
+    por presença, a versão antiga veria "esta UF tem zona real" e
+    descartaria a sentinela NOVA, mantendo o modelo calculando sobre os
+    pares CONGELADOS no instante da virada, em silêncio (sem erro, sem
+    alerta — só um número parado atrás de um `ts` de payload que é a hora
+    do cálculo, não a do dado; esse problema mais amplo é pré-existente e
+    de todos os cargos, tratado à parte).
+
+    Por isso a comparação agora é por `ts`: o `ts` mais recente de CADA
+    família (o de todas as linhas com `cod_zona = 0`, e o de todas as
+    linhas com `cod_zona > 0`) decide qual família sobrevive. UF com uma
+    família só mantém o que tem (inclusive UF só-sentinela — não regride).
+    Sem `ts` confiável de um dos lados (não deveria acontecer: `ts` é
+    `NOT NULL` na tabela real), falha aberto — mantém as duas famílias em
+    vez de arriscar descartar a certa por dado ausente.
     """
-    has_real_zona_by_uf: dict[str, bool] = {}
+    tem_sentinela: set[str] = set()
+    tem_real: set[str] = set()
+    max_ts_sentinela: dict[str, Any] = {}
+    max_ts_real: dict[str, Any] = {}
+
     for s in snapshots:
-        if s["cod_zona"] > 0:
-            has_real_zona_by_uf[s["uf"]] = True
-    return [
-        s
-        for s in snapshots
-        if not (s["cod_zona"] == 0 and has_real_zona_by_uf.get(s["uf"], False))
-    ]
+        uf = s["uf"]
+        ts = s.get("ts")
+        if s["cod_zona"] == 0:
+            tem_sentinela.add(uf)
+            atual = max_ts_sentinela.get(uf)
+            if ts is not None and (atual is None or ts > atual):
+                max_ts_sentinela[uf] = ts
+        else:
+            tem_real.add(uf)
+            atual = max_ts_real.get(uf)
+            if ts is not None and (atual is None or ts > atual):
+                max_ts_real[uf] = ts
+
+    def _mantem(s: LatestSnapshot) -> bool:
+        uf = s["uf"]
+        if not (uf in tem_sentinela and uf in tem_real):
+            return True  # só uma família nesta UF — mantém o que tem.
+
+        ts_sentinela = max_ts_sentinela.get(uf)
+        ts_real = max_ts_real.get(uf)
+        if ts_sentinela is None or ts_real is None:
+            return True  # sem ts confiável de um dos lados — fail-open.
+
+        sentinela_mais_recente = ts_sentinela >= ts_real
+        return sentinela_mais_recente if s["cod_zona"] == 0 else not sentinela_mais_recente
+
+    return [s for s in snapshots if _mantem(s)]
 
 
 def fetch_snapshots(conn, cargo: int, turno: int) -> list[LatestSnapshot]:
@@ -272,18 +319,27 @@ def fetch_snapshots(conn, cargo: int, turno: int) -> list[LatestSnapshot]:
     `api.model.zona_merge.merge_pairs_into_zonas`, em memória e nunca
     persistida (§ 1/§ 6). Ver `_do_project` e `api/model/replay_batch.py`.
 
-    CTE espelha `getLatestSnapshotsByZone` em lib/model/repository.ts:193.
-    `pct_apurado` volta como Decimal/None → convertemos para float.
+    CTE só espelha o padrão de ranking (partição por par + `ROW_NUMBER`) de
+    `getLatestSnapshotsByZone` em lib/model/repository.ts:193 — aquela
+    função TS NÃO implementa (nunca implementou) o descarte de sentinela
+    abaixo; ela particiona só por `(uf, cod_zona)`, sem `cod_municipio_tse`
+    nem `ts` no SELECT, e não tem nenhum caller de produção (só o próprio
+    teste dela) — confirmado em 2026-09-13, não alterado aqui por estar
+    fora do caminho crítico.
+    `pct_apurado` volta como Decimal/None → convertemos para float. `ts`
+    entrou no SELECT em 2026-09-13 (ver
+    `_discard_zero_zona_sentinel_when_real_zonas_exist`).
 
-    Achado urgente (plano `tem-um-erro-eu-velvety-sprout.md`): descarta a
-    zona-sentinela `cod_zona = 0` quando a UF já tem zonas reais (ver
-    `_discard_zero_zona_sentinel_when_real_zonas_exist`) — sem isso, o
-    modo `uf` (`TSE_GRANULARIDADE=uf`, default de produção antes desta
-    tarefa) conviveria com dupla contagem assim que o modo `zona` fosse
-    ativado. O outro lado do fix (usar `eleitorado_total_by_uf[uf]` como
-    peso quando só resta a zona-sentinela) vive em `_resolve_zone_weight`
-    — quem CHAMA `fetch_snapshots` (`compute_uf_projections`/
-    `compute_participacao`) já tem `eleitorado_total_by_uf` disponível.
+    Achado urgente original (plano `tem-um-erro-eu-velvety-sprout.md`):
+    descarta a família sentinela `cod_zona = 0` OU a família de zonas reais
+    (`cod_zona > 0`) de uma UF, por frescor de `ts` — sem isso, as duas
+    conviveriam com dupla contagem assim que os dois modos se alternassem
+    (em QUALQUER direção; ver docstring da função para o porquê de ser por
+    `ts` e não por presença desde 2026-09-13). O outro lado do fix (usar
+    `eleitorado_total_by_uf[uf]` como peso quando só resta a zona-sentinela)
+    vive em `_resolve_zone_weight` — quem CHAMA `fetch_snapshots`
+    (`compute_uf_projections`/`compute_participacao`) já tem
+    `eleitorado_total_by_uf` disponível.
     """
     sql = """
         WITH ranked AS (
@@ -293,6 +349,7 @@ def fetch_snapshots(conn, cargo: int, turno: int) -> list[LatestSnapshot]:
                 cod_zona,
                 pct_apurado,
                 payload,
+                ts,
                 ROW_NUMBER() OVER (
                     PARTITION BY uf, cod_municipio_tse, cod_zona
                     ORDER BY ts DESC, id DESC
@@ -300,7 +357,7 @@ def fetch_snapshots(conn, cargo: int, turno: int) -> list[LatestSnapshot]:
             FROM snapshots
             WHERE cargo = %s AND turno = %s
         )
-        SELECT uf, cod_municipio_tse, cod_zona, pct_apurado, payload
+        SELECT uf, cod_municipio_tse, cod_zona, pct_apurado, payload, ts
         FROM ranked
         WHERE rn = 1
     """
@@ -314,6 +371,7 @@ def fetch_snapshots(conn, cargo: int, turno: int) -> list[LatestSnapshot]:
             "cod_zona": r[2],
             "pct_apurado": float(r[3]) if r[3] is not None else 0.0,
             "payload": r[4],
+            "ts": r[5],
         }
         for r in rows
     ]
@@ -1425,14 +1483,19 @@ def compute_uf_projections(
         feita a partir de dado de outros 26. A UF sai `aguardando`.
 
     Granularidade (RF-102): o `k = te/esi` é sempre o da UNIDADE INGERIDA.
-    Em cargo 1/3 a unidade é a zona (~6.110 pares por ciclo, somados de
-    volta a zonas por `merge_pairs_into_zonas`); em cargo 5/6 é a UF
-    inteira — o TSE publica um único EA20 por UF e `lib/tse/targets.ts`
-    grava a linha com o sentinela `cod_zona = 0`, que
-    `_resolve_zone_weight` pesa pelo eleitorado total da UF. Nenhum código
-    especial é preciso para isso: a mesma função roda com UMA "zona" que é
-    a UF. O que muda é o rótulo — `metodo.granularidade` — e a
-    consequência estatística, documentada em `_uf_projection_row`.
+    Esta função só é chamada para cargos MAJORITÁRIOS (1, 3, 5) — o cargo 6
+    (proporcional) nunca chega aqui, ele segue por `_do_project_proporcional`
+    desde a guarda em `_do_project` (`_e_proporcional`). Por padrão, desde
+    2026-09-13, os três cargos majoritários ingerem em zona (~6.110 pares por
+    ciclo, somados de volta a zonas por `merge_pairs_into_zonas`). A unidade
+    só vira a UF inteira quando um interruptor de emergência reverte um cargo
+    específico a `uf` (`TSE_GRANULARIDADE`/`TSE_DEPUTADO_GRANULARIDADE`,
+    `lib/tse/targets.ts::getGranularidade`) — o TSE publica um único EA20 por
+    UF nesse modo, e `lib/tse/targets.ts` grava a linha com o sentinela
+    `cod_zona = 0`, que `_resolve_zone_weight` pesa pelo eleitorado total da
+    UF. Nenhum código especial é preciso para isso: a mesma função roda com
+    UMA "zona" que é a UF. O que muda é o rótulo — `metodo.granularidade` —
+    e a consequência estatística, documentada em `_uf_projection_row`.
     """
     granularidade = cargo_granularidade(int(cargo))
     snaps_by_uf: dict[str, list[LatestSnapshot]] = {}
@@ -3633,7 +3696,12 @@ def post_edge_write(
 #: Cadência declarada da corrida proporcional, em minutos (RF-128, ADR-0026
 #: item 5). Entra no payload para que a tela não a escreva à mão — foi assim
 #: que quatro frases do Senador viraram falsas em 11/09.
-ATUALIZACAO_MIN_DEPUTADO = 15
+#:
+#: 30, não 15, desde 2026-09-13: o cargo 6 saiu de granularidade UF (um cron
+#: `*/15`) para ZONA fatiada em 6 (`sliceTargets`, `lib/tse/targets.ts`) — os
+#: crons de `vercel.ts` disparam uma fatia a cada 5 min, e a volta completa
+#: das 6 fatias (garantia de que toda UF foi revisitada) leva 30 min, não 15.
+ATUALIZACAO_MIN_DEPUTADO = 30
 
 #: UFs da eleição. Não é configuração nem contagem do ciclo: é quantas
 #: circunscrições a Câmara tem. Derivar de quem já apurou faria
@@ -3718,16 +3786,21 @@ def _do_project_proporcional(
         entrada = combinar_entradas(
             [extrair_entrada_proporcional(linha.get("payload"), cargo=req.cargo) for linha in linhas]
         )
-        # Com uma linha por UF (o caso normal) isto é o próprio pct do
-        # envelope (`s.psa`, o mesmo que a ingestão gravou na coluna). Com mais
-        # de uma, o maior é o menos errado dos números disponíveis — média
-        # ponderada exigiria o eleitorado de cada zona, e o caminho é
-        # defensivo, não o normal. A ocorrência é logada logo abaixo.
+        # Desde 2026-09-13 o cargo 6 (Deputado Federal) é ingerido em
+        # granularidade ZONA (emenda ao ADR-0026 item 1): mais de uma linha
+        # por UF passou a ser o caminho NORMAL — cada par (município, zona)
+        # chega como uma linha própria. Só volta a ser uma linha só quando o
+        # interruptor de emergência `TSE_DEPUTADO_GRANULARIDADE=uf`
+        # (`lib/tse/targets.ts::getGranularidade`) reverte o cargo à
+        # ingestão por UF. De qualquer forma, o `pct_apurado` não tem uma
+        # soma correta possível sem o eleitorado de cada zona (que este ponto
+        # do código não tem à mão) — o maior dos publicados é o menos errado
+        # dos números disponíveis.
         pct_apurado = max(float(linha.get("pct_apurado") or 0.0) for linha in linhas)
         if len(linhas) > 1:
             _log(
-                "warn",
-                "UF de cargo proporcional com mais de um snapshot — votos somados",
+                "info",
+                "UF de cargo proporcional com mais de uma linha (zona) — votos somados",
                 cargo=req.cargo,
                 turno=req.turno,
                 uf=sigla,

@@ -1,0 +1,247 @@
+---
+id: ADR-0036
+title: Deputado Federal em granularidade zona (par município×zona), fatiado em 6 por invocação, volta completa em 30 min — não UF a cada 15 min
+status: accepted
+date: 2026-09-13
+amends: 0026
+---
+
+# ADR-0036 — Deputado Federal em granularidade zona, fatiado em 6, volta completa em 30 min
+
+## Status
+
+Aceito. Este ADR **emenda o ADR-0026** — especificamente o item 1 da Decisão e a nota
+"2026-09-11 (b)" (Senador sai de UF para ZONA), que fixavam `granularidade: "uf"` para o
+cargo 6 (Deputado Federal) e a tratavam como definitiva ("Deputado Federal permanece em
+`uf`"). Não supersede o ADR-0026: o resto do item 1 (crons próprios, cadências desacopladas
+do cron de 60s dos majoritários), o item 4 (Vercel Blob como read path do drill-down de UF)
+e o item 3 (regra de três + ADR-0027 para conversão em cadeiras) permanecem intocados. Nota
+de emenda aplicada ao `## Status` do ADR-0026.
+
+> **Nota 2026-09-13 (implementação) — o interruptor exigido por este ADR nasceu quebrado, e
+> foi consertado antes de qualquer deploy.** A Decisão, abaixo, fixa como requisito um
+> interruptor de reversão sem deploy. Ele foi implementado como
+> `TSE_DEPUTADO_GRANULARIDADE=uf` — e a revisão da implementação encontrou que **acioná-lo
+> não revertia nada: congelava o dado, em silêncio.**
+>
+> `_discard_zero_zona_sentinel_when_real_zonas_exist` (`api/model/project.py`) era puramente
+> estrutural — "se a UF tem alguma linha `cod_zona > 0`, descarte a linha `cod_zona = 0`",
+> sem nenhuma noção de tempo. Foi escrita para a transição `uf` → `zona`, onde está correta,
+> e o próprio docstring dizia isso. **A direção inversa nunca foi considerada porque, até
+> este ADR, ninguém podia percorrê-la de propósito.** Com o interruptor acionado no meio da
+> apuração, as linhas `(uf, 0, 0)` novas seriam descartadas em favor dos pares congelados no
+> instante da virada, e `snapshots` é append-only (constituição § 10) — os pares velhos
+> nunca saem. Sem erro, sem alerta, e com o `ts` do payload sendo a hora do **cálculo**
+> (`project.py:3863`), não a do dado: a tela mostraria número parado com horário fresco.
+>
+> Uma rede de segurança que falha assim é pior que nenhuma, porque o operador acredita ter
+> revertido. **Corrigido**: o filtro passa a decidir por **frescor** — por UF, a família
+> (sentinela ou zonas reais) cujo `ts` mais recente for maior sobrevive, nas duas direções;
+> UF com uma família só mantém o que tem; sem `ts` confiável, falha aberto. Travado por
+> quatro testes de direção, verificados por mutação — inclusive a mutação que apaga o `ts`,
+> que reabriria a dupla contagem.
+>
+> O problema mais amplo — `ts` de payload ser a hora do cálculo em **todos** os cargos, o
+> que torna dado parado invisível ao leitor (constituição § 8) — é pré-existente, não é
+> criado por este ADR, e está registrado à parte.
+
+## Contexto
+
+RF-127 (spec 017, `docs/specs/017-deputado-federal/spec.md:201-209`) exige que a tela de
+Deputado exiba **intervalo**, não só o número central, de cadeiras projetadas por
+partido/federação — é o único requisito que ainda falta para a spec sair de `implementing`
+para `shipped` (`ship_blocked_on: [rf-127-intervalo-de-cadeiras]`, `docs/_meta/index.json`).
+O intervalo vem do mesmo mecanismo usado nos outros três cargos: bootstrap não-paramétrico
+(ADR-0006) sobre **unidades geográficas apuradas**. `api/model/extrapolation.py:264-265`
+sorteia um único `idx = rng.integers(0, k_a, size=(n_resamples, k_a))` por UF, compartilhado
+por todos os candidatos e pelas duas bases (votáveis/comparecimento) — a docstring do módulo
+(`:69-75`) é explícita: "um ÚNICO bootstrap por UF (não um por candidato, não um por base)".
+`k_a` é o número de **zonas apuradas** que entram nesse sorteio.
+
+Com `granularidade: "uf"` (o valor que o ADR-0026 fixou para o cargo 6 e que
+`lib/config/cargos.ts:184` ainda declara), o TSE entrega **um único arquivo por UF** para
+Deputado — ou seja, `k_a = 1`. As 1.000 réplicas do bootstrap saem idênticas entre si, e o
+IC95 fecha num ponto: exatamente o diagnóstico que, em 2026-09-11, tirou o Senador de `uf`
+para `zona` (nota "2026-09-11 (b)" do ADR-0026: "1 observação produz 1 réplica distinta; 3
+produzem 10"). Publicar aquilo como intervalo de confiança afirmaria uma certeza que o
+modelo não tem — constituição § 6 (determinismo do modelo: "cada valor pode ser reproduzido
+a partir do snapshot persistido"; um IC de largura zero não é reprodução, é artefato de
+amostra única).
+
+Não há alternativa dentro do arquivo de UF já hoje baixado. O envelope EA20 de abrangência
+UF **não tem repartição geográfica interna**: confirmado em `lib/tse/ea20-schema.ts:22-32`
+(cada arquivo JSON representa **uma única** abrangência — a hierarquia de candidatos é
+`carg[] → (fed[] | agr[].par[]) → cand[]`, partidária, sem nível de zona ou município) e em
+`docs/reference/tse-2026-leiautes.md:109-118` (mesma conclusão, tirada do documento oficial
+do TSE: "não há array de abrangências dentro do arquivo"). O TSE **publica**, separadamente,
+arquivos de zona e de município para o cargo 0006 — o mesmo cargo, outra abrangência, outro
+arquivo (`tse_docs/txt/tse-ea20-arquivo-de-resultado-unificado.txt`) — e os construtores de
+URL já existem e já são agnósticos ao cargo: `buildEA20UrlZona`
+(`lib/tse/targets.ts:161-177`) recebe `cargo: CargoTse` como parâmetro comum aos quatro
+cargos cobertos, sem nenhum código específico de Presidente/Governador que precise ser
+generalizado.
+
+## Decisão
+
+**Granularidade.** O cargo 6 passa a ser ingerido em `granularidade: "zona"` — o par
+(município, zona), unidade de ingestão fixada pelo ADR-0035 para os demais cargos — em vez
+de `"uf"`. Isso muda `lib/config/cargos.ts:184` (fora do escopo desta tarefa de
+documentação; a implementação corre em paralelo). Não há mudança na fonte do dado nem no
+schema: é o mesmo builder `buildEA20UrlZona` já usado por Presidente, Governador e Senador,
+o mesmo `merge_pairs_into_zonas`/`check_zona_merge_sanity` (`api/model/zona_merge.py`,
+ADR-0035 D2) que recompõe pares em zona antes do estimador, e o mesmo contrato de entrada do
+bootstrap — nenhuma linha nova de código de modelo, só uma mudança de qual arquivo é pedido
+ao TSE.
+
+**`rpsMax` do cargo 6 não muda: continua 5.** O teto por cargo não é reaberto por este ADR.
+`piorCasoAgregadoRps()` (`lib/config/cargos.ts:248-250`) soma os quatro `rpsMax` —
+25+25+25+5 — e o pior caso agregado **permanece 80 rps**, 20% abaixo do teto documentado de
+100 do TSE (constituição § 1). Subir o teto do cargo 6 para acelerar o ciclo comprometeria a
+margem calibrada em 2026-09-11 (ADR-0035, emenda "teto de requisições recuado de 50 para
+40"; `lib/config/cargos.ts:107-111`, pico medido de 160 rps com quatro cargos simultâneos a
+40 cada).
+
+**Fatiamento em 6, por segmento de rota.** ~6.110 alvos a 5 rps são ~1.222 s de ciclo —
+muito além do `maxDuration` de 300 s (`app/api/ingest/[cargo]/route.ts`, ADR-0035 D3). A
+varredura completa se divide em **6 fatias** de ~1.019 alvos cada, ~204 s por fatia
+(1.222/6), com ~96 s de margem sob o teto de 300 s. Cada fatia é identificada por
+**segmento de rota** — `/api/ingest/deputado-federal/<n>`, `n` de 1 a 6 — não por query
+string: é o mesmo precedente já fixado na nota "2026-09-11" do ADR-0026 (achado (B) do
+ADR-0035 D3), que documentou que a Vercel não suporta query string em `path` de cron e que o
+mecanismo correto, com exemplo literal na doc oficial, é o segmento de rota.
+
+**Cadência: 5 minutos por fatia, volta completa em 30 minutos.** Seis crons de `*/5`
+disparando fatias 1 a 6 em sequência cobrem o universo completo a cada 30 min — o dobro dos
+15 min que o ADR-0026 havia fixado. O gargalo é o próprio ritmo de 5 rps: 6.110/5 = 1.222 s
+≈ 20,4 min é o piso teórico da varredura completa, qualquer que seja o fatiamento; 30 min (6
+fatias × 5 min) é o primeiro múltiplo de 5 acima desse piso que também alinha em um cron
+limpo.
+
+**Requisito de implementação descoberto nesta análise: a trava anti-overlap precisa passar a
+ser por `(cargo, fatia)`, não só por cargo.** Hoje (`lib/tse/ingest-handler.ts:401-443`) o
+lock é por cargo: a última linha de `ingest_log` cujo `notes.cargo` bate com o cargo do
+ciclo, dentro de uma janela de 6 min (`OVERLAP_LOCK_WINDOW_MS`, `:419`), determina se um
+ciclo anterior ainda está em voo. Com 6 fatias do mesmo cargo disparando a cada 5 min, a
+fatia 2 encontraria a marca da fatia 1 (mesmo `cargo`, idade <6 min) e seria pulada por
+engano — nenhum ciclo além do primeiro rodaria. A chave do lock precisa incluir a fatia
+(`notes.cargo` + `notes.fatia`, ou um marcador composto equivalente); a janela de 6 min pode
+continuar servindo cada fatia isoladamente, já que cada fatia sozinha roda em ~204 s.
+
+**Requisito de implementação: interruptor de reversão sem deploy.** A mudança altera o
+pipeline de ingestão a 21 dias da eleição, sem nenhum envelope EA20 real de cargo 6 jamais
+processado por este sistema (ver Consequências). A implementação deve prover um mecanismo —
+reaproveitando ou estendendo a escotilha `TSE_GRANULARIDADE` já documentada em
+`lib/config/cargos.ts:93-95` ("sobrepõe isto para TODOS os cargos — é escotilha de
+diagnóstico") ou um equivalente específico ao cargo 6 — que devolva o cargo 6 a
+`granularidade: "uf"` por variável de ambiente, sem exigir novo deploy, caso o simulado de
+15–17/09 ou a apuração real revelem um problema. Este ADR fixa o requisito; a forma exata
+(variável nova vs. extensão da existente) fica com a implementação.
+
+## Alternativas rejeitadas
+
+- **Manter a varredura por UF a cada 15 min em paralelo à varredura detalhada por zona**,
+  preservando a cadência atual do número principal enquanto o intervalo usaria só o dado
+  fino. Rejeitada: `combinar_entradas` (`api/model/deputado.py:412-496`) **soma** quando
+  encontra mais de uma linha da mesma UF no banco — é o comportamento correto para o caso
+  que a função foi desenhada a resolver (pares de zona da mesma UF), mas linhas de UF e
+  linhas de par coexistindo na mesma tabela `snapshots` produziriam **votos contados em
+  dobro, em silêncio**: o mesmo voto entraria uma vez pelo arquivo agregado de UF e outra
+  vez pela soma dos pares daquela UF. É o modo de falha "default silencioso" que já mordeu
+  este repositório três vezes. Os 30 min de cadência são o preço de tornar esse
+  duplo-cômputo impossível por construção, não uma escolha arbitrária.
+- **Subir `rpsMax` do cargo 6 de 5 para 10 e varrer em 3 fatias**, preservando os 15 min de
+  volta completa. Rejeitada: levaria `piorCasoAgregadoRps()` a 85 rps, reabrindo uma
+  calibragem fechada em 2026-09-11 (ADR-0035) depois de uma medição de pico de 160 rps com
+  os quatro cargos simultâneos — o ganho seria 15 min de latência ao preço da margem de
+  segurança do dia D, 21 dias antes da eleição.
+- **Granularidade de município** (~5.570 alvos) em vez de par (município, zona), para
+  reduzir o fan-out sem depender da premissa da fatia por par ainda não confirmada contra
+  dado real (Passo 0, `docs/testing/tse-simulados.md:46-51`). Rejeitada por três motivos: a
+  economia de requisições é irrisória (5.570 contra 6.110, ~9%); `VALID_GRANULARIDADES`
+  (`lib/tse/targets.ts:377`) só aceita `["uf", "zona"]` — adicionar um terceiro valor seria
+  encanamento novo só para este cargo; e o risco da premissa não é novo nem exclusivo do
+  cargo 6 — se a premissa cair, Presidente, Governador e Senador caem junto, e o produto
+  inteiro para. Não se compra segurança nova adicionando uma terceira granularidade a um
+  problema que já existe nos outros três cargos.
+
+## Consequências
+
+**Positivas**:
+- RF-127 fica possível: a unidade de reamostragem do bootstrap, depois de
+  `merge_pairs_into_zonas` recompor os pares em zona, passa a ser a **zona real** — 2.644
+  zonas distintas `(uf, cod_zona)` no país (medido em `zonas`, 2026-09-13), média de **97,9
+  zonas por UF**. Nenhuma UF fica com `k_a = 1`.
+- O cargo 6 passa a usar o mesmo caminho de ingestão dos outros três cargos (mesmo builder
+  de URL, mesmo `merge_pairs_into_zonas`, mesma trava de sanidade
+  `check_zona_merge_sanity`) — menos código de exceção no pipeline, e o mesmo Passo 0 do
+  simulado que já valida os outros três cargos passa a valer para Deputado sem trabalho
+  extra.
+- Nenhum dado novo é inventado: o par (município, zona) já é publicado pelo TSE para o cargo
+  6 (mesma tabela oficial que já cobre os outros três,
+  `tse_docs/txt/tse-ea20-arquivo-de-resultado-unificado.txt`); a mudança pede um arquivo
+  diferente do mesmo cargo, não cria uma nova fonte.
+
+**Negativas**:
+- **A cadência de atualização cai pela metade**: 30 min contra os 15 min que o ADR-0026
+  havia fixado e que a UI hoje anuncia (`vercel.ts:143`, comentário "atualizado a cada 15
+  min"). O texto da tela de Deputado precisa mudar para **"atualizado a cada 30 min"** —
+  ADR-0026 item 5, constituição § 8 (transparência metodológica: a cadência de atualização
+  precisa ser legível, não presumida). Isto não é opcional nem cosmético: o texto atual,
+  depois desta decisão, está simplesmente errado.
+- **O intervalo será visivelmente mais largo e mais grosseiro nas UFs pequenas do que nas
+  grandes, na mesma tela.** A distribuição de zonas por UF é muito desigual: RR tem 8 zonas
+  (16 pares), AC 9 (23), AP 10 (17), DF 19 (19) — contra SP com 394 (780), MG 304 (898), BA
+  199 (450) (medido em `zonas`, 2026-09-13). Isso **não é degeneração** — 8 unidades de
+  reamostragem ainda geram milhares de réplicas distintas, ao contrário da UF com 1 unidade
+  que motivou originalmente esta mudança — e é estatisticamente **correto**: um estado
+  pequeno tem mesmo mais incerteza residual num bootstrap de zonas. Mas é uma diferença
+  perceptível entre estados numa mesma tela nacional, e a constituição § 8 pede que o leitor
+  consiga entender o que está vendo, não apenas que o número esteja certo. Fica registrada
+  como consequência a acompanhar na UI (ex.: nota metodológica ou `n_zonas` visível no
+  drill-down), não como defeito a corrigir por este ADR.
+- O cargo 6 passa a depender da mesma premissa não verificada dos outros três cargos: que o
+  arquivo de par traz a **fatia** da zona naquele município, não a zona inteira repetida
+  (ADR-0035, "Negativas — a de primeira grandeza"). Antes desta mudança, o cargo 6 estava
+  isolado desse risco por estar em UF; depois, ele herda a mesma dependência do Passo 0 do
+  simulado (`docs/testing/tse-simulados.md:46-51`). Se o Passo 0 reprovar, o Deputado
+  detalhado para junto com os outros três — não é um risco novo, mas é um risco novo **para
+  este cargo**.
+- Mudança no pipeline de ingestão a **21 dias da eleição**, sem nenhuma validação prévia: a
+  tabela `snapshots` tem hoje 898 linhas, **todas de cargo 3** (medido em 2026-09-13) —
+  nenhuma linha de cargo 1, 5 ou 6, real ou de mock. O primeiro contato deste sistema com um
+  envelope EA20 real de Deputado Federal, em qualquer granularidade, será o simulado de
+  15–17/09. É por isso que o interruptor de reversão sem deploy (Decisão, acima) é
+  obrigatório, não uma precaução opcional.
+- A trava anti-overlap por `(cargo, fatia)` é uma peça nova de estado (`ingest_log.notes`),
+  com seu próprio modo de falha: se a fatia não for gravada corretamente na marca, o
+  comportamento regride silenciosamente para o lock por cargo de hoje — uma fatia
+  bloquearia as outras cinco sem erro visível.
+
+## Cross-refs
+
+- [ADR-0026](0026-cargos-senador-deputado-ingestao-e-read-path.md) — item 1 (granularidade
+  por cargo) e nota "2026-09-11 (b)" (Senador uf→zona pelo mesmo diagnóstico), emendados por
+  este ADR. Nota de emenda aplicada ao `## Status`.
+- [ADR-0035](0035-par-municipio-zona-unidade-de-ingestao.md) — D1/D2 fixam o par (município,
+  zona) como unidade de ingestão e `merge_pairs_into_zonas` como recomposição em memória,
+  reaproveitados aqui sem alteração; D3 fixa o precedente de segmento de rota para
+  distinguir invocações e a trava anti-overlap por cargo, que este ADR estende para
+  `(cargo, fatia)`.
+- [ADR-0006](0006-bootstrap-nao-bayesiano.md) — bootstrap não-paramétrico cuja unidade de
+  reamostragem motiva esta decisão inteira.
+- [ADR-0027](0027-conversao-votos-em-cadeiras-deputado-federal.md) — método de conversão de
+  votos em cadeiras, intocado por este ADR; RF-127 projeta o **intervalo** em torno do
+  resultado que aquele ADR já calcula.
+- Spec 017 (`docs/specs/017-deputado-federal/spec.md`) — RF-127 (`:201-209`) destravado por
+  esta decisão; `ship_blocked_on: [rf-127-intervalo-de-cadeiras]` e `adrs:` no frontmatter
+  devem passar a listar `0036` (propagação sugerida ao `spec-syncer` — não editado por este
+  ADR, escopo de outro agente em paralelo).
+- `docs/testing/tse-simulados.md:46-51` (Passo 0 — premissa da fatia por município, ainda
+  não verificada contra dado real) — o cargo 6 passa a depender dela como os demais.
+- `docs/operations/runbook.md` — precisa de seção/atualização descrevendo o cron de 6 fatias
+  e a nova trava por `(cargo, fatia)` (propagação sugerida).
+- Constituição § 1 (teto de requisições bem abaixo do limite documentado — `rpsMax` do cargo
+  6 não muda, pior caso agregado permanece 80 rps), § 6 (determinismo do modelo — um IC de
+  largura zero não é reprodução, é artefato de amostra única), § 8 (transparência
+  metodológica — cadência de atualização legível; a UI precisa dizer "a cada 30 min", não
+  15).

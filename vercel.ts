@@ -132,17 +132,10 @@ const config: VercelProjectConfig = {
       path: "/api/ingest/governador",
       schedule: "* 12-20 * * *",
     },
-    // ── Senador (cargo 5) e Deputado Federal (cargo 6) — ADR-0026 item 1 ──
-    // Cadência própria e MENOR que a de 60 s dos majoritários: Senador a cada
-    // 5 min, Deputado a cada 15 min. Ambos em granularidade UF
-    // (`lib/config/cargos.ts`), 27 GETs por ciclo cada — triviais frente ao
-    // teto do TSE mesmo somados ao pico dos outros dois crons.
-    //
-    // Deputado a 15 min é decisão de produto, não limitação técnica: é o cargo
-    // com menos urgência editorial e o payload mais pesado. A UI precisa dizer
-    // "atualizado a cada 15 min" quando exibir Deputado (ADR-0026 item 5,
-    // constituição § 8) — nunca um "atualizado às" único numa tela que mistura
-    // cargos de cadências diferentes.
+    // ── Senador (cargo 5) — ADR-0026 item 1 ──
+    // Cadência própria e MENOR que a de 60 s dos majoritários: a cada 5 min,
+    // em granularidade UF (`lib/config/cargos.ts`), 27 GETs por ciclo —
+    // trivial frente ao teto do TSE mesmo somado ao pico dos outros crons.
     //
     // Mesmas duas janelas dos demais: apuração (20-23,0-7 UTC = 17h-04h BRT) e
     // simulado (12-20 UTC = 9h-17h BRT). `INGEST_WINDOW` decide qual vale em
@@ -152,16 +145,87 @@ const config: VercelProjectConfig = {
       schedule: "*/5 20-23,0-7 * * *",
     },
     {
-      path: "/api/ingest/deputado-federal",
-      schedule: "*/15 20-23,0-7 * * *",
-    },
-    {
       path: "/api/ingest/senador",
       schedule: "*/5 12-20 * * *",
     },
+    // ── Deputado Federal (cargo 6) EM 6 FATIAS — ADR-0026 item 1, emenda
+    //    2026-09-13 ──
+    //
+    // Deputado Federal saiu de granularidade UF (27 alvos, um cron `*/15`) para
+    // ZONA (~6.110 alvos) em 2026-09-13 — mesmo diagnóstico de bootstrap que
+    // moveu o Senador em 11/09: um único arquivo por UF só dá ao estimador do
+    // RF-127 uma unidade de reamostragem, e o IC95 degenera. A `rpsMax` do
+    // cargo continua 5 (não reabre a calibragem do pior caso agregado de
+    // 80 rps — `piorCasoAgregadoRps()`, `lib/config/cargos.ts`), então varrer
+    // os ~6.110 alvos numa invocação só levaria ~1.222 s — muito acima do
+    // `maxDuration` de 300 s.
+    //
+    // A varredura é dividida em 6 fatias (`sliceTargets`,
+    // `lib/tse/targets.ts`; segmento de rota, não query string — mesmo achado
+    // (B) do ADR-0026 nota 2026-09-11 que já valia pra distinguir cargos no
+    // mesmo minuto), cada uma cobrindo ~1/6 do fan-out (~1.019 alvos, ~204 s).
+    // As 6 entradas abaixo disparam uma fatia a cada 5 min, intercaladas em
+    // 5 min uma da outra (fatia 1 nos minutos 0 e 30, fatia 2 nos minutos 5 e
+    // 35, ..., fatia 6 nos minutos 25 e 55) — a volta completa (as 6 fatias)
+    // leva 30 min. A UI precisa dizer "atualizado a cada 30 min" quando
+    // exibir Deputado (ADR-0026 item 5, constituição § 8) — nunca um
+    // "atualizado às" único numa tela que mistura cargos de cadências
+    // diferentes.
+    //
+    // Interruptor de emergência sem deploy: `TSE_DEPUTADO_GRANULARIDADE=uf`
+    // reverte o cargo a UF — nesse modo cada uma das 6 invocações abaixo
+    // devolve o agregado completo de 27 UFs, ignorando a fatia (ver
+    // `getGranularidade`/`listIngestTargets`, `lib/tse/targets.ts`).
+    //
+    // Mesmas duas janelas dos demais cargos: apuração (20-23,0-7 UTC) e
+    // simulado (12-20 UTC).
     {
-      path: "/api/ingest/deputado-federal",
-      schedule: "*/15 12-20 * * *",
+      path: "/api/ingest/deputado-federal/1",
+      schedule: "0,30 20-23,0-7 * * *",
+    },
+    {
+      path: "/api/ingest/deputado-federal/2",
+      schedule: "5,35 20-23,0-7 * * *",
+    },
+    {
+      path: "/api/ingest/deputado-federal/3",
+      schedule: "10,40 20-23,0-7 * * *",
+    },
+    {
+      path: "/api/ingest/deputado-federal/4",
+      schedule: "15,45 20-23,0-7 * * *",
+    },
+    {
+      path: "/api/ingest/deputado-federal/5",
+      schedule: "20,50 20-23,0-7 * * *",
+    },
+    {
+      path: "/api/ingest/deputado-federal/6",
+      schedule: "25,55 20-23,0-7 * * *",
+    },
+    {
+      path: "/api/ingest/deputado-federal/1",
+      schedule: "0,30 12-20 * * *",
+    },
+    {
+      path: "/api/ingest/deputado-federal/2",
+      schedule: "5,35 12-20 * * *",
+    },
+    {
+      path: "/api/ingest/deputado-federal/3",
+      schedule: "10,40 12-20 * * *",
+    },
+    {
+      path: "/api/ingest/deputado-federal/4",
+      schedule: "15,45 12-20 * * *",
+    },
+    {
+      path: "/api/ingest/deputado-federal/5",
+      schedule: "20,50 12-20 * * *",
+    },
+    {
+      path: "/api/ingest/deputado-federal/6",
+      schedule: "25,55 12-20 * * *",
     },
     {
       path: "/api/ingest",

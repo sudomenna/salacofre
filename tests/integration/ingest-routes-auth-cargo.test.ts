@@ -36,6 +36,7 @@ vi.mock("@/lib/tse/targets", async (importOriginal) => {
   };
 });
 
+import { GET as ingestCargoFatiaGet } from "@/app/api/ingest/[cargo]/[fatia]/route";
 import { GET as ingestCargoGet, POST as ingestCargoPost } from "@/app/api/ingest/[cargo]/route";
 import { GET as ingestGet, POST as ingestPost } from "@/app/api/ingest/route";
 import { listIngestTargets } from "@/lib/tse/targets";
@@ -65,6 +66,11 @@ function legacyHeaders(): Record<string, string> {
 /** Constrói o `RouteContext` esperado por app/api/ingest/[cargo]/route.ts. */
 function cargoContext(cargo: string) {
   return { params: Promise.resolve({ cargo }) };
+}
+
+/** Constrói o `RouteContext` esperado por app/api/ingest/[cargo]/[fatia]/route.ts. */
+function cargoFatiaContext(cargo: string, fatia: string) {
+  return { params: Promise.resolve({ cargo, fatia }) };
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +238,70 @@ describe("rotas de ingestão — auth (Bearer/x-cron-secret) e cargo (segmento)"
   });
 
   // -------------------------------------------------------------------------
+  // /api/ingest/[cargo]/[fatia] — cargo 6 fatiado (ADR-0026 emenda 2026-09-13)
+  // -------------------------------------------------------------------------
+
+  describe("/api/ingest/[cargo]/[fatia] — resolução de segmento", () => {
+    it("cargo 'deputado-federal' + fatia '1' → 200 ok:true", async () => {
+      const res = await ingestCargoFatiaGet(
+        buildReq("GET", bearerHeaders()),
+        cargoFatiaContext("deputado-federal", "1"),
+      );
+      expect(res.status).toBe(200);
+      expect((await res.json()).ok).toBe(true);
+    });
+
+    it("cargo '6' + fatia '6' (a última) → 200 ok:true", async () => {
+      const res = await ingestCargoFatiaGet(
+        buildReq("GET", bearerHeaders()),
+        cargoFatiaContext("6", "6"),
+      );
+      expect(res.status).toBe(200);
+      expect((await res.json()).ok).toBe(true);
+    });
+
+    it("fatia fora de 1..6 → 400 { error: 'invalid_fatia' }", async () => {
+      for (const fatiaLixo of ["0", "7", "-1", "1.5", "abc", ""]) {
+        const res = await ingestCargoFatiaGet(
+          buildReq("GET", bearerHeaders()),
+          cargoFatiaContext("deputado-federal", fatiaLixo),
+        );
+        expect(res.status, `fatia ${JSON.stringify(fatiaLixo)} deveria dar 400`).toBe(400);
+        expect((await res.json()).error).toBe("invalid_fatia");
+      }
+    });
+
+    it("cargo inválido → 400 { error: 'invalid_cargo' }, checado ANTES da fatia", async () => {
+      const res = await ingestCargoFatiaGet(
+        buildReq("GET", bearerHeaders()),
+        cargoFatiaContext("2", "1"),
+      );
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe("invalid_cargo");
+    });
+
+    it("cargo válido mas NÃO fatiável (Presidente) → 400 { error: 'cargo_nao_fatiavel' }", async () => {
+      // Só o cargo 6 usa fatia hoje — Presidente/Governador/Senador continuam
+      // em uma invocação só. Aceitar qualquer cargo aqui deixaria uma
+      // chamada manual com o cargo errado varrer 1/6 do país em silêncio.
+      const res = await ingestCargoFatiaGet(
+        buildReq("GET", bearerHeaders()),
+        cargoFatiaContext("presidente", "1"),
+      );
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe("cargo_nao_fatiavel");
+    });
+
+    it("segmento válido mas auth ausente → 401", async () => {
+      const res = await ingestCargoFatiaGet(
+        buildReq("GET"),
+        cargoFatiaContext("deputado-federal", "1"),
+      );
+      expect(res.status).toBe(401);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Lock anti-overlap independente por cargo (ADR-0035 D3)
   // -------------------------------------------------------------------------
 
@@ -311,6 +381,99 @@ describe("rotas de ingestão — auth (Bearer/x-cron-secret) e cargo (segmento)"
       const bodyCargo1 = await resCargo1.json();
       expect(bodyCargo1.ok).toBe(true);
       expect(bodyCargo1.skipped).toBeUndefined();
+    });
+
+    // -----------------------------------------------------------------------
+    // Lock por cargo+fatia (ADR-0026 emenda 2026-09-13) — sem esta chave
+    // estendida, a fatia 2 do cargo 6 seria bloqueada pelo marcador da fatia 1
+    // (mesmo cargo, dentro da janela de 6min), e a varredura completa nunca
+    // fecharia.
+    // -----------------------------------------------------------------------
+
+    it("marcador running=true da fatia 1 do cargo 6 bloqueia SÓ a fatia 1, não a fatia 2", async () => {
+      await db.insert(schema.ingestLog).values({
+        durationMs: 0,
+        filesFetched: 0,
+        filesChanged: 0,
+        errors: 0,
+        notes: JSON.stringify({
+          running: true,
+          turno: 1,
+          env: "preview",
+          cargo: 6,
+          fatia: 1,
+          test_marker: "route-cargo-lock-test",
+        }),
+      });
+
+      const resFatia1 = await ingestCargoFatiaGet(
+        buildReq("GET", bearerHeaders()),
+        cargoFatiaContext("deputado-federal", "1"),
+      );
+      expect(resFatia1.status).toBe(200);
+      expect(await resFatia1.json()).toMatchObject({ skipped: "overlap" });
+
+      const resFatia2 = await ingestCargoFatiaGet(
+        buildReq("GET", bearerHeaders()),
+        cargoFatiaContext("deputado-federal", "2"),
+      );
+      expect(resFatia2.status).toBe(200);
+      const bodyFatia2 = await resFatia2.json();
+      expect(bodyFatia2.ok).toBe(true);
+      expect(bodyFatia2.skipped).toBeUndefined();
+    });
+
+    it("marcador running=true da fatia 2 AINDA bloqueia uma nova invocação da MESMA fatia 2", async () => {
+      await db.insert(schema.ingestLog).values({
+        durationMs: 0,
+        filesFetched: 0,
+        filesChanged: 0,
+        errors: 0,
+        notes: JSON.stringify({
+          running: true,
+          turno: 1,
+          env: "preview",
+          cargo: 6,
+          fatia: 2,
+          test_marker: "route-cargo-lock-test",
+        }),
+      });
+
+      const res = await ingestCargoFatiaGet(
+        buildReq("GET", bearerHeaders()),
+        cargoFatiaContext("deputado-federal", "2"),
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ skipped: "overlap" });
+    });
+
+    it("marcador running=true do cargo 6 SEM fatia (rota antiga, sem segmento) não bloqueia a fatia 1", async () => {
+      // Distingue explicitamente "ciclo não fatiado do cargo 6" de "fatia 1
+      // do cargo 6" — são chaves diferentes (`getLastIngestRun` exige match
+      // exato de `fatia`, ausente só casa com ausente).
+      await db.insert(schema.ingestLog).values({
+        durationMs: 0,
+        filesFetched: 0,
+        filesChanged: 0,
+        errors: 0,
+        notes: JSON.stringify({
+          running: true,
+          turno: 1,
+          env: "preview",
+          cargo: 6,
+          test_marker: "route-cargo-lock-test",
+          // Sem `fatia` — representa uma chamada a /api/ingest/deputado-federal
+          // (sem segmento de fatia).
+        }),
+      });
+
+      const res = await ingestCargoFatiaGet(
+        buildReq("GET", bearerHeaders()),
+        cargoFatiaContext("deputado-federal", "1"),
+      );
+      const body = await res.json();
+      expect(body.ok).toBe(true);
+      expect(body.skipped).toBeUndefined();
     });
   });
 });

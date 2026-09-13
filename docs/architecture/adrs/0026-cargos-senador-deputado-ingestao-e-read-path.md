@@ -62,6 +62,18 @@ Aceito. Este ADR **emenda o ADR-0001** (não o supersede): Postgres continua for
 > maior do produto (por isso vai para Blob), e quatro cargos pesados estourariam
 > qualquer orçamento. A degradação pré-acordada da spec 017 não muda.
 
+> **Nota 2026-09-13 — Deputado Federal também sai de `uf` para ZONA
+> ([ADR-0036](0036-deputado-federal-granularidade-zona-fatiada.md)).** O parágrafo
+> imediatamente acima ("Deputado Federal permanece em `uf`") está **superado**. Pelo mesmo
+> diagnóstico que moveu Senador de UF para zona em 2026-09-11 (b): com granularidade `uf`, o
+> cargo 6 tem **uma única unidade de reamostragem por UF** — o bootstrap do RF-127 (intervalo
+> de cadeiras, spec 017) sairia degenerado, o IC95 fechando num ponto. Diferente de Senador,
+> o volume de Deputado (~6.110 alvos; `rpsMax` do cargo **permanece 5**, não sobe) exige
+> varrer em **6 fatias por invocação** (~1.019 alvos cada, ~204s), com **volta completa a
+> cada 30 min** (era 15) — o ritmo de 5 rps, não o `maxDuration`, é o gargalo. A trava
+> anti-overlap de `/api/ingest` (ADR-0035 D3) passa a ser por **(cargo, fatia)**, não só por
+> cargo. Detalhe completo, alternativas rejeitadas e consequências no ADR-0036.
+
 ## Contexto
 
 O SalaCofre hoje cobre Presidente (cargo TSE 1) e Governador (cargo TSE 3), ambos ingeridos por um único cron de 60s (`vercel.ts:87-91`, ADR-0011) que dispara `/api/ingest`. `lib/tse/targets.ts:57` tipa `cargo: 1 | 3` e `getActiveCargos()` (`targets.ts:335-362`) lê a lista de cargos ativos de `TSE_CARGOS`; `lib/db/schema.ts` tipa `cargo` como `smallint` genérico (aceita qualquer valor sem migration). O usuário decidiu estender a cobertura a Senador (cargo 5) e Deputado Federal (cargo 6) até o 1º turno (04/10/2026) — ambos se decidem em turno único, sem 2º turno — com uma restrição operacional explícita: Deputado Federal pode atualizar a cada 15 minutos (ingestão mais pesada, menos urgência editorial que um cargo majoritário).

@@ -210,7 +210,8 @@
       "status": "accepted",
       "date": "2026-09-07",
       "amends": "0001",
-      "note": "emendado 2026-09-11 (ADR-0027): (1) citação legal errada — artigos 106–112 estão no Código Eleitoral (Lei 4.737/1965), não Lei 9.504/1997; art. 111 inconstitucional; (2b) Senador revertido de granularidade UF para ZONA — uma zona como unidade de reamostragem evita IC degenerado e `p_eleito` de 0%/100%; custo: TSE_MAX_RPS 30→25, cron 175s→244s (dentro de maxDuration 300s); Deputado mantém UF",
+      "amended_by": "0036",
+      "note": "emendado 2026-09-11 (ADR-0027): (1) citação legal errada — artigos 106–112 estão no Código Eleitoral (Lei 4.737/1965), não Lei 9.504/1997; art. 111 inconstitucional; (2b) Senador revertido de granularidade UF para ZONA — uma zona como unidade de reamostragem evita IC degenerado e `p_eleito` de 0%/100%; custo: TSE_MAX_RPS 30→25, cron 175s→244s (dentro de maxDuration 300s); Deputado mantém UF. Nota 2026-09-13 (ADR-0036): Deputado também sai de UF para ZONA — mesmo diagnóstico (1 réplica com k=1, destrava RF-127); rpsMax do cargo permanece 5, fatiado em 6 sub-ciclos de ~1.019 alvos (~204s cada), volta completa em 30 min (era 15); trava anti-overlap passa a ser por (cargo, fatia)",
       "path": "docs/architecture/adrs/0026-cargos-senador-deputado-ingestao-e-read-path.md"
     },
     {
@@ -309,6 +310,15 @@
       ],
       "note": "D1: zonas/eleitorado viram tabelas de pares (uf, cod_municipio_tse, cod_zona) via migration 0006 — o TSE 2026 publica EA20 por par, e a versão anterior (1 município por zona, MIN() arbitrário) perdia ~56% dos alvos e creditava 26,1% do eleitorado/31,2% dos votos ao município errado. Fonte: EA12 quando existir, fallback CSV 2024 + suplemento estreito do histórico (25 pares recuperados, 19 DF). D2: município é soma exata dos pares (sem rateio) via fetch_municipio_aggregates sem o antigo LEFT JOIN zonas; modelo continua por zona via api/model/zona_merge.py (merge em memória, nunca persistido) — ADR-0021/0023 intocados, gate OT-4 idêntico ao dígito antes/depois. D3: cron por cargo (/api/ingest/presidente, /api/ingest/governador) corrige achado de que o cron da Vercel nunca invocou a ingestão real (GET+Bearer, não POST+x-cron-secret); TSE_MAX_RPS 30→50, maxDuration 180→300, lock por cargo; limpeza única de 10.604 snapshots de ensaio autorizada pelo usuário. Risco de primeira grandeza não resolvido: a premissa de que o arquivo por par traz só a fatia da zona (não a zona inteira) não foi verificada contra dado real — guarda de sanidade check_zona_merge_sanity loga violação se a razão indicar multiplicação; resolução esperada no simulado de 15/09.",
       "path": "docs/architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md"
+    },
+    {
+      "id": "0036",
+      "title": "Deputado Federal em granularidade zona (par município×zona), fatiado em 6 por invocação, volta completa em 30 min — não UF a cada 15 min",
+      "status": "accepted",
+      "date": "2026-09-13",
+      "amends": "0026",
+      "note": "destrava RF-127 (intervalo de cadeiras, spec 017): em granularidade uf o cargo 6 tinha k_a=1 (1 arquivo por UF), degenerando o bootstrap do IC95 — mesmo diagnóstico que moveu Senador de uf para zona em 2026-09-11 (b). rpsMax do cargo 6 permanece 5 (piorCasoAgregadoRps segue 80); fatiado em 6 sub-ciclos de ~1.019 alvos (~204s cada, /api/ingest/deputado-federal/<n>), volta completa em 30 min (era 15). Requisitos de implementação registrados: trava anti-overlap passa a ser por (cargo, fatia), e é necessário interruptor por env que devolva o cargo 6 a uf sem deploy. Consequência a acompanhar: IC visivelmente mais largo em UFs pequenas (RR 8 zonas, AC 9, AP 10 vs. SP 394, MG 304) — estatisticamente correto, não degeneração, mas exige legibilidade (constituição § 8).",
+      "path": "docs/architecture/adrs/0036-deputado-federal-granularidade-zona-fatiada.md"
     }
   ],
   "nfr": {

@@ -104,7 +104,7 @@ CARGOS: tuple[CargoInfo, ...] = (
         "tem_segundo_turno": False,
         "tem_arquivo_br": False,
         "proporcional": True,
-        "granularidade": "uf",
+        "granularidade": "zona",
     },
 )
 

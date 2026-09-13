@@ -412,16 +412,22 @@ def _identidade_agremiacao(
 def combinar_entradas(entradas: list[EntradaProporcional]) -> EntradaProporcional:
     """Soma N envelopes da MESMA UF em uma entrada só.
 
-    O cargo 6 é ingerido em granularidade UF (ADR-0026 item 1): o caso normal é
-    **um** envelope por UF, e aí esta função devolve o objeto original,
-    inalterado. Ela existe para o caso anormal — uma UF com linhas de
-    `(município, zona)` no banco, vindas de um ciclo em modo `zona` ou de uma
-    escotilha de diagnóstico.
+    O cargo 6 passou de granularidade UF para ZONA em 2026-09-13 (emenda ao
+    ADR-0026 item 1 — mesmo diagnóstico de bootstrap que moveu o Senador em
+    11/09: um único arquivo por UF só dá ao estimador uma unidade de
+    reamostragem, e o IC95 degenera). Desde então o caso NORMAL é **várias**
+    linhas de `(município, zona)` por UF — uma por par publicado pelo TSE —
+    e esta função soma todas. O caso de **uma** única linha (devolvida sem
+    cópia, abaixo, sem custo) volta a ser normal apenas quando o interruptor
+    de emergência `TSE_DEPUTADO_GRANULARIDADE=uf`
+    (`lib/tse/targets.ts::getGranularidade`) reverte o cargo à ingestão por
+    UF — nesse modo o envelope único é o esperado, não uma escotilha de
+    diagnóstico.
 
-    Nesse caso a única coisa certa a fazer com os votos é **somar**: escolher
-    uma linha e descartar as outras é o modo de falha que esta base já pagou
-    caro desde a migration 0006 (ADR-0035) — o número sai plausível, menor, e
-    sem erro nenhum.
+    De qualquer forma, a única coisa certa a fazer com os votos de várias
+    linhas é **somar**: escolher uma e descartar as outras é o modo de falha
+    que esta base já pagou caro desde a migration 0006 (ADR-0035) — o número
+    sai plausível, menor, e sem erro nenhum.
 
     O que **não** é somado, porque somar seria inventar:
 

@@ -21,6 +21,7 @@ import {
   cargoToken,
   isCargoTse,
   parseCargoSegment,
+  piorCasoAgregadoRps,
 } from "@/lib/config/cargos";
 
 describe("tabela de cargos", () => {
@@ -58,22 +59,29 @@ describe("tabela de cargos", () => {
     expect(CARGOS.filter((c) => c.temSegundoTurno).map((c) => c.cd)).toEqual([1, 3]);
   });
 
-  it("só Deputado ingere em UF; os outros três em zona", () => {
+  it("os quatro cargos ingerem em zona — Deputado migrou por último, em 2026-09-13", () => {
     // Senador saiu de "uf" para "zona" em 2026-09-11 (emenda ao ADR-0026 item 1,
-    // decisão do usuário): com um boletim por estado o bootstrap tem uma única
-    // unidade de reamostragem e `p_eleito` degenera para 0% ou 100%.
+    // decisão do usuário); Deputado Federal seguiu o mesmo caminho em
+    // 2026-09-13, mesmo diagnóstico: com um boletim por estado o bootstrap tem
+    // uma única unidade de reamostragem e `p_eleito`/o IC95 degeneram.
     expect(cargoInfo(1).granularidade).toBe("zona");
     expect(cargoInfo(3).granularidade).toBe("zona");
     expect(cargoInfo(5).granularidade).toBe("zona");
-    expect(cargoInfo(6).granularidade).toBe("uf");
+    expect(cargoInfo(6).granularidade).toBe("zona");
+    expect(CARGOS.every((c) => c.granularidade === "zona")).toBe(true);
   });
 
-  it("o orçamento de rps fecha em 80 com TRÊS cargos pesados", () => {
+  it("o orçamento de rps fecha em 80 — TRÊS cargos a 25, Deputado sozinho a 5", () => {
     // A conta que mudou com Senador em zona: três pesados a 35 dariam 110 rps
     // agregados, acima do teto de 100 do TSE. A 25, o agregado volta a 80.
-    const pesados = CARGOS.filter((c) => c.granularidade === "zona");
+    // Deputado Federal foi para "zona" em 2026-09-13 mas NÃO ganhou rps —
+    // continua em 5 (fatiado em 6 invocações em vez de subir a taxa por
+    // invocação), então o agregado se mantém 80, não 90.
+    const pesados = CARGOS.filter((c) => c.cd !== 6);
     expect(pesados).toHaveLength(3);
     for (const c of pesados) expect(c.rpsMax, `cargo ${c.cd}`).toBe(25);
+    expect(cargoInfo(6).rpsMax).toBe(5);
+    expect(piorCasoAgregadoRps()).toBe(80);
   });
 
   it("token e código são conversíveis nos dois sentidos, sem colisão", () => {
