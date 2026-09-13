@@ -108,9 +108,30 @@ describe("RF-009 — eleitorado por par para 2026", () => {
 
     // A soma por par tem que reproduzir o total nacional: nenhum eleitor pode
     // ter sido duplicado ao espalhar a zona pelos seus municípios.
+    //
+    // ⚠️ **Exclui linha sintética de teste (2026-09-13).** Esta asserção é a
+    // única do arquivo com teto — as outras são pisos (`>= 6_000`), que linha
+    // a mais não derruba. E ela agrega a tabela INTEIRA enquanto três outros
+    // arquivos escrevem em `eleitorado` no mesmo banco de dev
+    // (`repository.test.ts`, `model-cycle.test.ts`, `model-edge-cases.test.ts`).
+    // Sob `vitest` em paralelo a janela abre: mediu-se 158,7 M com linhas de
+    // UF `ZP` e zona ≥ 99000 aparecendo e sumindo durante a execução.
+    //
+    // O defeito não é o vermelho — é a MENSAGEM. Ele acusa "o eleitorado do
+    // país está errado" quando o que houve foi um vizinho escrevendo, e manda
+    // investigar a migration 0006 em vez do isolamento dos testes.
+    //
+    // A convenção de marcar linha sintética com `cod_zona >= 99000` já existia
+    // (as faixas são até separadas por arquivo "para evitar colisão de runs
+    // paralelos") — só não era respeitada aqui. Isto não afrouxa a asserção:
+    // faz ela medir o que diz medir, que é o CSV do TSE, e não "o que estiver
+    // na tabela neste instante".
     const soma = await countOf(
       sql`SELECT COALESCE(SUM(eleitores_aptos), 0)::int AS n
-            FROM eleitorado WHERE ano = 2026`,
+            FROM eleitorado
+           WHERE ano = 2026
+             AND cod_zona < 99000
+             AND uf <> 'ZP'`,
     );
     expect(soma).toBeGreaterThanOrEqual(155_000_000);
     expect(soma).toBeLessThanOrEqual(157_000_000);
