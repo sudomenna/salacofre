@@ -649,10 +649,12 @@ export interface EdgeUfCandidate {
    *   3. ausência ≠ zero. `0.0` afirmaria "não se elege em cenário nenhum",
    *      que é um dado; a chave ausente diz "não foi calculado".
    *
-   * ⚠️ **Leia junto com `ci95`.** Enquanto o cargo for ingerido em
-   * granularidade UF (ADR-0026 item 1), cada estado tem uma única unidade de
-   * reamostragem: o bootstrap devolve réplicas idênticas, o `ci95` sai com
-   * largura zero e este número degenera para 0 ou 1. Ele continua correto
+   * ⚠️ **Leia junto com `ci95`.** Esta degeneração valia enquanto o cargo era
+   * ingerido em granularidade UF: com uma única unidade de reamostragem por
+   * estado, o bootstrap devolve réplicas idênticas, o `ci95` sai com largura
+   * zero e este número degenera para 0 ou 1. **Senador saiu de UF em
+   * 2026-09-11** e Deputado Federal no **ADR-0036 (13/09)**, então hoje isso só
+   * acontece sob o interruptor de emergência `TSE_DEPUTADO_GRANULARIDADE=uf`. Ele continua correto
    * ("dado o ponto estimado, estes dois estão à frente") mas **não carrega
    * incerteza amostral** — quem for exibi-lo como "chance" precisa checar
    * `ci95.upper > ci95.lower` antes.

@@ -137,6 +137,9 @@ def _payload(ufs: list[UfProporcional], **kwargs: Any) -> tuple[dict, dict]:
         atualizacao_min=kwargs.pop("atualizacao_min", 15),
         ufs_conhecidas=kwargs.pop("ufs_conhecidas", 27),
         pct_apurado_total=kwargs.pop("pct_apurado_total", 100.0),
+        # O que sobrar vai adiante e, se não existir lá, estoura: engolir kwarg
+        # desconhecido faria um teste que passa a testar outra coisa.
+        **kwargs,
     )
 
 
@@ -642,6 +645,45 @@ def test_intervalo_de_cadeiras_fica_ausente_enquanto_nao_for_calculado() -> None
     assert all("cadeiras_ci95" not in a for a in detalhes["SP"]["agremiacoes"])
 
 
+def test_intervalo_calculado_atravessa_para_o_payload_de_uf() -> None:
+    """D6 — a faixa chega pronta de `cadeiras_bootstrap`; este módulo transporta.
+
+    `[baixo, alto]` como lista, e não tupla: o contrato é JSON.
+    """
+    uf = _uf("SP", _envelope_dez_vagas())
+    uf = UfProporcional(
+        uf=uf.uf,
+        pct_apurado=uf.pct_apurado,
+        entrada=uf.entrada,
+        resultado=uf.resultado,
+        cadeiras_ci95={"10": (1, 3), "20": (2, 4)},
+    )
+    _, detalhes = _payload([uf])
+
+    por_cod = {a["cod"]: a for a in detalhes["SP"]["agremiacoes"]}
+    assert por_cod["10"]["cadeiras_ci95"] == [1, 3]
+    assert por_cod["20"]["cadeiras_ci95"] == [2, 4]
+    # Agremiação sem entrada no mapa sai SEM o campo — não com `[n, n]`.
+    assert "cadeiras_ci95" not in por_cod["30"]
+    assert "cadeiras_ci95" not in por_cod["40"]
+
+
+def test_intervalo_nacional_atravessa_para_a_bancada() -> None:
+    """D5 — a faixa da bancada vem agregada de fora, não somada aqui.
+
+    Somar as faixas das 27 UFs daria a faixa errada; quem sabe agregar é
+    `cadeiras_bootstrap.intervalo_nacional`, que soma réplicas.
+    """
+    payload, _ = _payload(
+        [_uf("SP", _envelope_dez_vagas())],
+        cadeiras_ci95_nacional={"10": (2, 4)},
+    )
+
+    por_cod = {a["cod"]: a for a in payload["bancada"]["por_agremiacao"]}
+    assert por_cod["10"]["cadeiras_ci95"] == [2, 4]
+    assert "cadeiras_ci95" not in por_cod["20"]
+
+
 # ---------------------------------------------------------------------------
 # Empate que a norma não resolve (spec 017, open question 3)
 # ---------------------------------------------------------------------------
@@ -920,6 +962,7 @@ def ciclo_deputado(monkeypatch: pytest.MonkeyPatch):
         snapshots: list[dict],
         eleitorado: dict[str, int] | None = None,
         eleitorado_quebrado: bool = False,
+        trigger_ts: str = "2026-10-04T21:00:00Z",
     ) -> tuple[int, dict, list[tuple[dict, dict]]]:
         # `{}` é um caso de teste (banco sem eleitorado), não "use o default" —
         # por isso o sentinel é `None`, e não a falsidade do dict.
@@ -934,7 +977,9 @@ def ciclo_deputado(monkeypatch: pytest.MonkeyPatch):
             lambda payload, payloads_uf=None: publicados.append((payload, payloads_uf or {})),
         )
         status, resposta = proj._do_project(
-            json.dumps({"cargo": 6, "turno": 1, "trigger_ts": "2026-10-04T21:00:00Z"}).encode()
+            json.dumps(
+                {"cargo": 6, "turno": 1, "trigger_ts": trigger_ts}
+            ).encode()
         )
         return status, resposta, publicados
 
@@ -1167,3 +1212,161 @@ def test_ciclo_sem_snapshot_nao_publica_payload_vazio(ciclo_deputado) -> None:
     assert resposta["computed"] is False
     assert resposta["uf_count"] == 0
     assert publicados == [], "publicou bancada zerada por cima da anterior"
+
+
+# ---------------------------------------------------------------------------
+# RF-127 — o intervalo no ciclo inteiro (ADR-0036: cargo 6 em granularidade
+# zona, que é o que tornou o bootstrap possível)
+# ---------------------------------------------------------------------------
+
+
+def _envelope_de_zona(forte: str) -> dict[str, Any]:
+    """10 vagas numa zona em que a agremiação `forte` é reduto (5× o resto).
+
+    Zonas idênticas entre si dariam um bootstrap sem nada a medir: qualquer
+    sorteio devolveria o mesmo total e a faixa fecharia no ponto. O desequilíbrio
+    aqui é o que a geografia eleitoral real tem — e é o que o intervalo mede.
+    """
+
+    def v(cod: str, base: int) -> int:
+        return base * 5 if cod == forte else base
+
+    # Seis candidatos por agremiação — 18 para 10 vagas. Com lista curta as
+    # vagas se esgotariam por falta de gente e o resultado deixaria de depender
+    # do voto, que é o que o bootstrap mede.
+    nomes = ["ANA", "BRUNO", "CARLA", "DAVI", "ELIS", "FABIO"]
+    return _envelope(
+        [
+            _agr_partido(
+                cod,
+                sigla,
+                v(cod, 40),
+                [
+                    _cand(inicio + i, f"{sigla}-{nome}", v(cod, base - i * 45))
+                    for i, nome in enumerate(nomes)
+                ],
+            )
+            for cod, sigla, inicio, base in (
+                ("10", "PA", 1, 320),
+                ("20", "PB", 11, 310),
+                ("30", "PC", 21, 300),
+            )
+        ],
+        nv="10",
+    )
+
+
+def _zonas_da_uf(uf: str, n: int, pct: float = 60.0) -> list[dict[str, Any]]:
+    """`n` linhas de par (município, zona) da mesma UF — o caminho NORMAL desde
+    o ADR-0036."""
+    return [
+        {
+            "cargo": 6,
+            "turno": 1,
+            "uf": uf,
+            "cod_municipio_tse": 70000 + j,
+            "cod_zona": j + 1,
+            "pct_apurado": pct,
+            "payload": _envelope_de_zona(["10", "20", "30"][j % 3]),
+        }
+        for j in range(n)
+    ]
+
+
+def _faixas(payload: dict[str, Any]) -> dict[str, list[int]]:
+    return {
+        a["cod"]: a["cadeiras_ci95"]
+        for a in payload["bancada"]["por_agremiacao"]
+        if "cadeiras_ci95" in a
+    }
+
+
+def test_ciclo_com_zonas_publica_intervalo_de_cadeiras(ciclo_deputado) -> None:
+    """RF-127 ponta a ponta: das linhas de par ao `cadeiras_ci95` dos dois payloads."""
+    _, _, publicados = ciclo_deputado(_zonas_da_uf("SP", 12))
+    payload, detalhes = publicados[0]
+
+    faixas = _faixas(payload)
+    assert set(faixas) == {"10", "20", "30"}
+
+    por_cod = {a["cod"]: a for a in payload["bancada"]["por_agremiacao"]}
+    for cod, (baixo, alto) in faixas.items():
+        assert baixo <= por_cod[cod]["cadeiras"] <= alto, cod
+
+    uf_por_cod = {a["cod"]: a for a in detalhes["SP"]["agremiacoes"]}
+    for cod in faixas:
+        baixo, alto = uf_por_cod[cod]["cadeiras_ci95"]
+        assert baixo <= uf_por_cod[cod]["cadeiras"] <= alto, cod
+
+
+def test_interruptor_de_emergencia_publica_cadeiras_sem_intervalo(
+    ciclo_deputado,
+) -> None:
+    """`TSE_DEPUTADO_GRANULARIDADE=uf` devolve o cargo a UMA linha sentinela por
+    UF (`cod_zona = 0`). Uma unidade de reamostragem dá mil réplicas idênticas —
+    a faixa some do payload, e o número continua.
+
+    É o lado que importa do limiar: sem esta guarda, acionar o interruptor
+    publicaria `[n, n]` como se fosse certeza medida.
+    """
+    _, _, publicados = ciclo_deputado([_snapshot("SP", _envelope_de_zona("10"))])
+    payload, detalhes = publicados[0]
+
+    assert _faixas(payload) == {}
+    assert all("cadeiras_ci95" not in a for a in detalhes["SP"]["agremiacoes"])
+    assert payload["bancada"]["cadeiras_atribuidas"] == 10, (
+        "o número tinha de continuar: só a faixa é omitida"
+    )
+
+
+def test_uf_com_uma_zona_so_nao_impede_a_faixa_das_outras(ciclo_deputado) -> None:
+    """Começo da noite: SP com 12 zonas, RJ com uma. RJ entra na bancada como
+    constante (ponto sem variância medida) e SP mantém sua faixa."""
+    _, _, publicados = ciclo_deputado(_zonas_da_uf("SP", 12) + _zonas_da_uf("RJ", 1))
+    payload, detalhes = publicados[0]
+
+    assert _faixas(payload) != {}
+    assert all("cadeiras_ci95" in a for a in detalhes["SP"]["agremiacoes"])
+    assert all("cadeiras_ci95" not in a for a in detalhes["RJ"]["agremiacoes"])
+    assert detalhes["RJ"]["agremiacoes"], "o RJ tinha de continuar publicando as cadeiras"
+
+    # A faixa nacional cobre o ponto nacional, que já inclui as cadeiras do RJ.
+    por_cod = {a["cod"]: a for a in payload["bancada"]["por_agremiacao"]}
+    for cod, (baixo, alto) in _faixas(payload).items():
+        assert baixo <= por_cod[cod]["cadeiras"] <= alto, cod
+
+
+def test_mesmo_snapshot_e_mesmo_trigger_devolvem_o_mesmo_intervalo(
+    ciclo_deputado,
+) -> None:
+    """Constituição § 6 — a projeção é reproduzível a partir do snapshot
+    persistido e do código versionado. Uma seed não determinística passaria em
+    todo o resto da suíte e cairia aqui."""
+    linhas = _zonas_da_uf("SP", 12)
+    _, _, primeiro = ciclo_deputado(linhas)
+    _, _, segundo = ciclo_deputado(linhas)
+
+    assert _faixas(primeiro[0][0]) == _faixas(segundo[0][0])
+    assert _faixas(primeiro[0][0]) != {}
+
+
+def test_cada_uf_sorteia_as_proprias_zonas(ciclo_deputado) -> None:
+    """A seed é derivada de `(seed_base, UF)`, não uma só para o ciclo inteiro.
+
+    Duas UFs com dado IDÊNTICO precisam sortear conjuntos de zonas diferentes.
+    Com uma seed única as duas veriam o mesmo recorte, e a soma nacional
+    contaria o mesmo erro amostral duas vezes — a faixa da bancada sairia mais
+    larga do que a independência entre estados justifica.
+    """
+    linhas = _zonas_da_uf("SP", 12) + [
+        {**linha, "uf": "RJ"} for linha in _zonas_da_uf("SP", 12)
+    ]
+    _, _, publicados = ciclo_deputado(linhas)
+    _, detalhes = publicados[0]
+
+    sp = {a["cod"]: tuple(a["cadeiras_ci95"]) for a in detalhes["SP"]["agremiacoes"]}
+    rj = {a["cod"]: tuple(a["cadeiras_ci95"]) for a in detalhes["RJ"]["agremiacoes"]}
+    assert {a["cod"]: a["cadeiras"] for a in detalhes["SP"]["agremiacoes"]} == {
+        a["cod"]: a["cadeiras"] for a in detalhes["RJ"]["agremiacoes"]
+    }, "as duas UFs precisam ter o MESMO ponto para o teste medir só o sorteio"
+    assert sp != rj

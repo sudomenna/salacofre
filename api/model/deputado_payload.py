@@ -23,12 +23,28 @@ pode ser enganada pelo payload.
 de sobras, com a margem para a próxima agremiação menor que a fatia de votos
 ainda não apurada, sai com `indefinido: true`. Ver `_marcar_indefinidas`.
 
-## O que ainda não sai daqui
+## As duas metades de RF-127, e por que são duas
 
-`cadeiras_ci95` (D7). O intervalo honesto exige rodar `distribuir_cadeiras` sobre
-cada resample do bootstrap, e o custo disso foi medido, não estimado — ver o
-relatório da tarefa. O campo é opcional no contrato exatamente para poder entrar
-depois sem quebrar nada.
+`cadeiras_ci95` (D5/D6) entrou em 2026-09-13, depois que o ADR-0036 moveu o
+cargo 6 para granularidade de zona e deu ao bootstrap o que reamostrar. Ele é
+**calculado fora daqui** (`api/model/cadeiras_bootstrap.py`) e chega pronto:
+este módulo transporta, não sorteia — nada aqui consome RNG, e o payload
+continua sendo função pura do que lhe entregam.
+
+Ele **não** substitui `cadeiras_indefinidas`. São duas perguntas:
+
+  - o **intervalo** responde "se o recorte de zonas já apuradas tivesse saído
+    outro, quantas cadeiras esta agremiação teria?" — incerteza do que **já foi
+    contado**;
+  - a **marcação** responde "esta cadeira específica pode trocar de dono com o
+    voto que **ainda falta** contar?" — e é determinística, em `Fraction`.
+
+O intervalo não sabe nada do voto por vir (não há projeção de voto no cargo 6 —
+D9), e a marcação não sabe nada de variância geográfica. Fundir as duas
+apagaria uma das perguntas; derivar a marcação do intervalo a apagaria
+justamente quando o intervalo é omitido (UF com menos de duas zonas apuradas,
+ou o interruptor de emergência `TSE_DEPUTADO_GRANULARIDADE=uf`), que é quando o
+dado está pior e o leitor mais precisa do aviso.
 """
 
 from __future__ import annotations
@@ -113,6 +129,12 @@ class UfProporcional:
     pct_apurado: float
     entrada: EntradaProporcional
     resultado: ResultadoCadeiras | None
+    #: RF-127 — `{cod: (baixo, alto)}` vindo de
+    #: `cadeiras_bootstrap.intervalo_de_cadeiras`. `None` (ou `cod` ausente)
+    #: quando não há intervalo honesto a publicar para esta UF; o campo é
+    #: opcional no contrato (D5/D6) exatamente para isso. Chega pronto: este
+    #: módulo não sorteia nada.
+    cadeiras_ci95: dict[str, tuple[int, int]] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -353,42 +375,46 @@ def construir_detalhe_uf(
         eleitos_cod = resultado.eleitos.get(cod, []) if resultado is not None else []
         suplentes_cod = resultado.suplentes.get(cod, []) if resultado is not None else []
 
-        agremiacoes.append(
-            {
-                "cod": cod,
-                "sigla": ident.sigla,
-                "nome": ident.nome,
-                "tipo": ident.tipo,
-                "componentes": list(ident.componentes),
-                # ADR-0024 — a federação usa a cor do partido-líder. Aqui o
-                # líder é medido NESTA UF; no payload nacional, na soma das 27.
-                # Os dois podem divergir, e não é inconsistência (ver
-                # `_bancada_nacional`).
-                "sigla_lider": _sigla_lider(
-                    _votos_por_componente(entrada, agremiacao), ident.sigla
-                ),
-                "votos_nominais": nominais,
-                "votos_legenda": agremiacao.votos_legenda,
-                "votos_validos": validos,
-                "pct_votos": _pct(validos, votos_validos_uf),
-                "quociente_partidario": (
-                    resultado.quociente_partidario.get(cod, 0) if resultado is not None else 0
-                ),
-                "cadeiras": len(eleitos_cod),
-                # Sem `cadeiras_indefinidas` aqui de propósito: D6 não o tem, e
-                # o contrato manda. A contagem por agremiação que o payload
-                # nacional precisa sai de `eleitos[].indefinido` — um campo, uma
-                # verdade.
-                "eleitos": [
-                    _candidato_payload(entrada, c.cod, c.votos_nominais, i + 1, indefinidas)
-                    for i, c in enumerate(eleitos_cod)
-                ],
-                "suplentes": [
-                    _candidato_payload(entrada, c.cod, c.votos_nominais, i + 1, indefinidas)
-                    for i, c in enumerate(suplentes_cod[:MAX_SUPLENTES])
-                ],
-            }
-        )
+        linha: dict[str, Any] = {
+            "cod": cod,
+            "sigla": ident.sigla,
+            "nome": ident.nome,
+            "tipo": ident.tipo,
+            "componentes": list(ident.componentes),
+            # ADR-0024 — a federação usa a cor do partido-líder. Aqui o
+            # líder é medido NESTA UF; no payload nacional, na soma das 27.
+            # Os dois podem divergir, e não é inconsistência (ver
+            # `_bancada_nacional`).
+            "sigla_lider": _sigla_lider(
+                _votos_por_componente(entrada, agremiacao), ident.sigla
+            ),
+            "votos_nominais": nominais,
+            "votos_legenda": agremiacao.votos_legenda,
+            "votos_validos": validos,
+            "pct_votos": _pct(validos, votos_validos_uf),
+            "quociente_partidario": (
+                resultado.quociente_partidario.get(cod, 0) if resultado is not None else 0
+            ),
+            "cadeiras": len(eleitos_cod),
+            # Sem `cadeiras_indefinidas` aqui de propósito: D6 não o tem, e
+            # o contrato manda. A contagem por agremiação que o payload
+            # nacional precisa sai de `eleitos[].indefinido` — um campo, uma
+            # verdade.
+            "eleitos": [
+                _candidato_payload(entrada, c.cod, c.votos_nominais, i + 1, indefinidas)
+                for i, c in enumerate(eleitos_cod)
+            ],
+            "suplentes": [
+                _candidato_payload(entrada, c.cod, c.votos_nominais, i + 1, indefinidas)
+                for i, c in enumerate(suplentes_cod[:MAX_SUPLENTES])
+            ],
+        }
+        # RF-127 — a faixa só aparece quando foi medida. Ausente é a forma de
+        # dizer "não temos intervalo para esta UF"; `[n, n]` diria o contrário.
+        faixa = (dados.cadeiras_ci95 or {}).get(cod)
+        if faixa is not None:
+            linha["cadeiras_ci95"] = [faixa[0], faixa[1]]
+        agremiacoes.append(linha)
 
     # Determinismo (constituição § 6): cadeiras desc, votos desc, sigla asc e,
     # por último, o código — dois partidos com a mesma sigla não existem, mas a
@@ -446,6 +472,7 @@ def _linha_uf(detalhe: dict[str, Any], dados: UfProporcional) -> dict[str, Any]:
 def _bancada_nacional(
     detalhes_ordenados: list[tuple[UfProporcional, dict[str, Any]]],
     ufs_conhecidas: int,
+    cadeiras_ci95_nacional: dict[str, tuple[int, int]] | None = None,
 ) -> dict[str, Any]:
     """`EdgeBancadaNacional` (D5) — soma de 27 corridas, não um modelo nacional.
 
@@ -547,6 +574,15 @@ def _bancada_nacional(
         }
         for cod in ordem
     ]
+    # RF-127 — a faixa da bancada. Vem pronta de
+    # `cadeiras_bootstrap.intervalo_nacional`, que soma RÉPLICAS das UFs e só
+    # então tira o percentil: somar as faixas das 27 UFs daria uma faixa larga
+    # e errada (a soma dos percentis não é o percentil da soma). Agremiação sem
+    # entrada ali sai sem `cadeiras_ci95`, e não com `[n, n]`.
+    for linha_agr in por_agremiacao:
+        faixa = (cadeiras_ci95_nacional or {}).get(linha_agr["cod"])
+        if faixa is not None:
+            linha_agr["cadeiras_ci95"] = [faixa[0], faixa[1]]
     # D5: cadeiras desc, depois sigla asc. `cod` fecha o desempate para que a
     # ordem não dependa da ordem de leitura das UFs.
     por_agremiacao.sort(key=lambda a: (-a["cadeiras"], a["sigla"], a["cod"]))
@@ -570,6 +606,7 @@ def construir_payload_deputado(
     atualizacao_min: int,
     ufs_conhecidas: int,
     pct_apurado_total: float,
+    cadeiras_ci95_nacional: dict[str, tuple[int, int]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     """Monta `EdgePayloadDeputado` (D5) e o mapa `sigla → DeputadoUfDetail` (D6).
 
@@ -580,6 +617,11 @@ def construir_payload_deputado(
     `ufs_conhecidas` é quantas UFs a eleição tem (27), vinda de quem chamou —
     não é contada a partir das UFs presentes, senão `ufs_aguardando` seria
     sempre zero e o leitor concluiria que a bancada já fechou.
+
+    `cadeiras_ci95_nacional` (RF-127) é a faixa da bancada, já agregada por
+    `cadeiras_bootstrap.intervalo_nacional`. `None` — o default — publica o
+    payload sem faixa nenhuma, que é o estado correto enquanto não houver duas
+    zonas apuradas em nenhuma UF.
     """
     ordenadas = sorted(ufs, key=lambda d: d.uf)
     detalhes: dict[str, dict[str, Any]] = {}
@@ -595,7 +637,7 @@ def construir_payload_deputado(
         detalhes[dados.uf] = detalhe
         pares.append((dados, detalhe))
 
-    bancada = _bancada_nacional(pares, ufs_conhecidas)
+    bancada = _bancada_nacional(pares, ufs_conhecidas, cadeiras_ci95_nacional)
 
     payload = {
         "ts": ts_iso,

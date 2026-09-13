@@ -167,8 +167,10 @@ export function ufDetailBlobPathname(sigla: string, cargo: Cargo, turno: Turno):
  * `lib/edge-config/writer.ts` (escrita).
  *
  * ⚠️ O comentário anterior dizia "o cargo 6 não é ingerido hoje". Isso deixou
- * de ser verdade em **2026-09-11**, quando a ingestão do cargo 6 entrou
- * (27 alvos de nível UF, cron de 15 min).
+ * de ser verdade em **2026-09-11**, quando a ingestão do cargo 6 entrou. Desde
+ * o **ADR-0036 (2026-09-13)** ela é em granularidade zona (par município×zona,
+ * ~6.110 alvos), varrida em 6 fatias a cada 5 min — **volta completa em 30
+ * min**, não mais 15.
  */
 export function deputadoUfBlobPathname(sigla: string): string {
   const uf = normaliseSigla(sigla, "deputadoUfBlobPathname");

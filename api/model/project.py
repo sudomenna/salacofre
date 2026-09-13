@@ -81,7 +81,13 @@ from api.model.cargos import (
     vagas_por_uf as cargo_vagas_por_uf,
 )
 from api.model.cadeiras import distribuir_cadeiras
+from api.model.cadeiras_bootstrap import (
+    IntervaloCadeiras,
+    intervalo_de_cadeiras,
+    intervalo_nacional,
+)
 from api.model.deputado import (
+    EntradaProporcional,
     combinar_entradas,
     conferir_contra_tse,
     extrair_entrada_proporcional,
@@ -3709,6 +3715,57 @@ ATUALIZACAO_MIN_DEPUTADO = 30
 UFS_DA_ELEICAO = 27
 
 
+def _entradas_por_zona(
+    pares: list[tuple[LatestSnapshot, EntradaProporcional]],
+) -> list[EntradaProporcional]:
+    """As leituras de par `(município, zona)` agrupadas em UMA entrada por zona.
+
+    É a unidade de reamostragem do bootstrap de cadeiras (ADR-0036: "a unidade
+    de reamostragem (...) passa a ser a zona real — 2.644 zonas distintas no
+    país"), a mesma que `zona_merge.merge_pairs_into_zonas` produz para os
+    cargos majoritários. A diferença é o nível em que a soma acontece: ali os
+    pares são somados no **envelope EA20**, com `cand[].n` de chave; aqui eles
+    já foram lidos em `EntradaProporcional`, e `combinar_entradas` soma por
+    `sqcand` — que é a chave correta no proporcional, onde o número de urna se
+    repete entre partidos (`deputado.py:101-112`).
+
+    `cod_zona` é lido sem default: ele é `NOT NULL` na tabela, e um `or 0`
+    silencioso aqui jogaria uma zona real no balde da sentinela — exatamente o
+    modo de falha que esta base já pagou três vezes. Ausente, estoura, e o
+    ciclo vira 500 com trace.
+
+    A ORDEM das zonas segue a primeira aparição de cada `cod_zona` nas linhas,
+    e a ordem das linhas dentro de cada zona é preservada: o bootstrap sorteia
+    índices deste vetor, então reordenar mudaria os sorteios sem mudar o método.
+    """
+    por_zona: dict[int, list[EntradaProporcional]] = {}
+    ordem: list[int] = []
+    for linha, entrada in pares:
+        cod_zona = int(linha["cod_zona"])
+        if cod_zona not in por_zona:
+            por_zona[cod_zona] = []
+            ordem.append(cod_zona)
+        por_zona[cod_zona].append(entrada)
+    return [combinar_entradas(por_zona[cod_zona]) for cod_zona in ordem]
+
+
+def _seed_agremiacoes(seed_base: int, uf: str) -> int:
+    """Seed do bootstrap de cadeiras de uma UF (constituição § 6).
+
+    Mesma convenção de `compute_uf_projections` (`:1546-1552`): `seed_base` XOR
+    os 8 primeiros hex-chars do SHA-256 de `"<UF>:<eixo>"`, truncado a 32 bits.
+    O eixo é `"agremiacoes"` (e não `"candidatos"`, do majoritário) para que os
+    dois bootstraps de uma mesma UF não compartilhem fluxo de sorteio.
+
+    Até 2026-09-13 o ciclo proporcional não derivava seed nenhuma — ele retorna
+    antes de `derive_seed` em `_do_project`. Passa a derivar aqui, do MESMO
+    `(cargo, turno, trigger_ts)`: reprocessar o mesmo snapshot devolve o mesmo
+    intervalo, que é o que § 6 exige.
+    """
+    eixo = int(hashlib.sha256(f"{uf}:agremiacoes".encode("utf-8")).hexdigest()[:8], 16)
+    return (seed_base ^ eixo) & 0xFFFFFFFF
+
+
 def _do_project_proporcional(
     req: ProjectRequest, t0: int
 ) -> tuple[int, dict[str, Any]]:
@@ -3716,9 +3773,15 @@ def _do_project_proporcional(
 
     É um caminho separado do majoritário, e não um `if` dentro dele, porque
     quase nada do outro se aplica: não há líder da corrida, não há duelo, não há
-    agulha, e o bootstrap por zona não existe (o cargo 6 é ingerido em
-    granularidade **UF**, ADR-0026 item 1 — 27 alvos por ciclo). O que existe é
-    a aritmética do ADR-0027 sobre o voto apurado de cada UF, somada em bancada.
+    agulha, e o bootstrap do majoritário estima **share de voto** por candidato,
+    grandeza que não existe numa corrida de lista. O que existe é a aritmética
+    do ADR-0027 sobre o voto apurado de cada UF, somada em bancada — mais, desde
+    2026-09-13, um bootstrap próprio de **cadeiras** (RF-127, ver abaixo).
+
+    Desde o ADR-0036 o cargo 6 é ingerido em granularidade **zona** — o par
+    (município, zona), ~6.110 alvos varridos em 6 fatias, volta completa a cada
+    30 min. A afirmação anterior deste docstring ("ingerido em granularidade UF,
+    27 alvos por ciclo") ficou falsa naquele commit.
 
     O que este caminho **não** faz, e por quê:
 
@@ -3729,16 +3792,37 @@ def _do_project_proporcional(
         `pct_projetado`/`p_vitoria`, grandezas que não existem aqui. A
         persistência append-only da corrida (constituição § 10) é a de
         `snapshots`, que a ingestão já faz — nada se perde.
-      - **Não projeta voto ainda.** As cadeiras saem do voto **apurado** até o
-        instante do ciclo. O intervalo de RF-127 (`cadeiras_ci95`) é opcional no
-        contrato de propósito (D7) e entra quando a medição de custo permitir.
+      - **Não projeta voto.** As cadeiras saem do voto **apurado** até o
+        instante do ciclo (D9). O intervalo de RF-127 mede a variância do
+        recorte geográfico já apurado, não o voto que falta — as duas coisas
+        estão separadas de propósito, ver `api/model/cadeiras_bootstrap.py`.
+
+    ## As duas saídas por UF, e por que vêm da mesma leitura
+
+    Cada linha de `snapshots` é um par (município, zona). Elas são lidas **uma
+    vez** e a partir daí seguem dois caminhos que nunca se recalculam um ao
+    outro:
+
+      - somadas todas → `entrada`, de que sai o **ponto** (as cadeiras
+        publicadas), exatamente como antes desta mudança;
+      - agrupadas por `cod_zona` → `zonas`, a decomposição que o bootstrap
+        reamostra para produzir o **intervalo**.
+
+    A soma é associativa, então as zonas somam a `entrada` por construção — e
+    `cadeiras_bootstrap` confere essa igualdade linha a linha antes de publicar
+    qualquer faixa. Destruir a decomposição para obter a soma (ou vice-versa)
+    deixaria os dois números descrevendo corridas diferentes na mesma tela.
     """
     with _open_conn() as conn:
-        # Uma linha por (uf, município, zona). Em granularidade UF isso é uma
-        # linha por UF, com os sentinelas `cod_zona = 0` / `cod_municipio_tse
-        # = 0` (`lib/tse/targets.ts::buildUfTarget`). Linhas de zona de um
-        # ciclo antigo, se existirem, são SOMADAS por `combinar_entradas` —
-        # nunca escolhidas uma e descartadas as outras.
+        # Uma linha por (uf, município, zona) — o caminho NORMAL desde o
+        # ADR-0036. Só o interruptor de emergência
+        # `TSE_DEPUTADO_GRANULARIDADE=uf` devolve o cargo a UMA linha por UF,
+        # com os sentinelas `cod_zona = 0` / `cod_municipio_tse = 0`
+        # (`lib/tse/targets.ts::buildUfTarget`). Qual das duas famílias
+        # sobrevive quando as duas existem é decidido por frescor de `ts` em
+        # `_discard_zero_zona_sentinel_when_real_zonas_exist`; o que restar é
+        # SOMADO por `combinar_entradas` — nunca uma escolhida e as outras
+        # descartadas.
         snapshots = fetch_snapshots(conn, req.cargo, req.turno)
         try:
             eleitorado = fetch_eleitorado(conn, ano=2026)
@@ -3781,11 +3865,24 @@ def _do_project_proporcional(
     divergencias_por_uf: dict[str, list[dict[str, Any]]] = {}
     n_calculadas = 0
 
+    # RF-127 — a seed do bootstrap de cadeiras. Derivada aqui porque este
+    # caminho retorna antes de `derive_seed` em `_do_project`; usa o MESMO
+    # `(cargo, turno, trigger_ts)`, então dois ciclos sobre o mesmo snapshot
+    # produzem o mesmo intervalo (constituição § 6).
+    seed_base = derive_seed(req.cargo, req.turno, req.trigger_ts)
+    contribuicoes_ci: list[tuple[IntervaloCadeiras | None, dict[str, int]]] = []
+
     for sigla in sorted(por_uf):
         linhas = por_uf[sigla]
-        entrada = combinar_entradas(
-            [extrair_entrada_proporcional(linha.get("payload"), cargo=req.cargo) for linha in linhas]
-        )
+        # UMA leitura de envelope por linha (par município×zona). Dela saem as
+        # duas visões: a soma da UF (o ponto) e a decomposição por zona (o
+        # intervalo). Ver o docstring desta função.
+        pares = [
+            (linha, extrair_entrada_proporcional(linha.get("payload"), cargo=req.cargo))
+            for linha in linhas
+        ]
+        entrada = combinar_entradas([leitura for _, leitura in pares])
+        zonas = _entradas_por_zona(pares)
         # Desde 2026-09-13 o cargo 6 (Deputado Federal) é ingerido em
         # granularidade ZONA (emenda ao ADR-0026 item 1): mais de uma linha
         # por UF passou a ser o caminho NORMAL — cada par (município, zona)
@@ -3808,6 +3905,7 @@ def _do_project_proporcional(
             )
 
         resultado = None
+        intervalo: IntervaloCadeiras | None = None
         if entrada.tem_coligacao:
             # ADR-0027, caso de borda 7: coligação em proporcional é vedada
             # desde 2020. Achar uma significa que o dado está errado — e
@@ -3861,6 +3959,18 @@ def _do_project_proporcional(
                 continue
             resultado = calculado
             n_calculadas += 1
+            # RF-127 — o intervalo. `None` quando a UF tem menos de duas zonas
+            # com voto (começo da noite, ou o interruptor de emergência que
+            # devolve o cargo a uma sentinela por UF): `cadeiras_ci95` é
+            # opcional no contrato (D5/D6) exatamente para poder faltar.
+            intervalo = intervalo_de_cadeiras(
+                zonas=zonas,
+                entrada_uf=entrada,
+                cadeiras_ponto=resultado.cadeiras,
+                lugares_a_preencher=entrada.lugares_a_preencher,
+                seed=_seed_agremiacoes(seed_base, sigla),
+            )
+            contribuicoes_ci.append((intervalo, resultado.cadeiras))
             divergencias = conferir_contra_tse(resultado, entrada)
             # `o_que` sai num conjunto fechado (`CHAVES_DE_DIVERGENCIA`) — a
             # tela rotula a divergência para o leitor e não pode ficar
@@ -3893,6 +4003,7 @@ def _do_project_proporcional(
                 pct_apurado=pct_apurado,
                 entrada=entrada,
                 resultado=resultado,
+                cadeiras_ci95=intervalo.por_agremiacao if intervalo is not None else None,
             )
         )
 
@@ -3918,6 +4029,21 @@ def _do_project_proporcional(
         # jamais inflado.
         pct_apurado_total = sum(pct_by_uf.values()) / max(UFS_DA_ELEICAO, len(pct_by_uf))
 
+    # RF-127 — a faixa da bancada. Soma de RÉPLICAS das UFs, nunca soma das
+    # faixas delas (ver `cadeiras_bootstrap.intervalo_nacional`).
+    cadeiras_ci95_nacional = intervalo_nacional(contribuicoes_ci)
+    n_uf_com_intervalo = sum(1 for i, _ in contribuicoes_ci if i is not None)
+    if contribuicoes_ci:
+        _log(
+            "info",
+            "intervalo de cadeiras (RF-127)",
+            cargo=req.cargo,
+            turno=req.turno,
+            ufs_com_intervalo=n_uf_com_intervalo,
+            ufs_sem_intervalo=len(contribuicoes_ci) - n_uf_com_intervalo,
+            agremiacoes_com_faixa_nacional=len(cadeiras_ci95_nacional),
+        )
+
     ts_iso = datetime.now(timezone.utc).isoformat()
     payload, detalhes_uf = construir_payload_deputado(
         ufs=ufs,
@@ -3928,6 +4054,7 @@ def _do_project_proporcional(
         atualizacao_min=ATUALIZACAO_MIN_DEPUTADO,
         ufs_conhecidas=max(UFS_DA_ELEICAO, len(ufs)),
         pct_apurado_total=pct_apurado_total,
+        cadeiras_ci95_nacional=cadeiras_ci95_nacional,
     )
 
     try:

@@ -181,9 +181,10 @@ let singleton: TokenBucket | null = null;
  * getTseRateLimiter — bucket do processo para as chamadas ao CDN do TSE.
  *
  * `cargo` define o teto **padrão** (`lib/config/cargos.ts`, campo `rpsMax`):
- * 35 rps para Presidente e Governador (6.110 alvos cada), 5 rps para Senador e
- * Deputado Federal (27 alvos cada). `TSE_MAX_RPS` no ambiente sobrepõe para
- * todos — é a escotilha de janela supervisionada.
+ * 25 rps para Presidente, Governador e Senador (6.110 alvos cada) e 5 rps para
+ * Deputado Federal — que desde o ADR-0036 (13/09) também pede 6.110, mas
+ * **fatiado em 6 invocações** de ~1.019 alvos, ~204 s cada. `TSE_MAX_RPS` no
+ * ambiente sobrepõe para todos — é a escotilha de janela supervisionada.
  *
  * ## Por que o teto é por cargo (2026-09-11)
  *
@@ -196,9 +197,10 @@ let singleton: TokenBucket | null = null;
  * A constituição § 1 exige "bem abaixo".
  *
  * Cada invocação tem seu próprio bucket (singleton **de processo**; o Fluid
- * Compute isola instâncias), então o que o TSE vê no IP é a soma. Dar 5 rps
- * aos cargos de granularidade UF entrega os 27 arquivos em 5 s em vez de
- * 0,7 s — custo desprezível ao lado de metade da margem de segurança do dia D.
+ * Compute isola instâncias), então o que o TSE vê no IP é a soma: 25+25+25+5 =
+ * **80 rps** no pior caso (`piorCasoAgregadoRps()`), inalterado pelo ADR-0036 —
+ * é justamente por manter o cargo 6 em 5 rps que a varredura dele precisa ser
+ * fatiada, e não o contrário.
  *
  * A pendência do limitador **coordenado** entre invocações (contador
  * compartilhado) continua aberta: buckets independentes garantem a média, não

@@ -8,9 +8,11 @@ e nenhuma das duas se responde no olho:
   **(1) quanto custa um ciclo completo das 27 UFs SEM intervalo** — do envelope
   EA20 ao JSON publicado. É o que o cron de 15 minutos paga hoje.
 
-  **(2) quanto custaria rodar `distribuir_cadeiras` sobre os resamples do
-  bootstrap** (n × 27 UFs). É o único caminho honesto para o intervalo: não há
-  atalho que produza uma faixa com significado sobre contagem discreta.
+  **(2) quanto custa o intervalo de RF-127** —
+  `cadeiras_bootstrap.intervalo_de_cadeiras` nas 27 UFs, incluindo **gerar os
+  votos reamostrados** por agremiação, não só redistribuir cadeiras sobre votos
+  já perturbados. É o único caminho honesto para a faixa: não há atalho que
+  produza um intervalo com significado sobre contagem discreta.
 
 ## Medição de referência — 2026-09-12, Apple M4, Python 3.14.3
 
@@ -30,12 +32,34 @@ O teto da função é 60 s (`vercel.ts`, `api/model/project.py`). Mesmo com o
 Python da Vercel 3× mais lento que este M4, o intervalo cabe — e 1.000 resamples
 é exagero para uma contagem discreta: 200 custam cerca de um quinto disso.
 
-**O que este número NÃO diz**: o bootstrap da corrida proporcional não existe.
-`api/model/extrapolation.py` resampleia candidato-por-zona para cargo
-majoritário; o cargo 6 é ingerido por UF e não tem esse caminho. O que está
-medido aqui é a **redistribuição de cadeiras** sobre votos já perturbados, que
-era a incógnita; gerar os votos perturbados por agremiação é trabalho de
-modelagem ainda por fazer.
+⚠️ **Correção de 2026-09-13, em duas frentes.** A versão anterior desta prosa
+dizia que "`extrapolation.py` resampleia candidato-por-zona" e que "o cargo 6 é
+ingerido por UF". As duas ficaram falsas:
+
+  - `extrapolation.py:264-265` sorteia **zonas** — um único `idx` por UF,
+    compartilhado por todos os candidatos e pelas duas bases (docstring daquele
+    módulo, `:69-75`);
+  - o ADR-0036 moveu o cargo 6 para granularidade de **zona** (par
+    município×zona, ~6.110 alvos em 6 fatias, volta completa em 30 min).
+
+A perturbação independente por candidato na seção (2) daquela medição era proxy
+de **custo**, e nunca foi modelo — o próprio script avisava disso. O bootstrap de
+verdade existe desde 2026-09-13 em `api/model/cadeiras_bootstrap.py`, e a seção
+(2) passou a medi-lo diretamente.
+
+## Medição de 2026-09-13, mesmo M4 — agora do código de verdade
+
+    1.000 réplicas × 27 UFs .............. 10,8 s   (2.644 zonas, 9.675 candidatos)
+       25 réplicas × 27 UFs ..............  0,5 s
+
+Este número **inclui gerar os votos reamostrados**, que a medição de 12/09 não
+incluía — e mesmo assim ficou abaixo dos 11,1 s de lá, porque a geração é uma
+multiplicação de matriz (`matriz @ contagens.T`) e não um laço Python.
+
+⚠️ **A seção (2) não extrapola mais de uma amostra.** Boa parte do custo por UF
+— montar a matriz voto × zona, sortear o `idx`, a multiplicação — é paga UMA vez
+por chamada, não por réplica: extrapolar linearmente de 25 réplicas dava 20 s
+para uma conta que leva 11.
 
 ## Sobre o dado
 
@@ -66,7 +90,9 @@ from api.model.cadeiras import (  # noqa: E402
     Candidato,
     distribuir_cadeiras,
 )
+from api.model.cadeiras_bootstrap import intervalo_de_cadeiras  # noqa: E402
 from api.model.deputado import (  # noqa: E402
+    EntradaProporcional,
     combinar_entradas,
     conferir_contra_tse,
     extrair_entrada_proporcional,
@@ -78,13 +104,25 @@ from api.model.deputado_payload import (  # noqa: E402
 
 FIXTURE = RAIZ / "tests" / "fixtures" / "model" / "cadeiras-golden-2022.json"
 
+#: Zonas eleitorais por UF — `SELECT uf, COUNT(DISTINCT cod_zona) FROM zonas`,
+#: medido em 2026-09-13 (os mesmos 2.644 do ADR-0036). Fica embutido aqui de
+#: propósito: este script mede custo e não deve exigir banco. É o eixo em que a
+#: matriz voto × zona cresce — de RR (8) a SP (394).
+ZONAS_POR_UF = {
+    "AC": 9, "AL": 42, "AM": 60, "AP": 10, "BA": 199, "CE": 109, "DF": 19,
+    "ES": 50, "GO": 92, "MA": 105, "MG": 304, "MS": 49, "MT": 57, "PA": 101,
+    "PB": 68, "PE": 122, "PI": 79, "PR": 186, "RJ": 165, "RN": 60, "RO": 29,
+    "RR": 8, "RS": 165, "SC": 100, "SE": 29, "SP": 394, "TO": 33,
+}
+
 #: Resamples do bootstrap do modelo (`api/model/extrapolation.py`). É o número
 #: a que a extrapolação de custo se refere — não uma escolha deste script.
 N_RESAMPLES_DO_MODELO = 1000
 
-#: Quantos resamples medir de fato. O custo é linear no número de resamples
-#: (cada um é uma passada independente pelas 27 UFs), então medir 25 e
-#: extrapolar custa 40× menos tempo e dá o mesmo número.
+#: Amostra pequena, medida ao lado do número real na seção (2) — serve para
+#: mostrar o quanto o custo NÃO é linear no número de réplicas (o custo fixo por
+#: UF é pago uma vez por chamada). Não é base de extrapolação: ver o aviso no
+#: docstring do módulo.
 N_AMOSTRA = 25
 
 
@@ -131,6 +169,79 @@ def envelope_da_uf(dados: dict[str, Any]) -> dict[str, Any]:
         "s": {"psa": "100,00"},
         "carg": [{"cd": "6", "nv": str(dados["vagas"]), "agr": agrs}],
     }
+
+
+def _repartir(total: int, pesos: list[float]) -> list[int]:
+    """Divide `total` entre `pesos` com soma EXATA (método do maior resto).
+
+    Exata, e não "aproximadamente exata": `intervalo_de_cadeiras` confere que a
+    soma das zonas reproduz o voto da UF antes de publicar qualquer faixa, e
+    devolve `None` se não reproduzir. Uma repartição que perdesse um voto no
+    arredondamento faria este bench medir o caminho da recusa, não o do cálculo.
+    """
+    soma = sum(pesos)
+    if total <= 0 or soma <= 0 or not pesos:
+        return [total if i == 0 else 0 for i in range(len(pesos))] if pesos else []
+    brutos = [total * p / soma for p in pesos]
+    inteiros = [int(b) for b in brutos]
+    sobra = total - sum(inteiros)
+    ordem = sorted(range(len(pesos)), key=lambda i: (-(brutos[i] - inteiros[i]), i))
+    for i in ordem[:sobra]:
+        inteiros[i] += 1
+    return inteiros
+
+
+def fatiar_em_zonas(
+    entrada: EntradaProporcional, k: int, seed: int = 20261004
+) -> list[EntradaProporcional]:
+    """Reparte os votos de uma UF em `k` zonas com força partidária desigual.
+
+    ⚠️ **Isto inventa geografia, e serve só para medir custo.** O golden de 2022
+    (`tests/fixtures/model/cadeiras-golden-2022.json`) é agregado por UF, sem
+    série temporal e sem repartição por zona, e não existe dado real de cargo 6
+    por zona em lugar nenhum do repositório nem do banco (898 linhas, todas de
+    cargo 3, medido em 13/09). Não use esta função como fixture de correção: os
+    testes de `cadeiras_bootstrap` são de propriedade, não de valor esperado.
+
+    Para o custo, o que importa é o tamanho da matriz (linhas de voto × zonas) e
+    o número de réplicas — não como os votos se distribuem. O peso por
+    agremiação × zona varia de 0,2 a 2,5 (reduto eleitoral) para que o
+    intervalo não saia degenerado e o caminho medido seja o completo.
+    """
+    rng = random.Random(seed)
+    legenda: dict[str, list[int]] = {}
+    nominais: dict[str, dict[int, list[int]]] = {}
+    for a in entrada.agremiacoes:
+        pesos = [rng.uniform(0.2, 2.5) for _ in range(k)]
+        legenda[a.cod] = _repartir(a.votos_legenda, pesos)
+        nominais[a.cod] = {c.cod: _repartir(c.votos_nominais, pesos) for c in a.candidatos}
+
+    zonas: list[EntradaProporcional] = []
+    for j in range(k):
+        agremiacoes = [
+            Agremiacao(
+                cod=a.cod,
+                votos_legenda=legenda[a.cod][j],
+                # Candidato sem voto nesta zona simplesmente não aparece nela —
+                # é o que o EA20 faz, e evita materializar milhões de zeros.
+                candidatos=tuple(
+                    Candidato(cod=c.cod, votos_nominais=nominais[a.cod][c.cod][j], nascimento=c.nascimento)
+                    for c in a.candidatos
+                    if nominais[a.cod][c.cod][j] > 0
+                ),
+            )
+            for a in entrada.agremiacoes
+        ]
+        zonas.append(
+            EntradaProporcional(
+                agremiacoes=agremiacoes,
+                lugares_a_preencher=entrada.lugares_a_preencher,
+                quociente_eleitoral_tse=None,
+                vagas_tse={},
+                totalizacao_final=entrada.totalizacao_final,
+            )
+        )
+    return zonas
 
 
 def ciclo_completo(envelopes: dict[str, dict[str, Any]]) -> tuple[dict, dict]:
@@ -233,53 +344,43 @@ def main() -> int:
         f"soma das 27: {soma_uf:.1f} KB"
     )
 
-    # ---- (2) custo incremental de RF-127 -----------------------------------
-    rng = random.Random(20261004)
+    # ---- (2) custo real de RF-127 ------------------------------------------
+    print("\n== (2) custo de RF-127 (`cadeiras_bootstrap.intervalo_de_cadeiras`) ==")
+    print(f"zonas por UF (tabela `zonas`, 13/09): {sum(ZONAS_POR_UF.values())} no país")
 
-    def um_resample_de_todas_as_ufs(perturbar: bool) -> None:
-        for e in entradas.values():
-            if perturbar:
-                # ±3% por candidato. A distribuição da perturbação não importa
-                # para o custo — importa que os objetos sejam reconstruídos,
-                # que é o que um bootstrap real paga a cada resample.
-                ags = [
-                    Agremiacao(
-                        cod=a.cod,
-                        votos_legenda=a.votos_legenda,
-                        candidatos=tuple(
-                            Candidato(
-                                cod=c.cod,
-                                votos_nominais=int(c.votos_nominais * rng.uniform(0.97, 1.03)),
-                                nascimento=c.nascimento,
-                            )
-                            for c in a.candidatos
-                        ),
-                    )
-                    for a in e.agremiacoes
-                ]
-            else:
-                ags = e.agremiacoes
-            distribuir_cadeiras(ags, e.lugares_a_preencher or 1)
+    zonas_por_uf = {uf: fatiar_em_zonas(e, ZONAS_POR_UF[uf]) for uf, e in entradas.items()}
+    pontos = {
+        uf: distribuir_cadeiras(e.agremiacoes, e.lugares_a_preencher or 1).cadeiras
+        for uf, e in entradas.items()
+    }
 
-    t_sem = cronometrar(
-        lambda: [um_resample_de_todas_as_ufs(False) for _ in range(N_AMOSTRA)], 3
-    )
-    t_com = cronometrar(
-        lambda: [um_resample_de_todas_as_ufs(True) for _ in range(N_AMOSTRA)], 3
-    )
-    fator = N_RESAMPLES_DO_MODELO / N_AMOSTRA
+    def rodar(n_resamples: int):
+        return [
+            intervalo_de_cadeiras(
+                zonas=zonas_por_uf[uf],
+                entrada_uf=e,
+                cadeiras_ponto=pontos[uf],
+                lugares_a_preencher=e.lugares_a_preencher or 1,
+                seed=20261004,
+                n_resamples=n_resamples,
+            )
+            for uf, e in entradas.items()
+        ]
 
-    print("\n== (2) custo incremental de RF-127 (intervalo por bootstrap) ==")
-    print(f"amostra medida ......... {N_AMOSTRA} resamples × {len(golden)} UFs")
-    print(f"  só redistribuir ...... {t_sem / N_AMOSTRA * 1000:7.1f} ms por resample")
-    print(f"  perturbar + redistr .. {t_com / N_AMOSTRA * 1000:7.1f} ms por resample")
-    print(
-        f"extrapolado a {N_RESAMPLES_DO_MODELO} resamples × {len(golden)} UFs "
-        f"({N_RESAMPLES_DO_MODELO * len(golden)} distribuições):"
-    )
-    print(f"  só redistribuir ...... {t_sem * fator:8.1f} s")
-    print(f"  perturbar + redistr .. {t_com * fator:8.1f} s")
-    print("teto da função: 60 s (`vercel.ts`) · janela do cron: 15 min (RF-128)")
+    faltando = [uf for uf, iv in zip(entradas, rodar(N_AMOSTRA)) if iv is None]
+
+    # Medido NO NÚMERO REAL, não extrapolado de uma amostra. A extrapolação
+    # linear serve ao laço réplica a réplica do bench antigo e MENTE aqui: uma
+    # boa parte do custo por UF (montar a matriz voto × zona, sortear o `idx`,
+    # a multiplicação) é paga UMA vez por chamada, não por réplica. Extrapolar
+    # de 25 réplicas dava 20 s para uma conta que leva 11.
+    t_amostra = cronometrar(lambda: rodar(N_AMOSTRA), 3)
+    t_real = cronometrar(lambda: rodar(N_RESAMPLES_DO_MODELO), 2)
+
+    print(f"UFs sem intervalo ...... {faltando or 'nenhuma'}")
+    print(f"{N_AMOSTRA:>5} réplicas × {len(golden)} UFs .. {t_amostra:8.2f} s")
+    print(f"{N_RESAMPLES_DO_MODELO:>5} réplicas × {len(golden)} UFs .. {t_real:8.2f} s   ← o do ADR-0006")
+    print("teto da função: 60 s (`vercel.ts`) · janela do cron: 30 min (ADR-0036)")
     return 0
 
 

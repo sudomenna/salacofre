@@ -4,7 +4,7 @@ title: Design — payload, read path e telas do Deputado Federal
 status: draft
 date: 2026-09-12
 spec: ./spec.md
-adrs: [0001, 0012, 0026, 0027, 0032, 0035]
+adrs: [0001, 0012, 0026, 0027, 0032, 0035, 0036]
 requirements: [RF-121, RF-122, RF-124, RF-125.1, RF-127, RF-128, RF-129, RF-130]
 ---
 
@@ -123,7 +123,8 @@ interface EdgePayloadDeputado {
   pct_apurado_total: number;   // 0–100
   ufs_apuradas: number;        // 0–27
   /** RF-128 — cadência declarada, não derivada da tela. */
-  atualizacao_min: 15;
+  /** 30 desde o ADR-0036 (13/09): a volta completa das 6 fatias. Era 15. */
+  atualizacao_min: 30;
   bancada: EdgeBancadaNacional;
   por_uf: EdgeDeputadoUfRow[];
   insights: string[];          // template, NUNCA LLM (ADR-0005)
@@ -296,8 +297,15 @@ média de 97,9 por UF), varrida em 6 fatias com volta completa a cada 30 min.
 Construir o bootstrap por agremiação sobre essas unidades é trabalho de
 modelagem, não de orçamento de CPU — ver D9.
 
-Enquanto o intervalo não existir, a metade de RF-127 que **sai agora** é a
-marcação, com esta definição (fixada em 12/09, sem constante mágica):
+O intervalo passou a existir em **2026-09-13** (`api/model/cadeiras_bootstrap.py`):
+IC95 por UF sobre 1.000 reamostragens das zonas, omitido quando a UF tem menos
+de 2 zonas com voto — inclusive sob o interruptor de emergência, que devolve
+uma zona-sentinela só. A **marcação continua existindo ao lado dele**, e não é
+redundante: o intervalo mede a variância do recorte **já apurado**, e não sabe
+nada do voto que ainda falta contar — no cargo 6 não há projeção de voto (D9).
+A marcação é o único campo do payload que carrega o "ainda vem voto", e é
+justamente onde o intervalo é omitido que ela mais importa. Definição da
+marcação (fixada em 12/09, sem constante mágica):
 
 > A cadeira marginal de sobras de uma agremiação é `indefinido` enquanto a
 > distância entre a média com que ela foi ganha e a melhor média de quem ficou de
@@ -365,7 +373,7 @@ não é estado de erro, é o estado do dia 15.
 Lição de 11/09 (quatro frases viraram falsas ao mudar a granularidade do
 Senador): nenhum número ou nome de cargo escrito à mão no JSX.
 
-- `15 min` (RF-128) sai de `atualizacao_min` do payload.
+- `30 min` (RF-128) sai de `atualizacao_min` do payload — nunca literal no JSX.
 - `513` sai de `bancada.total_cadeiras`.
 - Vagas da UF saem de `lugares_a_preencher`.
 - Nome, slug e proporcionalidade do cargo saem de `lib/config/cargos.ts`.
