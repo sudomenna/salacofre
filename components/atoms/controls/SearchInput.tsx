@@ -180,6 +180,24 @@ const INPUT_STYLE: CSSProperties = {
   background: "transparent",
   color: "var(--text-primary)",
   font: "var(--type-body)",
+  /**
+   * O alvo de toque real é o `<input>`, não a caixa que o desenha.
+   *
+   * `FieldChrome` já dá `height: var(--tap-min)` (44px) à caixa, mas com
+   * `items-center` — então o `<input>` ficava com a altura da própria linha
+   * (~22px) centrado num retângulo de 44px. Medido em 2026-09-13: um clique
+   * 3px abaixo do topo da caixa, visualmente **dentro** do campo, não focava
+   * nada (`document.activeElement` ficava no `<body>`). O alvo aparentava
+   * 44px e valia 22px.
+   *
+   * Em `labelPlacement="above"` a caixa é uma `<div>`, não um `<label>`, então
+   * não existe o redirecionamento de clique que salvaria o caso — é por isso
+   * que o conserto mora aqui e não lá.
+   *
+   * `height: 100%` faz o campo preencher a caixa e o alvo real coincidir com
+   * o alvo visual.
+   */
+  height: "100%",
 };
 
 export interface SearchInputProps {
