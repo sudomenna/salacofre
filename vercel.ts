@@ -132,10 +132,19 @@ const config: VercelProjectConfig = {
       path: "/api/ingest/governador",
       schedule: "* 12-20 * * *",
     },
-    // ── Senador (cargo 5) — ADR-0026 item 1 ──
-    // Cadência própria e MENOR que a de 60 s dos majoritários: a cada 5 min,
-    // em granularidade UF (`lib/config/cargos.ts`), 27 GETs por ciclo —
-    // trivial frente ao teto do TSE mesmo somado ao pico dos outros crons.
+    // ── Senador (cargo 5) — ADR-0026 item 1, emendado em 2026-09-11 ──
+    // Cadência própria e MENOR que a de 60 s dos majoritários: a cada 5 min.
+    //
+    // ⚠️ Corrigido em 2026-09-13: este comentário dizia "em granularidade UF,
+    // 27 GETs por ciclo". Falso desde 2026-09-11, quando o Senador saiu de UF
+    // para ZONA (nota "(b)" do ADR-0026) — `lib/config/cargos.ts` mostra
+    // `granularidade: "zona"`, `rpsMax: 25`, ~6.110 alvos, ~244 s de ciclo.
+    // A reescrita deste bloco em `e2f3240` separou Senador de Deputado mas
+    // copiou a alegação errada adiante, com o bloco correto logo abaixo.
+    //
+    // A folga aqui é a mais apertada do projeto: ~244 s de ciclo dentro de uma
+    // janela de 300 s entre disparos. Medir `duration_ms` no simulado 1 não é
+    // opcional.
     //
     // Mesmas duas janelas dos demais: apuração (20-23,0-7 UTC = 17h-04h BRT) e
     // simulado (12-20 UTC = 9h-17h BRT). `INGEST_WINDOW` decide qual vale em

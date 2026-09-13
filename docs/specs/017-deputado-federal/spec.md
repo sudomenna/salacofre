@@ -36,7 +36,7 @@ entrar, mirando 04/10.
 
 | camada | estado |
 |---|---|
-| Ingestão (cargo 6, 27 alvos UF, cron de 15 min) | ✅ `9ee5871` |
+| Ingestão (cargo 6, ~6.110 alvos de zona, 6 fatias, volta de 30 min — [ADR-0036](../../architecture/adrs/0036-deputado-federal-granularidade-zona-fatiada.md)) | ✅ `9ee5871`, `e2f3240` |
 | Método de cadeiras (ADR-0027) | ✅ `api/model/cadeiras.py`, 21 casos de borda |
 | Ponte EA20 → cadeiras | ✅ `api/model/deputado.py`, 28 testes |
 | **Golden contra 2022 (RF-126)** | ✅ **511/513 cadeiras**, fase 1 exata nas 27 UFs |
@@ -61,8 +61,12 @@ de um estado costuma se decidir por algumas centenas de votos.
 
 ### Dentro
 
-- Ingestão do cargo 6 em granularidade **UF** (27 arquivos por ciclo), cron de
-  **15 minutos** — já implementado em 2026-09-11.
+- Ingestão do cargo 6 em granularidade **zona** (par município×zona, ~6.110
+  arquivos), varrida em **6 fatias** de ~1.019 alvos, uma a cada 5 min — volta
+  completa a cada **30 minutos**. Implementada em UF em 2026-09-11; movida para
+  zona fatiada em 2026-09-13 ([ADR-0036](../../architecture/adrs/0036-deputado-federal-granularidade-zona-fatiada.md)),
+  porque com um arquivo por estado o bootstrap do RF-127 tem uma única unidade
+  de reamostragem e o intervalo degenera.
 - Leitura da hierarquia proporcional do EA20: `carg[] → (fed[] | agr[].par[]) → cand[]`
   e os **votos de legenda** `v.vl` (`lib/tse/ea20-schema.ts:269`), que existem
   neste cargo e não nos majoritários.
@@ -83,14 +87,28 @@ de um estado costuma se decidir por algumas centenas de votos.
 
 ### Ingestão e dado
 
-**RF-120 — Ingestão do cargo 6 a cada 15 minutos**
+**RF-120 — Ingestão do cargo 6, varrida em 6 fatias, volta completa em 30 minutos**
+
+> **Reescrito em 2026-09-13 ([ADR-0036](../../architecture/adrs/0036-deputado-federal-granularidade-zona-fatiada.md)).**
+> A redação anterior — "a cada 15 minutos, produzindo 27 alvos de nível UF" —
+> descrevia a granularidade que o ADR-0036 substituiu, e a sua aceitação
+> (`then devolve 27 alvos nivel: "uf"`) passou a afirmar o **oposto** do
+> comportamento correto. ADR vence spec (constituição, hierarquia), então o
+> requisito acompanha.
 
 WHILE estamos na janela de apuração, the system SHALL acionar
-`/api/ingest/deputado-federal` a cada 15 minutos, produzindo 27 alvos de nível UF.
+`/api/ingest/deputado-federal/<fatia>` a cada 5 minutos, uma fatia por
+invocação, cobrindo as 6 fatias — e portanto os ~6.110 alvos de nível zona — a
+cada 30 minutos.
 
 **Aceitação**:
-- Given o cron dispara, when `listIngestTargets(production, {cargo: 6})` roda,
-  then devolve 27 alvos `nivel: "uf"`.
+- Given o cron da fatia N dispara, when `listIngestTargets(production, {cargo: 6, fatia: N})`
+  roda, then devolve ~1.019 alvos `nivel: "zona"`.
+- Given as 6 fatias, when unidas, then o resultado é **exatamente** o conjunto
+  dos ~6.110 alvos — sem sobra e sem repetição (disjunção par a par).
+- Given `TSE_DEPUTADO_GRANULARIDADE=uf` (interruptor de emergência), when
+  qualquer fatia roda, then devolve os 27 alvos `nivel: "uf"` e a fatia é
+  ignorada.
 
 **RF-121 — Votos de legenda preservados**
 
@@ -208,11 +226,21 @@ depende de sobras ainda indefinidas.
 - Given uma UF com a última vaga dentro do IC entre duas agremiações, when a tela
   renderiza, then isso é legível — não uma cadeira atribuída com falsa firmeza.
 
-**RF-128 — Cadência de 15 minutos visível**
+**RF-128 — Cadência de 30 minutos visível**
+
+> **15 → 30 em 2026-09-13 ([ADR-0036](../../architecture/adrs/0036-deputado-federal-granularidade-zona-fatiada.md)):**
+> a volta completa das 6 fatias. O número **não** é literal no JSX — sai de
+> `atualizacao_min` do payload (design § D8), e é por isso que a tela
+> acompanhou a mudança sozinha.
 
 WHEN uma tela exibe Deputado Federal, the system SHALL exibir "atualizado a cada
-15 min" e o `ts` do payload, e NÃO um "atualizado às" único quando a tela mistura
-cargos de cadências diferentes (ADR-0026 item 5, constituição § 8).
+30 min" e o `ts` do payload, e NÃO um "atualizado às" único quando a tela mistura
+cargos de cadências diferentes (ADR-0026 item 5, ADR-0036, constituição § 8).
+
+**Aceitação**:
+- Given um payload com `atualizacao_min` diferente de 30, when a tela renderiza,
+  then ela diz **aquele** valor — o teste injeta 7 e exige que a tela diga 7,
+  para que um literal esquecido no JSX seja pego.
 
 **RF-129 — Drill-down por UF vem do Blob**
 
@@ -239,7 +267,7 @@ nominais de votos de legenda.
 
 ## Requisitos Não-Funcionais
 
-Herda RNF-001/002/003, RNF-006 (relaxado para a cadência de 15 min),
+Herda RNF-001/002/003, RNF-006 (relaxado para a cadência de 30 min — ADR-0036),
 RNF-007a (o payload por UF é o maior do produto — o drill-down vai para Blob por
 isso), RNF-022/023/024.
 

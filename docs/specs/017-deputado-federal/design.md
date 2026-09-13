@@ -262,7 +262,8 @@ existe atalho que produza um intervalo com significado.
 
 O custo não é conhecido. Por isso `cadeiras_ci95` e `cadeiras_indefinidas` são
 **opcionais** neste contrato: o ponto central entra agora, o intervalo entra sem
-mudar o contrato quando a medição disser que cabe na janela do cron (15 min) e no
+mudar o contrato quando a medição disser que cabe na janela do cron (30 min desde
+o ADR-0036; era 15 quando isto foi escrito) e no
 teto de execução da função.
 
 **Medido em 2026-09-12** (Apple M4, Python 3.14.3, dado real de 2022 — 27 UFs,
@@ -274,7 +275,8 @@ teto de execução da função.
 | redistribuição de cadeiras, 1.000 resamples × 27 UFs | **11,0 s** |
 | idem, 200 resamples | **~2,2 s** |
 
-`maxDuration` da função é 60 s e a janela do cron é 15 min. **Cabe com folga**,
+`maxDuration` da função é 60 s e a janela do cron é 30 min (era 15 quando isto
+foi medido). **Cabe com folga**,
 mesmo supondo o Python da Vercel 3× mais lento.
 
 **O custo nunca foi o obstáculo.** O que falta é o que alimenta o intervalo: o
