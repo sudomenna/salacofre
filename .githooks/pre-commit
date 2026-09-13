@@ -1,0 +1,39 @@
+#!/bin/sh
+# Rede antes do commit — ver ci.yml (job `lint`).
+#
+# Por que isto existe: em 2026-09-13 o `pnpm lint` estava vermelho com sujeira
+# antiga em arquivos já commitados, e os 8 runs de CI mais recentes da `main`
+# tinham falhado. Com o portão vermelho de forma contínua ele parava de
+# distinguir regressão nova de problema velho, e commits continuavam entrando
+# por cima. O gate existia só no GitHub; aqui não havia nada.
+#
+# Roda `biome check` na árvore inteira (~150ms em 344 arquivos) — barato o
+# bastante para não valer a pena filtrar por arquivo em stage, e assim o hook
+# também flagra sujeira que alguém deixou passar antes.
+#
+# Para pular num caso legítimo: `git commit --no-verify`. O manual do projeto
+# (CLAUDE.md § 11) pede ordem explícita do dono para isso — não é atalho padrão.
+
+set -e
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "pre-commit: pnpm não encontrado no PATH — pulando o lint." >&2
+  exit 0
+fi
+
+echo "pre-commit: biome check…"
+if ! pnpm lint; then
+  cat >&2 <<'MSG'
+
+pre-commit: o lint reprovou — commit abortado.
+
+  Conserto automático (formatação e regras seguras):
+      pnpm lint:fix
+
+  Se for falso-positivo de regra, NÃO remova a marcação: suprima com
+  justificativa escrita, que é o padrão do repositório. Exemplos em
+  components/layout/TurnoSwitch.tsx:103 e app/globals.css:642.
+
+MSG
+  exit 1
+fi

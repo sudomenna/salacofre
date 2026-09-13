@@ -1163,15 +1163,8 @@
       "title": "Identidade de candidatura 2026 — nome, foto e partido",
       "status": "draft",
       "priority": "M",
-      "personas": [
-        "P1",
-        "P2",
-        "P3"
-      ],
-      "screens": [
-        "T-13",
-        "T-14"
-      ],
+      "personas": ["P1", "P2", "P3"],
+      "screens": ["T-13", "T-14"],
       "requirements": [
         "RF-140",
         "RF-141",
@@ -1203,25 +1196,9 @@
         "Panel",
         "Footer"
       ],
-      "nfr": [
-        "RNF-002",
-        "RNF-003",
-        "RNF-007a",
-        "RNF-019",
-        "RNF-022",
-        "RNF-023",
-        "RNF-024"
-      ],
-      "adrs": [
-        "0039",
-        "0040",
-        "0041",
-        "0042"
-      ],
-      "amends": [
-        "016-senador",
-        "017-deputado-federal"
-      ],
+      "nfr": ["RNF-002", "RNF-003", "RNF-007a", "RNF-019", "RNF-022", "RNF-023", "RNF-024"],
+      "adrs": ["0039", "0040", "0041", "0042"],
+      "amends": ["016-senador", "017-deputado-federal"],
       "ship_blocked_on": [],
       "notes": "Escrita em 2026-09-13 após medição de arquivo real do TSE (20.939 candidaturas, 7.698 publicáveis nos 4 cargos do produto). Tabelas `candidatos` (22 colunas) e `partidos` (30 linhas) implementadas em migration 0008. Importador `data-pipeline/candidatos-import.ts` com script `pnpm candidatos:import`. Rota `/candidatos` (RSC, sem JS novo). Enriquecimento de `EdgeUfRow.top_candidatos` com nome, partido e sqcand (emenda aos contratos de specs 016/017). Quatro ADRs decidem (0039–0042): fonte (Portal de Dados Abertos TSE), publicabilidade fail-closed, foto binária 1 ano cache, chave de identidade (cargo,uf,numero) + sqcand. Nota 2026-09-13: divergência corrigida em design.md — tabela é `candidatos` não `candidaturas`, `numero` é integer não text (medido: 8.323 registros, 0 com zero à esquerda). Pendências abertas: User-Agent completo antes de 15/09 (contato verificável), medição de Global Config ao entrar nome/partido/sqcand, vice e suplente (escopo não decidido), cadência de checagem contra CDN não verificada contra limite."
     },
@@ -1230,16 +1207,8 @@
       "title": "Fase pré-eleição — o placar zerado que não finge ser resultado",
       "status": "draft",
       "priority": "M",
-      "personas": [
-        "P1",
-        "P2",
-        "P3",
-        "P4"
-      ],
-      "screens": [
-        "T-15",
-        "T-16"
-      ],
+      "personas": ["P1", "P2", "P3", "P4"],
+      "screens": ["T-15", "T-16"],
       "requirements": [
         "RF-153",
         "RF-154",
@@ -1282,24 +1251,8 @@
         "BulletinPanel",
         "StateGroupedTable"
       ],
-      "nfr": [
-        "RNF-002",
-        "RNF-007a",
-        "RNF-010",
-        "RNF-012",
-        "RNF-022",
-        "RNF-023",
-        "RNF-024"
-      ],
-      "adrs": [
-        "0043",
-        "0012",
-        "0017",
-        "0024",
-        "0029",
-        "0038",
-        "0042"
-      ],
+      "nfr": ["RNF-002", "RNF-007a", "RNF-010", "RNF-012", "RNF-022", "RNF-023", "RNF-024"],
+      "adrs": ["0043", "0012", "0017", "0024", "0029", "0038", "0042"],
       "amends": [
         "003-home-nacional",
         "004-pagina-uf-presidencial",
@@ -1318,17 +1271,8 @@
       "title": "Evolução da apuração — a noite como linha, quatro candidaturas, duas bases",
       "status": "draft",
       "priority": "M",
-      "personas": [
-        "P1",
-        "P2",
-        "P3"
-      ],
-      "screens": [
-        "T-01",
-        "T-03",
-        "T-04",
-        "T-10"
-      ],
+      "personas": ["P1", "P2", "P3"],
+      "screens": ["T-01", "T-03", "T-04", "T-10"],
       "requirements": [
         "RF-167",
         "RF-168",
@@ -1357,26 +1301,8 @@
         "ViewModeSwitch",
         "TimeSeriesChart"
       ],
-      "nfr": [
-        "RNF-002",
-        "RNF-007a",
-        "RNF-022",
-        "RNF-023",
-        "RNF-024",
-        "RNF-026"
-      ],
-      "adrs": [
-        "0046",
-        "0011",
-        "0012",
-        "0017",
-        "0024",
-        "0029",
-        "0031",
-        "0032",
-        "0038",
-        "0043"
-      ],
+      "nfr": ["RNF-002", "RNF-007a", "RNF-022", "RNF-023", "RNF-024", "RNF-026"],
+      "adrs": ["0046", "0011", "0012", "0017", "0024", "0029", "0031", "0032", "0038", "0043"],
       "amends": [
         "003-home-nacional",
         "004-pagina-uf-presidencial",

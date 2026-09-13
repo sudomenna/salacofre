@@ -313,20 +313,19 @@ describe("listIngestTargets — cada cargo usa o código da SUA eleição", () =
     { cargo: 3, nome: "Governador" },
     { cargo: 5, nome: "Senador" },
     { cargo: 6, nome: "Deputado Federal" },
-  ] as const)(
-    "cargo $cargo ($nome) usa o código estadual, e nenhuma URL cita o federal",
-    async ({ cargo }) => {
-      mockZonasRowsOnce([...PARES]);
-      const targets = await listIngestTargets("production", { cargo });
+  ] as const)("cargo $cargo ($nome) usa o código estadual, e nenhuma URL cita o federal", async ({
+    cargo,
+  }) => {
+    mockZonasRowsOnce([...PARES]);
+    const targets = await listIngestTargets("production", { cargo });
 
-      expect(targets).toHaveLength(PARES.length);
-      expect(new Set(targets.map((t) => t.codEleicao))).toEqual(new Set([ESTADUAL]));
-      expect(targets.every((t) => t.url.includes(`/${ESTADUAL}/dados/`))).toBe(true);
-      expect(targets.every((t) => t.url.endsWith("-e021272-u.json"))).toBe(true);
-      // A asserção que mata a mutação "cargo 3 é federal" na tabela de cargos.
-      expect(targets.some((t) => t.url.includes("21270"))).toBe(false);
-    },
-  );
+    expect(targets).toHaveLength(PARES.length);
+    expect(new Set(targets.map((t) => t.codEleicao))).toEqual(new Set([ESTADUAL]));
+    expect(targets.every((t) => t.url.includes(`/${ESTADUAL}/dados/`))).toBe(true);
+    expect(targets.every((t) => t.url.endsWith("-e021272-u.json"))).toBe(true);
+    // A asserção que mata a mutação "cargo 3 é federal" na tabela de cargos.
+    expect(targets.some((t) => t.url.includes("21270"))).toBe(false);
+  });
 
   it("um ciclo com os dois cargos produz alvos sob DOIS códigos distintos", async () => {
     vi.stubEnv("TSE_CARGOS", "1,3");

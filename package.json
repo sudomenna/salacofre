@@ -9,6 +9,7 @@
     "dev:pre": "FIXTURE_VARIANT=pre next dev",
     "dev:sim": "FIXTURE_VARIANT=sim next dev",
     "dev:sim-velho": "FIXTURE_VARIANT=sim-velho next dev",
+    "prepare": "git config core.hooksPath .githooks || true",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",

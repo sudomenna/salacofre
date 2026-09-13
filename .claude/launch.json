@@ -4,17 +4,13 @@
     {
       "name": "salacofre-dev",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "dev"
-      ],
+      "runtimeArgs": ["dev"],
       "port": 3000
     },
     {
       "name": "salacofre-dev-pre",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "dev:pre"
-      ],
+      "runtimeArgs": ["dev:pre"],
       "port": 3000
     },
     {

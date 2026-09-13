@@ -91,5 +91,41 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Os testes de integração e os de cobertura geográfica conferem o banco
+      # CHEIO (>= 6.000 pares município×zona, >= 5.500 municípios, 155-157 mi de
+      # eleitores, >= 20.000 linhas históricas de 2018 e 2022). Um Postgres vazio
+      # com as migrations aplicadas reprovaria todos — por isso o CI aponta para
+      # um BRANCH do banco no Neon (cópia copy-on-write, já populada), nunca para
+      # produção. Ver docs/operations/runbook.md.
+      - name: Conferir o segredo do banco
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_CI }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL_CI não está cadastrado nos segredos do repositório." >&2
+            echo "Sem ele, 10 arquivos de teste falham com '[db] DATABASE_URL ausente' e a" >&2
+            echo "causa real fica escondida atrás de falhas genéricas. Cadastre o segredo" >&2
+            echo "apontando para um BRANCH do banco no Neon (não para produção)." >&2
+            exit 1
+          fi
+
+      # `model-cycle` e `model-edge-cases` invocam `api/model/project.py` num
+      # subprocesso e procuram o interpretador em `.venv-model/bin/python3.14`,
+      # com fallback para o `python3.14` do PATH. Sem isto, o fallback acha um
+      # Python sem as dependências e o teste falha com ModuleNotFoundError.
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Dependências do modelo em .venv-model
+        run: |
+          python -m venv .venv-model
+          .venv-model/bin/python -m pip install --quiet --upgrade pip
+          .venv-model/bin/python -m pip install --quiet -r api/model/requirements.txt
+          .venv-model/bin/python3.14 -c "import numpy, pydantic, psycopg; print('deps do modelo ok')"
+
       - name: Unit tests
         run: pnpm test
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_CI }}
