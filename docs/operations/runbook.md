@@ -7,6 +7,28 @@ source: PRD.md § 19.5
 
 # Runbook
 
+## 🚨 Publicar sem depender de nada — a rota de fuga (13/09/2026)
+
+Se no dia D a integração com o GitHub cair, o painel não abrir, ou ninguém estiver logado,
+**publicar é uma linha**:
+
+```bash
+cd /Users/tiagomenna/Projetos/AtlasMenna
+set -a; . ./.env.local; set +a
+curl -s -X POST "$VERCEL_DEPLOY_HOOK_URL" | head -c 200
+```
+
+O hook `emergencia-dia-d` (id `HkVUtPrjIs`) publica a branch `main` em produção. A URL é
+**segredo** — quem a tem publica em produção — e vive em `.env.local` (git-ignored) como
+`VERCEL_DEPLOY_HOOK_URL`. Nunca commitar, nunca colar em chat ou ticket.
+
+**Testado em 13/09**, não apenas criado: o disparo produziu um deploy com
+`deployHookId=HkVUtPrjIs`, `deployHookRef=main`, commit correto e `target: production`.
+Rota de fuga não testada é a coisa que mais falha quando é acionada.
+
+Existe porque a integração Git **já caiu uma vez e ficou 4 meses caída sem ninguém perceber**
+(ver `docs/reference/risks.md`). Listar os hooks: `vercel deploy-hooks list`.
+
 Documento operacional com procedimentos para cenários críticos. Versão completa: `RUNBOOK.md` na raiz do repo (a ser criado em F6).
 
 ## Cenários cobertos
