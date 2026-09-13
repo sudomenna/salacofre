@@ -1334,11 +1334,12 @@
         "GET /api/projection?cargo=deputado-federal"
       ],
       "components": [
-        "ResultPanel",
-        "ChancesPanel",
         "CargoTabs",
-        "RaceHeader",
-        "ForecastTransparency"
+        "DeputadoMetodologia",
+        "VoteBar",
+        "Figure",
+        "Panel",
+        "Footer"
       ],
       "nfr": [
         "RNF-001",
@@ -1362,11 +1363,9 @@
         "0034",
         "0035"
       ],
-      "ship_blocked_on": [
-        "telas-e-payload"
-      ],
+      "ship_blocked_on": [],
       "opens_after": "2026-09-11",
-      "nota_2026_09_12": "Cálculo de cadeiras implementado e VALIDADO: golden contra 2022 dá 511/513, com a fase 1 (quociente partidário + cláusula dos 10%) exata nas 27 UFs. A degradação pré-acordada de 19/09 não será acionada pelo método. Falta payload, read path do Blob e as 2 telas."
+      "notes": "nota 2026-09-12: spec implementada ponta a ponta (payload, Blob, 2 telas, aba). Componentes conferidos por import real nas duas páginas — ResultPanel, ChancesPanel, RaceHeader e ForecastTransparency NÃO são usados. ForecastTransparency é ausência deliberada (design.md D9): ele calcula pctModel = 100 − pctApurado e imprimiria \"Modelo 28,6%\" num cargo sem modelo. Fora de escopo: intervalo de cadeiras (D7), insights (D10), GET /api/projection?cargo=deputado-federal (mesmo estado do Senador)."
     }
   ]
 }

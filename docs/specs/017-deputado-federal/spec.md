@@ -8,7 +8,7 @@ screens: [T-11, T-12]
 requirements: [RF-120, RF-121, RF-122, RF-123, RF-124, RF-125, RF-125.1, RF-126, RF-127, RF-128, RF-129, RF-130]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 016-senador]
 apis: [GET /api/ingest/deputado-federal, POST /api/ingest/deputado-federal, GET /api/projection?cargo=deputado-federal]
-components: [ResultPanel, ChancesPanel, CargoTabs, RaceHeader, ForecastTransparency]
+components: [CargoTabs, DeputadoMetodologia, VoteBar, Figure, Panel, Footer]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-006, RNF-007a, RNF-022, RNF-023, RNF-024]
 adrs: [0001, 0012, 0020, 0021, 0026, 0027, 0028, 0032, 0034, 0035]
 ship_blocked_on: [telas-e-payload]
@@ -34,10 +34,10 @@ validado em 2026-09-12**.
 | Ponte EA20 → cadeiras | ✅ `api/model/deputado.py`, 28 testes |
 | **Golden contra 2022 (RF-126)** | ✅ **511/513 cadeiras**, fase 1 exata nas 27 UFs |
 | Conferência ao vivo contra o TSE | ✅ `conferir_contra_tse` — compara com `carg[].qe` e `agr[].vag` |
-| Payload (`EdgePayload*` de Deputado) | ❌ não existe |
-| Read path do Blob (`deputado/uf/<SIGLA>.json`) | ❌ escritor e leitor não existem |
-| Telas `/deputado-federal` e `/uf/[sigla]/deputado-federal` | ❌ não existem |
-| Aba no `CargoTabs` | ❌ segue `disabled: true`, sem `href` |
+| Payload (`EdgePayloadDeputado` nacional + UF) | ✅ `lib/edge-config/`, `lib/blob/` |
+| Read path do Blob (`deputado/uf/<SIGLA>.json`) | ✅ `lib/blob/deputado-uf.ts::readDeputadoUfDetail` + testes |
+| Telas `/deputado-federal` e `/uf/[sigla]/deputado-federal` | ✅ rotas implementadas, aba habilitada |
+| Aba no `CargoTabs` | ✅ `href="/deputado-federal"`, `disabled: false` |
 
 **A degradação de 19/09 não será acionada por causa do cálculo** — ele passou. O
 que resta é payload e UI, que é trabalho de engenharia sem incerteza de método.

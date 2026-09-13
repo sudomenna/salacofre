@@ -471,8 +471,8 @@ pipeline (P0) e do redesign (P1).
       ingerir nada, em silêncio.
 - [x] **Spec 016 — Senador** escrita (`docs/specs/016-senador/spec.md`, `draft`): RF-100 a RF-108.
       Ingestão implementada e medida em 11/09; modelo + payload + rotas T-09 e T-10 implementadas. Falta: gates de a11y/cobertura.
-- [x] **Spec 017 — Deputado Federal** escrita (`docs/specs/017-deputado-federal/spec.md`, `draft`):
-      RF-120 a RF-130, com a degradação pré-acordada transcrita e 3 open questions. Módulo de cadeiras (`api/model/cadeiras.py`) implementado, com **21 testes dos casos de borda** do ADR-0027 — **não** o golden de 2022 (RF-126), que é o gate da degradação de 19/09 e **segue aberto**: falta o dado (o CSV no disco é por partido; a fase 1 precisa por candidato) e o gabarito tem de ser o **recalculado** pós-ADI 7228. Falta também: ingestão, payload e telas.
+- [x] **Spec 017 — Deputado Federal** implementação concluída (12/09):
+      RF-120 a RF-130. Módulo de cadeiras implementado: **21 testes dos casos de borda** do ADR-0027 + **golden contra 2022 (511/513 cadeiras)**. Ingestão cargo 6 em 27 alvos UF com cron 15min. Payload `EdgePayloadDeputado` (nacional + UF em Blob). Read path `lib/blob/deputado-uf.ts::readDeputadoUfDetail()`. Telas `/deputado-federal` e `/uf/[sigla]/deputado-federal` com aba habilitada. Componente `<DeputadoMetodologia>` (não reutiliza `<ForecastTransparency>` — design.md D9). ⚠️ Fora de escopo S07: intervalo de cadeiras CI95 (D7 — requer bootstrap por agremiação), projeção de votos (hoje só apurado — D9), insights templates (sai vazio — D10), `/api/projection?cargo=deputado-federal` endpoint (não implementado). Registro em `design.md` § D7–D10.
 - [x] **ADR-0027** (`accepted` 11/09) — método de conversão de votos em cadeiras. Citado como dependência pelo
       ADR-0026 desde 07/09, formalizado em 11/09. ✅ Correção verificada no Planalto: os artigos estão no **Código Eleitoral (Lei 4.737/1965)**, não na
       Lei 9.504 como o ADR-0026 cita; o **art. 111 foi declarado inconstitucional** (STF, ADI
