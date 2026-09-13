@@ -61,10 +61,15 @@ const UF_NAMES: Record<string, string> = {
 export interface GovernorCardProps {
   uf: EdgeUfRow;
   /**
-   * Candidatos com metadados (nome + partido). O componente cruza por id
-   * com `uf.top_candidatos` para obter nome/partido. Caller passa o
-   * array nacional (`EdgePayload.national.candidatos`) ou um array
-   * estadual específico.
+   * Candidatos com metadados de RANK (`cor`, `rank`), cruzados por `id` com
+   * `uf.top_candidatos`. Caller passa o array nacional
+   * (`EdgePayload.national.candidatos`) ou um array estadual específico.
+   *
+   * ⚠️ **NÃO é mais a fonte de `nome`/`partido`** (spec 018 / ADR-0042). Em
+   * cargo 3 o array nacional é a união de 27 corridas sob o mesmo espaço de
+   * `id`, com `rank` reiniciando a cada UF — resolver identidade por `id`
+   * sozinho ali entrega o candidato do estado errado. Nome e partido saem de
+   * `uf.top_candidatos[]`, que o orchestrator resolve pelo par `(uf, numero)`.
    */
   candidatos: EdgeCandidate[];
   mode?: "compact" | "expanded";
@@ -134,9 +139,26 @@ export function GovernorCard({ uf, candidatos, mode = "expanded" }: GovernorCard
     const meta = candIndex.get(t.id);
     return {
       id: t.id,
-      nome: meta?.nome ?? `Cand ${t.id}`,
-      partido: meta?.partido ?? "—",
+      // Spec 018 / ADR-0042 — nome e partido vêm da PRÓPRIA linha da UF, nunca
+      // mais de `candIndex`. O índice é construído sobre `national.candidatos`,
+      // que em cargo 3 é a **união de 27 corridas** sob o mesmo espaço de `id`
+      // (ver o comentário do `GovernorCardProps.candidatos`): `id === 13` ali
+      // não é uma pessoa, é "o número 13 nalguma UF". Resolver nome por ele
+      // punha o candidato de um estado no card de outros 26 — e o único caller
+      // de produção (`app/(gov)/governador/page.tsx`) passa exatamente esse
+      // array. `uf.top_candidatos[]` é resolvido pelo par `(uf, numero)` no
+      // orchestrator, então já sabe de que estado é.
+      //
+      // Fallback para payload PRÉ-018 (campo ausente): o placeholder de
+      // sempre. É deliberado que ele NÃO caia de volta no índice nacional —
+      // "Cand 13" é feio e verdadeiro; o nome do governador de outro estado
+      // seria bonito e falso.
+      nome: t.nome ?? `Cand ${t.id}`,
+      partido: t.partido ?? "—",
       pct: t.pct,
+      // `cor`/`rank` seguem vindo do índice: são função do RANK, não da
+      // identidade, e rank errado pinta a barra de outro tom — não mente sobre
+      // quem é a pessoa.
       cor: meta?.cor ?? colorForRank(meta?.rank ?? i + 1),
       rank: meta?.rank ?? i + 1,
     };

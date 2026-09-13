@@ -5,9 +5,28 @@
  *
  * Server Component puro. Renderiza UMA linha; o caller compõe a tabela.
  *
- * `avatar` opcional: quando não há foto, exibimos um circle stub com as
- * iniciais (sem deps de imagem). É o padrão NYT-like e evita uma rede de
- * 404s na v1 quando ainda não temos asset pipeline para fotos.
+ * ## O avatar sai daqui — 2026-09-13, spec 018
+ *
+ * Este arquivo dizia que a foto ficara para depois "por falta de asset
+ * pipeline". A spec 018 quitou essa dívida: a foto do TSE existe, mora no Blob
+ * (ADR-0041) e é desenhada por
+ * `components/atoms/data/CandidateAvatar.tsx` — o **único** lugar do repositório
+ * que renderiza imagem.
+ *
+ * Esta linha passou a consumir aquele componente em vez de manter um segundo
+ * desenho de avatar e uma segunda cópia da regra de iniciais. Dois caminhos de
+ * avatar divergem no primeiro nome composto, e ninguém percebe até uma das
+ * telas mostrar "L" onde a outra mostra "LS".
+ *
+ * O que NÃO mudou: aqui o avatar continua **sem foto** (`fotoUrl={null}`). Esta
+ * linha nasce do payload de apuração, que carrega número e nome — não `sqcand`,
+ * que é o que endereça a foto (ADR-0042). Quando `EdgeUfRow.top_candidatos`
+ * passar a trazer `sqcand` (RF-144), é um `fotoUrl` a mais, não um componente
+ * novo.
+ *
+ * ⚠️ Nenhuma página importa este componente hoje (só testes). Ele segue no
+ * catálogo por RF-033; a decisão de aposentá-lo é de escopo maior que esta
+ * tarefa.
  *
  * Cores via tokens (constituição § 2); a barra de progresso usa a cor do
  * candidato passada como prop (`cor`).
@@ -18,7 +37,7 @@
  *   - A barra de progresso é `role="progressbar"` com aria-valuenow/min/max.
  */
 
-import type { CSSProperties } from "react";
+import { CandidateAvatar } from "@/components/atoms/data/CandidateAvatar";
 import { rankFromColorVar, strongForRank } from "@/lib/utils/cand-color";
 
 export interface CandidateRowProps {
@@ -36,14 +55,6 @@ export interface CandidateRowProps {
   iniciais?: string;
 }
 
-function defaultIniciais(nome: string): string {
-  const parts = nome.trim().split(/\s+/);
-  if (parts.length === 0 || !parts[0]) return "?";
-  const first = parts[0][0] ?? "";
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
-  return (first + last).toUpperCase() || "?";
-}
-
 function formatVotos(votos: number | null): string {
   if (votos === null) return "—";
   return new Intl.NumberFormat("pt-BR").format(votos);
@@ -55,7 +66,6 @@ function formatPct(pct: number): string {
 }
 
 export function CandidateRow({ nome, partido, cor, votos, pct, iniciais }: CandidateRowProps) {
-  const initials = iniciais ?? defaultIniciais(nome);
   const safePct = Math.max(0, Math.min(100, pct));
 
   // O avatar é o único lugar deste componente com texto **sobre** a cor do
@@ -64,12 +74,9 @@ export function CandidateRow({ nome, partido, cor, votos, pct, iniciais }: Candi
   // 2026-09-05). Usamos a variante `-strong` só aqui; a barra e o resto seguem
   // com a cor de identidade de `colorForRank` (ADR-0013, intocado).
   const rank = rankFromColorVar(cor);
-  const avatarStyle: CSSProperties = {
-    backgroundColor: rank === undefined ? cor : strongForRank(rank),
-    color: "#ffffff",
-  };
+  const avatarBackground = rank === undefined ? cor : strongForRank(rank);
 
-  const barFillStyle: CSSProperties = {
+  const barFillStyle = {
     width: `${safePct}%`,
     backgroundColor: cor,
   };
@@ -79,14 +86,19 @@ export function CandidateRow({ nome, partido, cor, votos, pct, iniciais }: Candi
       className="grid grid-cols-[2.25rem_1fr_6rem_3.5rem] items-center gap-3 py-2"
       style={{ borderBottom: "1px solid var(--color-border)" }}
     >
-      {/* Avatar */}
-      <div
-        aria-hidden="true"
-        className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold"
-        style={avatarStyle}
-      >
-        {initials}
-      </div>
+      {/* Avatar — sem foto nesta superfície; ver o bloco no cabeçalho. */}
+      <CandidateAvatar
+        nome={nome}
+        fotoUrl={null}
+        iniciais={iniciais}
+        width={36}
+        height={36}
+        responsive={false}
+        rounded
+        background={avatarBackground}
+        ink="#ffffff"
+        style={{ font: "var(--type-kicker)", fontSize: "var(--text-xs)", fontWeight: 600 }}
+      />
 
       {/* Nome + partido + barra */}
       <div className="flex flex-col gap-1">

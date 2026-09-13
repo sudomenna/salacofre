@@ -4,6 +4,7 @@
 // PostGIS (GEOGRAPHY) é tratado como text aqui — migração inicial habilita a extensão
 // e altera a coluna; Drizzle não tem helper nativo nessa versão.
 
+import { sql } from "drizzle-orm";
 import {
   bigint,
   bigserial,
@@ -231,6 +232,99 @@ export const projections = pgTable(
   (t) => [index("ix_proj_lookup").on(t.cargo, t.turno, t.uf, t.ts)],
 );
 
+/**
+ * Cadastro de **candidaturas 2026** — nome, nome de urna, número, partido,
+ * federação e situação de julgamento (migration 0008, spec 018).
+ *
+ * Fonte: Portal de Dados Abertos do TSE, licença cc-by
+ * ([ADR-0039](../../docs/architecture/adrs/0039-portal-dados-abertos-tse-identidade-candidatura.md)).
+ * Importador: `data-pipeline/candidatos-import.ts`.
+ *
+ * ## Três coisas que NÃO estão aqui, cada uma de propósito
+ *
+ * 1. **Nenhuma coluna de PII.** O CSV traz `NR_CPF_CANDIDATO`, `DS_EMAIL` e
+ *    `NR_TITULO_ELEITORAL_CANDIDATO`; o parser não os mapeia (constituição § 5,
+ *    RNF-019, ADR-0039). Também ficam fora a ficha do candidato — nascimento,
+ *    ocupação, bens —, por decisão de escopo do dono do produto.
+ * 2. **Nenhum índice ÚNICO sobre `(cargo, uf, numero)`.** A chave colide na
+ *    própria fonte: 52 colisões brutas e 4 publicáveis no arquivo de 12/09/2026
+ *    (ADR-0042 item 5). O desempate é a função determinística de
+ *    `data-pipeline/candidatos-resolve.ts`.
+ * 3. **Nenhuma FK para `projections`.** `projections` é append-only
+ *    (constituição § 10) e nasce do EA20, que tem precedência absoluta sobre o
+ *    cadastro; uma FK travaria um número publicado no boletim antes de o
+ *    cadastro chegar. A relação é conferida por query de reconciliação no
+ *    importador.
+ *
+ * Não é append-only: a constituição § 10 rege `snapshots`, o dado de apuração.
+ * Esta é tabela de referência e é substituída a cada importação, como
+ * `eleitorado` e `zonas`. O que protege contra perda é a guarda de
+ * encolhimento do RF-152, não o histórico.
+ */
+export const candidatos = pgTable(
+  "candidatos",
+  {
+    /**
+     * `SQ_CANDIDATO` — 11 ou 12 dígitos no arquivo de 2026.
+     *
+     * `mode: "bigint"`, **nunca `"number"`**: no payload e no importador o
+     * valor viaja como `string` (design 018 § D2) e converter para `number` em
+     * qualquer ponto do trajeto é a perda de precisão que só aparece como
+     * candidato — ou foto — trocado.
+     */
+    sqCandidato: bigint("sq_candidato", { mode: "bigint" }).primaryKey(),
+    ano: smallint("ano").notNull().default(2026),
+    /** `CD_ELEICAO` — 6257 (Presidente) ou 6259 (demais), medido. */
+    cdEleicao: integer("cd_eleicao").notNull(),
+    turno: smallint("turno").notNull().default(1),
+    /** Código do TSE: 1, 3, 5 ou 6 (`CargoTse`, `lib/config/cargos.ts`). */
+    cargo: smallint("cargo").notNull(),
+    /** Sigla; **`BR`** em candidatura presidencial — é o que o CSV traz. */
+    uf: char("uf", { length: 2 }).notNull(),
+    /** `NR_CANDIDATO`: 2 a 4 dígitos, zero ocorrências de zero à esquerda. */
+    numero: integer("numero").notNull(),
+    nome: text("nome").notNull(),
+    nomeUrna: text("nome_urna").notNull(),
+    partidoSigla: varchar("partido_sigla", { length: 20 }).notNull(),
+    partidoNumero: smallint("partido_numero").notNull(),
+    partidoNome: text("partido_nome"),
+    federacaoSigla: varchar("federacao_sigla", { length: 40 }),
+    coligacaoNome: text("coligacao_nome"),
+    /** `DS_SITUACAO_JULGAMENTO` **cru**. Nunca normalizado para enum. */
+    situacaoJulgamento: text("situacao_julgamento").notNull(),
+    /** `ST_CANDIDATO_INSERIDO_URNA = "SIM"`. */
+    inseridoUrna: boolean("inserido_urna").notNull(),
+    substituido: boolean("substituido").notNull().default(false),
+    sqSubstituido: bigint("sq_substituido", { mode: "bigint" }),
+    /** Regra fail-closed do ADR-0040 — a única porta de publicação. */
+    publicavel: boolean("publicavel").notNull(),
+    /** Trilha de fotos (RF-142); esta importação não o escreve. */
+    fotoOk: boolean("foto_ok").notNull().default(false),
+    /** `Last-Modified` do ZIP do TSE — jamais o `last_modified` do CKAN. */
+    fonteTs: timestamp("fonte_ts", { withTimezone: true }).notNull(),
+    importadoTs: timestamp("importado_ts", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // Ambos NÃO-ÚNICOS — ver nota 2 acima. O segundo é parcial: o grid só lê
+    // publicável, e o índice parcial evita varrer os 7,3% fora da urna.
+    // O índice GIN de busca (`ix_cand_busca`) existe no banco (migration 0008)
+    // e não tem representação em Drizzle nesta versão.
+    index("ix_cand_cargo_uf").on(t.cargo, t.uf),
+    index("ix_cand_publicavel").on(t.cargo, t.uf).where(sql`publicavel`),
+  ],
+);
+
+/**
+ * Partidos — tabela de referência número → sigla/nome, extraída do mesmo CSV de
+ * candidaturas (migration 0008). Populada a partir do universo **inteiro** do
+ * arquivo, antes de qualquer filtro de cargo.
+ */
+export const partidos = pgTable("partidos", {
+  numero: smallint("numero").primaryKey(),
+  sigla: varchar("sigla", { length: 20 }).notNull(),
+  nome: text("nome").notNull(),
+});
+
 /** Log operacional do pipeline de ingest. */
 export const ingestLog = pgTable("ingest_log", {
   id: bigserial("id", { mode: "bigint" }).primaryKey(),
@@ -254,3 +348,6 @@ export type NewSnapshot = typeof snapshots.$inferInsert;
 export type Projection = typeof projections.$inferSelect;
 export type NewProjection = typeof projections.$inferInsert;
 export type IngestLog = typeof ingestLog.$inferSelect;
+export type Candidato = typeof candidatos.$inferSelect;
+export type NewCandidato = typeof candidatos.$inferInsert;
+export type Partido = typeof partidos.$inferSelect;

@@ -529,3 +529,93 @@ describe("UFPage — degradação do detalhe municipal (ADR-0032)", () => {
     expect(frescor?.textContent).toContain("9 min mais antigo que o resumo");
   });
 });
+
+/**
+ * ===================================================================
+ * `/uf/[sigla]` em PRODUÇÃO com o Global Config vazio
+ * ===================================================================
+ *
+ * Rota irmã da home na trilha presidencial, e a única outra que tem fixture no
+ * caminho de fallback (`synthesizeUfFromNational`, que deriva de
+ * `tests/fixtures/edge-config/projection-current.json` — a MESMA fixture cujos
+ * números vazaram para `salacofre.vercel.app` pela home em 13/09/2026).
+ *
+ * Esta rota já barrava produção antes da correção (`NODE_ENV !== "production"`),
+ * então aqui não havia vazamento. O que os testes abaixo fazem é FIXAR isso:
+ * até 13/09 nenhum teste provava a direção, e o portão sobrevivia por acaso.
+ * A mudança de `!== "production"` para `=== "development"` alinhou as cinco
+ * rotas de cargo ao mesmo portão.
+ */
+describe("UFPage — produção sem Global Config (defeito 2026-09-13)", () => {
+  /** Os números que a home publicou; todos vêm da fixture nacional. */
+  const NUMEROS_DA_FIXTURE = ["Candidato PT", "Candidato PL", "15.240.321", "43,5"];
+
+  async function renderUf(sigla = "SP"): Promise<Document> {
+    return parse(await UFPage({ params: Promise.resolve({ sigla }) }));
+  }
+
+  /** Um resumo genuíno vindo do Global Config — o caminho feliz. */
+  function payloadGenuino(): EdgePayloadUf {
+    return buildUfPayload({
+      turno: 1,
+      candidatos: [makeCand(1, "Candidato A", 41), makeCand(2, "Candidato B", 33)],
+      comParticipacao: true,
+    });
+  }
+
+  it("(z1) reader vazio: nenhum número da fixture nacional chega ao HTML", async () => {
+    // Mutação que deve derrubá-lo: tirar a guarda de `synthesizeUfFromNational`.
+    vi.stubEnv("NODE_ENV", "production");
+    readUfProjectionMock.mockResolvedValueOnce(null);
+
+    const doc = await renderUf();
+    const html = doc.body.innerHTML;
+    for (const numero of NUMEROS_DA_FIXTURE) {
+      expect(html).not.toContain(numero);
+    }
+    vi.unstubAllEnvs();
+  });
+
+  it("(z2) reader vazio: a página diz, em texto, que está aguardando", async () => {
+    // Mutação que deve derrubá-lo: render vazio sem mensagem.
+    vi.stubEnv("NODE_ENV", "production");
+    readUfProjectionMock.mockResolvedValueOnce(null);
+
+    const doc = await renderUf("MG");
+    const aviso = doc.querySelector('[data-testid="uf-aguardando"]');
+    expect(aviso).not.toBeNull();
+    expect(aviso?.textContent).toContain("quando o TSE divulgar");
+    // O <h1> nomeia a UF consultada, e não um estado genérico.
+    expect(doc.querySelector("h1")?.textContent).toContain("MG");
+    // Constituição §§ 1 e 3: a página não some e continua rotulada.
+    expect(doc.querySelector("main")?.getAttribute("data-trilha")).toBe("pres");
+    expect(doc.querySelector("main footer")).not.toBeNull();
+    vi.unstubAllEnvs();
+  });
+
+  it("(z3) `NODE_ENV=development` com reader vazio: a fixture CONTINUA entrando", async () => {
+    // Mutação que deve derrubá-lo: guardar por algo que também bloqueie dev.
+    // `pnpm dev` sem credencial Vercel precisa continuar inspecionável.
+    vi.stubEnv("NODE_ENV", "development");
+    readUfProjectionMock.mockResolvedValueOnce(null);
+
+    const doc = await renderUf("SP");
+    expect(doc.querySelector('[data-testid="uf-aguardando"]')).toBeNull();
+    expect(doc.body.textContent).toContain("Candidato PT");
+    vi.unstubAllEnvs();
+  });
+
+  it("(z4) reader COM payload: produção não muda nada no caminho feliz", async () => {
+    // Mutação que deve derrubá-lo: uma guarda que bloqueie o dado real junto
+    // com a fixture.
+    vi.stubEnv("NODE_ENV", "production");
+    readUfProjectionMock.mockResolvedValueOnce(payloadGenuino());
+
+    const doc = await renderUf("SP");
+    expect(doc.querySelector('[data-testid="uf-aguardando"]')).toBeNull();
+    expect(
+      doc.querySelectorAll('[data-testid="candidate-result-row"]').length,
+    ).toBeGreaterThanOrEqual(2);
+    vi.unstubAllEnvs();
+  });
+});

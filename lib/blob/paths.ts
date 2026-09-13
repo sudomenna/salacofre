@@ -31,6 +31,9 @@
  * ```
  *   municipios/uf/<SIGLA>/<cargo>/t<turno>.json   municipios/uf/SP/pres/t1.json
  *   deputado/uf/<SIGLA>.json                      deputado/uf/SP.json
+ *   candidatos/uf/<SIGLA>/<cargo>.json            candidatos/uf/SP/dep.json
+ *   candidatos/index.json                         candidatos/index.json
+ *   candidatos/foto/<SIGLA>/<SQ_CANDIDATO>.jpg    candidatos/foto/SP/250002553928.jpg
  * ```
  *
  * **Separador `/`, não `:`.** Os dois ADRs escreveram o caminho com
@@ -127,16 +130,45 @@ function normaliseSigla(sigla: string, context: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Junta segmentos validados com `/` e acrescenta `.json`.
+ * Extensão de arquivo aceita: ponto + minúsculas/dígitos. O ponto faz parte do
+ * valor de propósito — `".jpg"`, nunca `"jpg"`. Ver {@link blobPathname}.
+ */
+const BLOB_EXTENSION_PATTERN = /^\.[a-z0-9]+$/;
+
+/**
+ * Junta segmentos validados com `/` e acrescenta a extensão.
  *
  * É a única função que produz um pathname neste repositório — os construtores
  * nomeados abaixo apenas escolhem os segmentos.
+ *
+ * A extensão é parâmetro desde o
+ * [ADR-0041](../../docs/architecture/adrs/0041-foto-candidato-blob-binario-cache-um-ano.md)
+ * item 2, quando a foto de candidato trouxe o primeiro binário do produto. O
+ * default `".json"` preserva os chamadores anteriores **byte a byte**: nenhum
+ * deles precisou mudar, e essa é a razão de o parâmetro ser o terceiro e ter
+ * default em vez de ser obrigatório.
+ *
+ * Extensão malformada **lança**, pela mesma filosofia de erro cedo que
+ * {@link assertValidBlobSegment} aplica aos segmentos: `"jpg"` sem ponto,
+ * corrigido em silêncio, produziria `candidatos/foto/SP/250002553928jpg` — um
+ * caminho que grava sem reclamar e só aparece como 404 mudo do CDN.
  */
-export function blobPathname(segments: readonly string[], context: string): string {
+export function blobPathname(
+  segments: readonly string[],
+  context: string,
+  extension: string = ".json",
+): string {
   if (segments.length === 0) {
     throw new Error(`caminho de Blob vazio (origem: ${context}).`);
   }
-  return `${segments.map((s) => assertValidBlobSegment(s, context)).join("/")}.json`;
+  if (!BLOB_EXTENSION_PATTERN.test(extension)) {
+    throw new Error(
+      `extensão de Blob inválida (origem: ${context}): "${extension}". ` +
+        `O padrão é ${BLOB_EXTENSION_PATTERN.source} — o ponto faz parte do valor ` +
+        `(use ".jpg", não "jpg").`,
+    );
+  }
+  return `${segments.map((s) => assertValidBlobSegment(s, context)).join("/")}${extension}`;
 }
 
 /**
@@ -175,6 +207,62 @@ export function ufDetailBlobPathname(sigla: string, cargo: Cargo, turno: Turno):
 export function deputadoUfBlobPathname(sigla: string): string {
   const uf = normaliseSigla(sigla, "deputadoUfBlobPathname");
   return blobPathname(["deputado", "uf", uf], "deputadoUfBlobPathname");
+}
+
+// ---------------------------------------------------------------------------
+// Identidade de candidatura — spec 018 (ADR-0039 a ADR-0042)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fatia de identidade de candidatura de UMA UF e UM cargo (ADR-0039).
+ *
+ * `candidatos/uf/<SIGLA>/<cargo>.json` — ex. `candidatos/uf/SP/dep.json`.
+ *
+ * Fatiado por UF × cargo, e não um arquivo nacional único, pela mesma linha
+ * divisória do ADR-0032: são ~8.400 candidaturas, e a página que precisa da
+ * lista sempre precisa de uma UF e um cargo — baixar as outras 26 UFs para
+ * mostrar uma seria latência sem contrapartida. Sem turno no caminho: a
+ * identidade de quem se candidatou não muda entre 1º e 2º turno (ADR-0042 —
+ * a chave é `sqcand`, global e estável).
+ */
+export function candidatosUfBlobPathname(sigla: string, cargo: Cargo): string {
+  const uf = normaliseSigla(sigla, "candidatosUfBlobPathname");
+  return blobPathname(["candidatos", "uf", uf, cargo], "candidatosUfBlobPathname");
+}
+
+/**
+ * Índice único das fatias de candidatura — `candidatos/index.json`.
+ *
+ * Existe para que o consumidor saiba **o que foi publicado e quando** sem ter
+ * de sondar 27 × 4 caminhos e interpretar 404s: um 404 numa fatia é
+ * ambíguo entre "esta UF não tem este cargo" e "o importador não rodou", e a
+ * diferença importa para o leitor (constituição § 8).
+ */
+export function candidatosIndexBlobPathname(): string {
+  return blobPathname(["candidatos", "index"], "candidatosIndexBlobPathname");
+}
+
+/**
+ * Foto oficial de UM candidato (ADR-0041 item 5).
+ *
+ * `candidatos/foto/<SIGLA>/<SQ_CANDIDATO>.jpg` — ex.
+ * `candidatos/foto/SP/250002553928.jpg`.
+ *
+ * `sqCandidato` é **`string`**, e não `number`, de propósito: são 11 ou 12 dígitos, o
+ * tipo no banco é `bigint`, e converter para `number` no meio do caminho é
+ * convidar uma perda de precisão que só apareceria como foto do candidato
+ * errado. Só dígitos, então passa em {@link BLOB_PATH_SEGMENT_PATTERN} sem
+ * escape nenhum — mesma premissa de URL limpa do resto do esquema.
+ *
+ * A extensão é `.jpg` porque o TSE publica JPEG 161×225 px (ADR-0041,
+ * contexto). É o primeiro binário do produto; a escrita é
+ * `putBinary` em `lib/blob/write.ts`, com cache de 1 ano — ver
+ * `BLOB_IMMUTABLE_MAX_AGE_SECONDS` lá para o porquê de não serem os 60 s do
+ * JSON de apuração.
+ */
+export function candidatoFotoBlobPathname(sigla: string, sqCandidato: string): string {
+  const uf = normaliseSigla(sigla, "candidatoFotoBlobPathname");
+  return blobPathname(["candidatos", "foto", uf, sqCandidato], "candidatoFotoBlobPathname", ".jpg");
 }
 
 // ---------------------------------------------------------------------------

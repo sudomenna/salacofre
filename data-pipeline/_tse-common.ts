@@ -42,6 +42,34 @@ export function getPool(): Pool {
 }
 
 /**
+ * User-Agent das requisições ao CDN de dados abertos do TSE.
+ *
+ * ⚠️ Medido em 2026-09-13: o WAF (Akamai) de `cdn.tse.jus.br` e
+ * `dadosabertos.tse.jus.br` devolve **403** para qualquer User-Agent que
+ * carregue e-mail ou URL de contato. O valor anterior —
+ * `"SalaCofre-ETL/0.1 (+menna@outsiders.digital)"` — era bloqueado, e com ele
+ * `historical-import`, `eleitorado-import` e `zonas-import` falhariam contra o
+ * TSE. O defeito ficava escondido pelo cache local e pelo fallback de fixture.
+ *
+ * A regra do WAF é sobre a FORMA, não sobre o nome: bloqueia qualquer UA com
+ * e-mail ou URL entre parênteses (`"SalaCofre/0.1 (+https://salacofre.com.br)"`,
+ * `"SalaCofre/0.1 contato@…"`) e também `"curl/8.7.1"`. Aceita token de produto
+ * simples (`"SalaCofre-ETL/0.1"`, `"SalaCofre/0.1"`) e ausência de header.
+ *
+ * Mantemos um identificador — a constituição § 1 pede que o cliente seja
+ * reconhecível pelo TSE — mas o contato **não cabe aqui**. Passar-se por
+ * navegador resolveria o 403 e seria desonesto; não é opção. O canal de
+ * contato é `contato@salacofre.com.br`, documentado no runbook.
+ *
+ * `resultados.tse.jus.br` (ingestão EA20, dia D) **não** aplica esta regra —
+ * é outra propriedade Akamai, e `lib/tse/client.ts` não é afetado. Não
+ * generalizar de um host para o outro.
+ *
+ * Cross-refs: ADR-0038, docs/operations/runbook.md.
+ */
+export const TSE_ETL_USER_AGENT = "SalaCofre-ETL/0.1";
+
+/**
  * Baixa uma URL para o diretório de cache se ainda não existir.
  * Reaproveita o arquivo local se já presente e não-vazio.
  * Retorna o caminho local.
@@ -68,7 +96,7 @@ export async function downloadCached(
   console.log(`  [download] ${url}`);
   const t0 = Date.now();
   const res = await fetch(url, {
-    headers: { "User-Agent": "SalaCofre-ETL/0.1 (+menna@outsiders.digital)" },
+    headers: { "User-Agent": TSE_ETL_USER_AGENT },
     // signal: AbortSignal.timeout não suportado consistentemente em Node 22 fetch;
     // fica a critério do orquestrador setar timeout via Bash.
   });

@@ -32,10 +32,26 @@
  */
 
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "@/app/(pres)/page";
 import fixture from "@/tests/fixtures/edge-config/projection-current.json" with { type: "json" };
+
+/**
+ * O reader é mockado desde 2026-09-13 porque ele passou a ser a VARIÁVEL do
+ * teste, não um detalhe de ambiente: a home só cai na fixture sob
+ * `NODE_ENV === "development"`, e o que acontece quando o Global Config está
+ * vazio depende de qual dos dois — reader e ambiente — está em qual estado.
+ * Antes disso o arquivo dependia de o reader real devolver `null` por falta de
+ * credencial, o que é exatamente a condição de produção que fabricava os
+ * números da fixture no site público.
+ */
+const readNationalProjectionMock = vi.fn();
+const readArchivedProjectionMock = vi.fn();
+vi.mock("@/lib/edge-config/reader", () => ({
+  readNationalProjection: () => readNationalProjectionMock(),
+  readArchivedProjection: (opts?: unknown) => readArchivedProjectionMock(opts),
+}));
 
 // Top-2 names do fixture — lidos dinâmicamente pra resistir a renomes.
 const FIXTURE_CANDIDATOS = (
@@ -67,6 +83,20 @@ function termometros(doc: Document): Element[] {
 function linhasDeCandidato(doc: Document): Element[] {
   return [...doc.querySelectorAll('[data-testid="candidate-result-row"]')];
 }
+
+/**
+ * Todo teste ABAIXO deste ponto descreve a home **em `pnpm dev`**: reader vazio
+ * e fixture no lugar do dado. É o que eles sempre descreveram — o que mudou é
+ * que agora isso está dito, em vez de herdado de `NODE_ENV=test` mais a
+ * ausência de credencial.
+ *
+ * O bloco "produção sem Global Config" no fim do arquivo sobrescreve os dois.
+ */
+beforeEach(() => {
+  vi.stubEnv("NODE_ENV", "development");
+  readNationalProjectionMock.mockReset().mockResolvedValue(null);
+  readArchivedProjectionMock.mockReset().mockResolvedValue(null);
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -254,7 +284,13 @@ describe("HomePage (integration / smoke)", () => {
     // remoção de nós, que é o que o kit faz (`rows.slice(0, limit)`).
     const botao = doc.querySelector('main [data-testid="button"][aria-expanded]');
     expect(botao?.textContent).toContain(`Todos os ${FIXTURE_CANDIDATOS.length} candidatos`);
-    expect(doc.querySelector("main details")).toBeNull();
+    // O escopo é `[data-testid="panel"] details`, e não `main details`, desde
+    // 2026-09-13: o `<details>` "debug: composition" do fim da página é filho
+    // DIRETO do `<main>` e só existe sob `NODE_ENV === "development"` — que é
+    // o ambiente que este arquivo agora declara explicitamente. A afirmação
+    // sempre foi sobre a LISTA DE CANDIDATOS, que vive dentro de um `<Panel>`;
+    // o alvo apertou, o que ela prova não mudou.
+    expect(doc.querySelector('main [data-testid="panel"] details')).toBeNull();
     expect(doc.querySelector("main [hidden]")).toBeNull();
     expect(doc.querySelectorAll("main [data-extra-row]")).toHaveLength(
       FIXTURE_CANDIDATOS.length - 6,
@@ -426,7 +462,9 @@ describe("HomePage (integration / smoke)", () => {
       expect(celulas).toEqual(["parcial", "proj"]);
     }
     // E nada de collapsible entrou junto com o formato do kit (ADR-0017).
-    expect(doc.querySelector("main details")).toBeNull();
+    // Escopado ao `<Panel>` pelo mesmo motivo do teste (l): o `<details>` de
+    // debug é filho direto do `<main>` e é dev-only.
+    expect(doc.querySelector('main [data-testid="panel"] details')).toBeNull();
   });
 
   // -------------------------------------------------------------------------
@@ -464,5 +502,157 @@ describe("HomePage (integration / smoke)", () => {
       const html = renderToStaticMarkup(node);
       expect(html).not.toContain("Composição de Outros");
     });
+  });
+});
+
+/**
+ * ===================================================================
+ * A home em PRODUÇÃO com o Global Config vazio — o defeito de 13/09
+ * ===================================================================
+ *
+ * Em 13/09/2026 `https://salacofre.vercel.app` (público, sem login) publicava
+ * "Candidato PT — 15.240.321 votos — 43,5%" e "23,4% APURADO" com a eleição
+ * marcada para 04/10. Eram, byte a byte, os números de
+ * `tests/fixtures/edge-config/projection-current.json`: `getInitialPayload()`
+ * caía na fixture de forma INCONDICIONAL, e o store de produção estava vazio,
+ * então caía sempre.
+ *
+ * É o padrão "rede de segurança de mão única" já catalogado neste projeto: o
+ * fallback devia DEGRADAR e em vez disso FABRICOU dado com cara de verdadeiro.
+ * A guarda existente (`NODE_ENV`) protegia `/governador`, `/senador` e
+ * `/deputado-federal`, e ninguém conferiu se a home tinha a mesma.
+ *
+ * Os testes abaixo provam a DIREÇÃO, não a forma. Cada um nomeia a mutação que
+ * deve derrubá-lo; asserções em string literal dos números da fixture, porque é
+ * a regressão literal que precisa ser pega.
+ */
+describe("HomePage — produção sem Global Config (defeito 2026-09-13)", () => {
+  /** Os números que apareceram no site público. Literais de propósito. */
+  const NUMEROS_DA_FIXTURE = ["Candidato PT", "Candidato PL", "15.240.321", "23,4", "43,5"];
+
+  beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "production");
+    readNationalProjectionMock.mockReset().mockResolvedValue(null);
+    readArchivedProjectionMock.mockReset().mockResolvedValue(null);
+  });
+
+  it("(z1) reader vazio: NENHUM número da fixture chega ao HTML", async () => {
+    // Mutação que deve derrubar: voltar o `?? fixturePayload()` incondicional
+    // em `getInitialPayload()`.
+    const html = renderToStaticMarkup(await HomePage());
+
+    for (const numero of NUMEROS_DA_FIXTURE) {
+      expect(html).not.toContain(numero);
+    }
+  });
+
+  it("(z2) reader vazio: a fixture não entra nem por `FIXTURE_VARIANT`", async () => {
+    // Mutação que deve derrubá-lo: guardar a fixture por `FIXTURE_VARIANT` em
+    // vez de por ambiente. A env é injetável por quem controla o deploy; o
+    // caminho honesto não pode depender de ela estar ausente.
+    vi.stubEnv("FIXTURE_VARIANT", "t2");
+    const html = renderToStaticMarkup(await HomePage());
+
+    for (const numero of NUMEROS_DA_FIXTURE) {
+      expect(html).not.toContain(numero);
+    }
+  });
+
+  it("(z3) reader vazio: a home diz, em texto, que está aguardando", async () => {
+    // Mutação que deve derrubá-lo: renderizar o estado vazio SEM mensagem —
+    // uma tela de zeros mudos é tão desonesta quanto uma de números falsos,
+    // porque zero apurado e nada publicado não são a mesma notícia.
+    const doc = parse(renderToStaticMarkup(await HomePage()));
+
+    const aviso = doc.querySelector('[data-testid="pres-aguardando"]');
+    expect(aviso).not.toBeNull();
+    expect(aviso?.textContent).toContain("Aguardando o primeiro boletim");
+    // Constituição § 1 — o rótulo "não oficial" e a fonte não somem no estado
+    // vazio.
+    expect(doc.body.textContent).toContain("não oficial");
+    expect(doc.body.textContent).toContain("TSE");
+  });
+
+  it("(z4) reader vazio: nenhuma contagem, nenhum relógio, nenhum placar falso", async () => {
+    // Mutação que deve derrubá-lo: renderizar a página cheia a partir de um
+    // payload zerado. Ali o `<BulletinPanel>` carimbaria "Boletim HH:MM:SS" com
+    // a hora do BUILD ao lado de nada apurado — um segundo número inventado,
+    // de outra origem, com a mesma aparência de medição.
+    const doc = parse(renderToStaticMarkup(await HomePage()));
+    const texto = doc.body.textContent ?? "";
+
+    expect(doc.querySelectorAll('[data-testid="candidate-result-row"]')).toHaveLength(0);
+    expect(texto).not.toContain("votos válidos");
+    expect(texto).not.toMatch(/\d{1,2}:\d{2}:\d{2}/);
+    // O único percentual admissível nesta tela é o 0% da metodologia.
+    expect(texto).not.toMatch(/[1-9]\d*,\d\s*%/);
+  });
+
+  it("(z5) reader vazio: a estrutura da página sobrevive (constituição §§ 3 e 8)", async () => {
+    // Mutação que deve derrubá-lo: devolver `null`/404 quando não há payload.
+    // A página não pode sumir — nem virar 500 — antes do primeiro boletim.
+    const doc = parse(renderToStaticMarkup(await HomePage()));
+
+    const main = doc.querySelector("main");
+    expect(main?.getAttribute("data-trilha")).toBe("pres");
+    // <h1> único, como em todos os outros estados desta rota.
+    expect(doc.querySelectorAll("h1")).toHaveLength(1);
+    // § 8 — o bloco de metodologia existe em toda página de apuração, mesmo
+    // quando ainda não há o que apurar.
+    expect(doc.body.textContent).toContain("Metodologia");
+    // § 1 — o <Footer> continua DENTRO do <main> (o shell global não o dá).
+    expect(main?.querySelector("footer")).not.toBeNull();
+  });
+
+  it("(z6) reader COM payload: produção não muda nada no caminho feliz", async () => {
+    // Mutação que deve derrubá-lo: uma guarda que bloqueie também o dado real
+    // (ex.: `if (NODE_ENV === "production") return <AguardandoNacional />`).
+    // A correção só pode calar a FIXTURE, nunca o Global Config.
+    readNationalProjectionMock.mockResolvedValue(fixture);
+    const doc = parse(renderToStaticMarkup(await HomePage()));
+
+    expect(doc.body.textContent).toContain(NOME_TOP1);
+    expect(doc.body.textContent).toContain(NOME_TOP2);
+    expect(doc.querySelector('[data-testid="pres-aguardando"]')).toBeNull();
+    expect(
+      doc.querySelectorAll('[data-testid="candidate-result-row"]').length,
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it("(z8) payload publicado com `candidatos: []`: também cai na tela honesta", async () => {
+    // Mutação que deve derrubá-lo: estreitar o gate para só `if (!payload)`.
+    //
+    // Este NÃO é o defeito de 13/09 — é o vizinho dele, e a rodada de mutação
+    // do código final mostrou que nada o cobria. O orchestrator pode gravar o
+    // envelope antes de a lista de candidaturas estar resolvida (é o que a
+    // spec 018 acabou de mexer: identidade de candidatura vem do portal de
+    // dados abertos, por um caminho diferente do boletim). Com a lista vazia e
+    // sem este gate, a home monta a ESTRUTURA do placar sem nada dentro:
+    // "Apurado 0%", "0 votos válidos apurados", barra de maioria e o
+    // `<BulletinPanel>` carimbando o `ts` do ciclo. Forma de medição sem
+    // medição — a mesma mentira da fixture, com outra origem.
+    readNationalProjectionMock.mockResolvedValue({
+      ...fixture,
+      pct_apurado_total: 0,
+      national: { ...(fixture as { national: object }).national, candidatos: [] },
+    });
+    const doc = parse(renderToStaticMarkup(await HomePage()));
+
+    expect(doc.querySelector('[data-testid="pres-aguardando"]')).not.toBeNull();
+    expect(doc.querySelectorAll('[data-testid="candidate-result-row"]')).toHaveLength(0);
+    expect(doc.body.textContent).not.toContain("votos válidos");
+    // E o `ts` do payload não vira "Boletim HH:MM:SS" numa tela sem apuração.
+    expect(doc.body.textContent).not.toMatch(/\d{1,2}:\d{2}:\d{2}/);
+  });
+
+  it("(z7) `NODE_ENV=development` com reader vazio: a fixture CONTINUA entrando", async () => {
+    // Mutação que deve derrubá-lo: guardar por algo que também bloqueie dev
+    // (`if (false)`, ou gate por `VERCEL_ENV` que em `pnpm dev` é undefined).
+    // `pnpm dev` sem credencial Vercel precisa continuar inspecionável.
+    vi.stubEnv("NODE_ENV", "development");
+    const html = renderToStaticMarkup(await HomePage());
+
+    expect(html).toContain(NOME_TOP1);
+    expect(html).toContain("15.240.321");
   });
 });

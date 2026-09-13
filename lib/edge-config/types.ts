@@ -307,6 +307,22 @@ export interface EdgeCandidate {
    */
   p_fecha_1t: number;
   /**
+   * Identidade **global e estável** do candidato (`SQ_CANDIDATO` do TSE) —
+   * ADR-0042 item 2. É a chave que endereça a foto (ADR-0041), via
+   * `blobUrlFor(candidatoFotoBlobPathname(uf, sqcand))`; a URL em si não
+   * viaja no payload porque é derivável desta chave.
+   *
+   * **`string`, não `number`** — tem 11 **ou** 12 dígitos, e comparar as duas
+   * larguras como texto ordena errado em silêncio (`"99…"` vence `"100…"`).
+   *
+   * **Presente só em cargo 1 (Presidente)**, pela mesma razão que `nome`
+   * (RF-145): em cargo 3 e 5 este bloco é a união de 27 corridas sob o mesmo
+   * espaço de `id`, e um `sqcand` atribuído aqui apontaria para a foto de um
+   * candidato de UF arbitrária. Para esses cargos a identidade mora em
+   * {@link EdgeUfRow.top_candidatos}, que sabe de que UF é.
+   */
+  sqcand?: string;
+  /**
    * Mesmo candidato na segunda base — % sobre quem compareceu (S07/Fase 2,
    * decisão E2). Os campos `pct_*` acima seguem sendo a base `votaveis`
    * (default da UI). Ver `EdgeBaseComparecimento` para a identidade da soma
@@ -472,8 +488,48 @@ export interface EdgeUfRow {
    *
    * Pré-S05 ausente → consumidor coalesce para `[]` e UI degrada para
    * só `lider` + `margem_*` (comportamento S04).
+   *
+   * **Spec 018 / ADR-0042 item 3 — a linha da UF passa a carregar a própria
+   * identidade.** Antes o consumidor cruzava `id` contra
+   * `national.candidatos` para achar nome e partido, e esse cruzamento é o
+   * defeito que o ADR-0042 existe para prevenir: em cargo 3 (Governador) e 5
+   * (Senador) o bloco nacional é a **união de 27 corridas** sob o mesmo
+   * espaço de `id`, então `id === 13` ali não é uma pessoa — é "o número 13
+   * nalguma UF". Resolver nome por esse índice entrega o candidato do estado
+   * errado. Aqui não: a linha já sabe de que UF é.
+   *
+   * Quem renderiza nome/partido a partir de `top_candidatos` deve ler
+   * **destes campos**, nunca de um índice sobre `national.candidatos`.
    */
-  top_candidatos: Array<{ id: number; pct: number }>;
+  top_candidatos: Array<{
+    /** Número na urna — inalterado. */
+    id: number;
+    /** 0–100 — inalterado. */
+    pct: number;
+    /**
+     * Nome resolvido pela cadeia do RF-144 (EA20 `nmu` → EA20 `nm` → cadastro
+     * → placeholder). **Ausente** quando nada resolveu: o consumidor cai no
+     * `"Cand {id}"` que já fazia. Opcional de propósito — sob
+     * `model_fallback_tier`, e em todo payload gravado antes da spec 018, o
+     * campo não existe e a tela tem de continuar renderizando.
+     */
+    nome?: string;
+    /** Sigla. Ausente = consumidor cai no que já faz hoje ("—"). */
+    partido?: string;
+    /**
+     * Identidade **global e estável** do candidato (ADR-0042 item 2) — é o
+     * que liga esta linha à foto, via
+     * `blobUrlFor(candidatoFotoBlobPathname(uf, sqcand))` (ADR-0041). A URL
+     * da foto NÃO viaja no payload: é derivável desta chave, e guardá-la
+     * duplicaria verdade e gastaria bytes de um store de 1 MB.
+     *
+     * **`string`, não `number`** — tem 11 **ou** 12 dígitos (5.569 das 20.939
+     * candidaturas de 2026 têm 11). `Number()` sobrevive, mas comparar as
+     * duas larguras como texto ordena errado em silêncio: `"99…"` (11) vence
+     * `"100…"` (12). Se algum dia for preciso ordenar por ele, `BigInt`.
+     */
+    sqcand?: string;
+  }>;
   /**
    * Para corridas de GOVERNADOR no 1T (cargo=3): `true` se o líder
    * projetado tem `pct_projetado >= 50%+1` (decide no 1T); `false` se
@@ -711,6 +767,21 @@ export interface EdgeUfCandidate {
    * `ci95.upper > ci95.lower` antes.
    */
   p_eleito?: number;
+  /**
+   * Identidade **global e estável** do candidato (`SQ_CANDIDATO` do TSE) —
+   * ADR-0042 item 2; endereça a foto (ADR-0041) via
+   * `blobUrlFor(candidatoFotoBlobPathname(uf, sqcand))`. A URL não viaja no
+   * payload: é derivável desta chave.
+   *
+   * **`string`, não `number`** — 11 **ou** 12 dígitos; comparar as duas
+   * larguras como texto ordena errado em silêncio.
+   *
+   * Ao contrário de {@link EdgeCandidate.sqcand}, aqui vem em **todo cargo**:
+   * este payload é de UMA UF, então o par `(uf, numero)` que o resolve não é
+   * ambíguo (spec 018, RF-144). Ausente quando o EA20 não trouxe `sqcand`
+   * para aquele candidato, ou em payload pré-018.
+   */
+  sqcand?: string;
 }
 
 /**
