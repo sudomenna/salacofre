@@ -7,7 +7,7 @@ end: 2026-09-24
 opened: 2026-09-05
 phase: F6
 goal: Chegar aos simulados oficiais do TSE (15–17/09 e 22–24/09) com o pipeline ingerindo dados reais e as 4 rotas renderizando o hero de 1º turno.
-specs_in_flight: [002-modelo-estatistico, 016-senador, 017-deputado-federal]
+specs_in_flight: [002-modelo-estatistico, 016-senador, 017-deputado-federal, 018-identidade-candidatura, 019-fase-pre-eleicao]
 specs_evolving: [001-ingestao-tse, 003-home-nacional, 004-pagina-uf-presidencial, 005-pagina-uf-governador, 006-grid-governadores]
 specs_superseded: [001.1-tse-json-refactor]
 specs_planned_next: [009-compartilhamento-meta, 010-operacao-monitoramento, 013-pagina-manutencao]
@@ -302,6 +302,59 @@ fonte de verdade visual, com ajuste que o painel de resultado substitui os 6 ter
 - [ ] **E2E Playwright (Fase 5 de 05/09)** — ainda diferida para S08+. Smoke visual local OK em todas 4 rotas.
 - [ ] **Gates finais** — pendentes após modelo convergir (tentativa 3 OT-4 no simulado 1)
 
+### ✅ Fase 10 — Spec 018: o candidato ganha nome, foto e partido — 13/09
+
+Não estava no plano. Nasceu de uma pergunta do usuário — *"já temos os nomes e fotos de todos os
+candidatos?"* — cuja resposta era **não, praticamente nada**.
+
+**O que existia**: só as cores de partido. O payload escrevia `f"Candidato {id}"`, e em 04/10 a tela
+diria "Candidato 13 lidera".
+
+**O que foi entregue** (14 commits, `2b931e6..da39fa9`, publicados):
+
+- **8.323 candidaturas** no Postgres (`candidatos`, migration 0008), **7.698 publicáveis**:
+  Presidente 12 · Governador 180 · Senador 285 · Dep. Federal 7.221.
+- **7.698 fotos oficiais** no Blob (36,7 MB, 24,9 PUT/s, zero falha, cache de 1 ano).
+- **82 fatias + índice** publicados; rota **`/candidatos`** com filtro, busca e paginação de 60,
+  **zero JavaScript de aplicação** (provado por comparação de chunks no build).
+- Grade de candidaturas composta no estado de espera de **5 superfícies**.
+- **4 ADRs** (0039-0042), três deles com nota de correção de erro achado em revisão.
+- Testes: **1.739 → 2.123 vitest**, **366 → 482 pytest**.
+
+**Três defeitos graves encontrados de passagem:**
+
+1. 🔴 **O site público publicava resultados eleitorais inventados.** `salacofre.vercel.app` mostrava
+   "Candidato PT — 15.240.321 votos — 23,4% APURADO", três semanas antes do pleito: a home caía na
+   fixture de teste **incondicionalmente**, e o comentário do código afirmava que em produção "a
+   fixture nunca é lida". Corrigido (`593eb74`), com busca literal pelos números provando zero
+   ocorrências no HTML renderizado.
+2. 🔴 **A home era a única página de cargo sem cadência de revalidação** — estática congelada no
+   build, enquanto as três irmãs declaram `revalidate = 60`. Na noite de 04/10 o painel da esquerda
+   serviria o dado do último deploy. Mascarado porque o mapa, à direita, atualiza pelo cliente.
+   Corrigido (`949abd1`).
+3. **O WAF do TSE bloqueava nosso User-Agent** (403 para qualquer UA com e-mail ou URL), quebrando
+   `historical-import`, `eleitorado-import` e `zonas-import`. Invisível por causa do cache local e
+   do fallback de fixture. Corrigido (`385039a`).
+
+**Gates**: `constitution-guard` 0 violações · `a11y-perf-auditor` PASS (axe limpo em 10 combinações,
+CLS 0 com 1.061 cartões, LCP 996 ms em 4G lento) · `rf-coverage-checker` **reprovou** com 11/13 RFs,
+e os dois bloqueios (RF-144 degrau do cadastro, RF-149 grade na espera) **foram fechados depois**,
+mas **o gate não foi re-rodado** — ver pendências.
+
+**Limpeza de produção**: 7 chaves de dado sintético apagadas do Global Config em 13/09 (backup em
+`scratchpad/edge-config-backup-13set.json`). As 4 telas mostram estado de espera honesto.
+
+### 🔜 Fase 11 — Spec 019: fase pré-eleição com placar zerado — planejada 13/09
+
+Pedido do dono: as telas de apuração mostram o **placar zerado com os dados reais dos candidatos**
+antes de 04/10, com **aviso explícito** de que a eleição não começou.
+
+A objeção foi levantada — um placar zerado mostra a *forma* de um resultado, e a leitura natural é
+"começou e ninguém pontuou" — e **a decisão foi mantida**. Plano em
+[`019-fase-pre-eleicao`](../specs/019-fase-pre-eleicao/), decisão em ADR-0043.
+
+**Será desenvolvida numa sessão nova.** Não iniciar aqui.
+
 ### ⏳ Pendências abertas ao fim de 13/09 — atualizado
 
 Substitui a lista de 11/09. Todas têm dono.
@@ -322,6 +375,27 @@ Substitui a lista de 11/09. Todas têm dono.
 - [ ] **`GET /api/projection?cargo=deputado-federal`** — mesmo estado do Senador.
 - [ ] **e2e/a11y das 2 rotas novas** em `tests/e2e/a11y-audit.spec.ts`.
 - [ ] **Pós-outubro**: token da Vercel de prazo curto, fora do texto puro.
+
+**Abertas em 13/09 (spec 018 / 019):**
+- [ ] **`rf-coverage-checker` re-rodar na spec 018.** Reprovou com 11/13; os dois bloqueios
+      (RF-144 degrau do cadastro, RF-149 grade na espera) foram fechados **depois** do gate. A spec
+      **não é `shipped`** até o gate passar de novo.
+- [ ] **`EDGE_CONFIG_STORE_GUARD_BYTES`** — o ADR-0032 especifica 983.040 B que **recusariam** a
+      escrita antes de chamar a API. **Não existe no código**: `lib/edge-config/writer.ts` só avisa
+      (warn 780 KB, crítico 940 KB), nunca recusa. Tarefa própria — **não** juntar ao trabalho da
+      spec 019, porque transformar o write path em algo que recusa, no mesmo PR que estreia a
+      escrita de seed, troca um bug de exibição por risco de apagão na noite da apuração.
+- [ ] **`archiveProjectionKey`** é lida (`lib/edge-config/reader.ts:213`) e **nunca escrita** por
+      código nenhum — a archival 1T→2T não existe. Vira bloqueio em 25/10, não antes.
+- [ ] **Reimportação obrigatória do cadastro em 02–03/10**: `candidatos:import` →
+      `candidatos:fotos` → `candidatos:publish` → **redeploy**, nessa ordem. Sem o redeploy o site
+      serve a lista antiga por até 12 h (`CANDIDATOS_REVALIDATE_SECONDS`). A lista **não congela**:
+      indeferimento por recurso e substituição continuam depois do prazo de julgamento.
+- [ ] **`pnpm lint` vermelho** por 3 arquivos pré-existentes (`components/atoms/controls/Tabs.tsx`,
+      `components/blocks/HexCartogramBrasil.tsx`, `scripts/build-replay-fixtures.ts`). Com o portão
+      travado em vermelho, ele deixa de distinguir regressão nova de sujeira antiga.
+- [ ] **Peso de `/uf/SP/deputado-federal`** — 266 KB de HTML depois da paginação de 60 (eram
+      3,83 MB). Aceitável, mas é a maior página do produto; vale medir no 4G do simulado.
 
 **Herdadas de 11/09, ainda abertas:**
 - [ ] **Boa Esperança do Norte (MT, cód. TSE 73709)** — município novo ausente de `municipios`,

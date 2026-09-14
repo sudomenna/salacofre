@@ -375,6 +375,14 @@
       "date": "2026-09-13",
       "note": "extract_partido_by_cand (project.py:1712) é plano por número e está correto SÓ porque em cargo majoritário número=partido; copiado como extract_nome_by_cand poria o governador do PT de SP em 26 estados. GovernorCard.tsx:130 e senador/page.tsx:139 já resolvem nome por id sozinho — o defeito é alcançável hoje. EdgeUfRow.top_candidatos passa de {id,pct} para {id,pct,nome?,partido?,sqcand?}. Bloco nacional de cargo 3/5 mantém placeholder 'Candidato {id}' (união de 27 corridas, nome seria ambíguo); só cargo 1 recebe nome no nacional. (cargo,uf,numero) NÃO é único na fonte: 52 colisões brutas, 4 após filtro de publicabilidade (ADR-0040) — todas DC-BA sob recurso, dois pares com mesmo nome no mesmo número. Sem UNIQUE INDEX; função de resolução determinística (publicável → DEFERIDO → maior sqcand → EA20 tem precedência absoluta). sqcand é a chave global estável, coexiste com (cargo,uf,numero). EMENDA os contratos de payload das specs 016-senador e 017-deputado-federal (não ADR-to-ADR amends) — propagação de frontmatter adrs: e do texto das specs pendente via spec-syncer.",
       "path": "docs/architecture/adrs/0042-cargo-uf-numero-chave-identidade-candidatura.md"
+    },
+    {
+      "id": "0043",
+      "title": "Fase pré-eleição como campo próprio no payload, não derivada de `composition` nem de percentual apurado",
+      "status": "accepted",
+      "date": "2026-09-13",
+      "note": "fase?: 'pre_eleicao' em EdgePayload/EdgePayloadDeputado, campo opcional de valor único (mesmo padrão de dado_ts do ADR-0038), ausência = fase normal, saída automática no primeiro upsert real. NÃO reusa composition.pre_election (project.py:4051/deputado_payload.py:691 gravam constante hoje, mas vira peso dinâmico real quando spec 008 sair de draft — gatear nele acionaria o modo pré-eleição na pior hora possível, 04/10 às 20h). Os 8 campos sem valor honesto em zero voto (lider, rank, p_vitoria, p_passa_2t, p_fecha_1t, pct_projetado_lower/upper, margem_atual/projetada) permanecem number=0, não viram nuláveis — supressão acontece no consumo, não no tipo. Nenhum gate em pct_apurado_total===0 nem em calendário. Princípio organizador: mede→cala (ChancesPanel, BulletinPanel, RaceTypeIndicator, RemainingPanel, mapa nacional), identifica→fala (nome/foto/partido/número). Risco residual de leitura (placar zerado ainda pode ler como 'ninguém pontuou') mitigado por UI, não eliminado — assumido pelo dono do produto. Lacuna conhecida e não mitigada: EDGE_CONFIG_STORE_GUARD_BYTES (ADR-0032) segue não implementado.",
+      "path": "docs/architecture/adrs/0043-fase-pre-eleicao-campo-proprio-nao-derivada.md"
     }
   ],
   "nfr": {
@@ -1501,6 +1509,94 @@
       ],
       "ship_blocked_on": [],
       "notes": "Escrita em 2026-09-13 após medição de arquivo real do TSE (20.939 candidaturas, 7.698 publicáveis nos 4 cargos do produto). Tabelas `candidatos` (22 colunas) e `partidos` (30 linhas) implementadas em migration 0008. Importador `data-pipeline/candidatos-import.ts` com script `pnpm candidatos:import`. Rota `/candidatos` (RSC, sem JS novo). Enriquecimento de `EdgeUfRow.top_candidatos` com nome, partido e sqcand (emenda aos contratos de specs 016/017). Quatro ADRs decidem (0039–0042): fonte (Portal de Dados Abertos TSE), publicabilidade fail-closed, foto binária 1 ano cache, chave de identidade (cargo,uf,numero) + sqcand. Nota 2026-09-13: divergência corrigida em design.md — tabela é `candidatos` não `candidaturas`, `numero` é integer não text (medido: 8.323 registros, 0 com zero à esquerda). Pendências abertas: User-Agent completo antes de 15/09 (contato verificável), medição de Global Config ao entrar nome/partido/sqcand, vice e suplente (escopo não decidido), cadência de checagem contra CDN não verificada contra limite."
+    },
+    {
+      "id": "019-fase-pre-eleicao",
+      "title": "Fase pré-eleição — o placar zerado que não finge ser resultado",
+      "status": "draft",
+      "priority": "M",
+      "personas": [
+        "P1",
+        "P2",
+        "P3",
+        "P4"
+      ],
+      "screens": [
+        "T-15",
+        "T-16"
+      ],
+      "requirements": [
+        "RF-153",
+        "RF-154",
+        "RF-155",
+        "RF-156",
+        "RF-157",
+        "RF-158",
+        "RF-159",
+        "RF-160",
+        "RF-161",
+        "RF-162",
+        "RF-163",
+        "RF-164",
+        "RF-165",
+        "RF-166"
+      ],
+      "depends_on": [
+        "002-modelo-estatistico",
+        "003-home-nacional",
+        "006-grid-governadores",
+        "016-senador",
+        "017-deputado-federal",
+        "018-identidade-candidatura"
+      ],
+      "apis": [],
+      "components": [
+        "FasePreEleicaoBanner",
+        "UfLinksGrid",
+        "CandidaturasAguardando",
+        "CandidatosGrid",
+        "ResultPanel",
+        "RaceTypeIndicator",
+        "ForecastTransparency",
+        "ShellLiveBadge",
+        "NationalChoroplethMap",
+        "MapViewToggle",
+        "MapLegend",
+        "RemainingPanel",
+        "ChancesPanel",
+        "BulletinPanel",
+        "StateGroupedTable"
+      ],
+      "nfr": [
+        "RNF-002",
+        "RNF-007a",
+        "RNF-010",
+        "RNF-012",
+        "RNF-022",
+        "RNF-023",
+        "RNF-024"
+      ],
+      "adrs": [
+        "0043",
+        "0012",
+        "0017",
+        "0024",
+        "0029",
+        "0038",
+        "0042"
+      ],
+      "amends": [
+        "003-home-nacional",
+        "004-pagina-uf-presidencial",
+        "005-pagina-uf-governador",
+        "006-grid-governadores",
+        "016-senador",
+        "017-deputado-federal",
+        "018-identidade-candidatura"
+      ],
+      "ship_blocked_on": [],
+      "notes": "Escrita em 2026-09-13 sobre leitura linha a linha dos nove componentes de telas nacionais. Nenhuma implementação existe. Decisão marcante: campo `fase` próprio no payload (ADR-0043), não derivado de percentual ou calendário. Duas decisões do orquestrador documentadas em design.md: (1) RF-159 alcança também `/candidatos`, `/sobre-o-modelo` e `/status` em 04/10, porque aquelas rotas nunca foram ao vivo e o defeito presente do selo é uma regressão sim, é um conserto — removido de open questions; (2) a supressão de `MapViewToggle` em RF-157 significa que o controle desaparece entre 20/09 e 04/10 se a fase pré começar cedo — decidido e aceito. Risco residual R1 (leitor entende placar zerado como 'começou, ninguém pontuou') **assumido explicitamente pelo dono em 13/09**, registrado em risks.md. Pendências abertas: R7 (emptyPayload de `/governador` e `/senador` cai em modo normal sem fase, sem aviso, quando Global Config falha).",
+      "path": "docs/specs/019-fase-pre-eleicao/"
     }
   ]
 }

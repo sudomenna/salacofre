@@ -285,6 +285,12 @@ iniciais **mesmo com as fotos já no ar** — sem erro, sem alarme, só errado n
 
 Corolário: **toda vez que o passo 1 ou o 2 rodar de novo, o passo 3 precisa rodar depois.**
 
+> **Ainda não documentado aqui: o seed de fase pré-eleição** (`projection-seed`, `edge-config-prune`).
+> Os comandos **não existem** — a spec 019 os especifica e ainda não foi implementada. Este manual
+> descreve só o que se pode rodar hoje; comando documentado que não existe é pior que comando não
+> documentado, porque quem procura não sabe se quebrou ou se nunca existiu. Quando a 019 entregar,
+> a seção entra aqui com os números medidos.
+
 ### ⚠️ Publicar não é o mesmo que aparecer — a janela de 12 horas
 
 `lib/blob/candidatos.ts` lê a fatia com `next: { revalidate: 43_200 }`

@@ -212,10 +212,24 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-150 | "Fonte: TSE" e carimbo de frescor | [018](../specs/018-identidade-candidatura/) |
 | RF-151 | Fallback de avatar | [018](../specs/018-identidade-candidatura/) |
 | RF-152 | Cadência de reimportação e guarda | [018](../specs/018-identidade-candidatura/) |
+| RF-153 | `fase` no payload, lida em um só lugar | [019](../specs/019-fase-pre-eleicao/) |
+| RF-154 | Os quatro painéis de medição somem inteiros | [019](../specs/019-fase-pre-eleicao/) |
+| RF-155 | `ResultPanel` em modo identidade | [019](../specs/019-fase-pre-eleicao/) |
+| RF-156 | `RaceTypeIndicator` conta quem concorre | [019](../specs/019-fase-pre-eleicao/) |
+| RF-157 | Mapa: cor neutra, controle suprimido, legenda trocada | [019](../specs/019-fase-pre-eleicao/) |
+| RF-158 | `ForecastTransparency` vira parágrafo | [019](../specs/019-fase-pre-eleicao/) |
+| RF-159 | Selo do shell para de afirmar liveness | [019](../specs/019-fase-pre-eleicao/) |
+| RF-160 | Camada A: faixa `FasePreEleicaoBanner` | [019](../specs/019-fase-pre-eleicao/) |
+| RF-161 | Camada B: texto no lugar de cada zero, proibição de "projeção" | [019](../specs/019-fase-pre-eleicao/) |
+| RF-162 | Governador e Senador: 27 links sem grade de rostos | [019](../specs/019-fase-pre-eleicao/) |
+| RF-163 | Deputado Federal não é semeado, tela de espera ganha aviso | [019](../specs/019-fase-pre-eleicao/) |
+| RF-164 | Semeador `projection-seed.ts`: `por_uf` vazio, ordem `gov → sen → pres` | [019](../specs/019-fase-pre-eleicao/) |
+| RF-165 | Fiscal de limpeza `edge-config-prune.ts` | [019](../specs/019-fase-pre-eleicao/) |
+| RF-166 | Transição de 04/10: o primeiro upsert real apaga a fase | [019](../specs/019-fase-pre-eleicao/) |
 
 ## Cobertura
 
-**60 RFs originais do PRD** + 55 RFs adicionados nas specs (RF-005.1-4, RF-006.1-5, RF-012.1-2, RF-058.1-2, RF-010.1-6, RF-020.1-3, RF-030.7-9, RF-061-63, RF-100-108, RF-120-130+125.1, RF-140-152) = **115 RFs no total**. Todos mapeados pra alguma spec.
+**60 RFs originais do PRD** + 69 RFs adicionados nas specs (RF-005.1-4, RF-006.1-5, RF-012.1-2, RF-058.1-2, RF-010.1-6, RF-020.1-3, RF-030.7-9, RF-061-63, RF-100-108, RF-120-130+125.1, RF-140-166) = **129 RFs no total**. Todos mapeados pra alguma spec.
 
 ## RNFs
 
