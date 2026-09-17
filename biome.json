@@ -83,6 +83,11 @@
       ],
       "formatter": { "enabled": false },
       "linter": { "enabled": false }
+    },
+    {
+      "includes": ["tests/fixtures/tse/2026-sim/**"],
+      "formatter": { "enabled": false },
+      "linter": { "enabled": false }
     }
   ]
 }

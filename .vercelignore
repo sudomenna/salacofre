@@ -1,0 +1,29 @@
+# .vercelignore — o que NUNCA sobe para um deploy da Vercel.
+#
+# Criado em 2026-09-17, depois de um `vercel deploy` falhar com
+# "`.claude/worktrees/determined-hertz-e6e62e/.venv-model` is not a valid
+# symlink": sem este arquivo a CLI empacota o diretório inteiro (27.086
+# arquivos, 2,7 GB só em `.claude/`), estoura o limite de 15.000 arquivos e
+# quebra num symlink de um ambiente virtual Python que só existe na máquina
+# local.
+#
+# Regra: só entram aqui caminhos que o build e o runtime comprovadamente não
+# leem. Na dúvida, NÃO exclua — um arquivo faltando em produção no dia 04/10
+# custa mais caro que alguns megabytes de upload.
+
+# Worktrees de agentes (Claude Code) — cópias inteiras do repo, com .venv
+# quebrado. Nunca fizeram parte do build.
+.claude
+
+# Ambiente virtual do modelo. Na Vercel o Python instala de requirements.txt;
+# este diretório é local e contém symlinks absolutos da máquina.
+.venv-model
+
+# Artefatos locais: cache do pipeline TSE, estado da vigia, relatórios de teste.
+build
+playwright-report
+test-results
+
+# PDFs e o pacote de exemplos do TSE (documentação de referência, ~10 MB).
+# Lidos por pessoas e por agentes, nunca pela aplicação.
+tse_docs

@@ -52,6 +52,21 @@ A implementação anterior (spec 001, `shipped` em jun/2026) foi construída sob
 - `pvap` é % sobre `v.vvc` (**votos a votáveis concorrentes** = válidos + legenda + anulados +
   anulados sub judice), **não** sobre válidos puros.
 
+## `exemplos/`
+
+`exemplos/exemplos-de-arquivos-json.zip` foi baixado em **17/09/2026** da mesma aba Documentos
+(item "exemplos de arquivos JSON"). Só o zip é versionado; a pasta extraída ao lado está no
+`.gitignore` (542 arquivos, 318 deles fotos) — `unzip` regenera.
+
+⚠️ **É o pacote de 2024**, não material de 2026: julho/2024, eleições suplementares de prefeito
+e vereador em MT/SP. Inclui `.vsc` de assinatura, um `.cer` por eleição e as fotos dos
+candidatos. Serve para ver na prática o EA10 (`-e.json`, resultado de eleitos), os `.vsc`/`.cer`
+e a árvore `arquivo-urna` — formatos que os PDFs acima descrevem mas que não temos de 2026.
+
+Os arquivos **reais de 2026** (ambiente de simulado, ciclo `ele2026`, pleito `17801`) estão em
+`tests/fixtures/tse/2026-sim/` — quando o assunto for o formato que vai ao ar em outubro, use
+esses.
+
 ## Sem freeze de leiaute
 
 O TSE recusou fixar data de congelamento: *"novas versões poderão ser disponibilizadas

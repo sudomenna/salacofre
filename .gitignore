@@ -77,3 +77,7 @@ smoke-*.png
 
 # Rascunho local de sessão (backups ad hoc, saída intermediária) — nunca versionado
 scratchpad/
+
+# Pacote de exemplos JSON do TSE (2024) — só o .zip é versionado; a pasta extraída
+# tem 542 arquivos (318 fotos) e se regenera com `unzip` do zip ao lado
+tse_docs/exemplos/exemplos-de-arquivos-json/

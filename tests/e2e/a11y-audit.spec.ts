@@ -33,10 +33,12 @@ for (const route of ROUTES) {
         const critical = results.violations.filter((v) => v.impact === "critical");
         const serious = results.violations.filter((v) => v.impact === "serious");
 
-        await test.info().attach(`axe-${route.replace(/\//g, "_")}-${viewport.name}-${theme}.json`, {
-          body: JSON.stringify(results.violations, null, 2),
-          contentType: "application/json",
-        });
+        await test
+          .info()
+          .attach(`axe-${route.replace(/\//g, "_")}-${viewport.name}-${theme}.json`, {
+            body: JSON.stringify(results.violations, null, 2),
+            contentType: "application/json",
+          });
 
         console.log(
           `\n=== ${route} | ${viewport.name} | ${theme} ===`,
@@ -51,7 +53,9 @@ for (const route of ROUTES) {
           ),
         );
 
-        expect(critical.length + serious.length, JSON.stringify(results.violations, null, 2)).toBe(0);
+        expect(critical.length + serious.length, JSON.stringify(results.violations, null, 2)).toBe(
+          0,
+        );
       });
     }
   }
