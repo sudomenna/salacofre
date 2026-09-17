@@ -45,7 +45,7 @@ Spec de back-end pura — não tem persona direta. Atende **todas** as personas 
 
 **RF-001 — Consumo do feed TSE via CDN pública**
 
-WHEN o sistema precisa atualizar a apuração, the system SHALL consumir os arquivos de resultado unificado (leiaute **EA20**, JSON) do CDN público do TSE, cujo host é configurável por `TSE_BASE_URL` — produção `https://resultados.tse.jus.br/oficial`, simulado `https://resultados-sim.tse.jus.br/oficial`, mock local em dev — e SHALL derivar cada URL da padronização documentada em [tse-2026-leiautes.md § 1](../../reference/tse-2026-leiautes.md).
+WHEN o sistema precisa atualizar a apuração, the system SHALL consumir os arquivos de resultado unificado (leiaute **EA20**, JSON) do CDN público do TSE, cujo host é configurável por `TSE_BASE_URL` — produção `https://resultados.tse.jus.br/oficial`, simulado `https://resultados-sim.tse.jus.br/simulado/simulado2026`, mock local em dev — e SHALL derivar cada URL da padronização documentada em [tse-2026-leiautes.md § 1](../../reference/tse-2026-leiautes.md).
 
 **Aceitação**:
 - Given `TSE_BASE_URL` e `TSE_COD_ELEICAO` válidos, when `/api/ingest` é acionado, then o sistema faz GET para a URL canônica de cada alvo ativo, na granularidade configurada por `TSE_GRANULARIDADE` (`uf` — default, ~55 GETs/ciclo — ou `zona`, ~5.200 GETs/ciclo).

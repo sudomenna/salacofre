@@ -30,7 +30,7 @@ source: Fase 4 do plano de prontidão TSE 2026 (docs/_meta/plano-s07-2026-09-05.
 | **03/10** | TSE insere parâmetros oficiais no data center |
 | **04/10 17h** | 1º turno |
 
-Ambiente: `https://resultados-sim.tse.jus.br/oficial`.
+Ambiente: `https://resultados-sim.tse.jus.br/simulado/simulado2026`.
 
 ## Pré-requisitos
 
@@ -144,7 +144,7 @@ já trata os dois casos; o que muda é o que a tela pode afirmar.
 
 ```bash
 pnpm tse:watch --once                                                  # produção
-pnpm tse:watch --once --base-url https://resultados-sim.tse.jus.br/oficial   # simulado, se já publicado
+pnpm tse:watch --once --base-url https://resultados-sim.tse.jus.br/simulado/simulado2026   # simulado, se já publicado
 ```
 
 O watch destaca em MAIÚSCULAS (`ELEIÇÃO GERAL 2026 DETECTADA`) quando surgir uma eleição com `t=1|2` e nome contendo "2026". **Se nada aparecer e não houver comunicado oficial com o `codEleicao`, o protocolo para aqui** — não prosseguir por tentativa e erro.
@@ -159,7 +159,7 @@ nenhuma do TSE):
 
 | Variável | Valor já configurado | Por quê |
 |---|---|---|
-| `TSE_BASE_URL` | `https://resultados-sim.tse.jus.br/oficial` | ambiente de simulado |
+| `TSE_BASE_URL` | `https://resultados-sim.tse.jus.br/simulado/simulado2026` | ambiente de simulado |
 | `INGEST_WINDOW` | `9-17` | ⚠️ o default é `17-04` e **excluiria o simulado inteiro** |
 | `TSE_MAX_RPS` | `20` | conservador na primeira janela |
 | `TSE_TARGETS_WHITELIST` | `SP:1,SP:3,SP:5,SP:6` | ⚠️ **corrigido em 13/09.** Era `SP:1,SP:3` — e `parseWhitelist` **rejeitava no código** os cargos 5 e 6 (validação literal `!== 1 && !== 3`, escrita quando a eleição tinha dois cargos). Como a whitelist só vale em `preview`, **Senador e Deputado eram inalcançáveis no único ambiente com dado real antes de 04/10**: o simulado rodaria verde sem tocar em nenhum dos dois. Conserto do código em `bafe601`, valor atualizado na Vercel no mesmo dia |

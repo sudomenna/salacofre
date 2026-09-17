@@ -78,7 +78,7 @@ com cap de 15s por tentativa. O ciclo reporta `rateLimited` e `waitedMs` em `ing
 | Ambiente | Valor |
 |---|---|
 | Produção (default) | `https://resultados.tse.jus.br/oficial` |
-| Simulado oficial | `https://resultados-sim.tse.jus.br/oficial` |
+| Simulado oficial | `https://resultados-sim.tse.jus.br/simulado/simulado2026` |
 | Dev / dry-run | `http://localhost:<porta>/oficial` (mock `scripts/tse-mock-server.ts`) |
 
 Qualquer outro `http://` é rejeitado com throw (evita downgrade silencioso de TLS).
