@@ -74,3 +74,6 @@ __pycache__/
 .pytest_cache/
 .playwright-mcp/
 smoke-*.png
+
+# Rascunho local de sessão (backups ad hoc, saída intermediária) — nunca versionado
+scratchpad/
