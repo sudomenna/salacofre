@@ -3,7 +3,7 @@
   "name": "SalaCofre Docs Index",
   "description": "Índice machine-readable da documentação SDD do SalaCofre. Carregar este arquivo dá a um agente o mapa completo das specs, NFRs, ADRs e fontes canônicas.",
   "version": "1.0",
-  "last_updated": "2026-09-13",
+  "last_updated": "2026-09-17",
   "source_prd": "docs/PRD.md",
   "constitution": "docs/constitution.md",
   "conventions": "docs/_meta/conventions.md",
@@ -383,6 +383,22 @@
       "date": "2026-09-13",
       "note": "fase?: 'pre_eleicao' em EdgePayload/EdgePayloadDeputado, campo opcional de valor único (mesmo padrão de dado_ts do ADR-0038), ausência = fase normal, saída automática no primeiro upsert real. NÃO reusa composition.pre_election (project.py:4051/deputado_payload.py:691 gravam constante hoje, mas vira peso dinâmico real quando spec 008 sair de draft — gatear nele acionaria o modo pré-eleição na pior hora possível, 04/10 às 20h). Os 8 campos sem valor honesto em zero voto (lider, rank, p_vitoria, p_passa_2t, p_fecha_1t, pct_projetado_lower/upper, margem_atual/projetada) permanecem number=0, não viram nuláveis — supressão acontece no consumo, não no tipo. Nenhum gate em pct_apurado_total===0 nem em calendário. Princípio organizador: mede→cala (ChancesPanel, BulletinPanel, RaceTypeIndicator, RemainingPanel, mapa nacional), identifica→fala (nome/foto/partido/número). Risco residual de leitura (placar zerado ainda pode ler como 'ninguém pontuou') mitigado por UI, não eliminado — assumido pelo dono do produto. Lacuna conhecida e não mitigada: EDGE_CONFIG_STORE_GUARD_BYTES (ADR-0032) segue não implementado.",
       "path": "docs/architecture/adrs/0043-fase-pre-eleicao-campo-proprio-nao-derivada.md"
+    },
+    {
+      "id": "0044",
+      "title": "Código de eleição por cargo, não um único TSE_COD_ELEICAO — tabela CARGOS exaustiva, nenhuma eleição supre a outra",
+      "status": "accepted",
+      "date": "2026-09-17",
+      "note": "TSE 2026: o pleito 17801 (ciclo ele2026) tem DUAS árvores de URL — Eleição Ordinária Federal 21270 (só Presidente, cargo 1) e Estadual 21272 (Governador 3, Senador 5, Deputado Federal 6). Antes, getCodEleicao() lia um TSE_COD_ELEICAO único e o aplicava a todos os cargos — com os valores do simulado, 3/5/6 buscariam o arquivo de Presidente. Decisão: campo obrigatório `eleicao: federal|estadual` na tabela CARGOS (exaustivo pelo tipo, sem default — 5ª aplicação da regra de default silencioso em enum), getCodEleicao(eleicao) com parâmetro obrigatório + getCodEleicaoDoCargo(cargo); envs TSE_COD_ELEICAO_FEDERAL/_ESTADUAL com o legado TSE_COD_ELEICAO suprindo qualquer uma ausente (compat com mock/testes/produção atual); a específica vence o legado e NENHUMA eleição supre a outra (faltando, lança). Chave de cache passa a levar cargo:código. Os 4 builders de alvo exigem `cargo` — antes, com cargo undefined, varriam vários cargos sob um único código. EA14 é um POR ELEIÇÃO: detectChangedUfs exige codEleicao e o ingest-handler mantém estado Map<codEleicao, previous>, agrupando alvos por eleição. TSE_BASE_URL continua carregando host+ambiente (/simulado/simulado2026 no preview, /oficial em produção).",
+      "path": "docs/architecture/adrs/0044-codigo-eleicao-por-cargo.md"
+    },
+    {
+      "id": "0045",
+      "title": "Exterior (ZZ) entra na apuração presidencial como 28ª unidade, com pseudo-zona por localidade",
+      "status": "accepted",
+      "date": "2026-09-17",
+      "note": "Decisão do dono em 17/09, escopo completo (ingestão + modelo + página). Exterior vota SÓ para Presidente (CE art. 225); medido no simulado: 184 localidades, 1 zona (0001), 760.913 aptos, arquivos zz-c0001/zz-e021270-ab/zz<mun>-z0001. Supersede parcialmente a tarefa T01 da spec 002 (filtro uf <> 'ZZ'). CargoInfo.abrangeExterior (true só no cargo 1) + unidadesDeApuracao(cargo). municipios recebe 184 linhas com chave sintética cod_ibge='ZZ'+lpad(cod_tse,5) — sem migration de schema (centroid/meso/populacao já nuláveis); zonas +184 pares; eleitorado do exterior vem do CSV de 2022 (o de 2024 é municipal e não tem ZZ) via script novo, e eleitorado-import passa a apagar com AND uf <> 'ZZ'. Granularidade zona (+184 alvos no cargo 1, ~252 s de 300). No modelo, ZZ agrupa por localidade (cod_zona := cod_municipio_tse) — sem isso as 184 linhas colapsam em 1 unidade e o bootstrap dá IC de largura zero (constituição §6). swing_vs_2022 nulo no exterior. UI: cartograma segue com 27 (não inventar geografia), linha 'Exterior' na tabela nacional, página /uf/ZZ só presidencial e sem mapa, 404 nos demais cargos; contadores '27' passam a unidadesDeApuracao. Continuam excluindo ZZ: build-replay-fixtures (gate OT-4) e simulacao-gerar.",
+      "path": "docs/architecture/adrs/0045-exterior-zz-apuracao-presidencial.md"
     }
   ],
   "nfr": {
