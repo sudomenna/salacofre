@@ -27,10 +27,31 @@
  */
 
 import type { EdgeCandidate, Turno } from "@/lib/edge-config/types";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 export interface RaceTypeIndicatorProps {
   candidatos: EdgeCandidate[];
   turno: Turno;
+  /**
+   * **RF-156 (spec 019)** — conta quem CONCORRE, não quem pontuou.
+   *
+   * Com `pct_projetado` zerado em todo mundo, o limiar de 0,5% abaixo zera a
+   * contagem inteira e o selo diz **"Disputa entre 0 candidatos"** ao lado de
+   * uma lista com 12 nomes visíveis. Não é bug do filtro: o filtro está certo
+   * para a pergunta que ele foi escrito para responder ("quantos são
+   * competitivos"), e essa pergunta não existe antes do primeiro voto.
+   *
+   * Ligada, a contagem passa a ser `candidatos.length` — o número vem do
+   * payload, nunca de literal no JSX (lição D8 da spec 017). Desligada (o
+   * default, e o estado de 04/10 em diante), **nada muda**: o limiar continua
+   * valendo, e o teste do RF-156 roda os dois modos sobre o mesmo array
+   * exigindo números diferentes — um teste só do modo pré passaria com o
+   * limiar removido de vez.
+   *
+   * Quem decide é o chamador, que é quem lê `isPreEleicao(payload)`
+   * (`lib/config/fase.ts`, ponto único do RF-153).
+   */
+  preEleicao?: boolean;
   className?: string;
 }
 
@@ -40,7 +61,12 @@ export interface RaceTypeIndicatorProps {
  */
 const PCT_THRESHOLD_1T = 0.5;
 
-export function RaceTypeIndicator({ candidatos, turno, className }: RaceTypeIndicatorProps) {
+export function RaceTypeIndicator({
+  candidatos,
+  turno,
+  preEleicao = false,
+  className,
+}: RaceTypeIndicatorProps) {
   const classes = ["text-sm", className].filter(Boolean).join(" ");
 
   if (turno === 2) {
@@ -56,15 +82,19 @@ export function RaceTypeIndicator({ candidatos, turno, className }: RaceTypeIndi
     }
     return (
       <p className={classes} style={{ color: "var(--color-text-muted)" }}>
-        Segundo turno entre {a.nome} e {b.nome}
+        Segundo turno entre {nomeExibicao(a.nome, a.sqcand)} e {nomeExibicao(b.nome, b.sqcand)}
       </p>
     );
   }
 
-  // 1T
-  const n = candidatos.filter(
-    (c) => Number.isFinite(c.pct_projetado) && c.pct_projetado >= PCT_THRESHOLD_1T,
-  ).length;
+  // 1T. Em fase pré-eleição o limiar NÃO se aplica — ver a prop `preEleicao`.
+  // O 2T acima cai no fallback já existente e não precisa de caso novo: não
+  // existe segundo turno antes do primeiro.
+  const n = preEleicao
+    ? candidatos.length
+    : candidatos.filter(
+        (c) => Number.isFinite(c.pct_projetado) && c.pct_projetado >= PCT_THRESHOLD_1T,
+      ).length;
   const word = n === 1 ? "candidato" : "candidatos";
 
   return (

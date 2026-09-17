@@ -103,6 +103,21 @@ export interface NationalMapBlockProps {
    */
   variant?: "hero" | "section" | "frame";
   /**
+   * **RF-157 (spec 019)** — fase pré-eleição.
+   *
+   * Duas consequências aqui, e o mapa e o `<UfPicker>` **permanecem** nas
+   * duas: geografia e navegação são verdadeiras em qualquer fase, e tirar o
+   * mapa deixaria a tela sem a única coisa que ela pode mostrar sem mentir.
+   *
+   *   1. `<MapViewToggle>` não é renderizado. Um controle que alterna entre
+   *      três vistas idênticas — as 27 UFs em `--map-uncounted` nas seis
+   *      combinações — é um controle que não controla nada, e a existência
+   *      dele sugere ao leitor que há o que ver.
+   *   2. A legenda de partidos vira legenda de geografia (dentro do
+   *      `<NationalChoroplethMap>`).
+   */
+  preEleicao?: boolean;
+  /**
    * Só em `frame`: o rótulo do escopo, na etiqueta do canto superior
    * esquerdo (`App.jsx` — `{stateUF ? stateUF.sigla : race.label + ' · Brasil'}`).
    * Default "Presidente · Brasil".
@@ -130,6 +145,7 @@ export function NationalMapBlock({
   rankByLider,
   candidatos,
   variant = "section",
+  preEleicao = false,
   scopeLabel = "Presidente · Brasil",
   backHref,
   action,
@@ -148,6 +164,7 @@ export function NationalMapBlock({
           rankByLider={rankByLider}
           candidatos={candidatos}
           viewMode={viewMode}
+          preEleicao={preEleicao}
           height="100%"
           legendPlacement="overlay"
           // `h-full` e NÃO `absolute inset-0`: a raiz do `<NationalChoroplethMap>`
@@ -185,7 +202,10 @@ export function NationalMapBlock({
             className="pointer-events-auto flex min-w-0 flex-wrap items-start justify-end"
             style={{ gap: "var(--space-2)" }}
           >
-            <MapViewToggle value={view} onChange={setView} />
+            {/* RF-157 — o seletor de vista some em fase pré; o `<UfPicker>`
+                (que chega por `action`) fica. Um alterna entre três leituras
+                que não existem; o outro navega para 27 páginas que existem. */}
+            {preEleicao ? null : <MapViewToggle value={view} onChange={setView} />}
             {action}
           </div>
         </div>
@@ -220,9 +240,15 @@ export function NationalMapBlock({
               : { margin: 0, font: "var(--type-title)" }
           }
         >
-          {hero ? "Brasil · quem lidera cada estado" : "Brasil — visão geral"}
+          {/* Em fase pré ninguém lidera coisa nenhuma: o título passa a
+              nomear o que o mapa é — geografia (RF-157/RF-161). */}
+          {preEleicao
+            ? "Brasil · as 27 unidades federativas"
+            : hero
+              ? "Brasil · quem lidera cada estado"
+              : "Brasil — visão geral"}
         </h2>
-        <MapViewToggle value={view} onChange={setView} />
+        {preEleicao ? null : <MapViewToggle value={view} onChange={setView} />}
       </div>
       <NationalChoroplethMap
         rows={rows}
@@ -231,6 +257,7 @@ export function NationalMapBlock({
         rankByLider={rankByLider}
         candidatos={candidatos}
         viewMode={viewMode}
+        preEleicao={preEleicao}
         height={hero ? HERO_HEIGHT : 420}
       />
     </section>

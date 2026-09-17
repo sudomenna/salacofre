@@ -31,6 +31,8 @@
 
 import type { CSSProperties } from "react";
 
+import type { VarianteFasePreEleicao } from "@/components/atoms/banners/FasePreEleicaoBanner";
+
 export interface ForecastTransparencyProps {
   /** Percentual apurado da corrida (0–100). Vem de `EdgePayload.pct_apurado_total`. */
   pctApurado: number;
@@ -59,6 +61,61 @@ export interface ForecastTransparencyProps {
    * nenhuma frase de cadência, que é melhor do que uma frase genérica.
    */
   cadenciaMinutos?: number;
+  /**
+   * **RF-158 (spec 019)** — fase pré-eleição: o bloco FICA, a medição sai.
+   *
+   * Pela regra do design 019 § D0 ("mede ⇒ cala") este bloco sumiria: ele
+   * decompõe o forecast, e decompor é medir. **Ele não some**, e a razão é
+   * hierárquica, não estética — a constituição
+   * [§ 8](../../docs/constitution.md#8-transparência-metodológica) exige "Bloco
+   * 'O que está movendo o forecast' presente em toda página com projeção", e
+   * princípio constitucional está acima de regra de design de uma spec. É a
+   * única das nove superfícies da tabela de mentiras que **não** pode sumir.
+   *
+   * A saída é a que a própria regra permite: as duas barras e os dois
+   * percentuais saem, e no lugar entra um parágrafo no **futuro**, dizendo o
+   * que este bloco vai mostrar quando houver voto. Em fase pré as duas frações
+   * somariam 100% de coisa nenhuma.
+   *
+   * A palavra "projeção" aqui é a **exceção registrada e única** do RF-161: na
+   * fase pré ela não ocorre em mais nenhum lugar das quatro telas, e a métrica
+   * de aceitação da spec é medida sobre o HTML com este bloco descontado.
+   *
+   * ⚠️ **Emenda de 2026-09-14 — o nome ficou mais estreito que o que a prop
+   * faz.** Ela liga o ramo de prosa, e o ramo de prosa serve aos **dois**
+   * estados em que não há medição a decompor: "a eleição não começou" (payload
+   * semeado) e "não sabemos" (nenhum payload). Qual dos dois é dito sai de
+   * {@link ForecastTransparencyProps.variante}. O nome não foi trocado porque
+   * ele é o mesmo sinal que `<RaceTypeIndicator>`, `<NationalMapBlock>` e o
+   * mapa nacional recebem, e cinco call sites com a mesma palavra valem mais
+   * que um nome perfeito num só.
+   */
+  preEleicao?: boolean;
+  /**
+   * 🔴 **Qual das duas prosas, e por que a escolha é do CHAMADOR.**
+   *
+   * Mesmo union e mesma regra de `<FasePreEleicaoBanner>`, de propósito: as
+   * duas superfícies falam do mesmo estado na mesma tela, e um vocabulário só
+   * evita que uma diga "ainda não começou" enquanto a outra diz "não
+   * recebemos nada".
+   *
+   * | valor | quando | o que a prosa pode afirmar |
+   * |---|---|---|
+   * | `"nao_comecou"` (default) | o payload semeado TRAZ o campo de fase | "Nenhum voto foi contado ainda" — é um fato medido e gravado por quem semeou |
+   * | `"sem_dados"` | não veio payload nenhum — ausente **ou** falha de leitura | só o que sabemos de nós: esta página não recebeu dado. **Nunca** a causa. |
+   *
+   * A frase do primeiro ramo, dita às 21h de 04/10 durante uma queda do Global
+   * Config, é falsa com toda a autoridade da marca. Por isso o segundo ramo
+   * existe, e por isso a escolha não é inferida aqui: quem sabe em que estado
+   * está é quem tentou ler o Global Config (design 019 § D5, RNF-010).
+   *
+   * ⚠️ Passar `variante` **sem** `preEleicao` também liga a prosa. É
+   * deliberado e erra para o lado do silêncio: um chamador que escolheu a
+   * redação do estado sem medição não quer a decomposição numérica, e a
+   * alternativa — cair na barra "Apuração 0%" porque faltou um booleano — é
+   * exatamente o default silencioso que esta spec inteira existe para fechar.
+   */
+  variante?: VarianteFasePreEleicao;
   /** Classes adicionais para o container externo. */
   className?: string;
 }
@@ -139,6 +196,8 @@ export function ForecastTransparency({
   variant = "national",
   granularidade,
   cadenciaMinutos,
+  preEleicao = false,
+  variante,
   className,
 }: ForecastTransparencyProps) {
   const pctReal = clampPercent(pctApurado);
@@ -148,6 +207,58 @@ export function ForecastTransparency({
     variant === "uf" ? "O que está movendo o forecast estadual" : "O que está movendo o forecast";
 
   const containerClass = ["w-full max-w-[480px]", className].filter(Boolean).join(" ");
+
+  // RF-158 — o bloco fica, a medição sai. Mesmo `<section>`, mesmo `<h3>`, mesmo
+  // `id`: a navegação por headings não muda de forma conforme a fase, e o
+  // teste do RF-158 afere PRESENÇA do bloco e AUSÊNCIA de fração/barra/
+  // percentual, não a troca de um componente por outro.
+  //
+  // `variante` sozinha também entra aqui — ver o docstring da prop: faltar o
+  // booleano não pode ser o caminho de volta para "Apuração 0%".
+  if (preEleicao || variante !== undefined) {
+    const semDados = variante === "sem_dados";
+    return (
+      <section aria-labelledby="forecast-transparency-heading" className={containerClass}>
+        <h3
+          id="forecast-transparency-heading"
+          className="mb-3 text-lg"
+          style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
+        >
+          {heading}
+        </h3>
+        <p
+          className="max-w-prose text-sm"
+          data-testid="forecast-transparency-pre"
+          data-variante={semDados ? "sem_dados" : "nao_comecou"}
+          style={{ margin: 0, color: "var(--color-text-muted)" }}
+        >
+          {semDados ? (
+            /* 🔴 A oração final é a única diferença entre as duas redações, e é
+               a diferença inteira: aqui ela fala de NÓS ("esta página não
+               recebeu dado nenhum"), lá ela fala do MUNDO ("nenhum voto foi
+               contado ainda"). Este ramo é alcançado tanto antes de 04/10
+               quanto durante uma queda do Global Config às 21h — e a frase do
+               outro ramo, dita naquele minuto, é falsa. Nenhuma conjunção
+               causal liga as duas frases: a segunda não explica a primeira. */
+            <>
+              Quando os primeiros boletins chegarem a esta página, esta caixa vai mostrar quanto da
+              projeção vem do que o TSE já contou e quanto ainda vem do modelo — a proporção muda a
+              cada atualização, e ao fim da noite o que o TSE contou responde por tudo. Enquanto
+              esta página não receber dado nenhum, não há nada a decompor aqui, e nenhum número
+              desta caixa mede a corrida.
+            </>
+          ) : (
+            <>
+              Quando os primeiros boletins chegarem, esta caixa vai mostrar quanto da projeção vem
+              do que o TSE já contou e quanto ainda vem do modelo — a proporção muda a cada
+              atualização, e ao fim da noite o que o TSE contou responde por tudo. Nenhum voto foi
+              contado ainda, então não há nada a decompor aqui.
+            </>
+          )}
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section aria-labelledby="forecast-transparency-heading" className={containerClass}>

@@ -108,3 +108,72 @@ describe("<ForecastTransparency />", () => {
     expect(realOver?.getAttribute("aria-valuenow")).toBe("100");
   });
 });
+
+/**
+ * RF-158 + emenda de 2026-09-14 — as duas prosas, e o fail-safe.
+ *
+ * O ramo de prosa serve aos **dois** estados sem medição a decompor, e qual
+ * deles é dito sai do CHAMADOR (mesma regra de `<FasePreEleicaoBanner>`):
+ * `"nao_comecou"` afirma um fato sobre o mundo que alguém mediu e gravou;
+ * `"sem_dados"` fala só de nós, porque aquele ramo é alcançado tanto antes de
+ * 04/10 quanto por uma queda do Global Config às 21h daquele dia.
+ */
+describe("<ForecastTransparency /> — o ramo de prosa e as duas variantes", () => {
+  const prosa = (doc: Document) =>
+    doc.querySelector('[data-testid="forecast-transparency-pre"]') as HTMLElement | null;
+
+  it('`variante="nao_comecou"` pode afirmar que ninguém votou', () => {
+    const doc = render(<ForecastTransparency pctApurado={0} preEleicao variante="nao_comecou" />);
+    const p = prosa(doc);
+
+    expect(p?.getAttribute("data-variante")).toBe("nao_comecou");
+    expect(p?.textContent ?? "").toContain("Nenhum voto foi contado ainda");
+    expect(meters(doc)).toHaveLength(0);
+  });
+
+  it('`variante="sem_dados"` NÃO afirma a causa — fala só de nós', () => {
+    // Mutação que derruba: usar a mesma redação nos dois ramos.
+    const doc = render(<ForecastTransparency pctApurado={0} preEleicao variante="sem_dados" />);
+    const p = prosa(doc);
+
+    expect(p?.getAttribute("data-variante")).toBe("sem_dados");
+    expect(p?.textContent ?? "").not.toContain("Nenhum voto foi contado");
+    expect(p?.textContent ?? "").toContain("Enquanto esta página não receber dado nenhum");
+    expect(meters(doc)).toHaveLength(0);
+    // Nenhum dígito, nem percentual: é o ponto inteiro da emenda.
+    expect(p?.textContent ?? "").not.toMatch(/\d/);
+  });
+
+  it("o default do ramo de prosa é `nao_comecou` — como o da faixa", () => {
+    const doc = render(<ForecastTransparency pctApurado={0} preEleicao />);
+    expect(prosa(doc)?.getAttribute("data-variante")).toBe("nao_comecou");
+  });
+
+  it("🔴 `variante` sem `preEleicao` liga a prosa — o fail-safe", () => {
+    // Um chamador que escolheu a REDAÇÃO do estado sem medição não quer a
+    // decomposição numérica. Errar para o lado do silêncio é deliberado: a
+    // alternativa é cair em "Apuração 0%" por falta de um booleano, que é
+    // exatamente o default silencioso que esta spec existe para fechar.
+    //
+    // Mutação que derruba: `if (preEleicao)` em vez de
+    // `if (preEleicao || variante !== undefined)`.
+    const doc = render(<ForecastTransparency pctApurado={0} variante="sem_dados" />);
+
+    expect(prosa(doc)).not.toBeNull();
+    expect(meters(doc)).toHaveLength(0);
+  });
+
+  it("🔴 (controle) sem nenhuma das duas props, a decomposição numérica é a de sempre", () => {
+    // Sem este controle, os quatro testes acima passariam com o ramo de prosa
+    // ligado de vez — que apagaria as barras na noite de 04/10.
+    const doc = render(<ForecastTransparency pctApurado={37.4} />);
+
+    expect(prosa(doc)).toBeNull();
+    expect(meters(doc)).toHaveLength(2);
+    // ⚠️ Ponto decimal, não vírgula: este bloco formata com o `formatPercent`
+    // LOCAL do arquivo, e não com o de `lib/utils/format` que o resto do
+    // produto usa. Divergência de apresentação preexistente, fora do recorte
+    // desta emenda — registrada aqui para que ninguém a "conserte" sem medir.
+    expect(doc.body.textContent ?? "").toContain("37.4%");
+  });
+});

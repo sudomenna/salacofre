@@ -48,6 +48,33 @@
   min-width: 0;
 }
 
+/* RF-161 (spec 019) — o segmentado "Parcial / Projeção" some em fase
+ * pré-eleição, e some pela MESMA porta que o resto do shell usa: uma custom
+ * property publicada pela página em `:root`, que herda para trás até a barra
+ * do topo (ADR-0029 § 4). O shell não pode ler dado (ADR-0025 §§ 2 e 5), e
+ * este arquivo não sabe nem quer saber o que é uma fase.
+ *
+ * Duas razões independentes, e cada uma bastaria:
+ *
+ *   1. o rótulo visível é literalmente a palavra que o RF-161 proíbe em toda a
+ *      tela em fase pré, e a métrica de aceitação da spec é varrida sobre o
+ *      HTML renderizado — o shell é HTML renderizado;
+ *   2. é um controle que não controla nada. Ele escreve `data-view` no
+ *      `<html>` para a cascata enfatizar a coluna "parcial" ou a "projeção"
+ *      das linhas de candidato; em fase pré essas colunas não existem (o
+ *      `<ResultPanel>` está em modo identidade) e o mapa está cinza uniforme
+ *      nas seis combinações. Mesmo argumento que tira o `<MapViewToggle>` da
+ *      moldura (RF-157).
+ *
+ * `display: none` também o tira da árvore de acessibilidade e da ordem de
+ * tabulação, que é o ponto — igual à regra de `body:not(:has(...))` acima.
+ * A especificidade dupla (`.control.viewMode`) é o que vence o `display: flex`
+ * da regra anterior; o `:has` acima continua vencendo os dois, com três
+ * seletores. */
+.control.viewMode {
+  display: var(--shell-viewmode-display, flex);
+}
+
 /* Rota sem corrida (`/sobre-o-modelo`, futuras páginas editoriais): sem
  * `main[data-trilha]` no DOM, os controles não têm o que controlar. Some o
  * grupo inteiro — `display: none` também o tira da árvore de acessibilidade e

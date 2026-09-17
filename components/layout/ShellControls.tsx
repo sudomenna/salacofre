@@ -44,7 +44,9 @@ export function ShellControls({ cargoNav }: ShellControlsProps) {
       {cargoNav}
       <div className={styles.controls} data-testid="shell-controls">
         <TurnoSwitch className={styles.control} />
-        <ViewModeSwitch className={styles.control} />
+        {/* Duas classes: `.control` dá o layout, `.viewMode` dá o interruptor
+            de visibilidade que a fase pré-eleição usa (RF-161 — ver o CSS). */}
+        <ViewModeSwitch className={`${styles.control} ${styles.viewMode}`} />
       </div>
     </div>
   );

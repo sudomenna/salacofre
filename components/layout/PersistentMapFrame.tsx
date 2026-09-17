@@ -77,6 +77,7 @@ import { CHIP_STYLE, NationalMapBlock } from "@/components/blocks/NationalMapBlo
 import { UfLeaderMapLazy } from "@/components/blocks/UfMapsLazy";
 import { UfPicker } from "@/components/layout/UfPicker";
 import { cargoFromToken } from "@/lib/config/cargos";
+import { isPreEleicao } from "@/lib/config/fase";
 import type { EdgePayload, EdgePayloadUf, EdgeUfMunicipio } from "@/lib/edge-config/types";
 import { useDadoFrescorStore } from "@/lib/state/dado-freshness-store";
 
@@ -244,6 +245,12 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
     return <MapSkeleton height="100%" />;
   }
 
+  // 🔴 RF-153/RF-157 — a moldura tem o payload (ela mesma o busca, ver o topo
+  // deste arquivo), então é ela quem pergunta a fase. `isPreEleicao` lê o campo
+  // `fase` e NADA além dele: gatear em `pct_apurado_total === 0` poria o mapa
+  // em cinza às 20h01 de 04/10, com a apuração já correndo (ADR-0043 D5).
+  const preEleicao = isPreEleicao(payload);
+
   // Candidatos da UF (cor por candidato) — vem do resumo (ADR-0012), não do
   // detalhe municipal. Enquanto `ufResumo` ainda não chegou, o coroplético
   // pinta tudo em `--color-tossup` (mesmo fallback que as páginas de UF já
@@ -321,7 +328,22 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
               ← Brasil
             </Link>
           </div>
-        ) : payload.por_uf.length > 0 ? (
+        ) : preEleicao || payload.por_uf.length === 0 ? (
+          // RF-157, aplicado ao "mapa" desta trilha. O cartograma hexagonal
+          // pinta cada hexágono com a identidade partidária de quem lidera a
+          // corrida daquele estado e escreve a sigla dentro dele — é a
+          // mentira #8 da tabela da spec 019 em outra projeção geométrica.
+          //
+          // A guarda de fase é defesa em profundidade: com o payload que o
+          // semeador grava (`por_uf: []`) este ramo já entrava sozinho, mas a
+          // spec § D7 quer as duas defesas coexistindo — a de não produzir as
+          // linhas e a de não pintá-las se elas voltarem a existir.
+          <p style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-muted)" }}>
+            {preEleicao
+              ? "A eleição ainda não começou. Os 27 estados aparecem coloridos aqui quando houver voto contado."
+              : "Aguardando primeiros boletins do TSE para preencher o cartograma."}
+          </p>
+        ) : (
           // Caixa de razão fixa: o SVG é `w-full h-auto` e, solto numa coluna
           // de 880px, mediria 861px de alto e vazaria a moldura. A razão vem do
           // `viewBox` do próprio cartograma (`gridBounds`, ~390 × 403).
@@ -330,10 +352,6 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
               <HexCartogramBrasil rows={payload.por_uf} candidatos={payload.national.candidatos} />
             </div>
           </div>
-        ) : (
-          <p style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-muted)" }}>
-            Aguardando primeiros boletins do TSE para preencher o cartograma.
-          </p>
         )}
       </section>
     );
@@ -416,6 +434,7 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
       rankByLider={rankByLider}
       candidatos={payload.national.candidatos}
       variant="frame"
+      preEleicao={preEleicao}
       scopeLabel={escopo}
       backHref={sigla ? homeHref : undefined}
       // Nível Brasil: o seletor entra na faixa do canto direito, ao lado do

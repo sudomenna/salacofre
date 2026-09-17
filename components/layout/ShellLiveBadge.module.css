@@ -1,13 +1,18 @@
 /*
  * components/layout/ShellLiveBadge.module.css
  *
- * Ver o cabeçalho de `ShellLiveBadge.tsx`: o texto do selo vem de
- * `--live-pct-label`, uma custom property que a página de corrida publica em
- * `:root`. O fallback do `var()` é o estado genérico "ao vivo".
+ * Ver o cabeçalho de `ShellLiveBadge.tsx`. Cinco custom properties, todas com
+ * **o silêncio como default** (RF-159): o selo só existe, só tem texto, só
+ * pulsa e só se anuncia se a página publicar cada uma delas em `:root`. Uma
+ * rota que não publica nada — `/candidatos`, `/sobre-o-modelo`, `/status`, e
+ * qualquer página que ainda não foi fiada — não mostra selo nenhum, em vez de
+ * afirmar "ao vivo" como fazia até 13/09.
  */
 
 .badge {
-  display: inline-flex;
+  /* `none` por default: um selo de estado sem estado a reportar não vai à
+   * tela. A página publica `--live-badge-display: inline-flex`. */
+  display: var(--live-badge-display, none);
   align-items: center;
   gap: var(--space-1);
   padding: 2px var(--space-2);
@@ -28,10 +33,30 @@
   border-radius: var(--radius-pill);
   background: var(--color-live);
   animation: salacofre-shell-pulse 1.6s var(--ease-out) infinite;
+  /* A longhand vem DEPOIS da shorthand de propósito: a shorthand reseta
+   * `animation-play-state` para `running`, e o default aqui é `paused`. Um
+   * ponto pulsando afirma que algo está acontecendo agora; em fase
+   * pré-eleição nada está. Pausada no frame 0, a bolinha fica opaca e
+   * estática — sem cor nova, sem regra a mais. */
+  animation-play-state: var(--live-dot-state, paused);
 }
 
 .label::after {
-  content: var(--live-pct-label, "ao vivo");
+  /* Sem fallback de texto: era aqui que morava o `"ao vivo"` que mentia em
+   * toda rota. String vazia é o silêncio. */
+  content: var(--live-pct-label, "");
+}
+
+/* As duas frases acessíveis moram as duas no DOM; a custom property decide
+ * qual delas tem `display: none`, que é a única remoção do accessibility tree
+ * que os dois leitores de tela respeitam. `content` de CSS **não** serve para
+ * isto (design 019 § D6). Default: nenhuma das duas fala. */
+.srPre {
+  display: var(--live-sr-pre, none);
+}
+
+.srAoVivo {
+  display: var(--live-sr-ao-vivo, none);
 }
 
 @keyframes salacofre-shell-pulse {
