@@ -200,6 +200,26 @@ function resolveInternalBaseUrl(): string {
  * (testes/dev local) `after()` ainda funciona mas degrada para um Promise
  * sem hold — o `void fetch` então é suficiente.
  */
+/**
+ * Header de contorno da proteção de deployment da Vercel.
+ *
+ * Deployments de **preview** ficam atrás de SSO (`ssoProtection`), e isso vale
+ * também para a chamada que o próprio deployment faz para si mesmo: o
+ * `triggerModel` recebia **401 da plataforma**, antes de chegar ao Python, e o
+ * ciclo terminava com `model_triggered` no log e nenhuma projeção publicada —
+ * uma falha que só aparece lendo o log da função, porque o trigger é
+ * best-effort e não derruba o ciclo. Medido em 2026-09-17, no primeiro ciclo
+ * contra o simulado.
+ *
+ * `VERCEL_AUTOMATION_BYPASS_SECRET` é injetada pela plataforma quando o
+ * projeto tem "Protection Bypass for Automation" ligado. Em produção o domínio
+ * é público e o header é inócuo; ausente a variável, nada é enviado.
+ */
+function protectionBypassHeader(): Record<string, string> {
+  const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  return secret ? { "x-vercel-protection-bypass": secret } : {};
+}
+
 function triggerModel(opts: {
   baseUrl: string;
   cargo: number;
@@ -219,6 +239,7 @@ function triggerModel(opts: {
         headers: {
           "x-model-secret": modelSecret,
           "content-type": "application/json",
+          ...protectionBypassHeader(),
         },
         body: JSON.stringify({ cargo, turno, trigger_ts: triggerTs }),
       });

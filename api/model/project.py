@@ -4264,14 +4264,25 @@ def post_edge_write(
     if payloads_uf:
         body_dict["payloads_uf"] = payloads_uf
     body = json.dumps(body_dict, default=str).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "x-model-secret": secret,
+    }
+    # Deployment de preview fica atrás do SSO da Vercel, e isso vale para a
+    # chamada que o deployment faz para si mesmo: sem este header a plataforma
+    # devolve 401 ANTES de chegar ao endpoint, e a projeção some em silêncio
+    # (medido em 2026-09-17, primeiro ciclo contra o simulado). A variável é
+    # injetada pela plataforma quando "Protection Bypass for Automation" está
+    # ligado; em produção o domínio é público e o header é inócuo.
+    bypass = os.environ.get("VERCEL_AUTOMATION_BYPASS_SECRET")
+    if bypass:
+        headers["x-vercel-protection-bypass"] = bypass
+
     req = urllib.request.Request(
         url,
         data=body,
         method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "x-model-secret": secret,
-        },
+        headers=headers,
     )
 
     try:
