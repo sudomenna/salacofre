@@ -24,6 +24,32 @@
  *   - `role="img"` + `aria-label` descrevendo a escala: uma fileira de
  *     quadradinhos coloridos não diz nada a leitor de tela (RNF-022/023).
  *   - texto em `--type-data` (11px) em vez do `fontSize: 10` cravado do kit.
+ *
+ * ## 2026-09-14 (map-builder) — `<CandidateLegendGroup>`, o átomo N-way
+ *
+ * `<MapLegend>` (acima) descreve um mapa de **dois** candidatos — pertinente
+ * quando a corrida É binária (2º turno). Desde o ADR-0024 (S07/Bloco 1) o
+ * choropleth nacional do 1º turno pinta cada UF pela identidade do **líder
+ * local** com intensidade por margem, qualquer que seja o rank dele — uma UF
+ * liderada pelo 3º colocado nacional já recebe a cor do 3º colocado. A
+ * legenda divergente não tinha como descrever essa cor: só nomeava rank 1 e
+ * rank 2, e o 3º colocado saía do mapa sem nenhuma legenda o explicando.
+ *
+ * `<CandidateLegendGroup>` substitui esse uso: uma rampa **por candidato**
+ * (não uma rampa dividida em dois lados), 1 a 3 delas (rank 1..3, quantos
+ * existirem — nunca inventa um 3º que não veio no payload), com uma ÚNICA
+ * chave de "sem apuração" compartilhada entre elas (production a pediu
+ * explicitamente: "não faz sentido ter 3 chaves iguais"). Mesmo contrato de
+ * `<MapLegend>`: quem monta cada rampa (os 5 degraus de intensidade) é o
+ * caller (`NationalChoroplethMap.tsx`, via `intensityForParty`), este átomo
+ * não tem opinião sobre partido.
+ *
+ * `<MapLegend>` **continua no arquivo, sem uso em produção hoje** (só o teste
+ * próprio dela, `tests/unit/components/MapLegend.test.tsx`, a exercita) — não
+ * é código morto por engano, é uma decisão: o formato "duelo top-2" é exatamente
+ * o que um mapa de 2º turno precisa (dois candidatos, sem 3º a nomear), e
+ * nenhuma tela de 2T tem legenda de mapa hoje. Ver relatório do map-builder de
+ * 2026-09-14 para quem quiser reverter essa decisão.
  */
 
 import type { CSSProperties } from "react";
@@ -134,6 +160,142 @@ export function MapLegend({
           style={{
             width: 12,
             height: 10,
+            background: uncountedColor,
+            border: "1px solid var(--border-hairline)",
+          }}
+        />
+        {uncountedLabel}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CandidateLegendGroup — legenda N-way (1 rampa por candidato, RF-030.1)
+// ---------------------------------------------------------------------------
+
+/** Uma rampa de intensidade pronta — o caller já resolveu partido → cor. */
+export interface CandidateLegendEntry {
+  /** Nome de exibição do candidato (`nomeExibicao`, não o nome de urna cru). */
+  label: string;
+  /** 5 degraus, do mais forte (borda, margem alta) ao mais fraco (margem baixa). */
+  colors: readonly string[];
+}
+
+export function candidateLegendGroupLabel(
+  entries: readonly CandidateLegendEntry[],
+  maxMargin: number,
+  uncountedLabel: string,
+): string {
+  // Uma frase por candidato, não uma frase repetida 3×: um leitor de tela que
+  // ouvisse "escala de margem: Lula até 30 pontos" três vezes seguidas (uma
+  // por legenda) não aprenderia nada na 2ª e 3ª repetição — é exatamente o
+  // problema que a legenda ÚNICA agrupada evita.
+  const porCandidato = entries.map((e) => `${e.label}, até ${maxMargin} pontos`).join("; ");
+  return (
+    `Escala de margem por candidato, do mais claro (disputa apertada) ao mais ` +
+    `forte (${maxMargin} pontos ou mais): ${porCandidato}. Cor neutra: ${uncountedLabel}.`
+  );
+}
+
+export interface CandidateLegendGroupProps {
+  /**
+   * 1 a 3 rampas, em ordem de rank (1º, 2º, 3º colocado nacional). Quantos
+   * existirem — o caller nunca preenche um 3º que o payload não trouxe
+   * (ver `NationalChoroplethMap.tsx`).
+   */
+  entries: readonly CandidateLegendEntry[];
+  /** Maior margem rotulada, em pp. Default 30 (mesmo default de `<MapLegend>`). */
+  maxMargin?: number;
+  /** Cor de UF/município sem apuração — chave ÚNICA, compartilhada pelas N rampas. */
+  uncountedColor?: string;
+  uncountedLabel?: string;
+  className?: string;
+  style?: CSSProperties;
+}
+
+/**
+ * Uma rampa por candidato (rank 1..3), mais UMA chave de "sem apuração"
+ * compartilhada — não uma legenda por candidato repetindo a chave.
+ *
+ * `entries` vazio → `null` (mesma filosofia de `buildPartyLegend` antes desta
+ * mudança: nenhuma legenda é melhor que uma legenda que inventa candidato).
+ *
+ * `role="img"` no grupo inteiro, um único `aria-label` describing o conjunto
+ * — não três `role="img"` aninhados, que fariam um leitor de tela anunciar
+ * "imagem" três vezes para o que visualmente é uma caixa só.
+ */
+export function CandidateLegendGroup({
+  entries,
+  maxMargin = 30,
+  uncountedColor = "var(--map-uncounted)",
+  uncountedLabel = "sem apuração",
+  className,
+  style,
+}: CandidateLegendGroupProps) {
+  if (entries.length === 0) return null;
+  return (
+    <div
+      role="img"
+      aria-label={candidateLegendGroupLabel(entries, maxMargin, uncountedLabel)}
+      data-testid="map-legend-group"
+      className={className}
+      style={{ display: "grid", gap: "var(--space-1)", ...style }}
+    >
+      {entries.map((entry, idx) => (
+        <div
+          key={entry.label}
+          aria-hidden="true"
+          data-testid="map-legend-candidate"
+          data-rank={idx + 1}
+          className="flex items-center"
+          style={{ gap: "var(--space-2)" }}
+        >
+          <span
+            className="flex-none truncate"
+            style={{ width: 52, font: "var(--type-data)", color: "var(--text-secondary)" }}
+          >
+            {entry.label}
+          </span>
+          <div className="flex flex-1 items-center" style={{ gap: 1 }}>
+            {entry.colors.map((c) => (
+              // Mesmo padrão de `map-legend-step` no `<MapLegend>` acima: a
+              // cor é a chave, não o índice (rampa nunca reordena, mas a
+              // regra do lint vale para qualquer array mapeado).
+              <span
+                key={`${entry.label}-${c}`}
+                data-testid="map-legend-group-step"
+                className="flex-1"
+                style={{ height: 8, background: c }}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+      <div
+        aria-hidden="true"
+        data-testid="map-legend-group-scale"
+        className="flex justify-between"
+        style={{
+          marginLeft: 52 + 8,
+          font: "var(--type-data)",
+          color: "var(--text-secondary)",
+        }}
+      >
+        <span>0</span>
+        <span>{`+${maxMargin}`}</span>
+      </div>
+      <div
+        aria-hidden="true"
+        data-testid="map-legend-uncounted"
+        className="flex items-center"
+        style={{ gap: "var(--space-2)", font: "var(--type-data)", color: "var(--text-muted)" }}
+      >
+        <span
+          className="flex-none"
+          style={{
+            width: 12,
+            height: 8,
             background: uncountedColor,
             border: "1px solid var(--border-hairline)",
           }}

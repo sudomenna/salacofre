@@ -38,11 +38,12 @@ import dynamic from "next/dynamic";
 import { type CSSProperties, useEffect, useState } from "react";
 
 import type { MapView } from "@/components/atoms/controls/MapViewToggle";
-import { MapLegend } from "@/components/atoms/maps/MapLegend";
+import { type CandidateLegendEntry, CandidateLegendGroup } from "@/components/atoms/maps/MapLegend";
 import { MapSkeleton } from "@/components/atoms/maps/MapSkeleton";
 import { StateResultSheet } from "@/components/blocks/StateResultSheet";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import type { ViewMode } from "@/lib/state/view-mode";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import { intensityForParty, type PartyIntensity } from "@/lib/utils/party-color";
 
 /**
@@ -103,6 +104,18 @@ export interface NationalChoroplethMapProps {
    */
   viewMode?: ViewMode;
   /**
+   * **RF-157 (spec 019)** — fase pré-eleição. Repassado ao impl (todas as UFs
+   * em `--map-uncounted`) e troca a legenda: a rampa divergente por partido dá
+   * lugar a uma legenda de **geografia**.
+   *
+   * A legenda de partido não é só inútil aqui — ela é uma afirmação. Ela
+   * nomeia dois candidatos, imprime as duas rampas de cor de identidade e
+   * rotula uma escala de margem em pontos percentuais, tudo sobre um mapa
+   * inteiramente cinza. O leitor procuraria no mapa as cores que a legenda
+   * promete e concluiria que ainda não apareceram — que é o oposto do fato.
+   */
+  preEleicao?: boolean;
+  /**
    * Altura do mapa. Número → px. String → qualquer comprimento CSS — o mapa
    * hero da home usa `clamp(400px, 52vh, ...)` desde o ADR-0029 § 1.
    */
@@ -153,36 +166,101 @@ const NationalChoroplethMapImpl = dynamic(
 /** Degraus da rampa, borda→centro (mais forte→mais fraco) — mesma ordem do kit. */
 const LEGEND_LEVELS: readonly PartyIntensity[] = [5, 4, 3, 2, 1];
 
-interface PartyLegendProps {
-  leftLabel: string;
-  rightLabel: string;
-  leftColors: string[];
-  rightColors: string[];
+/**
+ * A caixa flutuante da legenda quando o mapa PREENCHE a moldura
+ * (`legendPlacement="overlay"`, ADR-0033 § 1) — canto inferior esquerdo, sobre
+ * o mapa, como no kit. Extraída para constante quando a fase pré-eleição
+ * passou a ter uma legenda própria (RF-157): duas caixas com a mesma âncora
+ * escritas em dois lugares sairiam de sincronia no primeiro ajuste.
+ */
+const LEGEND_OVERLAY_BOX: CSSProperties = {
+  position: "absolute",
+  left: "var(--space-3)",
+  bottom: "var(--space-3)",
+  width: 200,
+  background: "var(--surface-card)",
+  border: "1px solid var(--border-hairline)",
+  borderRadius: "var(--radius-sm)",
+  padding: "var(--space-2)",
+  pointerEvents: "none",
+};
+
+/**
+ * Uma rampa por colocado (rank 1, 2 e 3) — não mais um duelo top-2. O
+ * choropleth já pinta cada UF pela identidade do LÍDER LOCAL com intensidade
+ * por margem (`intensityForParty`, ADR-0024), qualquer que seja o rank dele:
+ * uma UF liderada pelo 3º colocado nacional já recebe a cor do 3º colocado. A
+ * legenda anterior (`buildPartyLegend`, um duelo rank1×rank2) não tinha como
+ * nomear essa cor — o 3º colocado pintava o mapa sem aparecer em legenda
+ * nenhuma. Três legendas separadas descrevem o mapa que de fato está na tela.
+ *
+ * Só faz sentido nas views "quem lidera" (`winner`/`margin`); `swing`/
+ * `turnout` não têm identidade partidária natural (ver comentários em
+ * `_NationalChoroplethMapImpl.tsx`) e não ganham legenda — comportamento
+ * herdado sem mudança.
+ *
+ * Degrada por quantidade: renderiza uma entrada por rank de 1 a 3 que EXISTIR
+ * no payload — nunca inventa um 3º colocado que não veio. Sem `candidatos`
+ * (fallback pré-S07), ou sem nenhum dos três ranks identificado, retorna
+ * `null` — melhor nenhuma legenda do que uma incorreta.
+ */
+function buildCandidateLegendEntries(
+  candidatos: EdgeCandidate[] | undefined,
+  view: MapView,
+): CandidateLegendEntry[] | null {
+  if (view !== "winner" && view !== "margin") return null;
+  if (!candidatos || candidatos.length === 0) return null;
+  const porRank = [1, 2, 3]
+    .map((rank) => candidatos.find((c) => c.rank === rank))
+    .filter((c): c is EdgeCandidate => c != null);
+  if (porRank.length === 0) return null;
+  return porRank.map((c) => ({
+    label: nomeExibicao(c.nome, c.sqcand),
+    colors: LEGEND_LEVELS.map((level) => intensityForParty(c.partido, level)),
+  }));
 }
 
 /**
- * Legenda diverge por partido (rank 1 × rank 2) — só faz sentido nas views
- * "quem lidera" (`winner`/`margin`); `swing`/`turnout` não têm identidade
- * partidária natural (ver comentários em `_NationalChoroplethMapImpl.tsx`)
- * e não ganham legenda. Sem `candidatos` (fallback pré-S07), ou sem os dois
- * primeiros colocados identificados por `rank`, retorna `null` — melhor
- * nenhuma legenda do que uma incorreta.
+ * A legenda de **geografia** que substitui a de partidos em fase pré-eleição
+ * (RF-157).
+ *
+ * Uma chave só, porque o mapa tem uma cor só. Não cita partido, não cita
+ * candidato e não desenha faixa de margem — diz o que o mapa de fato mostra:
+ * as unidades federativas do país, nenhuma delas com voto contado.
+ *
+ * `role="img"` + `aria-label` pelo mesmo motivo do `<MapLegend>`: um quadrado
+ * colorido não diz nada a leitor de tela (RNF-022/023).
  */
-function buildPartyLegend(
-  candidatos: EdgeCandidate[] | undefined,
-  view: MapView,
-): PartyLegendProps | null {
-  if (view !== "winner" && view !== "margin") return null;
-  if (!candidatos || candidatos.length < 2) return null;
-  const a = candidatos.find((c) => c.rank === 1);
-  const b = candidatos.find((c) => c.rank === 2);
-  if (!a || !b) return null;
-  return {
-    leftLabel: a.nome,
-    rightLabel: b.nome,
-    leftColors: LEGEND_LEVELS.map((level) => intensityForParty(a.partido, level)),
-    rightColors: LEGEND_LEVELS.map((level) => intensityForParty(b.partido, level)),
-  };
+function GeografiaLegend({ className }: { className?: string }) {
+  const texto =
+    "As 27 unidades federativas. Nenhuma tem voto contado: a votação ainda não começou.";
+  return (
+    <div
+      aria-label={texto}
+      className={className}
+      data-testid="map-legend-geografia"
+      role="img"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "var(--space-2)",
+        font: "var(--type-data)",
+        color: "var(--text-secondary)",
+      }}
+    >
+      <span
+        aria-hidden="true"
+        className="flex-none"
+        style={{
+          width: 12,
+          height: 10,
+          background: "var(--map-uncounted)",
+          border: "1px solid var(--border-hairline)",
+        }}
+      />
+      <span aria-hidden="true">{texto}</span>
+    </div>
+  );
 }
 
 export function NationalChoroplethMap({
@@ -192,11 +270,16 @@ export function NationalChoroplethMap({
   rankByLider,
   candidatos,
   viewMode = "proj",
+  preEleicao = false,
   height = 420,
   legendPlacement = "below",
   className,
 }: NationalChoroplethMapProps) {
-  const legend = buildPartyLegend(candidatos, view);
+  // RF-157 — a legenda de partido não é construída em fase pré. A decisão é
+  // aqui, no chamador da legenda, e não dentro do `<CandidateLegendGroup>`:
+  // aquele átomo não tem opinião sobre partido nem sobre fase, e não deve
+  // ganhar uma.
+  const legendEntries = preEleicao ? null : buildCandidateLegendEntries(candidatos, view);
   const [selectedSigla, setSelectedSigla] = useState<string | null>(null);
   const isDesktop = useIsDesktopSheet();
   const selectedRow = selectedSigla ? (rows.find((r) => r.sigla === selectedSigla) ?? null) : null;
@@ -205,7 +288,14 @@ export function NationalChoroplethMap({
     // biome-ignore lint/a11y/useSemanticElements: role=region + aria-label correto para div-container de mapa interativo
     <div
       role="region"
-      aria-label={`Mapa coroplético do Brasil — modo ${VIEW_LABEL[view]}`}
+      // RF-161 — o `aria-label` é um dos lugares por onde vocabulário de
+      // medição vaza sem ninguém revisar: "modo Por vencedor" nomeia um
+      // vencedor numa corrida que não começou.
+      aria-label={
+        preEleicao
+          ? "Mapa do Brasil — as 27 unidades federativas, nenhuma com voto contado"
+          : `Mapa coroplético do Brasil — modo ${VIEW_LABEL[view]}`
+      }
       className={["relative w-full", className].filter(Boolean).join(" ")}
       style={
         { "--map-height": typeof height === "number" ? `${height}px` : height } as CSSProperties
@@ -218,39 +308,26 @@ export function NationalChoroplethMap({
         rankByLider={rankByLider}
         candidatos={candidatos}
         viewMode={viewMode}
+        preEleicao={preEleicao}
         height={height}
         onSelectUf={setSelectedSigla}
       />
-      {legend ? (
+      {preEleicao ? (
         legendPlacement === "overlay" ? (
-          <div
-            style={{
-              position: "absolute",
-              left: "var(--space-3)",
-              bottom: "var(--space-3)",
-              width: 200,
-              background: "var(--surface-card)",
-              border: "1px solid var(--border-hairline)",
-              borderRadius: "var(--radius-sm)",
-              padding: "var(--space-2)",
-              pointerEvents: "none",
-            }}
-          >
-            <MapLegend
-              leftLabel={legend.leftLabel}
-              rightLabel={legend.rightLabel}
-              leftColors={legend.leftColors}
-              rightColors={legend.rightColors}
-            />
+          <div style={{ ...LEGEND_OVERLAY_BOX, width: 220 }}>
+            <GeografiaLegend />
           </div>
         ) : (
-          <MapLegend
-            leftLabel={legend.leftLabel}
-            rightLabel={legend.rightLabel}
-            leftColors={legend.leftColors}
-            rightColors={legend.rightColors}
-            className="mt-2"
-          />
+          <GeografiaLegend className="mt-2" />
+        )
+      ) : null}
+      {legendEntries ? (
+        legendPlacement === "overlay" ? (
+          <div style={LEGEND_OVERLAY_BOX}>
+            <CandidateLegendGroup entries={legendEntries} />
+          </div>
+        ) : (
+          <CandidateLegendGroup entries={legendEntries} className="mt-2" />
         )
       ) : null}
       <StateResultSheet

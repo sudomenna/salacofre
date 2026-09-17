@@ -42,12 +42,16 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { MapView } from "@/components/atoms/controls/MapViewToggle";
-import { registerPmtilesProtocolOnce, resetPmtilesProtocol } from "@/components/atoms/maps/_pmtiles-protocol";
+import {
+  registerPmtilesProtocolOnce,
+  resetPmtilesProtocol,
+} from "@/components/atoms/maps/_pmtiles-protocol";
 import { HoverCard, type HoverCardRow } from "@/components/atoms/overlays/HoverCard";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { useHoverStore } from "@/lib/state/hover-store";
 import type { ViewMode } from "@/lib/state/view-mode";
 import { colorForRank, resolveBandHex, resolveCandHex } from "@/lib/utils/cand-color";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import {
   colorForParty,
   intensityLevelForMargin,
@@ -57,6 +61,10 @@ import {
 } from "@/lib/utils/party-color";
 
 const PMTILES_BASE = "https://jbtu251tioj3y57z.public.blob.vercel-storage.com";
+
+/** Bbox de Brasil usado pelo `fitBounds` inicial — mesmo valor de sempre,
+ * agora nomeado porque `computeFrameCamera` (abaixo) também precisa dele. */
+const BRAZIL_BOUNDS: [number, number, number, number] = [-73.99, -33.75, -28.84, 5.27];
 
 export interface NationalChoroplethMapImplProps {
   rows: EdgeUfRow[];
@@ -85,6 +93,22 @@ export interface NationalChoroplethMapImplProps {
    * os dois números já vêm no mesmo `EdgeUfRow`.
    */
   viewMode?: ViewMode;
+  /**
+   * **RF-157 (spec 019)** — fase pré-eleição: as 27 UFs saem `--map-uncounted`,
+   * em TODAS as seis combinações de `viewMode` × `view`.
+   *
+   * A guarda que já existia (`parcial && row.pct_apurado === 0`, mais abaixo)
+   * **continua valendo e não é substituída** — esta prop ACRESCENTA uma. A
+   * antiga cobre uma das seis combinações, e é exatamente por isso que ela não
+   * resolve este caso: o default do controle é `proj` + `winner`, e nesse ramo
+   * a cor sai de `top_candidatos[0]`, que num payload zerado é um candidato
+   * qualquer com 0%. O leitor veria o Brasil inteiro pintado com a identidade
+   * partidária de quem calhou de ser o primeiro item do array.
+   *
+   * Quem decide é o chamador — `PersistentMapFrame`, que é quem tem o payload
+   * e quem chama `isPreEleicao` (`lib/config/fase.ts`).
+   */
+  preEleicao?: boolean;
   /** Número → px; string → qualquer comprimento CSS (ADR-0029 § 1). */
   height?: number | string;
   /**
@@ -195,7 +219,18 @@ function resolveColor(
   rankByLider: Record<number, number> | undefined,
   candidatosById: Map<number, EdgeCandidate>,
   viewMode: ViewMode = "proj",
+  preEleicao = false,
 ): string {
+  // 🔴 RF-157 — PRIMEIRA LINHA, e a posição é o requisito.
+  //
+  // Antes do `switch`, antes de ler `viewMode` e antes da linha que resolve
+  // `liderId` a partir de `top_candidatos[0]`. Se esta guarda ficasse depois do
+  // `switch`, três dos quatro casos já teriam lido a identidade do "líder" de
+  // uma corrida que não começou, e um refactor futuro que reordenasse os ramos
+  // reintroduziria a cor sem tocar nela — que é precisamente como a guarda de
+  // zero logo abaixo acabou dentro do ramo `parcial`, cobrindo uma das seis
+  // combinações e sumindo nas outras cinco.
+  if (preEleicao) return getCssVar("--map-uncounted") || "#e1e4e8";
   const parcial = viewMode === "parcial";
   // Em "Parcial" a UF sem nenhum boletim não tem líder apurado — pintar o
   // líder projetado sob o rótulo "parcial" seria mostrar um número de outro
@@ -253,13 +288,17 @@ function applyColors(
   rankByLider: Record<number, number> | undefined,
   candidatosById: Map<number, EdgeCandidate>,
   viewMode: ViewMode = "proj",
+  preEleicao = false,
 ) {
   if (rows.length === 0) return;
   const fallback = getCssVar("--map-uncounted") || "#e1e4e8";
   // ["match", ["get", "SIGLA_UF"], "SP", "#...", "RJ", "#...", ..., fallback]
   const expression: (string | number | unknown[])[] = ["match", ["get", "SIGLA_UF"]];
   for (const row of rows) {
-    expression.push(row.sigla, resolveColor(row, view, rankByLider, candidatosById, viewMode));
+    expression.push(
+      row.sigla,
+      resolveColor(row, view, rankByLider, candidatosById, viewMode, preEleicao),
+    );
   }
   expression.push(fallback);
   map.setPaintProperty("ufs-fill", "fill-color", expression as unknown as string);
@@ -289,7 +328,10 @@ function buildHoverRows(
     const partido = cand?.partido;
     const rank = rankFor(tc.id, rankByLider);
     return {
-      name: cand?.nome ?? `#${tc.id}`,
+      // `HoverCardRow.name` é string e o tooltip não tem como voltar ao
+      // candidato: o nome de exibição sai daqui, senão o balão do mapa diria
+      // "RONALDO CAIADO" e o painel ao lado, "CAIADO", sobre o mesmo estado.
+      name: cand ? nomeExibicao(cand.nome, cand.sqcand) : `#${tc.id}`,
       color: partidoIsMapped(partido) ? colorForParty(partido) : colorForRank(rank),
       pct: Number.NaN,
       proj: tc.pct,
@@ -305,6 +347,146 @@ function buildHoverRows(
  */
 const STYLE_LOAD_TIMEOUT_MS = 10_000;
 
+/**
+ * `minZoom` do próprio `ufs.pmtiles`, medido direto do header do arquivo
+ * (`new PMTiles(url).getHeader()`, ver relatório do map-builder de
+ * 2026-09-14) — não é o `minZoom` do `<Map>` (que não configuramos, fica no
+ * default 0), é o do DATASET vetorial. Abaixo dele o MapLibre não pede
+ * NENHUM tile — zero requisição, zero evento `error`, zero log — e o canvas
+ * fica em branco pra sempre, do tamanho certo, sem nenhum sinal de que algo
+ * deu errado. Confirmado empiricamente: `zoom=1.99` não desenha nada e não
+ * busca tile nenhum; `zoom=2.00` busca e desenha o país inteiro.
+ *
+ * É um segundo fundo de poço, mais raso que "padding maior que o container"
+ * (que o `Math.min` abaixo já evita): mesmo um padding que cabe folgado
+ * dentro do container pode empurrar o zoom do `fitBounds` pra baixo desse
+ * piso, porque o Brasil é ALTO em graus de latitude (a dimensão que mais
+ * limita o zoom aqui, medido: a container mobile de ~467px de altura com o
+ * cabeçalho de 3 linhas + a legenda de 3 candidatos consumindo ~250px de
+ * padding vertical já é o suficiente pra cruzar essa linha).
+ */
+const UFS_PMTILES_MIN_ZOOM = 2;
+
+/** Folga acima do piso — absorve a diferença entre o `cameraForBounds` daqui
+ * e o `fitBounds` real do MapLibre (mesma fonte, mas funções diferentes; a
+ * folga cobre arredondamento, não incerteza grande). */
+const ZOOM_SAFETY_MARGIN = 0.15;
+
+/** Fração de encolhimento por rodada do laço de segurança abaixo. */
+const PADDING_SHRINK_FACTOR = 0.85;
+
+/** Limite de rodadas do laço — cálculo puro e síncrono (`cameraForBounds` não
+ * toca rede nem layout), 20 rodadas custa microssegundos e já é mais do que
+ * o necessário: de padding cheio a zero o zoom sobe de ~1,68 pra ~2,74
+ * (medido), e cada rodada aproxima geometricamente. */
+const MAX_SHRINK_ROUNDS = 20;
+
+interface FramePadding {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+/**
+ * Padding assimétrico inicial — dá lugar à moldura flutuante que fica POR
+ * CIMA do mapa na variante `frame` (a que a home usa): a barra "Por vencedor
+ * / Margem / Swing vs 2022 / % apurado" + "Escolher UF" no topo, e a
+ * `<CandidateLegendGroup>` (até 3 rampas por candidato + 1 chave "sem
+ * apuração") no canto inferior esquerdo. `padding: 20` uniforme (valor
+ * antigo) não sabia da moldura: o Brasil inteiro era ajustado à área BRUTA do
+ * container, e o norte ficava atrás da barra de abas, o sul (RS) encostava na
+ * legenda, e o oeste (AC/AM) raspava a borda esquerda — medido pelo dono em
+ * captura de 2026-09-14.
+ *
+ * Os números-teto vêm de medição real (Playwright, `section[aria-label="Mapa
+ * coroplético do Brasil"]`, variante `frame`, larguras 375–1280px — ver
+ * relatório do map-builder de 2026-09-14), não de chute:
+ *   - topo: pior caso (<900px de largura de TELA — não deste container — o
+ *     cabeçalho quebra em 3 linhas: rótulo, toggle de view, "Escolher UF")
+ *     mede 142px do topo do container até o fim da 3ª linha. +18px de
+ *     respiro → 160.
+ *   - base: a legenda por candidato mede 87px de altura e começa a 108px do
+ *     fundo do container em toda largura testada. +12px de respiro → 120.
+ *   - laterais: nada flutua nas bordas esquerda/direita da variante `frame` —
+ *     a folga aqui é só respiro visual, pra nenhuma UF raspar a moldura.
+ *
+ * 🔴 Armadilha relatada pelo dono: padding fixo maior que o container produz
+ * bbox inválido no MapLibre e o mapa fica em branco, em silêncio. Por isso
+ * cada lado começa como uma FRAÇÃO da dimensão correspondente DESTE
+ * container (não da tela): `top+bottom` nunca passa de 70% da altura,
+ * `left+right` nunca passa de 30% da largura, mesmo num container
+ * patologicamente raso ou estreito — os 160/120/32 acima são o teto, não o
+ * valor fixo. Isto sozinho evita o bbox inválido; NÃO evita cruzar o piso de
+ * zoom do dataset (ver `computeFrameCamera` abaixo, que é quem de fato
+ * decide o padding usado).
+ */
+function initialFramePadding(containerWidth: number, containerHeight: number): FramePadding {
+  // Guarda defensiva: um container com 0×0 (ex. ainda não fez layout) não
+  // deve produzir padding 0 — cairia na mesma degradação silenciosa que esta
+  // função existe para evitar. 400 é o piso de altura já usado noutros
+  // pontos do mapa (`NationalChoroplethMapImplProps.height` default).
+  const w = containerWidth > 0 ? containerWidth : 400;
+  const h = containerHeight > 0 ? containerHeight : 400;
+  return {
+    top: Math.min(160, h * 0.35),
+    bottom: Math.min(120, h * 0.35),
+    left: Math.min(32, w * 0.15),
+    right: Math.min(32, w * 0.15),
+  };
+}
+
+/** Centro/zoom de reserva — usado só se `cameraForBounds` devolver `undefined`
+ * (bounds degenerado; não deve acontecer com o array fixo de Brasil, mas o
+ * tipo do MapLibre é `CameraForBoundsResult | undefined`). Centro geométrico
+ * do bbox de Brasil, zoom = o mesmo "zero padding" medido (ver docstring
+ * acima da constante de piso). */
+const FALLBACK_CAMERA = { center: [-51.415, -14.24] as [number, number], zoom: 3 };
+
+/**
+ * Decide o padding e a câmera (`center`/`zoom`) que o `fitBounds` inicial vai
+ * usar. Parte do teto "moldura cheia" (`initialFramePadding`) e, SE o zoom
+ * resultante cruzar o piso do dataset (`UFS_PMTILES_MIN_ZOOM`, ver acima),
+ * encolhe o padding vertical em rodadas até o zoom voltar a ficar seguro.
+ *
+ * A troca é deliberada: num container baixo o bastante (medido: ~467px, o
+ * caso real da variante `frame` <900px de tela), a moldura cheia (cabeçalho
+ * de 3 linhas + legenda de 3 candidatos, ~250px) SOMADA ao Brasil no zoom
+ * mínimo do dataset não cabe no mesmo espaço — as contas não fecham. Entre
+ * "Brasil parcialmente atrás do cabeçalho/legenda" e "mapa inteiramente em
+ * branco", a primeira é estritamente melhor: é a mesma filosofia de
+ * degradação do resto do produto (ex. `resolveColor` — nunca uma UF sem cor,
+ * mesmo que a cor seja o fallback).
+ */
+function computeFrameCamera(
+  map: maplibregl.Map,
+  bounds: maplibregl.LngLatBoundsLike,
+  containerWidth: number,
+  containerHeight: number,
+): { center: maplibregl.LngLatLike; zoom: number } {
+  const padding = initialFramePadding(containerWidth, containerHeight);
+  let camera = map.cameraForBounds(bounds, { padding });
+  for (
+    let round = 0;
+    round < MAX_SHRINK_ROUNDS &&
+    (camera?.zoom == null || camera.zoom < UFS_PMTILES_MIN_ZOOM + ZOOM_SAFETY_MARGIN);
+    round += 1
+  ) {
+    padding.top *= PADDING_SHRINK_FACTOR;
+    padding.bottom *= PADDING_SHRINK_FACTOR;
+    padding.left *= PADDING_SHRINK_FACTOR;
+    padding.right *= PADDING_SHRINK_FACTOR;
+    camera = map.cameraForBounds(bounds, { padding });
+  }
+  // `cameraForBounds` tipa `center`/`zoom` como opcionais (a assinatura serve
+  // também pra bearing/pitch-only updates) — na prática, com `bounds` válido
+  // (o array fixo de Brasil, nunca vazio/degenerado), os dois sempre vêm
+  // preenchidos. O `?? FALLBACK` é só pro tipo, não um caminho esperado.
+  return camera?.center != null && camera?.zoom != null
+    ? { center: camera.center, zoom: camera.zoom }
+    : FALLBACK_CAMERA;
+}
+
 export function NationalChoroplethMapImpl({
   rows,
   candidatoAId,
@@ -312,6 +494,7 @@ export function NationalChoroplethMapImpl({
   rankByLider,
   candidatos,
   viewMode = "proj",
+  preEleicao = false,
   height = 420,
   onSelectUf,
 }: NationalChoroplethMapImplProps) {
@@ -372,6 +555,10 @@ export function NationalChoroplethMapImpl({
     // de novo (uma única vez) com cache limpo.
     function mount(): maplibregl.Map {
       attempt += 1;
+      // Medido no momento do mount — não antes (SSR não tem `container`) nem
+      // via prop: o `height` que o pai passa pode ser string CSS (`"100%"`,
+      // `clamp(...)`) e só o layout já resolvido sabe o valor em pixel real.
+      const rect = container.getBoundingClientRect();
       const map = new maplibregl.Map({
         container,
         style: {
@@ -423,8 +610,16 @@ export function NationalChoroplethMapImpl({
             },
           ],
         },
-        bounds: [-73.99, -33.75, -28.84, 5.27],
-        fitBoundsOptions: { padding: 20 },
+        // `center`/`zoom` aqui são só o chute inicial — substituídos por
+        // `map.jumpTo(camera)` logo abaixo, ainda no mesmo tick síncrono
+        // (antes do 1º paint), então não há flash de enquadramento errado.
+        // NÃO usamos `bounds`/`fitBoundsOptions` do construtor: aquele
+        // caminho não tem como consultar `computeFrameCamera` antes de
+        // decidir a câmera, e é exatamente essa consulta que evita o zoom
+        // cruzar o piso silencioso do dataset (ver docstring de
+        // `computeFrameCamera`).
+        center: FALLBACK_CAMERA.center,
+        zoom: FALLBACK_CAMERA.zoom,
         attributionControl: false,
         dragRotate: false,
         touchPitch: false,
@@ -435,6 +630,7 @@ export function NationalChoroplethMapImpl({
       });
 
       mapRef.current = map;
+      map.jumpTo(computeFrameCamera(map, BRAZIL_BOUNDS, rect.width, rect.height));
 
       hangTimer = window.setTimeout(() => {
         if (cancelled || map.isStyleLoaded()) return;
@@ -463,6 +659,7 @@ export function NationalChoroplethMapImpl({
           rankByLiderRef.current,
           candidatosByIdRef.current,
           viewModeRef.current,
+          preEleicaoRef.current,
         );
       });
 
@@ -545,19 +742,24 @@ export function NationalChoroplethMapImpl({
   const viewModeRef = useRef(viewMode);
   const rankByLiderRef = useRef(effectiveRankByLider);
   const candidatosByIdRef = useRef(candidatosById);
+  // RF-157 — a fase precisa chegar ao handler de `load`, que roda uma vez e
+  // fecha sobre as refs. Sem ela aqui, a primeira pintura do mapa (a única que
+  // acontece quando `rows` nunca muda) ignoraria a fase.
+  const preEleicaoRef = useRef(preEleicao);
   useEffect(() => {
     viewRef.current = view;
     viewModeRef.current = viewMode;
     rankByLiderRef.current = effectiveRankByLider;
     candidatosByIdRef.current = candidatosById;
-  }, [view, viewMode, effectiveRankByLider, candidatosById]);
+    preEleicaoRef.current = preEleicao;
+  }, [view, viewMode, effectiveRankByLider, candidatosById, preEleicao]);
 
   // Recolor when view, rows, rankByLider or candidatos change (zero re-fetch)
   useEffect(() => {
     const map = mapRef.current;
     if (!map?.loaded()) return;
-    applyColors(map, rows, view, effectiveRankByLider, candidatosById, viewMode);
-  }, [view, viewMode, rows, effectiveRankByLider, candidatosById]);
+    applyColors(map, rows, view, effectiveRankByLider, candidatosById, viewMode, preEleicao);
+  }, [view, viewMode, rows, effectiveRankByLider, candidatosById, preEleicao]);
 
   return (
     // `height` também aqui, e não só no container do MapLibre: com a moldura
@@ -569,7 +771,15 @@ export function NationalChoroplethMapImpl({
       <div
         ref={containerRef}
         role="img"
-        aria-label="Mapa interativo do Brasil — UFs coloridas por projeção"
+        // RF-161 — "projeção" não ocorre em nenhuma das quatro telas em fase
+        // pré, fora do bloco de transparência (RF-158). A métrica da spec é
+        // medida sobre o HTML, e `aria-label` é HTML: é por aqui, por `title`
+        // e por legenda que a palavra vaza sem passar por revisão.
+        aria-label={
+          preEleicao
+            ? "Mapa interativo do Brasil — as 27 unidades federativas, nenhuma com voto contado"
+            : "Mapa interativo do Brasil — UFs coloridas por projeção"
+        }
         // S05 carry-over (constitution P3 MEDIUM): liga o mapa semanticamente à
         // tabela `<StateGroupedTable>` que vive abaixo na mesma página. Leitores
         // de tela anunciam "descrito por: Resultados por estado" — quem não
