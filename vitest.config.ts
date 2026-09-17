@@ -5,6 +5,11 @@ export default defineConfig({
   test: {
     // Default node; testes de componentes podem sobrescrever via // @vitest-environment happy-dom
     environment: "node",
+    // 🔴 Rede de segurança do incidente de 2026-09-14: a suíte nunca publica
+    // num destino real. Ver `tests/setup/no-remote-writes.ts` — é o arquivo
+    // que explica por que esta linha existe, e ele deve ser lido antes de
+    // qualquer tentativa de removê-la.
+    setupFiles: ["./tests/setup/no-remote-writes.ts"],
     include: [
       "tests/unit/**/*.{test,spec}.{ts,tsx}",
       "tests/integration/**/*.{test,spec}.{ts,tsx}",

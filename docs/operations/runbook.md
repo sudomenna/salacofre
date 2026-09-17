@@ -46,6 +46,26 @@ Documento operacional com procedimentos para cenários críticos. Versão comple
 
 **Blocker**: se a home exibir resultado fora de `development`, não prosseguir com qualquer teste no público — dados falsos publicados são violação da constituição § 8.
 
+## 🔴 Regra operacional crítica — jamais dev server durante testes
+
+**NUNCA rodar a suíte de testes (`pnpm test`) com `pnpm dev` em localhost na porta 3000.**
+
+Um servidor em desenvolvimento com credenciais de produção no `.env.local` recebe
+os POSTs que a suíte dispara, grava dados sintéticos em produção, e o leitor não
+tem como saber. **Ocorreu uma vez em 14/09 às 02:10 UTC** — seis chaves corrompidas
+em 9 POSTs antes da detecção.
+
+**Defesas em três camadas**:
+1. `tests/setup/no-remote-writes.ts` — suite aborta se detectar attempt de POST
+2. `tests/unit/model/conftest.py` autouse — Python também rejeita remotes
+3. `app/api/internal/edge-write/route.ts` — 403 quando `NODE_ENV=development`
+
+**Procedimento pré-teste**: confirmar que `pnpm dev` **não** está rodando.
+
+```bash
+lsof -i :3000  # deve retornar vazio
+```
+
 ## Cenários cobertos
 
 - **TSE indisponível** (>60s, >5min, >15min) — diagnóstico, banner, escalada.
