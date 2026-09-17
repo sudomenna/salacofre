@@ -4,6 +4,7 @@ type: design
 title: Design — o campo que decide a fase, as nove superfícies que calam, e o semeador
 status: draft
 date: 2026-09-13
+date-amended: 2026-09-14
 spec: ./spec.md
 adrs: [0043, 0012, 0017, 0024, 0029, 0038, 0042]
 requirements: [RF-153, RF-154, RF-155, RF-156, RF-157, RF-158, RF-159, RF-160, RF-161, RF-162, RF-163, RF-164, RF-165, RF-166]
@@ -16,9 +17,10 @@ requirements: [RF-153, RF-154, RF-155, RF-156, RF-157, RF-158, RF-159, RF-160, R
 > [ADR-0043](../../architecture/adrs/0043-fase-pre-eleicao-campo-proprio-nao-derivada.md) decide; este
 > documento diz **onde**, **com que forma** e **qual teste prova**.
 >
-> Nenhuma linha de código desta spec existe hoje. Os caminhos marcados
-> ✅ **existe** foram verificados no disco; os marcados ⬜ **a fazer** são
-> previstos.
+> **Emendado em 2026-09-14** pelo dono após leitura de implementação parcial.
+> Doze mudanças mensuradas registradas como itens 1–12 em `AGENTS.md § Briefing`.
+> Os caminhos marcados ✅ **existe** refletem o estado de 14/09; os marcados
+> ⬜ **a fazer** continuam previstos (semeador e fiscal ainda faltam).
 
 ## D0 — A pergunta única: mede ou identifica?
 
@@ -37,6 +39,22 @@ o produto ganhe depois — é uma pergunta só:
 
 Não há um terceiro caso. O que a tabela do § D2 faz é aplicar essa pergunta às
 nove superfícies medidas.
+
+## D0.1 — Os três estados (emenda 2026-09-14)
+
+A implementação révélou que as telas têm **três** estados, e a regra que os
+distingue é: **a tela nunca afirma uma causa que não mediu.**
+
+| estado | como sabemos | o que a tela faz |
+|---|---|---|
+| **Não começou** | payload traz `fase: "pre_eleicao"` | Renderiza o placar zerado com identidade. Faixa diz "A eleição ainda não começou." Nenhuma medição. |
+| **Não sabemos** | não veio payload (ausência OU falha de leitura) | Renderiza faixa que fala sobre o sistema ("Esta página ainda não recebeu dados"). Fato de calendário ao lado, sem ligar os dois. Nenhuma número na tela — nem placar, nem grade de candidatos. |
+| **Está apurando** | veio payload sem `fase` | Renderiza o placar normal, com medições. Faixa nenhuma. |
+
+A regra é: "não sabemos" não afirma um fato que não mediu. A frase "a eleição
+ainda não começou" dita às 21h de 04/10 durante falha de rede é falsa com toda
+autoridade da marca — por isso o estado "não sabemos" não a diz. Ele fala sobre
+si mesmo.
 
 ## D1 — O contrato: `fase` no payload, um só ponto de leitura
 
@@ -205,6 +223,14 @@ margem e rank. Duas formas:
 extra não tem consumidor previsto, e cada booleano solto é uma combinação a mais
 que um teste de caminho feliz não cobre.
 
+### `ResultPanel` — cor da candidatura (emenda 2026-09-14)
+
+A cor do chip de candidatura no `ResultPanel` é **derivada de `candidateColor`**
+(campo do candidato no payload), **não** do campo `cor` que o semeador grava como
+cinza neutro para todos os candidatos de propósito. Sem isso, os 12 chips de
+partido sairiam do mesmo cinza visual, e o quesito "cor por partido" (um dos
+quatro que o dono pediu em 14/09) não chegava à tela.
+
 ### `FasePreEleicaoBanner`: o molde e a divergência
 
 `components/atoms/banners/DadoParadoBanner.tsx` ✅ é o molde de **posição** —
@@ -253,26 +279,42 @@ quatro telas em fase pré, exceto no bloco do RF-158. Medida sobre o **HTML
 renderizado**, não sobre a lista de componentes — a palavra vaza por `note`,
 `aria-label`, `title` e legenda, que são os lugares que ninguém revisa.
 
-### O furo: a faixa numa tela que não tem payload
+### Três estados, dois ramos de faixa (emenda 2026-09-14)
 
-`AguardandoNacional` de `/deputado-federal`
-(`app/(dep)/deputado-federal/page.tsx:650`) precisa da faixa (RF-163) e **não tem
-payload** de onde ler `fase`. `faseDoPayload(null)` devolve `"normal"` por
-construção (§ D1).
+`FasePreEleicaoBanner` ganhou duas **variantes**, escolhidas pelo chamador
+conforme o estado: `"nao_comecou"` para payload semeado, `"sem_dados"` para
+ausência de payload.
 
-**Resolução: o chamador decide, e naquele ramo a faixa é incondicional.** Aquele
-ramo já significa "não há apuração publicada"; a faixa é a afirmação em prosa do
-que o ramo já é. `FasePreEleicaoBanner` não lê payload nenhum — recebe props e
-renderiza. Dois tipos de chamador:
+| Variante | Estado | Onde é usada | O que diz |
+|---|---|---|---|
+| `"nao_comecou"` (default) | Não começou | Páginas cujo payload tem `fase: "pre_eleicao"` | "A eleição ainda não começou. A votação é em 4 de outubro de 2026. Até lá esta página mostra quem está concorrendo…" |
+| `"sem_dados"` | Não sabemos | Ramos de espera sem payload: `AguardandoNacional` `/deputado-federal`, `/governador` (fallback), `/senador` (fallback) | "Esta página ainda não recebeu dados de apuração. A votação é em 4 de outubro de 2026. Nenhum número desta tela mede a corrida." |
 
-1. páginas cujo payload tem `fase: "pre_eleicao"` → renderizam a faixa sob
-   `isPreEleicao(payload)`;
-2. ramos de espera sem payload → renderizam a faixa sempre.
+Nenhum componente **infere** qual é o estado — o chamador decide. `FasePreEleicaoBanner`
+não lê payload, não lê relógio e não adivinha: ele recebe a variante como prop.
+A pergunta "em que estado estamos?" é respondida por quem tentou ler o Global
+Config — e essa pessoa (a página) passa a resposta pra cá.
 
-A alternativa — gatear por data de calendário — foi **rejeitada**: relógio de
-servidor errado ou fuso mal resolvido produziria a faixa no meio da noite de
-apuração, e a data não sabe se o orchestrator de fato começou a gravar
-(spec § open question 3).
+`FasePreEleicaoBanner` **não renderiza em nenhum ramo de "está apurando"**: o estado normal.
+
+#### Consequência: `emptyPayload()` foi removido
+
+`app/(gov)/governador/page.tsx` e `app/(sen)/senador/page.tsx` tinham um
+fallback para quando o Global Config falha: `emptyPayload()` (linhas `:184-206` e
+`:101-123` do design original de 13/09). Ele produzia `composition.pre_election: 1` e
+`por_uf: []` **sem** `fase`, fazendo a tela cair em **modo normal** e afirmar
+falsamente que a apuração estava concluída.
+
+**Emenda 2026-09-14**: removido. As duas páginas agora montam um **ramo de espera
+de verdade** com `<FasePreEleicaoBanner variante="sem_dados">` +
+`<UfLinksGrid>` (27 links) quando o Global Config não traz payload. O bloco do
+`AguardandoNacional` que existia em `/deputado-federal` continua — agora com a
+faixa acima dele e os 27 links abaixo.
+
+A alternativa de gatear por calendário foi **rejeitada**: relógio de servidor
+errado ou fuso mal resolvido produziria a faixa no meio da noite de apuração, e
+a data não sabe se o orchestrator de fato começou a gravar (spec § open
+question 2 — agora **fechada**, com a decisão registrada aqui).
 
 ### Consequência de fiação que a spec 018 não previu
 
@@ -420,6 +462,21 @@ segundos que o [runbook](../../operations/runbook.md) precisa ter às 20h05 de
 04/10. No caminho feliz ele não encontra nada, porque o upsert real já apagou o
 campo.
 
+## D7.1 — Regra de não-regressão (emenda 2026-09-14)
+
+Dado apurado ou projetado **nunca volta a zero**, nem por falha de sinal, nem
+por interrupção de apuração. **Nunca fabricar zeros.**
+
+Hierarquia:
+- (a) tem número conhecido ⇒ mostre-o com a idade
+- (b) não tem nada ⇒ diga que não tem, sem número
+- (c) jamais sintetize zeros
+
+Esta regra vive em `lib/edge-config/reader.ts` (2026-09-14): as quatro funções
+que leem o Global Config agora distinguem **falha** de **ausência** e emitem
+`logError` na falha, mas a tela continua tratando os dois iguais **de propósito**
+— ela não pode afirmar uma causa que não mediu (RNF-010, spec § open question 3).
+
 ## D8 — A transição de 04/10
 
 ```
@@ -454,9 +511,9 @@ Um teste que passa sem provar nada é o padrão de falha mais caro deste projeto
 abaixo nomeia **a mutação que o teste tem de matar** — se a mutação passa, o
 teste não vale.
 
-| id | teste | mutação que ele derruba | RF |
-|---|---|---|---|
-| **M1** 🔴 | payload **sem** `fase` + `pct_apurado_total: 0.01` ⇒ **tela normal** | trocar `isPreEleicao(p)` por `p.pct_apurado_total === 0` (ou `<= 0`, ou `!p.por_uf.length`). **Este é o teste mais importante da spec.** Sem ele, a mutação mais natural do mundo entra sem resistência e a tela vai a modo pré-eleição às 20h01. | RF-153, RF-166 |
+| id | teste | mutação que ele derruba | RF | Emenda 2026-09-14 |
+|---|---|---|---|---|
+| **M1** 🔴 | payload **sem** `fase` + `pct_apurado_total: 0.01` ⇒ **tela normal** | trocar `isPreEleicao(p)` por `p.pct_apurado_total === 0` (ou `<= 0`, ou `!p.por_uf.length`). **Este é o teste mais importante da spec.** Sem ele, a mutação mais natural do mundo entra sem resistência e a tela vai a modo pré-eleição às 20h01. | RF-153, RF-166 | — |
 | M2 | payload **sem** `fase` + `pct: 0` + `por_uf: []` ⇒ **tela normal** | fecha a mesma mutação pelo outro campo | RF-153 |
 | M3 | payload **com** `fase` + `pct: 37.4` ⇒ **modo pré** | trocar a leitura por um `&&` de fase e percentual ("na dúvida, confere os dois") | RF-153 |
 | M4 | `queryByTestId(painel)` devolve `null` para os quatro painéis | trocar a supressão por `toBeEmptyDOMElement()` — que passa com o painel presente e vazio, e o painel presente ocupa espaço, tem borda e tem título | RF-154 |
@@ -485,6 +542,41 @@ Dois princípios que atravessam a tabela:
 - **Todo teste de supressão tem um par em modo normal.** Suprimir é fácil de
   implementar e fácil de implementar demais. O par (M6, M7) é o que impede a
   supressão de vazar para 04/10.
+
+## D9.1 — A home presidencial: dois layouts e o ramo da supressão (emenda 2026-09-14)
+
+A home despacha entre dois layouts: **`binary`** quando `turno === 2` OU
+`candidatos.length === 2`, e **`multi-1t`** caso contrário.
+
+```ts
+const mode: "binary" | "multi-1t" =
+  turno === 2 || national.candidatos.length === 2 ? "binary" : "multi-1t";
+```
+
+**O bug**: `ResultPanel` (identidade), `RemainingPanel`, `ChancesPanel` e
+`BulletinPanel` (medição) estavam suprimidos **só em `multi-1t`**, via:
+
+```ts
+const painelDeIdentidade = mode === "multi-1t";
+```
+
+Em fase pré com 2 candidaturas presidenciais (1T com 2 cands, trigger de
+`binary`), o `ResultPanel` renderizava — e logo abaixo dele aparecia a faixa
+inteira de medição, porque `multi-1t` era `false`. Resultado: "Projeção Atlas
+Menna", "Apurado 0,0%", "UFs apuradas 0/27", lista de identidade — exibindo ao
+mesmo tempo marcas de medição e de não-medição.
+
+**Conserto 2026-09-14**:
+
+```ts
+const painelDeIdentidade = pre || mode === "multi-1t";
+```
+
+Quando `pre === true`, ambos os ramos (`binary` e `multi-1t`) suprimem os painéis
+de medição. A supressão **passa a ser `pre || (está em multi-1t)`**, não só
+`(está em multi-1t)`.
+
+**Onde está no código**: `app/(pres)/page.tsx:606`.
 
 ## D10 — Riscos técnicos
 

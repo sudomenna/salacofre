@@ -763,6 +763,41 @@ Mais:
 > ⚠️ Na madrugada de 06→07/09 o Neon degradou e a suíte levou 70 min com falhas
 > espúrias de timeout. Era transitório. Meça o tempo antes de concluir que há regressão.
 
+## Spec 019 — Fase pré-eleição (implementada 2026-09-13/14)
+
+Escrita em 13/09, implementada em 14/09 conforme emendas do dono. **Dez mudanças
+mensuradas registradas em `spec.md` e `design.md`**. Código implementado: `lib/config/fase.ts`,
+`components/atoms/banners/FasePreEleicaoBanner.tsx` (duas variantes), `emptyPayload()` removido de
+`/governador` e `/senador` (ramos de espera reais agora), `app/(pres)/page.tsx` corrigido (faixa de
+supressão agora cobre `binary` layout também), `lib/edge-config/reader.ts` (falha ≠ ausência, com
+alarme só na falha), `data-pipeline/projection-seed.ts` (semeador — ordem `gov → sen → pres`,
+`por_uf: []`, guarda de reentrância fail-closed, 19 testes) e `scripts/edge-config-prune.ts`
+(fiscal — lista por default, apaga só sob confirmação, 11 testes).
+
+**Nada da spec 019 está pendente de implementação.** O que falta é decisão, não código — ver os
+bloqueadores abaixo e a open question 5 (quando semear).
+
+**Achado operacional**: servidor de desenvolvimento com credenciais de produção em `.env.local`
+gravou seis chaves sintéticas em produção em 14/09 02:10 UTC via POSTs que a suíte dispara. Três
+defesas instaladas; regra operacional em `runbook.md` — **jamais rodar `pnpm dev` durante
+`pnpm test`**.
+
+**Gates rodados em 14/09**: `rf-coverage-checker` ✅ (14/14 RFs) · `constitution-guard` ✅ (zero
+violações graves; a MEDIUM que ele achou — cor de partido cinza na lista de identidade — foi
+corrigida) · `a11y-perf-auditor` ⚠️ **WARN**.
+
+**Por que a spec NÃO foi promovida a `shipped`**, apesar de nenhum gate ter reprovado:
+
+1. 🔴 **As telas de fase pré-eleição nunca foram medidas em navegador com payload semeado.** O
+   auditor de a11y mediu os quatro estados de *espera* (alcançáveis sem seed) e deu PASS em todos;
+   os estados T-15/T-16 propriamente ditos têm cobertura só de teste unitário. Verificação manual
+   em `pnpm dev` com fixture trocada (14/09 02:30) confirmou o comportamento na home — mas não é
+   medição de a11y nem de peso.
+2. 🔴 **C1 (RF-156 em 2º turno) é contradição com a constituição § 2**, não só com a spec: o
+   indicador nomeia duas pessoas a partir da ordem do array, com zero voto contado. Há teste
+   vigente travando o comportamento atual.
+3. **Open question 5 continua aberta** — quando ligar a fase pré. É decisão de produto, do dono.
+
 ## Riscos da sprint
 
 - **O TSE não publica as URLs/códigos do simulado a tempo** — bloqueador externo, sem plano B

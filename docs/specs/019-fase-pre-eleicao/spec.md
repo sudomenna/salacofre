@@ -25,11 +25,13 @@ semeador que grava o payload zerado antes de 04/10.
 
 ## Status
 
-`draft`. Escrita em 2026-09-13, sobre leitura linha a linha dos componentes
-citados, feita no mesmo dia. **Nenhuma linha de código desta spec existe**: não
-há `lib/config/fase.ts`, não há `data-pipeline/projection-seed.ts`, não há
-`scripts/edge-config-prune.ts`, e `EdgePayload` não tem campo `fase`
-(`lib/edge-config/types.ts`).
+`draft`. Escrita em 2026-09-13, implementada em 2026-09-13/14 conforme as
+emendas do dono após leitura linha a linha dos componentes. **Código
+implementado**: `lib/config/fase.ts`, `components/atoms/banners/FasePreEleicaoBanner.tsx`,
+`components/blocks/UfLinksGrid.tsx`, emendas em `lib/edge-config/reader.ts`,
+`app/(pres)/page.tsx`, `components/blocks/ForecastTransparency.tsx` e demais
+superfícies mensuradas. **Falta**: `data-pipeline/projection-seed.ts` (semeador)
+e `scripts/edge-config-prune.ts` (fiscal).
 
 Esta spec **não re-litiga a decisão**. O dono do produto quer o placar zerado
 com os candidatos reais — nome, foto, partido, cor — no lugar do texto de
@@ -55,6 +57,22 @@ confiança `[0,0; 0,0]`, que é a forma tipográfica da certeza absoluta.
 
 O objetivo desta spec é: **mostrar identidade sem deixar nenhuma superfície
 afirmar medição**.
+
+## Estados — não dois, três
+
+A implementação de 2026-09-13/14 revelou que as telas têm **três** estados,
+não dois, e a regra que os separa é simples: **a tela nunca afirma uma causa
+que não mediu.**
+
+| estado | como sabemos | o que a tela pode dizer |
+|---|---|---|
+| **Não começou** | payload traz `fase: "pre_eleicao"` | "A eleição ainda não começou. A votação é em 4 de outubro de 2026." |
+| **Não sabemos** | não veio payload — ausência OU falha de leitura | "Esta página ainda não recebeu dados de apuração." + fato de calendário, **sem conjunção causal**. **Nenhum número na tela.** |
+| **Está apurando** | payload **sem** `fase` | placar normal, mesmo com `pct_apurado_total: 0.01` |
+
+A regra que atravessa: em "não sabemos" ela fala sobre si mesma, nunca sobre o
+calendário — porque essa frase, dita às 21h de 04/10 durante uma falha de rede,
+é falsa com toda a autoridade da marca.
 
 ## Escopo
 
@@ -582,11 +600,7 @@ deixe de existir para aquele cargo.
   todo o conteúdo para baixo. Ela é renderizada **no servidor**, com altura
   determinada por conteúdo, e nunca aparece depois da hidratação; um banner que
   entra no cliente é CLS medido exatamente onde mais dói.
-- **RNF-007a (bundle above-the-fold, 148,7 KiB de 150)** — esta spec é **toda de
-  supressão**, e a folga é de 1,3 KiB. `FasePreEleicaoBanner` e `UfLinksGrid` são
-  Server Components sem JavaScript de cliente; a supressão de `MapViewToggle`
-  (RF-157) devolve bytes. O delta líquido esperado é **negativo**; o teste
-  (`tests/e2e/perf-budget.spec.ts`) mede, não estima.
+- **RNF-007a (bundle above-the-fold, medido em 2026-09-14: 17,6 KiB de 150 KiB aplicação na home, 23,3 KiB em `/uf/SP`, folga de ~130 KiB)** — Medição anterior de "148,7 KiB de 150, folga de 1,3 KiB" era anterior ao ADR-0030 (08/09), que mudou o orçamento de "total above-the-fold" para "total menos o piso de framework (153.482 B)". Esta spec é **toda de supressão**, e `FasePreEleicaoBanner` e `UfLinksGrid` são Server Components sem JavaScript de cliente. Supressão de `MapViewToggle` renderizado (RF-157) oferece delta ~neutro (o componente é importado no topo do módulo, o bytecode permanece; o delta não é negativo, é ~neutro); o teste (`tests/e2e/perf-budget.spec.ts`) mede, não estima.
 - **RNF-010 / RNF-012 (degradação)** — a fase pré **não** é degradação. Se o
   Global Config estiver indisponível, as telas caem no caminho de espera que já
   existe, sem faixa de fase pré (que afirmaria um fato sobre o calendário com
@@ -633,23 +647,23 @@ semeador faz o payload existir.
    distintos — por exemplo semeando também turno 2 —, é preciso dizer qual é o
    6º e por quê; semear turno 2 antes do turno 1 parece errado por construção.
 
-2. **Onde mora a decisão de fase nas três telas sem payload.** `AguardandoNacional`
-   de `/deputado-federal` (RF-163) precisa da faixa, e não tem payload de onde
-   ler `fase`. O design § D5 resolve mandando o **chamador** decidir — a faixa é
-   incondicional naquele ramo, porque aquele ramo já significa "não há
-   apuração". A alternativa (gate por data de calendário) foi rejeitada: um
-   relógio de servidor errado ou um fuso mal resolvido produziria a faixa no
-   meio da noite de apuração. Confirmar que a rejeição procede.
+2. **Onde mora a decisão de fase nas três telas sem payload.** ✅ **FECHADA
+   2026-09-14**. `AguardandoNacional` de `/deputado-federal` (RF-163) ganhou a
+   faixa, e o chamador (`app/(dep)/deputado-federal/page.tsx:650+`) decide
+   incondicionalmente `<FasePreEleicaoBanner variante="sem_dados">` naquele
+   ramo. A alternativa (gate por data de calendário) foi rejeitada e não é
+   reaberta. O RFC-160 esclarece que nenhum componente **infere** fase: quem sabe
+   o estado é quem tentou ler o Global Config.
 
 3. **`/governador` e `/senador` hoje não têm ramo de espera** — caem em
    `emptyPayload()` (`:184-206` e `:101-123`). Depois desta spec, o semeador
    passa a alimentá-las, mas `emptyPayload()` continua lá como fallback para
-   quando o Global Config falhar. Ele produz `composition.pre_election: 1` e
-   `por_uf: []` **sem** `fase` — ou seja, cairia em **modo normal** e exibiria a
-   mentira #1. Ou `emptyPayload()` passa a carregar `fase: "pre_eleicao"`
-   (e então a fase vira também um estado de falha, o que o RNF-010 acima
-   desaconselha), ou aquelas duas páginas ganham um ramo de espera de verdade.
-   **Não decidido.** É o furo mais concreto que a leitura encontrou.
+   quando o Global Config falhar. ✅ **FECHADA 2026-09-14**: `emptyPayload()`
+   foi **removido** — a página agora monta um ramo de espera de verdade com a
+   faixa (`FasePreEleicaoBanner variante="sem_dados"`) e os 27 links
+   (`UfLinksGrid`). Vive em `app/(gov)/governador/page.tsx` e
+   `app/(sen)/senador/page.tsx`, substituindo o que estava em linhas
+   `:184-206` e `:101-123` do design anterior.
 
 4. **`por_uf: []` e a home presidencial.** O RF-164 grava `por_uf` vazio, e os
    painéis que o leem são suprimidos pelo RF-154. Mas `_NationalChoroplethMapImpl`
@@ -674,7 +688,20 @@ semeador faz o payload existir.
 | R4 | **Alguém "conserta" a fase gateando em `pct_apurado_total === 0`.** É a mudança mais natural do mundo para quem chega depois e não leu o ADR. | Negativa dura no RF-153 com teste dedicado (payload sem `fase` + `pct: 0.01` ⇒ modo normal). | Baixo, **se o teste existir**. Sem ele, alto — é a mutação que esta spec mais teme. |
 | R5 | **Supressão sobrevive à transição** e um painel some na noite de 04/10. | Cada RF de supressão tem critério espelhado no modo normal (RF-154, RF-155, RF-156, RF-157, RF-158); os testes rodam nos dois modos sobre o mesmo payload. | Baixo. |
 | R6 | **Vocabulário de medição vaza** por `aria-label`, `title`, `alt` ou legenda que ninguém revisou. | A métrica do RF-161 é varrida sobre o **HTML renderizado**, não sobre a lista de componentes. | Baixo, e a lista negra cresce quando alguém achar palavra nova. |
-| R7 | **`emptyPayload()` das telas de Governador e Senador** cai em modo normal e exibe a mentira #1 quando o Global Config falhar. | Nenhuma ainda — ver open question 4. | 🟡 **Aberto.** Não bloqueia a spec, bloqueia o `shipped`. |
+| R7 | **`emptyPayload()` das telas de Governador e Senador** cai em modo normal e exibe a mentira #1 quando o Global Config falhar. | Removido: as duas páginas agora montam um ramo de espera de verdade com `FasePreEleicaoBanner variante="sem_dados"` e `UfLinksGrid`. Implementado em 2026-09-14. | ✅ **FECHADO.** Não bloqueia mais `shipped`. |
+
+## Contradições não resolvidas (registradas, aguardando decisão)
+
+Achados em 2026-09-14 durante sincronização — **não foram editados**, apenas
+reportados para o dono da decisão.
+
+| # | Contradição | Escopo | Dono da decisão | Ação |
+|---|---|---|---|---|
+| **C1** | **RF-156 × código em 2º turno.** O RF afirma que `turno === 2` em fase pré "cai no ramo de fallback já existente". **Não cai**: `RaceTypeIndicator` nomeia duas pessoas — "Segundo turno entre X e Y" — a partir da ordem do array, com zero voto contado. É falso favoritismo estável, a mesma classe que a constituição § 2 proíbe (RF-155 removeu dela do rank). Existe teste vigente travando o comportamento atual. | RF-156 (especificação) | Dono da implementação + designer de teste | Verificar se o comportamento de 2T em fase pré foi testado; se teste passa sem validar ordinalidade (só valida existência de duas pessoas), é mutação a cuidar. |
+| **C2** | **RF-161 × o segmentado do shell.** O critério manda medir "sobre o HTML renderizado", e a palavra "Projeção" continua nos **bytes** do DOM no controle do shell, removida só por `display:none`. Sem conserto dentro do desenho vigente (`app/layout.tsx` não pode ler a fase sem tirar 55 páginas do pré-render — ADR-0025 §§ 2 e 5). | RF-161 (métrica de aceitação) | Dono de spec / constitucionalista | Esclarecer fronteira de medição: medir sobre `<main>` innerText ou sobre `page.content()`? Primeira é viável hoje; segunda exige redesenho do layout. |
+| **C3** | **Colisão de alvo de toque** entre barra inferior de cargos (`<nav>` do shell) e primeira linha de `UfLinksGrid` em `/senador` e `/deputado-federal`, mobile 412×823 px. | WCAG 2.2 (fora do escopo declarado 2.1 AA) | Accessibility lead | Triage: WCAG 2.1 AA vs. 2.2. Se 2.1 for teto, deixar. Se 2.2 for obrigatório, separar. |
+| **C4** | **`tests/e2e/a11y-audit.spec.ts` não visita `/senador` nem `/deputado-federal`.** Ponto cego antigo (anterior a spec 019). | a11y gate (cobertura) | QA/a11y lead | Estender e2e audit pra rotas novas antes de shipped. |
+| **C5** | **Open question 5: quanto tempo a fase pré fica no ar.** Semear em 20/09 vs. 03/10 produzem experiências diferentes. Não foi decidida na implementação de 14/09. | Timing operacional | Dono de produto | Deliberar: qual data de semadura minimiza o risco residual de R1 (leitor confundir com resultado) vs. janela de "parecer desligado"? |
 
 ## Cross-refs
 
