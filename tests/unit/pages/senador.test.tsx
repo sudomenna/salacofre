@@ -379,16 +379,40 @@ describe("/senador (T-09)", () => {
     expect(doc.querySelectorAll("h1").length).toBe(1);
   });
 
-  it("(j) sem payload a página não some — degrada com a estrutura inteira", async () => {
+  /**
+   * ⚠️ **Reescrito em 2026-09-14, e o teste anterior travava o defeito.**
+   *
+   * Ele exigia, com o reader devolvendo `null`, que a tela contivesse "54 vagas
+   * em disputa", "nenhum estado apurado" e o bloco `forecast-cadencia`. Todas as
+   * três vinham do `emptyPayload()` — um `EdgePayload` completo **de zeros** que
+   * a página renderizava como se fosse resultado. O teste passava e o produto
+   * mentia: era a mentira nº 10 da tabela do design 019 § D2.
+   *
+   * O que o teste mede agora é a regra que substituiu aquele fallback:
+   * **sem número conhecido, a tela não mostra número.** A estrutura continua de
+   * pé (a página não some — constituição § 3), e o que fica nela é identidade:
+   * o `<h1>`, a frase sobre nós, e os 27 estados como links.
+   *
+   * A exigência da constituição § 8 saiu junto, e não por descuido: o bloco "O
+   * que está movendo o forecast" é obrigatório em "toda página **com
+   * projeção**", e uma página sem payload não tem projeção nenhuma a decompor —
+   * `forecast-cadencia` ali imprimia a decomposição de coisa nenhuma.
+   */
+  it("(j) sem payload a página não some — e não mostra número nenhum", async () => {
     readProjectionMock.mockResolvedValue(null);
     const doc = await render(SenadoPage());
 
+    // A estrutura fica de pé.
     expect(doc.querySelectorAll("h1").length).toBe(1);
-    expect(doc.body.textContent).toContain("54 vagas em disputa");
-    expect(doc.body.textContent).toMatch(/nenhum estado apurado/i);
-    // O bloco de transparência é obrigatório em toda página com projeção
-    // (constituição § 8) — inclusive quando ainda não há projeção.
-    expect(doc.querySelector("[data-testid='forecast-cadencia']")).not.toBeNull();
+    expect(doc.querySelector("main")?.getAttribute("data-trilha")).toBe("sen");
+    expect(doc.querySelector("main footer")).not.toBeNull();
+    expect(doc.querySelector("[data-testid='sen-aguardando']")).not.toBeNull();
+    expect(doc.querySelectorAll("[data-testid='uf-links-grid-item']").length).toBe(27);
+
+    // E nenhuma das três afirmações que o `emptyPayload()` produzia.
+    expect(doc.body.textContent).not.toMatch(/nenhum estado apurado/i);
+    expect(doc.body.textContent).not.toMatch(/apuração concluída/i);
+    expect(doc.querySelector("[data-testid='forecast-cadencia']")).toBeNull();
   });
 
   it("(k) o rodapé constitucional continua DENTRO do <main>", async () => {

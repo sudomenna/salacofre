@@ -105,6 +105,12 @@ import { ResultPanel } from "@/components/blocks/ResultPanel";
 import { Footer } from "@/components/layout/Footer";
 import { municipiosFrom, readUfDetail, type UfDetailResult } from "@/lib/blob/uf-detail";
 import { avaliarFrescorDado } from "@/lib/config/dado-freshness";
+import {
+  resultadoEleitoral,
+  simulacaoLigada,
+  simulacaoMunicipiosUf,
+  simulacaoNacional,
+} from "@/lib/dev/simulacao";
 import { readUfProjection } from "@/lib/edge-config/reader";
 import type {
   EdgePayload,
@@ -112,6 +118,7 @@ import type {
   EdgeUfCandidate,
   EdgeUfMunicipio,
 } from "@/lib/edge-config/types";
+import { primeiroNomeExibicao } from "@/lib/utils/nome-candidato";
 import govFixture from "@/tests/fixtures/edge-config/gov-current.json" with { type: "json" };
 
 export const revalidate = 60;
@@ -238,30 +245,65 @@ function toMunicipioRows(
 }
 
 /**
+ * O que `detalheLido` vale quando a leitura remota nem roda (modo simulação).
+ * Gêmeo do de `app/(pres)/uf/[sigla]/page.tsx` — a justificativa está lá.
+ */
+const SEM_DETALHE_REMOTO: UfDetailResult = {
+  status: "unavailable",
+  reason: "not_configured",
+  url: null,
+};
+
+/**
  * Sintetiza um `EdgePayloadUf` de governador a partir da fixture nacional de
  * gov — espelho de `synthesizeUfFromNational` na rota presidencial. Só roda
  * fora de produção e só quando o reader devolve null (dev/preview sem
  * `EDGE_CONFIG`), para a página renderizar completa em `pnpm dev`.
  */
-function synthesizeGovUfFromFixture(sigla: string): EdgePayloadUf | null {
-  const fixture = govFixture as unknown as EdgePayload;
+function synthesizeGovUfFromFixture(sigla: string, fixture: EdgePayload): EdgePayloadUf | null {
   const row = fixture.por_uf.find((u) => u.sigla === sigla);
   if (!row) return null;
 
-  const ids = new Set((row.top_candidatos ?? []).map((t) => t.id));
+  /*
+   * 🔴 A IDENTIDADE sai de `row.top_candidatos`, os NÚMEROS saem do nacional.
+   *
+   * Os dois lados desta síntese respondem a perguntas diferentes, e trocá-los é
+   * o defeito que o RF-145 descreve. `fixture.national.candidatos`, em cargo 3,
+   * é a **união de 27 corridas** sob o mesmo espaço de `id` — por isso ele não
+   * carrega `sqcand` por contrato, e por isso o nome que ele guarda para um
+   * `id` é "o número N nalguma UF", não uma pessoa. `row.top_candidatos[]` é
+   * resolvido pelo par `(uf, numero)` lá no orchestrator: ele já sabe de que
+   * estado é, e traz `nome`, `partido` e `sqcand` do MESMO registro.
+   *
+   * É por isso que os três vêm juntos daqui, e não só o `sqcand`: casar um
+   * `sqcand` de uma fonte com um nome de outra é o que poria o rosto de uma
+   * pessoa ao lado do nome de outra no dia em que dois estados colidissem num
+   * `id`. É a mesma regra — e o mesmo motivo — do `<GovernorCard>`.
+   *
+   * Sem a linha da UF, nada é inventado: cai no nacional para nome e partido
+   * (payload pré-018) e fica **sem foto**, que é o estado honesto.
+   */
+  const identidadeDaUf = new Map((row.top_candidatos ?? []).map((t) => [t.id, t] as const));
   const candidatos: EdgeUfCandidate[] = fixture.national.candidatos
-    .filter((c) => ids.has(c.id))
-    .map((c) => ({
-      id: c.id,
-      nome: c.nome,
-      partido: c.partido,
-      cor: c.cor,
-      votos_atuais: c.votos_atuais,
-      votos_projetados: c.votos_projetados,
-      pct_atual: c.pct_atual,
-      pct_projetado: c.pct_projetado,
-      ci95: { lower: c.pct_projetado_lower, upper: c.pct_projetado_upper },
-    }));
+    .filter((c) => identidadeDaUf.has(c.id))
+    .map((c) => {
+      const daUf = identidadeDaUf.get(c.id);
+      return {
+        id: c.id,
+        nome: daUf?.nome ?? c.nome,
+        partido: daUf?.partido ?? c.partido,
+        cor: c.cor,
+        votos_atuais: c.votos_atuais,
+        votos_projetados: c.votos_projetados,
+        pct_atual: c.pct_atual,
+        pct_projetado: c.pct_projetado,
+        ci95: { lower: c.pct_projetado_lower, upper: c.pct_projetado_upper },
+        // Só quando existe. `sqcand: undefined` explícito é uma chave presente
+        // valendo "não sei", e um consumidor futuro que teste `"sqcand" in c`
+        // leria isso como "tem".
+        ...(daUf?.sqcand ? { sqcand: daUf.sqcand } : {}),
+      };
+    });
   if (candidatos.length === 0) return null;
 
   return {
@@ -314,16 +356,46 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
   // cargo=gov, turno=1 default (orchestrator alterna pra turno=2 via chave
   // dinâmica em S07). Os mesmos qualificadores nomeiam a chave do Global Config
   // e o caminho do Blob.
-  const [payloadDoStore, detalhe] = await Promise.all([
-    readUfProjection(sigla, { cargo: "gov", turno: 1 }),
-    readUfDetail(sigla, { cargo: "gov", turno: 1 }),
-  ]);
+  // 🔴 Simulação ligada ⇒ nenhuma leitura remota roda. Ver a nota longa em
+  // `app/(pres)/uf/[sigla]/page.tsx`: o Blob responde `ok` com lista vazia e
+  // ganhava da simulação, porque uma resposta vazia é uma resposta.
+  const emSimulacao = simulacaoLigada();
+  const [payloadDoStore, detalheLido] = emSimulacao
+    ? [null, SEM_DETALHE_REMOTO]
+    : await Promise.all([
+        readUfProjection(sigla, { cargo: "gov", turno: 1 }),
+        readUfDetail(sigla, { cargo: "gov", turno: 1 }),
+      ]);
   let payload = payloadDoStore;
+
+  // Detalhe municipal só sob `FIXTURE_VARIANT=sim`. Com o modo desligado,
+  // `detalhe` é exatamente `detalheLido` e esta rota continua sem fallback de
+  // dev para o Blob.
+  const detalheSim = emSimulacao ? simulacaoMunicipiosUf(sigla, "gov", 1) : null;
+  const detalhe: UfDetailResult = detalheSim
+    ? { status: "ok", detail: detalheSim, url: "simulacao://dev" }
+    : detalheLido;
 
   // Só em `pnpm dev`: em teste (NODE_ENV=test) e em produção o caminho
   // "Aguardando dados" continua sendo exercitado de verdade.
-  if (!payload && process.env.NODE_ENV === "development") {
-    payload = synthesizeGovUfFromFixture(sigla);
+  if (!payload) {
+    // Origem escolhida por `resultadoEleitoral` — simulação quando ligada, a
+    // fixture de governador caso contrário, nunca as duas. Com o modo desligado
+    // o comportamento é idêntico ao de antes.
+    //
+    // ⚠️ Aqui a síntese a partir do nacional é CORRETA, ao contrário da rota
+    // presidencial: cada candidatura a governador só existe num estado, e o
+    // filtro por `row.top_candidatos` dentro de `synthesizeGovUfFromFixture`
+    // recorta a corrida daquela UF com a votação dela. Não há o equivalente ao
+    // defeito de 2026-09-15 em `/uf/SP`, onde os 12 candidatos presidenciais
+    // são os mesmos nos 27 estados e a síntese servia a votação do país
+    // inteiro. Por isso esta rota NÃO precisa de um `governador-uf.json`.
+    const nacional = await resultadoEleitoral(
+      () => simulacaoNacional("gov"),
+      () =>
+        process.env.NODE_ENV === "development" ? (govFixture as unknown as EdgePayload) : null,
+    );
+    if (nacional) payload = synthesizeGovUfFromFixture(sigla, nacional);
   }
 
   if (!payload) {
@@ -370,7 +442,10 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
   const candidateShortName: Record<number, string> = {};
   for (const c of payload.candidatos) {
     candidateColor[c.id] = c.cor;
-    candidateShortName[c.id] = c.nome.split(" ")[0] ?? c.nome;
+    // Primeiro nome do nome de EXIBIÇÃO. Este mapa alimenta a coluna
+    // "margem" da tabela de municípios e o rótulo curto do mapa; cortar o cru
+    // poria "RONALDO" na tabela e "CAIADO" no painel da mesma página.
+    candidateShortName[c.id] = primeiroNomeExibicao(c.nome, c.sqcand);
   }
 
   // Detalhe do Blob. Coalesce para vazio; o estado explícito é decidido abaixo.
@@ -425,6 +500,12 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
           painéis, e por isso com o filete duplo padrão do `<Panel>`: o
           `rule="none"` da home existe porque lá o `<TrilhaKicker>` desenha o
           filete, e aqui ele saiu (D23). */}
+      {/* 🔴 `ufDaFoto` é a UF da CORRIDA. Aqui ela é o estado, porque a
+            corrida é estadual e é sob a sigla dele que o importador gravou as
+            fotos (`candidatos/foto/<UF>/<sqcand>.jpg`, ADR-0041). O default do
+            painel é `"BR"`, que é o certo só para Presidente — deixá-lo valer
+            aqui montaria uma URL sintaticamente válida que devolve 404 no
+            navegador do leitor, sem nenhum erro do lado do servidor. */}
       <ResultPanel
         action={<TurnoBadge turno={payload.turno} />}
         candidatos={rankedCandidatos}
@@ -434,6 +515,7 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
         pctApurado={payload.pct_apurado}
         title={<ResultTitle sigla={sigla} />}
         titleId="resultado-heading"
+        ufDaFoto={sigla}
       />
 
       {/* Seção 2 — maiores municípios, ligados à folha do município

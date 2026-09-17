@@ -65,9 +65,16 @@ import {
 } from "@/lib/blob/deputado-uf";
 import { cargoInfo } from "@/lib/config/cargos";
 import { avaliarFrescorDado, fraseFrescorDado } from "@/lib/config/dado-freshness";
+import {
+  resultadoEleitoral,
+  simulacaoDeputadoNacional,
+  simulacaoDeputadoUf,
+  simulacaoLigada,
+} from "@/lib/dev/simulacao";
 import { readDeputadoProjection } from "@/lib/edge-config/reader";
 import type { EdgeDeputadoUfRow } from "@/lib/edge-config/types";
 import { formatPercent, formatTimeHMS, formatVotes } from "@/lib/utils/format";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import { colorForParty } from "@/lib/utils/party-color";
 import depUfFixture from "@/tests/fixtures/blob/dep-uf.json" with { type: "json" };
 import depFixture from "@/tests/fixtures/edge-config/dep-current.json" with { type: "json" };
@@ -234,6 +241,16 @@ function intervaloDeCadeiras(agr: DeputadoUfAgremiacao): string | null {
  * mesmo em dev, no estado "detalhe indisponível" — que também precisa ser
  * visto, e é o estado que 22 estados terão na primeira hora da apuração.
  */
+/**
+ * O que `detalheLido` vale quando a leitura remota nem roda (modo simulação).
+ * Gêmeo do de `app/(pres)/uf/[sigla]/page.tsx` — a justificativa está lá.
+ */
+const SEM_DETALHE_REMOTO: DeputadoUfDetailResult = {
+  status: "unavailable",
+  reason: "not_configured",
+  url: null,
+};
+
 function fixtureDetalhe(sigla: string): DeputadoUfDetail | null {
   const mapa = depUfFixture as unknown as Record<string, DeputadoUfDetail>;
   return mapa[sigla.toUpperCase()] ?? null;
@@ -249,16 +266,37 @@ export default async function UFDeputadoFederalPage({ params }: UFDeputadoPagePr
 
   // Em paralelo, de propósito: a página não espera o Blob para renderizar o
   // resumo (RF-129, ADR-0032 item 3).
-  const [nacionalLido, detalheLido] = await Promise.all([
-    readDeputadoProjection(),
-    readDeputadoUfDetail(sigla),
-  ]);
+  //
+  // 🔴 Simulação ligada ⇒ nenhuma das duas leituras remotas roda. Ver a nota
+  // longa em `app/(pres)/uf/[sigla]/page.tsx`: com `BLOB_READ_WRITE_TOKEN` no
+  // `.env.local`, `readDeputadoUfDetail` fala com o Blob de PRODUÇÃO, e um
+  // `status: "ok"` de bancada vazia ganhava da simulação — uma resposta vazia é
+  // uma resposta.
+  const emSimulacao = simulacaoLigada();
+  const [nacionalLido, detalheLido] = emSimulacao
+    ? [null, SEM_DETALHE_REMOTO]
+    : await Promise.all([readDeputadoProjection(), readDeputadoUfDetail(sigla)]);
 
   const isDev = process.env.NODE_ENV === "development";
   const nacional =
-    nacionalLido ?? (isDev ? (depFixture as unknown as typeof nacionalLido) : null) ?? null;
+    nacionalLido ??
+    (await resultadoEleitoral(
+      () => simulacaoDeputadoNacional(),
+      () => (isDev ? (depFixture as unknown as typeof nacionalLido) : null) ?? null,
+    )) ??
+    null;
 
-  const detalheDev = !isDev || detalheLido.status === "ok" ? null : fixtureDetalhe(sigla);
+  // Simulação quando ligada, fixture de sempre caso contrário — nunca as duas,
+  // para que o resumo desta UF e o detalhe por agremiação não venham de
+  // apurações diferentes. `detalheLido.status === "ok"` continua tendo
+  // precedência sobre ambos: dado real nunca é substituído.
+  const detalheDev =
+    detalheLido.status === "ok"
+      ? null
+      : await resultadoEleitoral(
+          () => simulacaoDeputadoUf(sigla),
+          () => (isDev ? fixtureDetalhe(sigla) : null),
+        );
   const detalhe: DeputadoUfDetailResult = detalheDev
     ? { status: "ok", detail: detalheDev, url: "fixture://dev" }
     : detalheLido;
@@ -582,7 +620,12 @@ export default async function UFDeputadoFederalPage({ params }: UFDeputadoPagePr
                             }}
                           >
                             <span className="min-w-0">
-                              {cand.nome}{" "}
+                              {/* `sqcand` aqui é `number` (`DeputadoUfCandidato`),
+                                  e a chave editorial é string — daí o `String()`.
+                                  Nenhum dos dois nomes da lista é de deputado, mas
+                                  a regra objetiva de prefixo é a que importa neste
+                                  cargo: são 20 mil candidaturas. */}
+                              {nomeExibicao(cand.nome, String(cand.sqcand))}{" "}
                               <span style={{ color: "var(--text-muted)" }}>({cand.partido})</span>
                               {/* RF-127 — firmeza falsa é o defeito a evitar.
                                   A marcação é TEXTO, não só cor (WCAG 1.4.1). */}

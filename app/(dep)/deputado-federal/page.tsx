@@ -49,8 +49,12 @@
  *
  * E **sem payload a página não inventa número nenhum**: ela descreve a
  * estrutura e diz que a contagem aparece quando o primeiro boletim chegar. Um
- * `emptyPayload()` com `total_cadeiras: 0` — o atalho que `/senador` usa para
- * os campos dele — aqui imprimiria "0 cadeiras em disputa", que é falso.
+ * `emptyPayload()` com `total_cadeiras: 0` imprimiria aqui "0 cadeiras em
+ * disputa", que é falso.
+ *
+ * ✅ Esta rota era a única das quatro que já fazia isso certo. `/governador` e
+ * `/senador` usavam o atalho do payload zerado e o publicavam como resultado;
+ * em 2026-09-14 elas ganharam ramos de espera de verdade, irmãos deste.
  *
  * ## Cobertura
  *   - RF-122 — federação com identidade própria e componentes legíveis.
@@ -76,13 +80,17 @@
 import type { Metadata } from "next";
 
 import { DadoParadoBanner } from "@/components/atoms/banners/DadoParadoBanner";
+import { FasePreEleicaoBanner } from "@/components/atoms/banners/FasePreEleicaoBanner";
 import { VoteBar, type VoteBarSegment } from "@/components/atoms/bars/VoteBar";
 import { Figure } from "@/components/atoms/data/Figure";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { DeputadoMetodologia } from "@/components/blocks/DeputadoMetodologia";
+import { UfLinksGrid } from "@/components/blocks/UfLinksGrid";
 import { Footer } from "@/components/layout/Footer";
+import { SeloFasePreStyle } from "@/components/layout/SeloFasePreStyle";
 import { cargoInfo } from "@/lib/config/cargos";
 import { avaliarFrescorDado, fraseFrescorDado } from "@/lib/config/dado-freshness";
+import { resultadoEleitoral, simulacaoDeputadoNacional } from "@/lib/dev/simulacao";
 import { readDeputadoProjection } from "@/lib/edge-config/reader";
 import type { EdgeAgremiacaoBancada, EdgePayloadDeputado } from "@/lib/edge-config/types";
 import { formatPercent, formatVotes } from "@/lib/utils/format";
@@ -229,11 +237,16 @@ export default async function DeputadoFederalPage() {
   // Só em `pnpm dev` a fixture entra, para que a rota possa ser inspecionada
   // de verdade. Em teste (`NODE_ENV=test`) e em produção o caminho
   // "aguardando" continua sendo exercitado.
-  const payload =
-    (await readDeputadoProjection()) ??
-    (process.env.NODE_ENV === "development"
-      ? (depFixture as unknown as EdgePayloadDeputado)
-      : null);
+  // 🔴 Simulação ligada ⇒ ela é a fonte de verdade e o Global Config nem é
+  // lido. Ver a nota gêmea em `app/(gov)/governador/page.tsx`.
+  const payload = await resultadoEleitoral(
+    () => simulacaoDeputadoNacional(),
+    async () =>
+      (await readDeputadoProjection()) ??
+      (process.env.NODE_ENV === "development"
+        ? (depFixture as unknown as EdgePayloadDeputado)
+        : null),
+  );
 
   if (!payload) return <AguardandoNacional />;
 
@@ -646,6 +659,50 @@ export default async function DeputadoFederalPage() {
  * metodologia permanece, porque a constituição § 8 o exige em toda página que
  * exibe número de apuração — inclusive quando ainda não há número —, mas sem a
  * frase de cadência, que também viria do payload.
+ *
+ * ## RF-163 — Deputado Federal não é semeado, e esta tela ganha o aviso
+ *
+ * Decisão do dono do produto em 2026-09-13, e **não é opção em aberto**: o
+ * semeador da spec 019 não grava nenhuma chave de cargo `dep`. A razão é que
+ * esta tela lista **cadeiras por partido**, não pessoas — semeá-la produziria
+ * "0 cadeiras" para cada legenda, que é a mesma mentira das outras telas em
+ * outra unidade, e **nenhuma identidade ganharia**: não há onde pôr rosto aqui.
+ * O ganho que justifica a fase pré nos outros três cargos não existe; sobra só
+ * o custo.
+ *
+ * Então esta tela continua sem payload — e sem payload não há campo `fase` de
+ * onde ler. `faseDoPayload(null)` devolve `"normal"` por construção
+ * (`lib/config/fase.ts`), e é deliberado.
+ *
+ * **A faixa aqui é incondicional, e quem decide é o chamador** (design 019
+ * § D5): este ramo JÁ significa "não há apuração publicada", e a faixa é a
+ * afirmação em prosa do que o ramo já é. A alternativa — gatear por data de
+ * calendário — foi rejeitada: relógio de servidor errado ou fuso mal resolvido
+ * produziria a faixa no meio da noite de apuração.
+ *
+ * ## ✅ 2026-09-14 — a contradição com o RNF-010 fechada pelo TEXTO, não pela fiação
+ *
+ * A versão de 13/09 registrava aqui um custo assumido: este ramo também é onde
+ * a página cai se o Global Config estiver indisponível em 04/10, e a faixa
+ * diria "a eleição ainda não começou" **durante a apuração** — exatamente o que
+ * o RNF-010 desaconselha (afirmar um fato sobre o calendário a partir de uma
+ * falha de rede).
+ *
+ * A emenda do dono do produto resolve isso **mudando o texto, não a fiação**. A
+ * faixa continua incondicional neste ramo — condicioná-la a alguma coisa seria
+ * criar uma segunda fonte de fase, que é o defeito que a spec inteira existe
+ * para evitar —, mas entra com `variante="sem_dados"`: ela diz que **esta
+ * página não recebeu dados de apuração** e põe a data da votação ao lado, sem
+ * ligar uma coisa à outra por causa. As duas frases são verdadeiras em
+ * qualquer dia do calendário, inclusive às 21h de 04/10.
+ *
+ * 🔴 **A tentação recusada**: criar uma chave global de fase para dar evidência
+ * positiva a esta tela. Em noite de apuração um interruptor global travado na
+ * posição errada derruba tudo de uma vez; sinais independentes por cargo
+ * degradam um de cada vez. O desenho atual já acertou nisso.
+ *
+ * O parágrafo `data-testid="dep-aguardando"` **continua presente e não é
+ * reescrito** — é texto que três correções anteriores acertaram.
  */
 function AguardandoNacional() {
   return (
@@ -654,8 +711,38 @@ function AguardandoNacional() {
       className="mx-auto flex min-h-screen max-w-page flex-col px-4 py-6 md:px-6 md:py-10"
       style={{ gap: "var(--space-8)" }}
     >
+      {/* 🔴 RF-160/RF-163 — PRIMEIRO FILHO do `<main>`, acima do parágrafo
+          honesto. Teste de ORDEM, não de presença.
+
+          A faixa continua **incondicional** neste ramo — simples, sem risco de
+          sair de sincronia com a condição que trouxe a página até aqui. O que
+          mudou em 2026-09-14 é o TEXTO: `variante="sem_dados"`. Ver a nota
+          "⚠️ O custo assumido" no cabeçalho desta função, que este parágrafo
+          responde. */}
+      <FasePreEleicaoBanner
+        corrida="a Câmara dos Deputados"
+        variante="sem_dados"
+        listaDeEstadosAbaixo
+      />
+
+      {/* RF-159 — o selo do `<TopBar>`. Esta rota nunca publicou custom
+          property nenhuma; publica agora uma só, `variante="sem_dados"`
+          (emenda de 2026-09-14).
+
+          Esta tela é, por definição, a tela de quando não há payload — o
+          RF-163 registra que o semeador não a alimenta. Publicar as três
+          propriedades do selo afirmaria "a eleição ainda não começou" na
+          barra do topo, que é a mesma frase que a faixa logo acima passou a
+          recusar no mesmo dia. Sobra o segmentado "Parcial / Projeção",
+          apagado por RF-161 — que não afirma calendário nenhum. */}
+      <SeloFasePreStyle variante="sem_dados" />
+
       <Panel
-        kicker="Atlas Menna · apuração ao vivo · não oficial"
+        // RF-159, mesma correção em outra superfície: "apuração ao vivo" era
+        // falso nesta tela em qualquer dia do calendário — ela é, por
+        // definição, a tela de quando não há apuração. O parágrafo abaixo
+        // continua intocado; só o kicker parou de afirmar o contrário dele.
+        kicker="Atlas Menna · não oficial"
         title="Câmara dos Deputados 2026"
         titleId="camara-heading"
         headingLevel={1}
@@ -672,14 +759,31 @@ function AguardandoNacional() {
         </p>
       </Panel>
 
+      {/* 🔴 2026-09-14 — o parágrafo "Nenhum estado apurado ainda. As 27
+          corridas aparecem aqui conforme o TSE divulga os primeiros boletins."
+          SAIU daqui, e ele era a única ocorrência de vocabulário de medição
+          desta rota sem defesa.
+
+          Por que ele era falso e não só feio: "nenhum estado apurado" é o
+          PLACAR de um processo, e dar o placar pressupõe que o processo está em
+          curso. Neste ramo não sabemos nem isso — ele é alcançado tanto antes de
+          04/10 quanto durante uma queda do Global Config. Era medição de coisa
+          nenhuma, no mesmo espírito da mentira nº 1 da tabela do design 019 § D2
+          ("Todas as unidades federativas estão com a apuração concluída").
+
+          O que ficou no lugar é a regra que a própria spec criou: **progresso é
+          medição e cala; geografia é identidade e fala.** Os 27 links são
+          verdadeiros em qualquer dia do calendário, e levam a
+          `/uf/<sigla>/deputado-federal`, onde as 7.221 candidaturas publicáveis
+          da spec 018 já aparecem — o outro endereço delas é
+          `/candidatos?cargo=6`.
+
+          As outras ocorrências desta rota FICAM: "Aguardando o primeiro
+          boletim" (RF-163 manda preservá-la intacta, e ela descreve o NOSSO
+          estado, não o do mundo) e as de `<DeputadoMetodologia>`, onde
+          "projeção" aparece como negação. */}
       <Panel kicker="Corridas estaduais" title="Estado a estado" titleId="corridas-heading">
-        <p
-          className="max-w-prose"
-          style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
-        >
-          Nenhum estado apurado ainda. As {TOTAL_UFS} corridas aparecem aqui conforme o TSE divulga
-          os primeiros boletins.
-        </p>
+        <UfLinksGrid cargo={CARGO_DEPUTADO} />
       </Panel>
 
       {/* Sem payload não há cadência declarada nem granularidade a explicar:

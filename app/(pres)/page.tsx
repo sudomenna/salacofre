@@ -155,6 +155,7 @@ import type { Metadata } from "next";
 import { RaceTypeIndicator } from "@/components/atoms/badges/RaceTypeIndicator";
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { DadoParadoBanner } from "@/components/atoms/banners/DadoParadoBanner";
+import { FasePreEleicaoBanner } from "@/components/atoms/banners/FasePreEleicaoBanner";
 import { TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { ApuracaoMeta } from "@/components/blocks/ApuracaoMeta";
@@ -173,11 +174,18 @@ import { StateGroupedTable } from "@/components/blocks/StateGroupedTable";
 import { StrongholdsPanel } from "@/components/blocks/StrongholdsPanel";
 import { TurnoOneRecap } from "@/components/blocks/TurnoOneRecap";
 import { Footer } from "@/components/layout/Footer";
+import { SeloFasePreStyle } from "@/components/layout/SeloFasePreStyle";
 import { avaliarFrescorDado } from "@/lib/config/dado-freshness";
+import { isPreEleicao } from "@/lib/config/fase";
+import { resultadoEleitoral, simulacaoNacional } from "@/lib/dev/simulacao";
 import { readArchivedProjection, readNationalProjection } from "@/lib/edge-config/reader";
 import type { EdgePayload } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import nationalFixture from "@/tests/fixtures/edge-config/projection-current.json" with {
+  type: "json",
+};
+import nationalFixturePre from "@/tests/fixtures/edge-config/projection-current-pre.json" with {
   type: "json",
 };
 import nationalFixtureT2 from "@/tests/fixtures/edge-config/projection-current-t2.json" with {
@@ -268,7 +276,17 @@ export const metadata: Metadata = {
  */
 function fixturePayload(): EdgePayload {
   const variant = process.env.FIXTURE_VARIANT;
-  const fixture = variant === "t2" ? nationalFixtureT2 : nationalFixture;
+  // `pre` serve o payload que `data-pipeline/projection-seed.ts` grava: as 12
+  // candidaturas presidenciais reais do cadastro do TSE, `fase: "pre_eleicao"`,
+  // `pct_apurado_total: 0` e `por_uf: []`. É a única forma de VER as telas
+  // T-15/T-16 em `pnpm dev`, porque o reader devolve `null` localmente
+  // (`EDGE_CONFIG` não existe em `.env.local`) e semear o Global Config de
+  // verdade publicaria a tela no site público — decisão de produto que ainda
+  // não foi tomada (spec 019, open question 5).
+  //
+  //     FIXTURE_VARIANT=pre pnpm dev
+  const fixture =
+    variant === "t2" ? nationalFixtureT2 : variant === "pre" ? nationalFixturePre : nationalFixture;
   return fixture as unknown as EdgePayload;
 }
 
@@ -288,9 +306,25 @@ function fixturePayload(): EdgePayload {
  * barato que confiar no formatador para sempre.
  */
 function LivePctLabelStyle({ pctApurado }: { pctApurado: number }) {
-  const texto = pctApurado > 0 ? `${formatPercent(pctApurado, 1)} apurado` : "ao vivo";
-  const seguro = texto.replace(/["\\]/g, "");
-  return <style>{`:root{--live-pct-label:"${seguro}"}`}</style>;
+  // Nada medido ainda ⇒ o selo não vai à tela. Todas as custom properties do
+  // `<ShellLiveBadge>` têm o silêncio como default, então publicar nada é
+  // publicar "não afirmo coisa alguma" — que é o oposto do `"ao vivo"` que
+  // este mesmo ramo emitia até 13/09, por cima do parágrafo que dizia ao
+  // leitor que o primeiro boletim não tinha chegado.
+  //
+  // ⚠️ Este `> 0` decide **o rótulo**, nunca a fase. Ele erra sempre para o
+  // lado do silêncio: às 20h01 de 04/10 o percentual real é 0,01 e o selo
+  // acende normalmente; num payload real de percentual exatamente 0 o selo
+  // some, que é calar, não mentir. A fase da página vem do campo `fase` do
+  // payload e de nenhum percentual (ADR-0043 D5).
+  if (!(pctApurado > 0)) return null;
+
+  const seguro = `${formatPercent(pctApurado, 1)} apurado`.replace(/["\\]/g, "");
+  return (
+    <style>
+      {`:root{--live-badge-display:inline-flex;--live-pct-label:"${seguro}";--live-dot-state:running;--live-sr-ao-vivo:inline}`}
+    </style>
+  );
 }
 
 /**
@@ -332,8 +366,16 @@ function ResultTitle() {
  * bloco a preservar; preservar a página inteira preenchida de zeros seria
  * publicar medição onde não houve medição.
  *
- * `<ForecastTransparency pctApurado={0}>` é o único número da tela, e é o
- * verdadeiro: zero por cento apurado.
+ * ⚠️ **Emenda de 2026-09-14.** Este docstring dizia que
+ * `<ForecastTransparency pctApurado={0}>` era "o único número da tela, e o
+ * verdadeiro: zero por cento apurado". Era falso das duas formas. O bloco não
+ * imprimia um número, imprimia **quatro** — "Modelo", 100%, "Apuração", 0% —
+ * e nenhum deles foi medido: sem payload não sabemos se a apuração está em 0%
+ * ou se o Global Config caiu com a apuração em curso. O bloco continua na tela
+ * (constituição § 8) e agora vai a prosa, no ramo `variante="sem_dados"`.
+ *
+ * A tela inteira, hoje, não imprime número algum — a faixa e o bloco falam do
+ * que **nós** sabemos, e a única data que aparece é a da votação.
  */
 async function AguardandoNacional() {
   // RF-149 — a grade de "quem está concorrendo", ABAIXO do parágrafo honesto.
@@ -351,11 +393,62 @@ async function AguardandoNacional() {
       className="mx-auto flex min-h-screen max-w-page flex-col px-4 py-6 md:px-6 md:py-10"
       style={{ gap: "var(--space-8)" }}
     >
+      {/* 🔴 RF-160, emenda de 2026-09-14 — PRIMEIRO FILHO do `<main>`, antes do
+          kicker e do `<h1>`. Teste de ORDEM, não de presença: uma faixa
+          enterrada no meio da página é a versão inútil dela (lição do RF-149).
+
+          Esta era a última das quatro telas de cargo sem aviso nenhum no ramo
+          de espera — `/governador`, `/senador` e `/deputado-federal` já
+          avisavam. A faixa é incondicional aqui, porque o ramo inteiro já
+          significa "não há apuração": nada a sincronizar com uma segunda
+          condição que possa sair de sintonia.
+
+          `variante="sem_dados"` e não `"nao_comecou"`: chegar aqui significa
+          "o reader não devolveu payload" OU "a lista de candidaturas veio
+          vazia", e nenhum dos dois mede o calendário eleitoral. A faixa fala
+          sobre nós e põe a data ao lado sem ligar uma coisa à outra.
+
+          ⚠️ **Emenda de 2026-09-14, segunda rodada.** Este ramo passou a
+          montar `<SeloFasePreStyle variante="sem_dados">`, logo abaixo. A
+          versão anterior deste comentário dizia que ele não montava nada, e a
+          razão estava certa — aquele componente publicava, num pacote só, o
+          rótulo "antes da votação" e o `sr-only` "A eleição ainda não começou",
+          que é a afirmação de causa que este ramo não pode fazer. O que estava
+          errado era o remédio: não montar nada deixava também de apagar o
+          segmentado "Parcial / Projeção" do shell, e esta era a única das
+          quatro telas em que aquele controle aparecia sem dado nenhum por trás.
+          A variante separa as duas coisas; ver o bloco seguinte. */}
+      <FasePreEleicaoBanner corrida="a Presidência" variante="sem_dados" />
+
+      {/* 🔴 RF-159 + RF-161, emenda de 2026-09-14 — o que esta tela tem a dizer
+          ao shell é **uma coisa só**: apague o segmentado "Parcial / Projeção".
+
+          As três propriedades do selo ficam sem publicar, e o selo cai no
+          default silencioso (`--live-badge-display: none`) — o mesmo resultado
+          visível de antes, quando este ramo não montava componente nenhum.
+          O que muda é o segmentado: um controle que alterna a ênfase entre
+          duas colunas de percentual que aqui não existem, e cujo rótulo
+          carrega a palavra que o RF-161 proíbe.
+
+          `variante="sem_dados"` pela razão de sempre neste ramo: chegar aqui é
+          "não recebemos dados", nunca uma medição do calendário eleitoral. */}
+      <SeloFasePreStyle variante="sem_dados" />
+
       <TrilhaKicker trilha="pres" crumbs={["Brasil"]} className="-mb-4" />
 
       <Panel
         headingLevel={1}
-        kicker="Projeção Atlas Menna · não oficial"
+        // 🔴 "Atlas Menna · não oficial", sem "Projeção" — igual às outras três
+        // rotas (`(gov):269`, `(sen):146`, `(dep):739`). Esta era a última das
+        // quatro em que o kicker rotulava o painel como uma projeção numa tela
+        // que não tem projeção nenhuma. Alcançável em produção sempre que o
+        // Global Config não responde.
+        //
+        // O parágrafo abaixo MANTÉM a palavra de propósito: ele diz, no futuro,
+        // o que vai aparecer aqui quando houver boletim — que é a mesma licença
+        // que o RF-158 dá ao bloco de transparência. O que não se pode é
+        // ROTULAR de projeção uma caixa onde não há uma.
+        kicker="Atlas Menna · não oficial"
         rule="none"
         title="Presidência 2026"
         titleId="resultado-heading"
@@ -388,8 +481,23 @@ async function AguardandoNacional() {
           parágrafo acima, e é `null` quando o Blob não responde. */}
       {grade}
 
+      {/* 🔴 RF-158, emenda de 2026-09-14 — o bloco FICA e vai a PROSA.
+          Até hoje ele entrava aqui como `<ForecastTransparency pctApurado={0}>`
+          e publicava, neste ramo, a decomposição numérica do forecast:
+          "Modelo 100%" e "Apuração 0%". Nada disso foi medido — é a mesma
+          classe de zero fabricado que saiu de `/governador` e `/senador`.
+
+          Houve uma dúvida legítima sobre se o bloco era obrigatório aqui: a
+          constituição § 8 o exige "em toda página com projeção", e uma página
+          sem payload não tem projeção. As duas leituras ficam satisfeitas ao
+          mesmo tempo — o bloco continua na tela, e o que sai é só o número.
+
+          `variante="sem_dados"` pela mesma razão da faixa lá em cima: este
+          ramo é alcançado tanto antes de 04/10 quanto por uma falha de leitura
+          do Global Config, e a tela não distingue os dois. Dizer "nenhum voto
+          foi contado ainda" seria afirmar uma causa que não medimos. */}
       <Panel kicker="Metodologia">
-        <ForecastTransparency pctApurado={0} />
+        <ForecastTransparency pctApurado={0} preEleicao variante="sem_dados" />
       </Panel>
 
       <Footer />
@@ -404,9 +512,23 @@ async function AguardandoNacional() {
  * e a partir daqui ele NUNCA mais vira dado de fixture fora do `pnpm dev`.
  */
 async function getInitialPayload(): Promise<EdgePayload | null> {
-  const fromEdge = await readNationalProjection();
-  if (fromEdge) return fromEdge;
-  return process.env.NODE_ENV === "development" ? fixturePayload() : null;
+  // `FIXTURE_VARIANT=sim` — o estado de simulação, revisado antes do simulado
+  // oficial do TSE. Vem ANTES da leitura remota, e é EXCLUSIVO: com o modo
+  // ligado, o Global Config nem é consultado, e um arquivo ausente cai no
+  // estado honesto em vez de na fixture de sempre — a home nunca conta uma
+  // história enquanto o mapa da moldura conta outra.
+  //
+  // A ordem importa desde 2026-09-15: naquele dia o Blob de produção,
+  // respondendo `ok` com lista vazia, ganhou da simulação na rota de
+  // municípios. Uma resposta vazia é uma resposta, e por isso a condição não
+  // pode ser "o reader não trouxe nada". Ver `resultadoEleitoral` em
+  // `lib/dev/simulacao.ts`; os dois portões do modo ficam lá, não aqui.
+  return await resultadoEleitoral(
+    () => simulacaoNacional("pres"),
+    async () =>
+      (await readNationalProjection()) ??
+      (process.env.NODE_ENV === "development" ? fixturePayload() : null),
+  );
 }
 
 export default async function HomePage() {
@@ -430,8 +552,32 @@ export default async function HomePage() {
   // comentário dentro da função.
   if (!payload || payload.national.candidatos.length === 0) return await AguardandoNacional();
 
+  // 🔴 RF-153 — o ÚNICO gatilho de fase. `isPreEleicao` lê o campo `fase` e
+  // nada mais: não `pct_apurado_total === 0`, não `por_uf.length === 0`, não
+  // `composition.pre_election`, não data de calendário. Às 20h01 de 04/10 o
+  // percentual real é 0,01 — e por alguns minutos antes disso ele passa por 0
+  // com o orchestrator já rodando; qualquer um dos quatro gates proibidos
+  // poria esta tela em modo pré-eleição COM A APURAÇÃO EM ANDAMENTO
+  // (ADR-0043 D5, design 019 § D9 mutação M1).
+  const pre = isPreEleicao(payload);
+
   const { national, por_uf, pct_apurado_total, ufs_apuradas, ts, insights, composition, turno } =
     payload;
+
+  // RF-149 re-pendurado no ramo de fase pré (design 019 § D5, último bloco).
+  //
+  // O gatilho da grade de "quem está concorrendo" (T-14, spec 018) era "não há
+  // payload". Para Presidente o semeador FAZ o payload existir, então a página
+  // sai do ramo de espera e a grade deixaria de ser montada pelo caminho
+  // atual — a spec 018 perderia a tela dela sem que nada nela tivesse mudado.
+  // O componente é o mesmo e o comportamento observável dele é o mesmo; muda
+  // só DE ONDE ele é chamado. É também de onde vêm a FOTO e o número na urna
+  // de cada candidatura (RF-155), que o `<ResultPanel>` não exibe.
+  //
+  // `await` fora da árvore pela mesma razão do ramo `AguardandoNacional`:
+  // `renderToStaticMarkup` não renderiza componentes assíncronos, e resolver o
+  // nó antes mantém o teste de ordem possível sem harness de streaming.
+  const gradeCandidaturas = pre ? await CandidaturasAguardando({ cargo: 1, uf: "BR" }) : null;
 
   // ADR-0038 D4 — o relógio do DADO, não o da escrita. `payload.dado_ts` entra
   // cru: `undefined` (payload pré-ADR, em voo durante o canary) e `null` (o
@@ -448,6 +594,45 @@ export default async function HomePage() {
   // também cai em binary (defensivo). 1T multi-candidato → multi-1t.
   const mode: "binary" | "multi-1t" =
     turno === 2 || national.candidatos.length === 2 ? "binary" : "multi-1t";
+
+  // 🔴 spec 019 — A FASE É MAIS FORTE QUE O MODO. Em fase pré **não existe**
+  // ramo `binary`.
+  //
+  // `mode` responde "que forma tem esta corrida": duelo de dois, ou 1T
+  // multi-candidato. Em fase pré a pergunta não tem resposta — não há duelo
+  // porque não há voto —, e o layout `binary` é medição de ponta a ponta:
+  // kicker "Projeção Atlas Menna · não oficial" (a palavra que o RF-161
+  // proíbe na tela inteira), `<ApuracaoMeta>` com "Apurado 0,0%" e "UFs
+  // apuradas 0/27" (dois números fabricados), e o `<HeadlineScore>` com a
+  // barra de maioria. Nenhuma dessas superfícies identifica ninguém — e a
+  // linha de identidade do RF-155 sequer é montada ali (design 019 § D0:
+  // mede ⇒ cala; identifica ⇒ fala).
+  //
+  // ## O defeito que esta linha fecha, medido em 2026-09-14
+  //
+  // A supressão inteira da spec 019 morava **só** no ramo `multi-1t`, e os
+  // dois gatilhos de `binary` são alcançáveis em fase pré:
+  //
+  //   1. `national.candidatos.length === 2` — indeferimento por recurso e
+  //      substituição continuam DEPOIS do prazo de julgamento (é por isso que
+  //      o cadastro é reimportado em 02–03/10). Se as publicáveis à
+  //      Presidência chegarem a exatamente duas, a home troca de layout e a
+  //      supressão evapora sem uma linha de código mudar;
+  //   2. `turno === 2` — a fase pré de 2º turno não está no escopo hoje, mas
+  //      o ramo é o mesmo e o gatilho não olha a fase.
+  //
+  // O modo de falha era silencioso e total: nenhum teste vermelho, nenhum
+  // alarme, e a tela de volta a dizer exatamente o que a spec foi escrita para
+  // impedir. A causa-raiz é de TESTE, não de código: a matriz tinha uma
+  // dimensão faltando — todos os casos da spec 019 usavam 12 candidaturas,
+  // logo exercitavam um ramo só. Ver a matriz em
+  // `tests/unit/pages/fase-pre-eleicao.test.tsx`, bloco (F).
+  //
+  // `mode` continua intocado de propósito: ele é um fato sobre a corrida, e
+  // sobrescrevê-lo faria `NationalNeedle`, `StateGroupedTable` e
+  // `HeadlineScore` lerem uma corrida que não é a que chegou no payload. O
+  // que a fase decide é o LAYOUT, e é isso que esta constante nomeia.
+  const painelDeIdentidade = pre || mode === "multi-1t";
 
   // S06/F4d (Fase 4) — Mode 2T: lê archive do 1T para `<TurnoOneRecap />`
   // (ADR-0016). `readArchivedProjection` retorna null se a chave ainda
@@ -484,9 +669,30 @@ export default async function HomePage() {
   const badgesDeEstado = (
     <div className="flex flex-wrap items-center" style={{ gap: "var(--space-2)" }}>
       <TurnoBadge turno={turno} />
-      <RaceTypeIndicator candidatos={national.candidatos} turno={turno} />
+      {/* RF-156 — em fase pré a contagem vem de `candidatos.length`, sem o
+          limiar de 0,5% de `pct_projetado`, que num payload zerado zera a
+          contagem inteira e produz "Disputa entre 0 candidatos" ao lado de
+          doze nomes visíveis. */}
+      <RaceTypeIndicator candidatos={national.candidatos} preEleicao={pre} turno={turno} />
     </div>
   );
+
+  // RF-161 — a ordem das candidaturas em fase pré é a do NÚMERO NA URNA,
+  // crescente e estável entre recarregamentos.
+  //
+  // `candidatos[]` chega ordenado por `pct_projetado` desc. Com todo mundo em
+  // zero essa ordenação não ordena por nada — pior: ela ordena pelo desempate
+  // (`candidato_id` ASC, ver `EdgeCandidate.rank`), e o resultado é uma lista
+  // estável que o leitor lê como ranking. Falso favoritismo estável é
+  // exatamente o que a constituição § 2 proíbe ("sempre na mesma ordem dentro
+  // de uma mesma corrida").
+  //
+  // `id` É o número na urna no payload nacional (é a chave que o TSE usa e a
+  // que o leitor reconhece da própria urna). `slice()` antes do `sort` porque
+  // `sort` muta, e este array é o do payload.
+  const candidatosDoPainel = pre
+    ? national.candidatos.slice().sort((a, b) => a.id - b.id)
+    : national.candidatos;
 
   // O mapa não está mais nesta página (ADR-0033 § 1): quem o monta é
   // `app/(pres)/layout.tsx`, na coluna persistente do `<AppShellSplit>`. Esta
@@ -504,8 +710,17 @@ export default async function HomePage() {
       // posição (elas nunca receberam os 48px). Nenhum bloco saiu.
       style={{ gap: "var(--space-8)" }}
     >
-      {/* Alimenta o selo "23,4% APURADO" do `<TopBar>` (ADR-0029 § 4). */}
-      <LivePctLabelStyle pctApurado={pct_apurado_total} />
+      {/* 🔴 RF-160 — PRIMEIRO FILHO do `<main>`, e a posição é o requisito.
+          Antes do kicker, antes do `<h1>`, antes de qualquer painel. O teste é
+          de ORDEM, não de presença: um teste de presença passaria com a faixa
+          enterrada no rodapé, que é a versão inútil dela (mesma lição do
+          RF-149 da spec 018). Em fase normal ela não existe no DOM e o
+          primeiro filho volta a ser o `<style>` do selo, como sempre foi. */}
+      {pre ? <FasePreEleicaoBanner corrida="a Presidência" /> : null}
+
+      {/* Alimenta o selo do `<TopBar>` (ADR-0029 § 4) — "23,4% APURADO" na
+          noite da apuração, "ANTES DA VOTAÇÃO" antes dela (RF-159). */}
+      {pre ? <SeloFasePreStyle /> : <LivePctLabelStyle pctApurado={pct_apurado_total} />}
 
       {/* ADR-0038 D4 — "o dado do TSE não anda". Primeiro de tudo, e fora de
           `<Panel>`: é uma faixa de estado sobre a página inteira, como o
@@ -524,12 +739,23 @@ export default async function HomePage() {
           ingestão morrer às 20h30, sem recarregar — e o banner faz isso lendo o
           `dado_ts` que a moldura do mapa já busca a cada 60 s (escopo nacional,
           o mesmo recorte deste payload). Ver o docstring do componente. */}
-      <DadoParadoBanner frescor={frescorDado} />
+      {/* `!pre`: "o dado do TSE não anda há 14 minutos" mede a defasagem de uma
+          ingestão que, em fase pré, ainda não deveria estar andando. O
+          semeador não grava `dado_ts` e o banner cairia sozinho no estado
+          "ausente"; a guarda é o que impede um alarme falso no dia em que ele
+          gravar. RNF-010: fase pré **não** é degradação, e as duas não devem
+          se falar. */}
+      {!pre && <DadoParadoBanner frescor={frescorDado} />}
 
       {/* S06/F4d — Breaking news ticker. ADR-0029 § 1: faixa fina entre o
           shell e o mapa. É conteúdo ambiente, não hero — por isso continua
           fora de `<Panel>` e acima de tudo. Renderiza só se há chamadas. */}
-      {(national.chamadas_recentes ?? []).length > 0 && (
+      {/* `!pre`: uma "chamada" é a declaração de que uma corrida está decidida
+          — medição, e da mais forte que o produto emite. O semeador não grava
+          nenhuma, mas a guarda é o que protege contra um payload semeado a
+          mais no futuro (spec 019 § D7: as duas defesas coexistem de
+          propósito). */}
+      {!pre && (national.chamadas_recentes ?? []).length > 0 && (
         <BreakingNewsTicker chamadas={national.chamadas_recentes ?? []} />
       )}
 
@@ -543,13 +769,16 @@ export default async function HomePage() {
           fora de `<Panel>`: é uma faixa de estado, não uma seção editorial —
           e se auto-anula, o que deixaria um filete órfão. ADR-0029 § 1: logo
           abaixo do mapa, antes do painel de resultado. */}
-      <NationalWinnerBanner
-        national={national}
-        candidatos={national.candidatos}
-        pctApuradoTotal={pct_apurado_total}
-        turno={turno}
-        vaiA2t={vaiA2tNacional}
-      />
+      {/* `!pre`: o banner "ELEITO" é a proclamação de um vencedor. */}
+      {!pre && (
+        <NationalWinnerBanner
+          national={national}
+          candidatos={national.candidatos}
+          pctApuradoTotal={pct_apurado_total}
+          turno={turno}
+          vaiA2t={vaiA2tNacional}
+        />
+      )}
 
       {/* Kicker de trilha (ADR-0019). Fica FORA do `<Panel>` e imediatamente
           acima dele porque a regra do ADR é "TrilhaKicker acima do `<h1>`" —
@@ -572,23 +801,46 @@ export default async function HomePage() {
           ADR-0019). O filete duplo padrão do `<Panel>` desenharia uma segunda
           régua a 16px da primeira, e o cabeçalho da página abriria com duas
           linhas paralelas em vez de uma. */}
-      {mode === "multi-1t" ? (
+      {/* 🔴 `painelDeIdentidade`, e NÃO `mode === "multi-1t"`: em fase pré os
+          dois modos convergem para o mesmo painel de identidade. Ver a
+          constante lá em cima para o defeito de 14/09 que esta troca fecha —
+          com duas candidaturas, ou em `turno === 2`, o ramo de baixo devolvia
+          a tela inteira ao vocabulário de medição. */}
+      {painelDeIdentidade ? (
         /* O painel de resultado do protótipo (`App.jsx:20-43`), inteiro:
            "Apurado" + "Margem <líder>" como as duas figuras do topo, barra de
            maioria com marcador em 50%, e UMA lista com TODOS os candidatos —
            é assim que o kit trata os candidatos menores, em vez de um bloco
            "Composição de Outros" à parte. O `<h1>` da página é o título deste
            painel (ADR-0029 § 5) e continua único. */
+        /* RF-155 + RF-161 — em fase pré o painel troca de papel, e o kicker, o
+           `<h1>` e a `note` trocam de texto junto com ele.
+
+           O kicker de sempre ("Projeção Atlas Menna · não oficial") não pode
+           ficar por duas razões independentes: ele contém a palavra que o
+           RF-161 proíbe em toda a tela, e ele rotula como não-oficial uma
+           projeção que não existe — o "não oficial" da constituição § 1 é
+           obrigação sobre a superfície ONDE a projeção aparece, e aqui ela não
+           aparece (o `<Footer>` continua carregando "Não oficial. Fonte: TSE."
+           em toda página, como sempre).
+
+           O `<h1>` deixa de alternar Parcial/Projeção e passa a ser
+           "Quem está concorrendo" — nunca "Apuração" nem "Resultado". */
         <ResultPanel
           action={badgesDeEstado}
-          candidatos={national.candidatos}
+          candidatos={candidatosDoPainel}
           headingLevel={1}
-          kicker="Projeção Atlas Menna · não oficial"
-          note="Projeção por regra de três: votos apurados ÷ % apurado em cada município, somados por UF e país."
+          kicker={pre ? "Candidaturas registradas no TSE" : "Projeção Atlas Menna · não oficial"}
+          note={
+            pre
+              ? "Esta é a lista de candidaturas registradas pelo TSE para a Presidência, na ordem do número na urna. Nenhum voto foi contado: a votação é em 4 de outubro de 2026."
+              : "Projeção por regra de três: votos apurados ÷ % apurado em cada município, somados por UF e país."
+          }
           pctApurado={pct_apurado_total}
           rule="none"
-          title={<ResultTitle />}
+          title={pre ? "Quem está concorrendo" : <ResultTitle />}
           titleId="resultado-heading"
+          variant={pre ? "identidade" : "medicao"}
         />
       ) : (
         <Panel
@@ -635,74 +887,127 @@ export default async function HomePage() {
           logo acima: em 2T `p_fecha_1t` é sempre 0.0 por construção ("vazio
           de semântica", `lib/edge-config/types.ts`) e o painel exibiria 0%
           como se fosse leitura do modelo. */}
-      {mode === "multi-1t" && turno !== 2 && (
+      {/* 🔴 RF-154 — `!pre` no CHAMADOR, nunca um `return null` dentro do
+          painel. Um `if (fase) return null` em `ChancesPanel` poria a regra de
+          fase em quatro arquivos e desfaria o ponto único do RF-153 — foi
+          exatamente assim que a guarda de zero do mapa nacional acabou dentro
+          do ramo `viewMode === "parcial"`, cobrindo uma das seis combinações.
+
+          Este painel mede probabilidade, e a guarda que ele já tem não alcança
+          este caso: `has(p)` funciona para `null`, mas `p_fecha_1t` é
+          declarado `number` não-anulável, então o que chega do payload zerado
+          é `0`, e `has(0)` é `true`. O painel renderizaria "Fulano vence no 1º
+          turno — 0%" com a barra vazia. */}
+      {!pre && mode === "multi-1t" && turno !== 2 && (
         <ChancesPanel
           title="Segundo turno?"
           pSegundoTurno={national.p_segundo_turno_overall}
-          liderNome={lider?.nome}
+          liderNome={lider ? nomeExibicao(lider.nome, lider.sqcand) : undefined}
           liderPFecha1t={lider?.p_fecha_1t}
           liderPctProjetado={lider?.pct_projetado}
           pctApurado={pct_apurado_total}
         />
       )}
 
-      {/* Seção 4 — redutos por candidato (S07/Bloco 1). */}
-      <StrongholdsPanel candidatos={national.candidatos} rows={por_uf} />
+      {/* RF-149 re-pendurado (design 019 § D5): a grade de "quem está
+          concorrendo" — com foto, número na urna e link para `/candidatos` —
+          entra logo abaixo do painel de identidade, que é onde o leitor já
+          está olhando. Vale `null` quando o Blob de candidaturas não responde,
+          e a página segue de pé (constituição § 7). */}
+      {gradeCandidaturas}
 
-      {/* Seção 5 — o que falta apurar (S07/Bloco 1). */}
-      <RemainingPanel
-        rows={por_uf}
-        candidatos={national.candidatos}
-        pctApuradoTotal={pct_apurado_total}
-        ufsApuradas={ufs_apuradas}
-      />
+      {/* Seção 4 — redutos por candidato (S07/Bloco 1).
+
+          `!pre`: "onde cada candidato é mais forte" responde a uma pergunta
+          sobre votos contados. Não está nos quatro painéis nomeados pelo
+          RF-154 — está aqui pela mesma pergunta única do design 019 § D0, que
+          classifica também os blocos que a spec não enumerou: mede, cala. */}
+      {!pre && <StrongholdsPanel candidatos={national.candidatos} rows={por_uf} />}
+
+      {/* Seção 5 — o que falta apurar (S07/Bloco 1).
+
+          🔴 RF-154 — com `por_uf: []` este painel afirma, em caixa alta e no
+          topo de si mesmo, **"Todas as unidades federativas estão com a
+          apuração concluída."** A lista `pendentes` fica vazia quando todo
+          `pct_apurado` é zero, e o componente lê isso como "nada falta", não
+          como "nada começou": é o oposto exato do que o número quer dizer. */}
+      {!pre && (
+        <RemainingPanel
+          rows={por_uf}
+          candidatos={national.candidatos}
+          pctApuradoTotal={pct_apurado_total}
+          ufsApuradas={ufs_apuradas}
+        />
+      )}
 
       {/* Seção 6 — boletim do momento (S07/Bloco 1). Templates
           determinísticos, nunca LLM (ADR-0005). Último painel de conteúdo do
-          protótipo (`App.jsx:355`). */}
-      <BulletinPanel
-        national={national}
-        rows={por_uf}
-        pctApuradoTotal={pct_apurado_total}
-        ufsApuradas={ufs_apuradas}
-        ts={ts}
-        turno={turno}
-      />
+          protótipo (`App.jsx:355`).
+
+          🔴 RF-154 — é um diário de eventos que não ocorreram: cinco linhas
+          carimbadas com `HH:MM:SS` ao lado de zero voto, e um intervalo de
+          confiança de 95% `[0,0; 0,0]`, que é a forma tipográfica da certeza
+          absoluta. */}
+      {!pre && (
+        <BulletinPanel
+          national={national}
+          rows={por_uf}
+          pctApuradoTotal={pct_apurado_total}
+          ufsApuradas={ufs_apuradas}
+          ts={ts}
+          turno={turno}
+        />
+      )}
 
       {/* Seção 7 — placar por estado. NÃO existe no protótipo; é acréscimo
           desta implementação, mantido por decisão do usuário. Por isso vem
-          depois de toda a sequência do kit, antes da metodologia. */}
-      <Panel kicker="Placar por estado">
-        <StateGroupedTable
-          rows={por_uf}
-          mode={mode}
-          candidatos={national.candidatos}
-          candidatoAId={national.candidato_a_id}
-          candidatoAName={lider?.nome ?? "Líder A"}
-          candidatoBName={segundo?.nome ?? "Líder B"}
-          corA={lider?.cor ?? "var(--color-cand-1)"}
-          corB={segundo?.cor ?? "var(--color-cand-2)"}
-        />
-      </Panel>
+          depois de toda a sequência do kit, antes da metodologia.
+
+          🔴 RF-154 — agrupa 27 UFs por status de uma apuração que não começou.
+          Quem leva o leitor às páginas de estado em fase pré é o `<UfPicker>`
+          da moldura do mapa, que permanece (RF-157). */}
+      {!pre && (
+        <Panel kicker="Placar por estado">
+          <StateGroupedTable
+            rows={por_uf}
+            mode={mode}
+            candidatos={national.candidatos}
+            candidatoAId={national.candidato_a_id}
+            candidatoAName={lider ? nomeExibicao(lider.nome, lider.sqcand) : "Líder A"}
+            candidatoBName={segundo ? nomeExibicao(segundo.nome, segundo.sqcand) : "Líder B"}
+            corA={lider?.cor ?? "var(--color-cand-1)"}
+            corB={segundo?.cor ?? "var(--color-cand-2)"}
+          />
+        </Panel>
+      )}
 
       <Panel kicker="Metodologia">
         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto]" style={{ gap: "var(--space-8)" }}>
           {/* Agulha — só em binary (2T). Em multi-1t a agulha `national-1t`
               media P(2T), a mesma métrica do `<TwoRoundIndicator />` acima:
               ADR-0018 tirou a duplicata do fluxo. */}
-          {mode === "binary" && (
+          {!pre && mode === "binary" && (
             <NationalNeedle
               national={national}
               variant="national-2t"
               pSegundoTurno={national.p_segundo_turno_overall}
-              liderNome={lider?.nome}
+              liderNome={lider ? nomeExibicao(lider.nome, lider.sqcand) : undefined}
             />
           )}
-          <ForecastTransparency pctApurado={pct_apurado_total} />
+          {/* RF-158 — este é o ÚNICO bloco da tabela de mentiras que NÃO pode
+              sumir: a constituição § 8 exige "O que está movendo o forecast"
+              em toda página com projeção, e princípio constitucional está
+              acima de regra de design desta spec. Fica, e vira prosa no
+              futuro — sem fração, sem barra, sem percentual. É também a única
+              superfície onde a palavra "projeção" é autorizada em fase pré. */}
+          <ForecastTransparency pctApurado={pct_apurado_total} preEleicao={pre} />
         </div>
       </Panel>
 
-      {insights.length > 0 && (
+      {/* `!pre`: os insights são leitura do modelo sobre o que foi contado. O
+          semeador grava `insights: []`, e a guarda protege contra o dia em que
+          ele gravar algo. */}
+      {!pre && insights.length > 0 && (
         <Panel kicker="Leitura do modelo">
           <InsightCard frases={insights} heading="Análise" />
         </Panel>

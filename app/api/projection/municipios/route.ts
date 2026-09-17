@@ -32,6 +32,7 @@ import { NextResponse } from "next/server";
 import { devMunicipiosFixtureFor, readUfDetail } from "@/lib/blob/uf-detail";
 import type { Cargo } from "@/lib/config/calendar";
 import { currentPresidentialRace } from "@/lib/config/calendar";
+import { simulacaoLigada, simulacaoMunicipiosUf } from "@/lib/dev/simulacao";
 
 const UF_REGEX = /^[A-Z]{2}$/;
 const CACHE_HEADERS = {
@@ -59,6 +60,37 @@ export async function GET(req: Request): Promise<Response> {
 
   const { cargo, turno } = resolveCargoETurno(url.searchParams.get("cargo"));
 
+  // 🔴 **Simulação ligada ⇒ a simulação é a fonte de verdade, e a leitura
+  // remota NÃO RODA.** Este bloco vem antes de `readUfDetail` de propósito, e a
+  // ordem é o conserto inteiro do defeito de 2026-09-15.
+  //
+  // O que acontecia: `readUfDetail` rodava primeiro e, com
+  // `BLOB_READ_WRITE_TOKEN` no `.env.local`, falava com o Blob de PRODUÇÃO. Ele
+  // respondia `status: "ok"` com `municipios: []` — o estado normal do store
+  // antes de 04/10 —, a rota retornava ali mesmo, e o caminho da simulação
+  // abaixo era código morto sempre que o Blob respondesse. O dono via o mapa
+  // vazio ao lado de um placar com 25% apurado.
+  //
+  // Não basta ignorar a resposta remota: adiar a LEITURA é o ponto, porque ela
+  // custa rede e, nas páginas irmãs, entra num `Promise.all` que segura a tela.
+  //
+  // Sem arquivo municipal de simulação a resposta é "indisponível", nunca o
+  // Blob e nunca a fixture antiga: mapa mudo é revisável, mapa discordando do
+  // placar ao lado custa horas de caça a um bug de UI que não existe.
+  if (simulacaoLigada()) {
+    const daSimulacao = simulacaoMunicipiosUf(sigla, cargo, turno);
+    if (daSimulacao) {
+      return NextResponse.json(
+        { status: "ok", municipios: daSimulacao.municipios, ts: daSimulacao.ts },
+        { headers: CACHE_HEADERS },
+      );
+    }
+    return NextResponse.json(
+      { status: "unavailable", reason: "not_found", municipios: [] },
+      { headers: CACHE_HEADERS },
+    );
+  }
+
   const result = await readUfDetail(sigla, { cargo, turno });
 
   if (result.status === "ok") {
@@ -70,7 +102,17 @@ export async function GET(req: Request): Promise<Response> {
 
   // Dev fallback — nunca em produção (constituição § 3 aplicada só a
   // dev/preview; ver docstring de `devMunicipiosFixtureFor`).
-  if (process.env.NODE_ENV !== "production") {
+  //
+  // O portão virou `=== "development"` em 2026-09-14, e não é troca cosmética:
+  // a forma negada deixava passar `test`, `preview` e qualquer valor novo de
+  // `NODE_ENV`, e este endpoint tem `Cache-Control` público de 30 s — uma
+  // preview servindo municípios de fixture é um mapa colorido com apuração
+  // inventada, do lado de fora. É o mesmo aperto que as cinco rotas de cargo
+  // receberam em 13/09 e que `isDevWithoutEdgeConfig` recebeu no arquivo irmão:
+  // ambiente seguro passa a ser afirmado, nunca inferido da ausência de um nome.
+  //
+  // A simulação já saiu acima; daqui para baixo é o caminho de sempre.
+  if (process.env.NODE_ENV === "development") {
     const fixture = devMunicipiosFixtureFor(sigla, cargo, turno);
     if (fixture) {
       return NextResponse.json(

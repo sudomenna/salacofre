@@ -134,6 +134,13 @@ import { Footer } from "@/components/layout/Footer";
 import { municipiosFrom, readUfDetail, type UfDetailResult } from "@/lib/blob/uf-detail";
 import { currentPresidentialTurno } from "@/lib/config/calendar";
 import { avaliarFrescorDado } from "@/lib/config/dado-freshness";
+import {
+  resultadoEleitoral,
+  simulacaoLigada,
+  simulacaoMunicipiosUf,
+  simulacaoNacional,
+  simulacaoUfPresidente,
+} from "@/lib/dev/simulacao";
 import { readUfProjection } from "@/lib/edge-config/reader";
 import type {
   EdgePayload,
@@ -141,6 +148,7 @@ import type {
   EdgeUfCandidate,
   EdgeUfMunicipio,
 } from "@/lib/edge-config/types";
+import { primeiroNomeExibicao } from "@/lib/utils/nome-candidato";
 import nationalFixture from "@/tests/fixtures/edge-config/projection-current.json" with {
   type: "json",
 };
@@ -265,13 +273,32 @@ function rankByParcial(candidatos: readonly EdgeUfCandidate[]): EdgeUfCandidate[
 }
 
 /**
- * Sintetiza um `EdgePayloadUf` a partir do fixture nacional, espelhando a
+ * O que `detalheLido` vale quando a leitura remota nem roda (modo simulação).
+ *
+ * `"not_configured"` e não um motivo novo: é literalmente o que o leitor do
+ * Blob devolveria num ambiente sem credencial, e é o texto que a tela já sabe
+ * mostrar. Inventar um motivo aqui obrigaria `<DetailUnavailable>` a aprender
+ * um estado que só existe em desenvolvimento.
+ */
+const SEM_DETALHE_REMOTO: UfDetailResult = {
+  status: "unavailable",
+  reason: "not_configured",
+  url: null,
+};
+
+/**
+ * Sintetiza um `EdgePayloadUf` a partir de um payload nacional, espelhando a
  * lógica de `/api/projection?uf=`. Usado apenas quando o reader retorna
  * null E não há `EDGE_CONFIG` (dev/preview sem credencial). Em produção
  * com Edge Config configurado, esta função nunca é chamada.
+ *
+ * A origem virou PARÂMETRO em 2026-09-15: sob `FIXTURE_VARIANT=sim` a mesma
+ * síntese roda sobre o nacional da simulação. Antes ela lia `nationalFixture`
+ * por dentro, e era o único ponto da rota capaz de ignorar o seletor de fixture
+ * em silêncio — esta tela mostraria a simulação e o mapa ao lado, outra coisa.
+ * Quem escolhe a origem é o chamador; esta função só dá forma.
  */
-function synthesizeUfFromNational(sigla: string): EdgePayloadUf | null {
-  const national = nationalFixture as unknown as EdgePayload;
+function synthesizeUfFromNational(sigla: string, national: EdgePayload): EdgePayloadUf | null {
   const row = national.por_uf.find((u) => u.sigla === sigla);
   if (!row) return null;
   return {
@@ -368,11 +395,33 @@ export default async function UFPage({ params }: UFPageProps) {
   // duas resoluções independentes que podem divergir em silêncio. O calendário
   // responde só pelo turno; o cargo é desta rota, e esta rota é presidencial.
   const turno = currentPresidentialTurno();
-  const [payloadDoStore, detalhe] = await Promise.all([
-    readUfProjection(sigla, { cargo: "pres", turno }),
-    readUfDetail(sigla, { cargo: "pres", turno }),
-  ]);
+
+  // 🔴 **Simulação ligada ⇒ nenhuma das duas leituras remotas roda.** Com
+  // `BLOB_READ_WRITE_TOKEN` no `.env.local`, `readUfDetail` fala com o Blob de
+  // PRODUÇÃO e responde `ok` com `municipios: []` — uma resposta vazia é uma
+  // resposta, e ela ganhava da simulação (defeito de 2026-09-15, visto em
+  // `/api/projection/municipios`). Adiar a leitura, e não só ignorá-la, também
+  // tira do `Promise.all` uma ida à rede que seguraria a tela à toa.
+  const emSimulacao = simulacaoLigada();
+  const [payloadDoStore, detalheLido] = emSimulacao
+    ? [null, SEM_DETALHE_REMOTO]
+    : await Promise.all([
+        readUfProjection(sigla, { cargo: "pres", turno }),
+        readUfDetail(sigla, { cargo: "pres", turno }),
+      ]);
   let payload = payloadDoStore;
+
+  // Detalhe municipal sob `FIXTURE_VARIANT=sim`, e SÓ sob ele: esta rota nunca
+  // teve fallback de dev para o Blob, então com o modo desligado `detalhe` é
+  // literalmente `detalheLido` e nada muda. Ligado, a tabela de municípios e o
+  // coroplético passam a contar a mesma história que o placar acima — e, se o
+  // arquivo municipal da simulação não existir, o bloco segue no estado
+  // "detalhe indisponível" que ele já mostra hoje em `pnpm dev`, em vez de
+  // pescar a fixture municipal de outra apuração.
+  const detalheSim = emSimulacao ? simulacaoMunicipiosUf(sigla, "pres", turno) : null;
+  const detalhe: UfDetailResult = detalheSim
+    ? { status: "ok", detail: detalheSim, url: "simulacao://dev" }
+    : detalheLido;
 
   // Fallback de DESENVOLVIMENTO: quando o reader retorna `null` (chave UF ainda
   // não publicada OR sem EDGE_CONFIG), `pnpm dev` sintetiza a partir do fixture
@@ -387,8 +436,28 @@ export default async function UFPage({ params }: UFPageProps) {
   // cargo usam o MESMO portão (`/`, `/uf/[sigla]`, `/governador`, `/senador`,
   // `/deputado-federal`), que é o que torna a regra auditável de uma vez só em
   // vez de cinco leituras que precisam ser comparadas à mão.
-  if (!payload && process.env.NODE_ENV === "development") {
-    payload = synthesizeUfFromNational(sigla);
+  // 1º) O payload PRESIDENCIAL POR UF da simulação, quando existe. Tem
+  //     prioridade sobre a síntese abaixo, e o motivo é o defeito de
+  //     2026-09-15: `/uf/SP` mostrava o líder com 10.475.955 votos, que é o
+  //     número do BRASIL. O percentual apurado vinha certo (a linha de `por_uf`
+  //     chega), a votação por candidato não — a síntese mapeia os 12 candidatos
+  //     nacionais com os votos do país inteiro, porque a cédula presidencial é
+  //     a mesma nos 27 estados e não há o que filtrar. Ver
+  //     `simulacaoUfPresidente`.
+  if (!payload) payload = simulacaoUfPresidente(sigla);
+
+  // 2º) A síntese a partir do nacional — o comportamento de hoje, e o que
+  //     continua valendo enquanto `presidente-uf.json` não existir. A origem é
+  //     escolhida por `resultadoEleitoral`: simulação quando ligada, a fixture
+  //     de sempre caso contrário, nunca as duas. Com o modo desligado isto é,
+  //     linha a linha, o que a rota já fazia.
+  if (!payload) {
+    const national = await resultadoEleitoral(
+      () => simulacaoNacional("pres"),
+      () =>
+        process.env.NODE_ENV === "development" ? (nationalFixture as unknown as EdgePayload) : null,
+    );
+    if (national) payload = synthesizeUfFromNational(sigla, national);
   }
 
   // Pré-eleição absoluta OR Edge Config vazio. UX gentil (constituição § 3), e
@@ -447,7 +516,10 @@ export default async function UFPage({ params }: UFPageProps) {
   const candidateShortName: Record<number, string> = {};
   for (const c of payload.candidatos) {
     candidateColor[c.id] = c.cor;
-    candidateShortName[c.id] = c.nome.split(" ")[0] ?? c.nome;
+    // Primeiro nome do nome de EXIBIÇÃO. Este mapa alimenta a coluna
+    // "margem" da tabela de municípios e o rótulo curto do mapa; cortar o cru
+    // poria "RONALDO" na tabela e "CAIADO" no painel da mesma página.
+    candidateShortName[c.id] = primeiroNomeExibicao(c.nome, c.sqcand);
   }
 
   // Detalhe do Blob. `municipiosFrom`/`seriesFrom` coalescem para vazio quando
@@ -501,6 +573,12 @@ export default async function UFPage({ params }: UFPageProps) {
           `<h1>` único da página (ADR-0029 § 5), alternando por cascata. O
           `<TurnoBadge>` fica no slot `action`, como os badges de estado da
           home. */}
+      {/* Sem `ufDaFoto`: o default `"BR"` do painel é o CERTO aqui, e isso é
+          uma decisão, não um esquecimento. A corrida presidencial é nacional, e
+          é sob `BR` que as 13 fotos foram gravadas
+          (`candidatos/foto/BR/<sqcand>.jpg`, ADR-0041) — passar `sigla` nesta
+          rota montaria `candidatos/foto/SP/…` e devolveria 404. As rotas de
+          Governador e Senador fazem o oposto, e pelo mesmo motivo. */}
       <ResultPanel
         action={<TurnoBadge turno={payload.turno} />}
         candidatos={rankedCandidatos}

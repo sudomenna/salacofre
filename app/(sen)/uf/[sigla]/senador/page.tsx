@@ -55,8 +55,10 @@ import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { ResultPanel } from "@/components/blocks/ResultPanel";
 import { Footer } from "@/components/layout/Footer";
 import { cargoInfo } from "@/lib/config/cargos";
+import { resultadoEleitoral, simulacaoSenadorUf } from "@/lib/dev/simulacao";
 import { readUfProjection } from "@/lib/edge-config/reader";
 import type { EdgePayloadUf, EdgeUfCandidate } from "@/lib/edge-config/types";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import senUfFixture from "@/tests/fixtures/edge-config/sen-uf.json" with { type: "json" };
 
 /** Ver a nota em `app/(sen)/senador/page.tsx`: o fallback sai da tabela
@@ -197,10 +199,15 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
   }
 
   // ADR-0028 — cargo e turno explícitos. Senador é turno único.
-  let payload = await readUfProjection(sigla, { cargo: "sen", turno: 1 });
-  if (!payload && process.env.NODE_ENV === "development") {
-    payload = fixtureUf(sigla);
-  }
+  //
+  // 🔴 Simulação ligada ⇒ ela é a fonte de verdade e o Global Config nem é
+  // lido. Ver `resultadoEleitoral` em `lib/dev/simulacao.ts`.
+  const payload = await resultadoEleitoral(
+    () => simulacaoSenadorUf(sigla),
+    async () =>
+      (await readUfProjection(sigla, { cargo: "sen", turno: 1 })) ??
+      (process.env.NODE_ENV === "development" ? fixtureUf(sigla) : null),
+  );
 
   if (!payload) {
     // RF-149 — cargo 5 nesta UF.
@@ -249,7 +256,9 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
     .filter((c): c is EdgeUfCandidate & { p_eleito: number } => c.p_eleito != null)
     .map((c) => ({
       id: c.id,
-      nome: c.nome,
+      // `ChancesPanel.eleitos[].nome` é string e vira o rótulo do medidor —
+      // o mesmo nome que o `<ResultPanel>` logo acima imprime na linha.
+      nome: nomeExibicao(c.nome, c.sqcand),
       p: c.p_eleito,
       pctProjetado: c.pct_projetado,
     }));
@@ -262,6 +271,12 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
     >
       {/* Seção 1 — a projeção, no `<ResultPanel>` do kit (ADR-0034), com a
           gramática de duas vagas ligada por `vagas`. */}
+      {/* 🔴 `ufDaFoto` é a UF da CORRIDA. Aqui ela é o estado, porque a
+            corrida é estadual e é sob a sigla dele que o importador gravou as
+            fotos (`candidatos/foto/<UF>/<sqcand>.jpg`, ADR-0041). O default do
+            painel é `"BR"`, que é o certo só para Presidente — deixá-lo valer
+            aqui montaria uma URL sintaticamente válida que devolve 404 no
+            navegador do leitor, sem nenhum erro do lado do servidor. */}
       <ResultPanel
         candidatos={rankeados}
         headingLevel={1}
@@ -270,6 +285,7 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
         pctApurado={payload.pct_apurado}
         title={<ResultTitle sigla={sigla} />}
         titleId="resultado-heading"
+        ufDaFoto={sigla}
         vagas={vagas}
       />
 

@@ -47,15 +47,21 @@
 
 import type { Metadata } from "next";
 
+import { FasePreEleicaoBanner } from "@/components/atoms/banners/FasePreEleicaoBanner";
 import { VoteBar, type VoteBarSegment } from "@/components/atoms/bars/VoteBar";
 import { Figure } from "@/components/atoms/data/Figure";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
+import { UfLinksGrid } from "@/components/blocks/UfLinksGrid";
 import { Footer } from "@/components/layout/Footer";
+import { SeloFasePreStyle } from "@/components/layout/SeloFasePreStyle";
 import { cargoInfo } from "@/lib/config/cargos";
+import { isPreEleicao } from "@/lib/config/fase";
+import { resultadoEleitoral, simulacaoNacional } from "@/lib/dev/simulacao";
 import { readProjection } from "@/lib/edge-config/reader";
 import type { EdgeCandidate, EdgePayload, EdgeUfRow } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import senFixture from "@/tests/fixtures/edge-config/sen-current.json" with { type: "json" };
 
 /** Código TSE do cargo desta rota. A granularidade e as vagas saem da tabela
@@ -96,31 +102,87 @@ export const metadata: Metadata = {
 };
 
 /**
- * Payload vazio gracioso (constituição § 3) — em produção, antes da primeira
- * gravação do orchestrator, a página renderiza a estrutura completa em vez de
- * quebrar ou sumir.
+ * 🔴 **O ramo de espera — o que substituiu o `emptyPayload()` em 2026-09-14.**
+ *
+ * Gêmeo de `AguardandoGovernadores` em `app/(gov)/governador/page.tsx`, e a
+ * justificativa inteira está lá. O resumo: o `emptyPayload()` que ficava aqui
+ * fabricava um `EdgePayload` completo de zeros e a página o renderizava como
+ * resultado — "Todas as unidades federativas estão com a apuração concluída",
+ * em produção, sem aviso. Era a única superfície da spec 019 que regredia de
+ * fato.
+ *
+ * A hierarquia, decidida pelo dono: **número conhecido ⇒ mostre; nada ⇒ diga
+ * que não tem, sem número nenhum; nunca fabrique zeros.** Este ramo é o caso
+ * do meio, e por isso não tem `<Figure>`, nem `<VoteBar>`, nem a composição
+ * das 54 vagas — cada um imprimiria um número que ninguém mediu.
+ *
+ * ⚠️ **Emenda de 2026-09-14.** O bloco de transparência, que este docstring
+ * listava entre os ausentes, **ficou** — em prosa, sem as duas frações. Ver a
+ * justificativa no gêmeo, `AguardandoGovernadores`.
+ *
+ * ⚠️ A faixa entra com `variante="sem_dados"`: este ramo é alcançado tanto por
+ * "a chave ainda não foi gravada" quanto por "a leitura falhou", e a tela não
+ * tem como distinguir. Afirmar "a eleição ainda não começou" aqui seria
+ * transformar uma falha de rede numa afirmação sobre o calendário — a
+ * armadilha do RNF-010 e da open question 3 da spec 019.
  */
-function emptyPayload(): EdgePayload {
-  return {
-    ts: new Date().toISOString(),
-    cargo: 5,
-    turno: 1,
-    pct_apurado_total: 0,
-    ufs_apuradas: 0,
-    national: {
-      candidatos: [],
-      needle_position: 0,
-      needle_band: "tossup",
-      candidato_a_id: null,
-      candidato_b_id: null,
-      p_segundo_turno_overall: null,
-      cenarios_2t: [],
-      chamadas_recentes: [],
-    },
-    por_uf: [],
-    insights: [],
-    composition: { pre_election: 1, model: 0, actual_results: 0 },
-  };
+function AguardandoSenado() {
+  return (
+    <main
+      data-trilha="sen"
+      className="mx-auto flex min-h-screen max-w-page flex-col px-4 py-6 md:px-6 md:py-10"
+      style={{ gap: "var(--space-8)" }}
+    >
+      {/* RF-160 — primeiro filho do `<main>`; teste de ORDEM, não de presença. */}
+      <FasePreEleicaoBanner corrida="o Senado" variante="sem_dados" listaDeEstadosAbaixo />
+
+      {/* RF-159 — `variante="sem_dados"` (emenda de 2026-09-14): o selo fica
+          silencioso. Este ramo é "não recebemos dados", não "a eleição não
+          começou" — a segunda frase é a que a faixa acima já se recusa a
+          dizer, e o selo vive fora do `<main>`, onde os testes de página não
+          a viam. Resta o que vale nos dois casos: apagar o segmentado
+          "Parcial / Projeção" (RF-161). */}
+      <SeloFasePreStyle variante="sem_dados" />
+
+      <Panel
+        kicker="Atlas Menna · não oficial"
+        title="Senado 2026"
+        titleId="senado-heading"
+        headingLevel={1}
+      >
+        <p
+          className="max-w-prose"
+          data-testid="sen-aguardando"
+          style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
+        >
+          Esta página ainda não recebeu dados de apuração do TSE, então não há número nenhum a
+          mostrar aqui — nem percentual, nem contagem de vagas por partido. O que continua valendo é
+          a regra da eleição: <strong>{VAGAS} vagas por estado</strong>, em turno único, com cada
+          eleitor votando em duas candidaturas. Não oficial. Fonte: TSE.
+        </p>
+      </Panel>
+
+      {/* Geografia é identidade e fala; progresso é medição e cala. */}
+      <Panel kicker="Corridas estaduais" title="Estado a estado" titleId="corridas-heading">
+        <UfLinksGrid cargo={CARGO_SENADOR} />
+      </Panel>
+
+      {/* 🔴 Emenda de 2026-09-14 — gêmeo do de `/governador`, e a justificativa
+          está lá: as duas leituras da constituição § 8 ficam satisfeitas ao
+          mesmo tempo, o bloco fica e o número sai.
+
+          ⚠️ Sem `granularidade` e sem `cadenciaMinutos`, ao contrário do ramo
+          com payload logo abaixo: as duas frases que eles produzem estão no
+          PRESENTE ("lemos o boletim agregado por estado", "os números são
+          atualizados a cada N minutos") sobre uma leitura que ainda não
+          aconteceu — e a segunda traria um número de volta. */}
+      <Panel kicker="Metodologia">
+        <ForecastTransparency pctApurado={0} preEleicao variante="sem_dados" variant="national" />
+      </Panel>
+
+      <Footer />
+    </main>
+  );
 }
 
 /**
@@ -155,7 +217,7 @@ function topDaUf(
       // sempre, e deliberadamente NÃO uma volta ao índice nacional —
       // "Candidatura 13" é feio e verdadeiro; o nome do senador de outro
       // estado seria bonito e falso.
-      nome: t.nome ?? `Candidatura ${t.id}`,
+      nome: t.nome ? nomeExibicao(t.nome, t.sqcand) : `Candidatura ${t.id}`,
       partido: t.partido ?? "—",
       cor: c?.cor ?? "var(--color-cand-other)",
     };
@@ -166,11 +228,26 @@ export default async function SenadoPage() {
   // ADR-0028: a leitura declara cargo E turno. Nada é derivado do calendário —
   // e Senador não tem 2º turno (`temSegundoTurno: false`), então `turno: 1`
   // aqui é o único turno que existe, não um default preguiçoso.
-  const payload =
-    (await readProjection({ cargo: "sen", turno: 1 })) ??
-    (process.env.NODE_ENV === "development"
-      ? (senFixture as unknown as EdgePayload)
-      : emptyPayload());
+  //
+  // 🔴 Sem payload **não há fallback estrutural** em produção: a página vai
+  // para o ramo de espera e não mostra número nenhum. O `emptyPayload()` que
+  // ficava aqui fabricava zeros e a tela os publicava como resultado.
+  // 🔴 Simulação ligada ⇒ ela é a fonte de verdade e o Global Config nem é
+  // lido. Ver a nota gêmea em `app/(gov)/governador/page.tsx`: uma resposta
+  // vazia da fonte remota é uma resposta, e ela ganhava da simulação.
+  const payload = await resultadoEleitoral(
+    () => simulacaoNacional("sen"),
+    async () =>
+      (await readProjection({ cargo: "sen", turno: 1 })) ??
+      (process.env.NODE_ENV === "development" ? (senFixture as unknown as EdgePayload) : null),
+  );
+
+  if (!payload) return <AguardandoSenado />;
+
+  // 🔴 RF-153 — o campo `fase` é o único gatilho. Ver a nota gêmea em
+  // `app/(gov)/governador/page.tsx`. Ausência de payload **não** liga a fase
+  // pré: ela leva ao ramo acima, que é o terceiro estado ("não sabemos").
+  const pre = isPreEleicao(payload);
 
   const porId = new Map<number, EdgeCandidate>(payload.national.candidatos.map((c) => [c.id, c]));
   const composicao = payload.composicao_vagas;
@@ -196,12 +273,21 @@ export default async function SenadoPage() {
       className="mx-auto flex min-h-screen max-w-page flex-col px-4 py-6 md:px-6 md:py-10"
       style={{ gap: "var(--space-8)" }}
     >
+      {/* 🔴 RF-160 — PRIMEIRO FILHO do `<main>`. Teste de ORDEM, não de
+          presença. */}
+      {pre ? <FasePreEleicaoBanner corrida="o Senado" /> : null}
+
+      {/* RF-159 — o selo do `<TopBar>`: silêncio por default, e em fase pré as
+          três propriedades que dizem "ainda não começou". */}
+      {pre ? <SeloFasePreStyle /> : null}
+
       {/* Seção 1 — o placar da corrida inteira. O `<h1>` é o título deste
           painel (ADR-0029 § 5), e o parágrafo abaixo dele carrega o rótulo
-          de duas vagas (RF-106). */}
+          de duas vagas (RF-106) — que é REGRA DA ELEIÇÃO, não medição, e por
+          isso fica igual nas duas fases. */}
       <Panel
-        kicker="Projeção Atlas Menna · não oficial"
-        title="Senado 2026"
+        kicker={pre ? "Candidaturas registradas no TSE" : "Projeção Atlas Menna · não oficial"}
+        title={pre ? "Quem está concorrendo em cada estado" : "Senado 2026"}
         titleId="senado-heading"
         headingLevel={1}
       >
@@ -216,29 +302,36 @@ export default async function SenadoPage() {
             primeira e a segunda. Não oficial. Fonte: TSE.
           </p>
 
-          <div className="grid grid-cols-2" style={{ gap: "var(--space-4)" }}>
-            <Figure
-              label="Apurado"
-              note={`${payload.ufs_apuradas} de 27 estados com boletim`}
-              unit="%"
-              value={payload.pct_apurado_total.toLocaleString("pt-BR", {
-                minimumFractionDigits: 1,
-                maximumFractionDigits: 1,
-              })}
-            />
-            {composicao ? (
+          {/* RF-155/RF-161 — a figura "Apurado" é medição pura, e as duas
+              palavras que ela imprime ("Apurado", "boletim") estão na lista
+              negra de vocabulário do RF-161. Em fase pré ela não chega ao DOM:
+              esconder por CSS não serviria, porque a métrica de aceitação é
+              varrida sobre o HTML renderizado. */}
+          {pre ? null : (
+            <div className="grid grid-cols-2" style={{ gap: "var(--space-4)" }}>
               <Figure
-                label="Vagas em disputa"
-                note={
-                  composicao.total_cadeiras
-                    ? `de ${composicao.total_cadeiras} cadeiras do Senado`
-                    : "nesta eleição"
-                }
-                size="lg"
-                value={String(vagasEmDisputa)}
+                label="Apurado"
+                note={`${payload.ufs_apuradas} de 27 estados com boletim`}
+                unit="%"
+                value={payload.pct_apurado_total.toLocaleString("pt-BR", {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })}
               />
-            ) : null}
-          </div>
+              {composicao ? (
+                <Figure
+                  label="Vagas em disputa"
+                  note={
+                    composicao.total_cadeiras
+                      ? `de ${composicao.total_cadeiras} cadeiras do Senado`
+                      : "nesta eleição"
+                  }
+                  size="lg"
+                  value={String(vagasEmDisputa)}
+                />
+              ) : null}
+            </div>
+          )}
         </div>
       </Panel>
 
@@ -248,7 +341,24 @@ export default async function SenadoPage() {
           porque a constituição § 8 exige que o leitor saiba de onde vem o
           número, e a open question 2 da spec nomeia esse risco. */}
       <Panel kicker="Composição" title="As 54 vagas em disputa" titleId="composicao-heading">
-        {composicao ? (
+        {/* RF-158 tem um irmão aqui: o bloco FICA em fase pré, a medição sai.
+            A alternativa — sumir com ele — tiraria do outline um `<h2>` que
+            não fala de apuração nenhuma ("As 54 vagas em disputa" é um fato
+            sobre a eleição, verdadeiro em qualquer dia), e o texto de espera
+            que já existia dizia "quando o primeiro estado tiver boletim
+            apurado", com duas palavras da lista negra do RF-161. */}
+        {pre ? (
+          <p
+            className="max-w-prose"
+            data-testid="composicao-pre-eleicao"
+            style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
+          >
+            Nenhum voto foi contado ainda. São {vagasEmDisputa || 54} vagas em disputa — duas por
+            estado —, de um Senado de 81 cadeiras; as outras 27 são de senadores eleitos em 2022,
+            com mandato até 2031, e não estão em jogo nesta eleição. Quantas cada partido leva
+            aparece aqui quando a votação começar.
+          </p>
+        ) : composicao ? (
           <div className="flex flex-col" style={{ gap: "var(--space-4)" }}>
             {/* Sem `marker`: não existe "maioria" a marcar aqui. Metade destas
                 54 vagas não é metade do Senado — as outras 27 cadeiras não
@@ -332,7 +442,25 @@ export default async function SenadoPage() {
           da 2ª vaga (RF-104): `top_candidatos[1].pct − top_candidatos[2].pct`.
           É lista, não mapa: este cargo não tem dado municipal (ADR-0026). */}
       <Panel kicker="Corridas estaduais" title="Estado a estado" titleId="corridas-heading">
-        {payload.por_uf.length > 0 ? (
+        {/* 🔴 RF-162 — em fase pré esta lista é 27 links e nenhum nome. Cada
+            linha de hoje imprime os dois primeiros colocados de um estado e a
+            margem para a 2ª vaga: nome de candidato e medição, os dois. E os
+            nomes viriam de `top_candidatos`, que num payload semeado com
+            `por_uf: []` nem existe. A asserção do teste é NEGATIVA — nenhum
+            nome de candidatura no documento —, porque a positiva passaria com
+            uma grade de rostos logo abaixo. */}
+        {pre ? (
+          <div className="flex flex-col" style={{ gap: "var(--space-4)" }}>
+            <p
+              className="max-w-prose"
+              style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
+            >
+              São 27 disputas independentes, com candidaturas próprias em cada estado. Abra um
+              estado para ver quem concorre lá.
+            </p>
+            <UfLinksGrid cargo={CARGO_SENADOR} />
+          </div>
+        ) : payload.por_uf.length > 0 ? (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>
             {payload.por_uf.map((uf) => {
               const top = topDaUf(uf, porId);
@@ -394,8 +522,14 @@ export default async function SenadoPage() {
 
       {/* Seção 4 — RF-108 + constituição § 8. */}
       <Panel kicker="Metodologia">
+        {/* RF-158 — o bloco fica em fase pré (constituição § 8), em prosa. As
+            duas frases de granularidade e cadência não entram ali: as duas
+            estão no presente ("lemos o boletim agregado por estado", "os
+            números são atualizados a cada 5 minutos") sobre números que ainda
+            não existem. */}
         <ForecastTransparency
           pctApurado={payload.pct_apurado_total}
+          preEleicao={pre}
           variant="national"
           granularidade={cargoInfo(CARGO_SENADOR).granularidade}
           cadenciaMinutos={CADENCIA_MIN}
