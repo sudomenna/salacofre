@@ -25,8 +25,8 @@
  *
  * Constituição § 8 pede que o leitor saiba de onde vem o número. Aqui: que
  * **não é projeção** (§ D9 é literal — "a tela não pode chamar isso de
- * projeção"), o percentual apurado, o que a faixa de cadeiras mede — e o que
- * ela **não** mede — e a cadência.
+ * projeção"), o percentual apurado **quando ele foi medido** (`temDado`), o
+ * que a faixa de cadeiras mede — e o que ela **não** mede — e a cadência.
  *
  * ⚠️ **2026-09-13.** Este parágrafo afirmava a granularidade de UF sem
  * condição ("lemos o boletim que o TSE publica por estado, e não os de cada
@@ -86,6 +86,12 @@ export interface DeputadoMetodologiaProps {
    * estados, não dois. Sem payload o bloco **cala** sobre granularidade, pela
    * mesma razão que já calava sobre cadência (`cadenciaMinutos = 0`): não
    * inventar o que não se sabe.
+   *
+   * ⚠️ **Emenda de 2026-09-14 — passou a calar também sobre o PERCENTUAL.**
+   * A frase "Com {@link DeputadoMetodologiaProps.pctApurado}% apurado, ela
+   * ainda muda" continuava sendo impressa neste estado, e o `0` que o chamador
+   * passava por falta de coisa melhor virava "Com 0% apurado" na tela — um
+   * número que ninguém mediu, na única frase deste bloco que tem número.
    */
   temDado?: boolean;
   /** `"uf"` só troca o título; o texto é o mesmo, porque o método é o mesmo. */
@@ -117,8 +123,19 @@ export function DeputadoMetodologia({
       >
         Estes números <strong>não são uma projeção</strong>. São a distribuição de cadeiras pelas
         regras do Código Eleitoral aplicada aos votos <strong>já apurados</strong> — a resposta para
-        "como ficaria a bancada se a contagem parasse agora". Com {formatPercent(pctApurado)}{" "}
-        apurado, ela ainda muda.{" "}
+        "como ficaria a bancada se a contagem parasse agora".{" "}
+        {/* 🔴 2026-09-14 — a frase "Com 0% apurado, ela ainda muda" SAIU do
+            estado sem dado. Ela é a única deste bloco que carrega um NÚMERO, e
+            sem payload esse número não foi medido: não sabemos se a apuração
+            está em zero ou se a leitura do Global Config falhou com a contagem
+            em curso. É a mesma classe de zero fabricado que saiu de
+            `/governador`, de `/senador` e do bloco de transparência da home.
+
+            O resto do parágrafo FICA, e a diferença é real: "não são uma
+            projeção" e "votos já apurados" descrevem o MÉTODO desta tela, que
+            é verdadeiro em qualquer dia do calendário; o percentual descrevia
+            um ESTADO, e o estado é o que não medimos. */}
+        {temDado ? <>Com {formatPercent(pctApurado)} apurado, ela ainda muda. </> : null}
         {!temDado ? null : temIntervalo ? (
           <>
             O intervalo ao lado de cada bancada mede o quanto o número balança entre as zonas
