@@ -307,3 +307,37 @@ export function blobUrlFor(pathname: string): string | null {
   const base = blobPublicBaseUrl();
   return base ? `${base}/${pathname}` : null;
 }
+
+/**
+ * URL da foto de UM candidato, ou `null` — **e nunca lança**.
+ *
+ * As três portas para `null` são estado normal, não erro, e é por isso que elas
+ * moram juntas aqui em vez de em cada tela:
+ *
+ *   1. `sqcand` ausente. É o caso **por contrato** no bloco nacional de
+ *      Governador e Senador: ali as 27 corridas dividem o mesmo espaço de `id`
+ *      e uma foto apontaria para a pessoa errada (RF-145).
+ *   2. Ambiente sem Blob configurado — `blobUrlFor` devolve `null` (ADR-0032
+ *      item 3). É o estado de qualquer preview sem credencial, e do harness de
+ *      teste.
+ *   3. Sigla malformada. {@link candidatoFotoBlobPathname} lança nesse caso, e
+ *      aqui isso vira fallback em vez de 500: a moldura da página é obrigação
+ *      da constituição § 7, e uma rota de UF com sigla inválida já é 404 pelo
+ *      roteador — não precisa derrubar o render por causa de um avatar.
+ *
+ * Existe porque a derivação estava COPIADA em `<CandidateCard>` e no
+ * `<ResultPanel>`, e a terceira cópia ia nascer com esta mudança. É o mesmo
+ * motivo do `lib/utils/nome-candidato.ts`: quem deriva por conta própria
+ * diverge em silêncio.
+ */
+export function candidatoFotoUrl(
+  sigla: string,
+  sqCandidato: string | null | undefined,
+): string | null {
+  if (!sqCandidato) return null;
+  try {
+    return blobUrlFor(candidatoFotoBlobPathname(sigla, sqCandidato));
+  } catch {
+    return null;
+  }
+}

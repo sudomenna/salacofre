@@ -230,8 +230,12 @@ describe("UFPage SSR (S07/Fase 2 — ADR-0018 + ADR-0019)", () => {
     );
     const doc = parse(await UFPage({ params: Promise.resolve({ sigla: "SP" }) }));
 
+    // `[data-testid="candidate-result-name"]` e não `span.truncate`: desde
+    // 14/09 a linha com avatar QUEBRA o nome em vez de truncá-lo, então a
+    // classe deixou de identificar a célula — e um seletor que não casa devolve
+    // `[undefined, undefined, …]`, que é uma falha barulhenta só por sorte.
     const nomes = [...doc.querySelectorAll('[data-testid="candidate-result-row"]')].map(
-      (l) => l.querySelector("span.truncate")?.textContent,
+      (l) => l.querySelector('[data-testid="candidate-result-name"]')?.textContent,
     );
     expect(nomes).toEqual(["Primeiro", "Segundo", "Terceiro", "Quarto"]);
 

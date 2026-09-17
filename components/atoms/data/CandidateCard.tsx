@@ -35,7 +35,8 @@
  */
 
 import type { CandidatoIdentidade } from "@/lib/blob/candidatos";
-import { blobUrlFor, candidatoFotoBlobPathname } from "@/lib/blob/paths";
+import { candidatoFotoUrl } from "@/lib/blob/paths";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import { partyChipInk } from "@/lib/utils/party-color";
 import { CandidateAvatar } from "./CandidateAvatar";
 import { PartyTag } from "./PartyTag";
@@ -55,27 +56,37 @@ export interface CandidateCardProps {
 /**
  * URL da foto, ou `null`.
  *
- * Duas portas para `null`, e as duas são estado normal, não erro: a fatia diz
- * que o TSE não publicou foto para este `sqcand` (`foto_ok === false`), ou o
- * ambiente não tem Blob configurado (`blobUrlFor` → `null`, ADR-0032 item 3).
- * `candidatoFotoBlobPathname` lança com sigla malformada — aqui isso vira
- * fallback, não 500: a moldura da página é obrigação da constituição § 7.
+ * Três portas para `null`, todas estado normal e nenhuma erro. Duas moram em
+ * {@link candidatoFotoUrl} (ambiente sem Blob; sigla malformada) desde 14/09,
+ * quando a mesma derivação nasceria pela terceira vez no `<ResultPanel>`.
+ *
+ * A que fica AQUI é a única que este componente sabe: `foto_ok === false` — a
+ * fatia diz que o TSE não publicou foto para este `sqcand`. O campo só existe
+ * em `CandidatoIdentidade`; o payload de apuração não o carrega, e é por isso
+ * que a checagem não pôde descer junto.
  */
 function fotoUrlDe(candidato: CandidatoIdentidade, uf: string): string | null {
   if (!candidato.foto_ok) return null;
-  try {
-    return blobUrlFor(candidatoFotoBlobPathname(uf, candidato.sqcand));
-  } catch {
-    return null;
-  }
+  return candidatoFotoUrl(uf, candidato.sqcand);
 }
 
 export function CandidateCard({ candidato, uf, eager = false }: CandidateCardProps) {
   const { background, ink } = partyChipInk(candidato.partido);
   const fotoUrl = fotoUrlDe(candidato, uf);
 
+  // O nome de exibição (`lib/utils/nome-candidato.ts`) — o MESMO texto do card,
+  // da linha do placar e do balão do mapa. É o ponto de o helper existir.
+  const nome = nomeExibicao(candidato.nome_urna, candidato.sqcand);
+
   // Montado do dado, nunca escrito à mão — design 018 § D8.
-  const nomeAcessivel = `${candidato.nome_urna}, ${candidato.partido}, número ${candidato.numero}`;
+  //
+  // Sobre o nome de EXIBIÇÃO, e não sobre o cru: este `aria-label` SUBSTITUI o
+  // conteúdo do `<article>` para quem usa leitor de tela, então o cru faria a
+  // mesma pessoa ser anunciada com um nome e vista com outro, sem nada ligando
+  // os dois. (Onde o rótulo curto é uma TRUNCAGEM — a pílula do `<Strongholds>`
+  // — a decisão é a inversa, e está comentada lá: ali o canal só para leitor de
+  // tela existe justamente para expandir.)
+  const nomeAcessivel = `${nome}, ${candidato.partido}, número ${candidato.numero}`;
 
   return (
     <article
@@ -85,14 +96,14 @@ export function CandidateCard({ candidato, uf, eager = false }: CandidateCardPro
       className="flex flex-col"
       style={{ gap: "var(--space-2)" }}
     >
-      <CandidateAvatar nome={candidato.nome_urna} fotoUrl={fotoUrl} eager={eager} />
+      <CandidateAvatar nome={nome} fotoUrl={fotoUrl} eager={eager} />
 
       <div className="flex min-w-0 flex-col" style={{ gap: "var(--space-1)" }}>
         <strong
           data-testid="candidate-card-nome"
           style={{ font: "var(--type-body-sm)", fontWeight: 600, textWrap: "pretty" }}
         >
-          {candidato.nome_urna}
+          {nome}
         </strong>
 
         <div className="flex flex-wrap items-center" style={{ gap: "var(--space-2)" }}>

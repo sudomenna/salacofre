@@ -41,9 +41,11 @@
  */
 
 import type { CSSProperties } from "react";
+import { CandidateAvatar } from "@/components/atoms/data/CandidateAvatar";
 import { PartyTag } from "@/components/atoms/data/PartyTag";
 import type { EdgeCandidate } from "@/lib/edge-config/types";
 import { formatPercent, formatVotes, formatVotesCompact } from "@/lib/utils/format";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 export interface CandidateResultRowProps {
   /** Posição exibida à esquerda. Normalmente `candidato.rank`. */
@@ -87,7 +89,72 @@ export interface CandidateResultRowProps {
    * como texto (PSOL 2,08 · PSB 2,20 · Outros 2,39 · NOVO 2,72) vira tinta.
    */
   variant?: "densa" | "kit";
+  /**
+   * Miniavatar à esquerda do nome. **Ausente (default) = a linha de antes**,
+   * sem caixa de foto — é o que `<CandidateRanking>` e `<MinorCandidatesList>`
+   * continuam recebendo.
+   *
+   * Presente = a linha TEM a caixa do avatar, e `fotoUrl: null` a preenche com
+   * as iniciais em vez da foto. Um objeto, e não um par de booleanos, porque
+   * "a linha tem avatar" e "esta pessoa tem foto" são perguntas diferentes: a
+   * primeira é da LISTA (se variasse por linha, os nomes desalinhariam entre si)
+   * e a segunda é do candidato. Ver {@link candidatoFotoUrl} para as três
+   * portas de `null`, todas normais.
+   *
+   * 🔴 **Vale em TODA densidade desde 14/09**, `compact` inclusive. Antes a
+   * linha compacta era excluída para não crescer; o dono viu a tela, pediu foto
+   * em todas e aceitou o custo de altura. Ver {@link AVATAR_LINHA_PX}.
+   */
+  avatar?: { fotoUrl: string | null; eager?: boolean };
 }
+
+/**
+ * Diâmetro do miniavatar da linha de resultado, em px.
+ *
+ * **26, medido no navegador em 2026-09-14, não escolhido por gosto** — e é o
+ * mesmo número da linha de identidade da fase pré
+ * (`<CandidaturaIdentidadeRow>`), por coincidência de medida, não por cópia. Na
+ * home, coluna de 400px (`--container-sidebar`, ADR-0033 § 1), a primeira faixa
+ * do grid mede **38,05px** na linha normal (o empilhado nome + "N votos"), e o
+ * avatar tem de caber nela sem esticá-la.
+ *
+ * O avatar entra DENTRO da célula do nome — e não como coluna própria do grid —
+ * para que o afastamento até o nome seja `--space-2` (8px) em vez do
+ * `--space-3` (12px) do `columnGap`. Numa célula de 171px, esses 4px são 4px de
+ * nome.
+ *
+ * ## 🔴 A linha `compact` TAMBÉM recebe avatar — e o que isso custa
+ *
+ * Até 14/09 ela não recebia, e a razão registrada aqui era boa: na compacta o
+ * problema não é altura, é LARGURA. O avatar cabe na altura (a 1ª faixa do grid
+ * da linha compacta mede **26px exatos** — 55px de linha menos 16 de `padding`,
+ * 1 de filete, 8 de `rowGap` e 4 de barra —, então os 26px do avatar não
+ * esticam nada por si). O que estoura é a horizontal: `diâmetro + afastamento`
+ * come 34px dos 171,2px da célula, e o `flex-wrap` empurra o selo do partido
+ * para uma segunda linha. **55px viram 77,6px.**
+ *
+ * O dono viu a tela, pediu foto em todas as linhas e **aceitou esse custo**. O
+ * comentário fica porque a medida continua verdadeira; o que mudou foi a
+ * decisão sobre ela, não o número.
+ *
+ * ## 🔴 A regra de prioridade quando o nome não cabe: a linha cresce
+ *
+ * Este é o ponto que a versão anterior errava por omissão. A saída "truncar em
+ * vez de crescer" foi medida ("WILSON GRASSI" ao lado do selo "DEMOCRATA"
+ * ficaria com 38,7px — "WILS…") e é **pior que a linha alta**: a foto foi posta
+ * na linha para tornar a pessoa identificável, e um nome cortado desfaz
+ * exatamente isso. Por isso a truncagem sai onde há avatar (ver o `<span>` do
+ * nome, mais abaixo) e o nome passa a quebrar.
+ *
+ * A troca é de graça nas três últimas linhas da home: ali o selo do partido já
+ * desce para a segunda linha HOJE, sem avatar nenhum — o custo de altura já
+ * estava pago antes de existir foto.
+ *
+ * A guarda de densidade sai, mas a de LISTA fica: sem `avatar`, nenhuma caixa é
+ * desenhada, e é isso que mantém `<CandidateRanking>` e `<MinorCandidatesList>`
+ * exatamente como estavam.
+ */
+const AVATAR_LINHA_PX = 26;
 
 const KICKER: CSSProperties = {
   font: "var(--type-kicker)",
@@ -119,6 +186,7 @@ export function CandidateResultRow({
   votos,
   compact = false,
   variant = "densa",
+  avatar,
 }: CandidateResultRowProps) {
   const atual = clampPct(pctAtual);
   const projetado = clampPct(pctProjetado);
@@ -152,8 +220,31 @@ export function CandidateResultRow({
         {rank}
       </span>
 
-      <div className="min-w-0">
-        {/* `flex-wrap` (2026-09-09): a sigla é `flex-none` e come largura fixa
+      {/* O avatar é irmão do EMPILHADO nome+votos, não do nome: centrado contra
+          a pilha inteira, ele fica na altura ótica da linha nas duas densidades.
+          `flex-none` no átomo garante que ele não ceda largura quando o nome é
+          longo — quem trunca é o nome, nunca a foto. */}
+      <div className="flex min-w-0 items-center" style={{ gap: "var(--space-2)" }}>
+        {avatar ? (
+          <CandidateAvatar
+            nome={nome}
+            fotoUrl={avatar.fotoUrl}
+            eager={avatar.eager}
+            rounded
+            responsive={false}
+            width={AVATAR_LINHA_PX}
+            height={AVATAR_LINHA_PX}
+            /* Foto retrato 161×225 com o rosto no terço superior: centralizado,
+               o círculo cortaria a testa.
+               🔴 A palavra-chave `top`, NUNCA uma porcentagem — a varredura de
+               vocabulário do RF-161 roda sobre o HTML renderizado e não
+               distingue um `18%` dentro de um `style` de um percentual na tela.
+               Ela já reprovou a linha de identidade por isso em 14/09. */
+            style={{ objectPosition: "center top" }}
+          />
+        ) : null}
+        <div className="min-w-0 flex-1">
+          {/* `flex-wrap` (2026-09-09): a sigla é `flex-none` e come largura fixa
             do nome. Na coluna de 400px do `<AppShellSplit>` (ADR-0033 § 1) o
             nome recebe ~166px, e uma sigla longa — REPUBLICANOS, PODEMOS,
             SOLIDARIEDADE, todas reais em 2026 — não deixava nem isso: medido
@@ -164,31 +255,52 @@ export function CandidateResultRow({
             não cabem juntas; enquanto couberem, a linha é idêntica à de antes
             — a home, onde as siglas são curtas, não muda em nenhuma linha. É
             um alívio condicional, não um layout novo. */}
-        <div className="flex min-w-0 flex-wrap items-center" style={{ gap: "var(--space-2)" }}>
-          <span
-            className="truncate"
-            style={{
-              font: compact ? "var(--type-body-sm)" : "var(--type-body)",
-              fontWeight: 500,
-            }}
-          >
-            {nome}
-          </span>
-          {kit ? (
-            <span className="flex-none">
-              <PartyTag color={cor} sigla={partido} size="sm" />
+          <div className="flex min-w-0 flex-wrap items-center" style={{ gap: "var(--space-2)" }}>
+            {/* 🔴 Com avatar, o nome QUEBRA; sem avatar, ele trunca como sempre.
+                Não é gosto: a foto está ali para identificar a pessoa, e
+                "WILS…" ao lado do rosto dela é a única combinação que piora as
+                duas coisas ao mesmo tempo. Entre linha mais alta e nome
+                ilegível, o dono escolheu a linha mais alta em 14/09.
+                A truncagem NÃO é removida das listas sem avatar
+                (`<CandidateRanking>`, `<MinorCandidatesList>`): lá ninguém pediu
+                altura variável, e mexer nelas seria mudança fora do pedido.
+                `minWidth: 0` porque, sem `overflow: hidden`, o `min-width: auto`
+                do item flex passa a valer a MAIOR palavra e voltaria a empurrar
+                a célula; `break-word` é o último recurso para um token único
+                maior que a coluna — quebrar no meio da palavra ainda mostra o
+                nome inteiro, e reticências não. */}
+            <span
+              // Testid próprio porque a diferença que importa aqui é de
+              // CLASSE, não de texto: o nome inteiro está no DOM nos dois
+              // casos, e é o `truncate` que decide se o leitor o vê. Sem um
+              // seletor estável, o teste dessa distinção cairia num caminho de
+              // classes utilitárias e passaria a medir o layout por acidente.
+              data-testid="candidate-result-name"
+              className={avatar ? "min-w-0" : "truncate"}
+              style={{
+                font: compact ? "var(--type-body-sm)" : "var(--type-body)",
+                fontWeight: 500,
+                ...(avatar ? { minWidth: 0, overflowWrap: "break-word" as const } : null),
+              }}
+            >
+              {nome}
             </span>
-          ) : (
-            <span className="flex-none" style={{ ...KICKER, color: "var(--text-secondary)" }}>
-              {partido}
-            </span>
-          )}
-        </div>
-        {votos != null && !compact ? (
-          <div style={{ font: "var(--type-data)", color: "var(--text-muted)", marginTop: 2 }}>
-            {kit ? formatVotes(votos) : formatVotesCompact(votos)} votos
+            {kit ? (
+              <span className="flex-none">
+                <PartyTag color={cor} sigla={partido} size="sm" />
+              </span>
+            ) : (
+              <span className="flex-none" style={{ ...KICKER, color: "var(--text-secondary)" }}>
+                {partido}
+              </span>
+            )}
           </div>
-        ) : null}
+          {votos != null && !compact ? (
+            <div style={{ font: "var(--type-data)", color: "var(--text-muted)", marginTop: 2 }}>
+              {kit ? formatVotes(votos) : formatVotesCompact(votos)} votos
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {/* Parcial. `data-view-cell` é lido pela cascata do shell — o número
@@ -272,7 +384,18 @@ export function CandidateResultRow({
 export type CandidateResultRowSource = Pick<
   EdgeCandidate,
   "nome" | "partido" | "cor" | "pct_atual" | "pct_projetado" | "votos_atuais"
-> & { rank?: number };
+> & {
+  rank?: number;
+  /**
+   * `SQ_CANDIDATO`. Entrou no `Pick` em 14/09 por UM motivo: é o que
+   * {@link nomeExibicao} precisa para aplicar a decisão editorial do dono.
+   * Opcional porque só o cargo 1 o carrega no bloco nacional (RF-145); sem ele
+   * a regra objetiva de prefixo ainda roda. **Não** endereça a foto por aqui —
+   * a foto entra pela prop `avatar`, que quem monta a lista resolve, porque só
+   * a página sabe de que UF a corrida é.
+   */
+  sqcand?: string;
+};
 
 /**
  * Adaptador para o shape do payload — evita repetir o mesmo mapeamento em
@@ -291,7 +414,11 @@ export function candidateResultRowProps(
 ): CandidateResultRowProps {
   return {
     rank: candidato.rank ?? fallbackRank,
-    nome: candidato.nome,
+    // 🔴 Ponto de estrangulamento do nome: as três listas de resultado do
+    // produto passam por aqui. Converter neste ponto é o que garante que a
+    // home, o ranking e a lista de menores digam o MESMO nome — foi a cor que
+    // divergiu entre telas em 12/09 por não ter um ponto assim.
+    nome: nomeExibicao(candidato.nome, candidato.sqcand),
     partido: candidato.partido,
     cor: candidato.cor,
     pctAtual: candidato.pct_atual,

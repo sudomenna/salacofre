@@ -60,18 +60,23 @@
 import type { ReactNode } from "react";
 
 import { VoteBar, type VoteBarSegment } from "@/components/atoms/bars/VoteBar";
+import { CandidateAvatar } from "@/components/atoms/data/CandidateAvatar";
 import { Figure } from "@/components/atoms/data/Figure";
+import { PartyTag } from "@/components/atoms/data/PartyTag";
 import { Panel, type PanelRule } from "@/components/atoms/surfaces/Panel";
 import {
   CandidateResultRow,
   candidateResultRowProps,
 } from "@/components/atoms/tables/CandidateResultRow";
+import { candidateColor } from "@/components/blocks/_candidateColor";
 import {
   CandidateListCollapse,
   resultPanelExtraRowClass,
 } from "@/components/blocks/CandidateListCollapse";
+import { candidatoFotoUrl } from "@/lib/blob/paths";
 import type { EdgeCandidate } from "@/lib/edge-config/types";
 import { formatPp, formatVotesCompact } from "@/lib/utils/format";
+import { nomeExibicao, primeiroNomeExibicao } from "@/lib/utils/nome-candidato";
 
 /**
  * O que o painel lê de um candidato — o subconjunto comum a `EdgeCandidate`
@@ -91,7 +96,17 @@ import { formatPp, formatVotesCompact } from "@/lib/utils/format";
 export type ResultPanelCandidate = Pick<
   EdgeCandidate,
   "id" | "nome" | "partido" | "cor" | "votos_atuais" | "pct_atual" | "pct_projetado"
-> & { rank?: number };
+> & {
+  rank?: number;
+  /**
+   * Chave de identidade da candidatura (ADR-0042). Só endereça a **foto**, via
+   * `blobUrlFor(candidatoFotoBlobPathname(uf, sqcand))` (ADR-0041) — a URL não
+   * viaja no payload, é derivada. Opcional porque só o cargo 1 a carrega: nos
+   * cargos 3 e 5 o bloco nacional é a união de 27 corridas sob o mesmo espaço
+   * de `id`, e um `sqcand` ali apontaria para a foto de outra pessoa (RF-145).
+   */
+  sqcand?: string;
+};
 
 export interface ResultPanelProps {
   /**
@@ -137,6 +152,62 @@ export interface ResultPanelProps {
   vagas?: number;
   /** Quantas linhas ficam visíveis antes do colapso. O kit usa 6. */
   limit?: number;
+  /**
+   * **RF-155 (spec 019)** — o que este painel está exibindo.
+   *
+   * - `"medicao"` (default) — o painel de sempre, sem uma linha de diferença:
+   *   figuras "Apurado" e "Margem", barra de maioria com marcador em 50%, e
+   *   linhas com posição, percentual parcial, percentual projetado e barra.
+   * - `"identidade"` — **fase pré-eleição**. Fica o que identifica (nome,
+   *   partido, cor); sai tudo que mede.
+   *
+   * ## Por que uma `variant` e não três booleanos
+   *
+   * O design 019 § D4 pesou as duas formas. Três props (`poles`, `margem`,
+   * `rank`) dariam oito combinações, sete das quais ninguém testou e nenhuma
+   * das quais tem consumidor previsto. Uma `variant` é **uma decisão, um nome
+   * e um caminho testável**, e a semântica fica legível no ponto de uso:
+   * `variant="identidade"` diz o que a tela está fazendo; `poles={false}
+   * margem={false} rank={false}` diz o que ela não está.
+   *
+   * `poles` continua existindo e continua sendo a prop de quem tem duas vagas
+   * (spec 016) — em `identidade` ela é **derivada**, não somada: a barra sai de
+   * qualquer jeito.
+   *
+   * ## O que sai, e por quê, item a item
+   *
+   * - **`<VoteBar>`** — a barra 100% cinza "Outros" com o marcador de 50% é a
+   *   figura mais eloquente da tabela de mentiras da spec: ela desenha uma
+   *   corrida em que ninguém pontuou, com a linha da maioria absoluta traçada
+   *   por cima.
+   * - **a figura "Margem"** — `"+0,0 pp"` é um número medido sobre nada.
+   * - **a figura "Apurado"** — `0,0%` com a nota "0 de 0 votos válidos", e a
+   *   palavra "apurado" é da lista negra do RF-161.
+   * - **a posição ordinal** — o `rank` é derivado de `pct_projetado`; com todo
+   *   mundo em zero ele ordena pelo **desempate**, e produz um falso
+   *   favoritismo estável entre recarregamentos (constituição § 2). É por isso
+   *   também que quem chama passa a lista ordenada por número na urna
+   *   (RF-161).
+   * - **os dois percentuais e os votos de cada linha** — `0,0% parcial` e
+   *   `0,0% proj.` ao lado de um nome são medição, e medição é o que esta
+   *   fase não tem. A spec não os enumera porque enumera a figura e a barra;
+   *   o critério que os alcança é o mesmo e é o do § D0: **mede, cala.**
+   */
+  variant?: "medicao" | "identidade";
+  /**
+   * Sigla da UF que endereça a **foto** das candidaturas (ADR-0041:
+   * `candidatos/foto/<UF>/<sqcand>.jpg`).
+   *
+   * 🔴 É a UF da CORRIDA, não a da página. `"BR"` para Presidente — inclusive
+   * em `/uf/SP`, porque a corrida presidencial é nacional e é sob `BR` que o
+   * importador gravou as 13 fotos. Para Governador e Senador é a sigla do
+   * estado. Errar isto não quebra nada visivelmente no servidor: monta uma URL
+   * que existe sintaticamente e devolve 404 no navegador do leitor.
+   *
+   * Vale nas DUAS variantes desde 14/09 — o `variant="medicao"` passou a
+   * exibir os mesmos miniavatares (era "ignorada fora do modo identidade").
+   */
+  ufDaFoto?: string;
 
   // --- repassados ao `<Panel>` ---
   kicker?: string;
@@ -147,10 +218,25 @@ export interface ResultPanelProps {
   action?: ReactNode;
 }
 
-/** "Candidato PT" → "Candidato". O kit rotula os segmentos pelo primeiro nome. */
-function primeiroNome(nome: string): string {
-  return nome.trim().split(/\s+/)[0] ?? nome;
-}
+/**
+ * Quantas fotos da lista saem com `loading="eager"`.
+ *
+ * Três — as do pódio. São as únicas que estão acima da dobra em todos os
+ * tamanhos medidos; a 4ª já depende da altura da janela, e da 7ª em diante as
+ * linhas estão dentro do `<CandidateListCollapse>`, fechado por CSS. Nenhuma
+ * recebe `priority`/`fetchpriority="high"`: dar preload a um JPEG de ~4 KB
+ * compete com o LCP real da página em vez de ajudá-lo (ver o bloco 4 no topo de
+ * `<CandidateAvatar>`).
+ *
+ * 🔴 **O corte continua em 3 depois de 14/09, quando a linha compacta passou a
+ * ter foto** — e é aí que ele deixa de ser detalhe. A home saiu de 5 fotos para
+ * 12: se o corte acompanhasse a lista, seriam 12 requisições concorrendo com o
+ * LCP no primeiro paint em vez de 3. O número é ditado pela DOBRA, não pelo
+ * tamanho da lista; as 9 restantes chegam quando o leitor rola, e as 6 últimas
+ * só depois de abrir o colapso — o navegador não baixa foto de linha que o CSS
+ * mantém fechada.
+ */
+const AVATARES_EAGER = 3;
 
 /**
  * Número com uma casa decimal em pt-BR, **sem** o `%` — a `<Figure>` recebe a
@@ -177,12 +263,26 @@ function segmentos(
   // O `id` é a identidade do segmento. O rótulo é o primeiro nome e pode
   // repetir entre dois candidatos — a fixture já expõe isso ("Candidato PT" e
   // "Candidato PL" viram os dois "Candidato").
+  //
+  // O corte é sobre o nome de EXIBIÇÃO, não sobre o cru: cortar o cru poria
+  // "RONALDO" no rótulo da barra e "CAIADO" na linha logo abaixo, e caberia ao
+  // leitor deduzir que são a mesma pessoa.
   return [
-    { id: lider.id, label: primeiroNome(lider.nome), pct: a, color: lider.cor },
+    {
+      id: lider.id,
+      label: primeiroNomeExibicao(lider.nome, lider.sqcand),
+      pct: a,
+      color: lider.cor,
+    },
     // Sem `color`: o `<VoteBar>` cai em `--party-outros`, que é exatamente o
     // token que o kit usa aqui (`App.jsx:26`).
     { id: "outros", label: "Outros", pct: Math.max(0, 100 - a - b) },
-    { id: segundo.id, label: primeiroNome(segundo.nome), pct: b, color: segundo.cor },
+    {
+      id: segundo.id,
+      label: primeiroNomeExibicao(segundo.nome, segundo.sqcand),
+      pct: b,
+      color: segundo.cor,
+    },
   ];
 }
 
@@ -219,6 +319,121 @@ function VagaBadge() {
   );
 }
 
+/**
+ * Uma candidatura, e nada além dela: nome, sigla e cor (RF-155).
+ *
+ * Não é `<CandidateResultRow>` com props desligadas — aquela linha é uma grade
+ * de quatro colunas construída em torno dos dois percentuais, e "desligar" as
+ * colunas de número deixaria a grade, o `rank`, a barra e os rótulos
+ * "parcial"/"proj." atrás de `if`s espalhados. Uma linha própria é menos código
+ * e não deixa caminho por onde um percentual volte.
+ *
+ * Sem posição ordinal por decisão da spec, e **sem o número na urna** por
+ * decisão desta implementação: ele aparece, com a foto, na grade de
+ * candidaturas logo abaixo (`<CandidaturasAguardando>`), que é onde ele tem
+ * contexto. Um algarismo solto à esquerda de cada nome, nesta lista, seria lido
+ * como colocação — que é exatamente o que o RF-155 manda não haver.
+ */
+/**
+ * Diâmetro do avatar da linha de identidade, em px.
+ *
+ * **26, e o número é medido, não escolhido por gosto.** A linha é
+ * `box-sizing: border-box` com `min-height: var(--tap-min)` (44px), `padding`
+ * de 8px em cima e embaixo e 1px de filete: sobram **27px** de caixa de
+ * conteúdo dentro da altura que a linha já tinha. Um avatar de 28px empurra a
+ * linha para 45px — medido no navegador em 14/09 —, e alargar a linha é
+ * exatamente o que o pedido proibia. 26 cabe com 1px de folga para
+ * arredondamento de fonte e zoom.
+ *
+ * Se o `--tap-min` ou o `padding` da linha mudarem, este número muda junto:
+ * `AVATAR ≤ --tap-min − 2×padding − filete`.
+ */
+const AVATAR_LINHA_PX = 26;
+
+function CandidaturaIdentidadeRow({
+  candidato,
+  ufDaFoto,
+}: {
+  candidato: ResultPanelCandidate;
+  ufDaFoto: string;
+}) {
+  /*
+   * A foto NÃO viaja no payload: é derivada de `sqcand` (ADR-0041/0042). Sem
+   * `sqcand` — cargos 3 e 5, ou fixture antiga — ou sem Blob configurado,
+   * `candidatoFotoUrl` devolve `null` e o `<CandidateAvatar>` cai nas iniciais,
+   * com a MESMA caixa. É isso que mantém a linha do mesmo tamanho com e sem
+   * foto.
+   */
+  const fotoUrl = candidatoFotoUrl(ufDaFoto, candidato.sqcand);
+  // O nome que a tela mostra, e o mesmo que alimenta as iniciais do fallback:
+  // com o cru, "VETERINÁRIO WILSON GRASSI" daria a bolinha "VG" ao lado do
+  // texto "WILSON GRASSI".
+  const nome = nomeExibicao(candidato.nome, candidato.sqcand);
+  return (
+    <div
+      className="flex min-w-0 flex-wrap items-center"
+      data-testid="candidatura-identidade-row"
+      style={{
+        gap: "var(--space-2)",
+        minHeight: "var(--tap-min)",
+        padding: "var(--space-2) 0",
+        borderBottom: "1px solid var(--border-hairline)",
+      }}
+    >
+      {/*
+        28px dentro de uma linha cuja altura mínima é `--tap-min` (44px): o
+        avatar cabe na altura que a linha JÁ tinha, então ele não alarga nada.
+        `responsive={false}` fixa a caixa em px — o modo fluido do átomo tira a
+        altura da proporção 161×225 do TSE e esticaria a linha para 39px.
+        `objectPosition: center top` puxa o corte para cima porque a foto é
+        retrato (161×225) e o rosto fica no terço superior; centralizado, o
+        círculo cortaria a testa.
+
+        🔴 A palavra-chave `top`, e NUNCA uma porcentagem: um `18%` aqui vira
+        um `%` no atributo `style` do HTML, e a varredura do RF-161 — que
+        procura percentual fabricado sobre o HTML renderizado — não distingue
+        um número na tela de um dentro de um estilo. Ela reprovou este
+        componente em 14/09, e estava certa em reprovar: quem tem de mudar é o
+        valor cosmético, não a guarda.
+      */}
+      <CandidateAvatar
+        nome={nome}
+        fotoUrl={fotoUrl}
+        rounded
+        responsive={false}
+        width={AVATAR_LINHA_PX}
+        height={AVATAR_LINHA_PX}
+        style={{ objectPosition: "center top" }}
+      />
+      <span className="min-w-0 truncate" style={{ font: "var(--type-body)", fontWeight: 500 }}>
+        {nome}
+      </span>
+      <span className="flex-none">
+        {/* 🔴 `candidateColor(sigla, rank)` e NÃO `candidato.cor`.
+            O semeador grava `cor: colorForRank(0)` — cinza neutro — em TODA
+            candidatura, de propósito: o campo do payload carrega a tinta do
+            LÍDER, e em fase pré-eleição não há líder. Lê-lo direto aqui
+            pintaria os 12 chips de partido do mesmo cinza, e a cor é uma das
+            quatro coisas que o dono pediu no placar zerado (nome, foto,
+            partido, cor).
+            `candidateColor` resolve pela SIGLA quando o partido está na paleta
+            editorial do ADR-0024, e só cai em `colorForRank` quando não está —
+            com `rank` 0 para todos, nenhuma tinta sugere colocação. */}
+        <PartyTag
+          // `rank` é opcional em `ResultPanelCandidate`; `0` é o valor
+          // correto do ausente aqui — significa "sem rank", que é o que a
+          // fase pré é, e é o mesmo valor que o semeador grava. Não é um
+          // `?? 0` de conveniência: com partido mapeado a cor vem da sigla e
+          // o rank nem é consultado.
+          color={candidateColor(candidato.partido, candidato.rank ?? 0)}
+          sigla={candidato.partido}
+          size="sm"
+        />
+      </span>
+    </div>
+  );
+}
+
 export function ResultPanel({
   candidatos,
   pctApurado,
@@ -226,6 +441,8 @@ export function ResultPanel({
   vagas = 1,
   poles,
   limit = 6,
+  variant = "medicao",
+  ufDaFoto = "BR",
   kicker,
   title,
   titleId,
@@ -233,6 +450,7 @@ export function ResultPanel({
   rule = "double",
   action,
 }: ResultPanelProps) {
+  const identidade = variant === "identidade";
   // `vagas` chega do payload; um valor absurdo não pode marcar a lista
   // inteira nem quebrar o índice do corte.
   const nVagas = Number.isFinite(vagas)
@@ -240,7 +458,10 @@ export function ResultPanel({
     : 1;
   const multiVaga = nVagas > 1;
   // A barra de maioria é a leitura de uma corrida de vaga única. Ver `poles`.
-  const mostrarPoles = poles ?? !multiVaga;
+  // Em `identidade` ela sai independentemente do que o chamador passar: a
+  // fase é mais forte que a contagem de vagas, e `poles={true}` ali seria uma
+  // contradição, não uma configuração.
+  const mostrarPoles = identidade ? false : (poles ?? !multiVaga);
 
   const lider = candidatos[0];
   const segundo = candidatos[1];
@@ -278,25 +499,51 @@ export function ResultPanel({
         // <líder>" num painel de duas vagas seria lido como a distância do
         // 1º para o 2º, que é justamente a que não importa.
         `Margem para a ${nVagas}ª vaga`
-      : `Margem ${primeiroNome(dentro.nome)}`;
+      : `Margem ${primeiroNomeExibicao(dentro.nome, dentro.sqcand)}`;
 
   const excedentes = Math.max(0, candidatos.length - limit);
 
-  const linhas = candidatos.map((c, i) => {
-    const props = candidateResultRowProps(c, i + 1, i >= 2 && c.pct_atual < 3);
-    const ocupaVaga = multiVaga && i < nVagas;
-    return (
-      <li
-        className={i >= limit ? resultPanelExtraRowClass : undefined}
-        data-extra-row={i >= limit ? "true" : undefined}
-        data-vaga={ocupaVaga ? "true" : undefined}
-        key={c.id}
-      >
-        {ocupaVaga ? <VagaBadge /> : null}
-        <CandidateResultRow {...props} variant="kit" />
-      </li>
-    );
-  });
+  const linhas = identidade
+    ? candidatos.map((c) => (
+        <li key={c.id}>
+          <CandidaturaIdentidadeRow candidato={c} ufDaFoto={ufDaFoto} />
+        </li>
+      ))
+    : candidatos.map((c, i) => {
+        const props = candidateResultRowProps(c, i + 1, i >= 2 && c.pct_atual < 3);
+        const ocupaVaga = multiVaga && i < nVagas;
+        return (
+          <li
+            className={i >= limit ? resultPanelExtraRowClass : undefined}
+            data-extra-row={i >= limit ? "true" : undefined}
+            data-vaga={ocupaVaga ? "true" : undefined}
+            key={c.id}
+          >
+            {ocupaVaga ? <VagaBadge /> : null}
+            {/* A MESMA foto da tela de espera, no placar (pedido do dono,
+                14/09). O `avatar` vai sempre presente: é a coluna que existe,
+                não a foto. **Em toda linha, inclusive a compacta** — o dono viu
+                a tela com as candidaturas abaixo de 3% sem rosto e pediu foto em
+                todas, aceitando a linha mais alta que isso custa (55 → 77,6px
+                nas que ainda cabiam numa linha só). No bloco nacional de
+                Governador e Senador NENHUMA linha tem `sqcand` (RF-145), então
+                as 12 caem juntas nas iniciais e continuam alinhadas entre si —
+                é por isso que a decisão é da lista e não da linha.
+                O NOME já sai de `candidateResultRowProps` em forma de exibição
+                — o adaptador é o gargalo das três listas de resultado —, e é
+                ele que alimenta as iniciais do fallback: a bolinha e o texto ao
+                lado nunca discordam. */}
+            <CandidateResultRow
+              {...props}
+              avatar={{
+                fotoUrl: candidatoFotoUrl(ufDaFoto, c.sqcand),
+                eager: i < AVATARES_EAGER,
+              }}
+              variant="kit"
+            />
+          </li>
+        );
+      });
 
   return (
     <Panel
@@ -307,45 +554,52 @@ export function ResultPanel({
       title={title}
       titleId={titleId}
     >
-      <div
-        className="grid grid-cols-2"
-        style={{ gap: "var(--space-4)", marginBottom: "var(--space-4)" }}
-      >
-        <Figure label="Apurado" note={notaApurado} unit="%" value={umaCasa(pctApurado)} />
+      {/* RF-155 — as duas figuras do topo são medição pura e NÃO CHEGAM AO DOM
+          em fase pré: "Apurado 0,0% · 0 de 0 votos válidos" e "Margem +0,0 pp".
+          Escondê-las por CSS não serviria: a métrica de aceitação do RF-161 é
+          varrida sobre o HTML renderizado, e "apurado" e "pp" são duas das
+          palavras que ela procura. */}
+      {identidade ? null : (
+        <div
+          className="grid grid-cols-2"
+          style={{ gap: "var(--space-4)", marginBottom: "var(--space-4)" }}
+        >
+          <Figure label="Apurado" note={notaApurado} unit="%" value={umaCasa(pctApurado)} />
 
-        {/* A margem é a única figura que muda com a base. Os dois números
-            ficam no HTML; a cascata revela o da base ativa, e a `note` de cada
-            variante carrega o número da outra — nenhuma leitura fica
-            indisponível em nenhum estado do controle.
+          {/* A margem é a única figura que muda com a base. Os dois números
+              ficam no HTML; a cascata revela o da base ativa, e a `note` de cada
+              variante carrega o número da outra — nenhuma leitura fica
+              indisponível em nenhum estado do controle.
 
-            Sem `color`/`tone` de partido, ao contrário do kit (`tone={a.partido
-            === 'PT' ? 'pt' : ...}`, App.jsx:32): pintar o algarismo com a cor
-            de identidade é o defeito que o axe pegou em 2026-09-07 no 3º
-            termômetro (`--color-cand-3` sobre o papel = 2,99:1, contra os
-            4,5:1 da constituição § 4). Cor de preenchimento não vira tinta. */}
-        {temDuelo ? (
-          <>
-            <span data-testid="result-margem-parcial" data-view-only="parcial">
-              <Figure
-                label={rotuloMargem}
-                note={`projeção ${formatPp(margemProj)}`}
-                size="lg"
-                unit="pp"
-                value={ppSemUnidade(margemParcial)}
-              />
-            </span>
-            <span data-testid="result-margem-proj" data-view-only="proj">
-              <Figure
-                label={rotuloMargem}
-                note={`parcial ${formatPp(margemParcial)}`}
-                size="lg"
-                unit="pp"
-                value={ppSemUnidade(margemProj)}
-              />
-            </span>
-          </>
-        ) : null}
-      </div>
+              Sem `color`/`tone` de partido, ao contrário do kit (`tone={a.partido
+              === 'PT' ? 'pt' : ...}`, App.jsx:32): pintar o algarismo com a cor
+              de identidade é o defeito que o axe pegou em 2026-09-07 no 3º
+              termômetro (`--color-cand-3` sobre o papel = 2,99:1, contra os
+              4,5:1 da constituição § 4). Cor de preenchimento não vira tinta. */}
+          {temDuelo ? (
+            <>
+              <span data-testid="result-margem-parcial" data-view-only="parcial">
+                <Figure
+                  label={rotuloMargem}
+                  note={`projeção ${formatPp(margemProj)}`}
+                  size="lg"
+                  unit="pp"
+                  value={ppSemUnidade(margemParcial)}
+                />
+              </span>
+              <span data-testid="result-margem-proj" data-view-only="proj">
+                <Figure
+                  label={rotuloMargem}
+                  note={`parcial ${formatPp(margemParcial)}`}
+                  size="lg"
+                  unit="pp"
+                  value={ppSemUnidade(margemProj)}
+                />
+              </span>
+            </>
+          ) : null}
+        </div>
+      )}
 
       {/* Barra de maioria. Duas, uma por base, pelo mesmo motivo da margem:
           dois preenchimentos sobrepostos na mesma barra são ilegíveis. */}
@@ -361,8 +615,23 @@ export function ResultPanel({
       ) : null}
 
       {/* A lista inteira, sempre. Abaixo do `limit` não há colapso nem botão —
-          seria um controle que não controla nada. */}
-      {excedentes > 0 ? (
+          seria um controle que não controla nada.
+
+          Em `identidade` não há colapso em nenhum tamanho: a linha de
+          candidatura é uma tira de nome e sigla, doze delas cabem onde seis
+          linhas de resultado cabiam, e `<CandidateListCollapse>` é o único
+          pedaço de cliente deste painel — abrir fronteira de JS para encolher
+          uma lista que já é curta é o negócio errado (RNF-007a). `<ul>` e não
+          `<ol>`: a ordem é a do número na urna, e uma lista ordenada é
+          anunciada com índice, que é o que o RF-155 manda não haver. */}
+      {identidade ? (
+        <ul
+          data-testid="result-identidade-lista"
+          style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}
+        >
+          {linhas}
+        </ul>
+      ) : excedentes > 0 ? (
         <CandidateListCollapse total={candidatos.length}>{linhas}</CandidateListCollapse>
       ) : (
         <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>{linhas}</ol>
