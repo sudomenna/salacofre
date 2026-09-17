@@ -16,7 +16,70 @@ import { checkBotId } from "botid/server";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-export async function proxy(_req: NextRequest) {
+/**
+ * Comparação de segredo em tempo constante — evita que a latência da resposta
+ * revele quantos caracteres do segredo estavam certos.
+ */
+function segredoConfere(fornecido: string | null, esperado: string | undefined): boolean {
+  if (!fornecido || !esperado || fornecido.length !== esperado.length) return false;
+  let diff = 0;
+  for (let i = 0; i < fornecido.length; i++) {
+    diff |= fornecido.charCodeAt(i) ^ esperado.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+/**
+ * Extrai o segredo apresentado, nos três formatos que as rotas autenticadas
+ * aceitam: `Authorization: Bearer <s>` (caminho do Vercel Cron),
+ * `x-cron-secret` (caminho manual do runbook) e `x-model-secret` (chamada do
+ * modelo Python para `/api/internal/edge-write`).
+ */
+function segredoApresentado(req: NextRequest): { cron: string | null; model: string | null } {
+  const auth = req.headers.get("authorization");
+  const bearer = auth ? (/^bearer\s+(.+)$/i.exec(auth.trim())?.[1] ?? null) : null;
+  return {
+    cron: bearer ?? req.headers.get("x-cron-secret"),
+    model: req.headers.get("x-model-secret"),
+  };
+}
+
+/**
+ * Rotas de máquina: já autenticadas por segredo compartilhado, e chamadas por
+ * clientes que NÃO são navegadores (Vercel Cron, o runtime Python do modelo, o
+ * curl do runbook). Nenhum deles executa o script de cliente do BotID, então
+ * todos são classificados como bot — e um 403 aqui derrubaria a ingestão no
+ * dia da apuração, em silêncio do ponto de vista do agendador.
+ */
+const ROTAS_DE_MAQUINA = ["/api/ingest", "/api/internal", "/api/model"];
+
+/**
+ * Casa o prefixo como SEGMENTO de rota, não como pedaço de texto: `/api/ingest`
+ * cobre `/api/ingest` e `/api/ingest/presidente`, mas **não**
+ * `/api/ingestao-publica` — uma rota pública futura cujo nome começasse igual
+ * herdaria o portão sem ninguém perceber.
+ */
+function ehRotaDeMaquina(caminho: string): boolean {
+  return ROTAS_DE_MAQUINA.some((p) => caminho === p || caminho.startsWith(`${p}/`));
+}
+
+export async function proxy(req: NextRequest) {
+  // Portão de autenticação ANTES do BotID: um segredo válido É a autorização.
+  // O BotID existe para proteger endpoint público sem autenticação (RNF-018);
+  // aplicá-lo depois de um segredo correto não acrescenta proteção e cria um
+  // modo de falha novo. Segredo errado ou ausente continua caindo no BotID e,
+  // depois dele, na checagem da própria rota — nada aqui autoriza ninguém.
+  const caminho = req.nextUrl.pathname;
+  if (ehRotaDeMaquina(caminho)) {
+    const { cron, model } = segredoApresentado(req);
+    if (
+      segredoConfere(cron, process.env.CRON_SECRET) ||
+      segredoConfere(model, process.env.MODEL_SECRET)
+    ) {
+      return NextResponse.next();
+    }
+  }
+
   const verdict = await checkBotId();
   if (verdict.isBot && !verdict.isVerifiedBot) {
     return new NextResponse(
