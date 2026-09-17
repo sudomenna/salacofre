@@ -74,6 +74,13 @@ NAO_ESPELHADOS = {
     # pipeline de ingestão (`lib/tse/rate-limiter.ts`); o modelo não faz I/O
     # de rede (constituição § 9) e não tem o que fazer com ele.
     "rpsMax",
+    # A qual das duas eleições do pleito 2026 o cargo pertence — federal
+    # (21270, só Presidente) ou estadual (21272, os demais). Ver ADR-0044.
+    # Serve para uma única coisa: escolher o código que entra na URL do TSE
+    # (`getCodEleicaoDoCargo`, `lib/tse/targets.ts`). O modelo lê `snapshots`
+    # já gravados, filtrando por `cargo` — nunca monta URL e nunca pergunta de
+    # qual árvore do CDN a linha veio. Decisão registrada em 2026-09-17.
+    "eleicao",
 }
 
 #: Como cada campo do `.ts` se chama no espelho Python (camelCase → snake_case).

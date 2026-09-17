@@ -64,9 +64,16 @@ import { getActiveCargos, listIngestTargets } from "@/lib/tse/targets";
 // lib/tse/rate-limiter.ts). Guarda o ETag do último EA14 200 + o hash por UF
 // do ciclo anterior, para que `detectChangedUfs` possa enviar `If-None-Match`
 // e comparar hashes sem precisar de uma tabela nova no Postgres.
+//
+// Chaveado POR CÓDIGO DE ELEIÇÃO desde 2026-09-17: o TSE 2026 publica um EA14
+// por eleição (`br-e021270-ab.json` para o pleito federal — Presidente —,
+// `br-e021272-ab.json` para o estadual — Governador, Senador, Deputado).
+// Um estado único misturaria os dois: o ETag de um arquivo seria enviado como
+// `If-None-Match` do outro, e os hashes por UF de uma corrida decidiriam o
+// gating da outra.
 // ---------------------------------------------------------------------------
 
-let acompanhamentoState: AcompanhamentoPrevious | null = null;
+const acompanhamentoState = new Map<string, AcompanhamentoPrevious>();
 
 // ---------------------------------------------------------------------------
 // Helpers — turno
@@ -546,30 +553,55 @@ export async function runIngestCycle(
   // o próprio EA14 já É o resumo nacional, não há um segundo arquivo pra
   // comparar contra.
   if (process.env.TSE_ACOMPANHAMENTO === "on") {
-    const ufsNoCiclo = [...new Set(targets.filter((t) => t.nivel !== "br").map((t) => t.uf))];
+    // Um EA14 por código de eleição presente no ciclo. Um ciclo genérico
+    // (`/api/ingest` com `TSE_CARGOS=1,3`) toca dois arquivos; um ciclo por
+    // cargo toca um só. A chave do "mudou?" passa a ser (eleição, UF): a
+    // mesma UF pode ter mudado no pleito estadual e não no federal.
+    const ufsPorEleicao = new Map<string, Set<string>>();
+    for (const t of targets) {
+      if (t.nivel === "br") continue;
+      const set = ufsPorEleicao.get(t.codEleicao) ?? new Set<string>();
+      set.add(t.uf);
+      ufsPorEleicao.set(t.codEleicao, set);
+    }
 
-    if (ufsNoCiclo.length > 0) {
+    if (ufsPorEleicao.size > 0) {
       try {
-        const signals = await detectChangedUfs({
-          ufs: ufsNoCiclo,
-          previous: acompanhamentoState,
-        });
+        const changedPorEleicao = new Set<string>();
+        let ufsAnalisadas = 0;
 
-        const changedUfs = new Set(signals.filter((s) => s.changed).map((s) => s.uf));
-        const etagDoCiclo =
-          signals.find((s) => s.etag !== null)?.etag ?? acompanhamentoState?.etag ?? null;
-        const hashes: Record<string, string> = { ...acompanhamentoState?.hashes };
-        for (const s of signals) {
-          if (s.hash !== null) hashes[s.uf] = s.hash;
+        for (const [codEleicao, ufsSet] of ufsPorEleicao) {
+          const ufsNoCiclo = [...ufsSet];
+          ufsAnalisadas += ufsNoCiclo.length;
+
+          const anterior = acompanhamentoState.get(codEleicao) ?? null;
+          const signals = await detectChangedUfs({
+            codEleicao,
+            ufs: ufsNoCiclo,
+            previous: anterior,
+          });
+
+          for (const s of signals) {
+            if (s.changed) changedPorEleicao.add(`${codEleicao}|${s.uf}`);
+          }
+
+          const etagDoCiclo = signals.find((s) => s.etag !== null)?.etag ?? anterior?.etag ?? null;
+          const hashes: Record<string, string> = { ...anterior?.hashes };
+          for (const s of signals) {
+            if (s.hash !== null) hashes[s.uf] = s.hash;
+          }
+          acompanhamentoState.set(codEleicao, { etag: etagDoCiclo, hashes });
         }
-        acompanhamentoState = { etag: etagDoCiclo, hashes };
 
         const targetsAntes = targets.length;
-        targets = targets.filter((t) => t.nivel === "br" || changedUfs.has(t.uf));
+        targets = targets.filter(
+          (t) => t.nivel === "br" || changedPorEleicao.has(`${t.codEleicao}|${t.uf}`),
+        );
 
         logInfo("EA14 gating aplicado", {
-          ufsAnalisadas: ufsNoCiclo.length,
-          ufsMudadas: changedUfs.size,
+          eleicoes: ufsPorEleicao.size,
+          ufsAnalisadas,
+          ufsMudadas: changedPorEleicao.size,
           targetsAntes,
           targetsDepois: targets.length,
         });

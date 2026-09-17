@@ -41,10 +41,33 @@ import type { Cargo as CargoToken } from "@/lib/config/calendar";
  */
 export type CargoTse = 1 | 3 | 5 | 6;
 
+/**
+ * Qual das DUAS eleições do pleito 2026 cobre este cargo (parâmetros
+ * publicados pelo TSE em 17/09/2026, véspera do simulado): a Eleição
+ * Federal (código `21270`) elege só o Presidente; a Eleição Estadual
+ * (código `21272`) elege Governador, Senador e Deputado Federal. Os dois
+ * códigos vivem no MESMO `codEleicao` (`ele<AAAA>/<dígitos>`, ver
+ * `lib/tse/targets.ts::getCodEleicao`) — não são turnos nem ambientes, são
+ * duas árvores de URL paralelas no CDN (`.../ele2026/21270/dados/...` vs
+ * `.../ele2026/21272/dados/...`), inclusive para o EA14 de acompanhamento
+ * (um `br-e021270-ab.json`, outro `br-e021272-ab.json`).
+ */
+export type Eleicao = "federal" | "estadual";
+
 /** Metadados de um cargo coberto. */
 export interface CargoInfo {
   /** Código do TSE. */
   readonly cd: CargoTse;
+  /**
+   * Eleição (no sentido do pleito 2026, ver `Eleicao`) a que este cargo
+   * pertence — determina qual código de eleição resolver
+   * (`getCodEleicaoDoCargo`, `lib/tse/targets.ts`). Presidente é o único
+   * cargo `"federal"`; os outros três são `"estadual"`. Campo obrigatório
+   * de propósito: não há valor "neutro" que sirva de default seguro — um
+   * cargo estadual lido como federal (ou vice-versa) busca o EA20 do CÓDIGO
+   * DE ELEIÇÃO ERRADO, um 404 sistemático que não é óbvio de diagnosticar.
+   */
+  readonly eleicao: Eleicao;
   /** Token de namespacing de chave (Global Config / Blob) — ADR-0012. */
   readonly token: CargoToken;
   /** Segmento de rota aceito por `/api/ingest/[cargo]` e pelas páginas. */
@@ -162,6 +185,7 @@ export interface CargoInfo {
 export const CARGOS: readonly CargoInfo[] = [
   {
     cd: 1,
+    eleicao: "federal",
     token: "pres",
     slug: "presidente",
     label: "Presidente",
@@ -174,6 +198,7 @@ export const CARGOS: readonly CargoInfo[] = [
   },
   {
     cd: 3,
+    eleicao: "estadual",
     token: "gov",
     slug: "governador",
     label: "Governador",
@@ -186,6 +211,7 @@ export const CARGOS: readonly CargoInfo[] = [
   },
   {
     cd: 5,
+    eleicao: "estadual",
     token: "sen",
     slug: "senador",
     label: "Senador",
@@ -198,6 +224,7 @@ export const CARGOS: readonly CargoInfo[] = [
   },
   {
     cd: 6,
+    eleicao: "estadual",
     token: "dep",
     slug: "deputado-federal",
     label: "Deputado Federal",
@@ -241,6 +268,18 @@ export function cargoFromToken(token: CargoToken): CargoTse {
   const info = POR_TOKEN.get(token);
   if (!info) throw new Error(`[cargos] token de cargo desconhecido: ${token}`);
   return info.cd;
+}
+
+/**
+ * Eleição (federal/estadual, ver `Eleicao`) a que este cargo pertence —
+ * lê direto da tabela canônica, sem ternário nem `??`: Presidente (1) é
+ * `"federal"`, os outros três são `"estadual"`. Usado por
+ * `lib/tse/targets.ts::getCodEleicaoDoCargo` para resolver qual dos dois
+ * códigos de eleição do pleito 2026 (`21270` federal, `21272` estadual)
+ * corresponde a um cargo.
+ */
+export function eleicaoDoCargo(cd: CargoTse): Eleicao {
+  return cargoInfo(cd).eleicao;
 }
 
 /**

@@ -19,6 +19,7 @@ import {
   cargoFromToken,
   cargoInfo,
   cargoToken,
+  eleicaoDoCargo,
   isCargoTse,
   parseCargoSegment,
   piorCasoAgregadoRps,
@@ -132,6 +133,35 @@ describe("parseCargoSegment", () => {
     // Aceitá-los aqui criaria dois caminhos para a mesma coisa.
     for (const token of CARGOS.map((c) => c.token)) {
       expect(parseCargoSegment(token), `token ${token}`).toBeNull();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Eleição por cargo (TSE 2026: pleito 17801 com DOIS códigos de eleição)
+// ---------------------------------------------------------------------------
+
+describe("eleicao / eleicaoDoCargo", () => {
+  // O TSE 2026 publica Presidente sob a Eleição Ordinária Federal (21270) e
+  // Governador/Senador/Deputado sob a Estadual (21272). Este literal é o que
+  // impede a tabela de virar "tudo federal" ou "tudo estadual" em silêncio —
+  // um erro aqui manda o cargo inteiro para o arquivo errado do CDN.
+  it("trava o mapeamento cargo → eleição", () => {
+    expect(CARGOS.map((c) => [c.cd, c.eleicao])).toEqual([
+      [1, "federal"],
+      [3, "estadual"],
+      [5, "estadual"],
+      [6, "estadual"],
+    ]);
+  });
+
+  it("Presidente é o ÚNICO cargo federal", () => {
+    expect(CARGOS.filter((c) => c.eleicao === "federal").map((c) => c.cd)).toEqual([1]);
+  });
+
+  it("eleicaoDoCargo devolve o valor da tabela para todos os cargos cobertos", () => {
+    for (const c of CARGOS) {
+      expect(eleicaoDoCargo(c.cd), `cargo ${c.cd}`).toBe(c.eleicao);
     }
   });
 });

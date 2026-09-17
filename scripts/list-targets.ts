@@ -16,10 +16,13 @@
  *
  * Uso:
  *   set -a; . ./.env.local; set +a
- *   TSE_COD_ELEICAO=ele2026/619 pnpm tsx scripts/list-targets.ts --env production --cargo 1
+ *   TSE_COD_ELEICAO_FEDERAL=ele2026/21270 TSE_COD_ELEICAO_ESTADUAL=ele2026/21272 \
+ *     pnpm tsx scripts/list-targets.ts --env production --cargo 1
  *
  * Requer no ambiente: `DATABASE_URL` (Neon — `listIngestTargets` consulta
- * `zonas` real) e `TSE_COD_ELEICAO` (`lib/tse/targets.ts:getCodEleicao`
+ * `zonas` real) e o código de eleição DO CARGO pedido — `TSE_COD_ELEICAO_FEDERAL`
+ * para `--cargo 1`, `TSE_COD_ELEICAO_ESTADUAL` para 3/5/6, ou o legado
+ * `TSE_COD_ELEICAO` para ambos (ADR-0044; `lib/tse/targets.ts:getCodEleicao`
  * lança se ausente). `--env preview` usa a whitelist (`TSE_TARGETS_WHITELIST`)
  * em vez de todas as UFs/zonas — não é o caminho usado para provar a
  * contagem total, mas fica disponível para diagnóstico.

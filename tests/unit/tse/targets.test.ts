@@ -216,21 +216,150 @@ describe("buildEA20Url (legado — delega para buildEA20UrlZona)", () => {
 // ---------------------------------------------------------------------------
 
 describe("getCodEleicao", () => {
-  it("lança erro quando ausente", () => {
+  /** Zera as três variáveis — cada caso liga só as que quer. */
+  function limparEnvsDeEleicao(): void {
     vi.stubEnv("TSE_COD_ELEICAO", "");
-    expect(() => getCodEleicao()).toThrow();
+    vi.stubEnv("TSE_COD_ELEICAO_FEDERAL", "");
+    vi.stubEnv("TSE_COD_ELEICAO_ESTADUAL", "");
+  }
+
+  beforeEach(limparEnvsDeEleicao);
+
+  it("lança erro quando ausente", () => {
+    expect(() => getCodEleicao("federal")).toThrow();
+    expect(() => getCodEleicao("estadual")).toThrow();
   });
 
   it("lança erro para formato inválido (sem barra, sem dígitos, prefixo errado)", () => {
     for (const bad of ["2026/619", "ele2026-619", "ele26/619", "ele2026/abc", "ele2026/"]) {
       vi.stubEnv("TSE_COD_ELEICAO", bad);
-      expect(() => getCodEleicao(), `esperava throw para "${bad}"`).toThrow();
+      expect(() => getCodEleicao("federal"), `esperava throw para "${bad}"`).toThrow();
     }
   });
 
   it("aceita e retorna trimado o formato válido ele<AAAA>/<dígitos>", () => {
     vi.stubEnv("TSE_COD_ELEICAO", "  ele2026/619  ");
-    expect(getCodEleicao()).toBe("ele2026/619");
+    expect(getCodEleicao("federal")).toBe("ele2026/619");
+  });
+
+  it("cada eleição lê a SUA variável específica", () => {
+    vi.stubEnv("TSE_COD_ELEICAO_FEDERAL", "ele2026/21270");
+    vi.stubEnv("TSE_COD_ELEICAO_ESTADUAL", "ele2026/21272");
+    expect(getCodEleicao("federal")).toBe("ele2026/21270");
+    expect(getCodEleicao("estadual")).toBe("ele2026/21272");
+  });
+
+  it("o legado TSE_COD_ELEICAO supre as duas quando nenhuma específica existe", () => {
+    vi.stubEnv("TSE_COD_ELEICAO", "ele2026/619");
+    expect(getCodEleicao("federal")).toBe("ele2026/619");
+    expect(getCodEleicao("estadual")).toBe("ele2026/619");
+  });
+
+  it("a específica vence o legado", () => {
+    vi.stubEnv("TSE_COD_ELEICAO", "ele2026/999");
+    vi.stubEnv("TSE_COD_ELEICAO_FEDERAL", "ele2026/21270");
+    expect(getCodEleicao("federal")).toBe("ele2026/21270");
+    // Sem ESTADUAL própria, o legado ainda responde pela estadual.
+    expect(getCodEleicao("estadual")).toBe("ele2026/999");
+  });
+
+  // O ponto mais importante deste bloco: uma eleição NUNCA supre a outra.
+  // Se a estadual faltar, o certo é falhar alto — cair no código federal
+  // publicaria Governador/Senador/Deputado sob o arquivo de Presidente, e o
+  // TSE responderia 404 em massa (ou, pior, 200 com o conteúdo errado).
+  it("não cruza: FEDERAL definida, ESTADUAL e legado ausentes → estadual lança", () => {
+    vi.stubEnv("TSE_COD_ELEICAO_FEDERAL", "ele2026/21270");
+    expect(getCodEleicao("federal")).toBe("ele2026/21270");
+    expect(() => getCodEleicao("estadual")).toThrow();
+  });
+
+  it("não cruza no sentido inverso: ESTADUAL definida, FEDERAL e legado ausentes → federal lança", () => {
+    vi.stubEnv("TSE_COD_ELEICAO_ESTADUAL", "ele2026/21272");
+    expect(getCodEleicao("estadual")).toBe("ele2026/21272");
+    expect(() => getCodEleicao("federal")).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Código de eleição POR CARGO (TSE 2026: 21270 federal / 21272 estadual)
+// ---------------------------------------------------------------------------
+
+describe("listIngestTargets — cada cargo usa o código da SUA eleição", () => {
+  const FEDERAL = "ele2026/21270";
+  const ESTADUAL = "ele2026/21272";
+  const PARES = [
+    { uf: "SP", codMunicipioTse: 71072, codZona: 1 },
+    { uf: "MG", codMunicipioTse: 40177, codZona: 4 },
+  ];
+
+  beforeEach(() => {
+    vi.stubEnv("TSE_COD_ELEICAO", ""); // sem legado: só as específicas valem
+    vi.stubEnv("TSE_COD_ELEICAO_FEDERAL", FEDERAL);
+    vi.stubEnv("TSE_COD_ELEICAO_ESTADUAL", ESTADUAL);
+  });
+
+  it("Presidente (cargo 1) usa o código federal, e nenhuma URL cita o estadual", async () => {
+    mockZonasRowsOnce([...PARES]);
+    const targets = await listIngestTargets("production", { cargo: 1 });
+
+    expect(targets).toHaveLength(PARES.length);
+    expect(new Set(targets.map((t) => t.codEleicao))).toEqual(new Set([FEDERAL]));
+    expect(targets.every((t) => t.url.includes(`/${FEDERAL}/dados/`))).toBe(true);
+    expect(targets.every((t) => t.url.endsWith("-e021270-u.json"))).toBe(true);
+    expect(targets.some((t) => t.url.includes("21272"))).toBe(false);
+  });
+
+  it.each([
+    { cargo: 3, nome: "Governador" },
+    { cargo: 5, nome: "Senador" },
+    { cargo: 6, nome: "Deputado Federal" },
+  ] as const)(
+    "cargo $cargo ($nome) usa o código estadual, e nenhuma URL cita o federal",
+    async ({ cargo }) => {
+      mockZonasRowsOnce([...PARES]);
+      const targets = await listIngestTargets("production", { cargo });
+
+      expect(targets).toHaveLength(PARES.length);
+      expect(new Set(targets.map((t) => t.codEleicao))).toEqual(new Set([ESTADUAL]));
+      expect(targets.every((t) => t.url.includes(`/${ESTADUAL}/dados/`))).toBe(true);
+      expect(targets.every((t) => t.url.endsWith("-e021272-u.json"))).toBe(true);
+      // A asserção que mata a mutação "cargo 3 é federal" na tabela de cargos.
+      expect(targets.some((t) => t.url.includes("21270"))).toBe(false);
+    },
+  );
+
+  it("um ciclo com os dois cargos produz alvos sob DOIS códigos distintos", async () => {
+    vi.stubEnv("TSE_CARGOS", "1,3");
+    mockZonasRowsOnce([...PARES]); // cargo 1
+    mockZonasRowsOnce([...PARES]); // cargo 3
+
+    const targets = await listIngestTargets("production", {});
+
+    expect(new Set(targets.map((t) => t.codEleicao))).toEqual(new Set([FEDERAL, ESTADUAL]));
+    for (const t of targets) {
+      const esperado = t.cargo === 1 ? FEDERAL : ESTADUAL;
+      expect(t.codEleicao, `cargo ${t.cargo} deveria usar ${esperado}`).toBe(esperado);
+      expect(t.url).toContain(`/${esperado}/dados/`);
+    }
+  });
+
+  it("trocar só o código estadual invalida o cache do cargo 3 sem tocar o do cargo 1", async () => {
+    mockZonasRowsOnce([...PARES]);
+    const pres1 = await listIngestTargets("production", { cargo: 1 });
+    mockZonasRowsOnce([...PARES]);
+    const gov1 = await listIngestTargets("production", { cargo: 3 });
+
+    vi.stubEnv("TSE_COD_ELEICAO_ESTADUAL", "ele2026/21999");
+
+    // Cargo 1: chave de cache inalterada — devolve o cacheado, sem novo SELECT.
+    const pres2 = await listIngestTargets("production", { cargo: 1 });
+    expect(pres2).toEqual(pres1);
+
+    // Cargo 3: chave mudou — refaz e reflete o código novo.
+    mockZonasRowsOnce([...PARES]);
+    const gov2 = await listIngestTargets("production", { cargo: 3 });
+    expect(gov1[0]?.codEleicao).toBe(ESTADUAL);
+    expect(new Set(gov2.map((t) => t.codEleicao))).toEqual(new Set(["ele2026/21999"]));
   });
 });
 

@@ -27,7 +27,7 @@ import { z } from "zod";
 import { USER_AGENT } from "./client";
 import { logDebug, logWarn } from "./log";
 import { getTseRateLimiter } from "./rate-limiter";
-import { buildEA14Url, getCodEleicao, getTseBaseUrl } from "./targets";
+import { buildEA14Url, getTseBaseUrl } from "./targets";
 
 // ---------------------------------------------------------------------------
 // Zod schemas — EA14 (Brasil) / EA15 (UF)
@@ -146,7 +146,8 @@ async function sha256Hex(text: string): Promise<string> {
  * Fail-open: qualquer exceção (rede, timeout, parse Zod) resulta em TODAS as
  * `ufs` solicitadas retornando `changed: true` — nunca falha o chamador.
  *
- * @param args.codEleicao - Se omitido, usa `getCodEleicao()` (lê `TSE_COD_ELEICAO`).
+ * @param args.codEleicao - Obrigatório: o EA14 é UM POR ELEIÇÃO (federal vs
+ *                          estadual). Use `getCodEleicaoDoCargo(cargo)` do ciclo.
  * @param args.ufs         - Siglas de UF (maiúsculas ou minúsculas) para as quais
  *                          o chamador quer saber se algo mudou.
  * @param args.previous    - Estado do ciclo anterior (ETag + hashes por UF).
@@ -154,7 +155,7 @@ async function sha256Hex(text: string): Promise<string> {
  * @param args.baseUrl     - Override de host (testes / mock local).
  */
 export async function detectChangedUfs(args: {
-  codEleicao?: string;
+  codEleicao: string;
   ufs: string[];
   previous: AcompanhamentoPrevious | null;
   baseUrl?: string;
@@ -163,15 +164,13 @@ export async function detectChangedUfs(args: {
   const failOpen = (): UfChangeSignal[] =>
     ufsUpper.map((uf) => ({ uf, changed: true, hash: null, etag: null }));
 
-  let codEleicao: string;
-  try {
-    codEleicao = args.codEleicao ?? getCodEleicao();
-  } catch (err) {
-    logWarn("detectChangedUfs: getCodEleicao() falhou — fail-open (tudo changed)", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return failOpen();
-  }
+  // `codEleicao` é obrigatório desde 2026-09-17: o TSE 2026 publica UM EA14
+  // POR ELEIÇÃO (`br-e021270-ab.json` para o pleito federal, `br-e021272-ab`
+  // para o estadual). Resolver aqui um código "do ciclo" faria o gating de
+  // Governador/Senador/Deputado ler o acompanhamento de Presidente — as UFs
+  // "sem mudança" de uma corrida calariam a outra, em silêncio. Quem chama
+  // já sabe de qual cargo é o ciclo, e passa o código daquele cargo.
+  const codEleicao = args.codEleicao;
 
   const baseUrl = args.baseUrl ?? getTseBaseUrl();
   const url = buildEA14Url({ codEleicao, baseUrl });

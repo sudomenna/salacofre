@@ -35,7 +35,14 @@
  */
 
 import { eq } from "drizzle-orm";
-import { CARGOS_TSE, type CargoTse, cargoInfo, isCargoTse } from "@/lib/config/cargos";
+import {
+  CARGOS_TSE,
+  type CargoTse,
+  cargoInfo,
+  type Eleicao,
+  eleicaoDoCargo,
+  isCargoTse,
+} from "@/lib/config/cargos";
 import { db, schema } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
@@ -282,37 +289,82 @@ export function buildEA20Url(
 // ---------------------------------------------------------------------------
 
 /**
- * Lê TSE_COD_ELEICAO do ambiente. Throw explícito se ausente ou com formato
- * inválido — o pipeline não pode operar sem saber, com certeza, qual eleição
- * está sendo apurada (uma URL malformada apontando para o TSE real pode
- * disparar o bloqueio de IP por 10min descrito na FAQ técnica do simulado).
- *
- * Formato exigido: `ele<AAAA>/<dígitos>` — ex.: "ele2026/619", "ele2022/544".
- * Confirmado contra o `ele-c.json` real (Instruções § 3 + EA11 § 3): o path
- * é `<ciclo>/<eleição>` — `ciclo` é literalmente a pasta "ele<AAAA>" e
- * `eleição` é o `pl[].e[].cd` numérico do EA11. `TSE_COD_ELEICAO` codifica os
- * dois segmentos concatenados por "/", que é exatamente como aparecem no path
- * do CDN (Instruções § 3, IDs de pasta 2 e 3).
+ * Nome da env var específica de cada eleição — nunca a mesma para as duas,
+ * e nunca usada para resolver a outra (ver `getCodEleicao`).
  */
-export function getCodEleicao(): string {
-  const value = process.env.TSE_COD_ELEICAO;
-  if (!value || value.trim() === "") {
+const ENV_VAR_COD_ELEICAO: Record<Eleicao, string> = {
+  federal: "TSE_COD_ELEICAO_FEDERAL",
+  estadual: "TSE_COD_ELEICAO_ESTADUAL",
+};
+
+const COD_ELEICAO_REGEX = /^ele\d{4}\/\d+$/;
+
+/**
+ * Lê o código de eleição de UMA das duas eleições do pleito 2026 (parâmetros
+ * publicados pelo TSE em 17/09/2026): a Eleição Federal (`21270`, só
+ * Presidente) e a Eleição Estadual (`21272`, Governador/Senador/Deputado
+ * Federal) — ver `lib/config/cargos.ts::Eleicao`. Throw explícito se ausente
+ * ou com formato inválido — o pipeline não pode operar sem saber, com
+ * certeza, qual eleição está sendo apurada (uma URL malformada apontando
+ * para o TSE real pode disparar o bloqueio de IP por 10min descrito na FAQ
+ * técnica do simulado).
+ *
+ * Formato exigido: `ele<AAAA>/<dígitos>` — ex.: "ele2026/21270",
+ * "ele2026/21272". Confirmado contra o `ele-c.json` real (Instruções § 3 +
+ * EA11 § 3): o path é `<ciclo>/<eleição>` — `ciclo` é literalmente a pasta
+ * "ele<AAAA>" e `eleição` é o `pl[].e[].cd` numérico do EA11.
+ *
+ * Resolução, **por eleição** — a específica NUNCA supre a outra eleição:
+ *   1. `TSE_COD_ELEICAO_FEDERAL` / `TSE_COD_ELEICAO_ESTADUAL` (a específica
+ *      desta `eleicao`), se definida.
+ *   2. Senão, `TSE_COD_ELEICAO` (legado, de quando o pleito tinha um único
+ *      código) — supre qualquer uma das duas que esteja ausente, mas NUNCA
+ *      as duas ao mesmo tempo com valores diferentes: é o mesmo valor legado
+ *      para as duas, o que só faz sentido enquanto uma delas ainda não tem
+ *      sua env específica configurada.
+ *   3. Nenhuma das duas definida → throw. Setar só `TSE_COD_ELEICAO_FEDERAL`
+ *      não dá à eleição estadual nenhum valor — ela lança do mesmo jeito.
+ *      Autorizar essa travessia é exatamente o modo de falha "default
+ *      silencioso em conversor de enum" que esta base já pagou 4 vezes (ver
+ *      a nota em `parseWhitelist`): um cargo estadual buscando o EA20 sob o
+ *      código federal é um 404 sistemático, não óbvio de diagnosticar.
+ */
+export function getCodEleicao(eleicao: Eleicao): string {
+  const envVar = ENV_VAR_COD_ELEICAO[eleicao];
+  const specific = process.env[envVar]?.trim();
+  const legacy = process.env.TSE_COD_ELEICAO?.trim();
+
+  const value = specific && specific !== "" ? specific : legacy;
+
+  if (!value || value === "") {
     throw new Error(
-      "[targets] TSE_COD_ELEICAO não está definida. " +
-        'Configure a variável com o prefixo de eleição (ex.: "ele2026/619"). ' +
-        "O número exato será confirmado pela resolução TSE 2026 quando publicada.",
+      `[targets] Nem ${envVar} nem TSE_COD_ELEICAO (legado) estão definidas para a eleição ` +
+        `"${eleicao}". Configure ${envVar} com o código desta eleição (ex.: ` +
+        `"ele2026/21270" para federal, "ele2026/21272" para estadual), ou TSE_COD_ELEICAO ` +
+        "como fallback temporário enquanto as duas envs específicas não existem.",
     );
   }
 
-  const trimmed = value.trim();
-  if (!/^ele\d{4}\/\d+$/.test(trimmed)) {
+  if (!COD_ELEICAO_REGEX.test(value)) {
     throw new Error(
-      `[targets] TSE_COD_ELEICAO inválida: "${trimmed}" — formato esperado "ele<AAAA>/<dígitos>" ` +
-        '(ex.: "ele2026/619"). Uma URL malformada pode disparar bloqueio de IP no TSE — corrija antes de retomar.',
+      `[targets] Código de eleição inválido para "${eleicao}" (via ${envVar} ou TSE_COD_ELEICAO): ` +
+        `"${value}" — formato esperado "ele<AAAA>/<dígitos>" (ex.: "ele2026/21270"). Uma URL ` +
+        "malformada pode disparar bloqueio de IP no TSE — corrija antes de retomar.",
     );
   }
 
-  return trimmed;
+  return value;
+}
+
+/**
+ * Resolve o código de eleição de um CARGO — atalho sobre `getCodEleicao`
+ * que evita o chamador ter de saber qual eleição cobre qual cargo
+ * (`eleicaoDoCargo`, `lib/config/cargos.ts`). É este o caminho que
+ * `listIngestTargets` usa; nenhum ponto do pipeline resolve `codEleicao` por
+ * conta própria a partir de um cargo.
+ */
+export function getCodEleicaoDoCargo(cargo: CargoTse): string {
+  return getCodEleicao(eleicaoDoCargo(cargo));
 }
 
 // ---------------------------------------------------------------------------
@@ -568,17 +620,25 @@ interface CacheEntry {
 }
 
 /**
- * Chave do cache inclui `codEleicao`, `baseUrl` e `granularidade` além de
- * `env` — sem isso, trocar `TSE_BASE_URL`/`TSE_GRANULARIDADE` (ex.: para
+ * Chave do cache inclui `codigosPorCargo`, `baseUrl` e `granularidade` além
+ * de `env` — sem isso, trocar `TSE_BASE_URL`/`TSE_GRANULARIDADE` (ex.: para
  * apontar ao mock local em dev, ou para alternar uf↔zona) reaproveitaria
  * targets construídos com a config antiga até o TTL expirar, silenciosamente.
+ *
+ * `codigosPorCargo` — não mais um único `codEleicao` — porque desde
+ * 2026-09-17 (parâmetros do TSE 2026) cada cargo pode resolver um código de
+ * eleição DIFERENTE (federal para Presidente, estadual para os outros três;
+ * ver `lib/config/cargos.ts::eleicaoDoCargo`). É a string
+ * `"<cargo>:<codEleicao>,<cargo>:<codEleicao>,..."` de TODOS os cargos do
+ * ciclo — trocar só `TSE_COD_ELEICAO_ESTADUAL` precisa invalidar o cache dos
+ * cargos estaduais sem tocar no cache do Presidente, e vice-versa.
  */
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
 function cacheKey(
   env: "preview" | "production",
-  codEleicao: string,
+  codigosPorCargo: string,
   baseUrl: string,
   granularidade: string,
   cargoFiltro: CargoTse | undefined,
@@ -590,7 +650,7 @@ function cacheKey(
   // mesmo sexto do país, o mesmo modo de falha do default silencioso em
   // conversor de enum que esta base já pagou 3 vezes.
   const fatiaChave = fatia ? `${fatia.indice}/${fatia.total}` : "all";
-  return `${env}|${codEleicao}|${baseUrl}|${granularidade}|${cargoFiltro ?? "all"}|${fatiaChave}`;
+  return `${env}|${codigosPorCargo}|${baseUrl}|${granularidade}|${cargoFiltro ?? "all"}|${fatiaChave}`;
 }
 
 /**
@@ -660,7 +720,6 @@ export async function listIngestTargets(
   env: "preview" | "production",
   opts: ListIngestTargetsOptions = {},
 ): Promise<Target[]> {
-  const codEleicao = getCodEleicao();
   const baseUrl = getTseBaseUrl();
   const cargoFiltro = opts.cargo;
 
@@ -673,7 +732,21 @@ export async function listIngestTargets(
   // default de `getActiveCargos` continua excluindo 5 e 6 (ver comentário lá).
   const cargosDoCiclo = filterCargos(getActiveCargos(), cargoFiltro);
   const assinaturaGranularidade = cargosDoCiclo.map((c) => `${c}:${getGranularidade(c)}`).join(",");
-  const key = cacheKey(env, codEleicao, baseUrl, assinaturaGranularidade, cargoFiltro, opts.fatia);
+  // Desde 2026-09-17 (parâmetros do TSE 2026) cada cargo resolve o SEU
+  // próprio código de eleição — federal para Presidente, estadual para os
+  // outros três (`getCodEleicaoDoCargo`). Resolvido AQUI, antes do loop, só
+  // para compor a chave do cache com `cargo:código` de cada cargo do ciclo —
+  // o loop abaixo resolve de novo por cargo (barato: é leitura de env, não
+  // I/O), mantendo cada builder isolado a um único código.
+  const codigosPorCargo = cargosDoCiclo.map((c) => `${c}:${getCodEleicaoDoCargo(c)}`).join(",");
+  const key = cacheKey(
+    env,
+    codigosPorCargo,
+    baseUrl,
+    assinaturaGranularidade,
+    cargoFiltro,
+    opts.fatia,
+  );
 
   const now = Date.now();
   const cached = cache.get(key);
@@ -683,6 +756,7 @@ export async function listIngestTargets(
 
   const targets: Target[] = [];
   for (const cargo of cargosDoCiclo) {
+    const codEleicao = getCodEleicaoDoCargo(cargo);
     const granularidade = getGranularidade(cargo);
     let targetsDoCargo: Target[];
     if (env === "preview") {
@@ -840,40 +914,39 @@ function filterCargos(
 }
 
 /**
- * Preview, granularidade "uf": 1 target por (uf, cargo) da whitelist — sem
- * tocar o DB (a lista de UFs vem literalmente da whitelist, não de `zonas`).
+ * Preview, granularidade "uf": 1 target por entrada da whitelist para ESTE
+ * cargo — sem tocar o DB (a lista de UFs vem literalmente da whitelist, não
+ * de `zonas`).
+ *
+ * `cargo` é obrigatório (desde 2026-09-17): cada cargo pode resolver um
+ * `codEleicao` diferente (federal vs estadual), então esta função nunca
+ * pode varrer "todos os cargos ativos" sob um único código — quem decide o
+ * conjunto de cargos do ciclo é `listIngestTargets`, chamando esta função
+ * UMA VEZ por cargo, cada vez com o código certo.
  */
-function buildPreviewTargetsUf(
-  codEleicao: string,
-  baseUrl: string,
-  cargoFiltro?: CargoTse,
-): Target[] {
+function buildPreviewTargetsUf(codEleicao: string, baseUrl: string, cargo: CargoTse): Target[] {
   const whitelist = parseWhitelist(process.env.TSE_TARGETS_WHITELIST).filter(
-    ({ cargo }) => cargoFiltro === undefined || cargo === cargoFiltro,
+    (entry) => entry.cargo === cargo,
   );
-  return whitelist.map(({ uf, cargo }) => buildUfTarget(uf, cargo, codEleicao, baseUrl));
+  return whitelist.map(({ uf }) => buildUfTarget(uf, cargo, codEleicao, baseUrl));
 }
 
 /**
- * Produção, granularidade "uf" (opt-in): 27 UFs × cargos ativos + 1 BR (só
- * cargo 1 — Presidente é o único cargo com arquivo de abrangência Brasil,
- * EA20 § 2 tabela de cargos).
+ * Produção, granularidade "uf" (opt-in): 27 UFs para ESTE cargo + 1 BR
+ * quando o cargo é Presidente (único cargo com arquivo de abrangência
+ * Brasil, EA20 § 2 tabela de cargos).
+ *
+ * `cargo` é obrigatório pelo mesmo motivo de `buildPreviewTargetsUf` acima —
+ * ver o comentário lá.
  */
-function buildProductionTargetsUf(
-  codEleicao: string,
-  baseUrl: string,
-  cargoFiltro?: CargoTse,
-): Target[] {
-  const cargosAtivos = filterCargos(getActiveCargos(), cargoFiltro);
+function buildProductionTargetsUf(codEleicao: string, baseUrl: string, cargo: CargoTse): Target[] {
   const targets: Target[] = [];
 
   for (const uf of TODAS_UFS) {
-    for (const cargo of cargosAtivos) {
-      targets.push(buildUfTarget(uf, cargo, codEleicao, baseUrl));
-    }
+    targets.push(buildUfTarget(uf, cargo, codEleicao, baseUrl));
   }
 
-  if (cargosAtivos.includes(1)) {
+  if (cargo === 1) {
     targets.push(buildBrTarget(1, codEleicao, baseUrl));
   }
 
@@ -887,15 +960,15 @@ function buildProductionTargetsUf(
 async function buildPreviewTargetsZona(
   codEleicao: string,
   baseUrl: string,
-  cargoFiltro?: CargoTse,
+  cargo: CargoTse,
 ): Promise<Target[]> {
   const whitelist = parseWhitelist(process.env.TSE_TARGETS_WHITELIST).filter(
-    ({ cargo }) => cargoFiltro === undefined || cargo === cargoFiltro,
+    (entry) => entry.cargo === cargo,
   );
 
   const targets: Target[] = [];
 
-  for (const { uf, cargo } of whitelist) {
+  for (const { uf } of whitelist) {
     const zonas = await db
       .select({
         codZona: schema.zonas.codZona,
@@ -930,16 +1003,19 @@ async function buildPreviewTargetsZona(
 
 /**
  * Em produção: todos os pares (uf, cod_municipio_tse, cod_zona) de `zonas` ×
- * cargos ativos (`getActiveCargos()` / `TSE_CARGOS`, default `[1, 3]`),
- * restrito a `cargoFiltro` quando informado (ADR-0035 D3, cron por cargo).
+ * ESTE cargo (ADR-0035 D3, cron por cargo).
+ *
+ * `cargo` é obrigatório (desde 2026-09-17): o `codEleicao` recebido vale para
+ * um único cargo — federal para Presidente, estadual para os outros três —, e
+ * varrer aqui uma lista de cargos publicaria os demais sob o código errado.
+ * Quem decide o conjunto de cargos do ciclo é `listIngestTargets`
+ * (`filterCargos`), chamando esta função uma vez por cargo.
  */
 async function buildProductionTargetsZona(
   codEleicao: string,
   baseUrl: string,
-  cargoFiltro?: CargoTse,
+  cargo: CargoTse,
 ): Promise<Target[]> {
-  const cargosAtivos = filterCargos(getActiveCargos(), cargoFiltro);
-
   const zonas = await db
     .select({
       codZona: schema.zonas.codZona,
@@ -951,24 +1027,22 @@ async function buildProductionTargetsZona(
   const targets: Target[] = [];
 
   for (const zona of zonas) {
-    for (const cargo of cargosAtivos) {
-      targets.push({
+    targets.push({
+      uf: zona.uf,
+      cargo,
+      nivel: "zona",
+      codMunicipioTse: zona.codMunicipioTse,
+      codZona: zona.codZona,
+      url: buildEA20UrlZona({
+        codEleicao,
         uf: zona.uf,
-        cargo,
-        nivel: "zona",
         codMunicipioTse: zona.codMunicipioTse,
         codZona: zona.codZona,
-        url: buildEA20UrlZona({
-          codEleicao,
-          uf: zona.uf,
-          codMunicipioTse: zona.codMunicipioTse,
-          codZona: zona.codZona,
-          cargo,
-          baseUrl,
-        }),
-        codEleicao,
-      });
-    }
+        cargo,
+        baseUrl,
+      }),
+      codEleicao,
+    });
   }
 
   return targets;
