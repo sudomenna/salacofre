@@ -1,0 +1,5186 @@
+{
+  "AC": {
+    "uf": "AC",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 32235,
+        "votos_projetados": 246600,
+        "pct_atual": 63.02,
+        "pct_projetado": 55.93,
+        "ci95": {
+          "lower": 52.78,
+          "upper": 59.08
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 8616,
+        "votos_projetados": 94056,
+        "pct_atual": 16.85,
+        "pct_projetado": 21.33,
+        "ci95": {
+          "lower": 18.73,
+          "upper": 23.93
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 7323,
+        "votos_projetados": 71429,
+        "pct_atual": 14.32,
+        "pct_projetado": 16.2,
+        "ci95": {
+          "lower": 13.86,
+          "upper": 18.54
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 1095,
+        "votos_projetados": 11843,
+        "pct_atual": 2.14,
+        "pct_projetado": 2.69,
+        "ci95": {
+          "lower": 1.66,
+          "upper": 3.71
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 699,
+        "votos_projetados": 6098,
+        "pct_atual": 1.37,
+        "pct_projetado": 1.38,
+        "ci95": {
+          "lower": 0.64,
+          "upper": 2.12
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 439,
+        "votos_projetados": 4023,
+        "pct_atual": 0.86,
+        "pct_projetado": 0.91,
+        "ci95": {
+          "lower": 0.31,
+          "upper": 1.52
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 304,
+        "votos_projetados": 3020,
+        "pct_atual": 0.6,
+        "pct_projetado": 0.68,
+        "ci95": {
+          "lower": 0.16,
+          "upper": 1.21
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 167,
+        "votos_projetados": 1492,
+        "pct_atual": 0.33,
+        "pct_projetado": 0.34,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.71
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 133,
+        "votos_projetados": 1167,
+        "pct_atual": 0.26,
+        "pct_projetado": 0.26,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.59
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 76,
+        "votos_projetados": 653,
+        "pct_atual": 0.15,
+        "pct_projetado": 0.15,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.39
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 39,
+        "votos_projetados": 342,
+        "pct_atual": 0.08,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 20,
+        "votos_projetados": 194,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.24
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "AL": {
+    "uf": "AL",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 79351,
+        "votos_projetados": 750710,
+        "pct_atual": 39.67,
+        "pct_projetado": 43.54,
+        "ci95": {
+          "lower": 40.39,
+          "upper": 46.69
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 68887,
+        "votos_projetados": 549698,
+        "pct_atual": 34.44,
+        "pct_projetado": 31.88,
+        "ci95": {
+          "lower": 28.92,
+          "upper": 34.84
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 37662,
+        "votos_projetados": 299081,
+        "pct_atual": 18.83,
+        "pct_projetado": 17.35,
+        "ci95": {
+          "lower": 14.94,
+          "upper": 19.75
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 4217,
+        "votos_projetados": 40557,
+        "pct_atual": 2.11,
+        "pct_projetado": 2.35,
+        "ci95": {
+          "lower": 1.39,
+          "upper": 3.31
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 3751,
+        "votos_projetados": 32862,
+        "pct_atual": 1.88,
+        "pct_projetado": 1.91,
+        "ci95": {
+          "lower": 1.04,
+          "upper": 2.77
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 2415,
+        "votos_projetados": 21701,
+        "pct_atual": 1.21,
+        "pct_projetado": 1.26,
+        "ci95": {
+          "lower": 0.55,
+          "upper": 1.97
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 2031,
+        "votos_projetados": 14735,
+        "pct_atual": 1.02,
+        "pct_projetado": 0.85,
+        "ci95": {
+          "lower": 0.27,
+          "upper": 1.44
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 529,
+        "votos_projetados": 4930,
+        "pct_atual": 0.26,
+        "pct_projetado": 0.29,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.62
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 531,
+        "votos_projetados": 4913,
+        "pct_atual": 0.27,
+        "pct_projetado": 0.28,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.62
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 331,
+        "votos_projetados": 2727,
+        "pct_atual": 0.17,
+        "pct_projetado": 0.16,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.41
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 193,
+        "votos_projetados": 1457,
+        "pct_atual": 0.1,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.29
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 111,
+        "votos_projetados": 846,
+        "pct_atual": 0.06,
+        "pct_projetado": 0.05,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.25
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "AM": {
+    "uf": "AM",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 95252,
+        "votos_projetados": 796770,
+        "pct_atual": 39.93,
+        "pct_projetado": 38.74,
+        "ci95": {
+          "lower": 35.65,
+          "upper": 41.83
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 79646,
+        "votos_projetados": 688772,
+        "pct_atual": 33.38,
+        "pct_projetado": 33.49,
+        "ci95": {
+          "lower": 30.49,
+          "upper": 36.49
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 41849,
+        "votos_projetados": 384456,
+        "pct_atual": 17.54,
+        "pct_projetado": 18.69,
+        "ci95": {
+          "lower": 16.22,
+          "upper": 21.17
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 10443,
+        "votos_projetados": 90332,
+        "pct_atual": 4.38,
+        "pct_projetado": 4.39,
+        "ci95": {
+          "lower": 3.09,
+          "upper": 5.69
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 4411,
+        "votos_projetados": 34551,
+        "pct_atual": 1.85,
+        "pct_projetado": 1.68,
+        "ci95": {
+          "lower": 0.86,
+          "upper": 2.5
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 2344,
+        "votos_projetados": 21408,
+        "pct_atual": 0.98,
+        "pct_projetado": 1.04,
+        "ci95": {
+          "lower": 0.4,
+          "upper": 1.69
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 2196,
+        "votos_projetados": 18347,
+        "pct_atual": 0.92,
+        "pct_projetado": 0.89,
+        "ci95": {
+          "lower": 0.3,
+          "upper": 1.49
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1108,
+        "votos_projetados": 10069,
+        "pct_atual": 0.46,
+        "pct_projetado": 0.49,
+        "ci95": {
+          "lower": 0.05,
+          "upper": 0.93
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 641,
+        "votos_projetados": 5900,
+        "pct_atual": 0.27,
+        "pct_projetado": 0.29,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.63
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 361,
+        "votos_projetados": 3290,
+        "pct_atual": 0.15,
+        "pct_projetado": 0.16,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.41
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 212,
+        "votos_projetados": 1800,
+        "pct_atual": 0.09,
+        "pct_projetado": 0.09,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.29
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 111,
+        "votos_projetados": 981,
+        "pct_atual": 0.05,
+        "pct_projetado": 0.05,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.25
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 0.983,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "AP": {
+    "uf": "AP",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 18576,
+        "votos_projetados": 176169,
+        "pct_atual": 37.05,
+        "pct_projetado": 40.76,
+        "ci95": {
+          "lower": 37.64,
+          "upper": 43.88
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 15188,
+        "votos_projetados": 134130,
+        "pct_atual": 30.3,
+        "pct_projetado": 31.04,
+        "ci95": {
+          "lower": 28.1,
+          "upper": 33.97
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 11058,
+        "votos_projetados": 80279,
+        "pct_atual": 22.06,
+        "pct_projetado": 18.58,
+        "ci95": {
+          "lower": 16.11,
+          "upper": 21.05
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 2782,
+        "votos_projetados": 19688,
+        "pct_atual": 5.55,
+        "pct_projetado": 4.56,
+        "ci95": {
+          "lower": 3.23,
+          "upper": 5.88
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 706,
+        "votos_projetados": 6412,
+        "pct_atual": 1.41,
+        "pct_projetado": 1.48,
+        "ci95": {
+          "lower": 0.72,
+          "upper": 2.25
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 619,
+        "votos_projetados": 5779,
+        "pct_atual": 1.24,
+        "pct_projetado": 1.34,
+        "ci95": {
+          "lower": 0.61,
+          "upper": 2.07
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 664,
+        "votos_projetados": 5349,
+        "pct_atual": 1.32,
+        "pct_projetado": 1.24,
+        "ci95": {
+          "lower": 0.54,
+          "upper": 1.94
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 252,
+        "votos_projetados": 2115,
+        "pct_atual": 0.5,
+        "pct_projetado": 0.49,
+        "ci95": {
+          "lower": 0.05,
+          "upper": 0.93
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 134,
+        "votos_projetados": 1104,
+        "pct_atual": 0.27,
+        "pct_projetado": 0.26,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.58
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 94,
+        "votos_projetados": 614,
+        "pct_atual": 0.19,
+        "pct_projetado": 0.14,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.38
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 36,
+        "votos_projetados": 346,
+        "pct_atual": 0.07,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 22,
+        "votos_projetados": 176,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.24
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "BA": {
+    "uf": "BA",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 552854,
+        "votos_projetados": 4834887,
+        "pct_atual": 56.58,
+        "pct_projetado": 57.4,
+        "ci95": {
+          "lower": 54.26,
+          "upper": 60.54
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 193458,
+        "votos_projetados": 1704557,
+        "pct_atual": 19.8,
+        "pct_projetado": 20.24,
+        "ci95": {
+          "lower": 17.69,
+          "upper": 22.79
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 175042,
+        "votos_projetados": 1364740,
+        "pct_atual": 17.91,
+        "pct_projetado": 16.2,
+        "ci95": {
+          "lower": 13.86,
+          "upper": 18.54
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 21307,
+        "votos_projetados": 196974,
+        "pct_atual": 2.18,
+        "pct_projetado": 2.34,
+        "ci95": {
+          "lower": 1.38,
+          "upper": 3.3
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 11230,
+        "votos_projetados": 115712,
+        "pct_atual": 1.15,
+        "pct_projetado": 1.37,
+        "ci95": {
+          "lower": 0.63,
+          "upper": 2.11
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 11081,
+        "votos_projetados": 94874,
+        "pct_atual": 1.13,
+        "pct_projetado": 1.13,
+        "ci95": {
+          "lower": 0.46,
+          "upper": 1.8
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 4814,
+        "votos_projetados": 45191,
+        "pct_atual": 0.49,
+        "pct_projetado": 0.54,
+        "ci95": {
+          "lower": 0.07,
+          "upper": 1
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 2820,
+        "votos_projetados": 24114,
+        "pct_atual": 0.29,
+        "pct_projetado": 0.29,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.63
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 2338,
+        "votos_projetados": 20906,
+        "pct_atual": 0.24,
+        "pct_projetado": 0.25,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.56
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1071,
+        "votos_projetados": 11428,
+        "pct_atual": 0.11,
+        "pct_projetado": 0.14,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.37
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 710,
+        "votos_projetados": 6168,
+        "pct_atual": 0.07,
+        "pct_projetado": 0.07,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.27
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 344,
+        "votos_projetados": 3457,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.24
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "CE": {
+    "uf": "CE",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 352158,
+        "votos_projetados": 2969329,
+        "pct_atual": 55.92,
+        "pct_projetado": 54.69,
+        "ci95": {
+          "lower": 51.53,
+          "upper": 57.85
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 135015,
+        "votos_projetados": 1178954,
+        "pct_atual": 21.44,
+        "pct_projetado": 21.71,
+        "ci95": {
+          "lower": 19.1,
+          "upper": 24.33
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 105610,
+        "votos_projetados": 947305,
+        "pct_atual": 16.77,
+        "pct_projetado": 17.45,
+        "ci95": {
+          "lower": 15.04,
+          "upper": 19.86
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 14801,
+        "votos_projetados": 127204,
+        "pct_atual": 2.35,
+        "pct_projetado": 2.34,
+        "ci95": {
+          "lower": 1.38,
+          "upper": 3.3
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 7877,
+        "votos_projetados": 71206,
+        "pct_atual": 1.25,
+        "pct_projetado": 1.31,
+        "ci95": {
+          "lower": 0.59,
+          "upper": 2.03
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 6627,
+        "votos_projetados": 63742,
+        "pct_atual": 1.05,
+        "pct_projetado": 1.17,
+        "ci95": {
+          "lower": 0.49,
+          "upper": 1.86
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 3068,
+        "votos_projetados": 28440,
+        "pct_atual": 0.49,
+        "pct_projetado": 0.52,
+        "ci95": {
+          "lower": 0.07,
+          "upper": 0.98
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1394,
+        "votos_projetados": 14641,
+        "pct_atual": 0.22,
+        "pct_projetado": 0.27,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.6
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1522,
+        "votos_projetados": 13978,
+        "pct_atual": 0.24,
+        "pct_projetado": 0.26,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.58
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 953,
+        "votos_projetados": 7717,
+        "pct_atual": 0.15,
+        "pct_projetado": 0.14,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.38
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 507,
+        "votos_projetados": 4407,
+        "pct_atual": 0.08,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 263,
+        "votos_projetados": 2341,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.24
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "DF": {
+    "uf": "DF",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 37,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 293889,
+        "votos_projetados": 737915,
+        "pct_atual": 45.06,
+        "pct_projetado": 41.87,
+        "ci95": {
+          "lower": 40.39,
+          "upper": 43.35
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 146913,
+        "votos_projetados": 441626,
+        "pct_atual": 22.53,
+        "pct_projetado": 25.06,
+        "ci95": {
+          "lower": 23.76,
+          "upper": 26.36
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 101231,
+        "votos_projetados": 278643,
+        "pct_atual": 15.52,
+        "pct_projetado": 15.81,
+        "ci95": {
+          "lower": 14.71,
+          "upper": 16.9
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 59573,
+        "votos_projetados": 160467,
+        "pct_atual": 9.13,
+        "pct_projetado": 9.1,
+        "ci95": {
+          "lower": 8.24,
+          "upper": 9.97
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 24435,
+        "votos_projetados": 71279,
+        "pct_atual": 3.75,
+        "pct_projetado": 4.04,
+        "ci95": {
+          "lower": 3.45,
+          "upper": 4.64
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 12303,
+        "votos_projetados": 32607,
+        "pct_atual": 1.89,
+        "pct_projetado": 1.85,
+        "ci95": {
+          "lower": 1.45,
+          "upper": 2.25
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 5157,
+        "votos_projetados": 16225,
+        "pct_atual": 0.79,
+        "pct_projetado": 0.92,
+        "ci95": {
+          "lower": 0.63,
+          "upper": 1.21
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 5667,
+        "votos_projetados": 15461,
+        "pct_atual": 0.87,
+        "pct_projetado": 0.88,
+        "ci95": {
+          "lower": 0.6,
+          "upper": 1.16
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1421,
+        "votos_projetados": 4143,
+        "pct_atual": 0.22,
+        "pct_projetado": 0.24,
+        "ci95": {
+          "lower": 0.09,
+          "upper": 0.39
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 857,
+        "votos_projetados": 2268,
+        "pct_atual": 0.13,
+        "pct_projetado": 0.13,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 457,
+        "votos_projetados": 1244,
+        "pct_atual": 0.07,
+        "pct_projetado": 0.07,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.22
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 250,
+        "votos_projetados": 697,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.19
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "ES": {
+    "uf": "ES",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 32.1,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 302067,
+        "votos_projetados": 951210,
+        "pct_atual": 42.37,
+        "pct_projetado": 42.83,
+        "ci95": {
+          "lower": 41.17,
+          "upper": 44.48
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 200202,
+        "votos_projetados": 634832,
+        "pct_atual": 28.08,
+        "pct_projetado": 28.58,
+        "ci95": {
+          "lower": 27.07,
+          "upper": 30.09
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 137871,
+        "votos_projetados": 420523,
+        "pct_atual": 19.34,
+        "pct_projetado": 18.93,
+        "ci95": {
+          "lower": 17.62,
+          "upper": 20.24
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 39775,
+        "votos_projetados": 116097,
+        "pct_atual": 5.58,
+        "pct_projetado": 5.23,
+        "ci95": {
+          "lower": 4.48,
+          "upper": 5.97
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 12017,
+        "votos_projetados": 36270,
+        "pct_atual": 1.69,
+        "pct_projetado": 1.63,
+        "ci95": {
+          "lower": 1.21,
+          "upper": 2.06
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 8937,
+        "votos_projetados": 24401,
+        "pct_atual": 1.25,
+        "pct_projetado": 1.1,
+        "ci95": {
+          "lower": 0.75,
+          "upper": 1.45
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 4582,
+        "votos_projetados": 15781,
+        "pct_atual": 0.64,
+        "pct_projetado": 0.71,
+        "ci95": {
+          "lower": 0.43,
+          "upper": 0.99
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 3975,
+        "votos_projetados": 11487,
+        "pct_atual": 0.56,
+        "pct_projetado": 0.52,
+        "ci95": {
+          "lower": 0.28,
+          "upper": 0.76
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1746,
+        "votos_projetados": 5129,
+        "pct_atual": 0.24,
+        "pct_projetado": 0.23,
+        "ci95": {
+          "lower": 0.07,
+          "upper": 0.39
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 989,
+        "votos_projetados": 2939,
+        "pct_atual": 0.14,
+        "pct_projetado": 0.13,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 499,
+        "votos_projetados": 1591,
+        "pct_atual": 0.07,
+        "pct_projetado": 0.07,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.22
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 323,
+        "votos_projetados": 870,
+        "pct_atual": 0.05,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.19
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "GO": {
+    "uf": "GO",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 30.9,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 527844,
+        "votos_projetados": 1690720,
+        "pct_atual": 46.4,
+        "pct_projetado": 45.93,
+        "ci95": {
+          "lower": 44.21,
+          "upper": 47.64
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 326682,
+        "votos_projetados": 1041835,
+        "pct_atual": 28.72,
+        "pct_projetado": 28.3,
+        "ci95": {
+          "lower": 26.75,
+          "upper": 29.85
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 167379,
+        "votos_projetados": 584304,
+        "pct_atual": 14.71,
+        "pct_projetado": 15.87,
+        "ci95": {
+          "lower": 14.61,
+          "upper": 17.13
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 63903,
+        "votos_projetados": 196225,
+        "pct_atual": 5.62,
+        "pct_projetado": 5.33,
+        "ci95": {
+          "lower": 4.56,
+          "upper": 6.1
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 20980,
+        "votos_projetados": 71152,
+        "pct_atual": 1.84,
+        "pct_projetado": 1.93,
+        "ci95": {
+          "lower": 1.46,
+          "upper": 2.41
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 13539,
+        "votos_projetados": 44092,
+        "pct_atual": 1.19,
+        "pct_projetado": 1.2,
+        "ci95": {
+          "lower": 0.82,
+          "upper": 1.57
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 6256,
+        "votos_projetados": 20163,
+        "pct_atual": 0.55,
+        "pct_projetado": 0.55,
+        "ci95": {
+          "lower": 0.29,
+          "upper": 0.8
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 4804,
+        "votos_projetados": 13449,
+        "pct_atual": 0.42,
+        "pct_projetado": 0.37,
+        "ci95": {
+          "lower": 0.16,
+          "upper": 0.57
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 3185,
+        "votos_projetados": 9680,
+        "pct_atual": 0.28,
+        "pct_projetado": 0.26,
+        "ci95": {
+          "lower": 0.09,
+          "upper": 0.44
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1674,
+        "votos_projetados": 5309,
+        "pct_atual": 0.15,
+        "pct_projetado": 0.14,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.29
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 774,
+        "votos_projetados": 2932,
+        "pct_atual": 0.07,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.23
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 554,
+        "votos_projetados": 1608,
+        "pct_atual": 0.05,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.19
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "MA": {
+    "uf": "MA",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 246804,
+        "votos_projetados": 2065166,
+        "pct_atual": 56.26,
+        "pct_projetado": 54.61,
+        "ci95": {
+          "lower": 51.45,
+          "upper": 57.77
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 93968,
+        "votos_projetados": 825331,
+        "pct_atual": 21.42,
+        "pct_projetado": 21.82,
+        "ci95": {
+          "lower": 19.2,
+          "upper": 24.45
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 72522,
+        "votos_projetados": 682589,
+        "pct_atual": 16.53,
+        "pct_projetado": 18.05,
+        "ci95": {
+          "lower": 15.61,
+          "upper": 20.49
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 9181,
+        "votos_projetados": 68470,
+        "pct_atual": 2.09,
+        "pct_projetado": 1.81,
+        "ci95": {
+          "lower": 0.96,
+          "upper": 2.66
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 4593,
+        "votos_projetados": 39948,
+        "pct_atual": 1.05,
+        "pct_projetado": 1.06,
+        "ci95": {
+          "lower": 0.41,
+          "upper": 1.71
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 3631,
+        "votos_projetados": 34099,
+        "pct_atual": 0.83,
+        "pct_projetado": 0.9,
+        "ci95": {
+          "lower": 0.3,
+          "upper": 1.5
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 3734,
+        "votos_projetados": 31350,
+        "pct_atual": 0.85,
+        "pct_projetado": 0.83,
+        "ci95": {
+          "lower": 0.25,
+          "upper": 1.4
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1813,
+        "votos_projetados": 13842,
+        "pct_atual": 0.41,
+        "pct_projetado": 0.37,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.75
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1296,
+        "votos_projetados": 10442,
+        "pct_atual": 0.3,
+        "pct_projetado": 0.28,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.61
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 605,
+        "votos_projetados": 5660,
+        "pct_atual": 0.14,
+        "pct_projetado": 0.15,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.4
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 359,
+        "votos_projetados": 3107,
+        "pct_atual": 0.08,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 165,
+        "votos_projetados": 1641,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.24
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "MG": {
+    "uf": "MG",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 32.4,
+    "candidatos": [
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 1116005,
+        "votos_projetados": 4002334,
+        "pct_atual": 28.66,
+        "pct_projetado": 33.31,
+        "ci95": {
+          "lower": 31.74,
+          "upper": 34.87
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 1450851,
+        "votos_projetados": 3977196,
+        "pct_atual": 37.26,
+        "pct_projetado": 33.1,
+        "ci95": {
+          "lower": 31.53,
+          "upper": 34.66
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 606284,
+        "votos_projetados": 1763978,
+        "pct_atual": 15.57,
+        "pct_projetado": 14.68,
+        "ci95": {
+          "lower": 13.5,
+          "upper": 15.86
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 509381,
+        "votos_projetados": 1633742,
+        "pct_atual": 13.08,
+        "pct_projetado": 13.6,
+        "ci95": {
+          "lower": 12.46,
+          "upper": 14.73
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 97449,
+        "votos_projetados": 289709,
+        "pct_atual": 2.5,
+        "pct_projetado": 2.41,
+        "ci95": {
+          "lower": 1.9,
+          "upper": 2.92
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 54903,
+        "votos_projetados": 156429,
+        "pct_atual": 1.41,
+        "pct_projetado": 1.3,
+        "ci95": {
+          "lower": 0.93,
+          "upper": 1.68
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 26542,
+        "votos_projetados": 91533,
+        "pct_atual": 0.68,
+        "pct_projetado": 0.76,
+        "ci95": {
+          "lower": 0.47,
+          "upper": 1.05
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 14828,
+        "votos_projetados": 47158,
+        "pct_atual": 0.38,
+        "pct_projetado": 0.39,
+        "ci95": {
+          "lower": 0.18,
+          "upper": 0.6
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 8728,
+        "votos_projetados": 27083,
+        "pct_atual": 0.22,
+        "pct_projetado": 0.23,
+        "ci95": {
+          "lower": 0.07,
+          "upper": 0.38
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 4230,
+        "votos_projetados": 14805,
+        "pct_atual": 0.11,
+        "pct_projetado": 0.12,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.27
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 2655,
+        "votos_projetados": 8142,
+        "pct_atual": 0.07,
+        "pct_projetado": 0.07,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.22
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1533,
+        "votos_projetados": 4524,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.19
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 0.129,
+    "needle_band": "tossup",
+    "granularidade": "zona"
+  },
+  "MS": {
+    "uf": "MS",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 39.3,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 271639,
+        "votos_projetados": 675494,
+        "pct_atual": 45.87,
+        "pct_projetado": 44.82,
+        "ci95": {
+          "lower": 43.4,
+          "upper": 46.25
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 166178,
+        "votos_projetados": 444463,
+        "pct_atual": 28.06,
+        "pct_projetado": 29.49,
+        "ci95": {
+          "lower": 28.19,
+          "upper": 30.8
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 98366,
+        "votos_projetados": 250100,
+        "pct_atual": 16.61,
+        "pct_projetado": 16.6,
+        "ci95": {
+          "lower": 15.53,
+          "upper": 17.66
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 31448,
+        "votos_projetados": 78385,
+        "pct_atual": 5.31,
+        "pct_projetado": 5.2,
+        "ci95": {
+          "lower": 4.57,
+          "upper": 5.84
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 8970,
+        "votos_projetados": 22627,
+        "pct_atual": 1.51,
+        "pct_projetado": 1.5,
+        "ci95": {
+          "lower": 1.15,
+          "upper": 1.85
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 6830,
+        "votos_projetados": 14658,
+        "pct_atual": 1.15,
+        "pct_projetado": 0.97,
+        "ci95": {
+          "lower": 0.69,
+          "upper": 1.25
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 3451,
+        "votos_projetados": 8500,
+        "pct_atual": 0.58,
+        "pct_projetado": 0.56,
+        "ci95": {
+          "lower": 0.35,
+          "upper": 0.78
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 2282,
+        "votos_projetados": 4915,
+        "pct_atual": 0.39,
+        "pct_projetado": 0.33,
+        "ci95": {
+          "lower": 0.16,
+          "upper": 0.49
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1543,
+        "votos_projetados": 4003,
+        "pct_atual": 0.26,
+        "pct_projetado": 0.27,
+        "ci95": {
+          "lower": 0.12,
+          "upper": 0.42
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 780,
+        "votos_projetados": 2063,
+        "pct_atual": 0.13,
+        "pct_projetado": 0.14,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.29
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 431,
+        "votos_projetados": 1141,
+        "pct_atual": 0.07,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.23
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 329,
+        "votos_projetados": 640,
+        "pct_atual": 0.06,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.19
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "MT": {
+    "uf": "MT",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 27.5,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 232299,
+        "votos_projetados": 888574,
+        "pct_atual": 45.84,
+        "pct_projetado": 48.22,
+        "ci95": {
+          "lower": 46.35,
+          "upper": 50.08
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 148460,
+        "votos_projetados": 505203,
+        "pct_atual": 29.29,
+        "pct_projetado": 27.41,
+        "ci95": {
+          "lower": 25.75,
+          "upper": 29.08
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 86355,
+        "votos_projetados": 304543,
+        "pct_atual": 17.04,
+        "pct_projetado": 16.53,
+        "ci95": {
+          "lower": 15.14,
+          "upper": 17.91
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 19688,
+        "votos_projetados": 75190,
+        "pct_atual": 3.88,
+        "pct_projetado": 4.08,
+        "ci95": {
+          "lower": 3.34,
+          "upper": 4.82
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 7498,
+        "votos_projetados": 24153,
+        "pct_atual": 1.48,
+        "pct_projetado": 1.31,
+        "ci95": {
+          "lower": 0.89,
+          "upper": 1.74
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 4816,
+        "votos_projetados": 17407,
+        "pct_atual": 0.95,
+        "pct_projetado": 0.94,
+        "ci95": {
+          "lower": 0.58,
+          "upper": 1.31
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 2994,
+        "votos_projetados": 10831,
+        "pct_atual": 0.59,
+        "pct_projetado": 0.59,
+        "ci95": {
+          "lower": 0.3,
+          "upper": 0.87
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 2063,
+        "votos_projetados": 6876,
+        "pct_atual": 0.41,
+        "pct_projetado": 0.37,
+        "ci95": {
+          "lower": 0.15,
+          "upper": 0.6
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1292,
+        "votos_projetados": 4946,
+        "pct_atual": 0.25,
+        "pct_projetado": 0.27,
+        "ci95": {
+          "lower": 0.08,
+          "upper": 0.46
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 721,
+        "votos_projetados": 2786,
+        "pct_atual": 0.14,
+        "pct_projetado": 0.15,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.3
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 369,
+        "votos_projetados": 1529,
+        "pct_atual": 0.07,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.23
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 239,
+        "votos_projetados": 850,
+        "pct_atual": 0.05,
+        "pct_projetado": 0.05,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.2
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "PA": {
+    "uf": "PA",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 192618,
+        "votos_projetados": 1831654,
+        "pct_atual": 35.48,
+        "pct_projetado": 39.14,
+        "ci95": {
+          "lower": 36.04,
+          "upper": 42.24
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 226188,
+        "votos_projetados": 1797167,
+        "pct_atual": 41.66,
+        "pct_projetado": 38.4,
+        "ci95": {
+          "lower": 35.31,
+          "upper": 41.49
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 94156,
+        "votos_projetados": 786788,
+        "pct_atual": 17.34,
+        "pct_projetado": 16.81,
+        "ci95": {
+          "lower": 14.44,
+          "upper": 19.19
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 11084,
+        "votos_projetados": 98622,
+        "pct_atual": 2.04,
+        "pct_projetado": 2.11,
+        "ci95": {
+          "lower": 1.2,
+          "upper": 3.02
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 6538,
+        "votos_projetados": 60640,
+        "pct_atual": 1.2,
+        "pct_projetado": 1.3,
+        "ci95": {
+          "lower": 0.58,
+          "upper": 2.01
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 3856,
+        "votos_projetados": 35652,
+        "pct_atual": 0.71,
+        "pct_projetado": 0.76,
+        "ci95": {
+          "lower": 0.21,
+          "upper": 1.31
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 4314,
+        "votos_projetados": 34746,
+        "pct_atual": 0.79,
+        "pct_projetado": 0.74,
+        "ci95": {
+          "lower": 0.2,
+          "upper": 1.29
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1393,
+        "votos_projetados": 11659,
+        "pct_atual": 0.26,
+        "pct_projetado": 0.25,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.57
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1344,
+        "votos_projetados": 11339,
+        "pct_atual": 0.25,
+        "pct_projetado": 0.24,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.55
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 747,
+        "votos_projetados": 6289,
+        "pct_atual": 0.14,
+        "pct_projetado": 0.13,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.37
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 427,
+        "votos_projetados": 3454,
+        "pct_atual": 0.08,
+        "pct_projetado": 0.07,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.27
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 208,
+        "votos_projetados": 1926,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.24
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 0.231,
+    "needle_band": "lean_a",
+    "granularidade": "zona"
+  },
+  "PB": {
+    "uf": "PB",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 132357,
+        "votos_projetados": 1168623,
+        "pct_atual": 47.12,
+        "pct_projetado": 48.26,
+        "ci95": {
+          "lower": 45.08,
+          "upper": 51.43
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 72165,
+        "votos_projetados": 650232,
+        "pct_atual": 25.69,
+        "pct_projetado": 26.85,
+        "ci95": {
+          "lower": 24.04,
+          "upper": 29.66
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 57228,
+        "votos_projetados": 439752,
+        "pct_atual": 20.37,
+        "pct_projetado": 18.16,
+        "ci95": {
+          "lower": 15.71,
+          "upper": 20.61
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 7820,
+        "votos_projetados": 60558,
+        "pct_atual": 2.78,
+        "pct_projetado": 2.5,
+        "ci95": {
+          "lower": 1.51,
+          "upper": 3.49
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 4182,
+        "votos_projetados": 38052,
+        "pct_atual": 1.49,
+        "pct_projetado": 1.57,
+        "ci95": {
+          "lower": 0.78,
+          "upper": 2.36
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 2956,
+        "votos_projetados": 26772,
+        "pct_atual": 1.05,
+        "pct_projetado": 1.11,
+        "ci95": {
+          "lower": 0.44,
+          "upper": 1.77
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1670,
+        "votos_projetados": 14024,
+        "pct_atual": 0.59,
+        "pct_projetado": 0.58,
+        "ci95": {
+          "lower": 0.1,
+          "upper": 1.06
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1070,
+        "votos_projetados": 10306,
+        "pct_atual": 0.38,
+        "pct_projetado": 0.43,
+        "ci95": {
+          "lower": 0.01,
+          "upper": 0.84
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 752,
+        "votos_projetados": 6789,
+        "pct_atual": 0.27,
+        "pct_projetado": 0.28,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.62
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 373,
+        "votos_projetados": 3499,
+        "pct_atual": 0.13,
+        "pct_projetado": 0.14,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.39
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 231,
+        "votos_projetados": 1999,
+        "pct_atual": 0.08,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 112,
+        "votos_projetados": 1082,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.25
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "PE": {
+    "uf": "PE",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 328958,
+        "votos_projetados": 2827462,
+        "pct_atual": 52.01,
+        "pct_projetado": 51.86,
+        "ci95": {
+          "lower": 48.69,
+          "upper": 55.03
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 167929,
+        "votos_projetados": 1396016,
+        "pct_atual": 26.55,
+        "pct_projetado": 25.61,
+        "ci95": {
+          "lower": 22.83,
+          "upper": 28.38
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 92616,
+        "votos_projetados": 851643,
+        "pct_atual": 14.64,
+        "pct_projetado": 15.62,
+        "ci95": {
+          "lower": 13.32,
+          "upper": 17.93
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 18148,
+        "votos_projetados": 159254,
+        "pct_atual": 2.87,
+        "pct_projetado": 2.92,
+        "ci95": {
+          "lower": 1.85,
+          "upper": 3.99
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 9256,
+        "votos_projetados": 80492,
+        "pct_atual": 1.46,
+        "pct_projetado": 1.48,
+        "ci95": {
+          "lower": 0.71,
+          "upper": 2.24
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 6440,
+        "votos_projetados": 58850,
+        "pct_atual": 1.02,
+        "pct_projetado": 1.08,
+        "ci95": {
+          "lower": 0.42,
+          "upper": 1.74
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 3819,
+        "votos_projetados": 31862,
+        "pct_atual": 0.6,
+        "pct_projetado": 0.58,
+        "ci95": {
+          "lower": 0.1,
+          "upper": 1.07
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1951,
+        "votos_projetados": 16192,
+        "pct_atual": 0.31,
+        "pct_projetado": 0.3,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.64
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1604,
+        "votos_projetados": 14807,
+        "pct_atual": 0.25,
+        "pct_projetado": 0.27,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.6
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 899,
+        "votos_projetados": 8358,
+        "pct_atual": 0.14,
+        "pct_projetado": 0.15,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.4
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 561,
+        "votos_projetados": 4518,
+        "pct_atual": 0.09,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 252,
+        "votos_projetados": 2555,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.05,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.25
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "PI": {
+    "uf": "PI",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 136014,
+        "votos_projetados": 1223059,
+        "pct_atual": 57.35,
+        "pct_projetado": 59.83,
+        "ci95": {
+          "lower": 56.71,
+          "upper": 62.94
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 42936,
+        "votos_projetados": 374211,
+        "pct_atual": 18.11,
+        "pct_projetado": 18.3,
+        "ci95": {
+          "lower": 15.85,
+          "upper": 20.76
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 44617,
+        "votos_projetados": 329731,
+        "pct_atual": 18.81,
+        "pct_projetado": 16.13,
+        "ci95": {
+          "lower": 13.79,
+          "upper": 18.46
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 5302,
+        "votos_projetados": 46555,
+        "pct_atual": 2.24,
+        "pct_projetado": 2.28,
+        "ci95": {
+          "lower": 1.33,
+          "upper": 3.22
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 2766,
+        "votos_projetados": 23006,
+        "pct_atual": 1.17,
+        "pct_projetado": 1.13,
+        "ci95": {
+          "lower": 0.46,
+          "upper": 1.8
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 2348,
+        "votos_projetados": 17960,
+        "pct_atual": 0.99,
+        "pct_projetado": 0.88,
+        "ci95": {
+          "lower": 0.29,
+          "upper": 1.47
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1316,
+        "votos_projetados": 13326,
+        "pct_atual": 0.55,
+        "pct_projetado": 0.65,
+        "ci95": {
+          "lower": 0.14,
+          "upper": 1.16
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 628,
+        "votos_projetados": 5580,
+        "pct_atual": 0.26,
+        "pct_projetado": 0.27,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.6
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 544,
+        "votos_projetados": 5236,
+        "pct_atual": 0.23,
+        "pct_projetado": 0.26,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.58
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 366,
+        "votos_projetados": 3120,
+        "pct_atual": 0.15,
+        "pct_projetado": 0.15,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.4
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 210,
+        "votos_projetados": 1699,
+        "pct_atual": 0.09,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 102,
+        "votos_projetados": 903,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.24
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "PR": {
+    "uf": "PR",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 34.7,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 1051295,
+        "votos_projetados": 2919940,
+        "pct_atual": 46.14,
+        "pct_projetado": 44.47,
+        "ci95": {
+          "lower": 42.9,
+          "upper": 46.03
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 616830,
+        "votos_projetados": 1764225,
+        "pct_atual": 27.07,
+        "pct_projetado": 26.87,
+        "ci95": {
+          "lower": 25.47,
+          "upper": 28.26
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 317435,
+        "votos_projetados": 1055156,
+        "pct_atual": 13.93,
+        "pct_projetado": 16.07,
+        "ci95": {
+          "lower": 14.91,
+          "upper": 17.23
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 182554,
+        "votos_projetados": 502300,
+        "pct_atual": 8.01,
+        "pct_projetado": 7.65,
+        "ci95": {
+          "lower": 6.81,
+          "upper": 8.49
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 39506,
+        "votos_projetados": 119567,
+        "pct_atual": 1.73,
+        "pct_projetado": 1.82,
+        "ci95": {
+          "lower": 1.4,
+          "upper": 2.24
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 31663,
+        "votos_projetados": 98448,
+        "pct_atual": 1.39,
+        "pct_projetado": 1.5,
+        "ci95": {
+          "lower": 1.12,
+          "upper": 1.88
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 15844,
+        "votos_projetados": 42572,
+        "pct_atual": 0.7,
+        "pct_projetado": 0.65,
+        "ci95": {
+          "lower": 0.4,
+          "upper": 0.9
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 12647,
+        "votos_projetados": 34153,
+        "pct_atual": 0.56,
+        "pct_projetado": 0.52,
+        "ci95": {
+          "lower": 0.29,
+          "upper": 0.75
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 5360,
+        "votos_projetados": 15173,
+        "pct_atual": 0.24,
+        "pct_projetado": 0.23,
+        "ci95": {
+          "lower": 0.08,
+          "upper": 0.38
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 2874,
+        "votos_projetados": 8289,
+        "pct_atual": 0.13,
+        "pct_projetado": 0.13,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1675,
+        "votos_projetados": 4364,
+        "pct_atual": 0.07,
+        "pct_projetado": 0.07,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.22
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 984,
+        "votos_projetados": 2577,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.19
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "RJ": {
+    "uf": "RJ",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 30.6,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 1233796,
+        "votos_projetados": 3787613,
+        "pct_atual": 42.64,
+        "pct_projetado": 40.05,
+        "ci95": {
+          "lower": 38.36,
+          "upper": 41.75
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 769194,
+        "votos_projetados": 2636649,
+        "pct_atual": 26.58,
+        "pct_projetado": 27.88,
+        "ci95": {
+          "lower": 26.33,
+          "upper": 29.43
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 446691,
+        "votos_projetados": 1542234,
+        "pct_atual": 15.44,
+        "pct_projetado": 16.31,
+        "ci95": {
+          "lower": 15.03,
+          "upper": 17.59
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 212985,
+        "votos_projetados": 677544,
+        "pct_atual": 7.36,
+        "pct_projetado": 7.16,
+        "ci95": {
+          "lower": 6.27,
+          "upper": 8.06
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 125833,
+        "votos_projetados": 431212,
+        "pct_atual": 4.35,
+        "pct_projetado": 4.56,
+        "ci95": {
+          "lower": 3.84,
+          "upper": 5.28
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 47850,
+        "votos_projetados": 178991,
+        "pct_atual": 1.65,
+        "pct_projetado": 1.89,
+        "ci95": {
+          "lower": 1.42,
+          "upper": 2.36
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 28632,
+        "votos_projetados": 104502,
+        "pct_atual": 0.99,
+        "pct_projetado": 1.11,
+        "ci95": {
+          "lower": 0.74,
+          "upper": 1.47
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 14547,
+        "votos_projetados": 49755,
+        "pct_atual": 0.5,
+        "pct_projetado": 0.53,
+        "ci95": {
+          "lower": 0.28,
+          "upper": 0.78
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 7183,
+        "votos_projetados": 23791,
+        "pct_atual": 0.25,
+        "pct_projetado": 0.25,
+        "ci95": {
+          "lower": 0.08,
+          "upper": 0.43
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 4045,
+        "votos_projetados": 13082,
+        "pct_atual": 0.14,
+        "pct_projetado": 0.14,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.29
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1898,
+        "votos_projetados": 7393,
+        "pct_atual": 0.07,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.23
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1089,
+        "votos_projetados": 3911,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.19
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "RN": {
+    "uf": "RN",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 121832,
+        "votos_projetados": 984820,
+        "pct_atual": 52.32,
+        "pct_projetado": 49.06,
+        "ci95": {
+          "lower": 45.89,
+          "upper": 52.24
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 60850,
+        "votos_projetados": 553967,
+        "pct_atual": 26.13,
+        "pct_projetado": 27.6,
+        "ci95": {
+          "lower": 24.76,
+          "upper": 30.44
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 33905,
+        "votos_projetados": 329593,
+        "pct_atual": 14.56,
+        "pct_projetado": 16.42,
+        "ci95": {
+          "lower": 14.07,
+          "upper": 18.77
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 5408,
+        "votos_projetados": 44218,
+        "pct_atual": 2.32,
+        "pct_projetado": 2.2,
+        "ci95": {
+          "lower": 1.27,
+          "upper": 3.13
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 3859,
+        "votos_projetados": 35306,
+        "pct_atual": 1.66,
+        "pct_projetado": 1.76,
+        "ci95": {
+          "lower": 0.92,
+          "upper": 2.59
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 2741,
+        "votos_projetados": 23691,
+        "pct_atual": 1.18,
+        "pct_projetado": 1.18,
+        "ci95": {
+          "lower": 0.49,
+          "upper": 1.87
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 2004,
+        "votos_projetados": 17152,
+        "pct_atual": 0.86,
+        "pct_projetado": 0.85,
+        "ci95": {
+          "lower": 0.27,
+          "upper": 1.44
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 943,
+        "votos_projetados": 8051,
+        "pct_atual": 0.4,
+        "pct_projetado": 0.4,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.8
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 666,
+        "votos_projetados": 5215,
+        "pct_atual": 0.29,
+        "pct_projetado": 0.26,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.58
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 324,
+        "votos_projetados": 2853,
+        "pct_atual": 0.14,
+        "pct_projetado": 0.14,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.38
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 200,
+        "votos_projetados": 1553,
+        "pct_atual": 0.09,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 111,
+        "votos_projetados": 845,
+        "pct_atual": 0.05,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.24
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "RO": {
+    "uf": "RO",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 58149,
+        "votos_projetados": 483226,
+        "pct_atual": 55.5,
+        "pct_projetado": 53.5,
+        "ci95": {
+          "lower": 50.33,
+          "upper": 56.67
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 20236,
+        "votos_projetados": 194547,
+        "pct_atual": 19.31,
+        "pct_projetado": 21.54,
+        "ci95": {
+          "lower": 18.93,
+          "upper": 24.15
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 17828,
+        "votos_projetados": 149361,
+        "pct_atual": 17.02,
+        "pct_projetado": 16.54,
+        "ci95": {
+          "lower": 14.18,
+          "upper": 18.9
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 4262,
+        "votos_projetados": 38363,
+        "pct_atual": 4.07,
+        "pct_projetado": 4.25,
+        "ci95": {
+          "lower": 2.97,
+          "upper": 5.53
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 1419,
+        "votos_projetados": 13641,
+        "pct_atual": 1.35,
+        "pct_projetado": 1.51,
+        "ci95": {
+          "lower": 0.74,
+          "upper": 2.28
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 1201,
+        "votos_projetados": 9521,
+        "pct_atual": 1.15,
+        "pct_projetado": 1.05,
+        "ci95": {
+          "lower": 0.41,
+          "upper": 1.7
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 701,
+        "votos_projetados": 5700,
+        "pct_atual": 0.67,
+        "pct_projetado": 0.63,
+        "ci95": {
+          "lower": 0.13,
+          "upper": 1.13
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 422,
+        "votos_projetados": 3969,
+        "pct_atual": 0.4,
+        "pct_projetado": 0.44,
+        "ci95": {
+          "lower": 0.02,
+          "upper": 0.86
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 265,
+        "votos_projetados": 2404,
+        "pct_atual": 0.25,
+        "pct_projetado": 0.27,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.59
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 157,
+        "votos_projetados": 1333,
+        "pct_atual": 0.15,
+        "pct_projetado": 0.15,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.39
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 92,
+        "votos_projetados": 761,
+        "pct_atual": 0.09,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 43,
+        "votos_projetados": 409,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.05,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.25
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "RR": {
+    "uf": "RR",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 20241,
+        "votos_projetados": 170948,
+        "pct_atual": 58.48,
+        "pct_projetado": 57.29,
+        "ci95": {
+          "lower": 54.15,
+          "upper": 60.43
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 5826,
+        "votos_projetados": 53841,
+        "pct_atual": 16.83,
+        "pct_projetado": 18.05,
+        "ci95": {
+          "lower": 15.6,
+          "upper": 20.49
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 5653,
+        "votos_projetados": 48369,
+        "pct_atual": 16.33,
+        "pct_projetado": 16.21,
+        "ci95": {
+          "lower": 13.87,
+          "upper": 18.55
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 1487,
+        "votos_projetados": 13095,
+        "pct_atual": 4.3,
+        "pct_projetado": 4.39,
+        "ci95": {
+          "lower": 3.09,
+          "upper": 5.69
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 415,
+        "votos_projetados": 3725,
+        "pct_atual": 1.2,
+        "pct_projetado": 1.25,
+        "ci95": {
+          "lower": 0.54,
+          "upper": 1.95
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 355,
+        "votos_projetados": 2995,
+        "pct_atual": 1.02,
+        "pct_projetado": 1,
+        "ci95": {
+          "lower": 0.37,
+          "upper": 1.64
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 301,
+        "votos_projetados": 2598,
+        "pct_atual": 0.87,
+        "pct_projetado": 0.87,
+        "ci95": {
+          "lower": 0.28,
+          "upper": 1.46
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 152,
+        "votos_projetados": 1234,
+        "pct_atual": 0.44,
+        "pct_projetado": 0.41,
+        "ci95": {
+          "lower": 0.01,
+          "upper": 0.82
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 90,
+        "votos_projetados": 773,
+        "pct_atual": 0.26,
+        "pct_projetado": 0.26,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.58
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 48,
+        "votos_projetados": 426,
+        "pct_atual": 0.14,
+        "pct_projetado": 0.14,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.38
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 28,
+        "votos_projetados": 237,
+        "pct_atual": 0.08,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 15,
+        "votos_projetados": 128,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.24
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "RS": {
+    "uf": "RS",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 27.5,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 726544,
+        "votos_projetados": 2806827,
+        "pct_atual": 39.8,
+        "pct_projetado": 42.29,
+        "ci95": {
+          "lower": 40.44,
+          "upper": 44.13
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 508654,
+        "votos_projetados": 1797848,
+        "pct_atual": 27.87,
+        "pct_projetado": 27.09,
+        "ci95": {
+          "lower": 25.43,
+          "upper": 28.74
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 318587,
+        "votos_projetados": 1107668,
+        "pct_atual": 17.45,
+        "pct_projetado": 16.69,
+        "ci95": {
+          "lower": 15.29,
+          "upper": 18.08
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 175390,
+        "votos_projetados": 588719,
+        "pct_atual": 9.61,
+        "pct_projetado": 8.87,
+        "ci95": {
+          "lower": 7.81,
+          "upper": 9.93
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 36063,
+        "votos_projetados": 134160,
+        "pct_atual": 1.98,
+        "pct_projetado": 2.02,
+        "ci95": {
+          "lower": 1.5,
+          "upper": 2.55
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 28251,
+        "votos_projetados": 91689,
+        "pct_atual": 1.55,
+        "pct_projetado": 1.38,
+        "ci95": {
+          "lower": 0.95,
+          "upper": 1.82
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 14356,
+        "votos_projetados": 50487,
+        "pct_atual": 0.79,
+        "pct_projetado": 0.76,
+        "ci95": {
+          "lower": 0.44,
+          "upper": 1.09
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 8219,
+        "votos_projetados": 28075,
+        "pct_atual": 0.45,
+        "pct_projetado": 0.42,
+        "ci95": {
+          "lower": 0.18,
+          "upper": 0.67
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 4410,
+        "votos_projetados": 15785,
+        "pct_atual": 0.24,
+        "pct_projetado": 0.24,
+        "ci95": {
+          "lower": 0.06,
+          "upper": 0.42
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 2480,
+        "votos_projetados": 8842,
+        "pct_atual": 0.14,
+        "pct_projetado": 0.13,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1610,
+        "votos_projetados": 5042,
+        "pct_atual": 0.09,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.23
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 818,
+        "votos_projetados": 2610,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.19
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "SC": {
+    "uf": "SC",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 24,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 470755,
+        "votos_projetados": 1911963,
+        "pct_atual": 45.29,
+        "pct_projetado": 44.15,
+        "ci95": {
+          "lower": 42.11,
+          "upper": 46.18
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 187023,
+        "votos_projetados": 823987,
+        "pct_atual": 17.99,
+        "pct_projetado": 19.03,
+        "ci95": {
+          "lower": 17.42,
+          "upper": 20.63
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 187251,
+        "votos_projetados": 730428,
+        "pct_atual": 18.01,
+        "pct_projetado": 16.87,
+        "ci95": {
+          "lower": 15.33,
+          "upper": 18.4
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 144245,
+        "votos_projetados": 649330,
+        "pct_atual": 13.88,
+        "pct_projetado": 14.99,
+        "ci95": {
+          "lower": 13.53,
+          "upper": 16.45
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 19253,
+        "votos_projetados": 89377,
+        "pct_atual": 1.85,
+        "pct_projetado": 2.06,
+        "ci95": {
+          "lower": 1.48,
+          "upper": 2.65
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 15598,
+        "votos_projetados": 62278,
+        "pct_atual": 1.5,
+        "pct_projetado": 1.44,
+        "ci95": {
+          "lower": 0.95,
+          "upper": 1.93
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 6568,
+        "votos_projetados": 28199,
+        "pct_atual": 0.63,
+        "pct_projetado": 0.65,
+        "ci95": {
+          "lower": 0.32,
+          "upper": 0.98
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 3927,
+        "votos_projetados": 15727,
+        "pct_atual": 0.38,
+        "pct_projetado": 0.36,
+        "ci95": {
+          "lower": 0.12,
+          "upper": 0.61
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 2359,
+        "votos_projetados": 9774,
+        "pct_atual": 0.23,
+        "pct_projetado": 0.23,
+        "ci95": {
+          "lower": 0.03,
+          "upper": 0.42
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 1363,
+        "votos_projetados": 5470,
+        "pct_atual": 0.13,
+        "pct_projetado": 0.13,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 686,
+        "votos_projetados": 2855,
+        "pct_atual": 0.07,
+        "pct_projetado": 0.07,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.22
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 408,
+        "votos_projetados": 1596,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.19
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "SE": {
+    "uf": "SE",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 71231,
+        "votos_projetados": 639907,
+        "pct_atual": 47.29,
+        "pct_projetado": 49.28,
+        "ci95": {
+          "lower": 46.11,
+          "upper": 52.46
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 38265,
+        "votos_projetados": 331600,
+        "pct_atual": 25.41,
+        "pct_projetado": 25.54,
+        "ci95": {
+          "lower": 22.77,
+          "upper": 28.31
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 27939,
+        "votos_projetados": 213804,
+        "pct_atual": 18.55,
+        "pct_projetado": 16.47,
+        "ci95": {
+          "lower": 14.11,
+          "upper": 18.82
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 4590,
+        "votos_projetados": 35374,
+        "pct_atual": 3.05,
+        "pct_projetado": 2.72,
+        "ci95": {
+          "lower": 1.69,
+          "upper": 3.76
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 2635,
+        "votos_projetados": 25312,
+        "pct_atual": 1.75,
+        "pct_projetado": 1.95,
+        "ci95": {
+          "lower": 1.07,
+          "upper": 2.83
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 2532,
+        "votos_projetados": 24254,
+        "pct_atual": 1.68,
+        "pct_projetado": 1.87,
+        "ci95": {
+          "lower": 1.01,
+          "upper": 2.73
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 1777,
+        "votos_projetados": 14397,
+        "pct_atual": 1.18,
+        "pct_projetado": 1.11,
+        "ci95": {
+          "lower": 0.44,
+          "upper": 1.77
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 735,
+        "votos_projetados": 6687,
+        "pct_atual": 0.49,
+        "pct_projetado": 0.51,
+        "ci95": {
+          "lower": 0.06,
+          "upper": 0.97
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 443,
+        "votos_projetados": 3594,
+        "pct_atual": 0.29,
+        "pct_projetado": 0.28,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.61
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 269,
+        "votos_projetados": 1885,
+        "pct_atual": 0.18,
+        "pct_projetado": 0.15,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.39
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 128,
+        "votos_projetados": 1047,
+        "pct_atual": 0.08,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 74,
+        "votos_projetados": 571,
+        "pct_atual": 0.05,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.24
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "SP": {
+    "uf": "SP",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 35,
+    "candidatos": [
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 2657127,
+        "votos_projetados": 8868775,
+        "pct_atual": 29.59,
+        "pct_projetado": 34.57,
+        "ci95": {
+          "lower": 33.08,
+          "upper": 36.06
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 2756488,
+        "votos_projetados": 7364742,
+        "pct_atual": 30.7,
+        "pct_projetado": 28.71,
+        "ci95": {
+          "lower": 27.29,
+          "upper": 30.12
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 1562732,
+        "votos_projetados": 3894009,
+        "pct_atual": 17.4,
+        "pct_projetado": 15.18,
+        "ci95": {
+          "lower": 14.05,
+          "upper": 16.3
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 1078044,
+        "votos_projetados": 3012854,
+        "pct_atual": 12.01,
+        "pct_projetado": 11.74,
+        "ci95": {
+          "lower": 10.73,
+          "upper": 12.75
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 491532,
+        "votos_projetados": 1328467,
+        "pct_atual": 5.47,
+        "pct_projetado": 5.18,
+        "ci95": {
+          "lower": 4.48,
+          "upper": 5.87
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 212406,
+        "votos_projetados": 605283,
+        "pct_atual": 2.37,
+        "pct_projetado": 2.36,
+        "ci95": {
+          "lower": 1.88,
+          "upper": 2.83
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 109194,
+        "votos_projetados": 285384,
+        "pct_atual": 1.22,
+        "pct_projetado": 1.11,
+        "ci95": {
+          "lower": 0.78,
+          "upper": 1.44
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 66301,
+        "votos_projetados": 170246,
+        "pct_atual": 0.74,
+        "pct_projetado": 0.66,
+        "ci95": {
+          "lower": 0.41,
+          "upper": 0.92
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 22966,
+        "votos_projetados": 62193,
+        "pct_atual": 0.26,
+        "pct_projetado": 0.24,
+        "ci95": {
+          "lower": 0.09,
+          "upper": 0.4
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 12174,
+        "votos_projetados": 34690,
+        "pct_atual": 0.14,
+        "pct_projetado": 0.14,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.29
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 6654,
+        "votos_projetados": 19101,
+        "pct_atual": 0.07,
+        "pct_projetado": 0.07,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.22
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 4099,
+        "votos_projetados": 10590,
+        "pct_atual": 0.05,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.19
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 1,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "TO": {
+    "uf": "TO",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 1,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 39561,
+        "votos_projetados": 336582,
+        "pct_atual": 39.57,
+        "pct_projetado": 39.06,
+        "ci95": {
+          "lower": 35.96,
+          "upper": 42.15
+        },
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 37214,
+        "votos_projetados": 319414,
+        "pct_atual": 37.23,
+        "pct_projetado": 37.06,
+        "ci95": {
+          "lower": 34,
+          "upper": 40.13
+        },
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 18052,
+        "votos_projetados": 158160,
+        "pct_atual": 18.06,
+        "pct_projetado": 18.35,
+        "ci95": {
+          "lower": 15.89,
+          "upper": 20.81
+        },
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 2282,
+        "votos_projetados": 22084,
+        "pct_atual": 2.28,
+        "pct_projetado": 2.56,
+        "ci95": {
+          "lower": 1.56,
+          "upper": 3.57
+        },
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 887,
+        "votos_projetados": 8278,
+        "pct_atual": 0.89,
+        "pct_projetado": 0.96,
+        "ci95": {
+          "lower": 0.34,
+          "upper": 1.58
+        },
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 651,
+        "votos_projetados": 5878,
+        "pct_atual": 0.65,
+        "pct_projetado": 0.68,
+        "ci95": {
+          "lower": 0.16,
+          "upper": 1.2
+        },
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 411,
+        "votos_projetados": 3522,
+        "pct_atual": 0.41,
+        "pct_projetado": 0.41,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.81
+        },
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 411,
+        "votos_projetados": 3395,
+        "pct_atual": 0.41,
+        "pct_projetado": 0.39,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.79
+        },
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 243,
+        "votos_projetados": 2245,
+        "pct_atual": 0.24,
+        "pct_projetado": 0.26,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.58
+        },
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 140,
+        "votos_projetados": 1218,
+        "pct_atual": 0.14,
+        "pct_projetado": 0.14,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.38
+        },
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 76,
+        "votos_projetados": 658,
+        "pct_atual": 0.08,
+        "pct_projetado": 0.08,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.28
+        },
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 40,
+        "votos_projetados": 358,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.24
+        },
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 0.655,
+    "needle_band": "likely_a",
+    "granularidade": "zona"
+  }
+}

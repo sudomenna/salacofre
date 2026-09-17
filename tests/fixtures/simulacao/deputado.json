@@ -1,0 +1,700 @@
+{
+  "ts": "2026-09-14T06:16:29.167Z",
+  "cargo": 6,
+  "turno": 1,
+  "pct_apurado_total": 25,
+  "ufs_apuradas": 27,
+  "atualizacao_min": 15,
+  "bancada": {
+    "total_cadeiras": 513,
+    "cadeiras_atribuidas": 513,
+    "ufs_calculadas": 27,
+    "ufs_aguardando": 0,
+    "por_agremiacao": [
+      {
+        "cod": "13",
+        "sigla": "PT/PC do B/PV",
+        "nome": "PT/PC do B/PV",
+        "tipo": "federacao",
+        "componentes": ["PCDOB", "PT", "PV"],
+        "sigla_lider": "PT",
+        "cadeiras": 121,
+        "votos_nominais": 5600609,
+        "votos_legenda": 435536,
+        "votos_validos": 6036145,
+        "pct_votos": 20.52,
+        "cadeiras_indefinidas": 7
+      },
+      {
+        "cod": "22",
+        "sigla": "PL",
+        "nome": "PARTIDO LIBERAL",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PL",
+        "cadeiras": 87,
+        "votos_nominais": 3976938,
+        "votos_legenda": 285308,
+        "votos_validos": 4262246,
+        "pct_votos": 14.49,
+        "cadeiras_indefinidas": 6
+      },
+      {
+        "cod": "11",
+        "sigla": "UNIÃO/PP",
+        "nome": "UNIÃO/PP",
+        "tipo": "federacao",
+        "componentes": ["PP", "UNIÃO"],
+        "sigla_lider": "UNIÃO",
+        "cadeiras": 69,
+        "votos_nominais": 3449798,
+        "votos_legenda": 205864,
+        "votos_validos": 3655662,
+        "pct_votos": 12.43,
+        "cadeiras_indefinidas": 2
+      },
+      {
+        "cod": "10",
+        "sigla": "REPUBLICANOS",
+        "nome": "REPUBLICANOS",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "REPUBLICANOS",
+        "cadeiras": 55,
+        "votos_nominais": 3395601,
+        "votos_legenda": 199739,
+        "votos_validos": 3595340,
+        "pct_votos": 12.22,
+        "cadeiras_indefinidas": 1
+      },
+      {
+        "cod": "55",
+        "sigla": "PSD",
+        "nome": "PARTIDO SOCIAL DEMOCRÁTICO",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PSD",
+        "cadeiras": 41,
+        "votos_nominais": 2215735,
+        "votos_legenda": 182070,
+        "votos_validos": 2397805,
+        "pct_votos": 8.15,
+        "cadeiras_indefinidas": 3
+      },
+      {
+        "cod": "23",
+        "sigla": "PSDB/CIDADANIA",
+        "nome": "PSDB/CIDADANIA",
+        "tipo": "federacao",
+        "componentes": ["CIDADANIA", "PSDB"],
+        "sigla_lider": "PSDB",
+        "cadeiras": 38,
+        "votos_nominais": 2255618,
+        "votos_legenda": 159885,
+        "votos_validos": 2415503,
+        "pct_votos": 8.21,
+        "cadeiras_indefinidas": 1
+      },
+      {
+        "cod": "30",
+        "sigla": "NOVO",
+        "nome": "PARTIDO NOVO",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "NOVO",
+        "cadeiras": 34,
+        "votos_nominais": 2423252,
+        "votos_legenda": 183899,
+        "votos_validos": 2607151,
+        "pct_votos": 8.86,
+        "cadeiras_indefinidas": 4
+      },
+      {
+        "cod": "40",
+        "sigla": "PSB",
+        "nome": "PARTIDO SOCIALISTA BRASILEIRO",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PSB",
+        "cadeiras": 34,
+        "votos_nominais": 1662273,
+        "votos_legenda": 105316,
+        "votos_validos": 1767589,
+        "pct_votos": 6.01
+      },
+      {
+        "cod": "15",
+        "sigla": "MDB",
+        "nome": "MOVIMENTO DEMOCRÁTICO BRASILEIRO",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "MDB",
+        "cadeiras": 24,
+        "votos_nominais": 1238747,
+        "votos_legenda": 87022,
+        "votos_validos": 1325769,
+        "pct_votos": 4.51,
+        "cadeiras_indefinidas": 1
+      },
+      {
+        "cod": "12",
+        "sigla": "PDT",
+        "nome": "PARTIDO DEMOCRÁTICO TRABALHISTA",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PDT",
+        "cadeiras": 7,
+        "votos_nominais": 595779,
+        "votos_legenda": 41683,
+        "votos_validos": 637462,
+        "pct_votos": 2.17
+      },
+      {
+        "cod": "25",
+        "sigla": "PRD/SOLIDARIEDADE",
+        "nome": "PRD/SOLIDARIEDADE",
+        "tipo": "federacao",
+        "componentes": ["PRD", "SOLIDARIEDADE"],
+        "sigla_lider": "PRD",
+        "cadeiras": 3,
+        "votos_nominais": 406083,
+        "votos_legenda": 30854,
+        "votos_validos": 436937,
+        "pct_votos": 1.49
+      },
+      {
+        "cod": "36",
+        "sigla": "AGIR",
+        "nome": "AGIR",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "AGIR",
+        "cadeiras": 0,
+        "votos_nominais": 148,
+        "votos_legenda": 10,
+        "votos_validos": 158,
+        "pct_votos": 0
+      },
+      {
+        "cod": "70",
+        "sigla": "AVANTE",
+        "nome": "AVANTE",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "AVANTE",
+        "cadeiras": 0,
+        "votos_nominais": 343,
+        "votos_legenda": 20,
+        "votos_validos": 363,
+        "pct_votos": 0
+      },
+      {
+        "cod": "27",
+        "sigla": "DC",
+        "nome": "DEMOCRACIA CRISTÃ",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "DC",
+        "cadeiras": 0,
+        "votos_nominais": 9750,
+        "votos_legenda": 590,
+        "votos_validos": 10340,
+        "pct_votos": 0.04
+      },
+      {
+        "cod": "35",
+        "sigla": "DEMOCRATA",
+        "nome": "DEMOCRATA",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "DEMOCRATA",
+        "cadeiras": 0,
+        "votos_nominais": 304,
+        "votos_legenda": 22,
+        "votos_validos": 326,
+        "pct_votos": 0
+      },
+      {
+        "cod": "14",
+        "sigla": "MISSÃO",
+        "nome": "PARTIDO MISSÃO",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "MISSÃO",
+        "cadeiras": 0,
+        "votos_nominais": 322,
+        "votos_legenda": 21,
+        "votos_validos": 343,
+        "pct_votos": 0
+      },
+      {
+        "cod": "33",
+        "sigla": "MOBILIZA",
+        "nome": "MOBILIZAÇÃO NACIONAL",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "MOBILIZA",
+        "cadeiras": 0,
+        "votos_nominais": 110,
+        "votos_legenda": 8,
+        "votos_validos": 118,
+        "pct_votos": 0
+      },
+      {
+        "cod": "29",
+        "sigla": "PCO",
+        "nome": "PARTIDO DA CAUSA OPERÁRIA",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PCO",
+        "cadeiras": 0,
+        "votos_nominais": 677,
+        "votos_legenda": 44,
+        "votos_validos": 721,
+        "pct_votos": 0
+      },
+      {
+        "cod": "20",
+        "sigla": "PODE",
+        "nome": "PODEMOS",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PODE",
+        "cadeiras": 0,
+        "votos_nominais": 100235,
+        "votos_legenda": 7388,
+        "votos_validos": 107623,
+        "pct_votos": 0.37
+      },
+      {
+        "cod": "18",
+        "sigla": "PSOL/REDE",
+        "nome": "PSOL/REDE",
+        "tipo": "federacao",
+        "componentes": ["PSOL", "REDE"],
+        "sigla_lider": "PSOL",
+        "cadeiras": 0,
+        "votos_nominais": 123759,
+        "votos_legenda": 7799,
+        "votos_validos": 131558,
+        "pct_votos": 0.45
+      },
+      {
+        "cod": "16",
+        "sigla": "PSTU",
+        "nome": "PARTIDO SOCIALISTA  DOS TRABALHADORES UNIFICADO",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "PSTU",
+        "cadeiras": 0,
+        "votos_nominais": 4808,
+        "votos_legenda": 410,
+        "votos_validos": 5218,
+        "pct_votos": 0.02
+      },
+      {
+        "cod": "80",
+        "sigla": "UP",
+        "nome": "UNIDADE POPULAR",
+        "tipo": "partido",
+        "componentes": [],
+        "sigla_lider": "UP",
+        "cadeiras": 0,
+        "votos_nominais": 18003,
+        "votos_legenda": 1286,
+        "votos_validos": 19289,
+        "pct_votos": 0.07
+      }
+    ]
+  },
+  "por_uf": [
+    {
+      "sigla": "AC",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 8,
+      "quociente_eleitoral": 6393,
+      "cadeiras_definidas": 8,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "22",
+        "sigla": "PL",
+        "cadeiras": 3
+      }
+    },
+    {
+      "sigla": "AL",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 9,
+      "quociente_eleitoral": 22223,
+      "cadeiras_definidas": 9,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "13",
+        "sigla": "PT/PC do B/PV",
+        "cadeiras": 3
+      }
+    },
+    {
+      "sigla": "AM",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 8,
+      "quociente_eleitoral": 29822,
+      "cadeiras_definidas": 8,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "11",
+        "sigla": "UNIÃO/PP",
+        "cadeiras": 3
+      }
+    },
+    {
+      "sigla": "AP",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 8,
+      "quociente_eleitoral": 6266,
+      "cadeiras_definidas": 8,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "13",
+        "sigla": "PT/PC do B/PV",
+        "cadeiras": 4
+      }
+    },
+    {
+      "sigla": "BA",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 39,
+      "quociente_eleitoral": 25053,
+      "cadeiras_definidas": 39,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "13",
+        "sigla": "PT/PC do B/PV",
+        "cadeiras": 12
+      }
+    },
+    {
+      "sigla": "CE",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 22,
+      "quociente_eleitoral": 28627,
+      "cadeiras_definidas": 22,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "13",
+        "sigla": "PT/PC do B/PV",
+        "cadeiras": 6
+      }
+    },
+    {
+      "sigla": "DF",
+      "pct_apurado": 37,
+      "lugares_a_preencher": 8,
+      "quociente_eleitoral": 81519,
+      "cadeiras_definidas": 8,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "15",
+        "sigla": "MDB",
+        "cadeiras": 3
+      }
+    },
+    {
+      "sigla": "ES",
+      "pct_apurado": 32.1,
+      "lugares_a_preencher": 10,
+      "quociente_eleitoral": 71298,
+      "cadeiras_definidas": 10,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "22",
+        "sigla": "PL",
+        "cadeiras": 6
+      }
+    },
+    {
+      "sigla": "GO",
+      "pct_apurado": 30.9,
+      "lugares_a_preencher": 17,
+      "quociente_eleitoral": 66916,
+      "cadeiras_definidas": 17,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "11",
+        "sigla": "UNIÃO/PP",
+        "cadeiras": 6
+      }
+    },
+    {
+      "sigla": "MA",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 18,
+      "quociente_eleitoral": 24371,
+      "cadeiras_definidas": 18,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "40",
+        "sigla": "PSB",
+        "cadeiras": 4
+      }
+    },
+    {
+      "sigla": "MG",
+      "pct_apurado": 32.4,
+      "lugares_a_preencher": 53,
+      "quociente_eleitoral": 73460,
+      "cadeiras_definidas": 53,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "30",
+        "sigla": "NOVO",
+        "cadeiras": 17
+      }
+    },
+    {
+      "sigla": "MS",
+      "pct_apurado": 39.3,
+      "lugares_a_preencher": 8,
+      "quociente_eleitoral": 74031,
+      "cadeiras_definidas": 8,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "23",
+        "sigla": "PSDB/CIDADANIA",
+        "cadeiras": 2
+      }
+    },
+    {
+      "sigla": "MT",
+      "pct_apurado": 27.5,
+      "lugares_a_preencher": 8,
+      "quociente_eleitoral": 63349,
+      "cadeiras_definidas": 8,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "11",
+        "sigla": "UNIÃO/PP",
+        "cadeiras": 3
+      }
+    },
+    {
+      "sigla": "PA",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 17,
+      "quociente_eleitoral": 31934,
+      "cadeiras_definidas": 17,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "15",
+        "sigla": "MDB",
+        "cadeiras": 3
+      }
+    },
+    {
+      "sigla": "PB",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 12,
+      "quociente_eleitoral": 23410,
+      "cadeiras_definidas": 12,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "40",
+        "sigla": "PSB",
+        "cadeiras": 4
+      }
+    },
+    {
+      "sigla": "PE",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 25,
+      "quociente_eleitoral": 25297,
+      "cadeiras_definidas": 25,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "13",
+        "sigla": "PT/PC do B/PV",
+        "cadeiras": 5
+      }
+    },
+    {
+      "sigla": "PI",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 10,
+      "quociente_eleitoral": 23715,
+      "cadeiras_definidas": 10,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "13",
+        "sigla": "PT/PC do B/PV",
+        "cadeiras": 5
+      }
+    },
+    {
+      "sigla": "PR",
+      "pct_apurado": 34.7,
+      "lugares_a_preencher": 30,
+      "quociente_eleitoral": 75956,
+      "cadeiras_definidas": 30,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "55",
+        "sigla": "PSD",
+        "cadeiras": 10
+      }
+    },
+    {
+      "sigla": "RJ",
+      "pct_apurado": 30.6,
+      "lugares_a_preencher": 46,
+      "quociente_eleitoral": 62907,
+      "cadeiras_definidas": 46,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "22",
+        "sigla": "PL",
+        "cadeiras": 14
+      }
+    },
+    {
+      "sigla": "RN",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 8,
+      "quociente_eleitoral": 29105,
+      "cadeiras_definidas": 8,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "13",
+        "sigla": "PT/PC do B/PV",
+        "cadeiras": 4
+      }
+    },
+    {
+      "sigla": "RO",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 8,
+      "quociente_eleitoral": 13097,
+      "cadeiras_definidas": 8,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "22",
+        "sigla": "PL",
+        "cadeiras": 2
+      }
+    },
+    {
+      "sigla": "RR",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 8,
+      "quociente_eleitoral": 4326,
+      "cadeiras_definidas": 8,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "15",
+        "sigla": "MDB",
+        "cadeiras": 2
+      }
+    },
+    {
+      "sigla": "RS",
+      "pct_apurado": 27.5,
+      "lugares_a_preencher": 31,
+      "quociente_eleitoral": 58883,
+      "cadeiras_definidas": 31,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "13",
+        "sigla": "PT/PC do B/PV",
+        "cadeiras": 8
+      }
+    },
+    {
+      "sigla": "SC",
+      "pct_apurado": 24,
+      "lugares_a_preencher": 16,
+      "quociente_eleitoral": 64965,
+      "cadeiras_definidas": 16,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "13",
+        "sigla": "PT/PC do B/PV",
+        "cadeiras": 6
+      }
+    },
+    {
+      "sigla": "SE",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 8,
+      "quociente_eleitoral": 18827,
+      "cadeiras_definidas": 8,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "55",
+        "sigla": "PSD",
+        "cadeiras": 2
+      }
+    },
+    {
+      "sigla": "SP",
+      "pct_apurado": 35,
+      "lugares_a_preencher": 70,
+      "quociente_eleitoral": 128282,
+      "cadeiras_definidas": 70,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "13",
+        "sigla": "PT/PC do B/PV",
+        "cadeiras": 18
+      }
+    },
+    {
+      "sigla": "TO",
+      "pct_apurado": 11.6,
+      "lugares_a_preencher": 8,
+      "quociente_eleitoral": 12496,
+      "cadeiras_definidas": 8,
+      "vagas_nao_preenchidas": 0,
+      "empates_indeterminados": 0,
+      "lider": {
+        "cod": "22",
+        "sigla": "PL",
+        "cadeiras": 2
+      }
+    }
+  ],
+  "insights": [
+    "Câmara: 513 de 513 cadeiras já atribuídas — a soma é nossa, das 27 corridas estaduais com boletim, não um agregado nacional do TSE.",
+    "PT/PC do B/PV é a maior bancada projetada, com 121 cadeiras.",
+    "25 cadeiras saíram de rodada de sobra apertada e estão marcadas como indefinidas."
+  ],
+  "composition": {
+    "pre_election": 0,
+    "model": 0.75,
+    "actual_results": 0.25
+  }
+}

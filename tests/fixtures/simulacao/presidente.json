@@ -1,0 +1,1218 @@
+{
+  "ts": "2026-09-14T06:16:29.167Z",
+  "cargo": 1,
+  "turno": 1,
+  "pct_apurado_total": 25,
+  "ufs_apuradas": 27,
+  "national": {
+    "candidatos": [
+      {
+        "id": 13,
+        "nome": "LULA",
+        "partido": "PT",
+        "cor": "var(--color-cand-1)",
+        "votos_atuais": 9359449,
+        "votos_projetados": 42220802,
+        "pct_atual": 31.82,
+        "pct_projetado": 35.8,
+        "pct_projetado_lower": 33.89,
+        "pct_projetado_upper": 37.71,
+        "p_vitoria": 0.8175,
+        "rank": 1,
+        "p_passa_2t": 1,
+        "p_fecha_1t": 0,
+        "sqcand": "280002542548"
+      },
+      {
+        "id": 22,
+        "nome": "FLAVIO BOLSONARO",
+        "partido": "PL",
+        "cor": "var(--color-cand-2)",
+        "votos_atuais": 10545864,
+        "votos_projetados": 40805574,
+        "pct_atual": 35.85,
+        "pct_projetado": 34.6,
+        "pct_projetado_lower": 32.7,
+        "pct_projetado_upper": 36.5,
+        "p_vitoria": 0.1825,
+        "rank": 2,
+        "p_passa_2t": 1,
+        "p_fecha_1t": 0,
+        "sqcand": "280002551544"
+      },
+      {
+        "id": 55,
+        "nome": "RONALDO CAIADO",
+        "partido": "PSD",
+        "cor": "var(--color-cand-3)",
+        "votos_atuais": 4830236,
+        "votos_projetados": 18987568,
+        "pct_atual": 16.42,
+        "pct_projetado": 16.1,
+        "pct_projetado_lower": 14.64,
+        "pct_projetado_upper": 17.56,
+        "p_vitoria": 0,
+        "rank": 3,
+        "p_passa_2t": 0,
+        "p_fecha_1t": 0,
+        "sqcand": "280002551932"
+      },
+      {
+        "id": 30,
+        "nome": "ZEMA",
+        "partido": "NOVO",
+        "cor": "var(--color-cand-4)",
+        "votos_atuais": 2684201,
+        "votos_projetados": 8845142,
+        "pct_atual": 9.13,
+        "pct_projetado": 7.5,
+        "pct_projetado_lower": 6.45,
+        "pct_projetado_upper": 8.55,
+        "p_vitoria": 0,
+        "rank": 4,
+        "p_passa_2t": 0,
+        "p_fecha_1t": 0,
+        "sqcand": "280002539826"
+      },
+      {
+        "id": 80,
+        "nome": "SAMARA",
+        "partido": "UP",
+        "cor": "var(--color-cand-5)",
+        "votos_atuais": 948500,
+        "votos_projetados": 3211139,
+        "pct_atual": 3.22,
+        "pct_projetado": 2.72,
+        "pct_projetado_lower": 2.07,
+        "pct_projetado_upper": 3.37,
+        "p_vitoria": 0,
+        "rank": 5,
+        "p_passa_2t": 0,
+        "p_fecha_1t": 0,
+        "sqcand": "280002538811"
+      },
+      {
+        "id": 21,
+        "nome": "EDMILSON COSTA",
+        "partido": "PCB",
+        "cor": "var(--color-cand-6)",
+        "votos_atuais": 486931,
+        "votos_projetados": 1766124,
+        "pct_atual": 1.66,
+        "pct_projetado": 1.5,
+        "pct_projetado_lower": 1.01,
+        "pct_projetado_upper": 1.98,
+        "p_vitoria": 0,
+        "rank": 6,
+        "p_passa_2t": 0,
+        "p_fecha_1t": 0,
+        "sqcand": "280002551975"
+      },
+      {
+        "id": 16,
+        "nome": "HERTZ DIAS",
+        "partido": "PSTU",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 257361,
+        "votos_projetados": 971369,
+        "pct_atual": 0.87,
+        "pct_projetado": 0.82,
+        "pct_projetado_lower": 0.46,
+        "pct_projetado_upper": 1.18,
+        "p_vitoria": 0,
+        "rank": 7,
+        "p_passa_2t": 0,
+        "p_fecha_1t": 0,
+        "sqcand": "280002541457"
+      },
+      {
+        "id": 27,
+        "nome": "CLARIANA BARAO",
+        "partido": "DC",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 155043,
+        "votos_projetados": 534251,
+        "pct_atual": 0.53,
+        "pct_projetado": 0.45,
+        "pct_projetado_lower": 0.19,
+        "pct_projetado_upper": 0.72,
+        "p_vitoria": 0,
+        "rank": 8,
+        "p_passa_2t": 0,
+        "p_fecha_1t": 0,
+        "sqcand": "280002552484"
+      },
+      {
+        "id": 29,
+        "nome": "RUI COSTA PIMENTA",
+        "partido": "PCO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 72744,
+        "votos_projetados": 293839,
+        "pct_atual": 0.25,
+        "pct_projetado": 0.25,
+        "pct_projetado_lower": 0.05,
+        "pct_projetado_upper": 0.45,
+        "p_vitoria": 0,
+        "rank": 9,
+        "p_passa_2t": 0,
+        "p_fecha_1t": 0,
+        "sqcand": "280002552487"
+      },
+      {
+        "id": 14,
+        "nome": "RENAN SANTOS",
+        "partido": "MISSÃO",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 39001,
+        "votos_projetados": 161613,
+        "pct_atual": 0.13,
+        "pct_projetado": 0.14,
+        "pct_projetado_lower": 0,
+        "pct_projetado_upper": 0.29,
+        "p_vitoria": 0,
+        "rank": 10,
+        "p_passa_2t": 0,
+        "p_fecha_1t": 0,
+        "sqcand": "280002540694"
+      },
+      {
+        "id": 35,
+        "nome": "VETERINÁRIO WILSON GRASSI",
+        "partido": "DEMOCRATA",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 21717,
+        "votos_projetados": 88887,
+        "pct_atual": 0.07,
+        "pct_projetado": 0.08,
+        "pct_projetado_lower": 0,
+        "pct_projetado_upper": 0.23,
+        "p_vitoria": 0,
+        "rank": 11,
+        "p_passa_2t": 0,
+        "p_fecha_1t": 0,
+        "sqcand": "280002548139"
+      },
+      {
+        "id": 70,
+        "nome": "ESCRITOR AUGUSTO CURY",
+        "partido": "AVANTE",
+        "cor": "var(--color-cand-other)",
+        "votos_atuais": 12619,
+        "votos_projetados": 48886,
+        "pct_atual": 0.04,
+        "pct_projetado": 0.04,
+        "pct_projetado_lower": 0,
+        "pct_projetado_upper": 0.19,
+        "p_vitoria": 0,
+        "rank": 12,
+        "p_passa_2t": 0,
+        "p_fecha_1t": 0,
+        "sqcand": "280002551547"
+      }
+    ],
+    "needle_position": 0.635,
+    "needle_band": "likely_a",
+    "candidato_a_id": 13,
+    "candidato_b_id": 22,
+    "p_segundo_turno_overall": 1,
+    "cenarios_2t": [
+      {
+        "par": [13, 22],
+        "prob": 0.8175
+      },
+      {
+        "par": [22, 13],
+        "prob": 0.1825
+      }
+    ],
+    "chamadas_recentes": [],
+    "vai_a_2t_nacional": true,
+    "participacao": {
+      "abstencao": {
+        "pct_atual": 18.9,
+        "pct_projetado": 19.6,
+        "lower": 18.8,
+        "upper": 20.3,
+        "base": "eleitores_instalados"
+      },
+      "brancos_nulos": {
+        "pct_atual": 7.2,
+        "pct_projetado": 7.4,
+        "lower": 6.9,
+        "upper": 7.8,
+        "base": "comparecimento"
+      },
+      "metodo": {
+        "tipo": "extrapolacao_apurado",
+        "n_zonas": 1453,
+        "pct_apurado": 25
+      },
+      "outros": {
+        "pct_atual": 13.4,
+        "pct_projetado": 13.5,
+        "lower": 12.4,
+        "upper": 14.6,
+        "base": "votaveis",
+        "n_candidatos": 9
+      }
+    }
+  },
+  "por_uf": [
+    {
+      "sigla": "AC",
+      "pct_apurado": 11.6,
+      "lider": 22,
+      "margem_atual": 46.18,
+      "margem_projetada": 34.6,
+      "margem_projetada_ci": [30.03, 39.17],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 55.93,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 21.33,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 55,
+          "pct": 16.2,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "AL",
+      "pct_apurado": 11.6,
+      "lider": 13,
+      "margem_atual": 5.23,
+      "margem_projetada": 11.66,
+      "margem_projetada_ci": [7.09, 16.22],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 13,
+          "pct": 43.54,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 22,
+          "pct": 31.88,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 55,
+          "pct": 17.35,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "AM",
+      "pct_apurado": 11.6,
+      "lider": 22,
+      "margem_atual": 6.54,
+      "margem_projetada": 5.25,
+      "margem_projetada_ci": [0.77, 9.74],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 38.74,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 33.49,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 55,
+          "pct": 18.69,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "AP",
+      "pct_apurado": 11.6,
+      "lider": 22,
+      "margem_atual": 6.76,
+      "margem_projetada": 9.73,
+      "margem_projetada_ci": [5.2, 14.25],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 40.76,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 31.04,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 55,
+          "pct": 18.58,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "BA",
+      "pct_apurado": 11.6,
+      "lider": 13,
+      "margem_atual": 36.78,
+      "margem_projetada": 37.16,
+      "margem_projetada_ci": [32.61, 41.72],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 13,
+          "pct": 57.4,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 22,
+          "pct": 20.24,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 55,
+          "pct": 16.2,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "CE",
+      "pct_apurado": 11.6,
+      "lider": 13,
+      "margem_atual": 34.48,
+      "margem_projetada": 32.98,
+      "margem_projetada_ci": [28.39, 37.56],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 13,
+          "pct": 54.69,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 22,
+          "pct": 21.71,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 55,
+          "pct": 17.45,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "DF",
+      "pct_apurado": 37,
+      "lider": 22,
+      "margem_atual": 22.54,
+      "margem_projetada": 16.81,
+      "margem_projetada_ci": [14.66, 18.96],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 41.87,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 25.06,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 55,
+          "pct": 15.81,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "ES",
+      "pct_apurado": 32.1,
+      "lider": 22,
+      "margem_atual": 14.29,
+      "margem_projetada": 14.24,
+      "margem_projetada_ci": [11.84, 16.64],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 42.83,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 28.58,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 55,
+          "pct": 18.93,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "GO",
+      "pct_apurado": 30.9,
+      "lider": 22,
+      "margem_atual": 17.68,
+      "margem_projetada": 17.63,
+      "margem_projetada_ci": [15.14, 20.11],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 45.93,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 28.3,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 55,
+          "pct": 15.87,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "MA",
+      "pct_apurado": 11.6,
+      "lider": 13,
+      "margem_atual": 34.84,
+      "margem_projetada": 32.79,
+      "margem_projetada_ci": [28.2, 37.37],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 13,
+          "pct": 54.61,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 22,
+          "pct": 21.82,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 55,
+          "pct": 18.05,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "MG",
+      "pct_apurado": 32.4,
+      "lider": 13,
+      "margem_atual": -8.6,
+      "margem_projetada": 0.21,
+      "margem_projetada_ci": [-2.06, 2.48],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 13,
+          "pct": 33.31,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 22,
+          "pct": 33.1,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 55,
+          "pct": 14.68,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "MS",
+      "pct_apurado": 39.3,
+      "lider": 22,
+      "margem_atual": 17.81,
+      "margem_projetada": 15.33,
+      "margem_projetada_ci": [13.27, 17.39],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 44.82,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 29.49,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 55,
+          "pct": 16.6,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "MT",
+      "pct_apurado": 27.5,
+      "lider": 22,
+      "margem_atual": 16.54,
+      "margem_projetada": 20.8,
+      "margem_projetada_ci": [18.1, 23.51],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 48.22,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 27.41,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 55,
+          "pct": 16.53,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "PA",
+      "pct_apurado": 11.6,
+      "lider": 22,
+      "margem_atual": -6.18,
+      "margem_projetada": 0.74,
+      "margem_projetada_ci": [-3.76, 5.23],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 39.14,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 38.4,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 55,
+          "pct": 16.81,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "PB",
+      "pct_apurado": 11.6,
+      "lider": 13,
+      "margem_atual": 21.43,
+      "margem_projetada": 21.41,
+      "margem_projetada_ci": [16.81, 26.01],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 13,
+          "pct": 48.26,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 22,
+          "pct": 26.85,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 55,
+          "pct": 18.16,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "PE",
+      "pct_apurado": 11.6,
+      "lider": 13,
+      "margem_atual": 25.46,
+      "margem_projetada": 26.26,
+      "margem_projetada_ci": [21.66, 30.86],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 13,
+          "pct": 51.86,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 22,
+          "pct": 25.61,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 55,
+          "pct": 15.62,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "PI",
+      "pct_apurado": 11.6,
+      "lider": 13,
+      "margem_atual": 39.25,
+      "margem_projetada": 41.52,
+      "margem_projetada_ci": [37.01, 46.03],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 13,
+          "pct": 59.83,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 22,
+          "pct": 18.3,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 55,
+          "pct": 16.13,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "PR",
+      "pct_apurado": 34.7,
+      "lider": 22,
+      "margem_atual": 19.07,
+      "margem_projetada": 17.6,
+      "margem_projetada_ci": [15.33, 19.87],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 44.47,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 26.87,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 55,
+          "pct": 16.07,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "RJ",
+      "pct_apurado": 30.6,
+      "lider": 22,
+      "margem_atual": 16.06,
+      "margem_projetada": 12.17,
+      "margem_projetada_ci": [9.71, 14.63],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 40.05,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 27.88,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 55,
+          "pct": 16.31,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "RN",
+      "pct_apurado": 11.6,
+      "lider": 13,
+      "margem_atual": 26.19,
+      "margem_projetada": 21.46,
+      "margem_projetada_ci": [16.86, 26.07],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 13,
+          "pct": 49.06,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 22,
+          "pct": 27.6,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 55,
+          "pct": 16.42,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "RO",
+      "pct_apurado": 11.6,
+      "lider": 22,
+      "margem_atual": 36.19,
+      "margem_projetada": 31.96,
+      "margem_projetada_ci": [27.37, 36.55],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 53.5,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 21.54,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 55,
+          "pct": 16.54,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "RR",
+      "pct_apurado": 11.6,
+      "lider": 22,
+      "margem_atual": 41.65,
+      "margem_projetada": 39.25,
+      "margem_projetada_ci": [34.7, 43.8],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 57.29,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 18.05,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 55,
+          "pct": 16.21,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "RS",
+      "pct_apurado": 27.5,
+      "lider": 22,
+      "margem_atual": 11.94,
+      "margem_projetada": 15.2,
+      "margem_projetada_ci": [12.53, 17.88],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 42.29,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 27.09,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 55,
+          "pct": 16.69,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "SC",
+      "pct_apurado": 24,
+      "lider": 22,
+      "margem_atual": 27.3,
+      "margem_projetada": 25.12,
+      "margem_projetada_ci": [22.17, 28.07],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 44.15,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 19.03,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 30,
+          "pct": 16.87,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "SE",
+      "pct_apurado": 11.6,
+      "lider": 13,
+      "margem_atual": 21.89,
+      "margem_projetada": 23.74,
+      "margem_projetada_ci": [19.14, 28.35],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 13,
+          "pct": 49.28,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 22,
+          "pct": 25.54,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 55,
+          "pct": 16.47,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "SP",
+      "pct_apurado": 35,
+      "lider": 22,
+      "margem_atual": -1.11,
+      "margem_projetada": 5.86,
+      "margem_projetada_ci": [3.7, 8.02],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 22,
+          "pct": 34.57,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 13,
+          "pct": 28.71,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 55,
+          "pct": 15.18,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    },
+    {
+      "sigla": "TO",
+      "pct_apurado": 11.6,
+      "lider": 13,
+      "margem_atual": 2.35,
+      "margem_projetada": 1.99,
+      "margem_projetada_ci": [-2.5, 6.48],
+      "chamada": false,
+      "swing_vs_2022": null,
+      "top_candidatos": [
+        {
+          "id": 13,
+          "pct": 39.06,
+          "nome": "LULA",
+          "partido": "PT",
+          "sqcand": "280002542548"
+        },
+        {
+          "id": 22,
+          "pct": 37.06,
+          "nome": "FLAVIO BOLSONARO",
+          "partido": "PL",
+          "sqcand": "280002551544"
+        },
+        {
+          "id": 55,
+          "pct": 18.35,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932"
+        }
+      ],
+      "vai_a_2t": null,
+      "bucket": "indefinido"
+    }
+  ],
+  "insights": [
+    "LULA (PT) à frente com 35,8% — intervalo de 33,9% a 37,7% com 25,0% apurado.",
+    "Diferença de 1,2 pp para FLAVIO BOLSONARO (PL) — os intervalos se sobrepõem, não há vencedor projetado.",
+    "P(2º turno) = 100,0%. 0 de 27 unidades federativas já chamadas."
+  ],
+  "composition": {
+    "pre_election": 0,
+    "model": 0.75,
+    "actual_results": 0.25
+  }
+}
