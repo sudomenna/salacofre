@@ -17,10 +17,22 @@
  *     dois-pontos. Nenhuma chave é montada aqui — tudo vem de
  *     `lib/edge-config/keys.ts`.
  *
+ * ## 2026-09-14 — "falhou" deixou de ser igual a "não existe"
+ *
+ * As quatro funções faziam `catch { return null }`. Falha de rede e chave não
+ * publicada chegavam à tela como a mesma coisa, **sem alarme nenhum** — a
+ * classe de defeito que este projeto nomeia como rede de segurança de mão
+ * única. Agora {@link LeituraEdge} separa os dois, a falha emite `logError`, e
+ * a tela continua tratando os dois iguais **de propósito** (ela não pode
+ * afirmar uma causa que não mediu). Ver spec 019 § RNF-010.
+ *
  * Não-objetivos
  *   - Cache HTTP (delegado ao SDK / CDN).
  *   - Polling SWR no cliente (vive em `app/api/projection/route.ts` consumido
  *     via `useSWR` no front).
+ *   - **Segunda cópia do último payload conhecido.** Se o Global Config inteiro
+ *     ficar inacessível, os números não são preservados — não há de onde. O
+ *     que a tela faz é não inventar zeros no lugar deles.
  */
 
 import { get } from "@vercel/edge-config";
@@ -39,6 +51,7 @@ import {
   ufProjectionKey,
 } from "@/lib/edge-config/keys";
 import type { EdgePayload, EdgePayloadDeputado, EdgePayloadUf } from "@/lib/edge-config/types";
+import { logError } from "@/lib/tse/log";
 
 /**
  * Os cargos cujo payload **é** um `EdgePayload` — isto é, os majoritários.
@@ -62,6 +75,48 @@ import type { EdgePayload, EdgePayloadDeputado, EdgePayloadUf } from "@/lib/edge
 export type CargoMajoritario = Exclude<Cargo, "dep">;
 
 /**
+ * O resultado de uma leitura do Global Config, com **"não existe" e "falhou"
+ * como estados distintos**.
+ *
+ * ## Por que dois estados e não um `null`
+ *
+ * Até 2026-09-14 as quatro funções deste módulo faziam `catch { return null }`,
+ * e a consequência estava na tela: uma **falha de rede** e uma **chave ainda
+ * não publicada** chegavam ao chamador como exatamente a mesma coisa, sem
+ * alarme nenhum. A página então escolhia um texto — e qualquer texto que ela
+ * escolhesse estaria errado metade das vezes. Dizer "a eleição ainda não
+ * começou" às 21h de 04/10 durante uma queda do Global Config é falso com toda
+ * a autoridade da marca; dizer "estamos com um problema" em 20/09 é falso do
+ * outro lado.
+ *
+ * É o padrão de **rede de segurança de mão única** que este projeto já pagou
+ * caro para descobrir: a guarda existe, parece cobrir o caso, e aponta para o
+ * lado errado — e é o mesmo par que o `??` funde em
+ * `lib/config/dado-freshness.ts` (`"ausente"` × `"indisponivel"`, ADR-0038).
+ *
+ * ## O que muda e o que NÃO muda
+ *
+ * **Não muda a tela**: os dois estados continuam caindo no mesmo ramo de
+ * espera, porque em ambos o sistema não sabe o resultado, e um ramo que
+ * afirmasse a causa afirmaria uma causa que ninguém mediu. O que muda é que a
+ * falha deixa de ser **silenciosa para o operador** — ela vira uma linha de
+ * `error` estruturada nos logs, que é o canal de alarme que o writer já usa
+ * (`lib/edge-config/writer.ts`, `logError` de `lib/tse/log.ts`).
+ *
+ * ⚠️ **Limite explícito**: preservar os NÚMEROS quando o Global Config inteiro
+ * fica inacessível exigiria uma segunda cópia do último payload conhecido em
+ * outro lugar (Blob, ISR de longa duração). Isso **não** está implementado, e
+ * a regra "nunca fabrique zeros" cobre o buraco pela via negativa: sem número
+ * conhecido, a tela não mostra número.
+ */
+export type LeituraEdge<T> =
+  | { estado: "ok"; valor: T }
+  /** Nenhuma das chaves candidatas respondeu. Estado normal antes da 1ª gravação. */
+  | { estado: "ausente" }
+  /** O SDK lançou. O dado pode existir e não chegamos nele. **Alarme.** */
+  | { estado: "falha"; erro: unknown };
+
+/**
  * Tenta cada chave em ordem e devolve o primeiro valor não-vazio.
  *
  * Custo: uma leitura por chave, e **só no caminho de miss** — a primeira
@@ -74,11 +129,57 @@ export type CargoMajoritario = Exclude<Cargo, "dep">;
  * esquema antigo e o read path não pode ficar cego durante a migração.
  * **Remover essa camada em `DEPRECATED_COLON_KEYS_REMOVAL_DATE`
  * (2026-10-26, dia seguinte ao 2º turno)** — ver `lib/edge-config/keys.ts`.
+ *
+ * Uma chave que lança **encerra a busca** em vez de seguir para a próxima: se
+ * o transporte caiu, as chaves seguintes cairiam pelo mesmo motivo, e insistir
+ * só multiplicaria a latência de um render que já vai degradar.
+ *
+ * ⚠️ As chaves chegam como **função**, não como array pronto, e isso é
+ * load-bearing: `ufProjectionKey` valida a sigla e **lança** para sigla
+ * malformada (`lib/edge-config/keys.ts`). Antes de 2026-09-14 o `try` do
+ * chamador envolvia também a montagem do array; passar a lista já construída
+ * deixaria essa exceção escapar do read path e derrubar o render. Construir
+ * dentro do `try` classifica o caso como `"falha"` — que é o classificado
+ * certo: não é "a chave não existe", é "não conseguimos nem perguntar".
  */
-async function getFirst<T>(keys: readonly string[]): Promise<T | null> {
+async function getFirst<T>(construirChaves: () => readonly string[]): Promise<LeituraEdge<T>> {
+  let keys: readonly string[];
+  try {
+    keys = construirChaves();
+  } catch (erro) {
+    return { estado: "falha", erro };
+  }
+
   for (const key of keys) {
-    const value = await get<T>(key);
-    if (value) return value;
+    let value: T | undefined;
+    try {
+      value = await get<T>(key);
+    } catch (erro) {
+      return { estado: "falha", erro };
+    }
+    if (value) return { estado: "ok", valor: value };
+  }
+  return { estado: "ausente" };
+}
+
+/**
+ * O ponto único onde uma falha de leitura vira alarme, e o único lugar deste
+ * módulo que converte {@link LeituraEdge} no `null` histórico.
+ *
+ * O canal é `logError` — a mesma emissão estruturada que o writer usa para as
+ * falhas dele (`lib/tse/log.ts`, RNF-032/RNF-034). **Não** dispara
+ * `notifySlack`: este código roda no read path, uma vez por render, e durante
+ * uma queda de minutos isso seria um POST por request. O alarme de Slack
+ * pertence a quem roda uma vez por ciclo (o writer e os crons), não a quem
+ * roda uma vez por leitor.
+ */
+function resolver<T>(leitura: LeituraEdge<T>, ctx: Record<string, unknown>): T | null {
+  if (leitura.estado === "ok") return leitura.valor;
+  if (leitura.estado === "falha") {
+    logError("global-config read failed", {
+      ...ctx,
+      erro: leitura.erro instanceof Error ? leitura.erro.message : String(leitura.erro),
+    });
   }
   return null;
 }
@@ -100,10 +201,16 @@ async function getFirst<T>(keys: readonly string[]): Promise<T | null> {
  * Retorna `null` quando:
  *   - `EDGE_CONFIG` ausente (dev/preview sem credencial).
  *   - Chave não publicada ainda (pré-eleição absoluta).
+ *   - **A leitura falhou** — e nesse caso, e só nesse, emite `logError`
+ *     (2026-09-14). Os três casos continuam indistinguíveis para o LEITOR, de
+ *     propósito: a tela não pode afirmar uma causa que não mediu. Quem precisa
+ *     da distinção chama {@link readProjectionResult}.
  *
  * Caller decide o que fazer com `null` — `/api/projection` retorna 503
  * com `{ error: "no_payload" }`, e o page faz fallback para "Aguardando
- * dados".
+ * dados". 🔴 O que o caller **não** pode fazer é fabricar um payload de zeros:
+ * ver o ramo de espera de `/governador` e `/senador`, que substituiu os
+ * `emptyPayload()` de 13/09.
  *
  * @param opts.cargo  **Obrigatório.** O cargo que se quer ler. Não há default:
  *                    o ADR-0028 removeu o default vindo do calendário porque
@@ -119,7 +226,30 @@ export async function readProjection(opts: {
   cargo: CargoMajoritario;
   turno?: Turno;
 }): Promise<EdgePayload | null> {
-  if (!process.env.EDGE_CONFIG) return null;
+  return resolver(await readProjectionResult(opts), {
+    fn: "readProjection",
+    cargo: opts.cargo,
+    turno: opts.turno,
+  });
+}
+
+/**
+ * {@link readProjection} **sem colapsar os dois estados de "não veio nada"**.
+ *
+ * Existe para quem precisa distinguir "a chave ainda não foi gravada" de "a
+ * leitura falhou" — hoje `/status` e os testes; amanhã qualquer superfície que
+ * queira reportar a queda ao operador. Nenhuma **tela de leitor** distingue os
+ * dois: as duas caem no mesmo ramo de espera, porque a tela não pode afirmar
+ * uma causa que não mediu (spec 019 § RNF-010).
+ *
+ * ⚠️ Esta função **não** alarma — quem alarma é `readProjection`. Duas
+ * emissões para a mesma falha dariam ao operador a impressão de duas quedas.
+ */
+export async function readProjectionResult(opts: {
+  cargo: CargoMajoritario;
+  turno?: Turno;
+}): Promise<LeituraEdge<EdgePayload>> {
+  if (!process.env.EDGE_CONFIG) return { estado: "ausente" };
   // O calendário responde só pelo TURNO presidencial (ADR-0028). O cargo é
   // OBRIGATÓRIO e não tem default: qualquer default — vindo do calendário ou
   // literal — faria um caller distraído receber o payload presidencial com
@@ -133,22 +263,18 @@ export async function readProjection(opts: {
   // devolve, para que ele nunca seja consultado em nome de outro cargo.
   const isActiveRace = cargo === "pres" && turno === turnoPresidencial;
 
-  try {
-    return await getFirst<EdgePayload>([
-      currentProjectionKey(cargo, turno),
-      // DEPRECADO — remover em 2026-10-26.
-      deprecatedColonCurrentProjectionKey(cargo, turno),
-      ...(isActiveRace
-        ? [
-            LEGACY_CURRENT_ALIAS_KEY,
-            // DEPRECADO — remover em 2026-10-26.
-            DEPRECATED_COLON_CURRENT_ALIAS_KEY,
-          ]
-        : []),
-    ]);
-  } catch {
-    return null;
-  }
+  return getFirst<EdgePayload>(() => [
+    currentProjectionKey(cargo, turno),
+    // DEPRECADO — remover em 2026-10-26.
+    deprecatedColonCurrentProjectionKey(cargo, turno),
+    ...(isActiveRace
+      ? [
+          LEGACY_CURRENT_ALIAS_KEY,
+          // DEPRECADO — remover em 2026-10-26.
+          DEPRECATED_COLON_CURRENT_ALIAS_KEY,
+        ]
+      : []),
+  ]);
 }
 
 /**
@@ -208,15 +334,14 @@ export async function readArchivedProjection(opts: {
   const cargo = opts.cargo;
   const turno = opts.turno ?? currentPresidentialTurno();
 
-  try {
-    return await getFirst<EdgePayload>([
+  return resolver(
+    await getFirst<EdgePayload>(() => [
       archiveProjectionKey(cargo, turno),
       // DEPRECADO — remover em 2026-10-26.
       deprecatedColonArchiveProjectionKey(cargo, turno),
-    ]);
-  } catch {
-    return null;
-  }
+    ]),
+    { fn: "readArchivedProjection", cargo, turno },
+  );
 }
 
 /**
@@ -254,8 +379,12 @@ export async function readUfProjection(
   // devolve, para que ele nunca seja consultado em nome de outro cargo.
   const isActiveRace = cargo === "pres" && turno === turnoPresidencial;
 
-  try {
-    return await getFirst<EdgePayloadUf>([
+  // A sigla malformada lança DENTRO de `getFirst` (o validador de
+  // `lib/edge-config/keys.ts` roda na montagem da chave) e portanto chega aqui
+  // como `"falha"` — que é o classificado certo: não é "a chave não existe", é
+  // "não conseguimos nem perguntar".
+  return resolver(
+    await getFirst<EdgePayloadUf>(() => [
       ufProjectionKey(sigla, cargo, turno),
       // DEPRECADO — remover em 2026-10-26.
       deprecatedColonUfProjectionKey(sigla, cargo, turno),
@@ -266,10 +395,9 @@ export async function readUfProjection(
             deprecatedColonLegacyUfAliasKey(sigla),
           ]
         : []),
-    ]);
-  } catch {
-    return null;
-  }
+    ]),
+    { fn: "readUfProjection", sigla, cargo, turno },
+  );
 }
 
 /**
@@ -300,9 +428,9 @@ export async function readUfProjection(
 export async function readDeputadoProjection(): Promise<EdgePayloadDeputado | null> {
   if (!process.env.EDGE_CONFIG) return null;
 
-  try {
-    return (await get<EdgePayloadDeputado>(currentProjectionKey("dep", 1))) ?? null;
-  } catch {
-    return null;
-  }
+  return resolver(await getFirst<EdgePayloadDeputado>(() => [currentProjectionKey("dep", 1)]), {
+    fn: "readDeputadoProjection",
+    cargo: "dep",
+    turno: 1,
+  });
 }

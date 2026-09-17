@@ -39,7 +39,24 @@ vi.mock("@vercel/edge-config", () => ({
   get: (key: string) => getMock(key),
 }));
 
-import { readArchivedProjection, readProjection, readUfProjection } from "@/lib/edge-config/reader";
+/**
+ * 🔴 O canal de alarme do read path (2026-09-14). É o mesmo `logError` que o
+ * writer usa para as falhas dele — nenhum mecanismo novo foi inventado.
+ */
+const logErrorMock = vi.fn();
+
+vi.mock("@/lib/tse/log", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/tse/log")>();
+  return { ...real, logError: (msg: string, ctx?: unknown) => logErrorMock(msg, ctx) };
+});
+
+import {
+  readArchivedProjection,
+  readDeputadoProjection,
+  readProjection,
+  readProjectionResult,
+  readUfProjection,
+} from "@/lib/edge-config/reader";
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -58,6 +75,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-09-08T12:00:00-03:00"));
 
   getMock.mockReset();
+  logErrorMock.mockReset();
 });
 
 afterEach(() => {
@@ -208,5 +226,101 @@ describe("sem EDGE_CONFIG", () => {
     expect(await readUfProjection("SP", { cargo: "pres" })).toBeNull();
     expect(await readArchivedProjection({ cargo: "pres" })).toBeNull();
     expect(getMock).not.toHaveBeenCalled();
+  });
+
+  it('sem credencial é "ausente", não "falha" — e não alarma', async () => {
+    delete process.env.EDGE_CONFIG;
+
+    expect(await readProjectionResult({ cargo: "pres" })).toEqual({ estado: "ausente" });
+    expect(logErrorMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 🔴 "Falhou" ≠ "não existe" — spec 019, emenda de 2026-09-14
+// ---------------------------------------------------------------------------
+
+/**
+ * ## O defeito que estes testes fecham
+ *
+ * Até 13/09 as quatro funções deste módulo faziam `catch { return null }`.
+ * Falha de rede e chave nunca publicada chegavam ao chamador como **a mesma
+ * coisa, sem alarme nenhum** — e a página então escolhia um texto que estaria
+ * errado metade das vezes. Dizer "a eleição ainda não começou" às 21h de 04/10
+ * durante uma queda do Global Config é falso com toda a autoridade da marca.
+ *
+ * ## Por que são DOIS casos e não um
+ *
+ * Um teste só do lado positivo ("lançou ⇒ alarmou") passa com um `logError`
+ * incondicional no topo da função — que alarmaria em toda leitura de chave
+ * ausente, ou seja, em todo render das três semanas de pré-eleição, e treinaria
+ * o operador a ignorar o alarme. O par negativo ("ausente ⇒ NÃO alarmou") é o
+ * que discrimina, e é por isso que os dois moram no mesmo `describe`.
+ *
+ * ⚠️ O que estes testes deliberadamente **não** afirmam: que a TELA muda entre
+ * os dois casos. Ela não muda, e não deve — nos dois o sistema não sabe o
+ * resultado, e um ramo que afirmasse a causa afirmaria uma causa não medida.
+ * O que muda é a visibilidade para o operador.
+ */
+describe("leitura que falha × chave que não existe", () => {
+  it('o SDK lança ⇒ estado "falha" E alarme emitido', async () => {
+    getMock.mockRejectedValue(new Error("edge config indisponível"));
+
+    const resultado = await readProjectionResult({ cargo: "pres" });
+    expect(resultado.estado).toBe("falha");
+
+    expect(await readProjection({ cargo: "pres" })).toBeNull();
+    expect(logErrorMock).toHaveBeenCalledTimes(1);
+    const [msg, ctx] = logErrorMock.mock.calls[0] as [string, Record<string, unknown>];
+    expect(msg).toContain("global-config read failed");
+    // O contexto precisa dizer QUAL leitura caiu — um alarme que não nomeia a
+    // corrida manda o operador abrir quatro abas para descobrir.
+    expect(ctx).toMatchObject({ fn: "readProjection", cargo: "pres" });
+    expect(String(ctx.erro)).toContain("edge config indisponível");
+  });
+
+  it('🔴 (par) a chave apenas NÃO EXISTE ⇒ estado "ausente" E silêncio', async () => {
+    withStore({});
+
+    const resultado = await readProjectionResult({ cargo: "pres" });
+    expect(resultado).toEqual({ estado: "ausente" });
+
+    expect(await readProjection({ cargo: "pres" })).toBeNull();
+    // Sem este `not`, um `logError` incondicional passaria no teste de cima.
+    expect(logErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("uma chave que lança encerra a busca — não insiste nas seguintes", async () => {
+    getMock.mockRejectedValue(new Error("transporte caiu"));
+
+    await readProjection({ cargo: "pres" });
+    // A corrida presidencial ativa tem 4 chaves candidatas; a primeira já
+    // decidiu. Insistir só multiplicaria a latência de um render que vai
+    // degradar de qualquer jeito.
+    expect(keysRead()).toEqual(["projection-current-pres-t1"]);
+  });
+
+  it("as outras três funções também alarmam, e cada uma se identifica", async () => {
+    getMock.mockRejectedValue(new Error("queda"));
+
+    expect(await readUfProjection("SP", { cargo: "pres" })).toBeNull();
+    expect(await readArchivedProjection({ cargo: "pres", turno: 1 })).toBeNull();
+    expect(await readDeputadoProjection()).toBeNull();
+
+    expect(logErrorMock).toHaveBeenCalledTimes(3);
+    const fns = logErrorMock.mock.calls.map((c) => (c[1] as Record<string, unknown>).fn as string);
+    expect(fns).toEqual(["readUfProjection", "readArchivedProjection", "readDeputadoProjection"]);
+  });
+
+  it("sigla malformada é falha (não conseguimos nem perguntar), e não derruba o render", async () => {
+    withStore({});
+
+    // O comportamento observável não mudou — continua `null`, sem propagar.
+    expect(await readUfProjection("SP:1", { cargo: "pres" })).toBeNull();
+    expect(keysRead()).toEqual([]);
+    // O que mudou: deixou de ser silencioso.
+    expect(logErrorMock).toHaveBeenCalledTimes(1);
+    const [, ctx] = logErrorMock.mock.calls[0] as [string, Record<string, unknown>];
+    expect(ctx.sigla).toBe("SP:1");
   });
 });
