@@ -6,25 +6,42 @@
 // (www.tse.jus.br, listadas em scripts/tse-watch.targets.json).
 //
 // Por que existe:
-//   `resultados.tse.jus.br/oficial/comum/config/ele-c.json` ainda está em
-//   `ele2024` (05/09/2026) — os códigos de eleição 2026 não existem. Esse
-//   script roda periodicamente (ou --once, manual) pra detectar o momento em
-//   que o TSE publica a Eleição Geral 2026 (ou muda um leiaute), sem exigir
-//   que um humano fique conferindo manualmente. NUNCA sonda URLs adivinhadas
-//   — só os 9 alvos publicados na página técnica do TSE (preenchimento
-//   humano em scripts/tse-watch.targets.json).
+//   `resultados.tse.jus.br/oficial/comum/config/ele-c.json` (produção) ainda
+//   está em `ele2024` (17/09/2026) — os códigos de eleição 2026 só existem no
+//   ambiente de simulado. Esse script roda periodicamente (ou --once, manual)
+//   pra detectar o momento em que o TSE publica a Eleição Geral 2026 em
+//   produção (ou muda um leiaute), sem exigir que um humano fique conferindo
+//   manualmente. NUNCA sonda URLs adivinhadas — só os 9 alvos publicados na
+//   página técnica do TSE (preenchimento humano em
+//   scripts/tse-watch.targets.json).
+//
+//   Ambiente de simulado (no ar desde 14/09/2026, parâmetros publicados pelo
+//   TSE em 17/09): base `https://resultados-sim.tse.jus.br/simulado`,
+//   ambiente `simulado2026`, ciclo `ele2026`, pleito `17801`, eleições
+//   `21270` (Federal → Presidente), `21272` (Estadual → Gov/Sen/Dep) e
+//   `21274` (Municipal). O `--base-url` do simulado é
+//   `https://resultados-sim.tse.jus.br/simulado/simulado2026` — o script
+//   acrescenta `/comum/config/ele-c.json`. O caminho antigo
+//   `resultados-sim.tse.jus.br/oficial` NÃO existe (segmento de ambiente
+//   errado) e responde 403 para sempre; não é "ainda não publicado".
 //
 // Uso:
 //   pnpm tse:watch --once
-//   pnpm tse:watch --once --base-url https://resultados-sim.tse.jus.br/oficial
+//   pnpm tse:watch --once --base-url https://resultados-sim.tse.jus.br/simulado/simulado2026 \
+//                  --state build/tse-watch/state-sim.json
 //   pnpm tse:watch --interval 300 --slack
 //   pnpm tse:watch --once --base-url http://localhost:8787/oficial \
 //                  --targets /tmp/targets-mock.json --state /tmp/state.json
 //
 // Contrato:
 //   1. GET `${baseUrl}/comum/config/ele-c.json` — hash sha256 do corpo, ETag,
-//      Last-Modified; extrai resumo `{ ciclo (campo "c"), dg, hg, eleicoes[] }`
-//      onde eleicoes[] = pl[].e[] achatado como { cd, t, nm }.
+//      Last-Modified; extrai resumo `{ ciclo, dg, hg, eleicoes[] }` onde
+//      eleicoes[] = pl[].e[] achatado como { cd, t, nm }. O ciclo vem do
+//      campo `c` da raiz quando existe (formato de 2022/2024); o `ele-c.json`
+//      real do simulado 2026 NÃO tem `c` na raiz — o ciclo vive em `pl[].c`,
+//      e o script cai para o primeiro `pl[]` com string. Se houver mais de um
+//      ciclo distinto em `pl[]`, o primeiro é gravado no estado e os demais
+//      são só anotados no resumo impresso (nenhum campo novo no estado).
 //   2. HEAD em cada URL de scripts/tse-watch.targets.json — ETag,
 //      Last-Modified, Content-Length. Host www.tse.jus.br responde 403 a
 //      clientes não-navegador: tratado como "inacessivel" (logado, NÃO conta
@@ -178,10 +195,38 @@ function extractEleicoes(parsed: unknown): EleicaoSummary[] {
   return out;
 }
 
+/**
+ * Ciclo do ele-c.json. Formato 2022/2024: campo `c` na raiz. Formato real do
+ * simulado 2026 (tests/fixtures/tse/2026-sim/ele-c.json): sem `c` na raiz —
+ * cada pleito de `pl[]` carrega o seu `c`. Retorna o primeiro encontrado e,
+ * separadamente, os demais ciclos distintos vistos em `pl[]` (pra anotar no
+ * resumo sem inventar campo no estado persistido).
+ */
+function extractCiclo(parsed: unknown): { ciclo: string | null; outros: string[] } {
+  if (typeof parsed !== "object" || parsed === null) return { ciclo: null, outros: [] };
+  const rec = parsed as Record<string, unknown>;
+
+  const vistos: string[] = [];
+  const pl = rec.pl;
+  if (Array.isArray(pl)) {
+    for (const pleito of pl) {
+      if (typeof pleito !== "object" || pleito === null) continue;
+      const c = (pleito as Record<string, unknown>).c;
+      if (typeof c === "string" && c !== "" && !vistos.includes(c)) vistos.push(c);
+    }
+  }
+
+  if (typeof rec.c === "string") {
+    return { ciclo: rec.c, outros: vistos.filter((c) => c !== rec.c) };
+  }
+  const [primeiro = null, ...outros] = vistos;
+  return { ciclo: primeiro, outros };
+}
+
 async function fetchEleC(
   baseUrl: string,
   fetchImpl: typeof fetch,
-): Promise<{ snapshot: EleCConfigSnapshot } | { error: string }> {
+): Promise<{ snapshot: EleCConfigSnapshot; ciclosExtras: string[] } | { error: string }> {
   const url = `${baseUrl}/comum/config/ele-c.json`;
   let res: Response;
   try {
@@ -212,17 +257,18 @@ async function fetchEleC(
   const rec =
     typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
 
+  const { ciclo, outros: ciclosExtras } = extractCiclo(parsed);
   const snapshot: EleCConfigSnapshot = {
     sha256,
     etag: res.headers.get("etag"),
     lastModified: res.headers.get("last-modified"),
-    ciclo: typeof rec.c === "string" ? rec.c : null,
+    ciclo,
     dg: typeof rec.dg === "string" ? rec.dg : null,
     hg: typeof rec.hg === "string" ? rec.hg : null,
     eleicoes: extractEleicoes(parsed),
   };
 
-  return { snapshot };
+  return { snapshot, ciclosExtras };
 }
 
 // ---------------------------------------------------------------------------
@@ -439,6 +485,13 @@ export async function runWatch(opts: RunWatchOptions): Promise<RunWatchResult> {
 
   const eleCDiff = diffEleC(previousState?.eleC ?? null, eleCResult.snapshot);
   diffLines.push(...eleCDiff.lines);
+  if (eleCResult.ciclosExtras.length > 0) {
+    // Só informativo: o estado guarda o primeiro ciclo; os demais aparecem
+    // aqui pra ninguém achar que o arquivo tem um ciclo só.
+    diffLines.push(
+      `[ele-c.json] outros ciclos em pl[] (não gravados no estado): ${eleCResult.ciclosExtras.join(", ")}`,
+    );
+  }
   anyChanged = anyChanged || eleCDiff.changed;
 
   await sleepImpl(SLEEP_BETWEEN_REQUESTS_MS);

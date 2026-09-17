@@ -26,6 +26,70 @@ function eleCBody(eleicoes: Array<{ cd: string; t: string; nm: string }>): strin
 
 const BASELINE_ELEICOES = [{ cd: "544", t: "1", nm: "Eleição Geral 2022" }];
 
+/**
+ * Formato REAL do ambiente de simulado 2026 (cópia estrutural de
+ * tests/fixtures/tse/2026-sim/ele-c.json, baixado em 17/09/2026 de
+ * resultados-sim.tse.jus.br/simulado/simulado2026/comum/config/ele-c.json):
+ * NÃO existe campo `c` na raiz — o ciclo vive em `pl[].c`. `f:"s"` marca o
+ * ambiente de simulado. Três eleições sob um único pleito (17801).
+ */
+const SIM_2026_ELE_C = JSON.stringify({
+  dg: "14/09/2026",
+  hg: "20:58:55",
+  f: "s",
+  idg: "145692058",
+  arq: [{ tp: "e", dir: "<base>/<ambiente>/<ciclo>/<cd_eleicao>/dados/<uf>" }],
+  pl: [
+    {
+      cd: "17801",
+      cdpr: "14575",
+      c: "ele2026",
+      dt: "26/04/2026",
+      dtlim: "18/10/2026",
+      e: [
+        {
+          cd: "21274",
+          cdt2: "",
+          sqele: "201780102026",
+          nm: "Eleição Ordinária Municipal - 2026 - 17801 - 26/04/2026 1º Turno",
+          t: "1",
+          tp: "3",
+          abr: [{ cd: "br", cp: [{ cd: "25", ds: "Conselheiro Distrital", tp: "1" }] }],
+        },
+        {
+          cd: "21270",
+          cdt2: "21271",
+          sqele: "201780102026",
+          nm: "Eleição Ordinária Federal - 2026 - 17801 1º Turno",
+          t: "1",
+          tp: "8",
+          abr: [{ cd: "br", cp: [{ cd: "1", ds: "Presidente", tp: "1" }] }],
+        },
+        {
+          cd: "21272",
+          cdt2: "21273",
+          sqele: "201780102026",
+          nm: "Eleição Ordinária Estadual - 2026 - 17801 1º Turno",
+          t: "1",
+          tp: "1",
+          abr: [
+            {
+              cd: "br",
+              cp: [
+                { cd: "3", ds: "Governador", tp: "1" },
+                { cd: "5", ds: "Senador", tp: "1" },
+                { cd: "6", ds: "Deputado Federal", tp: "2" },
+                { cd: "7", ds: "Deputado Estadual", tp: "2" },
+                { cd: "8", ds: "Deputado Distrital", tp: "2" },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+});
+
 const TARGETS: WatchTargetsFile = {
   leiautes: [
     { id: "ea20", url: "https://www.tse.jus.br/fake/ea20" },
@@ -184,6 +248,81 @@ describe("runWatch", () => {
     expect(second.exitCode).toBe(2);
     expect(second.diffLines.some((l) => l.includes("ELEIÇÃO GERAL"))).toBe(true);
     expect(second.state.eleC?.eleicoes).toHaveLength(2);
+  });
+
+  it("ele-c.json do simulado 2026 (sem `c` na raiz): ciclo vem de pl[].c e as 3 eleições entram no estado", async () => {
+    const result = await runWatch({
+      statePath,
+      targets: TARGETS,
+      baseUrl: "https://fake-sim.tse.jus.br/simulado/simulado2026",
+      fetchImpl: makeFakeFetch({ eleCBody: SIM_2026_ELE_C, eleCEtag: '"sim-e1"' }),
+      sleepImpl: noopSleep,
+      now: () => new Date("2026-09-17T04:00:00Z"),
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.state.eleC?.ciclo).toBe("ele2026");
+    expect(result.state.eleC?.dg).toBe("14/09/2026");
+    expect(result.state.eleC?.eleicoes.map((e) => e.cd)).toEqual(["21274", "21270", "21272"]);
+    expect(result.diffLines.some((l) => l.includes("ciclo=ele2026"))).toBe(true);
+  });
+
+  it("ele-c.json do simulado 2026 a partir de estado anterior sem eleições -> diff destaca ELEIÇÃO GERAL", async () => {
+    const second = await runWatch({
+      statePath,
+      targets: TARGETS,
+      baseUrl: "https://fake-sim.tse.jus.br/simulado/simulado2026",
+      fetchImpl: makeFakeFetch({ eleCBody: SIM_2026_ELE_C, eleCEtag: '"sim-e1"' }),
+      sleepImpl: noopSleep,
+      now: () => new Date("2026-09-17T04:10:00Z"),
+      previousState: {
+        updatedAt: "2026-09-13T03:22:00Z",
+        eleC: {
+          sha256: "0000000000000000000000000000000000000000000000000000000000000000",
+          etag: null,
+          lastModified: null,
+          ciclo: "ele2024",
+          dg: "13/09/2026",
+          hg: "00:00:00",
+          eleicoes: [],
+        },
+        leiautes: {},
+      },
+    });
+
+    expect(second.changed).toBe(true);
+    expect(second.exitCode).toBe(2);
+    expect(second.state.eleC?.ciclo).toBe("ele2026");
+    expect(second.diffLines.some((l) => l.includes('ciclo: "ele2024" -> "ele2026"'))).toBe(true);
+    expect(second.diffLines.filter((l) => l.includes("ELEIÇÃO GERAL"))).toHaveLength(3);
+    expect(second.diffLines.some((l) => l.includes("cd=21270"))).toBe(true);
+  });
+
+  it("pl[] com dois ciclos distintos e sem `c` na raiz -> grava o primeiro e anota o outro no resumo", async () => {
+    const doisCiclos = JSON.stringify({
+      dg: "14/09/2026",
+      hg: "20:58:55",
+      f: "s",
+      pl: [
+        { cd: "17801", c: "ele2026", e: [{ cd: "21270", t: "1", nm: "Federal - 2026" }] },
+        { cd: "14575", c: "ele2024", e: [{ cd: "619", t: "1", nm: "Municipal 2024" }] },
+      ],
+    });
+
+    const result = await runWatch({
+      statePath,
+      targets: TARGETS,
+      baseUrl: "https://fake-sim.tse.jus.br/simulado/simulado2026",
+      fetchImpl: makeFakeFetch({ eleCBody: doisCiclos, eleCEtag: '"sim-e9"' }),
+      sleepImpl: noopSleep,
+      now: () => new Date("2026-09-17T04:00:00Z"),
+    });
+
+    expect(result.state.eleC?.ciclo).toBe("ele2026");
+    expect("ciclosExtras" in (result.state.eleC ?? {})).toBe(false);
+    expect(result.diffLines.some((l) => l.includes("outros ciclos") && l.includes("ele2024"))).toBe(
+      true,
+    );
   });
 
   it("403 num leiaute -> inacessivel, não changed", async () => {
