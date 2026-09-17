@@ -166,7 +166,16 @@ const cache = new Map<string, { mtimeMs: number; dado: unknown }>();
  * a fixture na primeira leitura (regenerar + F5 funciona).
  */
 function lerArquivo(nome: string): unknown {
-  const caminho = join(process.cwd(), ...DIRETORIO, nome);
+  // `turbopackIgnore` NÃO é cosmético: sem ele o Turbopack lê este
+  // `process.cwd()` como "pode ler qualquer arquivo do projeto" e traça o
+  // repositório INTEIRO para dentro de cada função serverless — inclusive o
+  // `package.json` da raiz, que tem `"type": "module"`. O launcher da Vercel é
+  // CommonJS e passa a falhar com `require() of ES Module .../page.js`: TODAS
+  // as páginas do site voltam 500. Foi o que derrubou a produção em 17/09
+  // (deploy das 03h43 UTC), três dias depois de este módulo nascer — o build
+  // anterior não tinha o módulo, então ninguém ligou uma coisa à outra.
+  // O módulo é só de desenvolvimento; em produção este caminho nunca roda.
+  const caminho = join(/*turbopackIgnore: true*/ process.cwd(), ...DIRETORIO, nome);
 
   let mtimeMs: number;
   try {
