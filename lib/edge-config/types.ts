@@ -573,6 +573,19 @@ export interface EdgeUfRow {
  * `model` é a contribuição da extrapolação do apurado (S07/Fase 2 — antes
  * era a extrapolação por swing vs. 2022).
  */
+/**
+ * 🔴 **`pre_election` NÃO é o sinal de fase.** Ver {@link EdgePayload.fase} e
+ * o [ADR-0043](../../docs/architecture/adrs/0043-fase-pre-eleicao-campo-proprio-nao-derivada.md) D2.
+ *
+ * Hoje é constante nos quatro emissores — `0.0` em `api/model/project.py` e
+ * em `api/model/deputado_payload.py`, `1` nos dois `emptyPayload()` de
+ * TypeScript —, ou seja, já não mede fase nenhuma. E quando a spec 008 o
+ * tornar peso dinâmico de verdade, ele valerá ~0,95 às 20h05 de 04/10 com
+ * 0,01% apurado: esse será o valor **correto** para o modelo, e uma UI
+ * gateada nele devolveria a tela ao modo "a eleição não começou" no minuto
+ * exato em que ela começou. É uma rede de segurança de mão única — parece uma
+ * guarda, aponta para o lado errado.
+ */
 export interface EdgeComposition {
   pre_election: number; // [0, 1]
   model: number; // [0, 1]
@@ -651,6 +664,44 @@ export interface EdgePayload {
    */
   insights: string[];
   composition: EdgeComposition;
+  /**
+   * **Ausente = fase normal.** Presente = o payload foi **semeado**, não
+   * medido: não houve boletim nenhum, e cada número de voto, probabilidade,
+   * margem e intervalo neste JSON é um zero **estrutural** — a ausência de
+   * medição —, não uma medição que deu zero.
+   *
+   * Spec 019 / [ADR-0043](../../docs/architecture/adrs/0043-fase-pre-eleicao-campo-proprio-nao-derivada.md).
+   *
+   * ## Por que um campo próprio, e não algo que já existe
+   *
+   * Um payload zerado tem **forma válida** e significado que o produto nunca
+   * foi escrito para representar. Sem este campo, o código existente —
+   * correto, para o caso que os autores imaginaram — produz nove afirmações
+   * falsas simultâneas, entre elas "Todas as unidades federativas estão com a
+   * apuração concluída", "Fulano vence no 1º turno — 0%", um IC de 95%
+   * `[0,0; 0,0]` (que é a forma tipográfica da certeza absoluta) e as 27 UFs
+   * pintadas com a cor do partido de `top_candidatos[0]`.
+   *
+   * 🔴 **Nada pode derivar a fase de `pct_apurado_total`.** Às 20h01 de
+   * 04/10 o valor real é `0.01` — um zero **medido** —, e por alguns minutos
+   * antes disso ele passa por `0` com o orchestrator já rodando. Uma tela
+   * gateada no percentual voltaria ao modo pré-eleição no minuto exato em que
+   * a apuração começa. O mesmo vale para `por_uf.length`, para
+   * {@link EdgeComposition.pre_election} e para data de calendário (que numa
+   * rota com `revalidate` congela no build). Ver `lib/config/fase.ts`, que é
+   * o **único** lugar autorizado a ler este campo.
+   *
+   * ## Por que opcional de valor único, e não booleano
+   *
+   * Mesmo molde de {@link EdgePayload.dado_ts} (ADR-0038): `?:` para "estado
+   * ausente", sem segundo valor com que confundi-lo. Um `preEleicao: boolean`
+   * reintroduziria o par `false`/`undefined` que já é fonte conhecida de
+   * colapso por `??`. Consequências: nenhuma fixture existente precisa mudar,
+   * e **a saída da fase é por omissão** — o orchestrator nunca escreve este
+   * campo (RF-166), então o primeiro payload real de cada cargo o faz
+   * desaparecer sozinho. Ninguém precisa lembrar de desligar nada às 20h.
+   */
+  fase?: "pre_eleicao";
   /**
    * RF-107 (spec 016) — composição das vagas em disputa por partido.
    * Presente só em cargo que elege mais de um por UF (hoje, Senador).
@@ -1173,6 +1224,15 @@ export interface EdgePayloadDeputado {
    * vez de imprimi-lo) precisa poder injetar um valor diferente de 15 — com
    * o literal, esse teste não compilaria e a garantia de D8 ficaria sem prova.
    */
+  /**
+   * Ver {@link EdgePayload.fase}. Declarado aqui por simetria de contrato;
+   * **nunca semeado** — a decisão do dono em 13/09 (RF-163) é que Deputado
+   * Federal não entra na fase pré-eleição, porque esta tela lista cadeiras
+   * por partido, não pessoas: semeá-la produziria "0 cadeiras" para cada
+   * legenda, que é a mesma mentira em outra unidade, e nenhuma identidade
+   * seria ganha, porque a tela não tem onde pôr rosto.
+   */
+  fase?: "pre_eleicao";
   atualizacao_min: number;
   bancada: EdgeBancadaNacional;
   por_uf: EdgeDeputadoUfRow[];

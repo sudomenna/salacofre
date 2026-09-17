@@ -59,6 +59,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { CARGOS_TSE, type CargoTse, cargoInfo, isCargoTse } from "@/lib/config/cargos";
+import { FASE_PRE_ELEICAO } from "@/lib/config/fase";
 import { GLOBAL_CONFIG_KEY_PATTERN } from "@/lib/edge-config/keys";
 import { writeDeputadoProjection, writeProjection } from "@/lib/edge-config/writer";
 import { logError, logInfo } from "@/lib/tse/log";
@@ -137,12 +138,33 @@ const porUfRowSchema = z
 const dadoTsSchema = z.string().nullable().optional();
 const paresAtrasadosSchema = z.number().nullable().optional();
 
+/**
+ * `fase` na borda (spec 019, RF-153/RF-166).
+ *
+ * Pelo mesmo motivo de `dadoTsSchema` acima: o `.passthrough()` já aceitava o
+ * campo, e estas linhas existem para dar tipo a ele em vez de deixá-lo no
+ * saco de `unknown`. Mas aqui há um segundo motivo, que não existia lá.
+ *
+ * `z.literal()` — e não `z.string()` — **barra com 400** um produtor que mande
+ * `fase: "normal"` ou `fase: null`. O contrato inteiro da spec 019 depende de
+ * "ausente = normal": um emissor que escrevesse um segundo valor passaria em
+ * qualquer teste positivo e apagaria em silêncio a distinção que o campo
+ * existe para carregar. O orchestrator nunca escreve `fase` (RF-166); se um
+ * dia escrever, é melhor que a gravação falhe alto do que que a tela fique em
+ * modo pré-eleição com dado real por baixo, indefinidamente, sem alarme.
+ *
+ * `.optional()` sem `.nullable()` e sem `.default()`, de propósito: o único
+ * estado além de `FASE_PRE_ELEICAO` é **ausente**.
+ */
+const faseSchema = z.literal(FASE_PRE_ELEICAO).optional();
+
 const bodySchema = z.object({
   payload: z
     .object({
       ts: z.string(),
       dado_ts: dadoTsSchema,
       pares_atrasados: paresAtrasadosSchema,
+      fase: faseSchema,
       // Derivado da tabela canônica (`lib/config/cargos.ts`): acrescentar um
       // cargo lá passa a bastar. Era `z.union([literal(1), literal(3)])`
       // hardcoded até 2026-09-11.
@@ -254,6 +276,7 @@ const deputadoBodySchema = z.object({
       ts: z.string(),
       dado_ts: dadoTsSchema,
       pares_atrasados: paresAtrasadosSchema,
+      fase: faseSchema,
       cargo: z.literal(6),
       // Turno único (`temSegundoTurno: false`). Um `2` aqui é payload
       // malformado, não uma corrida que existe.
@@ -300,12 +323,94 @@ function bodyDeclaresProportionalCargo(raw: unknown): boolean {
 // POST handler
 // ---------------------------------------------------------------------------
 
+/**
+ * 🔴 **Um `next dev` local NÃO grava numa loja remota.** Incidente de
+ * 2026-09-14 02:10 UTC, e a razão desta guarda existir.
+ *
+ * ## O que aconteceu
+ *
+ * O site público passou a exibir "CANDIDATO 100 — 55,0% — **100% apurado**",
+ * três semanas antes do pleito. Ninguém fez deploy, ninguém rodou o semeador,
+ * nenhum cron disparou. A cadeia foi:
+ *
+ *   1. alguém subiu `pnpm dev` na 3000 para conferir uma tela no browser;
+ *   2. `pnpm dev` carrega `.env.local`, que tem `EDGE_CONFIG_TOKEN` e
+ *      `EDGE_CONFIG_ID` **de produção** — o servidor local escreve na loja
+ *      de verdade, não numa cópia;
+ *   3. alguém rodou a suíte de testes. Parte dela executa o orchestrator
+ *      Python, que ao terminar chama `post_edge_write`. Sem
+ *      `INTERNAL_BASE_URL`, `_resolve_internal_base_url`
+ *      (`api/model/project.py:3018-3030`) cai em `http://localhost:${PORT:-3000}`;
+ *   4. normalmente **não há nada escutando** nessa porta, a conexão morre e o
+ *      teste segue. Naquele minuto havia: 9 POSTs, 9 respostas 200, 6 chaves
+ *      de dado sintético gravadas em produção.
+ *
+ * As duas ações são rotineiras e nenhuma delas é errada. O defeito é que
+ * **coexistir** transforma as duas em uma terceira coisa que ninguém pediu.
+ *
+ * ## Por que a guarda mora aqui
+ *
+ * Este é o funil: todo caminho de escrita — Python e TypeScript — passa por
+ * esta rota. Guardar aqui cobre também o autor futuro que inventar um quarto
+ * jeito de chamar. As outras duas camadas de defesa (`INTERNAL_BASE_URL`
+ * apontada para porta morta no setup do vitest e no `conftest` do pytest)
+ * fecham o caso concreto; esta fecha a classe.
+ *
+ * ## Por que ela NÃO pode causar apagão em 04/10
+ *
+ * O [ADR-0043](../../../../docs/architecture/adrs/0043-fase-pre-eleicao-campo-proprio-nao-derivada.md)
+ * recusou, de propósito, tornar este caminho capaz de recusar — trocar bug de
+ * exibição por risco de apagão de escrita na noite da apuração é péssimo
+ * negócio. Esta guarda é de espécie diferente, e a diferença é o que a torna
+ * aceitável: `EDGE_CONFIG_STORE_GUARD_BYTES` recusaria com base numa
+ * medição do payload, que **varia** e pode cruzar o limiar em produção sem
+ * ninguém prever. Esta recusa depende de uma condição que é **falsa por
+ * construção** em toda deployment da Vercel: `NODE_ENV === "development"` só
+ * é verdade sob `next dev`, e nenhuma deployment roda `next dev` — o output
+ * buildado do Next fixa `NODE_ENV=production`, em produção e em preview.
+ *
+ * Em outras palavras: em 04/10 esta função devolve `null` antes de olhar
+ * qualquer outra coisa, e é impossível que ela devolva outra coisa.
+ *
+ * A válvula `ALLOW_DEV_EDGE_WRITE=1` existe para quem precisa exercitar o
+ * caminho de escrita localmente de propósito — o que é raro, é deliberado, e
+ * agora precisa ser dito em voz alta.
+ */
+function recusaDeDevLocal(): NextResponse | null {
+  if (process.env.NODE_ENV !== "development") return null;
+  if (process.env.ALLOW_DEV_EDGE_WRITE === "1") return null;
+
+  logError("edge-write RECUSADO — next dev não grava em loja remota", {
+    motivo: "NODE_ENV=development sem ALLOW_DEV_EDGE_WRITE=1",
+    edgeConfigId: process.env.EDGE_CONFIG_ID ?? "(ausente)",
+    comoLiberar: "ALLOW_DEV_EDGE_WRITE=1 pnpm dev",
+  });
+
+  return NextResponse.json(
+    {
+      error: "dev_write_refused",
+      detail:
+        "Um servidor de desenvolvimento local não grava no Global Config. As credenciais " +
+        "de `.env.local` são as de produção, e a suíte de testes publica neste endereço " +
+        "quando encontra alguém escutando na porta 3000 — foi assim que dado sintético foi " +
+        "ao ar em 2026-09-14. Se a escrita é intencional, suba com ALLOW_DEV_EDGE_WRITE=1.",
+    },
+    { status: 403 },
+  );
+}
+
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const t0 = Date.now();
 
   // --------------------------------------------------------------------------
   // 1. Auth — header x-model-secret (mesmo padrão do /api/model/project)
   // --------------------------------------------------------------------------
+  // 0. Um `next dev` local não grava numa loja remota. Antes da auth de
+  //    propósito: a recusa não depende de quem chamou, e um chamador
+  //    autenticado é exatamente o caso que causou o incidente.
+  const recusa = recusaDeDevLocal();
+  if (recusa) return recusa;
+
   const expected = process.env.MODEL_SECRET;
   if (!expected) {
     logError("MODEL_SECRET não configurada — abortando edge-write", {});
