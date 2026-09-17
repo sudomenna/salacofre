@@ -23,6 +23,7 @@
 
 import { Needle, type NeedleVariant } from "@/components/atoms/needle/Needle";
 import type { EdgeNational } from "@/lib/edge-config/types";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 export interface NationalNeedleProps {
   national: EdgeNational;
@@ -101,7 +102,7 @@ export function NationalNeedle({
         needlePosition={needlePosition}
         needleBand={national.needle_band}
         pVitoria={pDecide1T}
-        candidatoA={liderNome ?? a.nome}
+        candidatoA={liderNome ?? nomeExibicao(a.nome, a.sqcand)}
         candidatoB="2º turno"
         variant="national-1t"
         width={width ?? 320}
@@ -118,8 +119,8 @@ export function NationalNeedle({
       needlePosition={national.needle_position}
       needleBand={national.needle_band}
       pVitoria={pVitoria}
-      candidatoA={a.nome}
-      candidatoB={b?.nome ?? "—"}
+      candidatoA={nomeExibicao(a.nome, a.sqcand)}
+      candidatoB={b ? nomeExibicao(b.nome, b.sqcand) : "—"}
       variant={variant}
       width={width ?? 320}
     />

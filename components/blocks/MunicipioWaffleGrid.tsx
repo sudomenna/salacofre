@@ -32,6 +32,7 @@ import { useMemo } from "react";
 
 import type { EdgeCandidate, EdgeUfMunicipio } from "@/lib/edge-config/types";
 import { colorForRank } from "@/lib/utils/cand-color";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 export interface MunicipioWaffleGridProps {
   municipios: EdgeUfMunicipio[];
@@ -96,7 +97,9 @@ export function MunicipioWaffleGrid({
       const c = candIndex.get(id);
       out.push({
         id,
-        nome: c?.nome ?? `Cand ${id}`,
+        // Nome de exibição já na legenda: é a mesma pessoa do `<title>` de
+        // cada quadrado e da tabela sr-only logo abaixo.
+        nome: c ? nomeExibicao(c.nome, c.sqcand) : `Cand ${id}`,
         cor: c?.cor ?? colorForRank(c?.rank ?? 1),
         count,
       });
@@ -153,9 +156,9 @@ export function MunicipioWaffleGrid({
                 rx={1}
                 data-cod={m.cod_ibge}
               >
-                <title>{`${m.nome} — ${lider?.nome ?? `Cand ${m.lider.candidato_id}`} (${
-                  lider?.partido ?? "?"
-                }) líder · ${fmtPct(m.pct_apurado)} apur`}</title>
+                <title>{`${m.nome} — ${
+                  lider ? nomeExibicao(lider.nome, lider.sqcand) : `Cand ${m.lider.candidato_id}`
+                } (${lider?.partido ?? "?"}) líder · ${fmtPct(m.pct_apurado)} apur`}</title>
               </rect>
             );
           })}
@@ -199,7 +202,8 @@ export function MunicipioWaffleGrid({
               <tr key={m.cod_ibge}>
                 <td>{m.nome}</td>
                 <td>
-                  {lider?.nome ?? `Cand ${m.lider.candidato_id}`} ({lider?.partido ?? "?"})
+                  {lider ? nomeExibicao(lider.nome, lider.sqcand) : `Cand ${m.lider.candidato_id}`}{" "}
+                  ({lider?.partido ?? "?"})
                 </td>
                 <td>{fmtPct(m.pct_apurado)}</td>
               </tr>

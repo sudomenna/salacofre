@@ -37,6 +37,7 @@
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import type { EdgeNational, EdgeUfRow, Turno } from "@/lib/edge-config/types";
 import { formatCI, formatPercent, formatPp, formatTimeHMS } from "@/lib/utils/format";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 export interface BulletinPanelProps {
   national: EdgeNational;
@@ -103,7 +104,7 @@ export function buildBulletin({
       id: "lideranca",
       ts,
       head: "Projeção",
-      text: `${lider.nome} (${lider.partido}) aparece com ${formatPercent(lider.pct_projetado, 1)} dos votos a votáveis na projeção, no intervalo de 95% ${formatCI(lider.pct_projetado_lower, lider.pct_projetado_upper)}.`,
+      text: `${nomeExibicao(lider.nome, lider.sqcand)} (${lider.partido}) aparece com ${formatPercent(lider.pct_projetado, 1)} dos votos a votáveis na projeção, no intervalo de 95% ${formatCI(lider.pct_projetado_lower, lider.pct_projetado_upper)}.`,
     });
   }
 
@@ -113,7 +114,7 @@ export function buildBulletin({
       id: "diferenca",
       ts,
       head: "Diferença",
-      text: `A diferença projetada entre ${lider.nome} e ${segundo.nome} (${segundo.partido}) é de ${formatPp(delta)}.`,
+      text: `A diferença projetada entre ${nomeExibicao(lider.nome, lider.sqcand)} e ${nomeExibicao(segundo.nome, segundo.sqcand)} (${segundo.partido}) é de ${formatPp(delta)}.`,
     });
   }
 

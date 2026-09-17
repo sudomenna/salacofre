@@ -22,6 +22,7 @@
 
 import type { EdgeNational, EdgeUfRow } from "@/lib/edge-config/types";
 import { formatPercent, formatPp } from "@/lib/utils/format";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 export interface InsightContext {
   national: EdgeNational;
@@ -76,7 +77,7 @@ export function generateInsights(ctx: InsightContext): string[] {
   // M2: líder com p_fecha_1t >= 0.7 → "X pode encerrar no 1º turno"
   if (a && a.p_fecha_1t != null && a.p_fecha_1t >= 0.7) {
     const pct = formatPercent(a.p_fecha_1t * 100, 0);
-    lines.push(`${a.nome} pode encerrar no 1º turno (${pct} de chance).`);
+    lines.push(`${nomeExibicao(a.nome, a.sqcand)} pode encerrar no 1º turno (${pct} de chance).`);
   }
 
   if (a && b) {
@@ -84,11 +85,11 @@ export function generateInsights(ctx: InsightContext): string[] {
     if (Math.abs(diff) >= 5) {
       const leader = diff > 0 ? a : b;
       lines.push(
-        `${leader.nome} amplia margem com ${formatPercent(leader.pct_projetado)} projetado (${formatPercent(pct_apurado_total, 0)} apurado).`,
+        `${nomeExibicao(leader.nome, leader.sqcand)} amplia margem com ${formatPercent(leader.pct_projetado)} projetado (${formatPercent(pct_apurado_total, 0)} apurado).`,
       );
     } else if (Math.abs(diff) < 1) {
       lines.push(
-        `Disputa apertada: ${a.nome} ${formatPercent(a.pct_projetado)} vs ${b.nome} ${formatPercent(b.pct_projetado)}.`,
+        `Disputa apertada: ${nomeExibicao(a.nome, a.sqcand)} ${formatPercent(a.pct_projetado)} vs ${nomeExibicao(b.nome, b.sqcand)} ${formatPercent(b.pct_projetado)}.`,
       );
     }
   }
@@ -97,7 +98,9 @@ export function generateInsights(ctx: InsightContext): string[] {
   const terceiro = national.candidatos.find((c) => (c.rank ?? -1) === 3);
   if (terceiro && terceiro.p_passa_2t != null && terceiro.p_passa_2t >= 0.3 && lines.length < 3) {
     const pct = formatPercent(terceiro.p_passa_2t * 100, 0);
-    lines.push(`${terceiro.nome} briga pela vaga no 2º turno (${pct} de chance).`);
+    lines.push(
+      `${nomeExibicao(terceiro.nome, terceiro.sqcand)} briga pela vaga no 2º turno (${pct} de chance).`,
+    );
   }
 
   // Maior movimento em relação a 2022 — COMPARAÇÃO DESCRITIVA, não insumo do

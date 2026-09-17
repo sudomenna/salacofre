@@ -25,6 +25,7 @@ import Link from "next/link";
 import { gridBounds, hexCenter, hexPoints, UF_HEX_POSITIONS } from "@/lib/data/uf-hex-layout";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { colorForRank } from "@/lib/utils/cand-color";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 export interface HexCartogramBrasilProps {
   rows: EdgeUfRow[];
@@ -78,7 +79,7 @@ export function HexCartogramBrasil({ rows, candidatos, hexRadius = 26 }: HexCart
           const lider = uf ? candIndex.get(uf.lider) : undefined;
           const partidoLabel = lider?.partido ?? "";
           const ariaText = uf
-            ? `${sigla}${lider ? `, líder ${lider.nome} (${lider.partido})` : ""}`
+            ? `${sigla}${lider ? `, líder ${nomeExibicao(lider.nome, lider.sqcand)} (${lider.partido})` : ""}`
             : `${sigla}, sem dados`;
           const href = `/uf/${sigla.toLowerCase()}/governador`;
           // Cor do texto via luminância do fundo: ranks com fundo escuro
@@ -134,7 +135,9 @@ export function HexCartogramBrasil({ rows, candidatos, hexRadius = 26 }: HexCart
           {Object.keys(UF_HEX_POSITIONS).map((sigla) => {
             const uf = rowsBySigla.get(sigla);
             const lider = uf ? candIndex.get(uf.lider) : undefined;
-            const liderText = lider ? `${lider.nome} (${lider.partido}) líder` : "sem dados";
+            const liderText = lider
+              ? `${nomeExibicao(lider.nome, lider.sqcand)} (${lider.partido}) líder`
+              : "sem dados";
             return (
               <li key={sigla}>
                 {/* `<Link>`, como os hexágonos logo acima: esta é a rota de

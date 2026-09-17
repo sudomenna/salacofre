@@ -68,6 +68,7 @@ import type {
 } from "@/lib/edge-config/types";
 import { bandForRank, colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent } from "@/lib/utils/format";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import {
   denominadorLabel,
   outrosCount,
@@ -329,7 +330,7 @@ export function ProjectionThermometers({
             <ProjectionThermometer
               key={c.id}
               id={`termometro-cand-${c.id}`}
-              titulo={c.nome}
+              titulo={nomeExibicao(c.nome, c.sqcand)}
               subtitulo={c.partido}
               base={base}
               // `cor` é preenchimento (faixa + tick). O número grande NÃO usa

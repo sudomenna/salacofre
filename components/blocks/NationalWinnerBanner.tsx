@@ -40,6 +40,7 @@ import type { CSSProperties } from "react";
 
 import type { EdgeCandidate, EdgeNational, Turno } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 /** Threshold mínimo de p_vitoria do líder para "chamada final". */
 export const NATIONAL_WIN_P_THRESHOLD = 0.99;
@@ -110,7 +111,10 @@ export function NationalWinnerBanner({
   };
 
   const pctLabel = formatPercent(lider.pct_projetado, 1);
-  const ariaLabel = `Presidente eleito: ${lider.nome} (${lider.partido}) com ${pctLabel}.`;
+  // Um nome só para o `aria-label` e para o `<strong>`: é a frase mais forte
+  // do produto inteiro, e não pode dizer uma coisa na tela e outra no ouvido.
+  const nome = nomeExibicao(lider.nome, lider.sqcand);
+  const ariaLabel = `Presidente eleito: ${nome} (${lider.partido}) com ${pctLabel}.`;
   const containerClass = ["flex flex-col gap-1 rounded-md px-6 py-5", className]
     .filter(Boolean)
     .join(" ");
@@ -125,7 +129,7 @@ export function NationalWinnerBanner({
     >
       <span className="text-xs font-semibold uppercase tracking-wider opacity-90">ELEITO</span>
       <strong className="text-3xl font-semibold leading-tight md:text-4xl">
-        {lider.nome} é {turno === 2 ? "eleito" : "eleito no 1º turno"}
+        {nome} é {turno === 2 ? "eleito" : "eleito no 1º turno"}
       </strong>
       <span className="text-sm opacity-90">
         {lider.partido} · {pctLabel}

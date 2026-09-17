@@ -29,6 +29,7 @@ import Link from "next/link";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent, formatPp } from "@/lib/utils/format";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 export type StateGroupedTableMode = "binary" | "multi-1t";
 
@@ -258,7 +259,7 @@ function MultiTable({ rows, candidatos, multiDisputaThreshold, className }: Mult
     .map(([liderId, ufs]) => {
       const cand = byId.get(liderId);
       const rank = cand?.rank ?? 99;
-      const nome = cand?.nome ?? `#${liderId}`;
+      const nome = cand ? nomeExibicao(cand.nome, cand.sqcand) : `#${liderId}`;
       return {
         key: `cand-${liderId}`,
         label: nome,

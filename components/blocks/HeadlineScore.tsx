@@ -52,6 +52,7 @@ import type { ReactNode } from "react";
 
 import { CandidateBar } from "@/components/atoms/bars/CandidateBar";
 import type { EdgeCandidate, Turno } from "@/lib/edge-config/types";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 export type HeadlineScoreMode = "multi-1t" | "binary";
 
@@ -135,26 +136,33 @@ export function HeadlineScore({
     );
   }
 
+  // Nome de exibição (`lib/utils/nome-candidato.ts`) resolvido UMA vez, aqui:
+  // este `<h1>` é o maior tipo da página e a `<CandidateBar>` logo abaixo
+  // repete o mesmo nome. Derivar nos dois pontos é como a cor divergiu entre a
+  // home e a página de estado.
+  const nomeA = nomeExibicao(a.nome, a.sqcand);
+  const nomeB = b ? nomeExibicao(b.nome, b.sqcand) : "";
+
   // Headline dinâmico. Em multi-1t menciona o terceiro candidato; em binary
   // mantém o comportamento "X à frente / Disputa apertada".
   const lead = a.pct_projetado - (b?.pct_projetado ?? 0);
   let leadLabel: string;
   if (!b) {
-    leadLabel = `${a.nome} confirmado`;
+    leadLabel = `${nomeA} confirmado`;
   } else if (effectiveMode === "multi-1t") {
     // Rank 3 do array original (acessível mesmo quando filtrado pelo hero)
     const terceiro = candidatos.find((c) => (c.rank ?? -1) === 3);
     if (terceiro) {
-      leadLabel = `${a.nome} lidera, ${terceiro.nome} briga pela 2ª vaga`;
+      leadLabel = `${nomeA} lidera, ${nomeExibicao(terceiro.nome, terceiro.sqcand)} briga pela 2ª vaga`;
     } else {
-      leadLabel = `${a.nome} à frente`;
+      leadLabel = `${nomeA} à frente`;
     }
   } else if (Math.abs(lead) < 1) {
     leadLabel = "Disputa apertada";
   } else if (lead > 0) {
-    leadLabel = `${a.nome} à frente`;
+    leadLabel = `${nomeA} à frente`;
   } else {
-    leadLabel = `${b.nome} à frente`;
+    leadLabel = `${nomeB} à frente`;
   }
 
   const containerClass = ["flex flex-col gap-4", className].filter(Boolean).join(" ");
@@ -188,7 +196,7 @@ export function HeadlineScore({
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <CandidateBar
-          nome={a.nome}
+          nome={nomeA}
           partido={a.partido}
           cor={a.cor}
           rank={a.rank}
@@ -199,7 +207,7 @@ export function HeadlineScore({
         />
         {b && (
           <CandidateBar
-            nome={b.nome}
+            nome={nomeB}
             partido={b.partido}
             cor={b.cor}
             rank={b.rank}

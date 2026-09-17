@@ -87,6 +87,7 @@ import { PartyTag } from "@/components/atoms/data/PartyTag";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { formatPercent, formatPp } from "@/lib/utils/format";
+import { nomeExibicao, primeiroNomeExibicao } from "@/lib/utils/nome-candidato";
 import { partyChipInk } from "@/lib/utils/party-color";
 import {
   candidateColor,
@@ -144,12 +145,19 @@ export function strongholdsFor(
     const contra = i === 0 ? top[1] : top[0];
     if (!contra) continue;
 
+    // O nome de quem está do outro lado da diferença sai daqui já em forma de
+    // EXIBIÇÃO: `contraNome` é uma string no `StrongholdRow`, e o ponto de uso
+    // (a célula "atrás de …") não tem mais como chegar ao `sqcand`. Converter
+    // na origem é o que impede a célula de dizer "atrás de RONALDO CAIADO"
+    // enquanto a pílula ao lado diz "CAIADO".
+    const oponente = candidatosById.get(contra.id);
+
     out.push({
       sigla: row.sigla,
       posicao: i + 1,
       pct: me.pct,
       diff: me.pct - contra.pct,
-      contraNome: candidatosById.get(contra.id)?.nome ?? `#${contra.id}`,
+      contraNome: oponente ? nomeExibicao(oponente.nome, oponente.sqcand) : `#${contra.id}`,
     });
   }
 
@@ -170,11 +178,6 @@ export function chipFillFor(partido: string | null | undefined): {
   return partyChipInk(partido);
 }
 
-/** Primeiro nome — o rótulo da pílula no kit (`x.nome.split(' ')[0]`). */
-function primeiroNome(nome: string): string {
-  return nome.trim().split(/\s+/)[0] || nome;
-}
-
 /**
  * Rótulos VISÍVEIS das pílulas, um por candidato, na ordem de entrada.
  *
@@ -191,8 +194,14 @@ function primeiroNome(nome: string): string {
  * Sem sigla para desempatar, cai no nome completo, que é o último recurso que
  * não inventa nada.
  */
-export function chipLabels(candidatos: Array<{ nome: string; partido: string }>): string[] {
-  const primeiros = candidatos.map((c) => primeiroNome(c.nome));
+export function chipLabels(
+  candidatos: Array<{ nome: string; partido: string; sqcand?: string }>,
+): string[] {
+  // 🔴 O corte é sobre o nome de EXIBIÇÃO. Sobre o cru, o desempate abaixo
+  // também mediria a coisa errada: dois candidatos poderiam colidir no primeiro
+  // nome cru e não colidir no de exibição (ou o inverso), e a pílula ganharia
+  // ou perderia a sigla por uma colisão que a tela não tem.
+  const primeiros = candidatos.map((c) => primeiroNomeExibicao(c.nome, c.sqcand));
   const contagem = new Map<string, number>();
   for (const p of primeiros) contagem.set(p, (contagem.get(p) ?? 0) + 1);
 
@@ -200,7 +209,7 @@ export function chipLabels(candidatos: Array<{ nome: string; partido: string }>)
     const p = primeiros[i] as string;
     if ((contagem.get(p) ?? 0) < 2) return p;
     const sigla = c.partido?.trim();
-    return sigla ? `${p} ${sigla}` : c.nome.trim();
+    return sigla ? `${p} ${sigla}` : nomeExibicao(c.nome, c.sqcand);
   });
 }
 
@@ -244,7 +253,9 @@ function CandidateTable({ cand, rank, lista, totalUfsComDado, id }: CandidateTab
         style={{ paddingBottom: "var(--space-2)", captionSide: "top" }}
       >
         <span className="flex flex-wrap items-baseline" style={{ gap: "var(--space-2)" }}>
-          <span style={{ font: "var(--type-title)", fontSize: "var(--text-lg)" }}>{cand.nome}</span>
+          <span style={{ font: "var(--type-title)", fontSize: "var(--text-lg)" }}>
+            {nomeExibicao(cand.nome, cand.sqcand)}
+          </span>
           <PartyTag sigla={cand.partido} size="sm" color={cor} />
         </span>
         <span
@@ -376,7 +387,16 @@ export function StrongholdsPanel({
                 {rotulos[i]}
                 {/* Nome completo e sigla para leitor de tela — a pílula
                     visível é curta por desenho, mas quem ouve não deve ter de
-                    adivinhar de quem é. */}
+                    adivinhar de quem é.
+
+                    🔴 Aqui, e SÓ aqui, fica o nome CRU do TSE, e é de propósito:
+                    este canal existe para EXPANDIR um rótulo cortado, não para
+                    repeti-lo. O nome acessível do botão sai "CAIADO — RONALDO
+                    CAIADO, PSD" — contém o texto visível, como a WCAG 2.5.3
+                    exige, e ainda diz de quem se trata. Trocar por
+                    `nomeExibicao` aqui devolveria "CAIADO — CAIADO, PSD" e
+                    gastaria o único lugar da tela que não tem limite de
+                    largura. */}
                 <span className="sr-only">
                   {" — "}
                   {c.nome}

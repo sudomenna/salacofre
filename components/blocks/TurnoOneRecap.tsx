@@ -41,6 +41,7 @@
 
 import type { EdgePayload } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 export interface TurnoOneRecapProps {
   /**
@@ -60,9 +61,13 @@ export function TurnoOneRecap({ recap, className }: TurnoOneRecapProps) {
   // Top-3 do 1T por rank (array já vem ordenado em S05+).
   const top3 = recap.national.candidatos.slice(0, 3);
   const finalistas = recap.national.candidatos.filter((c) => (c.rank ?? -1) <= 2).slice(0, 2);
+  // Mesmo nome de exibição da lista de três logo abaixo — a frase e as pílulas
+  // falam das mesmas duas pessoas e não podem chamá-las de formas diferentes.
+  const nomeDe = (c: (typeof finalistas)[number] | undefined) =>
+    c ? nomeExibicao(c.nome, c.sqcand) : "";
   const avancaramLabel =
     finalistas.length === 2
-      ? `${finalistas[0]?.nome ?? ""} e ${finalistas[1]?.nome ?? ""} avançaram ao 2º turno.`
+      ? `${nomeDe(finalistas[0])} e ${nomeDe(finalistas[1])} avançaram ao 2º turno.`
       : null;
 
   const containerClass = [
@@ -110,7 +115,7 @@ export function TurnoOneRecap({ recap, className }: TurnoOneRecapProps) {
           return (
             <li
               key={c.id}
-              aria-label={`${c.nome} (${c.partido}): ${pctLabel}`}
+              aria-label={`${nomeExibicao(c.nome, c.sqcand)} (${c.partido}): ${pctLabel}`}
               className="flex items-center gap-1.5"
             >
               <span
@@ -119,7 +124,7 @@ export function TurnoOneRecap({ recap, className }: TurnoOneRecapProps) {
                 style={{ background: c.cor }}
               />
               <span className="text-sm font-medium" style={{ color: "var(--color-text)" }}>
-                {c.nome}
+                {nomeExibicao(c.nome, c.sqcand)}
               </span>
               <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
                 ({c.partido})

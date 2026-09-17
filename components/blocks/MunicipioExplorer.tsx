@@ -84,6 +84,7 @@ import { MunicipioWaffleGrid } from "@/components/blocks/MunicipioWaffleGrid";
 import { useMunicipioSheetStore } from "@/components/shared/municipio-sheet-store";
 import type { EdgeCandidate, EdgeUfCandidate, EdgeUfMunicipio } from "@/lib/edge-config/types";
 import { formatPercent, formatVotes } from "@/lib/utils/format";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 export interface MunicipioExplorerProps {
   ufSigla: string;
@@ -129,7 +130,9 @@ function folhaRows(m: EdgeUfMunicipio, candidatos: EdgeUfCandidate[]): FolhaRow[
       const c = porId.get(id);
       return {
         id,
-        nome: c?.nome ?? `Candidato ${id}`,
+        // `FolhaRow.nome` é string: converto na origem, que é o último ponto
+        // com acesso ao `sqcand` (`EdgeUfCandidate` o carrega em todo cargo).
+        nome: c ? nomeExibicao(c.nome, c.sqcand) : `Candidato ${id}`,
         partido: c?.partido ?? "—",
         cor: c?.cor ?? "var(--color-cand-other)",
         votos: Number.isFinite(votos) ? votos : 0,

@@ -39,6 +39,7 @@
 import type { EdgeCandidate, EdgeNational } from "@/lib/edge-config/types";
 import { colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent } from "@/lib/utils/format";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 /**
  * Limiar mínimo de `p_segundo_turno_overall` para exibir os cenários.
@@ -140,7 +141,9 @@ export function RunoffScenarios({
           const probLabel = formatPercent(s.prob * 100, 0);
           const corA = colorForRank(s.a.rank);
           const corB = colorForRank(s.b.rank);
-          const ariaLabel = `Cenário ${idx + 1}: ${s.a.nome} versus ${s.b.nome}, ${probLabel} de probabilidade.`;
+          const nomeA = nomeExibicao(s.a.nome, s.a.sqcand);
+          const nomeB = nomeExibicao(s.b.nome, s.b.sqcand);
+          const ariaLabel = `Cenário ${idx + 1}: ${nomeA} versus ${nomeB}, ${probLabel} de probabilidade.`;
 
           return (
             <li key={`${s.a.id}-${s.b.id}`} aria-label={ariaLabel} className="flex flex-col gap-1">
@@ -152,7 +155,7 @@ export function RunoffScenarios({
                     style={{ background: corA }}
                   />
                   <span className="truncate text-sm font-medium">
-                    {s.a.nome}{" "}
+                    {nomeA}{" "}
                     <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
                       ({s.a.partido})
                     </span>
@@ -166,7 +169,7 @@ export function RunoffScenarios({
                     style={{ background: corB }}
                   />
                   <span className="truncate text-sm font-medium">
-                    {s.b.nome}{" "}
+                    {nomeB}{" "}
                     <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
                       ({s.b.partido})
                     </span>

@@ -47,6 +47,7 @@ import { Sheet } from "@/components/atoms/overlays/Sheet";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent, formatPp } from "@/lib/utils/format";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import { colorForParty, normalizePartySlug, PARTY_FALLBACK_SLUG } from "@/lib/utils/party-color";
 
 /** Mesma tabela de `GovernorCard.tsx` — sem módulo compartilhado em `lib/utils/**`
@@ -161,7 +162,7 @@ export function StateResultSheet({
                   background: dotColorFor(lider),
                 }}
               />
-              Líder: {lider.nome} ({lider.partido})
+              Líder: {nomeExibicao(lider.nome, lider.sqcand)} ({lider.partido})
             </p>
           ) : null}
 
@@ -172,7 +173,11 @@ export function StateResultSheet({
           >
             {row.top_candidatos.map((tc, index) => {
               const cand = candidatosById.get(tc.id);
-              const nome = cand?.nome ?? `#${tc.id}`;
+              // `tc.sqcand` existe em TODO cargo (é uma linha de UMA UF), mas o
+              // nome vem de `cand`, que é a entrada nacional. Passo o `sqcand`
+              // do `cand` quando há: em cargo 3 e 5 ele não existe ali por
+              // contrato (RF-145) e só a regra objetiva roda — que é o certo.
+              const nome = cand ? nomeExibicao(cand.nome, cand.sqcand) : `#${tc.id}`;
               const partido = cand?.partido ?? "";
               return (
                 <li

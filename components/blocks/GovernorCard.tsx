@@ -23,6 +23,7 @@
 
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { colorForRank } from "@/lib/utils/cand-color";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 /**
  * Nome longo da UF para o header. Sigla curta vai à direita.
@@ -153,7 +154,10 @@ export function GovernorCard({ uf, candidatos, mode = "expanded" }: GovernorCard
       // sempre. É deliberado que ele NÃO caia de volta no índice nacional —
       // "Cand 13" é feio e verdadeiro; o nome do governador de outro estado
       // seria bonito e falso.
-      nome: t.nome ?? `Cand ${t.id}`,
+      // `t.sqcand` existe em TODO cargo aqui (esta linha é de UMA UF, então o
+      // par `(uf, numero)` que a resolve não é ambíguo) — é o único lugar do
+      // cargo 3 em que a decisão editorial por `sqcand` chega a valer.
+      nome: t.nome ? nomeExibicao(t.nome, t.sqcand) : `Cand ${t.id}`,
       partido: t.partido ?? "—",
       pct: t.pct,
       // `cor`/`rank` seguem vindo do índice: são função do RANK, não da

@@ -53,7 +53,7 @@ export function CandidateRanking({ candidatos, className }: CandidateRankingProp
       {candidatos.map((c, i) => {
         const props = candidateResultRowProps(c, i + 1);
         const ariaLabel =
-          `${c.nome} (${c.partido}): ${formatPercent(props.pctAtual, 1)} apurado, ` +
+          `${props.nome} (${c.partido}): ${formatPercent(props.pctAtual, 1)} apurado, ` +
           `${formatPercent(props.pctProjetado, 1)} projetado`;
 
         return (

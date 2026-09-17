@@ -43,6 +43,7 @@ import { Figure } from "@/components/atoms/data/Figure";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
+import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import { candidateColorByMargin, DATA_FILL_STROKE } from "./_candidateColor";
 
 export interface RemainingPanelProps {
@@ -200,7 +201,9 @@ export function RemainingPanel({
                     {row.sigla}
                   </th>
                   <td style={{ ...CELL, font: "var(--type-body-sm)" }}>
-                    <span>{lider ? `${lider.nome} (${lider.partido})` : "—"}</span>
+                    <span>
+                      {lider ? `${nomeExibicao(lider.nome, lider.sqcand)} (${lider.partido})` : "—"}
+                    </span>
                     <span
                       aria-hidden="true"
                       className="mt-1 block overflow-hidden"
