@@ -1071,6 +1071,9 @@ def anexar_ponto_corrente(
     """
     momento = _dado_ts_para_coluna(dado_ts)
     if momento is None:
+        # Este `warn` é o sinal, não o alarme. Quem conta os ciclos cegos e
+        # decide se o silêncio é legítimo é `vigiar_serie_cega`, logo abaixo —
+        # o orquestrador a chama ANTES desta função, sobre a mesma `bruta`.
         _log("warn", "ponto corrente sem relogio legivel — serie fica um ciclo atras")
         return bruta
 
@@ -1125,6 +1128,206 @@ def anexar_ponto_corrente(
         )
 
     return SeriePorCandidatoBruta(bruta.cadencia_min, por_escopo)
+
+
+# ---------------------------------------------------------------------------
+# S08 § 3 — o alarme de "série parada enquanto o placar anda"
+# ---------------------------------------------------------------------------
+#
+# O ADR-0047 D2 descarta o ciclo sem hora legível do TSE em DOIS lugares — o
+# `dado_ts IS NOT NULL` de `_SERIE_POR_CANDIDATO_SQL` e o `warn` de
+# `anexar_ponto_corrente` — e o próprio ADR registra, na seção de
+# consequências, que **não cria alarme para isso**. Este bloco é esse alarme.
+#
+# 🔴 **Por que ele não é inofensivo.** Hoje é: ciclo sem hora é ciclo sem voto
+# (medido em produção 18/09 — 22 de 25 ciclos sem `dado_ts`; das 13.180 linhas
+# sem `dado_ts`, ZERO têm `pct_atual`). Deixa de ser no dia em que o TSE mudar
+# o formato da data e `relogio_do_dado` devolver `None` sobre pares com `dg`/`hg`
+# presentes e malformados (`api/model/dado_ts.py:196-209`): aí um ciclo **com
+# voto** some da série enquanto o placar ao lado do gráfico continua andando, e
+# a linha congela em silêncio visual.
+#
+# ## A decisão de projeto: onde mora o "ciclo anterior"
+#
+# 🔴 **Nenhuma varredura extra de `projections`.** O ciclo tem orçamento de 60 s
+# e a docstring de `anexar_ponto_corrente` já recusa uma segunda varredura por
+# esse motivo; um `COUNT` com o mesmo `WHERE` menos a cláusula de `dado_ts`
+# resolveria o contador e custaria exatamente o que aquela decisão evitou.
+#
+# Três candidatos foram considerados para guardar o estado do ciclo anterior:
+#
+#   (a) **`pct_atual` do payload já publicado** — rejeitado. Ler de volta o
+#       Edge Config é uma ida de rede nova por ciclo, e o payload publicado é
+#       justamente o que este alarme suspeita estar errado: se o ponto do ciclo
+#       cego nunca entrou, o payload anterior carrega a mesma cegueira.
+#
+#   (b) **as linhas que a leitura da série já trouxe** — ✅ ESCOLHIDO.
+#       `SeriePorCandidatoBruta` já está em memória, lida na mesma rodada das
+#       outras consultas, e o `pct_atual` do seu último balde é LITERALMENTE o
+#       número que o leitor vê na ponta da linha do gráfico. Comparar o placar
+#       deste ciclo contra ele não é uma aproximação da discrepância que
+#       queremos detectar: é a discrepância, medida nos dois valores exatos que
+#       apareceriam lado a lado na mesma tela. Custo: zero query, zero rede.
+#
+#   (c) **uma coluna que o ciclo já lê** — rejeitado, mas por pouco.
+#       `fetch_series_temporais` varre `projections` sem filtro de `dado_ts` e
+#       já traz `pct_apurado`; acrescentar `dado_ts` ao seu SELECT daria um
+#       censo EXATO de ciclos cegos na janela de 24 h, na mesma varredura. Foi
+#       recusado porque muda o tipo de retorno de uma função usada em todo o
+#       payload de UF, por um ganho de precisão que o alarme não precisa — a
+#       conjunção dispara na primeira divergência, não num total histórico.
+#       Fica registrado como o caminho a seguir se um dia o censo for exigido.
+#
+# ## O que o contador consegue e o que não consegue prometer
+#
+# O contador vive no processo, por `(cargo, turno)`, e conta ciclos cegos
+# **consecutivos** — um ciclo com hora legível o zera. Numa instância fria ele
+# recomeça do zero, então ele SUBESTIMA e nunca superestima. Isso é aceitável
+# porque ele não é o gatilho sozinho: o gatilho é a conjunção, e a metade que
+# de fato distingue "pausa legítima do TSE" de "série cega" é o placar ter
+# andado — essa metade é medida contra a série, que é estado persistido.
+
+#: Ciclos cegos CONSECUTIVOS por `(cargo, turno)`, dentro desta instância.
+_SERIE_CICLOS_CEGOS: dict[tuple[int, int], int] = {}
+
+#: `(cargo, turno)` cuja sequência cega CORRENTE já produziu um alarme.
+#:
+#: Sem isto, uma noite com o parser de data quebrado produziria uma mensagem
+#: por ciclo — 60 por hora, por cargo — e treinaria o leitor a ignorar o canal
+#: (risco nomeado na S08). Um alarme por sequência; o `_log` continua saindo
+#: em TODO ciclo cego, porque log não tem esse problema.
+_SERIE_CEGA_ALARMADA: set[tuple[int, int]] = set()
+
+#: Piso de movimento do placar, em pontos percentuais, para contar como "andou".
+#:
+#: 0,01 pp é a precisão em que a série é publicada
+#: ({@link SERIE_CASAS_DECIMAIS}): abaixo disso os dois números arredondam para
+#: o mesmo valor na tela, e não há discrepância visível para alarmar. O piso
+#: também absorve o ruído de ponto flutuante da razão de somas.
+SERIE_PLACAR_EPSILON_PP = 0.01
+
+
+def _placar_da_serie(
+    bruta: SeriePorCandidatoBruta, escopo: str | None = None
+) -> dict[int, float]:
+    """`pct_atual` do ÚLTIMO ponto que a série já traz, por candidatura.
+
+    É a ponta da linha do gráfico, no escopo nacional por padrão. Candidatura
+    cujo último ponto tem `pct_atual` ausente fica FORA do dicionário: `None` é
+    "não foi medido", e um baseline ausente não pode sustentar a afirmação de
+    que o placar cresceu (ADR-0046 D1, regra dos três estados).
+
+    O balde é epoch do início do intervalo, então `max(baldes)` é o mais
+    recente — a mesma aritmética monotônica de {@link _balde_epoch}.
+    """
+    ultimo: dict[int, float] = {}
+    for cid, baldes in bruta.por_escopo.get(escopo, {}).items():
+        if not baldes:
+            continue
+        ponto = baldes[max(baldes)]
+        pct = ponto.get("pct_atual")
+        if pct is not None:
+            ultimo[int(cid)] = float(pct)
+    return ultimo
+
+
+def vigiar_serie_cega(
+    bruta: SeriePorCandidatoBruta,
+    *,
+    uf_rows: list[dict[str, Any]],
+    dado_ts: str | None,
+    cargo: int,
+    turno: int,
+) -> int:
+    """Conta o ciclo cego e alarma na conjunção "série parada + placar andando".
+
+    Ver o bloco de comentário logo acima para a decisão de projeto (de onde sai
+    o "ciclo anterior") e para os números medidos que sustentam o desenho.
+
+    Chamada ANTES de `anexar_ponto_corrente`, de propósito: é a série como ela
+    veio do banco — a linha que o leitor teria visto se este ciclo não
+    existisse — que serve de baseline.
+
+    🔴 **A conjunção é o produto.** Alarmar só por ciclo cego seria ruído puro:
+    hoje 88% dos ciclos são cegos e estão todos certos. O que separa a pausa
+    legítima do TSE (nada se move) da série cega (o placar anda, a linha não) é
+    a segunda metade, e só ela.
+
+    Best-effort como todo alarme deste arquivo (constituição § 7): `_alert_slack`
+    nunca levanta, e sem `SLACK_WEBHOOK_URL` ele registra
+    `"slack alert skipped"` e segue — o contador no log funciona desde já, o
+    canal ganha voz quando a variável existir.
+
+    Devolve o valor corrente do contador (0 num ciclo com hora legível), para
+    quem quiser asseri-lo sem ler log.
+    """
+    chave = (int(cargo), int(turno))
+
+    if _dado_ts_para_coluna(dado_ts) is not None:
+        # Ciclo com hora legível: a série recebe seu ponto, a sequência cega
+        # acabou. Zerar aqui é o que torna o contador uma medida de "quanto
+        # tempo a linha está parada AGORA", e não um total desde o boot.
+        _SERIE_CICLOS_CEGOS.pop(chave, None)
+        _SERIE_CEGA_ALARMADA.discard(chave)
+        return 0
+
+    anterior = _SERIE_CICLOS_CEGOS.get(chave, 0)
+    ciclos = anterior + 1
+    _SERIE_CICLOS_CEGOS[chave] = ciclos
+
+    # O placar deste ciclo, pela MESMA função que alimenta o payload e a coluna
+    # `pct_atual` das linhas nacionais — nunca uma razão de somas reescrita
+    # aqui (ver a docstring de `pct_atual_nacional_por_candidato`). Pura, sobre
+    # linhas já em memória: nenhuma ida ao banco.
+    placar_agora, _votos, _total = pct_atual_nacional_por_candidato(uf_rows)
+    placar_na_serie = _placar_da_serie(bruta)
+
+    delta_pp = {
+        cid: round(pct - placar_na_serie[cid], SERIE_CASAS_DECIMAIS)
+        for cid, pct in placar_agora.items()
+        if cid in placar_na_serie
+        and abs(pct - placar_na_serie[cid]) > SERIE_PLACAR_EPSILON_PP
+    }
+
+    # `ciclos > anterior` é verdadeiro por construção NESTA linha — e está
+    # escrito assim de propósito: é a primeira metade da conjunção que a S08
+    # exige, e é a condição que a mutação "remover o incremento do contador"
+    # falsifica. Sem ela, aquela mutação passaria despercebida pelo alarme.
+    contador_cresceu = ciclos > anterior
+    placar_andou = bool(delta_pp)
+
+    _log(
+        "warn",
+        "serie: ciclo descartado por dado_ts ausente",
+        cargo=cargo,
+        turno=turno,
+        ciclos_cegos=ciclos,
+        placar_andou=placar_andou,
+        delta_pp=delta_pp,
+        candidaturas_na_serie=len(placar_na_serie),
+    )
+
+    if contador_cresceu and placar_andou and chave not in _SERIE_CEGA_ALARMADA:
+        _SERIE_CEGA_ALARMADA.add(chave)
+        _log(
+            "error",
+            "serie parada enquanto o placar anda — o grafico congelou e o "
+            "placar ao lado nao",
+            cargo=cargo,
+            turno=turno,
+            ciclos_cegos=ciclos,
+            delta_pp=delta_pp,
+        )
+        _alert_slack(
+            "error",
+            "serie parada enquanto o placar anda",
+            cargo=cargo,
+            turno=turno,
+            ciclos_cegos=ciclos,
+            delta_pp=delta_pp,
+        )
+
+    return ciclos
 
 
 def _rebucketizar(
@@ -5778,6 +5981,18 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
         # memória — nunca reler `projections` depois da escrita, que custaria
         # uma segunda varredura dentro do orçamento de 60 s do ciclo.
         if serie_bruta is not None:
+            # S08 § 3 — ANTES de anexar: o baseline é a série como veio do
+            # banco, isto é, a linha que o leitor veria se este ciclo não
+            # existisse. Só para os cargos com série persistida: sem gráfico
+            # não há linha para congelar. Zero query — ver o bloco de
+            # comentário sobre a decisão de projeto, acima de `vigiar_serie_cega`.
+            vigiar_serie_cega(
+                serie_bruta,
+                uf_rows=uf_rows,
+                dado_ts=relogio.dado_ts,
+                cargo=req.cargo,
+                turno=req.turno,
+            )
             serie_bruta = anexar_ponto_corrente(
                 serie_bruta,
                 uf_rows=uf_rows,

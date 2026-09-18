@@ -212,11 +212,25 @@ function segmentosDaBancada(payload: EdgePayloadDeputado): VoteBarSegment[] {
 /**
  * RF-127 — o texto da contagem de cadeiras de uma agremiação.
  *
- * `cadeiras_ci95` é **opcional no contrato** (design 017 § D7): o intervalo
- * depende de rodar `distribuir_cadeiras` sobre cada resample do bootstrap, e
- * o custo disso ainda não foi medido contra a janela do cron. Enquanto ele não
- * existir, o que sai é o ponto central — e a metade de RF-127 que não depende
- * da medição, que é a marcação de cadeira indefinida.
+ * `cadeiras_ci95` é **opcional no contrato** (design 017 § D7), e desde 2026-09-13
+ * a razão da opcionalidade mudou — a redação anterior deste bloco ficou obsoleta
+ * no mesmo dia e sobreviveu até 18/09.
+ *
+ * O que **já não** vale: não é mais verdade que "o custo não foi medido" nem que
+ * o bootstrap "não existe". As duas coisas foram resolvidas:
+ *
+ *   - **Custo medido em 2026-09-12** (design 017 § D7): 11,0 s para 1.000
+ *     resamples × 27 UFs, contra `maxDuration` de 60 s — cabe com folga, mesmo
+ *     supondo o Python da Vercel 3× mais lento. O custo nunca foi o obstáculo.
+ *   - **O bootstrap por agremiação entrou em `2bcee57`** (13/09):
+ *     `api/model/cadeiras_bootstrap.py`, ligado em `api/model/project.py:5607`
+ *     (`cadeiras_ci95=intervalo.por_agremiacao …`). A spec 017 passou a
+ *     `shipped` no mesmo dia.
+ *
+ * O que **continua** valendo, e é de propósito: o campo segue opcional. Quando a
+ * faixa não tem largura, o que chega é o ponto central — e é isso que o
+ * `lo === hi` abaixo desenha. 🔴 Não "consertar" publicando largura zero: uma
+ * faixa `[n, n]` na tela afirma precisão que a amostra não sustenta.
  */
 function intervaloDeCadeiras(agr: EdgeAgremiacaoBancada): string | null {
   const ci = agr.cadeiras_ci95;

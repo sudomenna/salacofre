@@ -100,7 +100,12 @@ export interface DeputadoUfAgremiacao {
    * `vagas_obtidas` não é.
    */
   cadeiras: number;
-  /** RF-127 — opcional enquanto D7 não decide (ver `EdgeAgremiacaoBancada.cadeiras_ci95`). */
+  /**
+   * RF-127 — opcional **por desenho**, não por pendência. D7 decidiu em 12/09
+   * (custo medido, cabe na janela) e o bootstrap entrou em 13/09 (`2bcee57`).
+   * O campo fica ausente quando a faixa não tem largura; a tela então mostra o
+   * ponto central. Ver `EdgeAgremiacaoBancada.cadeiras_ci95`.
+   */
   cadeiras_ci95?: [number, number];
   eleitos: DeputadoUfCandidato[];
   /** Os primeiros da fila que não se elegeram — no máximo 5 por agremiação. */

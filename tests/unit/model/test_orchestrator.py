@@ -2398,3 +2398,59 @@ def test_serie_por_candidato_chega_ao_payload_publicado(
         placar_uf = {c["id"]: c for c in uf_payload["candidatos"]}
         for linha in serie_uf["candidatos"]:
             assert linha["apurado"][-1] == round(placar_uf[linha["id"]]["pct_atual"], 2)
+
+
+def test_vigia_da_serie_cega_roda_antes_de_anexar_o_ponto(
+    fake_db, minimal_dataset, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """S08 § 3 — a FIAÇÃO do vigia, que nenhum teste unitário alcança.
+
+    `tests/unit/model/test_serie_cega_alarme.py` prova o comportamento de
+    `vigiar_serie_cega` em isolamento. Este prova que `_do_project` de fato a
+    chama: medido em 18/09, apagar a chamada do orquestrador deixava os 572
+    testes verdes — um alarme corretíssimo e nunca invocado é um alarme mudo,
+    que é exatamente o defeito que a S08 existe para não repetir.
+
+    Duas asserções, e a segunda é a que discrimina de verdade:
+
+      1. Foi chamada uma vez, com o `cargo`/`turno` da requisição.
+      2. A `bruta` que ela recebeu é a série **como veio do banco** — vazia
+         nesta fixture, porque o `FakeCursor` devolve `[]` para `FROM
+         projections`. Se a chamada fosse movida para DEPOIS de
+         `anexar_ponto_corrente`, a estrutura chegaria com o ponto do ciclo
+         corrente e o baseline do alarme passaria a incluir o próprio ciclo
+         que ele deveria estar julgando — o vigia nunca mais veria
+         discrepância nenhuma.
+    """
+    from api.model import project as proj
+
+    snapshots, historical, eleitorado = minimal_dataset
+    fake_db(snapshots, historical, eleitorado)
+
+    chamadas: list[dict[str, Any]] = []
+    real = proj.vigiar_serie_cega
+
+    def espiao(bruta, **kw):  # noqa: ANN001,ANN202
+        chamadas.append({"escopos": dict(bruta.por_escopo), **kw})
+        return real(bruta, **kw)
+
+    monkeypatch.setattr(proj, "vigiar_serie_cega", espiao)
+
+    status, _ = proj._do_project(
+        json.dumps(
+            {"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}
+        ).encode("utf-8")
+    )
+    assert status == 200
+
+    assert len(chamadas) == 1, (
+        "`vigiar_serie_cega` não foi chamada por `_do_project` — o alarme da "
+        "S08 § 3 existe no arquivo e não roda no ciclo"
+    )
+    assert chamadas[0]["cargo"] == 1
+    assert chamadas[0]["turno"] == 1
+    assert chamadas[0]["escopos"] == {}, (
+        "o vigia recebeu a série JÁ com o ponto do ciclo corrente — ele tem de "
+        "rodar antes de `anexar_ponto_corrente`, ou o baseline inclui o "
+        "próprio ciclo que ele julga"
+    )
