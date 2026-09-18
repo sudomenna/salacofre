@@ -52,6 +52,7 @@
 import type { Cargo, Turno } from "@/lib/config/calendar";
 import type {
   EdgePayloadUf,
+  EdgeSeriePorCandidato,
   EdgeUfMunicipio,
   EdgeUfSeriesTemporais,
   UfPayloadInput,
@@ -292,4 +293,29 @@ export function municipiosFrom(result: UfDetailResult): EdgeUfMunicipio[] {
 /** Séries do resultado, ou `null` quando indisponível. */
 export function seriesFrom(result: UfDetailResult): EdgeUfSeriesTemporais | null {
   return result.status === "ok" ? result.detail.series_temporais : null;
+}
+
+/**
+ * Série por candidatura do resultado (spec 020, ADR-0046 D3), ou `null`.
+ *
+ * Irmã de {@link seriesFrom}, e `null` por **duas** razões diferentes que o
+ * chamador precisa distinguir — este acessor não as distingue, e é de
+ * propósito: quem sabe qual é o caso é quem tem o `UfDetailResult` na mão.
+ *
+ *   - `result.status !== "ok"` → o Blob não respondeu. A UI mostra
+ *     `<DetailUnavailable reason={result.reason} />`.
+ *   - `result.status === "ok"` e o retorno é `null` → o Blob respondeu e o
+ *     produtor **não emitiu** a série (blob anterior à spec 020, ou fase
+ *     pré-eleição). A UI mostra `<DetailUnavailable reason="sem_serie" />`.
+ *
+ * Colapsar os dois num texto só faz o operador caçar o erro errado na noite da
+ * apuração: "a rede caiu" e "o Python não publicou" têm causas e correções
+ * opostas.
+ *
+ * ⚠️ O consumidor **não re-ordena** `candidatos`: a ordem do array é contrato
+ * do produtor (ADR-0046 D4).
+ */
+export function seriePorCandidatoFrom(result: UfDetailResult): EdgeSeriePorCandidato | null {
+  if (result.status !== "ok") return null;
+  return result.detail.series_temporais?.por_candidato ?? null;
 }

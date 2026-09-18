@@ -243,11 +243,59 @@ function comRelogioAgora<T>(payload: T, agoraMs: number): T {
   return saida as T;
 }
 
-/** Soma `deltaMs` ao `ts` de cada ponto de cada série, preservando o resto. */
-function deslocarSeries(series: Record<string, unknown>, deltaMs: number): Record<string, unknown> {
+/**
+ * Desloca o eixo da série por candidatura (spec 020), preservando tudo o mais.
+ *
+ * O eixo é `string[]` de ISO, não uma lista de objetos com `ts` — por isso não
+ * cabe no laço de pontos acima. Data impossível fica como está, pela mesma
+ * razão registrada lá: inventar uma hora seria fabricar medição.
+ */
+function deslocarEixoPorCandidato(valor: unknown, deltaMs: number): unknown {
+  if (valor === null || typeof valor !== "object") return valor;
+  const serie = valor as Record<string, unknown>;
+  if (!Array.isArray(serie.eixo)) return valor;
+
+  return {
+    ...serie,
+    eixo: serie.eixo.map((iso: unknown) => {
+      if (typeof iso !== "string") return iso;
+      const ms = Date.parse(iso);
+      if (!Number.isFinite(ms)) return iso;
+      return new Date(ms + deltaMs).toISOString();
+    }),
+  };
+}
+
+/**
+ * Soma `deltaMs` ao `ts` de cada ponto de cada série, preservando o resto.
+ *
+ * **Exportada para teste**, e só por isso: é função pura, sem I/O, e o defeito
+ * que ela fecha (a série por candidatura ficando parada no relógio antigo) só
+ * seria alcançável pelas funções públicas depois que a Fase 3 puser o campo
+ * nas fixtures. Cobrir agora vale mais que esperar. Nenhum caminho de
+ * produção a importa — a exportação não a põe em bundle de cliente, porque
+ * este módulo inteiro é servidor-only.
+ */
+export function deslocarSeries(
+  series: Record<string, unknown>,
+  deltaMs: number,
+): Record<string, unknown> {
   const saida: Record<string, unknown> = { ...series };
 
   for (const [chave, valor] of Object.entries(series)) {
+    // 🔴 A série por candidatura (spec 020) NÃO é um array de pontos: é um
+    // objeto `{eixo, cadencia_min, candidatos}` cujo eixo é uma lista de ISO
+    // puros. O `continue` genérico abaixo a deixava passar INTACTA, e o
+    // resultado no `pnpm dev:sim` seria o cabeçalho dizendo "agora" com o
+    // gráfico novo plantado horas atrás, enquanto os outros três acompanham.
+    // Tratada por NOME, e não por uma heurística de forma: um ramo que tenta
+    // adivinhar a estrutura é como um conversor com default silencioso — e o
+    // último deste repositório mandou todo payload de Senador para a chave do
+    // Presidente.
+    if (chave === "por_candidato") {
+      saida[chave] = deslocarEixoPorCandidato(valor, deltaMs);
+      continue;
+    }
     if (!Array.isArray(valor)) continue;
     saida[chave] = valor.map((ponto: unknown) => {
       if (ponto === null || typeof ponto !== "object") return ponto;

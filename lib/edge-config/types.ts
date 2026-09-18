@@ -707,6 +707,46 @@ export interface EdgePayload {
    * Presente só em cargo que elege mais de um por UF (hoje, Senador).
    */
   composicao_vagas?: EdgeComposicaoVagas;
+  /**
+   * Série temporal por candidatura do escopo **nacional** — o gráfico de
+   * evolução da home (spec 020, RF-167..RF-176).
+   *
+   * ## Por que aqui, e não num Blob nacional
+   *
+   * [ADR-0046](../../docs/architecture/adrs/0046-serie-por-candidato-limitada-por-construcao.md)
+   * D3. Não existe Blob nacional — {@link EdgePayloadUf} tem um
+   * ({@link UfDetailBlob}, ADR-0032), este payload não. E criar um custaria
+   * helper de caminho, módulo de leitura, ramo no writer, um `Promise.all` novo
+   * na rota de maior tráfego do produto e um segundo relógio de frescor a
+   * explicar ao leitor — quatro módulos e uma superfície de falha nova para
+   * poupar 6,9 KB.
+   *
+   * ## O orçamento, em bytes medidos
+   *
+   * | | Bytes |
+   * |---|---|
+   * | payload nacional hoje | 17.301 B |
+   * | + `serie_por_candidato` (4 candidaturas × 96 pontos × 2 bases) | +6.905 B |
+   * | **total** | **~24.206 B** |
+   * | teto de aviso por chave nacional (`EDGE_CONFIG_NATIONAL_WARN_BYTES`) | 75 KB |
+   *
+   * Cabe com folga de 3×, e o teto duro de 120 pontos (ADR-0046 D2) garante que
+   * continue cabendo por mais longa que a noite seja: 8.553 B é o máximo
+   * absoluto por corrida, para sempre.
+   *
+   * ⚠️ **A mesma conta proíbe o caminho simétrico para UF.** 27 UF × 3 cargos ×
+   * 6.905 B = **559.305 B**, que levariam o store de ~410 KB a ~969 KB — acima
+   * do limiar de erro de 940.000 B do writer e a 31 KB do teto de 1 MB, com a
+   * escrita **recusada na noite de 04/10**. Por isso {@link EdgePayloadUf} não
+   * ganha campo nenhum: a série de UF vive no Blob, em
+   * {@link EdgeUfSeriesTemporais.por_candidato}.
+   *
+   * **Opcional** porque payloads gravados antes da spec 020 seguem válidos — e
+   * porque a fase pré-eleição não tem série para emitir. Ausente == "o produtor
+   * não emitiu", que a tela trata como estado próprio (`sem_serie`), distinto
+   * de "a fonte não respondeu".
+   */
+  serie_por_candidato?: EdgeSeriePorCandidato;
 }
 
 /**
@@ -898,6 +938,136 @@ export interface EdgeUfMunicipio {
 }
 
 /**
+ * Série temporal **por candidatura** — forma colunar
+ * ([ADR-0046](../../docs/architecture/adrs/0046-serie-por-candidato-limitada-por-construcao.md) D1).
+ *
+ * É a primeira série do projeto que precisa resolver "N candidatos × M pontos"
+ * e não apenas "M pontos": as três séries de {@link EdgeUfSeriesTemporais}
+ * (margem, p_vitoria, turnout) falam da **corrida**, uma única linha cada.
+ *
+ * ## Por que colunar, e não `Array<{ ts, pct }>` por candidato
+ *
+ * Medido sobre JSON minificado, janela de 8h, 4 candidaturas × 2 bases
+ * (apurado e projetado):
+ *
+ * | Forma                       | 480 pontos | 96 pontos |
+ * |-----------------------------|------------|-----------|
+ * | Array de objetos `{ts,pct}` | 160.460 B  | 32.356 B  |
+ * | **Colunar** (este tipo)     |  33.249 B  | **6.905 B** |
+ *
+ * O custo inteiro da forma rejeitada é a chave `"ts"` repetida 3.840 vezes —
+ * a mesma string, byte a byte, guardada uma vez por PONTO em vez de uma vez
+ * por SÉRIE.
+ *
+ * ## Teto por construção
+ *
+ * `SERIE_MAX_PONTOS = 120` (ADR-0046 D2): a cadência é o menor valor de
+ * `[5, 10, 15, 30]` minutos tal que `ceil(janela_min / cadência) ≤ 120`. O teto
+ * **re-bucketiza**, nunca corta o começo da noite. Consequência: teto absoluto
+ * de **8.553 B por corrida, para sempre** — é isso que permite ao escopo
+ * nacional viver no Global Config sem reabrir o ADR-0032 (ver
+ * {@link EdgePayload.serie_por_candidato}).
+ *
+ * Cada balde é representado pelo ponto de **maior `dado_ts`** dentro dele (o
+ * último), nunca pela média: média suavizaria descontinuidades e poderia fazer
+ * uma quantidade quase-monotônica regredir, o que a spec 020 proíbe como
+ * critério de aceitação (RF-168-b). E o balde é derivado do **epoch de
+ * `dado_ts`**, não do índice do array — um ciclo perdido não desloca os pontos
+ * publicados antes dele (constituição § 6, determinismo).
+ */
+export interface EdgeSeriePorCandidato {
+  /**
+   * Eixo horizontal compartilhado por TODAS as séries: `dado_ts` ISO 8601,
+   * ordem **ASC** (constituição § 6).
+   *
+   * É `dado_ts` — a hora do boletim do TSE — e não `ts`, a hora em que o modelo
+   * rodou (ADR-0038 D1). Com o relógio errado, uma ingestão parada desenharia
+   * uma linha que continua avançando no eixo sobre dado congelado.
+   *
+   * **Contrato de comprimento:** `eixo.length === apurado.length ===
+   * projetado.length` para todo candidato. É o que torna a forma colunar
+   * legível: o valor de índice `i` de qualquer candidato pertence ao instante
+   * `eixo[i]`.
+   */
+  eixo: string[];
+  /**
+   * Espaçamento nominal entre baldes, em minutos — **declarado pelo produtor,
+   * nunca inferido** pelo consumidor a partir de `eixo`.
+   *
+   * Inferir de `eixo[1] - eixo[0]` daria a resposta errada exatamente quando
+   * ela importa: o primeiro intervalo pode conter um furo (ciclo perdido, atraso
+   * do TSE), e o consumidor passaria a noite inteira desenhando com a cadência
+   * errada por causa de um buraco no começo.
+   */
+  cadencia_min: number;
+  /**
+   * As candidaturas do gráfico, **na ordem de exibição** — a ordem do array é
+   * contrato (ADR-0046 D4, RF-170c). O consumidor renderiza na ordem recebida e
+   * **não re-ordena**.
+   *
+   * O elenco é decidido no produtor, pelo comparador `pct_atual desc →
+   * pct_projetado desc → candidato_id asc` (o mesmo de `rankByParcial`), e
+   * **não** pelo rank que o Python já calcula só por `pct_projetado`: os dois
+   * divergem exatamente quando apurado e projetado discordam de ordem — isto é,
+   * na noite da apuração, com alguém olhando o gráfico e o painel de resultado
+   * logo acima ao mesmo tempo.
+   *
+   * Consequência de produto aceita e registrada (ADR-0046, seção dedicada): a
+   * candidatura que cai do elenco desaparece do gráfico **inclusive do seu
+   * próprio passado**.
+   */
+  candidatos: EdgeSerieCandidato[];
+}
+
+/**
+ * Uma candidatura dentro de {@link EdgeSeriePorCandidato} — duas colunas de
+ * valores alinhadas ao `eixo` compartilhado.
+ *
+ * 🔴 **`null` é o valor de um balde sem ciclo — nunca `0`.**
+ *
+ * É a regra dos três estados do dono aplicada a um ponto de série. "Não
+ * medimos neste balde" e "mediu-se zero por cento" são fatos diferentes, e
+ * colapsá-los num `0` (ou num `?? 0` no consumidor) desenha um mergulho ao
+ * chão que nunca aconteceu: um furo na linha vira uma queda a 0% e volta, ao
+ * vivo, no meio da noite. O consumidor deve quebrar o traçado em dois no furo —
+ * nunca interpolar, nunca zerar. É a mutação que este tipo mais teme, e o
+ * motivo de as colunas serem `(number | null)[]` e não `number[]`.
+ */
+export interface EdgeSerieCandidato {
+  /** `candidato_id` — o mesmo id de {@link EdgeCandidate.id}. */
+  id: number;
+  /** Nome de urna, como aparece na legenda e na tabela acessível. */
+  nome: string;
+  /**
+   * Sigla do partido/federação. **A cor da linha sai DAQUI**, via
+   * `colorForParty(partido)` (ADR-0024/ADR-0031) — nunca do campo
+   * {@link EdgeCandidate.cor}, que ainda publica `var(--color-cand-{rank})`,
+   * a cor por rank que o ADR-0024 aposentou.
+   *
+   * Consumir `cor` aqui reintroduziria o defeito no único componente do produto
+   * onde ele seria visível como **movimento**: a linha trocaria de cor ao vivo,
+   * no instante exato de uma ultrapassagem (ADR-0046 D5).
+   */
+  partido: string;
+  /** `SQ_CANDIDATO` do TSE, quando conhecido. */
+  sqcand?: string;
+  /**
+   * Fatia de votos **apurada** da candidatura em cada balde, 0–100, alinhada a
+   * `eixo` por índice. `null` = balde sem medição (ver a nota do tipo).
+   *
+   * ⚠️ Não confundir com `pct_apurado`, que em toda a pilha é o **progresso da
+   * apuração**. Aqui a grandeza é a fatia da candidatura — mesma unidade,
+   * significado oposto.
+   */
+  apurado: (number | null)[];
+  /**
+   * Fatia de votos **projetada** da candidatura em cada balde, 0–100, alinhada
+   * a `eixo` por índice. `null` = balde sem medição.
+   */
+  projetado: (number | null)[];
+}
+
+/**
  * Séries temporais da corrida na UF. Cada array é ordenado por `ts` ASC
  * (constituição § 6 — determinismo). Janela = últimas 24h ou início da
  * apuração, o que for menor (filtro aplicado no orchestrator).
@@ -916,6 +1086,24 @@ export interface EdgeUfSeriesTemporais {
   p_vitoria: Array<{ ts: string; p: number }>;
   /** % apurado da UF ao longo do tempo (RF-042). Monotônico não-decrescente. */
   turnout: Array<{ ts: string; pct_apurado: number }>;
+  /**
+   * Série por candidatura desta UF (spec 020) — o gráfico de evolução das
+   * páginas `/uf/[sigla]`, `/uf/[sigla]/governador` e `/uf/[sigla]/senador`.
+   *
+   * Mora **aqui dentro**, e portanto no objeto Blob do ADR-0032, e não numa
+   * chave de Global Config: o multiplicador de 27 UF × 3 cargos torna a conta
+   * proibitiva (559.305 B; ver {@link EdgePayload.serie_por_candidato} para a
+   * conta inteira). ADR-0046 D3.
+   *
+   * Nada precisou mudar em `splitUfPayload` (`lib/blob/uf-detail.ts`) para
+   * isto viajar: o destructuring já leva o objeto de séries **inteiro** ao
+   * Blob, com o campo novo dentro.
+   *
+   * **Opcional** — blobs gravados antes da spec 020 seguem válidos, e
+   * `isUfDetailBlob` é permissiva de propósito (exige apenas `ts`, `uf` e
+   * `municipios` array).
+   */
+  por_candidato?: EdgeSeriePorCandidato;
 }
 
 /**
@@ -1044,6 +1232,14 @@ export interface EdgePayloadUf {
    * destino dela é o mesmo objeto Blob (ou um irmão no mesmo esquema de
    * caminho), nunca uma chave nova de Global Config — uma série por candidato
    * multiplica o custo de `series_temporais` pelo número de candidatos.
+   *
+   * **Cumprido em 2026-09-17 (ADR-0046 D3):** a série de UF é
+   * {@link EdgeUfSeriesTemporais.por_candidato}, dentro do mesmo objeto Blob.
+   * Este tipo segue sem campo novo, e a reserva acima segue valendo para o
+   * escopo de UF — o multiplicador de 27 é exatamente o que a proíbe aqui. O
+   * escopo **nacional**, que não tem esse multiplicador nem tem Blob, entra em
+   * {@link EdgePayload.serie_por_candidato} — campo aditivo numa chave que já
+   * existe, não uma chave nova.
    */
   /**
    * Agregação por mesorregião IBGE — S06/F4d (Fase 2). Alimenta o bloco

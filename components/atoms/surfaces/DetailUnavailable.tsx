@@ -39,15 +39,26 @@ import { formatTimeHMS } from "@/lib/utils/format";
 
 /**
  * Os quatro motivos de falha de leitura ({@link UfDetailUnavailableReason})
- * mais `"empty"`.
+ * mais `"empty"` e `"sem_serie"`.
  *
- * `"empty"` não é falha: é a leitura ter dado certo e o detalhe vir vazio — o
- * caso real de uma UF cuja cobertura municipal ainda é 0% (39% de cobertura
- * nacional hoje, constituição § 8). Merece texto próprio porque a notícia é
- * outra, e merece o mesmo tratamento de "sempre no DOM" porque esconder um
- * bloco vazio é a mesma mentira.
+ * Os dois últimos não são falha de leitura: são a leitura ter dado **certo** e
+ * o que se procurava não estar lá. Cada um merece texto próprio pela mesma
+ * razão — a notícia é outra, e a ação de quem lê (e de quem opera) é outra.
+ *
+ * `"empty"` — o detalhe chegou e nenhum município tem dado apurado. Caso real
+ * de uma UF cuja cobertura municipal ainda é 0% (39% de cobertura nacional
+ * hoje, constituição § 8).
+ *
+ * `"sem_serie"` — o detalhe chegou e o produtor não emitiu a série por
+ * candidatura (spec 020). Sem este motivo, "o Blob não respondeu"
+ * (`fetch_error`) e "o Blob respondeu sem a série" cairiam no mesmo texto, e na
+ * noite da apuração o operador iria caçar rede quando o que faltou foi
+ * publicação — duas causas com correções opostas.
+ *
+ * Os dois recebem o mesmo tratamento de "sempre no DOM" que as falhas:
+ * esconder um bloco vazio é a mesma mentira que esconder um que falhou.
  */
-export type DetailUnavailableReason = UfDetailUnavailableReason | "empty";
+export type DetailUnavailableReason = UfDetailUnavailableReason | "empty" | "sem_serie";
 
 /**
  * Uma frase por motivo. Escritas para o leitor do site, não para o operador:
@@ -59,6 +70,7 @@ const REASON_TEXT: Record<DetailUnavailableReason, string> = {
   fetch_error: "não conseguimos buscar o arquivo de detalhe agora",
   invalid: "o arquivo de detalhe chegou fora do formato esperado",
   empty: "ainda não há município com dado apurado nesta corrida",
+  sem_serie: "o arquivo de detalhe chegou, mas ainda sem a série por candidatura",
 };
 
 export interface DetailUnavailableProps {
