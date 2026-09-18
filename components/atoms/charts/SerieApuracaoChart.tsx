@@ -15,11 +15,25 @@
  *    notícia, e o eixo por índice a apagaria (ADR-0038; ver o bloco no topo de
  *    `scale.ts`).
  *
- * 2. **A cor sai do PARTIDO** (`colorForParty`), nunca do campo `cor` do
+ * 2. **A cor sai do PARTIDO** (`textForParty`), nunca do campo `cor` do
  *    payload (RF-171). O payload ainda publica `var(--color-cand-N)`, a cor por
  *    rank que o ADR-0024 aposentou: lê-la aqui reintroduziria o defeito no
  *    único lugar em que ele seria visível como **movimento** — a linha trocaria
  *    de cor no instante de uma ultrapassagem.
+ *
+ *    É `textForParty` e não `colorForParty` porque a base é cor de **área**, e
+ *    o que este componente desenha é um traço de 1,5–2,5 px sobre o papel — o
+ *    caso do SC 1.4.11 (Non-text Contrast, piso 3:1). Medidas contra
+ *    `--surface-page` (#f3f4f6), quatro bases reprovam esse piso: PSOL 2,08:1,
+ *    PSB 2,19:1, o fallback `outros` 2,39:1 e NOVO 2,72:1. A variante
+ *    `--party-<slug>-text` é a MESMA matiz noutra intensidade (§ 2 v1.3), e em
+ *    17 dos 31 partidos **é** a base — PT, PL e UNIÃO entre eles, nenhum pixel
+ *    muda. A identidade por sigla do ADR-0024 fica intacta: `textForParty`
+ *    também deriva do partido, nunca do rank.
+ *
+ *    🔴 O destaque do Senado continua sendo **espessura** (RF-173), nunca
+ *    opacidade: opacidade compõe com a cor e desfaz a medida acima — foi o que
+ *    derrubou 16 nós para 2,27:1 no axe em 2026-09-08.
  *
  * 3. **Uma régua vertical só, para as duas bases** (RF-172d). `yMin`/`yMax` são
  *    calculados sobre os valores das DUAS bases juntas. Escalas separadas
@@ -67,7 +81,7 @@ import type { CSSProperties } from "react";
 
 import { makeTimeScale } from "@/components/atoms/charts/scale";
 import { formatPercent, formatTimeHMS } from "@/lib/utils/format";
-import { colorForParty } from "@/lib/utils/party-color";
+import { textForParty } from "@/lib/utils/party-color";
 
 // ---------------------------------------------------------------------------
 // Geometria — exportada para os testes não precisarem de números mágicos
@@ -99,7 +113,11 @@ export const SERIE_TRACO_DESTAQUE = 2.5;
 export interface SerieCandidatoView {
   id: number;
   nome: string;
-  /** Sigla do partido. É **daqui** que sai a cor — nunca de um campo `cor`. */
+  /**
+   * Sigla do partido. É **daqui** que sai a cor — nunca de um campo `cor`.
+   * Resolvida por `textForParty` (a variante legível da cor do partido), não
+   * pela base: ver a decisão 2 no topo do arquivo.
+   */
   partido: string;
   sqcand?: string;
   /** Fatia de votos válidos já apurados, 0–100. */
@@ -530,7 +548,7 @@ export function SerieApuracaoChart({
   const horaInicio = primeiroIso ? formatTimeHMS(primeiroIso) : "—";
   const horaFim = ultimoIso ? formatTimeHMS(ultimoIso) : "—";
 
-  const cores = new Map(candidatos.map((c) => [c.id, colorForParty(c.partido)] as const));
+  const cores = new Map(candidatos.map((c) => [c.id, textForParty(c.partido)] as const));
   const espessura = (indice: number): number =>
     destacaVagas
       ? indice < 2
@@ -584,7 +602,7 @@ export function SerieApuracaoChart({
         ) : null}
 
         {candidatos.map((c, indice) => {
-          const cor = cores.get(c.id) ?? colorForParty(c.partido);
+          const cor = cores.get(c.id) ?? textForParty(c.partido);
           const larguraTraco = espessura(indice);
           const segmentos = trechos(serieDaBase(c, base), instantes, xFor, yFor);
           const ultimo = segmentos[segmentos.length - 1]?.at(-1);

@@ -17,6 +17,9 @@
  * bases andando em **direções opostas**.
  */
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -231,6 +234,210 @@ describe("<SerieApuracaoChart /> — T7: mata a cor por rank", () => {
       />,
     );
     expect(saida).not.toContain("--color-cand-");
+  });
+});
+
+describe("<SerieApuracaoChart /> — T8: mata a volta para a cor de PREENCHIMENTO", () => {
+  // O que este bloco mede é o que o COMPONENTE emite, não o token isolado
+  // (`tests/unit/design-system/party-text-contrast.test.ts` já mede o CSS).
+  // A pergunta aqui é outra: a linha que vai ao ar tem contraste suficiente
+  // contra o papel? Um traço de 1,5–2,5 px é objeto gráfico — WCAG 2.1 SC
+  // 1.4.11 (Non-text Contrast), piso **3:1**, não o 4,5:1 de texto.
+  //
+  // A mutação que ele mata: trocar `textForParty` de volta por `colorForParty`
+  // em `SerieApuracaoChart.tsx`. A base é cor de ÁREA, e sobre `--surface-page`
+  // (#f3f4f6) quatro delas reprovam 3:1 — PSOL 2,08, PSB 2,19, o fallback
+  // `outros` 2,39 e NOVO 2,72. Por isso a fixture é feita exatamente desses
+  // quatro: com PT/PL (7:1 e 4,9:1 na própria base) a mutação passaria.
+  //
+  // A colorimetria é reimplementada aqui de propósito, como no gate de token:
+  // um teste que importa a função do gerador verifica a si mesmo.
+
+  /** Piso do SC 1.4.11 para objeto gráfico — é o traço, não o rótulo. */
+  const PISO_GRAFICO = 3;
+
+  const RAIZ = path.resolve(import.meta.dirname, "../../..");
+  const TOKENS_CSS = readFileSync(path.join(RAIZ, "app/tokens-party.css"), "utf8");
+
+  /** O CSS tem dois blocos com os MESMOS nomes (ADR-0025 § 5); isole cada um. */
+  function bloco(css: string, abertura: string): string {
+    const inicio = css.indexOf(abertura);
+    if (inicio === -1) throw new Error(`bloco ausente em tokens-party.css: ${abertura}`);
+    let nivel = 0;
+    for (let i = css.indexOf("{", inicio); i < css.length; i++) {
+      if (css[i] === "{") nivel++;
+      if (css[i] === "}") {
+        nivel--;
+        if (nivel === 0) return css.slice(inicio, i + 1);
+      }
+    }
+    throw new Error(`bloco não fechado em tokens-party.css: ${abertura}`);
+  }
+
+  function tokens(css: string): Map<string, string> {
+    const mapa = new Map<string, string>();
+    const re = /(--party-[a-z0-9-]+)\s*:\s*(#[0-9a-f]{6})\s*;/g;
+    let m = re.exec(css);
+    while (m !== null) {
+      if (m[1] && m[2]) mapa.set(m[1], m[2]);
+      m = re.exec(css);
+    }
+    return mapa;
+  }
+
+  /** Luminância relativa WCAG 2.1 de um hex sRGB. */
+  function luminancia(hex: string): number {
+    const canal = (i: number) => {
+      const c = Number.parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    };
+    return 0.2126 * canal(0) + 0.7152 * canal(1) + 0.0722 * canal(2);
+  }
+
+  function contraste(a: string, b: string): number {
+    const la = luminancia(a);
+    const lb = luminancia(b);
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+  }
+
+  /**
+   * Os dois temas e os dois papéis de cada um (`--surface-page` /
+   * `--surface-card`, em `app/globals.css`). O gráfico sai dentro de um
+   * `<Panel>`, que é card, mas a moldura é transparente e a página aparece por
+   * baixo em rota de UF — medir os dois é o que garante que nenhuma das duas
+   * combinações escapa.
+   */
+  const TEMAS = [
+    {
+      id: "claro",
+      tokens: tokens(bloco(TOKENS_CSS, "@theme static {")),
+      papeis: ["#f3f4f6", "#fbfbfc"],
+    },
+    {
+      id: "escuro",
+      tokens: tokens(bloco(TOKENS_CSS, ':root[data-theme="dark"] {')),
+      papeis: ["#14171b", "#1c1f24"],
+    },
+  ] as const;
+
+  /** `var(--party-psol-text)` → `--party-psol-text`. Nada mais é aceito. */
+  function nomeDoToken(valor: string): string {
+    const m = /^var\((--party-[a-z0-9-]+)\)$/.exec(valor);
+    if (m?.[1] == null) {
+      throw new Error(
+        `o componente emitiu "${valor}", que não é um token de partido — ` +
+          "cor literal no SVG não passa pelo gate de contraste do CSS",
+      );
+    }
+    return m[1];
+  }
+
+  // Os quatro partidos cuja BASE reprova 3:1 sobre o papel claro. "XYZ" não
+  // existe e cai no fallback `outros`, que é o quarto caso — e é o mais comum
+  // na noite: federação e sigla sem token passam por ele.
+  const REPROVADOS: Array<[number, string, string]> = [
+    [50, "PSOL", "psol"],
+    [40, "PSB", "psb"],
+    [30, "NOVO", "novo"],
+    [99, "XYZ", "outros"],
+  ];
+
+  const doc = parse(
+    <SerieApuracaoChart
+      eixo={eixoDe(2)}
+      cadenciaMin={5}
+      candidatos={REPROVADOS.map(([id, sigla]) =>
+        cand({ id, partido: sigla, apurado: [30, 31], projetado: [30, 31] }),
+      )}
+      escopo="Brasil"
+      titleId="t8"
+      height={ALTURA}
+    />,
+  );
+
+  function corEmitida(id: number): string {
+    const traco = tracos(doc, id, "parcial")[0]?.getAttribute("stroke") ?? null;
+    const ponto =
+      doc
+        .querySelector(`circle[data-ponto-final][data-cand="${id}"][data-base="parcial"]`)
+        ?.getAttribute("fill") ?? null;
+    expect(traco, `candidatura ${id} sem stroke`).not.toBeNull();
+    // Traço e ponto têm de sair na MESMA cor: medir um e deixar o outro para
+    // trás é como metade do defeito sobreviveria a este teste.
+    expect(ponto, `o ponto final de ${id} divergiu do traço`).toBe(traco);
+    return traco as string;
+  }
+
+  it.each(
+    REPROVADOS,
+  )("a linha de %i (%s) passa o piso de 3:1 do SC 1.4.11 nos dois temas", (id, sigla, slug) => {
+    const token = nomeDoToken(corEmitida(id));
+
+    for (const tema of TEMAS) {
+      const hex = tema.tokens.get(token);
+      expect(hex, `${token} não existe no bloco do tema ${tema.id}`).toMatch(/^#[0-9a-f]{6}$/);
+      const base = tema.tokens.get(`--party-${slug}`) as string;
+
+      for (const papel of tema.papeis) {
+        const razao = contraste(hex as string, papel);
+        expect(
+          razao,
+          [
+            `Tema ${tema.id}. ${sigla}: o componente emitiu ${token} (${hex}) e sobre o papel ` +
+              `${papel} isso dá ${razao.toFixed(2)}:1.`,
+            "",
+            "WCAG 2.1 SC 1.4.11 (Non-text Contrast) exige 3:1 para o traço de um gráfico.",
+            `A base do partido (--party-${slug}, ${base}) dá ` +
+              `${contraste(base, papel).toFixed(2)}:1 aqui — é por isso que este componente`,
+            "resolve a cor por `textForParty`, e não por `colorForParty`. Se a linha acima",
+            "voltou a ser a base, esta é a regressão (decisão do dono, 2026-09-18).",
+          ].join("\n"),
+        ).toBeGreaterThanOrEqual(PISO_GRAFICO);
+      }
+    }
+  });
+
+  it("a cor emitida NÃO é a base de preenchimento desses quatro partidos", () => {
+    // Asserção negativa, no espírito do T7: a positiva ("tem contraste") pode
+    // um dia passar por acidente se a base for reajustada; esta nomeia o
+    // defeito. Onde a base já lê, `-text` É a base — por isso a lista é só a
+    // dos quatro que reprovam.
+    for (const [id, sigla, slug] of REPROVADOS) {
+      expect(corEmitida(id), `${sigla} voltou a sair na cor de área`).not.toBe(
+        `var(--party-${slug})`,
+      );
+    }
+  });
+
+  it("nos 17 partidos em que a base já lê, nenhum pixel muda", () => {
+    // O outro lado da moeda: a correção não pode virar desculpa para mover a
+    // identidade de quem já estava legível. PT, PL e UNIÃO saem com o hex da
+    // base no tema claro — se um dia deixarem de sair, é aqui que se vê.
+    const claro = TEMAS[0].tokens;
+    const docPT = parse(
+      <SerieApuracaoChart
+        eixo={eixoDe(2)}
+        cadenciaMin={5}
+        candidatos={[
+          cand({ id: 13, partido: "PT", apurado: [30, 31], projetado: [30, 31] }),
+          cand({ id: 22, partido: "PL", apurado: [28, 29], projetado: [28, 29] }),
+          cand({ id: 44, partido: "UNIÃO", apurado: [12, 13], projetado: [12, 13] }),
+        ]}
+        escopo="Brasil"
+        titleId="t8b"
+        height={ALTURA}
+      />,
+    );
+    for (const [id, slug] of [
+      [13, "pt"],
+      [22, "pl"],
+      [44, "uniao"],
+    ] as const) {
+      const token = nomeDoToken(tracos(docPT, id, "parcial")[0]?.getAttribute("stroke") ?? "");
+      expect(claro.get(token), `${slug}: a cor da linha se afastou da identidade`).toBe(
+        claro.get(`--party-${slug}`),
+      );
+    }
   });
 });
 
