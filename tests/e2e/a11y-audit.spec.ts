@@ -42,6 +42,14 @@ const ROUTES = [
   "/uf/SP/senador",
   "/governador",
   "/sobre-o-modelo",
+  // As duas rotas de Deputado Federal (spec 017) entraram em 2026-09-18, 3ª
+  // sessão. Elas são a ÚNICA corrida PROPORCIONAL do produto: em vez de um
+  // vencedor por circunscrição, distribuem cadeiras entre agremiações — e por
+  // isso renderizam componentes que NENHUMA das seis rotas acima exercita
+  // (tabela de bancada, quociente eleitoral, o rótulo "ainda não dá para
+  // dizer"). Estavam fora do portão desde que a spec 017 foi entregue.
+  "/deputado-federal",
+  "/uf/SP/deputado-federal",
 ];
 const VIEWPORTS = [
   { name: "desktop", width: 1280, height: 900 },
@@ -74,10 +82,52 @@ for (const route of ROUTES) {
         const critical = results.violations.filter((v) => v.impact === "critical");
         const serious = results.violations.filter((v) => v.impact === "serious");
 
+        // 🔴 O PONTO CEGO — medido em 2026-09-18, 3ª sessão, contra o site
+        // publicado.
+        //
+        // `results.violations` era a única coisa que este portão olhava, e por
+        // isso ele dizia "0 violações" enquanto o próprio axe dizia "não
+        // consegui decidir". A regra que cai em `incomplete` é justamente
+        // `color-contrast` — a classe de falha de acessibilidade mais comum do
+        // produto e a que o RNF-035 persegue.
+        //
+        // Contagem do dia, `desktop`/`light`, por rota:
+        //   /sobre-o-modelo ............ 18 nós indecididos
+        //   /deputado-federal .......... 1
+        //   /uf/SP/deputado-federal .... 1
+        //   /uf/SP/senador ............. 1
+        //   /, /uf/SP, /governador, /uf/SP/governador ... 0
+        //
+        // Dos 18, **17 são `<text>` dentro de SVG** (o diagrama da metodologia):
+        // o axe não resolve fundo de texto em SVG e declara isso, com a
+        // mensagem "contains an image node" / "overlapped by another element".
+        // É limitação da ferramenta, não defeito da página — reprovar por isso
+        // deixaria o portão permanentemente vermelho por um motivo falso.
+        //
+        // Por isso a guarda abaixo NÃO conta nós: ela confere a NATUREZA deles.
+        // Enquanto todo indecidido for SVG (ou o link da marca no masthead, que
+        // o axe reporta como "parcialmente encoberto"), o portão segue verde.
+        // No instante em que um parágrafo, um botão ou um rótulo comum virar
+        // indecidido, ele fica vermelho — que é exatamente o caso em que o
+        // "0 violações" estaria mentindo.
+        //
+        // Ela é robusta a dado: quando a série chegar em produção, o gráfico da
+        // noite acrescenta `<text>` SVG e a CONTAGEM muda; a natureza, não.
+        const contrasteIndeciso = results.incomplete.filter((v) => v.id === "color-contrast");
+        const indecididosInesperados = contrasteIndeciso.flatMap((v) =>
+          v.nodes
+            .map((n) => String(n.target[0] ?? ""))
+            .filter((alvo) => !/^text[[.]/.test(alvo) && !alvo.includes("top-bar-brand")),
+        );
+
         await test
           .info()
           .attach(`axe-${route.replace(/\//g, "_")}-${viewport.name}-${theme}.json`, {
-            body: JSON.stringify(results.violations, null, 2),
+            body: JSON.stringify(
+              { violations: results.violations, incomplete: results.incomplete },
+              null,
+              2,
+            ),
             contentType: "application/json",
           });
 
@@ -97,6 +147,13 @@ for (const route of ROUTES) {
         expect(critical.length + serious.length, JSON.stringify(results.violations, null, 2)).toBe(
           0,
         );
+
+        expect(
+          indecididosInesperados,
+          `axe não conseguiu decidir o contraste destes elementos NÃO-SVG — ` +
+            `"0 violações" acima não cobre nenhum deles:\n` +
+            JSON.stringify(indecididosInesperados, null, 2),
+        ).toEqual([]);
       });
     }
   }

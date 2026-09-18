@@ -91,24 +91,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Os testes de integração e os de cobertura geográfica conferem o banco
-      # CHEIO (>= 6.000 pares município×zona, >= 5.500 municípios, 155-157 mi de
-      # eleitores, >= 20.000 linhas históricas de 2018 e 2022). Um Postgres vazio
-      # com as migrations aplicadas reprovaria todos — por isso o CI aponta para
-      # um BRANCH do banco no Neon (cópia copy-on-write, já populada), nunca para
-      # produção. Ver docs/operations/runbook.md.
-      - name: Conferir o segredo do banco
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL_CI }}
-        run: |
-          if [ -z "$DATABASE_URL" ]; then
-            echo "::error::DATABASE_URL_CI não está cadastrado nos segredos do repositório." >&2
-            echo "Sem ele, 10 arquivos de teste falham com '[db] DATABASE_URL ausente' e a" >&2
-            echo "causa real fica escondida atrás de falhas genéricas. Cadastre o segredo" >&2
-            echo "apontando para um BRANCH do banco no Neon (não para produção)." >&2
-            exit 1
-          fi
-
       # `model-cycle` e `model-edge-cases` invocam `api/model/project.py` num
       # subprocesso e procuram o interpretador em `.venv-model/bin/python3.14`,
       # com fallback para o `python3.14` do PATH. Sem isto, o fallback acha um
@@ -144,6 +126,30 @@ jobs:
       # tests/integration/_guarda-banco.ts e docs/operations/runbook.md.
       - name: Testes do modelo (pytest)
         run: .venv-model/bin/python3.14 -m pytest
+
+      # ⚠️ ORDEM DELIBERADA — o pytest vem ANTES da conferência do segredo.
+      # Até 18/09 a conferência abria o bloco, e como ela sai com 1 quando o
+      # segredo falta, os passos seguintes eram PULADOS: os 576 testes do
+      # modelo nunca chegaram a rodar no GitHub, barrados por uma credencial
+      # que eles deliberadamente não usam. A conferência continua reprovando o
+      # job — só deixou de levar junto quem não depende dela.
+      # Os testes de integração e os de cobertura geográfica conferem o banco
+      # CHEIO (>= 6.000 pares município×zona, >= 5.500 municípios, 155-157 mi de
+      # eleitores, >= 20.000 linhas históricas de 2018 e 2022). Um Postgres vazio
+      # com as migrations aplicadas reprovaria todos — por isso o CI aponta para
+      # um BRANCH do banco no Neon (cópia copy-on-write, já populada), nunca para
+      # produção. Ver docs/operations/runbook.md.
+      - name: Conferir o segredo do banco
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_CI }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL_CI não está cadastrado nos segredos do repositório." >&2
+            echo "Sem ele, 10 arquivos de teste falham com '[db] DATABASE_URL ausente' e a" >&2
+            echo "causa real fica escondida atrás de falhas genéricas. Cadastre o segredo" >&2
+            echo "apontando para um BRANCH do banco no Neon (não para produção)." >&2
+            exit 1
+          fi
 
       - name: Unit tests
         run: pnpm test
