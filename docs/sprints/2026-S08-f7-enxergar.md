@@ -225,6 +225,49 @@ integração consigam invocar o modelo em subprocesso. Falta o passo que o execu
       credencial só criaria a chance de um teste futuro escrever num banco real por acidente,
       que é exatamente o incidente de 17/09 (1.877 linhas de harness em produção).
 
+      ⚠️ **Marcado `[x]` em 18/09 e, naquele momento, o passo NUNCA TINHA RODADO no
+      GitHub.** Ele existia no arquivo e estava correto; o que não existia era a prova de
+      que rodava. Dois defeitos o barravam, e o segundo só apareceu depois de consertar o
+      primeiro:
+
+      1. **Ordem.** A conferência de `DATABASE_URL_CI` vinha ANTES do pytest. Ela sai com 1
+         quando o segredo falta — e ele falta — então todos os passos seguintes eram
+         **pulados**. Os 576 testes do modelo estavam barrados por uma credencial que eles
+         deliberadamente não usam. Os passos de Python passaram para antes dela.
+      2. **Dependência errada.** O passo instalava `api/model/requirements.txt`, que é o de
+         PRODUÇÃO — minimalista de propósito, sob o limite de 500 MB do bundle da Vercel, e
+         **sem pytest**. O pytest está em `requirements-dev.txt`, que já existia.
+         Sintoma: `No module named pytest`.
+
+      🔴 **E a razão de a verificação anterior não ter pego isso:** o `.venv-model` da
+      máquina local **tem** pytest, instalado à mão em algum momento. "Provado localmente
+      com o comando exato do CI" era verdade na máquina e falso no runner — o comando era o
+      mesmo, o ambiente não. Verificação de CI só vale **no CI**.
+
+      ✅ **Provado em 18/09, 3ª sessão** — run `35325170894`, job `105536422996`:
+      `collected 576 items` · `576 passed in 5.00s`. Este é o primeiro portão verde dos
+      testes do modelo no GitHub.
+
+### 4b. `DATABASE_URL_CI` — o único passo que ainda reprova o CI
+
+Com os dois defeitos do § 4 consertados, o job `test` chega inteiro até a conferência do
+segredo e para ali. `lint` e `typecheck` passam; `pytest` passa; **`pnpm test` nunca roda**.
+
+Dez arquivos de teste exigem o banco CHEIO (≥ 6.000 pares município×zona, ≥ 5.500
+municípios, 155–157 mi de eleitores, ≥ 20.000 linhas históricas) — são os mesmos dez que
+falham na coleta na máquina local sem `DATABASE_URL`. Um Postgres vazio com as migrations
+aplicadas reprovaria todos, e é por isso que a conferência existe e é ruidosa de propósito
+(`.github/workflows/ci.yml`, passo `Conferir o segredo do banco`).
+
+- [ ] **Criar um BRANCH do banco no Neon** (cópia copy-on-write, já populada) — **do dono**.
+      🔴 **Nunca apontar para produção.** É o banco que vai guardar a apuração de 04/10, e
+      o CI roda a cada push.
+- [ ] **Cadastrar o segredo `DATABASE_URL_CI`** em *Settings → Secrets and variables →
+      Actions* do repositório `sudomenna/salacofre` — **do dono**. O nome é exato; o
+      workflow lê `secrets.DATABASE_URL_CI` em dois passos.
+- [ ] Conferir que o job `test` fecha verde inteiro, com os 10 arquivos saindo da lista de
+      falha de coleta.
+
 ### 5. Corrigir os documentos que ensinam o endereço errado do TSE
 
 *(Outro agente faz o conserto; esta é a caixa que rastreia.)*
