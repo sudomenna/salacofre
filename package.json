@@ -39,7 +39,8 @@
     "replay-2022:sensitivity": "tsx scripts/replay-sensitivity.ts",
     "gen:party-scale": "tsx scripts/gen-party-scale.ts",
     "verify-fatia-premise": "tsx scripts/verify-fatia-premise.ts",
-    "vigia:ciclo": "tsx scripts/vigia-ciclo.ts"
+    "vigia:ciclo": "tsx scripts/vigia-ciclo.ts",
+    "alerta:teste": "tsx scripts/alerta-teste.ts"
   },
   "packageManager": "pnpm@10.33.0",
   "engines": {
