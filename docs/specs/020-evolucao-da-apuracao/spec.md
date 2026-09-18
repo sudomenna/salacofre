@@ -209,7 +209,10 @@ incluindo `aria-label`, `<title>`, `<desc>`, legenda de tabela e rótulo de eixo
 percentuais na tela são os da **régua fixa** (0, 10, 20, 30, 40, 50) e os únicos
 horários são os da janela ilustrativa (17h às 20h30) — rótulo de escala é
 moldura, não medição, e é o que o protótipo do dono mostra; qualquer percentual
-fora dessa lista é valor fabricado e reprova; (c) a decisão de fase é do chamador, pelo ponto único de leitura — o
+fora dessa lista é valor fabricado e reprova. A asserção é de **igualdade** com
+a régua, e não de ausência de `%`: "não contém %" proibiria a própria régua, e
+foi o que a varredura da spec 019 fazia até a emenda de 2026-09-17 (ver
+[spec 019, RF-161](../019-fase-pre-eleicao/spec.md)); (c) a decisão de fase é do chamador, pelo ponto único de leitura — o
 literal da fase não ocorre no módulo do widget, e `tests/unit/config/fase.test.ts`
 varre e falha se ocorrer; (d) nas rotas de UF, que não têm payload próprio em
 fase pré, a fase é lida do payload **nacional**, nunca de data de calendário;

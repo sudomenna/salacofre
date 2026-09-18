@@ -397,21 +397,23 @@ export function SerieApuracaoChart({
                   stroke={EIXO_STROKE}
                   strokeWidth="1"
                 />
-                {/* 🔴 SEM rótulo numérico aqui, e isto é decisão, não esquecimento.
-                    O RF-161 da spec 019 proíbe o caractere "%" em QUALQUER
-                    superfície da home em fase pré — `tests/unit/pages/fase-pre-eleicao.test.tsx`
-                    varre o `<main>` inteiro. A guarda é ampla de propósito:
-                    nasceu do dia em que a tela exibia "Apurado 0,0%" e "Fulano
-                    vence no 1º turno — 0%", nove afirmações falsas medidas em
-                    2026-09-13.
-
-                    As linhas de grade ficam: elas dão a moldura do gráfico sem
-                    afirmar nenhuma quantidade. A escala volta com o primeiro
-                    dado real, no estado "ok" mais abaixo, onde "%" é legítimo.
-
-                    Se o dono preferir a régua rotulada do protótipo, o caminho
-                    é uma exceção NOMEADA no RF-161 — nunca afrouxar a varredura,
-                    que protege contra um incidente que já aconteceu. */}
+                {/* A escala do eixo, como no protótipo do dono.
+                    Ela dá RÉGUA, não medição: é a lateral de uma balança vazia.
+                    Decisão do dono em 2026-09-17, ao remover a proibição do
+                    caractere "%" da varredura de fase pré — "0% apurado é uma
+                    verdade antes da eleição". As guardas que medem AFIRMAÇÃO
+                    (palavras proibidas, frases do RF-154, o "0/27") continuam
+                    inteiras e cobrem os três casos de 13/09. */}
+                <text
+                  x={SERIE_PAD_X - 6}
+                  y={y + 3}
+                  textAnchor="end"
+                  fontSize="10"
+                  fontFamily="var(--font-sans)"
+                  fill={ROTULO_FILL}
+                >
+                  {pct}%
+                </text>
               </g>
             );
           })}

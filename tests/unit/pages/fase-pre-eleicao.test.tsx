@@ -1297,9 +1297,25 @@ describe("(F) fase pré vale nos DOIS layouts da home (`binary` e `multi-1t`)", 
     it(`${rotulo} — fase pré: nenhum percentual e nenhum "apurado" fabricados`, async () => {
       const doc = await pres(semeado());
       const fora = semBlocoDeTransparencia(doc).toLowerCase();
-      // Os dois números que o ramo `binary` imprimia: "Apurado 0,0%" e
-      // "UFs apuradas 0/27".
-      expect(fora, `${rotulo} — percentual na tela`).not.toContain("%");
+      // 🔴 DECISÃO DO DONO, 2026-09-17 — a proibição do caractere "%" saiu daqui.
+      //
+      // Ela nunca esteve no texto do RF-161 (que proíbe PALAVRAS) nem em
+      // nenhum outro requisito: era uma rede acrescentada no teste para
+      // impedir a volta de dois números medidos em 13/09. O argumento do dono
+      // ao removê-la: **"0% apurado" é uma verdade antes da eleição**, e o
+      // leitor pode recebê-la. O que era falso naquele dia não era o zero — era
+      // afirmar conclusão, vitória e certeza sobre ele.
+      //
+      // Os três casos que a motivavam continuam cobertos, e por guardas que
+      // medem a AFIRMAÇÃO em vez do símbolo:
+      //   "Apurado 0,0%"                  → palavra "apurado" (lista abaixo)
+      //   "UFs apuradas 0/27"             → palavra "apuradas" + o "/27" logo abaixo
+      //   "Fulano vence no 1º turno — 0%" → frase "vence no 1º turno" (RF-154)
+      //
+      // Consequência aceita: a escala de um eixo ("0%", "50%") deixa de
+      // reprovar. Se algum dia um NÚMERO DE RESULTADO voltar a vazar com "%" e
+      // sem nenhuma dessas palavras, é aqui que a rede precisa voltar — mas
+      // então com o alvo nomeado, não com o caractere.
       expect(fora, `${rotulo} — "0/27" na tela`).not.toContain("/27");
       for (const palavra of VOCABULARIO_DE_MEDICAO) {
         expect(fora, `${rotulo} — "${palavra}"`).not.toContain(palavra);

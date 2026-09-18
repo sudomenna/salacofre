@@ -260,20 +260,17 @@ describe("<SerieApuracaoChart /> — RF-174: antes do dia da eleição", () => {
     expect(saida).not.toContain("projec");
   });
 
-  it("nenhum `%` no HTML — nem em texto, nem em atributo", () => {
-    // Não é preciosismo de texto: o RF-161 da spec 019 varre o `innerHTML` do
-    // `<main>` da home em fase pré e proíbe o caractere, porque ele nasceu do
-    // dia em que a tela exibia "Apurado 0,0%" e "Fulano vence no 1º turno —
-    // 0%". Atributo conta: um `style={{width:"100%"}}` ou um
-    // `transform:translate(-50%,-50%)` derruba a guarda sem aparecer na tela.
-    // Por isso a asserção é sobre o HTML inteiro, e não sobre `textContent`.
-    const saida = html(<SerieApuracaoChart {...props} />);
-    expect(saida).not.toContain("%");
-  });
-
-  it("a régua fica: as linhas de grade desenham a moldura sem afirmar quantidade", () => {
+  it("os únicos percentuais são os da régua — nenhuma medição vaza", () => {
+    // Asserção de IGUALDADE, não de ausência, e a diferença é o teste inteiro.
+    // "não contém %" proibiria a própria régua (foi o que aconteceu antes da
+    // decisão do dono de 2026-09-17); "contém exatamente a régua" deixa a
+    // escala passar e reprova qualquer número FORA dela — que é como um valor
+    // fabricado apareceria.
     const doc = parse(<SerieApuracaoChart {...props} />);
-    expect(doc.querySelectorAll("[data-grade-pct]").length).toBeGreaterThanOrEqual(6);
+    const pcts = [...(doc.body.textContent ?? "").matchAll(/(\d+(?:[.,]\d+)?)\s*%/g)].map(
+      (m) => m[1],
+    );
+    expect(pcts).toEqual(["0", "10", "20", "30", "40", "50"]);
   });
 
   it("desenha a régua de horários do protótipo", () => {

@@ -450,6 +450,21 @@ exceto no bloco do RF-158.
   "apuradas", "boletim", "intervalo de confiança" nem "chance de" fora dos
   blocos autorizados — o teste é uma **lista negra de vocabulário de medição**,
   varrida sobre o HTML, e ela cresce quando alguém achar uma palavra nova.
+- 🔴 **Emenda 2026-09-17 — o caractere `%` deixa de reprovar.** O teste carregava,
+  além da lista acima, um `not.toContain("%")` sobre o `<main>` inteiro. Ele
+  nunca esteve neste requisito nem em nenhum outro: era rede acrescentada no
+  código do teste para impedir a volta de dois números medidos em 13/09.
+  **Decisão do dono**: *"0% apurado é uma verdade antes da eleição"* — o leitor
+  pode recebê-la, e o que era falso naquele dia não era o zero, era afirmar
+  **conclusão, vitória e certeza** sobre ele. Os três casos que a motivavam
+  seguem cobertos por guardas que medem a afirmação, não o símbolo:
+  `"Apurado 0,0%"` pela palavra "apurado"; `"UFs apuradas 0/27"` por "apuradas"
+  e pelo `/27`, que **continua** proibido; `"Fulano vence no 1º turno — 0%"`
+  pela frase "vence no 1º turno" do RF-154. Consequência aceita: a escala de um
+  eixo ("0%", "50%") passa a ser permitida — foi o que destravou a régua do
+  gráfico da [spec 020](../020-evolucao-da-apuracao/spec.md). Se um número de
+  **resultado** voltar a vazar com `%` e sem nenhuma dessas palavras, a rede
+  volta com o alvo nomeado, nunca com o caractere.
 - Given a fase normal, when as mesmas telas renderizam, then a palavra
   "projeção" volta a ocorrer normalmente e a ordem volta a ser por
   `pct_projetado` — o teste roda nos dois modos.
