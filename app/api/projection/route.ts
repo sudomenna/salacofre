@@ -6,7 +6,8 @@
  *
  *   GET /api/projection                → EdgePayload (nacional, Presidente)
  *   GET /api/projection?cargo=gov      → EdgePayload (nacional, Governador)
- *   GET /api/projection?uf=<sigla>     → EdgePayloadUf (RESUMO da UF)
+ *   GET /api/projection?cargo=sen      → EdgePayload (nacional, Senador)
+ *   GET /api/projection?uf=<sigla>     → EdgePayloadUf (RESUMO da UF, sempre Presidente)
  *
  * **ADR-0033 § 1 (2026-09-08)**: `?cargo=gov` é acréscimo desta data. A moldura
  * persistente do mapa (`components/layout/PersistentMapFrame.tsx`) busca o
@@ -16,6 +17,17 @@
  * (Presidente), então nenhum consumidor existente muda. O namespacing de chave
  * por cargo/turno continua sendo o do ADR-0012: quem resolve a chave é
  * `readProjection`, não este arquivo.
+ *
+ * **2026-09-18 — `?cargo=sen` acrescido pelo mesmo motivo.** A trilha Senador
+ * ganhou a mesma moldura persistente (`PersistentMapFrame`, ramo `cargo ===
+ * "sen"`) e precisava do mesmo read path client-side. Senador não tem 2º
+ * turno (`temSegundoTurno: false`, `lib/config/cargos.ts`), então este ramo
+ * só tenta `turno: 1` — ao contrário de `?cargo=gov`, que tenta 1 e depois 2.
+ *
+ * 🔴 `?uf=<sigla>` **ignora** `cargo`: sempre devolve o resumo PRESIDENCIAL da
+ * UF (comportamento pré-existente, documentado aqui e não alterado por esta
+ * mudança). `PersistentMapFrame` sabe disso e não chama este ramo quando
+ * `cargo === "sen"` (Senador não tem nível UF nesta moldura).
  *
  * **ADR-0032 (2026-09-08)**: o `?uf=` devolve só o resumo. O detalhe municipal
  * e as séries temporais deixaram de fazer parte de `EdgePayloadUf` — vivem no
@@ -46,6 +58,7 @@ import govFixture from "@/tests/fixtures/edge-config/gov-current.json" with { ty
 import nationalFixture from "@/tests/fixtures/edge-config/projection-current.json" with {
   type: "json",
 };
+import senFixture from "@/tests/fixtures/edge-config/sen-current.json" with { type: "json" };
 
 const UF_REGEX = /^[A-Z]{2}$/;
 const CACHE_HEADERS = {
@@ -187,6 +200,23 @@ export async function GET(req: Request): Promise<Response> {
       if (gov) return NextResponse.json(gov, { headers: CACHE_HEADERS });
     }
     return NextResponse.json({ error: "no_payload", cargo: "gov" }, { status: 503 });
+  }
+
+  // `?cargo=sen` — mesma estrutura do ramo gov acima, sem o retry de 2º
+  // turno: Senador não tem (`temSegundoTurno: false`, `lib/config/cargos.ts`).
+  if (url.searchParams.get("cargo") === "sen") {
+    const senSim = simulacaoLigada() ? simulacaoNacional("sen") : null;
+    if (senSim) return NextResponse.json(senSim, { headers: CACHE_HEADERS });
+    if (!simulacaoLigada()) {
+      const sen =
+        (await readProjection({ cargo: "sen", turno: 1 })) ??
+        fonteDev(
+          () => null,
+          () => senFixture as unknown as EdgePayload,
+        );
+      if (sen) return NextResponse.json(sen, { headers: CACHE_HEADERS });
+    }
+    return NextResponse.json({ error: "no_payload", cargo: "sen" }, { status: 503 });
   }
 
   const presSim = simulacaoLigada() ? simulacaoNacional("pres") : null;

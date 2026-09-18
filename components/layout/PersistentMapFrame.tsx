@@ -55,12 +55,64 @@
  * reinicializa. Unificar as duas implementações numa única instância que faz
  * `flyTo` continua não especificado — fica para uma iteração futura.
  *
- * Governador (`cargo="gov"`) ganha o MESMO drill-down: no nível Brasil segue
- * mostrando o cartograma hexagonal (`HexCartogramBrasil`, sem equivalente de
- * "nível UF" — é um mapa nacional por natureza); no nível UF, mostra o MESMO
- * coroplético municipal que a rota presidencial usa, porque é o mesmo tipo de
- * dado (`EdgeUfMunicipio[]`) e o mesmo componente já existia para as duas
- * corridas antes desta mudança (`app/(gov)/uf/[sigla]/governador/page.tsx`).
+ * Governador (`cargo="gov"`) ganha o MESMO drill-down: no nível UF, mostra o
+ * MESMO coroplético municipal que a rota presidencial usa, porque é o mesmo
+ * tipo de dado (`EdgeUfMunicipio[]`) e o mesmo componente já existia para as
+ * duas corridas antes desta mudança (`app/(gov)/uf/[sigla]/governador/page.tsx`).
+ *
+ * ## 2026-09-18 (map-builder) — o nível Brasil de Governador troca de mapa
+ *
+ * Até aqui o nível Brasil de Governador mostrava `<HexCartogramBrasil>` — um
+ * cartograma hexagonal sem equivalente de "nível UF". Pedido do dono: o mesmo
+ * coroplético MapLibre+PMTiles do nível Brasil de Presidente
+ * (`NationalMapBlock` variant="frame"), pintado pelo partido do líder de CADA
+ * UF na corrida de GOVERNADOR (não de Presidente) e com hover mostrando a
+ * parcial daquela UF para Governador. `<HexCartogramBrasil>` continua no
+ * repositório, intacto — só sai de uso NESTA rota; não há botão de
+ * alternância entre os dois mapas nesta tela.
+ *
+ * O dado já serve o coroplético sem mudança de produtor: `EdgePayload` e
+ * `EdgeUfRow` são os MESMOS tipos nos dois cargos, e `EdgeUfRow.top_candidatos`
+ * já carrega `nome`/`partido`/`sqcand` resolvidos por UF em todo cargo
+ * (RF-144/ADR-0042 item 3) — é o que faz o hover mostrar o nome real do
+ * candidato do estado certo, e não "Candidato N" nem o nome de outra UF (ver
+ * `buildHoverRows` em `_NationalChoroplethMapImpl.tsx`).
+ *
+ * ## 2026-09-18 (2ª rodada, map-builder) — Senador ganha a MESMA moldura
+ *
+ * Pedido do dono, ciente de uma diferença que a spec 016 nomeia: Senador tem
+ * **2 vagas por UF**, não 1. Pintar cada UF pelo LÍDER LOCAL (como Presidente
+ * e Governador já fazem) sugeriria um vencedor único onde a eleição elege
+ * dois — decisão explícita do dono (D1): pintar mesmo assim, DESDE QUE o
+ * rótulo de duas vagas fique explícito na própria superfície do mapa (ver
+ * `escopo` abaixo, sufixo "· 2 vagas" só em `cargo === "sen"`).
+ *
+ * `cargo === "sen"` reaproveita o MESMO `<NationalMapBlock variant="frame">`
+ * do nível Brasil de Presidente/Governador — mesma razão da entrada de
+ * Governador acima (`EdgeUfRow`/`EdgeCandidate` são os mesmos tipos nos três
+ * cargos). Duas diferenças, e as duas são AUSÊNCIA de recurso, não escolha de
+ * design:
+ *
+ *   1. **Sem nível UF.** O cargo 5 não tem dado municipal — `spec 016 §
+ *      Escopo/Fora` tira "mapa municipal e maiores colégios" de escopo, e
+ *      `municipios-sen-t1.json` (o irmão de simulação) grava `municipios: []`
+ *      de propósito. `/api/projection/municipios` também não tem ramo para
+ *      `cargo=sen` (`resolveCargoETurno`, `app/api/projection/municipios/
+ *      route.ts`, cai no default PRESIDENCIAL para qualquer valor que não seja
+ *      `"gov"`) — chamá-lo aqui pintaria o município errado sob o rótulo
+ *      "Senado" em silêncio, a mesma classe de bug que já mordeu este
+ *      repositório três vezes com conversor de cargo. Por isso os dois efeitos
+ *      de busca do nível UF (`ufResumo`, `municipioDetalhe`) NÃO disparam
+ *      quando `cargo === "sen"` — nem a leitura acontece, e não só o
+ *      resultado é ignorado. Em `/uf/[sigla]/senador` a moldura mostra um
+ *      painel textual explicando a ausência (ver o ramo `sigla` abaixo), não
+ *      um mapa mudo nem um mapa mentindo.
+ *   2. **Sem `rankByLider`**, pela MESMA razão já documentada para `"gov"`
+ *      logo abaixo: em corrida majoritária o número de urna é o número do
+ *      partido, e o mesmo partido concorre em várias UFs com o mesmo número.
+ *      `national.candidatos` do cargo 5 é a união de 27 corridas (RF-145,
+ *      mesmo contrato de RF-145 para cargo 3) — reaproveita o argumento já
+ *      escrito, não duplica.
  */
 
 import Link from "next/link";
@@ -72,10 +124,9 @@ import {
   DetailUnavailable,
   type DetailUnavailableReason,
 } from "@/components/atoms/surfaces/DetailUnavailable";
-import { HexCartogramBrasil } from "@/components/blocks/HexCartogramBrasil";
 import { CHIP_STYLE, NationalMapBlock } from "@/components/blocks/NationalMapBlock";
 import { UfLeaderMapLazy } from "@/components/blocks/UfMapsLazy";
-import { UfPicker } from "@/components/layout/UfPicker";
+import { UfPicker, type UfPickerCargo } from "@/components/layout/UfPicker";
 import { cargoFromToken } from "@/lib/config/cargos";
 import { isPreEleicao } from "@/lib/config/fase";
 import type { EdgePayload, EdgePayloadUf, EdgeUfMunicipio } from "@/lib/edge-config/types";
@@ -84,11 +135,22 @@ import { useDadoFrescorStore } from "@/lib/state/dado-freshness-store";
 /** Mesma cadência de escrita do orchestrator (ADR-0011). */
 const REFRESH_MS = 60_000;
 
-const CARGO_LABEL = { pres: "Presidente", gov: "Governador" } as const;
+const CARGO_LABEL: Record<UfPickerCargo, string> = {
+  pres: "Presidente",
+  gov: "Governador",
+  sen: "Senador",
+};
+
+/** Rota "nível Brasil" de cada cargo — o destino do link "← Brasil". */
+const HOME_HREF: Record<UfPickerCargo, string> = {
+  pres: "/",
+  gov: "/governador",
+  sen: "/senador",
+};
 
 export interface PersistentMapFrameProps {
   /** Grupo de rotas que hospeda esta moldura. */
-  cargo: "pres" | "gov";
+  cargo: UfPickerCargo;
 }
 
 /** `params.sigla` vem como `string | string[] | undefined`. */
@@ -127,7 +189,12 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
   // então publicá-lo na store (`lib/state/dado-freshness-store.ts`) não custa
   // requisição nem query novas — é um campo que já vinha e era descartado.
   useEffect(() => {
-    const url = cargo === "gov" ? "/api/projection?cargo=gov" : "/api/projection";
+    // `pres` é o único sem query string (comportamento original do endpoint,
+    // ADR-0033 § 1); `gov`/`sen` (e qualquer cargo futuro que ganhe moldura)
+    // passam `?cargo=<token>` — `app/api/projection/route.ts` tem um ramo por
+    // cargo, não um catch-all, então um cargo sem ramo lá devolve 503 em vez
+    // de servir a corrida errada em silêncio.
+    const url = cargo === "pres" ? "/api/projection" : `/api/projection?cargo=${cargo}`;
     // Token → código do TSE por função total (`"pres"` → 1, `"gov"` → 3), que
     // lança em token desconhecido. Um ternário aqui seria a terceira aparição
     // do mesmo bug nesta base: conversor de enum de cargo com ramo `default`
@@ -180,8 +247,18 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
 
   // Resumo da UF corrente — é o que dá o "% apurado" da etiqueta quando a rota
   // é de UF. Refaz a cada troca de `sigla`, sem tocar no mapa.
+  //
+  // 🔴 `cargo === "sen"` NÃO dispara esta busca. O endpoint (`GET
+  // /api/projection?uf=`) não aceita `cargo` — devolve sempre o resumo
+  // PRESIDENCIAL da UF, qualquer que seja o cargo desta moldura (mesmo hoje
+  // para `"gov"`, pré-existente a esta mudança e fora do escopo desta
+  // rodada). Senador não tem nível UF nesta moldura (ver o docstring do topo
+  // do arquivo) — chamar este endpoint aqui só gastaria rede para um valor
+  // que nunca seria lido, e manter a chamada viva seria a porta por onde um
+  // uso futuro do resultado herdaria dado presidencial sob o rótulo "Senado"
+  // em silêncio.
   useEffect(() => {
-    if (!sigla) {
+    if (!sigla || cargo === "sen") {
       setUfResumo(null);
       return;
     }
@@ -199,14 +276,23 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
     return () => {
       vivo = false;
     };
-  }, [sigla]);
+  }, [sigla, cargo]);
 
   // Detalhe municipal da UF corrente (ADR-0032, via o espelho client-side em
   // `/api/projection/municipios`) — é o que pinta o coroplético por
   // município. Refaz a cada troca de `sigla` ou de `cargo` (Presidente e
   // Governador têm candidatos e cobertura diferentes na mesma UF).
+  //
+  // 🔴 `cargo === "sen"` NÃO dispara esta busca, pelo MESMO motivo do efeito
+  // acima e um adicional: `resolveCargoETurno` (`app/api/projection/
+  // municipios/route.ts`) só reconhece `"gov"` — qualquer outro valor,
+  // incluindo `"sen"`, cai no default PRESIDENCIAL. Chamar este endpoint com
+  // `cargo=sen` pintaria o coroplético municipal de PRESIDENTE sob o rótulo
+  // "Senado", em silêncio — a mesma classe de bug que os conversores de cargo
+  // desta base já pagaram três vezes. Senador não tem dado municipal (spec
+  // 016 § Escopo/Fora); a ausência é honesta só se a leitura nem acontecer.
   useEffect(() => {
-    if (!sigla) {
+    if (!sigla || cargo === "sen") {
       setMunicipioDetalhe(null);
       return;
     }
@@ -229,17 +315,24 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
     };
   }, [sigla, cargo]);
 
+  // RF-106 (spec 016) — "2 vagas por estado" já é texto de sempre nas duas
+  // páginas de Senador (`app/(sen)/senador/page.tsx`,
+  // `data-testid="senado-vagas-label"`); ESTE sufixo é o mesmo rótulo na
+  // superfície NOVA — o cabeçalho da moldura do mapa —, decisão D1 do dono: o
+  // mapa pinta o líder local (como Presidente/Governador), e uma corrida de 2
+  // vagas ao lado de um mapa de 1 cor por UF sugeriria vencedor único sem
+  // este aviso.
   const escopo = sigla
     ? `${CARGO_LABEL[cargo]} · ${sigla}${
         ufResumo ? ` · ${ufResumo.pct_apurado.toFixed(1).replace(".", ",")}% apurado` : ""
-      }`
-    : `${CARGO_LABEL[cargo]} · Brasil`;
+      }${cargo === "sen" ? " · 2 vagas" : ""}`
+    : `${CARGO_LABEL[cargo]} · Brasil${cargo === "sen" ? " · 2 vagas" : ""}`;
   // Sempre string (o "Brasil" do cargo corrente) — usado tal qual pelos dois
   // chromes de nível UF abaixo. `NationalMapBlock` (nível Brasil) só desenha
   // o link "← Brasil" quando recebe `backHref`, então ali é passado
   // condicionalmente (`sigla ? homeHref : undefined`) — o próprio nível
   // Brasil não deve exibir um link "voltar para si mesmo".
-  const homeHref = cargo === "gov" ? "/governador" : "/";
+  const homeHref = HOME_HREF[cargo];
 
   if (!payload) {
     return <MapSkeleton height="100%" />;
@@ -267,39 +360,35 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
   }));
 
   if (cargo === "gov") {
-    return (
-      <section
-        aria-labelledby="persistent-map-heading"
-        className="absolute inset-0 flex flex-col"
-        style={{ gap: "var(--space-3)", padding: "var(--space-4)", overflow: "hidden" }}
-      >
-        {/* Cabeçalho da moldura: título à esquerda, seletor de UF à direita.
-            No cargo `gov` o cabeçalho é um elemento de fluxo (não overlay), e
-            é ele que ocupa o topo do mapa — então é aqui que o botão do canto
-            superior direito do protótipo (`App.jsx:316`) mora. */}
-        <div
-          className="flex flex-wrap items-start justify-between"
-          style={{ gap: "var(--space-2)" }}
+    if (sigla) {
+      // Nível UF — mesmo coroplético municipal da rota presidencial. O
+      // "quem lidera cada município" que antes vivia num Panel da própria
+      // página de UF (`app/(gov)/uf/[sigla]/governador/page.tsx`) mudou
+      // de endereço, não de conteúdo — ADR-0033 § 1.
+      return (
+        <section
+          aria-labelledby="persistent-map-heading"
+          className="absolute inset-0 flex flex-col"
+          style={{ gap: "var(--space-3)", padding: "var(--space-4)", overflow: "hidden" }}
         >
-          <h2
-            id="persistent-map-heading"
-            style={{
-              margin: 0,
-              font: "var(--type-kicker)",
-              letterSpacing: "var(--tracking-caps)",
-              textTransform: "uppercase",
-              color: "var(--text-secondary)",
-            }}
+          <div
+            className="flex flex-wrap items-start justify-between"
+            style={{ gap: "var(--space-2)" }}
           >
-            {sigla ? `${sigla} · quem lidera cada município` : `Mapa hexagonal — ${escopo}`}
-          </h2>
-          <UfPicker cargo="gov" atual={sigla} />
-        </div>
-        {sigla ? (
-          // Nível UF — mesmo coroplético municipal da rota presidencial. O
-          // "quem lidera cada município" que antes vivia num Panel da própria
-          // página de UF (`app/(gov)/uf/[sigla]/governador/page.tsx`) mudou
-          // de endereço, não de conteúdo — ADR-0033 § 1.
+            <h2
+              id="persistent-map-heading"
+              style={{
+                margin: 0,
+                font: "var(--type-kicker)",
+                letterSpacing: "var(--tracking-caps)",
+                textTransform: "uppercase",
+                color: "var(--text-secondary)",
+              }}
+            >
+              {`${sigla} · quem lidera cada município`}
+            </h2>
+            <UfPicker cargo="gov" atual={sigla} />
+          </div>
           <div className="relative min-h-0 flex-1">
             <UfLeaderMapLazy ufSigla={sigla} choropleth={choropleth} height="100%" />
             {municipioDetalhe?.status === "unavailable" && (
@@ -328,32 +417,212 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
               ← Brasil
             </Link>
           </div>
-        ) : preEleicao || payload.por_uf.length === 0 ? (
-          // RF-157, aplicado ao "mapa" desta trilha. O cartograma hexagonal
-          // pinta cada hexágono com a identidade partidária de quem lidera a
-          // corrida daquele estado e escreve a sigla dentro dele — é a
-          // mentira #8 da tabela da spec 019 em outra projeção geométrica.
-          //
-          // A guarda de fase é defesa em profundidade: com o payload que o
-          // semeador grava (`por_uf: []`) este ramo já entrava sozinho, mas a
-          // spec § D7 quer as duas defesas coexistindo — a de não produzir as
-          // linhas e a de não pintá-las se elas voltarem a existir.
+        </section>
+      );
+    }
+
+    if (preEleicao || payload.por_uf.length === 0) {
+      // RF-157, aplicado ao "mapa" desta trilha. Antes desta mudança
+      // (2026-09-18) quem pintava aqui era o cartograma hexagonal; agora é o
+      // MESMO coroplético MapLibre+PMTiles do nível Brasil de Presidente (ver
+      // o ramo abaixo) — mas nos dois casos a guarda de fase é a mesma: nada
+      // com identidade partidária deve aparecer antes do 1º boletim. A guarda
+      // de fase é defesa em profundidade: com o payload que o semeador grava
+      // (`por_uf: []`) este ramo já entrava sozinho, mas a spec § D7 quer as
+      // duas defesas coexistindo — a de não produzir as linhas e a de não
+      // pintá-las se elas voltarem a existir.
+      return (
+        <section
+          aria-labelledby="persistent-map-heading"
+          className="absolute inset-0 flex flex-col"
+          style={{ gap: "var(--space-3)", padding: "var(--space-4)", overflow: "hidden" }}
+        >
+          <div
+            className="flex flex-wrap items-start justify-between"
+            style={{ gap: "var(--space-2)" }}
+          >
+            <h2
+              id="persistent-map-heading"
+              style={{
+                margin: 0,
+                font: "var(--type-kicker)",
+                letterSpacing: "var(--tracking-caps)",
+                textTransform: "uppercase",
+                color: "var(--text-secondary)",
+              }}
+            >
+              {escopo}
+            </h2>
+            <UfPicker cargo="gov" atual={sigla} />
+          </div>
           <p style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-muted)" }}>
             {preEleicao
               ? "A eleição ainda não começou. Os 27 estados aparecem coloridos aqui quando houver voto contado."
-              : "Aguardando primeiros boletins do TSE para preencher o cartograma."}
+              : "Aguardando primeiros boletins do TSE para preencher o mapa."}
           </p>
-        ) : (
-          // Caixa de razão fixa: o SVG é `w-full h-auto` e, solto numa coluna
-          // de 880px, mediria 861px de alto e vazaria a moldura. A razão vem do
-          // `viewBox` do próprio cartograma (`gridBounds`, ~390 × 403).
-          <div className="flex min-h-0 flex-1 items-center justify-center">
-            <div style={{ height: "100%", maxWidth: "100%", aspectRatio: "390 / 403" }}>
-              <HexCartogramBrasil rows={payload.por_uf} candidatos={payload.national.candidatos} />
-            </div>
+        </section>
+      );
+    }
+
+    // Nível Brasil, com dado — o MESMO coroplético MapLibre+PMTiles da trilha
+    // Presidente (`NationalMapBlock` variant="frame"), pintado pelo partido do
+    // líder de CADA UF na corrida de Governador (pedido do dono, 2026-09-18).
+    // `<HexCartogramBrasil>` sai desta rota (fica no repositório, sem uso
+    // aqui — decisão do dono, não é remoção do componente).
+    //
+    // 🔴 2026-09-18 (2ª rodada, achado do `constitution-guard`) — SEM
+    // `rankByLider` aqui, de propósito. O ramo de Presidente logo abaixo
+    // (`:477-479`) constrói um `Record<id, rank>` com
+    // `Object.fromEntries(national.candidatos.map(c => [c.id, c.rank]))`, e
+    // ali é seguro porque `id` é único no país inteiro (uma corrida
+    // presidencial só). Em cargo 3, `id` é o NÚMERO DE URNA — que em corrida
+    // majoritária é o número do PARTIDO — e o mesmo partido concorre a
+    // governador em várias UFs com O MESMO número. `national.candidatos`
+    // aqui é a união de 27 corridas (RF-145): copiar o mesmo
+    // `Object.fromEntries` colapsaria, por `id`, o `rank` de até 27 UFs
+    // diferentes num só valor — a ÚLTIMA UF do array vencendo em silêncio, e
+    // as anteriores perdendo o próprio rank sem nenhum sinal.
+    //
+    // O alcance do que isso afetaria é estreito — `rankByLider` só alimenta
+    // `resolveCandHex(rank)`/`colorForRank(rank)` em
+    // `_NationalChoroplethMapImpl.tsx`, e só quando `partidoIsMapped()` é
+    // falso (partido ausente ou sem token próprio, ADR-0024) — mas é
+    // exatamente o padrão que duas outras correções desta rodada trataram
+    // com cuidado (`buildHoverRows`, `StateResultSheet`), e não faz sentido
+    // deixar um terceiro caso do mesmo defeito no código novo.
+    //
+    // `candidatoAId` continua vindo de `payload.national.candidato_a_id` —
+    // e este SEM o mesmo problema: `compute_national`
+    // (`api/model/project.py`) agrega por `candidato_id` ponderado pelo
+    // eleitorado de cada UF (é uma soma nacional por NÚMERO/partido, não uma
+    // concatenação), então é um valor ÚNICO e determinístico — "qual número
+    // tem a maior fatia agregada do país" — não um artefato de sobrescrita.
+    // O impl sintetiza `{ [candidatoAId]: 1 }` a partir dele (o mesmo
+    // caminho back-compat pré-S05 documentado em
+    // `_NationalChoroplethMapImpl.tsx`), o que é uma escolha determinística
+    // e sem colisão — diferente do `Object.fromEntries` acima, que iterava
+    // TODAS as 27 corridas e perdia informação a cada sobrescrita.
+    return (
+      <NationalMapBlock
+        rows={payload.por_uf}
+        candidatoAId={payload.national.candidato_a_id}
+        candidatos={payload.national.candidatos}
+        variant="frame"
+        cargo="gov"
+        scopeLabel={escopo}
+        action={<UfPicker cargo="gov" atual={sigla} />}
+      />
+    );
+  }
+
+  if (cargo === "sen") {
+    if (sigla) {
+      // Nível UF de Senador — SEM coroplético municipal, de propósito (ver o
+      // item 1 do docstring "2026-09-18 (2ª rodada)" no topo do arquivo):
+      // cargo 5 não tem dado municipal (spec 016 § Escopo/Fora,
+      // `municipios-sen-t1.json` grava `municipios: []`), e
+      // `/api/projection/municipios` não tem ramo para `cargo=sen` — os dois
+      // efeitos de busca acima já não disparam para este cargo. Em vez de um
+      // mapa mudo (`UfLeaderMapLazy` sem cor nenhuma) ou um mapa mentindo
+      // (herdando o município de Presidente em silêncio), este painel diz a
+      // ausência em texto — a mesma filosofia de degradação honesta que
+      // `AguardandoSenado` (`app/(sen)/senador/page.tsx`) já aplica ao payload
+      // ausente, aqui aplicada à AUSÊNCIA DE RECURSO (não de dado).
+      return (
+        <section
+          aria-labelledby="persistent-map-heading"
+          className="absolute inset-0 flex flex-col"
+          style={{ gap: "var(--space-3)", padding: "var(--space-4)", overflow: "hidden" }}
+        >
+          <div
+            className="flex flex-wrap items-start justify-between"
+            style={{ gap: "var(--space-2)" }}
+          >
+            <h2
+              id="persistent-map-heading"
+              style={{
+                margin: 0,
+                font: "var(--type-kicker)",
+                letterSpacing: "var(--tracking-caps)",
+                textTransform: "uppercase",
+                color: "var(--text-secondary)",
+              }}
+            >
+              {escopo}
+            </h2>
+            <UfPicker cargo="sen" atual={sigla} />
           </div>
-        )}
-      </section>
+          <div
+            className="flex min-h-0 flex-1 flex-col items-start justify-center"
+            style={{ gap: "var(--space-3)" }}
+          >
+            <p
+              className="max-w-prose"
+              style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
+            >
+              O Senado ainda não tem mapa por município. Os dois primeiros colocados de {sigla}{" "}
+              estão na página ao lado.
+            </p>
+            <Link href={homeHref} style={CHIP_STYLE}>
+              ← Brasil
+            </Link>
+          </div>
+        </section>
+      );
+    }
+
+    if (preEleicao || payload.por_uf.length === 0) {
+      // Gêmeo do ramo equivalente de Governador logo acima — mesma guarda de
+      // fase (RF-157), mesmo texto de espera.
+      return (
+        <section
+          aria-labelledby="persistent-map-heading"
+          className="absolute inset-0 flex flex-col"
+          style={{ gap: "var(--space-3)", padding: "var(--space-4)", overflow: "hidden" }}
+        >
+          <div
+            className="flex flex-wrap items-start justify-between"
+            style={{ gap: "var(--space-2)" }}
+          >
+            <h2
+              id="persistent-map-heading"
+              style={{
+                margin: 0,
+                font: "var(--type-kicker)",
+                letterSpacing: "var(--tracking-caps)",
+                textTransform: "uppercase",
+                color: "var(--text-secondary)",
+              }}
+            >
+              {escopo}
+            </h2>
+            <UfPicker cargo="sen" atual={sigla} />
+          </div>
+          <p style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-muted)" }}>
+            {preEleicao
+              ? "A eleição ainda não começou. Os 27 estados aparecem coloridos aqui quando houver voto contado."
+              : "Aguardando primeiros boletins do TSE para preencher o mapa."}
+          </p>
+        </section>
+      );
+    }
+
+    // Nível Brasil, com dado — o MESMO coroplético MapLibre+PMTiles das
+    // trilhas Presidente/Governador, pintado pelo partido do líder de CADA UF
+    // na corrida de Senador. Sem `rankByLider` (ver o item 2 do docstring
+    // "2026-09-18 (2ª rodada)" no topo do arquivo — reaproveita a MESMA razão
+    // já escrita para `cargo === "gov"` acima, sem duplicar o comentário
+    // inteiro).
+    return (
+      <NationalMapBlock
+        rows={payload.por_uf}
+        candidatoAId={payload.national.candidato_a_id}
+        candidatos={payload.national.candidatos}
+        variant="frame"
+        cargo="sen"
+        scopeLabel={escopo}
+        action={<UfPicker cargo="sen" atual={sigla} />}
+      />
     );
   }
 
@@ -435,6 +704,7 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
       candidatos={payload.national.candidatos}
       variant="frame"
       preEleicao={preEleicao}
+      cargo="pres"
       scopeLabel={escopo}
       backHref={sigla ? homeHref : undefined}
       // Nível Brasil: o seletor entra na faixa do canto direito, ao lado do

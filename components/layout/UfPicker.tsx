@@ -53,20 +53,136 @@ import { useState } from "react";
 import { Button } from "@/components/atoms/controls/Button";
 import { ufsPorNome } from "@/components/atoms/maps/_shared";
 import { Sheet } from "@/components/atoms/overlays/Sheet";
+import { cargoFromToken, cargoInfo } from "@/lib/config/cargos";
+import { ariaRessalvaVagas, margemSegundaVaga } from "@/lib/utils/margem-senado";
+
+/** Cargo aceito por este seletor — as três corridas com mapa nacional. */
+export type UfPickerCargo = "pres" | "gov" | "sen";
 
 export interface UfPickerProps {
   /**
    * Qual corrida está aberta — decide o destino de cada UF:
-   * `pres` → `/uf/<SIGLA>`, `gov` → `/uf/<SIGLA>/governador`.
+   * `pres` → `/uf/<SIGLA>`, `gov` → `/uf/<SIGLA>/governador`,
+   * `sen` → `/uf/<SIGLA>/senador`.
    */
-  cargo: "pres" | "gov";
+  cargo: UfPickerCargo;
   /** UF corrente, quando a rota já é de UF. Ganha `aria-current="page"`. */
   atual?: string | null;
 }
 
+/**
+ * Sufixo de rota por cargo — `Record` total sobre `UfPickerCargo`, não
+ * ternário nem `??`. O default silencioso em conversor de cargo já mordeu
+ * este repositório três vezes (a última mandava todo payload de Senador para
+ * a chave do Presidente); um `Record` sem entrada para um cargo novo é erro
+ * de COMPILAÇÃO (`ufHref`/`UF_HREF_SUFFIX` deixam de cobrir o tipo), não uma
+ * rota calada levando ao destino de outra corrida.
+ */
+const UF_HREF_SUFFIX: Record<UfPickerCargo, string> = {
+  pres: "",
+  gov: "/governador",
+  sen: "/senador",
+};
+
 /** Destino da UF na corrida corrente. */
-export function ufHref(cargo: "pres" | "gov", sigla: string): string {
-  return cargo === "gov" ? `/uf/${sigla}/governador` : `/uf/${sigla}`;
+export function ufHref(cargo: UfPickerCargo, sigla: string): string {
+  return `/uf/${sigla}${UF_HREF_SUFFIX[cargo]}`;
+}
+
+/** Título da folha "Escolher UF" — um por cargo, mesmo motivo do `Record` acima. */
+const UF_PICKER_TITLE: Record<UfPickerCargo, string> = {
+  pres: "Presidente",
+  gov: "Governador",
+  sen: "Senador",
+};
+
+/**
+ * Rótulo qualificado de margem em Senado (RF-104) — **uma única string**,
+ * reaproveitada em toda superfície que precisa nomear a margem de 2ª vaga:
+ * a `<Figure>` da ficha/`<MapViewToggle>` (via `MARGEM_LABEL` abaixo) e o
+ * seletor de view do mapa (`NationalChoroplethMap.tsx`, `viewLabelForCargo`).
+ *
+ * 🔴 2026-09-18 (3ª rodada) — até aqui existiam DUAS strings para o mesmo
+ * conceito ("Margem projetada 1º→2º" aqui, "Margem 1º→2º" no mapa), e as
+ * duas descreviam o NÚMERO ERRADO: `row.margem_projetada` é sempre 1º−2º,
+ * mas a margem que decide a corrida de Senado é a do 2º para o 3º
+ * (`docs/specs/016-senador/spec.md:125-133`). Rotular honestamente o número
+ * errado não bastava — o número exibido também muda, para
+ * `margemSegundaVaga` (abaixo). O texto agora nomeia o que É exibido, não o
+ * que deixou de ser.
+ */
+export const MARGEM_2A_VAGA_LABEL = "Margem para a 2ª vaga";
+
+/**
+ * Rótulo do número de margem exibido — **um por cargo, e aqui por ser o mesmo
+ * conceito em superfícies diferentes.**
+ *
+ * Em Presidente e Governador (1 vaga) `row.margem_projetada` (1º−2º) É a
+ * margem da disputa, e "Margem projetada" basta. Em Senador (2 vagas) o
+ * número exibido é `margemSegundaVaga` (2º−3º, ver abaixo) — a distância que
+ * de fato decide a última cadeira (RF-104).
+ *
+ * 🔴 Por que neste arquivo e não ao lado de cada uso: em 2026-09-18 (2ª
+ * rodada) o rótulo foi qualificado no seletor do mapa
+ * (`NationalChoroplethMap`) e **não** na folha de estado (`StateResultSheet`),
+ * que mostra o MESMO número — a mesma ambiguidade vazou pela segunda
+ * superfície porque cada uma escrevia o próprio texto. Com um `Record` total,
+ * um cargo novo quebra a COMPILAÇÃO e as duas superfícies mudam juntas ou não
+ * mudam.
+ */
+const MARGEM_LABEL: Record<UfPickerCargo, string> = {
+  pres: "Margem projetada",
+  gov: "Margem projetada",
+  sen: MARGEM_2A_VAGA_LABEL,
+};
+
+/** Rótulo do número de margem exibido na corrente corrida. Ver `MARGEM_LABEL`. */
+export function margemLabel(cargo: UfPickerCargo): string {
+  return MARGEM_LABEL[cargo];
+}
+
+/**
+ * `margemSegundaVaga` e `ariaRessalvaVagas` (importadas acima) vivem em
+ * `lib/utils/margem-senado.ts`, não aqui — leia o docstring daquele arquivo
+ * antes de "simplificar" isto de volta para uma função local. Resumo: são as
+ * duas funções que `_NationalChoroplethMapImpl.tsx` (chunk lazy do MapLibre,
+ * RNF-007b, 14,7 KiB de margem no orçamento) precisa importar em RUNTIME, e
+ * este arquivo é `"use client"` com `<UfPicker>`/`<UfPickerGrid>` no MESMO
+ * módulo — puxando `<Button>`/`<Sheet>`/`next/link` juntos se o import fosse
+ * daqui. Re-exportadas abaixo para os consumidores que NÃO estão no chunk
+ * lazy (`StateResultSheet.tsx`, `NationalChoroplethMap.tsx`,
+ * `NationalMapBlock.tsx` — todos eager, sem risco de orçamento) continuarem
+ * importando de `@/components/layout/UfPicker`, sem precisar saber da
+ * separação.
+ */
+export { ariaRessalvaVagas, margemSegundaVaga };
+
+/**
+ * O número de margem a exibir/colorir, por cargo (RF-104). Em Senador é
+ * `margemSegundaVaga` (2º→3º); nos demais é `row.margem_projetada`, que o
+ * payload já traz pronta e que, com 1 vaga só, É a margem da disputa.
+ *
+ * Um `Record`/`switch` sobre `UfPickerCargo` teria três ramos idênticos para
+ * pres/gov; a checagem única `cargo === "sen"` já é total sobre o tipo (o
+ * `else` cobre exatamente os outros dois) e não corre o risco do bug de
+ * conversor de cargo de 3 vias que esta base já pagou — aqui só há DUAS
+ * saídas possíveis, não uma por cargo.
+ */
+export function margemParaExibir(
+  cargo: UfPickerCargo,
+  row: { margem_projetada: number; top_candidatos: ReadonlyArray<{ pct: number }> },
+): number {
+  return cargo === "sen" ? margemSegundaVaga(row) : row.margem_projetada;
+}
+
+/**
+ * Quantas vagas esta corrida elege por UF — lida da tabela canônica
+ * (`lib/config/cargos.ts`), nunca um literal solto no meio de um componente
+ * de UI. RF-105 precisa do número exato (hoje 2, só em Senado) para marcar a
+ * quantidade certa de linhas como ocupantes de vaga.
+ */
+export function vagasPorCargo(cargo: UfPickerCargo): number {
+  return cargoInfo(cargoFromToken(cargo)).vagasPorUf ?? 1;
 }
 
 const ITEM_STYLE: React.CSSProperties = {
@@ -102,7 +218,7 @@ export function UfPickerGrid({
   atual,
   onNavigate,
 }: {
-  cargo: "pres" | "gov";
+  cargo: UfPickerCargo;
   atual?: string | null;
   onNavigate?: () => void;
 }) {
@@ -171,7 +287,7 @@ export function UfPicker({ cargo, atual }: UfPickerProps) {
           open
           onClose={() => setAberto(false)}
           kicker="Escolher UF"
-          title={cargo === "gov" ? "Governador" : "Presidente"}
+          title={UF_PICKER_TITLE[cargo]}
           headingLevel={2}
         >
           <UfPickerGrid cargo={cargo} atual={atualUpper} onNavigate={() => setAberto(false)} />

@@ -296,8 +296,14 @@ function segmentos(
  *
  * "projetada" não é ornamento: enquanto a apuração corre, esta é a leitura do
  * modelo, não uma proclamação (constituição § 1 — nada aqui é oficial).
+ *
+ * Exportado desde 2026-09-18 (3ª rodada): `StateResultSheet.tsx` (a ficha que
+ * o mapa nacional abre) é o SEGUNDO consumidor de RF-105 — reaproveita este
+ * marcador em vez de desenhar um segundo badge com texto/estilo próprios, que
+ * é exatamente o tipo de duplicação que já atrasou a correção de RF-104 por
+ * uma rodada inteira.
  */
-function VagaBadge() {
+export function VagaBadge() {
   return (
     <span
       data-testid="result-vaga-marker"

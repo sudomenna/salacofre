@@ -48,10 +48,22 @@ import {
 } from "@/components/atoms/maps/_pmtiles-protocol";
 import { HoverCard, type HoverCardRow } from "@/components/atoms/overlays/HoverCard";
 import { FILL_OPACITY, fillOpacityExpression, swingToColor } from "@/components/blocks/_swingRamp";
+// 🔴 `ariaRessalvaVagas`/`margemSegundaVaga` vêm de `lib/utils/margem-senado`,
+// NÃO de `@/components/layout/UfPicker` — este arquivo é o chunk lazy do
+// MapLibre (RNF-007b, 14,7 KiB de margem no orçamento medido pelo
+// `a11y-perf-auditor` em 18/09) e `UfPicker.tsx` é `"use client"` com
+// `<UfPicker>`/`<UfPickerGrid>` no MESMO módulo (`<Button>`, `<Sheet>`,
+// `next/link`). Um import em RUNTIME dali arriscaria puxar esse peso para
+// dentro do chunk que menos tem margem. `type UfPickerCargo` abaixo é
+// type-only (erasado na compilação) e não tem este custo — só os dois
+// valores de runtime precisam do módulo puro. Ver docstring completa em
+// `lib/utils/margem-senado.ts`.
+import type { UfPickerCargo } from "@/components/layout/UfPicker";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { useHoverStore } from "@/lib/state/hover-store";
 import type { ViewMode } from "@/lib/state/view-mode";
 import { colorForRank, resolveBandHex, resolveCandHex } from "@/lib/utils/cand-color";
+import { ariaRessalvaVagas, margemSegundaVaga } from "@/lib/utils/margem-senado";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import {
   intensityLevelForMargin,
@@ -119,6 +131,15 @@ export interface NationalChoroplethMapImplProps {
    * reporta a sigla selecionada; nunca navega sozinho.
    */
   onSelectUf?: (sigla: string) => void;
+  /**
+   * Qual corrida este mapa mostra (2026-09-18; estendido a `"sen"` em
+   * 2026-09-18) — hoje só decide o alvo do `aria-describedby` (ver o atributo
+   * logo abaixo). Default `"pres"`: o único caller anterior a esta prop
+   * (`NationalMapBlock` na trilha Presidente) nunca a passava, e "pres" é
+   * exatamente o comportamento que ele sempre teve — não é um palpite novo, é
+   * o valor que já estava cravado no código antes de virar prop.
+   */
+  cargo?: UfPickerCargo;
 }
 
 interface TooltipState {
@@ -164,8 +185,17 @@ function partidoIsMapped(partido: string | null | undefined): partido is string 
  * quando o `partido` do líder é desconhecido. `margin` decide intensidade:
  * alta → cor sólida (cand-N), média → versão band (cand-band-N), baixa →
  * tossup neutro.
+ *
+ * 🔴 2026-09-18 (RF-104, 3ª rodada) — guarda explícita de `NaN` no topo.
+ * `margin` passou a poder chegar `NaN` (Senado com menos de 3 candidatos no
+ * top-3, ver `margemSegundaVaga`): sem esta guarda, `Math.abs(NaN) < 2` é
+ * `false` (toda comparação com `NaN` é `false`), e a função cairia direto no
+ * ramo de banda/sólido — pintando uma UF sem margem MEDIDA com a MESMA cor
+ * de uma UF decidida. `intensityLevelForMargin` (usado no ramo `useParty`)
+ * já tinha esta guarda; esta é a irmã dela no fallback de rank.
  */
 function marginToRankColor(margin: number, rank: number): string {
+  if (!Number.isFinite(margin)) return getCssVar("--color-tossup");
   const abs = Math.abs(margin);
   if (abs < 2) return getCssVar("--color-tossup");
   return abs >= 15 ? resolveCandHex(rank) : resolveBandHex(rank);
@@ -203,6 +233,7 @@ function resolveColor(
   candidatosById: Map<number, EdgeCandidate>,
   viewMode: ViewMode = "proj",
   preEleicao = false,
+  cargo: UfPickerCargo = "pres",
 ): string {
   // 🔴 RF-157 — PRIMEIRA LINHA, e a posição é o requisito.
   //
@@ -225,7 +256,23 @@ function resolveColor(
   // `pct_projetado`. São bases diferentes e o controle do shell escolhe qual
   // delas o mapa pinta (ADR-0029 § 2).
   const liderId = parcial ? row.lider : (row.top_candidatos?.[0]?.id ?? row.lider);
-  const margem = parcial ? row.margem_atual : row.margem_projetada;
+  // 🔴 RF-104 — em Senado (2 vagas) a margem que decide a corrida é a do 2º
+  // para o 3º, não a de `row.margem_atual`/`row.margem_projetada` (sempre
+  // 1º−2º). Sem esta troca, a view "margin" pintaria uma UF como "decidida"
+  // (alta intensidade) exatamente quando a disputa pela 2ª vaga está viva —
+  // o problema que RF-104 existe para prevenir, só que na COR em vez do
+  // texto.
+  //
+  // As duas bases (`parcial`/`proj`) usam a MESMA conta em Senado, e isso não
+  // é uma simplificação — é o teto do dado disponível: `top_candidatos[].pct`
+  // é SEMPRE `pct_projetado` (nunca por-candidato "atual", ver docstring de
+  // `buildHoverRows` acima), então não há como medir uma margem de 2º→3º
+  // "apurada" sem um campo novo em `api/model/project.py`. `margemSegundaVaga`
+  // devolve `NaN` com menos de 3 candidatos no top-3 (UF ainda sem dado
+  // suficiente) — `intensityLevelForMargin`/`marginToRankColor` já tratam
+  // `NaN` como "sem margem confiável", nunca como zero.
+  const margem =
+    cargo === "sen" ? margemSegundaVaga(row) : parcial ? row.margem_atual : row.margem_projetada;
   const rank = rankFor(liderId, rankByLider);
   const partido = candidatosById.get(liderId)?.partido;
   const useParty = partidoIsMapped(partido);
@@ -283,6 +330,7 @@ function applyColors(
   candidatosById: Map<number, EdgeCandidate>,
   viewMode: ViewMode = "proj",
   preEleicao = false,
+  cargo: UfPickerCargo = "pres",
 ) {
   if (rows.length === 0) return;
   const fallback = getCssVar("--map-uncounted") || "#e1e4e8";
@@ -291,7 +339,7 @@ function applyColors(
   for (const row of rows) {
     expression.push(
       row.sigla,
-      resolveColor(row, view, rankByLider, candidatosById, viewMode, preEleicao),
+      resolveColor(row, view, rankByLider, candidatosById, viewMode, preEleicao, cargo),
     );
   }
   expression.push(fallback);
@@ -316,6 +364,25 @@ function applyColors(
  * mostraria número errado sob o cabeçalho "Parcial" — pior que não mostrar
  * nada. `Number.NaN` é honesto: `formatPercent` (usado por `HoverCard.fmt`)
  * trata `NaN` como "—", igual ao resto do produto pra dado ausente.
+ *
+ * 🔴 **A identidade vem PRIMEIRO da própria linha (`tc`), nunca de
+ * `candidatosById` como fonte primária.** `EdgeUfRow.top_candidatos[]` sabe de
+ * que UF é (ADR-0042 item 3 / RF-144) e carrega `nome`/`partido`/`sqcand` já
+ * resolvidos por ela em TODO cargo. `national.candidatos` (a origem de
+ * `candidatosById`) não tem essa garantia: em cargo 3 (Governador) e 5
+ * (Senador) aquele bloco é a UNIÃO de 27 corridas sob o mesmo espaço de `id`
+ * (RF-145) — `id === 13` ali não é uma pessoa, é "o número 13 nalguma UF" — e
+ * `api/model/project.py` (ver comentário lá) escreve um placeholder
+ * (`"Candidato {id}"`) em `national.candidatos[].nome` fora do cargo 1.
+ * Resolver o nome por `candidatosById` como PRIMEIRA fonte faria o balão do
+ * mapa de Governador dizer "Candidato 13" com o nome real disponível ao lado,
+ * em `tc.nome` — e o teste `NationalChoroplethMap.hoverIdentidadePorUf.test.tsx`
+ * é quem grita se isso regredir.
+ *
+ * `candidatosById` continua como FALLBACK — necessário para payloads
+ * pré-ADR-0042 (ex. `tests/fixtures/edge-config/gov-current.json`, onde
+ * `top_candidatos` só tem `id`+`pct`) e para Presidente antes desta safra de
+ * payloads, onde o nome só existia no bloco nacional.
  */
 function buildHoverRows(
   row: EdgeUfRow,
@@ -324,13 +391,15 @@ function buildHoverRows(
 ): HoverCardRow[] {
   return row.top_candidatos.map((tc) => {
     const cand = candidatosById.get(tc.id);
-    const partido = cand?.partido;
+    const nomeBruto = tc.nome ?? cand?.nome;
+    const partido = tc.partido ?? cand?.partido;
+    const sqcand = tc.sqcand ?? cand?.sqcand;
     const rank = rankFor(tc.id, rankByLider);
     return {
       // `HoverCardRow.name` é string e o tooltip não tem como voltar ao
       // candidato: o nome de exibição sai daqui, senão o balão do mapa diria
       // "RONALDO CAIADO" e o painel ao lado, "CAIADO", sobre o mesmo estado.
-      name: cand ? nomeExibicao(cand.nome, cand.sqcand) : `#${tc.id}`,
+      name: nomeBruto ? nomeExibicao(nomeBruto, sqcand) : `#${tc.id}`,
       // RNF-035 / WCAG SC 1.4.11 — `textForParty`, não `colorForParty`.
       // Este `color` vira um quadradinho de 8×8 no `<HoverCard>`
       // (`components/atoms/overlays/HoverCard.tsx:163-171`): marcador de
@@ -508,6 +577,7 @@ export function NationalChoroplethMapImpl({
   preEleicao = false,
   height = 420,
   onSelectUf,
+  cargo = "pres",
 }: NationalChoroplethMapImplProps) {
   // Backward-compat: caller pré-S05 só passa `candidatoAId`; sintetizamos um
   // rankByLider mínimo `{ [candidatoAId]: 1 }` pra manter o líder em
@@ -710,6 +780,7 @@ export function NationalChoroplethMapImpl({
           candidatosByIdRef.current,
           viewModeRef.current,
           preEleicaoRef.current,
+          cargoRef.current,
         );
       });
 
@@ -796,20 +867,25 @@ export function NationalChoroplethMapImpl({
   // fecha sobre as refs. Sem ela aqui, a primeira pintura do mapa (a única que
   // acontece quando `rows` nunca muda) ignoraria a fase.
   const preEleicaoRef = useRef(preEleicao);
+  // RF-104 (3ª rodada) — `cargo` decide a margem usada em `resolveColor`
+  // (`case "margin"`); mesma razão de `preEleicaoRef` acima: o handler de
+  // `load` roda uma vez e fecha sobre as refs.
+  const cargoRef = useRef(cargo);
   useEffect(() => {
     viewRef.current = view;
     viewModeRef.current = viewMode;
     rankByLiderRef.current = effectiveRankByLider;
     candidatosByIdRef.current = candidatosById;
     preEleicaoRef.current = preEleicao;
-  }, [view, viewMode, effectiveRankByLider, candidatosById, preEleicao]);
+    cargoRef.current = cargo;
+  }, [view, viewMode, effectiveRankByLider, candidatosById, preEleicao, cargo]);
 
-  // Recolor when view, rows, rankByLider or candidatos change (zero re-fetch)
+  // Recolor when view, rows, rankByLider, candidatos or cargo change (zero re-fetch)
   useEffect(() => {
     const map = mapRef.current;
     if (!map?.loaded()) return;
-    applyColors(map, rows, view, effectiveRankByLider, candidatosById, viewMode, preEleicao);
-  }, [view, viewMode, rows, effectiveRankByLider, candidatosById, preEleicao]);
+    applyColors(map, rows, view, effectiveRankByLider, candidatosById, viewMode, preEleicao, cargo);
+  }, [view, viewMode, rows, effectiveRankByLider, candidatosById, preEleicao, cargo]);
 
   return (
     // `height` também aqui, e não só no container do MapLibre: com a moldura
@@ -825,17 +901,55 @@ export function NationalChoroplethMapImpl({
         // pré, fora do bloco de transparência (RF-158). A métrica da spec é
         // medida sobre o HTML, e `aria-label` é HTML: é por aqui, por `title`
         // e por legenda que a palavra vaza sem passar por revisão.
+        //
+        // 🔴 2026-09-18 (achado do `a11y-perf-auditor`, RNF-025/WCAG SC 4.1.2)
+        // — `ariaRessalvaVagas(cargo)` some para "" em `"pres"`/`"gov"` (as
+        // duas strings abaixo ficam byte a byte iguais a antes desta
+        // mudança) e vira " — Senado: 2 vagas por estado" em `"sen"`. Sem
+        // isso, quem pula direto para este `role="img"` (atalho comum de
+        // leitor de tela) nunca ouvia a ressalva sob a qual o dono aceitou
+        // pintar o mapa pelo 1º colocado de cada UF — ver a mesma
+        // qualificação no `role="region"` que envolve este mapa
+        // (`NationalChoroplethMap.tsx`, `viewLabelForCargo`/
+        // `ariaRessalvaVagas`), fonte única para as duas camadas.
         aria-label={
-          preEleicao
+          (preEleicao
             ? "Mapa interativo do Brasil — as 27 unidades federativas, nenhuma com voto contado"
-            : "Mapa interativo do Brasil — UFs coloridas por projeção"
+            : "Mapa interativo do Brasil — UFs coloridas por projeção") + ariaRessalvaVagas(cargo)
         }
         // S05 carry-over (constitution P3 MEDIUM): liga o mapa semanticamente à
         // tabela `<StateGroupedTable>` que vive abaixo na mesma página. Leitores
         // de tela anunciam "descrito por: Resultados por estado" — quem não
         // enxerga o choropleth pode ir direto à tabela equivalente (a11y RNF-022).
         // O id "state-grouped-table-heading" é declarado no <h2> da tabela.
-        aria-describedby="state-grouped-table-heading"
+        //
+        // 🔴 2026-09-18 — só existe em cargo `"pres"`. `<StateGroupedTable>`
+        // só é montada em `app/(pres)/page.tsx`; a trilha `"gov"` não tem
+        // equivalente hoje (o painel "Corridas estaduais" da grade de
+        // `<GovernorCard>` não tem heading com id). Um `aria-describedby`
+        // apontando pra um id que não existe no documento é RNF-022 quebrado
+        // em silêncio — pior que não descrever nada. Quando a trilha gov
+        // ganhar um heading equivalente, troque aqui, não invente um id que
+        // não existe só para preencher o atributo.
+        //
+        // 🔴 2026-09-18 (2ª rodada) — `"sen"` GANHA alvo, ao contrário de
+        // `"gov"`: `app/(sen)/senador/page.tsx` monta
+        // `<Panel kicker="Corridas estaduais" title="Estado a estado"
+        // titleId="corridas-heading">` com a lista textual completa das 27
+        // corridas (nome + margem para a 2ª vaga) — o mesmo papel que
+        // `<StateGroupedTable>` cumpre em Presidente. Este mapa só é montado
+        // no nível Brasil de Senador (`PersistentMapFrame`, ramo `cargo ===
+        // "sen"` sem `sigla`); `/uf/[sigla]/senador` não tem esse heading, mas
+        // também nunca monta este componente (spec 016 § Escopo/Fora — sem
+        // mapa municipal), então o id sempre existe quando este atributo é
+        // lido.
+        aria-describedby={
+          cargo === "pres"
+            ? "state-grouped-table-heading"
+            : cargo === "sen"
+              ? "corridas-heading"
+              : undefined
+        }
         style={{ width: "100%", height }}
       />
       {/* HoverCard RF-030.3 — design system Atlas Menna (S07/Bloco 1) */}

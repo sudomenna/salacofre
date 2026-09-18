@@ -48,6 +48,28 @@ export interface MapViewToggleProps {
   value: MapView;
   onChange: (next: MapView) => void;
   className?: string;
+  /**
+   * Sobrescreve o rótulo exibido na opção `"margin"` (default "Margem").
+   *
+   * 2026-09-18 — único uso: Senador. Em Presidente e Governador (1 vaga) a
+   * margem pintada É a margem da disputa. Em Senador (2 vagas), a margem que
+   * decide a eleição é a do 2º para o 3º (RF-104) — rotular "Margem" sem
+   * qualificação afirmaria que o mapa mostra aquela. Presidente e Governador
+   * não passam esta prop e continuam com "Margem", sem mudança.
+   */
+  marginLabel?: string;
+  /**
+   * Sobrescreve o rótulo exibido na opção `"winner"` (default "Por vencedor").
+   *
+   * 2026-09-18 (item d) — único uso: Senador, mesma pergunta que motivou
+   * `marginLabel`. "Vencedor" no singular descreve mal uma corrida que elege
+   * 2 por estado, mas "Por eleitos" seria PIOR: a view continua pintando
+   * só a identidade do 1º colocado local — não sabe nem afirma quem fica com
+   * a 2ª vaga. `NationalMapBlock.tsx` passa "Por líder" para Senado — o
+   * rótulo honesto do que está de fato pintado. Presidente e Governador não
+   * passam esta prop e continuam com "Por vencedor", sem mudança.
+   */
+  winnerLabel?: string;
 }
 
 const OPTIONS: ReadonlyArray<{ id: MapView; label: string }> = [
@@ -57,7 +79,13 @@ const OPTIONS: ReadonlyArray<{ id: MapView; label: string }> = [
   { id: "turnout", label: "% apurado" },
 ];
 
-export function MapViewToggle({ value, onChange, className }: MapViewToggleProps) {
+export function MapViewToggle({
+  value,
+  onChange,
+  className,
+  marginLabel,
+  winnerLabel,
+}: MapViewToggleProps) {
   // Roving tabindex: mantemos refs dos botões para mover foco DOM ao usar
   // ArrowLeft/ArrowRight (WAI-ARIA APG Tab pattern — RNF-024).
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -90,6 +118,12 @@ export function MapViewToggle({ value, onChange, className }: MapViewToggleProps
     >
       {OPTIONS.map((opt, idx) => {
         const active = opt.id === value;
+        const label =
+          opt.id === "margin" && marginLabel
+            ? marginLabel
+            : opt.id === "winner" && winnerLabel
+              ? winnerLabel
+              : opt.label;
         return (
           <button
             key={opt.id}
@@ -116,7 +150,7 @@ export function MapViewToggle({ value, onChange, className }: MapViewToggleProps
               transition: "background var(--dur-fast) var(--ease-out)",
             }}
           >
-            {opt.label}
+            {label}
           </button>
         );
       })}

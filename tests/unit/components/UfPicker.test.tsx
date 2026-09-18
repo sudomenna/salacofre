@@ -69,6 +69,14 @@ describe("ufHref()", () => {
     expect(ufHref("pres", "SP")).toBe("/uf/SP");
     expect(ufHref("gov", "SP")).toBe("/uf/SP/governador");
   });
+
+  it("(d2) 2026-09-18 — cargo=sen leva a /uf/<SIGLA>/senador, não à rota de presidente", () => {
+    // Mutação: trocar `UF_HREF_SUFFIX.sen` de volta para "" (ou remover a
+    // chave do Record) faz este teste falhar — o `Record<UfPickerCargo,
+    // string>` também deixaria de compilar sem a chave, mas a asserção de
+    // VALOR é o que prova que a rota de destino está certa, não só presente.
+    expect(ufHref("sen", "SP")).toBe("/uf/SP/senador");
+  });
 });
 
 describe("<UfPickerGrid />", () => {
@@ -89,6 +97,15 @@ describe("<UfPickerGrid />", () => {
     const doc = parse(<UfPickerGrid cargo="gov" />);
     for (const a of itens(doc)) {
       expect(a.getAttribute("href")).toMatch(/^\/uf\/[A-Z]{2}\/governador$/);
+    }
+  });
+
+  it("(f2) 2026-09-18 — no cargo de senador todo href leva à rota de senador", () => {
+    const doc = parse(<UfPickerGrid cargo="sen" />);
+    const links = itens(doc);
+    expect(links).toHaveLength(27);
+    for (const a of links) {
+      expect(a.getAttribute("href")).toMatch(/^\/uf\/[A-Z]{2}\/senador$/);
     }
   });
 
@@ -129,6 +146,11 @@ describe("<UfPicker />", () => {
 
   it("(k) numa rota de UF o botão mostra a sigla corrente", () => {
     const doc = parse(<UfPicker cargo="gov" atual="ba" />);
+    expect(doc.querySelector('[data-testid="button"]')?.textContent).toContain("BA");
+  });
+
+  it("(k2) 2026-09-18 — numa rota de senador o botão também mostra a sigla corrente", () => {
+    const doc = parse(<UfPicker cargo="sen" atual="ba" />);
     expect(doc.querySelector('[data-testid="button"]')?.textContent).toContain("BA");
   });
 });
@@ -182,6 +204,25 @@ describe("<UfPicker /> — abrir e fechar", () => {
     });
     expect(folha()).toBeNull();
     expect(botao()?.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it('(o2) 2026-09-18 — cargo="sen" abre a folha com o título "Senador"', () => {
+    // Mutação: remover a chave `sen` de `UF_PICKER_TITLE` quebra a compilação
+    // (Record total); trocar o VALOR para "Presidente" (o antigo `else` do
+    // ternário) faz este teste falhar sem quebrar o build — é essa segunda
+    // mutação que a asserção de conteúdo prova.
+    const container2 = document.createElement("div");
+    document.body.appendChild(container2);
+    const root2 = createRoot(container2);
+    act(() => {
+      root2.render(<UfPicker cargo="sen" atual="SP" />);
+    });
+    act(() => {
+      container2.querySelector<HTMLElement>('[data-testid="button"]')?.click();
+    });
+    expect(container2.querySelector('[data-testid="sheet"]')?.textContent).toContain("Senador");
+    act(() => root2.unmount());
+    container2.remove();
   });
 
   it("(o) escolher uma UF fecha a folha (a navegação é do <Link>)", () => {

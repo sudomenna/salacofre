@@ -18,6 +18,15 @@
  *      município. Não há tabela de "maiores colégios" nem coroplético
  *      municipal porque não há dado — e um bloco vazio afirmando
  *      indisponibilidade sugeriria que o dado existe e não chegou.
+ *
+ *      🔴 **2026-09-18** — esta rota passou a viver dentro de
+ *      `app/(sen)/layout.tsx`/`<PersistentMapFrame cargo="sen">` (a mesma
+ *      moldura que Presidente/Governador têm, pedido do dono). No nível
+ *      BRASIL (`/senador`) a moldura mostra o coroplético por UF; no nível
+ *      desta própria página (UF), ela mostra um painel textual em vez de
+ *      mapa — o motivo continua sendo a ausência de dado municipal acima,
+ *      inalterada por esta mudança. Ver `PersistentMapFrame.tsx`, ramo
+ *      `cargo === "sen"` com `sigla` presente.
  *   3. **Sem 2º turno.** `temSegundoTurno: false` na tabela canônica; a
  *      página não monta `<TurnoBadge>` nem alterna turno.
  *

@@ -45,7 +45,8 @@ import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import { useState } from "react";
 import { type MapView, MapViewToggle } from "@/components/atoms/controls/MapViewToggle";
-import { NationalChoroplethMap } from "@/components/blocks/NationalChoroplethMap";
+import { NationalChoroplethMap, SEN_WINNER_LABEL } from "@/components/blocks/NationalChoroplethMap";
+import { MARGEM_2A_VAGA_LABEL, type UfPickerCargo } from "@/components/layout/UfPicker";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { useViewMode } from "@/lib/state/view-mode-client";
 
@@ -118,11 +119,34 @@ export interface NationalMapBlockProps {
    */
   preEleicao?: boolean;
   /**
+   * Qual corrida este bloco mostra (2026-09-18; estendido a `"sen"` em
+   * 2026-09-18). Propagado sem transformação ao `<NationalChoroplethMap />`,
+   * que o usa para não legendar a UNIÃO de 27 corridas estaduais como se
+   * fosse um pódio nacional (RF-144/145 — ver docstring de
+   * `buildCandidateLegendEntries` em `NationalChoroplethMap.tsx`), para
+   * resolver o destino certo do CTA da `<StateResultSheet>` e para rotular as
+   * views "margin"/"winner" do `<MapViewToggle>` (`cargo === "sen"` →
+   * `MARGEM_2A_VAGA_LABEL`/`SEN_WINNER_LABEL`, ver abaixo). Default `"pres"`:
+   * o único caller anterior a esta prop nunca a passava, e "pres" é o
+   * comportamento que ele sempre teve.
+   */
+  cargo?: UfPickerCargo;
+  /**
    * Só em `frame`: o rótulo do escopo, na etiqueta do canto superior
    * esquerdo (`App.jsx` — `{stateUF ? stateUF.sigla : race.label + ' · Brasil'}`).
-   * Default "Presidente · Brasil".
+   *
+   * 🔴 Obrigatória desde 2026-09-18. Até aqui tinha default
+   * `"Presidente · Brasil"`, seguro porque só existia UM caller (a trilha
+   * Presidente) e ele sempre passava o próprio valor — o default nunca era de
+   * fato lido. Com a trilha Governador virando o segundo caller deste
+   * componente, aquele default guardado ficaria à espreita: o dia em que
+   * alguém esquecesse de passar `scopeLabel` na trilha nova, o mapa de
+   * Governador anunciaria "Presidente · Brasil" em silêncio — a mesma classe
+   * de bug que os conversores de cargo desta base já pagaram três vezes,
+   * agora num rótulo em vez de numa chave. Sem default, o `tsc` barra o
+   * esquecimento antes do runtime.
    */
-  scopeLabel?: string;
+  scopeLabel: string;
   /**
    * Só em `frame`: quando presente, desenha ao lado da etiqueta um link de
    * volta ao nível Brasil — o botão "Brasil" que o kit sobrepõe ao mapa
@@ -146,7 +170,8 @@ export function NationalMapBlock({
   candidatos,
   variant = "section",
   preEleicao = false,
-  scopeLabel = "Presidente · Brasil",
+  cargo = "pres",
+  scopeLabel,
   backHref,
   action,
 }: NationalMapBlockProps) {
@@ -165,6 +190,7 @@ export function NationalMapBlock({
           candidatos={candidatos}
           viewMode={viewMode}
           preEleicao={preEleicao}
+          cargo={cargo}
           height="100%"
           legendPlacement="overlay"
           // `h-full` e NÃO `absolute inset-0`: a raiz do `<NationalChoroplethMap>`
@@ -205,7 +231,14 @@ export function NationalMapBlock({
             {/* RF-157 — o seletor de vista some em fase pré; o `<UfPicker>`
                 (que chega por `action`) fica. Um alterna entre três leituras
                 que não existem; o outro navega para 27 páginas que existem. */}
-            {preEleicao ? null : <MapViewToggle value={view} onChange={setView} />}
+            {preEleicao ? null : (
+              <MapViewToggle
+                value={view}
+                onChange={setView}
+                marginLabel={cargo === "sen" ? MARGEM_2A_VAGA_LABEL : undefined}
+                winnerLabel={cargo === "sen" ? SEN_WINNER_LABEL : undefined}
+              />
+            )}
             {action}
           </div>
         </div>
@@ -248,7 +281,14 @@ export function NationalMapBlock({
               ? "Brasil · quem lidera cada estado"
               : "Brasil — visão geral"}
         </h2>
-        {preEleicao ? null : <MapViewToggle value={view} onChange={setView} />}
+        {preEleicao ? null : (
+          <MapViewToggle
+            value={view}
+            onChange={setView}
+            marginLabel={cargo === "sen" ? MARGEM_2A_VAGA_LABEL : undefined}
+            winnerLabel={cargo === "sen" ? SEN_WINNER_LABEL : undefined}
+          />
+        )}
       </div>
       <NationalChoroplethMap
         rows={rows}
@@ -258,6 +298,7 @@ export function NationalMapBlock({
         candidatos={candidatos}
         viewMode={viewMode}
         preEleicao={preEleicao}
+        cargo={cargo}
         height={hero ? HERO_HEIGHT : 420}
       />
     </section>

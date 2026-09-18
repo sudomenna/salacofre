@@ -14,17 +14,24 @@
  * isso a margem exibida em cada estado é a do **2º para o 3º** (RF-104), e
  * não a do 1º para o 2º.
  *
- * ## Por que esta rota não tem mapa
+ * ## Por que esta rota não tem mapa MUNICIPAL
  *
  * O cargo 5 é ingerido em granularidade ZONA desde 2026-09-11 (emenda (b) do
  * ADR-0026). Antes eram 27 arquivos por
  * ciclo, um por estado, sem quebra por zona ou município. Quatro cargos em
  * zona passariam de 24 mil GETs por ciclo. A consequência assumida é que
  * Senador não tem mapa municipal nem "maiores colégios eleitorais" — não há
- * dado municipal para desenhar. Uma coluna de mapa aqui só poderia mostrar
- * o mesmo estado inteiro que a lista já nomeia, e por isso esta rota fica
- * fora do `<AppShellSplit>`/`<PersistentMapFrame>` (ADR-0033 § 1), que as
- * trilhas `(pres)` e `(gov)` montam nos seus layouts.
+ * dado municipal para desenhar (`municipios-sen-t1.json` grava `municipios:
+ * []` de propósito).
+ *
+ * 🔴 **2026-09-18 — esta rota GANHOU moldura de mapa, no nível Brasil.** Até
+ * aqui a ausência de mapa municipal levava a rota inteira para fora do
+ * `<AppShellSplit>`/`<PersistentMapFrame>` (ADR-0033 § 1). Pedido do dono: a
+ * mesma moldura de Presidente/Governador, pintada por UF (não por
+ * município) — dado que já existe (`EdgeUfRow`, o mesmo tipo das outras duas
+ * corridas). `app/(sen)/layout.tsx` monta `<PersistentMapFrame cargo="sen">`;
+ * o nível UF dela continua sem coroplético municipal, pelo motivo acima —
+ * ver o ramo `sigla` de `PersistentMapFrame.tsx`, cargo `"sen"`.
  *
  * ## Cobertura
  *   - RF-106 — "2 vagas por estado" junto ao título. ⚠️ O kit rotula

@@ -91,6 +91,45 @@ describe("<NationalChoroplethMap /> — RF-030.1, RF-030.3", () => {
     );
   });
 
+  it('(c2) 2026-09-18 — cargo="sen" qualifica o rótulo de "Margem" (RF-104); "pres" não muda', () => {
+    // Mutação: remover a checagem `view === "margin"` (ou `cargo`) de
+    // `viewLabelForCargo` faz este teste falhar em uma das duas pontas.
+    const docSen = parse(
+      <NationalChoroplethMap rows={SAMPLE_ROWS} candidatoAId={13} view="margin" cargo="sen" />,
+    );
+    expect(docSen.querySelector('[role="region"]')?.getAttribute("aria-label")).toContain(
+      "Margem para a 2ª vaga",
+    );
+
+    const docPres = parse(
+      <NationalChoroplethMap rows={SAMPLE_ROWS} candidatoAId={13} view="margin" cargo="pres" />,
+    );
+    const labelPres = docPres.querySelector('[role="region"]')?.getAttribute("aria-label") ?? "";
+    expect(labelPres).toContain("Margem");
+    expect(labelPres).not.toContain("Margem para a 2ª vaga");
+  });
+
+  it('(c3) 2026-09-18 (item d) — cargo="sen" qualifica o rótulo de "Por vencedor" para "Por líder"; "pres" não muda', () => {
+    // Mutação: remover a checagem `view === "winner"` (ou `cargo`) de
+    // `viewLabelForCargo` faz este teste falhar em uma das duas pontas.
+    const docSen = parse(
+      <NationalChoroplethMap rows={SAMPLE_ROWS} candidatoAId={13} view="winner" cargo="sen" />,
+    );
+    expect(docSen.querySelector('[role="region"]')?.getAttribute("aria-label")).toContain(
+      "Por líder",
+    );
+    expect(docSen.querySelector('[role="region"]')?.getAttribute("aria-label")).not.toContain(
+      "Por vencedor",
+    );
+
+    const docPres = parse(
+      <NationalChoroplethMap rows={SAMPLE_ROWS} candidatoAId={13} view="winner" cargo="pres" />,
+    );
+    expect(docPres.querySelector('[role="region"]')?.getAttribute("aria-label")).toContain(
+      "Por vencedor",
+    );
+  });
+
   it("(d) aceita lista vazia de rows sem erro (defensivo)", () => {
     const doc = parse(<NationalChoroplethMap rows={[]} candidatoAId={null} view="winner" />);
     expect(doc.querySelector('[role="region"]')).not.toBeNull();

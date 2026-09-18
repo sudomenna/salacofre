@@ -223,6 +223,11 @@ async function tudoQueChegaNaTela(): Promise<string> {
   for (const url of [
     "http://x/api/projection",
     "http://x/api/projection?cargo=gov",
+    // 2026-09-18 — `?cargo=sen` é o mesmo tipo de caminho que `?cargo=gov`:
+    // sem esta linha, o portão de simulação inteiro (g1..gN abaixo) nunca
+    // exercitaria a rota nova, e um vazamento ali passaria despercebido por
+    // esta suíte especificamente desenhada para pegar vazamento.
+    "http://x/api/projection?cargo=sen",
     "http://x/api/projection?uf=SP",
   ]) {
     partes.push(await (await getProjection(new Request(url))).text());

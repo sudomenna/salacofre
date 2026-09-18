@@ -41,6 +41,11 @@ import type { MapView } from "@/components/atoms/controls/MapViewToggle";
 import { type CandidateLegendEntry, CandidateLegendGroup } from "@/components/atoms/maps/MapLegend";
 import { MapSkeleton } from "@/components/atoms/maps/MapSkeleton";
 import { StateResultSheet } from "@/components/blocks/StateResultSheet";
+import {
+  ariaRessalvaVagas,
+  MARGEM_2A_VAGA_LABEL,
+  type UfPickerCargo,
+} from "@/components/layout/UfPicker";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import type { ViewMode } from "@/lib/state/view-mode";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
@@ -133,6 +138,28 @@ export interface NationalChoroplethMapProps {
    * seria empurrada para fora da moldura e cortada pelo `overflow: hidden`.
    */
   legendPlacement?: "below" | "overlay";
+  /**
+   * Qual corrida este mapa mostra (2026-09-18, ADR-0042/RF-144-145; estendido
+   * a `"sen"` em 2026-09-18). Decide três coisas, e as três são sobre
+   * `national.candidatos` não ser uma corrida única fora do cargo 1:
+   *
+   *   1. A legenda por candidato (`buildCandidateLegendEntries`) só existe
+   *      em `"pres"`. Em `"gov"` e `"sen"` `national.candidatos` é a UNIÃO de
+   *      27 corridas sob o mesmo espaço de `id`, com `rank` reiniciando a
+   *      cada UF — `.find(c => c.rank === 1)` devolveria os três primeiros
+   *      colocados do Acre como se fossem o pódio nacional.
+   *   2. O destino do CTA da `<StateResultSheet>` (`ufHref`).
+   *   3. O rótulo das views "margin"/"winner" (ver `viewLabelForCargo`
+   *      abaixo) e o NOME ACESSÍVEL do `role="region"` que envolve o mapa
+   *      (`ariaRessalvaVagas`): em Senador a margem que decide a corrida é a
+   *      do 2º para o 3º (RF-104), não a do 1º para o 2º, e a corrida elege
+   *      2 por estado, não 1 — "Margem"/"Por vencedor" sem qualificação
+   *      afirmariam o contrário.
+   *
+   * Default `"pres"`: o único caller anterior a esta prop nunca a passava, e
+   * "pres" é o comportamento que ele sempre teve.
+   */
+  cargo?: UfPickerCargo;
   className?: string;
 }
 
@@ -142,6 +169,43 @@ const VIEW_LABEL: Record<MapView, string> = {
   swing: "Swing vs 2022",
   turnout: "% apurado",
 };
+
+/**
+ * Rótulo de "por líder" qualificado em Senador — irmão de
+ * `MARGEM_2A_VAGA_LABEL` (`UfPicker.tsx`) para a view "winner".
+ *
+ * 🔴 2026-09-18 (item d) — "Por vencedor" (default, `VIEW_LABEL.winner`)
+ * descreve mal uma corrida que elege 2 por estado: "vencedor" é singular.
+ * Mas qualificar para algo como "Por eleitos" seria PIOR, não melhor: a cor
+ * pintada nesta view (`resolveColor`, case "winner") é sempre a identidade
+ * do 1º colocado local (`top_candidatos[0]`) — o mapa não sabe nem afirma
+ * nada sobre quem fica com a 2ª vaga. "Eleitos" prometeria informação que o
+ * mapa não tem, a MESMA classe de erro que RF-104 já corrigiu para "margem"
+ * (rotular um número como o que ele não é). "Por líder" é o rótulo honesto:
+ * descreve exatamente o que está pintado — o candidato à frente hoje/na
+ * projeção —, sem alegar que a eleição já tem vencedor. Presidente e
+ * Governador (1 vaga, onde líder = vencedor) continuam com "Por vencedor".
+ */
+export const SEN_WINNER_LABEL = "Por líder";
+
+/**
+ * Rótulo de uma `view` do mapa, qualificado por cargo — fonte ÚNICA para o
+ * `aria-label` do `role="region"` (abaixo) e para o `<MapViewToggle>`
+ * (`NationalMapBlock.tsx`, que importa `MARGEM_2A_VAGA_LABEL`/
+ * `SEN_WINNER_LABEL` diretamente). Ter duas fontes para o mesmo rótulo foi
+ * exatamente o que atrasou a correção de RF-104 por uma rodada inteira (o
+ * seletor foi qualificado, a ficha de estado não).
+ *
+ * Só "margin" e "winner" mudam em Senador — "swing" e "turnout" não têm
+ * leitura de vaga (não descrevem "quem lidera", ver `resolveColor`).
+ */
+function viewLabelForCargo(view: MapView, cargo: UfPickerCargo): string {
+  if (cargo === "sen") {
+    if (view === "margin") return MARGEM_2A_VAGA_LABEL;
+    if (view === "winner") return SEN_WINNER_LABEL;
+  }
+  return VIEW_LABEL[view];
+}
 
 /**
  * O esqueleto precisa reservar a MESMA altura que o mapa vai ocupar, senão o
@@ -203,12 +267,30 @@ const LEGEND_OVERLAY_BOX: CSSProperties = {
  * no payload — nunca inventa um 3º colocado que não veio. Sem `candidatos`
  * (fallback pré-S07), ou sem nenhum dos três ranks identificado, retorna
  * `null` — melhor nenhuma legenda do que uma incorreta.
+ *
+ * 🔴 2026-09-18 (RF-144/RF-145) — `cargo === "gov"` também devolve `null`,
+ * **antes** de tocar em `candidatos`. Fora do cargo 1, `national.candidatos`
+ * é a UNIÃO de 27 corridas estaduais sob o mesmo espaço de `id`, e `rank`
+ * REINICIA a cada UF (medido: 27 candidatos com `rank === 1` no payload de
+ * governador). `.find(c => c.rank === 1)` devolveria o líder do Acre (ou de
+ * qualquer UF que calhe de vir primeiro no array) rotulado como o 1º colocado
+ * NACIONAL — a mesma classe de erro que o `<ResultPanel>` já foi barrado de
+ * cometer nesta rota (ver `app/(gov)/governador/page.tsx`, "Por que esta rota
+ * NÃO recebeu o `<ResultPanel>` do kit"). O gate é por `cargo`, um valor
+ * explícito que o caller passa — nunca inferido do formato do array.
+ *
+ * 🔴 2026-09-18 (2ª rodada) — `cargo === "sen"` entra no MESMO ramo, pela
+ * MESMA razão: cargo 5 é a segunda corrida (depois de governador) em que o
+ * bloco nacional é união de 27 UFs (RF-145 cobre os dois cargos 3 e 5
+ * explicitamente).
  */
 function buildCandidateLegendEntries(
   candidatos: EdgeCandidate[] | undefined,
   view: MapView,
+  cargo: UfPickerCargo,
 ): CandidateLegendEntry[] | null {
   if (view !== "winner" && view !== "margin") return null;
+  if (cargo === "gov" || cargo === "sen") return null;
   if (!candidatos || candidatos.length === 0) return null;
   const porRank = [1, 2, 3]
     .map((rank) => candidatos.find((c) => c.rank === rank))
@@ -273,13 +355,14 @@ export function NationalChoroplethMap({
   preEleicao = false,
   height = 420,
   legendPlacement = "below",
+  cargo = "pres",
   className,
 }: NationalChoroplethMapProps) {
   // RF-157 — a legenda de partido não é construída em fase pré. A decisão é
   // aqui, no chamador da legenda, e não dentro do `<CandidateLegendGroup>`:
   // aquele átomo não tem opinião sobre partido nem sobre fase, e não deve
   // ganhar uma.
-  const legendEntries = preEleicao ? null : buildCandidateLegendEntries(candidatos, view);
+  const legendEntries = preEleicao ? null : buildCandidateLegendEntries(candidatos, view, cargo);
   const [selectedSigla, setSelectedSigla] = useState<string | null>(null);
   const isDesktop = useIsDesktopSheet();
   const selectedRow = selectedSigla ? (rows.find((r) => r.sigla === selectedSigla) ?? null) : null;
@@ -291,10 +374,19 @@ export function NationalChoroplethMap({
       // RF-161 — o `aria-label` é um dos lugares por onde vocabulário de
       // medição vaza sem ninguém revisar: "modo Por vencedor" nomeia um
       // vencedor numa corrida que não começou.
+      //
+      // 🔴 2026-09-18 (achado do `a11y-perf-auditor`, RNF-025/WCAG SC 4.1.2)
+      // — `ariaRessalvaVagas(cargo)` soma "" em `"pres"`/`"gov"` (as duas
+      // strings abaixo ficam byte a byte iguais a antes desta mudança) e
+      // " — Senado: 2 vagas por estado" em `"sen"`. O cabeçalho VISUAL da
+      // moldura já diz "· 2 vagas" (`PersistentMapFrame.tsx`), mas é
+      // elemento IRMÃO deste mapa — sem a ressalva também aqui, quem pula
+      // direto para o mapa (atalho comum de leitor de tela) nunca a ouve.
       aria-label={
-        preEleicao
+        (preEleicao
           ? "Mapa do Brasil — as 27 unidades federativas, nenhuma com voto contado"
-          : `Mapa coroplético do Brasil — modo ${VIEW_LABEL[view]}`
+          : `Mapa coroplético do Brasil — modo ${viewLabelForCargo(view, cargo)}`) +
+        ariaRessalvaVagas(cargo)
       }
       className={["relative w-full", className].filter(Boolean).join(" ")}
       style={
@@ -311,6 +403,7 @@ export function NationalChoroplethMap({
         preEleicao={preEleicao}
         height={height}
         onSelectUf={setSelectedSigla}
+        cargo={cargo}
       />
       {preEleicao ? (
         legendPlacement === "overlay" ? (
@@ -336,6 +429,7 @@ export function NationalChoroplethMap({
         row={selectedRow}
         candidatos={candidatos ?? []}
         side={isDesktop}
+        cargo={cargo}
       />
     </div>
   );

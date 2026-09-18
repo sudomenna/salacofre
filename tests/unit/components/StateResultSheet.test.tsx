@@ -72,14 +72,20 @@ const row: EdgeUfRow = {
 describe("<StateResultSheet /> — RF-030.3 (folha de UF)", () => {
   it("(a) fechado não renderiza conteúdo", () => {
     const doc = parse(
-      <StateResultSheet open={false} onClose={() => {}} row={row} candidatos={candidatos} />,
+      <StateResultSheet
+        open={false}
+        onClose={() => {}}
+        row={row}
+        candidatos={candidatos}
+        cargo="pres"
+      />,
     );
     expect(doc.body.innerHTML).toBe("");
   });
 
   it("(b) aberto sem row não quebra e não mostra conteúdo de UF", () => {
     const doc = parse(
-      <StateResultSheet open onClose={() => {}} row={null} candidatos={candidatos} />,
+      <StateResultSheet open onClose={() => {}} row={null} candidatos={candidatos} cargo="pres" />,
     );
     expect(doc.querySelector("[data-testid='sheet']")).not.toBeNull();
     expect(doc.querySelector("[data-testid='state-sheet-candidatos']")).toBeNull();
@@ -87,7 +93,7 @@ describe("<StateResultSheet /> — RF-030.3 (folha de UF)", () => {
 
   it("(c) título é o nome longo do estado; kicker traz a sigla", () => {
     const doc = parse(
-      <StateResultSheet open onClose={() => {}} row={row} candidatos={candidatos} />,
+      <StateResultSheet open onClose={() => {}} row={row} candidatos={candidatos} cargo="pres" />,
     );
     expect(doc.body.textContent).toContain("São Paulo");
     expect(doc.body.textContent).toContain("Estado · SP");
@@ -95,7 +101,7 @@ describe("<StateResultSheet /> — RF-030.3 (folha de UF)", () => {
 
   it("(d) mostra % apurado e margem projetada (Figures) — nada além do payload", () => {
     const doc = parse(
-      <StateResultSheet open onClose={() => {}} row={row} candidatos={candidatos} />,
+      <StateResultSheet open onClose={() => {}} row={row} candidatos={candidatos} cargo="pres" />,
     );
     const text = doc.body.textContent ?? "";
     expect(text).toContain("Apurado");
@@ -108,7 +114,7 @@ describe("<StateResultSheet /> — RF-030.3 (folha de UF)", () => {
 
   it("(e) resolve o líder (row.lider) por nome + partido", () => {
     const doc = parse(
-      <StateResultSheet open onClose={() => {}} row={row} candidatos={candidatos} />,
+      <StateResultSheet open onClose={() => {}} row={row} candidatos={candidatos} cargo="pres" />,
     );
     const lider = doc.querySelector("[data-testid='state-sheet-lider']");
     expect(lider?.textContent).toContain("Tarcísio");
@@ -117,7 +123,7 @@ describe("<StateResultSheet /> — RF-030.3 (folha de UF)", () => {
 
   it("(f) lista os top_candidatos com nome, partido e % projetado — sem parcial por candidato", () => {
     const doc = parse(
-      <StateResultSheet open onClose={() => {}} row={row} candidatos={candidatos} />,
+      <StateResultSheet open onClose={() => {}} row={row} candidatos={candidatos} cargo="pres" />,
     );
     const list = doc.querySelector("[data-testid='state-sheet-candidatos']");
     expect(list?.textContent).toContain("Tarcísio");
@@ -136,7 +142,13 @@ describe("<StateResultSheet /> — RF-030.3 (folha de UF)", () => {
       top_candidatos: [{ id: 999, pct: 50 }],
     };
     const doc = parse(
-      <StateResultSheet open onClose={() => {}} row={orphanRow} candidatos={candidatos} />,
+      <StateResultSheet
+        open
+        onClose={() => {}}
+        row={orphanRow}
+        candidatos={candidatos}
+        cargo="pres"
+      />,
     );
     expect(doc.querySelector("[data-testid='state-sheet-candidatos']")?.textContent).toContain(
       "#999",
@@ -145,7 +157,7 @@ describe("<StateResultSheet /> — RF-030.3 (folha de UF)", () => {
 
   it("(h) o CTA é uma <a href> real para /uf/[sigla], não um botão com onClick", () => {
     const doc = parse(
-      <StateResultSheet open onClose={() => {}} row={row} candidatos={candidatos} />,
+      <StateResultSheet open onClose={() => {}} row={row} candidatos={candidatos} cargo="pres" />,
     );
     const cta = doc.querySelector("[data-testid='state-sheet-cta']");
     expect(cta?.tagName).toBe("A");
@@ -153,9 +165,30 @@ describe("<StateResultSheet /> — RF-030.3 (folha de UF)", () => {
     expect(cta?.textContent).toContain("Ver detalhes do estado");
   });
 
+  it('(h2) cargo="gov" leva o CTA para /uf/[sigla]/governador, não para a página de Presidente', () => {
+    // 2026-09-18 — a mesma folha passa a abrir também no mapa de Governador
+    // (`/governador`). Sem este teste, um `href` cravado em `/uf/${sigla}`
+    // levaria o leitor que clicou um estado no mapa de GOVERNADOR para a
+    // página de PRESIDENTE daquele estado — mutação: trocar `ufHref(cargo,
+    // row.sigla)` de volta por um template `/uf/${row.sigla}` faz este teste
+    // falhar (ele afirma o sufixo "/governador", ausente no template cru).
+    const doc = parse(
+      <StateResultSheet open onClose={() => {}} row={row} candidatos={candidatos} cargo="gov" />,
+    );
+    const cta = doc.querySelector("[data-testid='state-sheet-cta']");
+    expect(cta?.getAttribute("href")).toBe("/uf/SP/governador");
+  });
+
   it("(i) side=true passa para o Sheet subjacente (cartão lateral, não modal)", () => {
     const doc = parse(
-      <StateResultSheet open onClose={() => {}} row={row} candidatos={candidatos} side />,
+      <StateResultSheet
+        open
+        onClose={() => {}}
+        row={row}
+        candidatos={candidatos}
+        cargo="pres"
+        side
+      />,
     );
     const dialog = doc.querySelector("[data-testid='sheet']");
     expect(dialog?.getAttribute("data-side")).toBe("true");
@@ -164,7 +197,7 @@ describe("<StateResultSheet /> — RF-030.3 (folha de UF)", () => {
 
   it("(j) nenhum hex literal no markup (constituição § 2)", () => {
     const html = renderToStaticMarkup(
-      <StateResultSheet open onClose={() => {}} row={row} candidatos={candidatos} />,
+      <StateResultSheet open onClose={() => {}} row={row} candidatos={candidatos} cargo="pres" />,
     );
     expect(html).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });

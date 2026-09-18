@@ -1,0 +1,243 @@
+// @vitest-environment happy-dom
+/**
+ * tests/unit/components/_NationalChoroplethMapImpl.margemVagaSenado.test.tsx
+ *
+ * 2026-09-18 (3ª rodada) — RF-104, a parte que o dono mais quer ver corrigida:
+ * a INTENSIDADE DA COR do mapa, não só um rótulo.
+ *
+ * `resolveColor` (`_NationalChoroplethMapImpl.tsx`, case "margin") alimentava
+ * `intensityLevelForMargin`/`marginToRankColor` com `row.margem_atual`/
+ * `row.margem_projetada` — sempre 1º−2º, qualquer que seja o cargo. Em
+ * Senador (2 vagas) isso pinta uma UF como "decidida" (nível 4/5, cor
+ * saturada) sempre que o LÍDER abre distância do 2º colocado — mesmo que a
+ * disputa pela 2ª vaga (2º vs 3º) esteja tecnicamente empatada. A cor afirma
+ * que a corrida acabou justamente onde ela está viva.
+ *
+ * Este teste usa os NÚMEROS LITERAIS da aceitação de RF-104 (40/30/29,
+ * `docs/specs/016-senador/spec.md:131-133`): margem 1º−2º = 10pp (nível 4,
+ * `PARTY_INTENSITY_THRESHOLDS_PP = [2,5,10,15]`, `10 < 15` → nível 4); margem
+ * 2º−3º = 1pp (nível 1, `1 < 2`). Os dois níveis são visivelmente diferentes
+ * (tokens distintos injetados abaixo) — um teste que não escolhesse números
+ * nos lados opostos de um limiar não discriminaria a correção.
+ *
+ * Estratégia: mesmo harness de `NationalChoroplethMap.preEleicao.test.tsx` —
+ * MapLibre falso, dispara `load`, lê a expression `fill-color` gravada por
+ * `applyColors` via `setPaintProperty`.
+ */
+
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
+
+type PaintCall = [layer: string, prop: string, valor: unknown];
+
+const espiao = vi.hoisted(() => ({
+  paint: [] as Array<[string, string, unknown]>,
+  load: [] as Array<() => void>,
+}));
+
+const paintCalls = espiao.paint as PaintCall[];
+
+vi.mock("maplibre-gl", () => {
+  class FakeMap {
+    setPaintProperty(layer: string, prop: string, valor: unknown) {
+      espiao.paint.push([layer, prop, valor]);
+    }
+    on(evento: string, a: unknown, b?: unknown) {
+      const cb = (typeof a === "function" ? a : b) as (() => void) | undefined;
+      if (evento === "load" && cb) espiao.load.push(cb);
+    }
+    setFilter() {}
+    getCanvas() {
+      return { style: {}, width: 428, height: 467 };
+    }
+    isStyleLoaded() {
+      return true;
+    }
+    loaded() {
+      return true;
+    }
+    remove() {}
+    cameraForBounds() {
+      return { center: [-51.415, -14.24] as [number, number], zoom: 3 };
+    }
+    jumpTo() {}
+  }
+  return { default: { Map: FakeMap } };
+});
+vi.mock("maplibre-gl/dist/maplibre-gl.css", () => ({}));
+vi.mock("@/components/atoms/maps/_pmtiles-protocol", () => ({
+  registerPmtilesProtocolOnce: () => {},
+  resetPmtilesProtocol: () => {},
+}));
+
+import { NationalChoroplethMapImpl } from "@/components/blocks/_NationalChoroplethMapImpl";
+
+const TOKENS: Record<string, string> = {
+  "--map-uncounted": "#e1e4e8",
+  "--map-stroke": "#fbfbfc",
+  "--map-stroke-focus": "#14171b",
+  "--color-tossup": "#d9d9d9",
+  // Nível 1 ("apertado") e nível 4 ("quase decidido") do PT — bem distintos,
+  // pra um teste que confunda os dois níveis não passar por acaso.
+  "--party-pt-1": "#f2d7d5",
+  "--party-pt-4": "#c0392b",
+};
+
+/** RF-104 (aceitação literal): 1º=40, 2º=30, 3º=29. */
+const ROW_SP: EdgeUfRow = {
+  sigla: "SP",
+  pct_apurado: 100,
+  lider: 1,
+  margem_atual: 10, // 1º(40) − 2º(30) — o número que Presidente/Governador usam.
+  margem_projetada: 10,
+  margem_projetada_ci: [8, 12],
+  chamada: false,
+  swing_vs_2022: null,
+  top_candidatos: [
+    { id: 1, pct: 40 },
+    { id: 2, pct: 30 },
+    { id: 3, pct: 29 },
+  ],
+  vai_a_2t: null,
+  bucket: "indefinido",
+};
+
+/** Só o 1º e o 2º — menos de 3 candidatos no top-3 (degradação honesta). */
+const ROW_SP_2_CANDIDATOS: EdgeUfRow = {
+  ...ROW_SP,
+  top_candidatos: [
+    { id: 1, pct: 60 },
+    { id: 2, pct: 40 },
+  ],
+};
+
+const CANDIDATOS: EdgeCandidate[] = [
+  { id: 1, nome: "LÍDER", partido: "PT" },
+  { id: 2, nome: "SEGUNDO", partido: "PL" },
+  { id: 3, nome: "TERCEIRO", partido: "PSOL" },
+].map(
+  (c) =>
+    ({
+      ...c,
+      cor: "var(--color-cand-1)",
+      votos_atuais: 1,
+      votos_projetados: 1,
+      pct_atual: 40,
+      pct_projetado: 40,
+      pct_projetado_lower: 38,
+      pct_projetado_upper: 42,
+      p_vitoria: 0.6,
+      rank: 1,
+      p_passa_2t: 0.6,
+      p_fecha_1t: 0,
+    }) as EdgeCandidate,
+);
+
+/** Mesmos 3 candidatos, sem `partido` mapeado — força o fallback de rank
+ * (`marginToRankColor`) em vez de `resolvePartyHex`/`intensityLevelForMargin`. */
+const CANDIDATOS_SEM_PARTIDO: EdgeCandidate[] = CANDIDATOS.map((c) => ({
+  ...c,
+  partido: "",
+}));
+const RANK_BY_LIDER = { 1: 1, 2: 2, 3: 3 };
+
+function pintar(
+  row: EdgeUfRow,
+  cargo: "pres" | "gov" | "sen",
+  opts: { candidatos?: EdgeCandidate[]; rankByLider?: Record<number, number> } = {},
+): string {
+  paintCalls.length = 0;
+  espiao.load.length = 0;
+
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const root = createRoot(host);
+
+  act(() => {
+    root.render(
+      <NationalChoroplethMapImpl
+        candidatoAId={1}
+        candidatos={opts.candidatos ?? CANDIDATOS}
+        rankByLider={opts.rankByLider}
+        rows={[row]}
+        view="margin"
+        cargo={cargo}
+      />,
+    );
+  });
+
+  act(() => {
+    for (const cb of espiao.load) cb();
+  });
+
+  const ultima = paintCalls.filter(([l, p]) => l === "ufs-fill" && p === "fill-color").at(-1);
+  expect(ultima, "o mapa não chegou a pintar").toBeDefined();
+  const expression = ultima?.[2] as unknown[];
+  // ["match", ["get","SIGLA_UF"], "SP", cor, fallback]
+  const idx = expression.indexOf("SP");
+  const cor = String(expression[idx + 1]);
+
+  act(() => root.unmount());
+  host.remove();
+  return cor;
+}
+
+beforeEach(() => {
+  for (const [k, v] of Object.entries(TOKENS)) {
+    document.documentElement.style.setProperty(k, v);
+  }
+  if (typeof window.matchMedia !== "function") {
+    window.matchMedia = (() => ({ matches: false })) as unknown as typeof window.matchMedia;
+  }
+});
+
+afterEach(() => {
+  for (const k of Object.keys(TOKENS)) document.documentElement.style.removeProperty(k);
+  document.body.innerHTML = "";
+});
+
+describe("RF-104 — intensidade da cor do mapa por margem de 2ª vaga (Senado)", () => {
+  it('cargo="pres" — a intensidade usa a margem 1º−2º (10pp → nível 4, cor saturada) — CONTROLE, não muda', () => {
+    expect(pintar(ROW_SP, "pres")).toBe(TOKENS["--party-pt-4"]);
+  });
+
+  it('cargo="sen" — a MESMA UF pinta com a margem 2º−3º (1pp → nível 1, "apertado"), NÃO nível 4', () => {
+    // Mutação: trocar `cargo === "sen" ? margemSegundaVaga(row) : ...` de
+    // volta para sempre usar `margem_atual`/`margem_projetada` faz este
+    // teste falhar — a cor viraria a mesma do teste de controle acima
+    // (nível 4), afirmando "decidido" numa disputa de 2ª vaga apertada.
+    expect(pintar(ROW_SP, "sen")).toBe(TOKENS["--party-pt-1"]);
+    expect(pintar(ROW_SP, "sen")).not.toBe(TOKENS["--party-pt-4"]);
+  });
+
+  it('cargo="sen" com menos de 3 candidatos no top-3 — nível 1 (conservador), NUNCA a cor de "decidido"', () => {
+    // `margemSegundaVaga` devolve `NaN` aqui (só 2 candidatos).
+    // `intensityLevelForMargin(NaN)` → nível 1 por contrato (nunca "decidido").
+    // Mutação: `margemSegundaVaga` devolvendo `0` em vez de `NaN` também
+    // resultaria em nível 1 aqui (abs(0) < 2) — o que discrimina esta
+    // mutação é o teste de rótulo "—" em
+    // `StateResultSheet.identidadePorUf.test.tsx`, não este; este teste
+    // prova que a COR nunca chega a "decidido" quando o dado não existe.
+    expect(pintar(ROW_SP_2_CANDIDATOS, "sen")).toBe(TOKENS["--party-pt-1"]);
+  });
+
+  it('cargo="sen", partido SEM token próprio (fallback de rank) — NaN cai em tossup, não na banda de "quase decidido"', () => {
+    // Sem partido mapeado, `resolveColor` usa `marginToRankColor` em vez de
+    // `intensityLevelForMargin`/`resolvePartyHex`. Antes da guarda de `NaN`
+    // (`!Number.isFinite`) nesta função, `Math.abs(NaN) < 2` é `false` (toda
+    // comparação com NaN é falsa) e o código caía direto no ramo de banda —
+    // pintando uma UF SEM margem medida com a mesma cor de uma UF com margem
+    // média. Mutação: remover `if (!Number.isFinite(margin)) return
+    // getCssVar("--color-tossup");` de `marginToRankColor` faz este teste
+    // falhar.
+    expect(
+      pintar(ROW_SP_2_CANDIDATOS, "sen", {
+        candidatos: CANDIDATOS_SEM_PARTIDO,
+        rankByLider: RANK_BY_LIDER,
+      }),
+    ).toBe(TOKENS["--color-tossup"]);
+  });
+});
