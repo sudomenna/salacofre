@@ -443,8 +443,11 @@ começo da noite. Cada balde é o ponto de **maior `dado_ts`** dentro dele — o
 último, nunca a média, que suavizaria descontinuidades e poderia fazer uma
 quantidade quase-monotônica regredir. O balde deriva do **epoch de `dado_ts`**,
 não do índice do array: um ciclo perdido não desloca os pontos publicados antes
-dele (constituição § 6). Consequência: **8.553 B por corrida é o máximo
-absoluto, para sempre.**
+dele (constituição § 6). Consequência: **o máximo absoluto é de 120 pontos por
+corrida**, e é esse o teto — não um número de bytes. Medida no emissor real, a
+grade cheia custa entre 8.822 e 9.066 B, variando com o comprimento do nome de
+urna (dado do TSE). Este parágrafo dizia "8.553 B, para sempre"; ver a emenda de
+2026-09-17 no [ADR-0046](./adrs/0046-serie-por-candidato-limitada-por-construcao.md).
 
 **Onde cada escopo mora (ADR-0046 D3 — emenda o ADR-0032, não o supersede):**
 

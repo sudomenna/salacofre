@@ -157,7 +157,14 @@ Medido sobre JSON minificado, 4 candidaturas × 2 bases:
 ### 3.2 Cadência adaptativa com teto
 
 `SERIE_MAX_PONTOS = 120`; cadência = menor de `[5, 10, 15, 30]` min tal que
-`ceil(janela / cadência) ≤ 120`. Teto absoluto **8.553 B por corrida**.
+`ceil(janela / cadência) ≤ 120`. **O teto é em PONTOS (≤ 120), não em bytes.**
+Medido no emissor real: a grade cheia custa entre **8.822 e 9.066 B**, e a noite
+real (~8 h, 96 pontos) entre **7.118 e 7.362 B** — o intervalo existe porque o
+comprimento do nome de urna é dado do TSE e não está sob nosso controle. A
+estimativa anterior de 8.553 B, escrita como garantia "para sempre", e a primeira
+correção de 8.775 B estavam ambas erradas; ver a emenda no
+[ADR-0046](../../architecture/adrs/0046-serie-por-candidato-limitada-por-construcao.md),
+que registra também **por que** a segunda medição errou.
 
 A 480 pontos numa coluna de 400px (`--container-sidebar`), com `padX=32`, cada
 ponto ocupa 0,7 px — sub-pixel. A 5 min são 3,5 px. O passo de 5 min já é o
@@ -253,9 +260,29 @@ interface SerieApuracaoChartProps {
 
 Sem prop de visão: o componente renderiza as duas, em
 `<g data-view-only="parcial">` e `<g data-view-only="proj">`, e a cascata
-escolhe. Custo: os dois conjuntos de traçado no DOM (~7 KB de HTML, ~1,5 KB
-comprimido) — o mesmo que o painel de resultado já paga pelas suas células de
-visão.
+escolhe. Custo: os dois conjuntos de traçado no DOM — o mesmo que o painel de
+resultado já paga pelas suas células de visão.
+
+> ⚠️ **Emenda de 2026-09-17 (Fase 2), sobre o custo.** Este parágrafo estimava
+> "~7 KB de HTML, ~1,5 KB comprimido". Esses eram os bytes do **payload JSON
+> colunar** da tabela do § 3.1 (96 pontos = 6.905 B), não os do HTML — os dois
+> números foram confundidos na redação. Medido de fato, renderizando o
+> componente com `renderToStaticMarkup` e volume realista (4 candidaturas,
+> 2 bases, tabela acessível completa):
+>
+> | Cenário | HTML bruto | HTML gzip |
+> |---|---|---|
+> | 96 pontos (a noite real, ~8 h a 5 min) | 55.553 B | **6.073 B** |
+> | 96 pontos com `vagas=2` (Senador, com a régua) | 56.270 B | 6.211 B |
+> | 120 pontos (o teto por construção) | 68.168 B | 7.169 B |
+>
+> Marcação SVG mais tabela sempre pesa mais que JSON colunar, então a ordem de
+> grandeza não é surpresa — o defeito foi escrever o número do JSON como se
+> fosse o do HTML. **Não é violação de NFR**: RNF-007a/b/c medem **bundle
+> JavaScript**, e este componente é Server Component puro que adiciona 0 B de
+> JS (RF-172b). Corrigido aqui porque uma estimativa errada por ~4× no
+> comprimido é exatamente o tipo de número que alguém usa depois como base de
+> uma decisão de orçamento de CDN.
 
 **Por que `display: none` aqui não viola o [ADR-0017](../../architecture/adrs/0017-transparencia-total-3-camadas.md).**
 A nota de 2026-09-10 daquele ADR (via

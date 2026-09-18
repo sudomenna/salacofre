@@ -82,9 +82,37 @@ nunca pela média — média suavizaria descontinuidades e poderia fazer uma qua
 regredir"). O balde é derivado do **epoch de `dado_ts`**, não do índice do array, para que um ciclo
 perdido não desloque os pontos anteriores — determinismo, constituição § 6.
 
-Consequência: teto absoluto de **8.553 B por corrida, para sempre** — nenhuma noite de apuração, por
-mais longa que seja, publica uma série por candidato maior que isso, porque o número de pontos nunca
-passa de 120 independentemente de quantas horas a contagem durar.
+Consequência: **teto por construção** — nenhuma noite de apuração, por mais longa que seja, publica
+uma série por candidato maior que o pior caso abaixo, porque o número de pontos nunca passa de 120
+independentemente de quantas horas a contagem durar.
+
+> ⚠️ **Emenda de 2026-09-17 (Fase 2): não existe teto constante em BYTES.**
+>
+> Este parágrafo dizia **8.553 B por corrida, para sempre**. Medido contra o emissor real
+> (`montar_serie_por_candidato`, JSON minificado, 4 candidaturas × 2 bases), com **todo** valor no
+> comprimento máximo de um percentual 0–100 com duas casas (`12.34` — cinco caracteres):
+>
+> | Grade | Piso (nome 4, sem `sqcand`) | Teto (nome 30, `sqcand` 12) |
+> |---|---|---|
+> | 120 pontos (grade cheia) | 8.822 B | **9.066 B** |
+> | 96 pontos (a noite real, ~8 h) | 7.118 B | 7.362 B |
+>
+> **O número depende do comprimento do nome de urna**, que é dado do TSE (campo de até 30
+> caracteres) e não está sob nosso controle. Por isso nenhum número único serve como teto — 8.553 B
+> era uma estimativa apresentada como garantia, e é assim que ela envelheceu mal.
+>
+> 🔴 **A primeira tentativa de emenda, no mesmo dia, errou de novo e registra a armadilha**: mediu
+> 8.775 B usando valores aleatórios passados por `round(x, 2)`, sem notar que `round(41.2, 2)`
+> devolve `41.2` — quatro caracteres. Boa parte dos 960 valores encolhia e o total saía otimista.
+> **Ao medir tamanho de payload, force o pior caso de cada campo; não confie em amostra aleatória.**
+>
+> Consequência prática do número certo: o limiar de 9.000 B do teste de propriedade T6 **era
+> violado por dado real** (120 pontos com nome de urna de 28 caracteres dá 9.058 B), e ninguém viu
+> porque a fixture nunca encostou em nome realista.
+>
+> **Nada disso muda a operação**: a folga do Global Config até o limiar de erro do writer
+> (940.000 B) é de ~521 KB. E o teto **por construção** (≤ 120 pontos) segue verdadeiro — é ele, e
+> não a contagem de bytes, que sustenta a decisão D3.
 
 A cadência de 5 minutos não é nova no projeto: `SERIE_PASSO_MIN = 5`
 (`data-pipeline/simulacao-gerar.ts:2820`) e `CADENCIA_MIN = 5` (`app/(sen)/uf/[sigla]/senador/page.tsx:72`)
@@ -225,7 +253,8 @@ D4 em primeiro lugar.
 
 **Positivas**:
 - A forma colunar (D1) e o teto de 120 pontos (D2) juntos fixam um custo máximo **conhecido e
-  constante** por série publicada (8.553 B), o que nunca existiu para nenhuma série temporal do
+  limitado** por série publicada (8.822–9.066 B; ver a emenda acima — o custo é limitado, mas não
+  constante, porque depende do nome de urna), o que nunca existiu para nenhuma série temporal do
   projeto até agora — `EdgeUfSeriesTemporais` (margem/p_vitoria/turnout) não tem teto declarado hoje.
 - D3 resolve a tensão entre "a letra do ADR-0032 proíbe chave nova" e "o espírito do ADR-0032 proíbe
   volume que ameace o store inteiro" nomeando o critério que faltava (teto duro por construção muda
