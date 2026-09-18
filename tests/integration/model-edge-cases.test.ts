@@ -74,6 +74,7 @@ import { resolve } from "node:path";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
+import { motivoDoSkip, podeEscreverNoBanco } from "./_guarda-banco";
 
 // ---------------------------------------------------------------------------
 // Sentinels — isolamento entre cenários e contra T18 (99030..99040)
@@ -426,11 +427,19 @@ async function cleanupAll(): Promise<void> {
   // Append-only só vale em production code; em test harness limpar é OK
   // (mesma postura de tests/integration/ingest-cycle.test.ts).
   for (const cargo of TEST_CARGOS) {
+    // 🔴 `uf IS NULL OR uf IN (…)`, e não só o `IN`.
+    //
+    // `IN` **nunca casa com NULL** em SQL, e `uf IS NULL` é justamente o escopo
+    // NACIONAL — as linhas que o modelo cria em todo ciclo. Com o filtro
+    // anterior o cleanup limpava o que via e deixava o que não via: em
+    // 2026-09-17 havia 1.877 linhas de harness no banco de produção, das quais
+    // 644 sob o cargo REAL 1, com as candidaturas sintéticas 101/102 ao lado
+    // das de verdade.
     await db.execute(sql`
       DELETE FROM projections
       WHERE cargo = ${cargo}
         AND turno = ${TURNO}
-        AND uf IN (${TEST_UF_LIST})
+        AND (uf IS NULL OR uf IN (${TEST_UF_LIST}))
     `);
     await db.execute(sql`
       DELETE FROM snapshots
@@ -465,11 +474,14 @@ async function cleanupAll(): Promise<void> {
 // Skip detection
 // ---------------------------------------------------------------------------
 
-const HAS_DB = Boolean(process.env.DATABASE_URL);
+// 🔴 Esta suíte ESCREVE no banco apontado por `DATABASE_URL`, que no
+// `.env.local` é produção. A guarda é `podeEscreverNoBanco()`, ponto único em
+// `_guarda-banco.ts` — ver lá o incidente de 2026-09-17 que a criou.
+const HAS_DB = podeEscreverNoBanco();
 const PY_BIN = HAS_DB ? pythonBinary() : null;
 const SKIP = !HAS_DB || !PY_BIN;
 const SKIP_REASON = !HAS_DB
-  ? "DATABASE_URL ausente"
+  ? motivoDoSkip()
   : !PY_BIN
     ? `python3.14 indisponível ou sem as dependências do modelo (${MODULOS_EXIGIDOS.join(", ")}) — ` +
       "num git worktree o .venv-model não existe; rode a suíte no repositório principal"

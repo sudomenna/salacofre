@@ -23,6 +23,10 @@ import { sql } from "drizzle-orm";
 import { NextRequest } from "next/server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db, schema } from "@/lib/db";
+import { podeEscreverNoBanco } from "./_guarda-banco";
+
+/** `describe` normal quando a escrita está autorizada; `describe.skip` caso contrário. */
+const describeSeEscreve = podeEscreverNoBanco() ? describe : describe.skip;
 
 // ---------------------------------------------------------------------------
 // vi.mock hoisting — mesma estratégia de tests/integration/ingest-cycle.test.ts
@@ -305,7 +309,7 @@ describe("rotas de ingestão — auth (Bearer/x-cron-secret) e cargo (segmento)"
   // Lock anti-overlap independente por cargo (ADR-0035 D3)
   // -------------------------------------------------------------------------
 
-  describe("lock anti-overlap — independente por cargo", () => {
+  describeSeEscreve("lock anti-overlap — independente por cargo", () => {
     async function cleanupLockMarkers(): Promise<void> {
       await db.execute(sql`
         DELETE FROM ingest_log
@@ -313,10 +317,21 @@ describe("rotas de ingestão — auth (Bearer/x-cron-secret) e cargo (segmento)"
       `);
     }
 
+    // Falso-positivo de `noDuplicateTestHooks` nos dois hooks abaixo: eles estão
+    // num `describe` ANINHADO, não no pai — o analisador só não o enxerga
+    // porque o bloco vem de `describeSeEscreve`, uma variável (`describe` ou
+    // `describe.skip`, conforme a autorização de escrita no banco). O mesmo
+    // acontece com `describe.skipIf(…)()`. Voltar a um `describe` literal
+    // perderia a guarda que impede a suíte de escrever em produção — o remédio
+    // seria pior. Supressão com justificativa é o padrão do repositório
+    // (`components/layout/TurnoSwitch.tsx:103`).
+
+    // biome-ignore lint/suspicious/noDuplicateTestHooks: ver a nota acima
     beforeAll(async () => {
       await cleanupLockMarkers();
     });
 
+    // biome-ignore lint/suspicious/noDuplicateTestHooks: ver a nota acima
     afterAll(async () => {
       await cleanupLockMarkers();
     });

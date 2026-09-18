@@ -48,6 +48,7 @@ import { resolve } from "node:path";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db, schema } from "@/lib/db";
+import { podeEscreverNoBanco } from "./_guarda-banco";
 
 // ---------------------------------------------------------------------------
 // Constants & sentinels
@@ -297,10 +298,12 @@ async function cleanupAll(): Promise<void> {
 // Suite
 // ---------------------------------------------------------------------------
 
-const databaseUrlSet = Boolean(process.env.DATABASE_URL);
+// 🔴 Esta suíte ESCREVE no banco apontado por `DATABASE_URL`, que no
+// `.env.local` é produção. Ver `_guarda-banco.ts` e o incidente de 2026-09-17.
+const databaseUrlSet = podeEscreverNoBanco();
 const python = databaseUrlSet ? resolvePython() : null;
 
-// Skip graceful: sem DATABASE_URL ou sem Python 3.14, todos os testes pulam.
+// Skip graceful: sem autorização, sem DATABASE_URL ou sem Python 3.14, pulam.
 const describeIfReady = databaseUrlSet && python ? describe : describe.skip;
 
 // Garantido pelo describeIfReady acima — separação local para evitar `python!`.

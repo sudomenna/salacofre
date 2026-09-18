@@ -32,6 +32,10 @@ import { NextRequest } from "next/server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import type { Target } from "@/lib/tse/targets";
+import { podeEscreverNoBanco } from "./_guarda-banco";
+
+/** `describe` normal quando a escrita está autorizada; `describe.skip` caso contrário. */
+const describeSeEscreve = podeEscreverNoBanco() ? describe : describe.skip;
 
 // ---------------------------------------------------------------------------
 // vi.mock hoisting
@@ -219,162 +223,168 @@ async function waitForAfterCallbacks(ms = 50): Promise<void> {
 // Suite
 // ---------------------------------------------------------------------------
 
-describe("T16 — /api/ingest dispara /api/model/project (integration)", { timeout: 30000 }, () => {
-  let originalCronSecret: string | undefined;
-  let originalCronEnabled: string | undefined;
-  let originalWindowOverride: string | undefined;
-  let originalTurno: string | undefined;
-  let originalCodEleicao: string | undefined;
-  let originalModelSecret: string | undefined;
-  let originalInternalBaseUrl: string | undefined;
-  let originalVercelUrl: string | undefined;
+// 🔴 ESCREVE no banco de `DATABASE_URL`, que no `.env.local` é produção.
+// Guarda em `_guarda-banco.ts` — ver lá o incidente de 2026-09-17.
+describeSeEscreve(
+  "T16 — /api/ingest dispara /api/model/project (integration)",
+  { timeout: 30000 },
+  () => {
+    let originalCronSecret: string | undefined;
+    let originalCronEnabled: string | undefined;
+    let originalWindowOverride: string | undefined;
+    let originalTurno: string | undefined;
+    let originalCodEleicao: string | undefined;
+    let originalModelSecret: string | undefined;
+    let originalInternalBaseUrl: string | undefined;
+    let originalVercelUrl: string | undefined;
 
-  beforeAll(async () => {
-    originalCronSecret = process.env.CRON_SECRET;
-    originalCronEnabled = process.env.CRON_ENABLED;
-    originalWindowOverride = process.env.INGEST_WINDOW_OVERRIDE;
-    originalTurno = process.env.TSE_TURNO;
-    originalCodEleicao = process.env.TSE_COD_ELEICAO;
-    originalModelSecret = process.env.MODEL_SECRET;
-    originalInternalBaseUrl = process.env.INTERNAL_BASE_URL;
-    originalVercelUrl = process.env.VERCEL_URL;
-
-    process.env.TSE_COD_ELEICAO = "ele2026/test";
-    process.env.INGEST_WINDOW_OVERRIDE = "true";
-    process.env.CRON_ENABLED = "true";
-    process.env.TSE_TURNO = "1";
-    process.env.MODEL_SECRET = "test-model-secret";
-    process.env.INTERNAL_BASE_URL = "http://localhost:13000";
-    delete process.env.VERCEL_URL;
-
-    await cleanupTestData();
-  });
-
-  afterAll(async () => {
-    if (originalCronSecret !== undefined) process.env.CRON_SECRET = originalCronSecret;
-    else delete process.env.CRON_SECRET;
-    if (originalCronEnabled !== undefined) process.env.CRON_ENABLED = originalCronEnabled;
-    else delete process.env.CRON_ENABLED;
-    if (originalWindowOverride !== undefined)
-      process.env.INGEST_WINDOW_OVERRIDE = originalWindowOverride;
-    else delete process.env.INGEST_WINDOW_OVERRIDE;
-    if (originalTurno !== undefined) process.env.TSE_TURNO = originalTurno;
-    else delete process.env.TSE_TURNO;
-    if (originalCodEleicao !== undefined) process.env.TSE_COD_ELEICAO = originalCodEleicao;
-    else delete process.env.TSE_COD_ELEICAO;
-    if (originalModelSecret !== undefined) process.env.MODEL_SECRET = originalModelSecret;
-    else delete process.env.MODEL_SECRET;
-    if (originalInternalBaseUrl !== undefined)
-      process.env.INTERNAL_BASE_URL = originalInternalBaseUrl;
-    else delete process.env.INTERNAL_BASE_URL;
-    if (originalVercelUrl !== undefined) process.env.VERCEL_URL = originalVercelUrl;
-    else delete process.env.VERCEL_URL;
-
-    await cleanupTestData();
-    vi.restoreAllMocks();
-  });
-
-  beforeEach(() => {
-    vi.useRealTimers();
-    vi.unstubAllGlobals();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.unstubAllGlobals();
-  });
-
-  // -------------------------------------------------------------------------
-  // Cenários A + B compartilham estado (A popula snapshots/etags; B verifica
-  // ETag dedup). Limpeza só no final do par.
-  // -------------------------------------------------------------------------
-
-  describe("cenários A+B — par com estado compartilhado", () => {
-    afterAll(async () => {
-      await cleanupTestData();
-    });
-
-    it("A1. dispatches POST /api/model/project para cada cargo ativo quando changed>0", async () => {
-      const captured: ModelCall[] = [];
-      vi.mocked(listIngestTargets).mockResolvedValue(buildSyntheticTargets());
-      vi.stubGlobal("fetch", makeFetchMock({ capture: captured }));
-
-      const req = buildReq(cronHeaders());
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.ok).toBe(true);
-      expect(body.filesChanged).toBe(3);
-
-      await waitForAfterCallbacks();
-
-      // 2 chamadas: cargo 1 (Presidente) + cargo 3 (Governador), turno 1.
-      expect(captured).toHaveLength(2);
-      const cargos = captured.map((c) => c.body.cargo).sort((a, b) => a - b);
-      expect(cargos).toEqual([1, 3]);
-
-      // Todas com turno 1, trigger_ts ISO, secret válida, URL pro base correto.
-      for (const call of captured) {
-        expect(call.body.turno).toBe(1);
-        expect(call.body.trigger_ts).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-        expect(call.modelSecret).toBe("test-model-secret");
-        expect(call.url).toBe("http://localhost:13000/api/model/project");
-      }
-    });
-
-    it("B1. 2º ciclo (ETag hit em todas as zonas) → 0 chamadas ao modelo", async () => {
-      // Cenário A já populou snapshots+etags. Este ciclo deve hit todos os
-      // ETags e retornar changed=0 → modelo NÃO disparado.
-      const captured: ModelCall[] = [];
-      vi.mocked(listIngestTargets).mockResolvedValue(buildSyntheticTargets());
-      vi.stubGlobal("fetch", makeFetchMock({ capture: captured }));
-
-      const req = buildReq(cronHeaders());
-      const res = await POST(req);
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.ok).toBe(true);
-      expect(body.filesChanged).toBe(0);
-
-      await waitForAfterCallbacks();
-
-      // Crítico: modelo NÃO foi chamado.
-      expect(captured).toHaveLength(0);
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // Cenário C: modelo retorna 500 → ingest ainda responde 200 (fire-and-forget)
-  // -------------------------------------------------------------------------
-
-  describe("cenário C — falha no modelo NÃO afeta response do ingest", () => {
     beforeAll(async () => {
+      originalCronSecret = process.env.CRON_SECRET;
+      originalCronEnabled = process.env.CRON_ENABLED;
+      originalWindowOverride = process.env.INGEST_WINDOW_OVERRIDE;
+      originalTurno = process.env.TSE_TURNO;
+      originalCodEleicao = process.env.TSE_COD_ELEICAO;
+      originalModelSecret = process.env.MODEL_SECRET;
+      originalInternalBaseUrl = process.env.INTERNAL_BASE_URL;
+      originalVercelUrl = process.env.VERCEL_URL;
+
+      process.env.TSE_COD_ELEICAO = "ele2026/test";
+      process.env.INGEST_WINDOW_OVERRIDE = "true";
+      process.env.CRON_ENABLED = "true";
+      process.env.TSE_TURNO = "1";
+      process.env.MODEL_SECRET = "test-model-secret";
+      process.env.INTERNAL_BASE_URL = "http://localhost:13000";
+      delete process.env.VERCEL_URL;
+
       await cleanupTestData();
     });
 
     afterAll(async () => {
+      if (originalCronSecret !== undefined) process.env.CRON_SECRET = originalCronSecret;
+      else delete process.env.CRON_SECRET;
+      if (originalCronEnabled !== undefined) process.env.CRON_ENABLED = originalCronEnabled;
+      else delete process.env.CRON_ENABLED;
+      if (originalWindowOverride !== undefined)
+        process.env.INGEST_WINDOW_OVERRIDE = originalWindowOverride;
+      else delete process.env.INGEST_WINDOW_OVERRIDE;
+      if (originalTurno !== undefined) process.env.TSE_TURNO = originalTurno;
+      else delete process.env.TSE_TURNO;
+      if (originalCodEleicao !== undefined) process.env.TSE_COD_ELEICAO = originalCodEleicao;
+      else delete process.env.TSE_COD_ELEICAO;
+      if (originalModelSecret !== undefined) process.env.MODEL_SECRET = originalModelSecret;
+      else delete process.env.MODEL_SECRET;
+      if (originalInternalBaseUrl !== undefined)
+        process.env.INTERNAL_BASE_URL = originalInternalBaseUrl;
+      else delete process.env.INTERNAL_BASE_URL;
+      if (originalVercelUrl !== undefined) process.env.VERCEL_URL = originalVercelUrl;
+      else delete process.env.VERCEL_URL;
+
       await cleanupTestData();
+      vi.restoreAllMocks();
     });
 
-    it("C1. modelo retorna 500 → /api/ingest responde 200 ok e captura 2 tentativas", async () => {
-      const captured: ModelCall[] = [];
-      vi.mocked(listIngestTargets).mockResolvedValue(buildSyntheticTargets());
-      vi.stubGlobal("fetch", makeFetchMock({ capture: captured, modelStatus: 500 }));
-
-      const req = buildReq(cronHeaders());
-      const res = await POST(req);
-
-      // Response do ingest é 200 ok, sem depender do modelo.
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body.ok).toBe(true);
-      expect(body.filesChanged).toBe(3);
-
-      await waitForAfterCallbacks();
-
-      // As tentativas saíram (ambos os cargos foram chamados), mesmo que
-      // tenham recebido 500 — fire-and-forget.
-      expect(captured).toHaveLength(2);
+    beforeEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
     });
-  });
-});
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    });
+
+    // -------------------------------------------------------------------------
+    // Cenários A + B compartilham estado (A popula snapshots/etags; B verifica
+    // ETag dedup). Limpeza só no final do par.
+    // -------------------------------------------------------------------------
+
+    describe("cenários A+B — par com estado compartilhado", () => {
+      afterAll(async () => {
+        await cleanupTestData();
+      });
+
+      it("A1. dispatches POST /api/model/project para cada cargo ativo quando changed>0", async () => {
+        const captured: ModelCall[] = [];
+        vi.mocked(listIngestTargets).mockResolvedValue(buildSyntheticTargets());
+        vi.stubGlobal("fetch", makeFetchMock({ capture: captured }));
+
+        const req = buildReq(cronHeaders());
+        const res = await POST(req);
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.ok).toBe(true);
+        expect(body.filesChanged).toBe(3);
+
+        await waitForAfterCallbacks();
+
+        // 2 chamadas: cargo 1 (Presidente) + cargo 3 (Governador), turno 1.
+        expect(captured).toHaveLength(2);
+        const cargos = captured.map((c) => c.body.cargo).sort((a, b) => a - b);
+        expect(cargos).toEqual([1, 3]);
+
+        // Todas com turno 1, trigger_ts ISO, secret válida, URL pro base correto.
+        for (const call of captured) {
+          expect(call.body.turno).toBe(1);
+          expect(call.body.trigger_ts).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+          expect(call.modelSecret).toBe("test-model-secret");
+          expect(call.url).toBe("http://localhost:13000/api/model/project");
+        }
+      });
+
+      it("B1. 2º ciclo (ETag hit em todas as zonas) → 0 chamadas ao modelo", async () => {
+        // Cenário A já populou snapshots+etags. Este ciclo deve hit todos os
+        // ETags e retornar changed=0 → modelo NÃO disparado.
+        const captured: ModelCall[] = [];
+        vi.mocked(listIngestTargets).mockResolvedValue(buildSyntheticTargets());
+        vi.stubGlobal("fetch", makeFetchMock({ capture: captured }));
+
+        const req = buildReq(cronHeaders());
+        const res = await POST(req);
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.ok).toBe(true);
+        expect(body.filesChanged).toBe(0);
+
+        await waitForAfterCallbacks();
+
+        // Crítico: modelo NÃO foi chamado.
+        expect(captured).toHaveLength(0);
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // Cenário C: modelo retorna 500 → ingest ainda responde 200 (fire-and-forget)
+    // -------------------------------------------------------------------------
+
+    describe("cenário C — falha no modelo NÃO afeta response do ingest", () => {
+      beforeAll(async () => {
+        await cleanupTestData();
+      });
+
+      afterAll(async () => {
+        await cleanupTestData();
+      });
+
+      it("C1. modelo retorna 500 → /api/ingest responde 200 ok e captura 2 tentativas", async () => {
+        const captured: ModelCall[] = [];
+        vi.mocked(listIngestTargets).mockResolvedValue(buildSyntheticTargets());
+        vi.stubGlobal("fetch", makeFetchMock({ capture: captured, modelStatus: 500 }));
+
+        const req = buildReq(cronHeaders());
+        const res = await POST(req);
+
+        // Response do ingest é 200 ok, sem depender do modelo.
+        expect(res.status).toBe(200);
+        const body = await res.json();
+        expect(body.ok).toBe(true);
+        expect(body.filesChanged).toBe(3);
+
+        await waitForAfterCallbacks();
+
+        // As tentativas saíram (ambos os cargos foram chamados), mesmo que
+        // tenham recebido 500 — fire-and-forget.
+        expect(captured).toHaveLength(2);
+      });
+    });
+  },
+);

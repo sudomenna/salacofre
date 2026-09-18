@@ -31,6 +31,10 @@ import { NextRequest } from "next/server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import type { Target } from "@/lib/tse/targets";
+import { podeEscreverNoBanco } from "./_guarda-banco";
+
+/** `describe` normal quando a escrita está autorizada; `describe.skip` caso contrário. */
+const describeSeEscreve = podeEscreverNoBanco() ? describe : describe.skip;
 
 // ---------------------------------------------------------------------------
 // vi.mock hoisting — deve ficar no topo do módulo
@@ -229,7 +233,9 @@ async function countIngestLog(): Promise<number> {
 // Suite
 // ---------------------------------------------------------------------------
 
-describe("T19 — ciclo completo /api/ingest (integration)", { timeout: 30000 }, () => {
+// 🔴 ESCREVE no banco de `DATABASE_URL`, que no `.env.local` é produção.
+// Guarda em `_guarda-banco.ts` — ver lá o incidente de 2026-09-17.
+describeSeEscreve("T19 — ciclo completo /api/ingest (integration)", { timeout: 30000 }, () => {
   // Env vars salvas para restaurar após os testes que as alteram
   let originalCronSecret: string | undefined;
   let originalCronEnabled: string | undefined;
