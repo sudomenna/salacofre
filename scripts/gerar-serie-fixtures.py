@@ -44,21 +44,30 @@ As regras que o gerador respeita — todas do contrato do produtor
    no CI sem produzir diff espúrio.
 
 ---------------------------------------------------------------------------
-🔴 O que este gerador NÃO faz
+Governador e Senador: série sim, municípios não
 ---------------------------------------------------------------------------
-Cobre `/` (nacional) e `/uf/<sigla>` (presidencial). **Governador e Senador
-ficam de fora**, e não por esquecimento:
+As quatro rotas são cobertas. Gov e Sen ganharam `municipios-gov-t1.json` e
+`municipios-sen-t1.json` **só com as séries**, `municipios: []` — que é a
+proposta escrita na própria spec 020 (§ Questões em aberto, item 1). Incluir
+resultado municipal fabricado para as duas corridas levaria o diretório a
+~10 MB, e a spec já dizia que não vale.
 
-  - `/uf/<sigla>/governador` lê o detalhe de `municipios-gov-t1.json`, que
-    **não existe** no diretório de fixtures;
-  - `/uf/<sigla>/senador` nem tenta ler detalhe em simulação — a rota usa
-    `SEM_DETALHE_REMOTO` (`app/(sen)/uf/[sigla]/senador/page.tsx:237`), então
-    nenhuma fixture faria a linha aparecer sem mexer na rota.
+⚠️ **Consequência visível, e é aceitável de propósito**: a seção de municípios
+dessas telas mostra o estado `"empty"` em `pnpm dev:sim`. Não é um mapa falso
+— `municipioDetailReason` distingue lista vazia de falha de leitura, e
+`"empty"` quer dizer "o detalhe chegou e nenhum município tem dado apurado",
+que é um **caso real** (UF com cobertura municipal em 0%) e que vale ser
+revisado de qualquer forma.
 
-Os dois exigem decisão registrada na spec 020 (§ Questões em aberto, item 1):
-fixtures de Gov e Sen com série **mais** array de municípios levariam o
-diretório a ~10 MB. A proposta da spec é gerá-las só com as séries. Enquanto
-a decisão não vier, este gerador cobre as duas rotas que já têm caminho.
+De onde vêm os números de cada corrida, e por que não é a mesma fonte:
+
+  - **Governador** — a tela sintetiza a corrida da UF em
+    `synthesizeGovUfFromFixture`: a IDENTIDADE (nome, partido, sqcand) sai de
+    `por_uf[uf].top_candidatos` e os NÚMEROS saem de `national.candidatos`,
+    casados por `id`. O gerador repete exatamente essa junção — se ele lesse
+    o `pct` de `top_candidatos`, a série discordaria do painel ao lado, que é
+    o defeito que o gate de coerência existe para pegar.
+  - **Senador** — `senador-uf.json[uf].candidatos` já traz tudo junto.
 """
 
 from __future__ import annotations
@@ -181,6 +190,25 @@ def serie_de(candidatos: list[dict[str, Any]], ts_iso: str) -> dict[str, Any] | 
     return {"eixo": eixo, "cadencia_min": CADENCIA_MIN, "candidatos": saida}
 
 
+def _detalhe_so_serie(
+    sigla: str, cargo: str, ts: str, serie: dict[str, Any]
+) -> dict[str, Any]:
+    """Detalhe de UF com série e **sem** municípios.
+
+    `municipios: []` não é descuido: `UfDetailBlob.municipios` é obrigatório no
+    tipo, e `municipioDetailReason` trata lista vazia como `"empty"` — um
+    estado legítimo e distinto de falha de leitura. Ver o cabeçalho.
+    """
+    return {
+        "ts": ts,
+        "uf": sigla,
+        "cargo": cargo,
+        "turno": 1,
+        "municipios": [],
+        "series_temporais": {"por_candidato": serie},
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="não escreve; só relata")
@@ -228,11 +256,56 @@ def main() -> int:
     if not args.check:
         p_mun.write_text(json.dumps(detalhes, ensure_ascii=False, indent=2) + "\n")
 
+    # ---- 3. Governador → `/uf/<sigla>/governador`
+    gov = json.loads((FIXTURES / "governador.json").read_text())
+    numeros = {c["id"]: c for c in gov["national"]["candidatos"]}
+    det_gov: dict[str, Any] = {}
+    for row in gov["por_uf"]:
+        sigla = row["sigla"]
+        # Mesma junção de `synthesizeGovUfFromFixture`: identidade da UF,
+        # números do nacional, casados por `id`. Não é o `pct` de
+        # `top_candidatos` — esse é outro número, e usá-lo faria a série
+        # discordar do painel.
+        cands = []
+        for t in row.get("top_candidatos") or []:
+            n_ = numeros.get(t["id"])
+            if n_ is None:
+                continue
+            c = dict(n_)
+            c["nome"] = t.get("nome") or n_.get("nome")
+            c["partido"] = t.get("partido") or n_.get("partido")
+            if t.get("sqcand"):
+                c["sqcand"] = t["sqcand"]
+            cands.append(c)
+        s_ = serie_de(cands, gov["ts"])
+        if s_ is None:
+            continue
+        det_gov[sigla] = _detalhe_so_serie(sigla, "gov", gov["ts"], s_)
+    mudancas.append(f"municipios-gov-t1.json → {len(det_gov)} UFs (série, municipios: [])")
+    if not args.check:
+        (FIXTURES / "municipios-gov-t1.json").write_text(
+            json.dumps(det_gov, ensure_ascii=False, indent=2) + "\n"
+        )
+
+    # ---- 4. Senador → `/uf/<sigla>/senador`
+    sen = json.loads((FIXTURES / "senador-uf.json").read_text())
+    det_sen: dict[str, Any] = {}
+    for sigla, resumo in sen.items():
+        s_ = serie_de(resumo.get("candidatos") or [], resumo.get("ts") or gov["ts"])
+        if s_ is None:
+            continue
+        det_sen[sigla] = _detalhe_so_serie(sigla, "sen", resumo.get("ts") or gov["ts"], s_)
+    mudancas.append(f"municipios-sen-t1.json → {len(det_sen)} UFs (série, municipios: [])")
+    if not args.check:
+        (FIXTURES / "municipios-sen-t1.json").write_text(
+            json.dumps(det_sen, ensure_ascii=False, indent=2) + "\n"
+        )
+
     print(("[check] " if args.check else "[escrito] ") + "\n          ".join(mudancas))
     print()
-    print("Não coberto, e por quê: /uf/<sigla>/governador lê municipios-gov-t1.json,")
-    print("que não existe; /uf/<sigla>/senador não lê detalhe em simulação. Os dois")
-    print("dependem da decisão de tamanho na spec 020 § Questões em aberto, item 1.")
+    print("Gov e Sen saem SEM municípios (municipios: []), como a spec 020 propõe.")
+    print("A seção municipal dessas telas mostra o estado 'empty' em dev:sim — que")
+    print("é um caso real (UF com cobertura municipal 0%), não um mapa falso.")
     return 0
 
 

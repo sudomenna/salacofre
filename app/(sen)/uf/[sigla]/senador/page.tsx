@@ -62,7 +62,7 @@ import { Footer } from "@/components/layout/Footer";
 import { readUfDetail, seriePorCandidatoFrom, type UfDetailResult } from "@/lib/blob/uf-detail";
 import { cargoInfo } from "@/lib/config/cargos";
 import { isPreEleicao } from "@/lib/config/fase";
-import { simulacaoLigada, simulacaoSenadorUf } from "@/lib/dev/simulacao";
+import { simulacaoLigada, simulacaoMunicipiosUf, simulacaoSenadorUf } from "@/lib/dev/simulacao";
 import { readProjection, readUfProjection } from "@/lib/edge-config/reader";
 import type { EdgePayloadUf, EdgeUfCandidate } from "@/lib/edge-config/types";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
@@ -78,10 +78,11 @@ const CARGO_SENADOR = 5 as const;
  * Gêmeo dos de `app/(pres)/uf/[sigla]/page.tsx` e da rota de governador — a
  * justificativa longa está na presidencial.
  *
- * Esta rota não tem irmão de `simulacaoMunicipiosUf`: a simulação ainda não
- * gera arquivo de detalhe para Senador (open question 2 da spec 020, aguardando
- * decisão). Sob `pnpm dev:sim` o bloco cai, corretamente, no estado
- * "indisponível" — em vez de pescar o detalhe de outra corrida.
+ * ⚠️ **Atualizado em 18/09**: esta rota passou a ter irmão de
+ * `simulacaoMunicipiosUf` — `municipios-sen-t1.json` existe. Este `const`
+ * continua sendo o fallback de quando a fixture não traz a UF pedida, e
+ * segue valendo o princípio de sempre: cair no estado "indisponível" em vez
+ * de pescar o detalhe de outra corrida.
  */
 const SEM_DETALHE_REMOTO: UfDetailResult = {
   status: "unavailable",
@@ -232,9 +233,26 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
   // à rede ao caminho crítico da rota — e é a única diferença entre as duas
   // formas, porque o RESULTADO é idêntico. Mesma forma da rota de governador
   // (`app/(gov)/uf/[sigla]/governador/page.tsx`).
+  // 🔴 Até 18/09 o ramo de simulação era `[simulacaoSenadorUf(sigla),
+  // SEM_DETALHE_REMOTO]`: esta rota **nunca lia detalhe** em `dev:sim`, e por
+  // isso o gráfico de evolução (spec 020) não tinha como aparecer aqui nem
+  // com fixture — era a única das quatro rotas sem caminho nenhum para a
+  // série. Agora espelha governador e presidencial, que já usavam
+  // `simulacaoMunicipiosUf`.
+  //
+  // `municipios-sen-t1.json` traz série e `municipios: []` (spec 020
+  // § Questões em aberto, item 1 — municipal fabricado para as duas corridas
+  // levaria as fixtures a ~10 MB). Esta rota não renderiza mapa municipal de
+  // qualquer forma, então a lista vazia não muda nada do que se vê aqui.
   const emSimulacao = simulacaoLigada();
+  const detalheSim = emSimulacao ? simulacaoMunicipiosUf(sigla, "sen", 1) : null;
   const [payload, detalhe] = emSimulacao
-    ? [simulacaoSenadorUf(sigla), SEM_DETALHE_REMOTO]
+    ? [
+        simulacaoSenadorUf(sigla),
+        detalheSim
+          ? ({ status: "ok", detail: detalheSim, url: "simulacao://dev" } as UfDetailResult)
+          : SEM_DETALHE_REMOTO,
+      ]
     : await Promise.all([
         (async () =>
           (await readUfProjection(sigla, { cargo: "sen", turno: 1 })) ??

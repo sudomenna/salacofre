@@ -83,6 +83,29 @@ describe("dev:sim — a série encosta no cabeçalho, nos DOIS lugares", () => {
     );
   });
 
+  it("os TRÊS cargos com série têm detalhe servido em simulação", () => {
+    // Até 18/09 só `pres` tinha arquivo de detalhe. `gov` lia
+    // `municipios-gov-t1.json`, que não existia, e `sen` nem tentava ler —
+    // a rota usava `SEM_DETALHE_REMOTO` fixo. Resultado: das 4 rotas que
+    // publicam o gráfico, duas não tinham como desenhá-lo nem com fixture.
+    //
+    // ⚠️ **Limite deste caso, dito em vez de escondido**: ele prova que a
+    // FIXTURE está servida, não que a ROTA a consome. A fiação da rota de
+    // Senador (`SEM_DETALHE_REMOTO` → `simulacaoMunicipiosUf`) foi verificada
+    // no navegador, com o gráfico desenhando em `/uf/SP/senador`. Um teste de
+    // renderização da rota cobriria os dois; não existe hoje.
+    for (const cargo of ["pres", "gov", "sen"] as const) {
+      const d = simulacaoMunicipiosUf("SP", cargo, 1) as unknown as {
+        series_temporais?: { por_candidato?: Serie };
+      } | null;
+      expect(d, `${cargo}: sem detalhe de SP em simulação`).not.toBeNull();
+      expect(
+        d?.series_temporais?.por_candidato?.eixo?.length,
+        `${cargo}: detalhe sem série`,
+      ).toBeGreaterThan(1);
+    }
+  });
+
   it("a forma não muda: o deslocamento é rígido, não um esticão", () => {
     // Se o deslocamento fosse aplicado a cada ponto com um delta diferente, a
     // distância entre baldes mudaria e a linha ficaria distorcida — o gráfico

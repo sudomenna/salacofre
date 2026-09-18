@@ -21,9 +21,13 @@
  */
 
 import { describe, expect, it } from "vitest";
+import govNacional from "../../../tests/fixtures/simulacao/governador.json";
+import detalhesGov from "../../../tests/fixtures/simulacao/municipios-gov-t1.json";
 import detalhesUf from "../../../tests/fixtures/simulacao/municipios-pres-t1.json";
+import detalhesSen from "../../../tests/fixtures/simulacao/municipios-sen-t1.json";
 import nacional from "../../../tests/fixtures/simulacao/presidente.json";
 import resumosUf from "../../../tests/fixtures/simulacao/presidente-uf.json";
+import resumosSen from "../../../tests/fixtures/simulacao/senador-uf.json";
 
 /** Espelha `api/model/project.py` (ADR-0046 D2). */
 const SERIE_MAX_PONTOS = 120;
@@ -146,6 +150,76 @@ describe("fixtures de simulação — a série existe e bate com o placar", () =
       const serie = detalhes[sigla]?.series_temporais?.por_candidato;
       expect(serie, `${sigla}: sem por_candidato`).toBeDefined();
       conferir(serie as Serie, resumos[sigla]?.candidatos ?? [], sigla);
+    }
+  });
+
+  it("as 27 UFs de Governador têm série coerente com a SÍNTESE que a tela usa", () => {
+    // 🔴 O placar de referência aqui NÃO é `por_uf[].top_candidatos`, e essa é
+    // a parte fácil de errar. `synthesizeGovUfFromFixture`
+    // (`app/(gov)/uf/[sigla]/governador/page.tsx:254`) monta a corrida da UF
+    // com a IDENTIDADE de `top_candidatos` e os NÚMEROS de
+    // `national.candidatos`, casados por `id` — `top_candidatos.pct` é outra
+    // grandeza. Conferir contra a fonte errada faria o teste passar com uma
+    // série que discorda do painel na tela.
+    const nac = govNacional as unknown as {
+      national: { candidatos: Placar[] };
+      por_uf: { sigla: string; top_candidatos?: { id: number }[] }[];
+    };
+    const numeros = new Map(nac.national.candidatos.map((c) => [c.id, c]));
+    const detalhes = detalhesGov as unknown as Record<
+      string,
+      { series_temporais?: { por_candidato?: Serie } }
+    >;
+
+    expect(Object.keys(detalhes).length, "esperado 27 UFs em Governador").toBe(27);
+
+    for (const row of nac.por_uf) {
+      const serie = detalhes[row.sigla]?.series_temporais?.por_candidato;
+      expect(serie, `${row.sigla} (gov): sem por_candidato`).toBeDefined();
+      const placar = (row.top_candidatos ?? [])
+        .map((t) => numeros.get(t.id))
+        .filter((c): c is Placar => c !== undefined);
+      conferir(serie as Serie, placar, `gov/${row.sigla}`);
+    }
+  });
+
+  it("as 27 UFs de Senador têm série coerente com o próprio resumo", () => {
+    const detalhes = detalhesSen as unknown as Record<
+      string,
+      { series_temporais?: { por_candidato?: Serie } }
+    >;
+    const resumos = resumosSen as unknown as Record<string, { candidatos: Placar[] }>;
+
+    expect(Object.keys(detalhes).length, "esperado 27 UFs em Senador").toBe(27);
+
+    for (const sigla of Object.keys(detalhes)) {
+      const serie = detalhes[sigla]?.series_temporais?.por_candidato;
+      expect(serie, `${sigla} (sen): sem por_candidato`).toBeDefined();
+      conferir(serie as Serie, resumos[sigla]?.candidatos ?? [], `sen/${sigla}`);
+    }
+  });
+
+  it("Gov e Sen saem sem municípios, e isso é decisão — não descuido", () => {
+    // `municipios: []` é a proposta da própria spec 020 (§ Questões em aberto,
+    // item 1): resultado municipal fabricado para as duas corridas levaria as
+    // fixtures a ~10 MB. `municipioDetailReason` trata lista vazia como
+    // `"empty"` — estado LEGÍTIMO e distinto de falha de leitura ("o detalhe
+    // chegou e nenhum município tem dado apurado", caso real de UF com
+    // cobertura municipal em 0%).
+    //
+    // O teste existe para que reintroduzir municípios seja decisão consciente
+    // — este caso quebra — e não efeito colateral de uma regeneração.
+    for (const [nome, arq] of [
+      ["gov", detalhesGov],
+      ["sen", detalhesSen],
+    ] as const) {
+      const d = arq as unknown as Record<string, { municipios?: unknown[] }>;
+      for (const sigla of Object.keys(d)) {
+        expect(
+          d[sigla]?.municipios,
+          `${nome}/${sigla}: municipios precisa existir (obrigatório em UfDetailBlob)`,
+        ).toEqual([]);
+      }
     }
   });
 });
