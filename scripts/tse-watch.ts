@@ -50,7 +50,9 @@
 //      Eleição nova com t=1|2 e nome contendo "2026" é destacada em
 //      MAIÚSCULAS ("ELEIÇÃO GERAL 2026 DETECTADA") — sinal de ativação da
 //      Eleição Geral.
-//   4. Exit code: 0 sem mudança, 2 com mudança, 1 erro de execução.
+//   4. Exit code: 0 sem mudança, 2 com mudança, 1 erro de execução,
+//      3 CEGO (ele-c.json respondeu 403/401 — caminho errado ou acesso
+//      bloqueado; NUNCA interpretar como "ainda não publicado").
 //      --slack envia o diff via lib/tse/alerts.ts (fire-and-forget).
 //
 // Entre requisições: `await sleep(250)` fixo (≤ 10 requisições no total —
@@ -163,7 +165,20 @@ export interface RunWatchOptions {
 
 export interface RunWatchResult {
   changed: boolean;
-  exitCode: 0 | 1 | 2;
+  /**
+   * `0` sem mudança · `2` com mudança · `1` erro de execução ·
+   * **`3` cego** — o `ele-c.json` respondeu 403/401.
+   *
+   * 🔴 O `3` existe porque a ausência dele custou dois dos três dias da
+   * primeira janela de simulado (15–17/09/2026). A vigia apontava para
+   * `resultados-sim.tse.jus.br/**oficial**` — segmento de ambiente errado,
+   * que responde 403 **para sempre** — e o erro genérico foi lido como "o TSE
+   * ainda não publicou". `git log` registra **zero commits** em 14, 15 e 16/09.
+   *
+   * "Não consegui olhar" nunca pode sair com a mesma cara de "olhei e nada
+   * mudou", nem com a de "deu ruim na rede". São três coisas.
+   */
+  exitCode: 0 | 1 | 2 | 3;
   diffLines: string[];
   state: WatchState;
 }
@@ -226,7 +241,9 @@ function extractCiclo(parsed: unknown): { ciclo: string | null; outros: string[]
 async function fetchEleC(
   baseUrl: string,
   fetchImpl: typeof fetch,
-): Promise<{ snapshot: EleCConfigSnapshot; ciclosExtras: string[] } | { error: string }> {
+): Promise<
+  { snapshot: EleCConfigSnapshot; ciclosExtras: string[] } | { error: string; httpStatus?: number }
+> {
   const url = `${baseUrl}/comum/config/ele-c.json`;
   let res: Response;
   try {
@@ -241,7 +258,7 @@ async function fetchEleC(
   }
 
   if (!res.ok) {
-    return { error: `GET ${url} respondeu ${res.status}` };
+    return { error: `GET ${url} respondeu ${res.status}`, httpStatus: res.status };
   }
 
   const text = await res.text();
@@ -393,13 +410,30 @@ function diffLeiaute(
 } {
   const lines: string[] = [];
 
-  if (cur.status === "inacessivel") {
-    lines.push(`[${cur.id}] inacessivel (403 — host bloqueia clientes não-navegador)`);
-    return { changed: false, lines };
-  }
-  if (cur.status === "erro") {
-    lines.push(`[${cur.id}] erro ao consultar (rede ou status inesperado)`);
-    return { changed: false, lines };
+  // 🔴 Perder visão de uma fonte que ANTES respondia é notícia, e até 18/09
+  // não era: os dois ramos abaixo devolviam `changed: false` sem olhar o
+  // estado anterior, então um leiaute que passava a dar 403 saía com a mesma
+  // linha de sempre — indistinguível do 403 crônico e esperado de
+  // `www.tse.jus.br`, que nunca respondeu a cliente não-navegador.
+  //
+  // A assimetria era visível no próprio arquivo: o caminho inverso
+  // ("voltou a responder") já era registrado logo abaixo. Só a ida ao
+  // silêncio não era. Ficar cego importa mais que voltar a enxergar.
+  if (cur.status === "inacessivel" || cur.status === "erro") {
+    const rotulo =
+      cur.status === "inacessivel"
+        ? "inacessivel (403 — host bloqueia clientes não-navegador)"
+        : "erro ao consultar (rede ou status inesperado)";
+    const regrediu = prev?.status === "ok";
+    if (regrediu) {
+      lines.push(
+        `[${cur.id}] 🔴 PERDEMOS VISÃO: estava respondendo e agora está ${rotulo}. ` +
+          "Isto NÃO é o 403 crônico esperado — esta fonte respondia até a corrida anterior.",
+      );
+    } else {
+      lines.push(`[${cur.id}] ${rotulo}`);
+    }
+    return { changed: regrediu, lines };
   }
 
   if (prev === undefined) {
@@ -475,10 +509,31 @@ export async function runWatch(opts: RunWatchOptions): Promise<RunWatchResult> {
       eleC: null,
       leiautes: {},
     };
+    const st = eleCResult.httpStatus;
+    const cego = st === 403 || st === 401;
     return {
       changed: false,
-      exitCode: 1,
-      diffLines: [`ERRO: ${eleCResult.error}`],
+      exitCode: cego ? 3 : 1,
+      diffLines: cego
+        ? [
+            `CEGO: ${eleCResult.error}`,
+            `   base-url usada: ${opts.baseUrl}`,
+            "",
+            '🔴 Um 403/401 AQUI NÃO SIGNIFICA "o TSE ainda não publicou".',
+            "   Significa caminho errado, ou host que bloqueia cliente automatizado.",
+            "",
+            "   O último segmento do caminho é o AMBIENTE, e trocá-lo troca de mundo:",
+            "     /simulado/simulado2026  → ambiente de teste  (host de simulado)",
+            "     /oficial                → ambiente de produção (host de produção)",
+            "   Cruzar os dois — o segmento /oficial no host de simulado — produz um",
+            "   endereço que NÃO existe e responde 403 para sempre.",
+            "",
+            "   Os endereços completos estão em docs/testing/tse-simulados.md.",
+            "   NÃO os monte à mão: URL adivinhada bloqueia nosso IP por 10 min (RF-010.5).",
+            "   Confira a base-url acima antes de concluir qualquer coisa sobre o TSE —",
+            "   foi esta confusão que custou dois dos três dias da janela de 15–17/09/2026.",
+          ]
+        : [`ERRO: ${eleCResult.error}`],
       state,
     };
   }

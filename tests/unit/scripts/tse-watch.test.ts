@@ -100,6 +100,7 @@ const TARGETS: WatchTargetsFile = {
 interface FakeFetchConfig {
   eleCBody?: string;
   eleCEtag?: string;
+  eleCStatus?: number;
   ea20Etag?: string;
   ea20Status?: number;
   instrucoesEtag?: string;
@@ -117,6 +118,8 @@ function makeFakeFetch(cfg: FakeFetchConfig): typeof fetch {
     const method = (init?.method ?? "GET").toUpperCase();
 
     if (url.includes("ele-c.json")) {
+      const st = cfg.eleCStatus ?? 200;
+      if (st !== 200) return new Response(null, { status: st });
       return new Response(eleC, {
         status: 200,
         headers: { etag: eleCEtag, "last-modified": "Sat, 05 Sep 2026 10:00:00 GMT" },
@@ -339,5 +342,110 @@ describe("runWatch", () => {
     expect(result.changed).toBe(false);
     expect(result.exitCode).toBe(0);
     expect(result.diffLines.some((l) => l.includes("inacessivel"))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// "Não consegui olhar" != "olhei e nada mudou" (S08 § 5)
+// ---------------------------------------------------------------------------
+//
+// 🔴 A ausência desta distinção custou dois dos três dias da primeira janela de
+// simulado (15–17/09/2026). A vigia apontava para
+// `resultados-sim.tse.jus.br/**oficial**` — segmento de AMBIENTE errado, que
+// responde 403 para sempre — e o erro genérico foi lido como "o TSE ainda não
+// publicou". `git log` registra zero commits em 14, 15 e 16/09.
+
+describe("runWatch — cegueira é um estado próprio", () => {
+  it("403 no ele-c.json -> exit 3 (CEGO), com o aviso que impede a leitura errada", async () => {
+    const result = await runWatch({
+      statePath,
+      targets: TARGETS,
+      baseUrl: "https://fake.tse.jus.br/oficial",
+      fetchImpl: makeFakeFetch({ eleCStatus: 403 }),
+      sleepImpl: noopSleep,
+      now: () => new Date("2026-09-22T09:00:00Z"),
+    });
+
+    expect(result.exitCode).toBe(3);
+    expect(result.changed).toBe(false);
+
+    const texto = result.diffLines.join("\n");
+    expect(texto).toContain("CEGO");
+    // O aviso literal importa: é ele que impede a conclusão errada por quem lê
+    // a saída às pressas durante uma janela de 3 horas.
+    expect(texto).toContain('NÃO SIGNIFICA "o TSE ainda não publicou"');
+    expect(texto).toContain("simulado/simulado2026");
+  });
+
+  it("500 no ele-c.json -> exit 1, e NÃO 3: falha de servidor não é cegueira", async () => {
+    // Par com o teste acima. Sem ele, um `exitCode: 3` incondicional no ramo de
+    // erro passaria — e o operador perderia a distinção entre "o endereço está
+    // errado" (conserto: olhar a URL) e "o TSE caiu" (conserto: esperar).
+    const result = await runWatch({
+      statePath,
+      targets: TARGETS,
+      baseUrl: "https://fake.tse.jus.br/oficial",
+      fetchImpl: makeFakeFetch({ eleCStatus: 500 }),
+      sleepImpl: noopSleep,
+      now: () => new Date("2026-09-22T09:00:00Z"),
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.diffLines.join("\n")).toContain("ERRO");
+    expect(result.diffLines.join("\n")).not.toContain("CEGO");
+  });
+
+  it("leiaute que ESTAVA respondendo e passa a 403 -> changed, exit 2, PERDEMOS VISÃO", async () => {
+    // 1ª corrida: ea20 responde e vira baseline.
+    await runWatch({
+      statePath,
+      targets: TARGETS,
+      baseUrl: "https://fake.tse.jus.br/oficial",
+      fetchImpl: makeFakeFetch({}),
+      sleepImpl: noopSleep,
+      now: () => new Date("2026-09-22T09:00:00Z"),
+    });
+
+    // 2ª corrida: a MESMA fonte fica inacessível.
+    const result = await runWatch({
+      statePath,
+      targets: TARGETS,
+      baseUrl: "https://fake.tse.jus.br/oficial",
+      fetchImpl: makeFakeFetch({ ea20Status: 403 }),
+      sleepImpl: noopSleep,
+      now: () => new Date("2026-09-22T10:00:00Z"),
+    });
+
+    expect(result.changed).toBe(true);
+    expect(result.exitCode).toBe(2);
+    expect(result.diffLines.join("\n")).toContain("PERDEMOS VISÃO");
+  });
+
+  it("403 crônico desde a primeira corrida continua mudo — não vira alarme", async () => {
+    // Par com o teste acima, e é ele que impede o conserto de virar ruído:
+    // `www.tse.jus.br` responde 403 a cliente não-navegador SEMPRE, em 9 dos 10
+    // alvos. Se a perda de visão fosse detectada sem olhar o estado anterior,
+    // toda corrida sairia com exit 2 e o sinal morreria de tanto gritar.
+    await runWatch({
+      statePath,
+      targets: TARGETS,
+      baseUrl: "https://fake.tse.jus.br/oficial",
+      fetchImpl: makeFakeFetch({ ea20Status: 403 }),
+      sleepImpl: noopSleep,
+      now: () => new Date("2026-09-22T09:00:00Z"),
+    });
+
+    const result = await runWatch({
+      statePath,
+      targets: TARGETS,
+      baseUrl: "https://fake.tse.jus.br/oficial",
+      fetchImpl: makeFakeFetch({ ea20Status: 403 }),
+      sleepImpl: noopSleep,
+      now: () => new Date("2026-09-22T10:00:00Z"),
+    });
+
+    expect(result.changed).toBe(false);
+    expect(result.exitCode).toBe(0);
+    expect(result.diffLines.join("\n")).not.toContain("PERDEMOS VISÃO");
   });
 });

@@ -703,6 +703,44 @@ As duas devem devolver **zero**. A primeira é a fácil de ver; a segunda é a p
 de harness sob o cargo real, misturada às candidaturas de verdade, entra no gráfico como se
 fosse resultado.
 
+## 🔴 403 neste host nunca significa "ainda não publicado"
+
+**A regra que a primeira janela de simulado comprou, em 15–17/09/2026.**
+
+A vigia apontava para `https://resultados-sim.tse.jus.br/**oficial**`. Esse endereço
+**não existe** — o segmento do caminho é o **ambiente**, e `oficial` é o de produção — e
+responde **403 para sempre**. O 403 foi lido como *"o TSE ainda não publicou"*, ninguém viu
+o ambiente subir em 14/09, e o `git log` registra **zero commits em 14, 15 e 16/09**, contra
+54 em 13/09. Dois dos três dias da janela, perdidos por uma leitura de mensagem.
+
+| Ambiente | Endereço base |
+|---|---|
+| **Simulado** | `https://resultados-sim.tse.jus.br/simulado/simulado2026` |
+| **Produção** | `https://resultados.tse.jus.br/oficial` |
+
+**Os três estados são distintos, e o script agora os separa** (`scripts/tse-watch.ts`,
+18/09):
+
+| Exit | Significado | O que fazer |
+|---|---|---|
+| `0` | Olhei, nada mudou | Nada |
+| `2` | Olhei, **mudou** | Ler o diff |
+| `3` | 🔴 **CEGO** — `ele-c.json` deu 403/401 | **Conferir a URL.** Não concluir nada sobre o TSE |
+| `1` | Erro de execução (rede, 5xx, JSON inválido) | O TSE pode ter caído; esperar e repetir |
+
+⚠️ **`3` e `1` são coisas diferentes de propósito.** "O endereço está errado" se conserta
+olhando a URL; "o servidor caiu" se conserta esperando. Colapsar os dois devolve exatamente
+a ambiguidade que custou a janela.
+
+ℹ️ **403 nos leiautes é outra coisa, e é normal.** `www.tse.jus.br` responde 403 a cliente
+não-navegador em 9 dos 10 alvos, sempre — está no contrato do script e **não** é alarme. O
+que **é** alarme, desde 18/09: um leiaute que **estava respondendo** e passa a não
+responder. Sai como `PERDEMOS VISÃO` e conta como mudança. Ficar cego numa fonte que se
+vigiava importa mais que voltar a enxergar — e até 18/09 só o caminho inverso era
+registrado.
+
+---
+
 ## Vigia externo — `pnpm vigia:ciclo` (S08 item 2, 2026-09-18)
 
 > **Quem recebe**: a tarefa horária `~/.claude/scheduled-tasks/vigia-tse-2026/`, que roda na

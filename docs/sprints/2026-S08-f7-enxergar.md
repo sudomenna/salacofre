@@ -248,12 +248,47 @@ deve ser "corrigida".
 
 O que sobra para esta sprint é a **regra**, que é o valor durável do episódio:
 
-- [ ] **"403 neste host nunca significa 'ainda não publicado' — significa caminho errado"**
-      registrada onde a vigia é operada: [runbook](../operations/runbook.md) e
-      [`tse-simulados.md`](../testing/tse-simulados.md).
-- [ ] `pnpm tse:watch --once` reprovando de forma **distinguível**: 403 e "sem mudança" não
-      podem sair do script com a mesma cara, porque foi essa indistinção que custou os dois
-      dias.
+- [x] **A regra registrada onde a vigia é operada** — 18/09, seção própria no topo de
+      [`tse-simulados.md`](../testing/tse-simulados.md) e do
+      [runbook](../operations/runbook.md), com a tabela dos dois ambientes e a dos quatro
+      exit codes.
+- [x] **`pnpm tse:watch --once` distingue os estados** — `scripts/tse-watch.ts`, 18/09.
+      Antes: `exitCode = anyChanged ? 2 : 0`, e um 403 no `ele-c.json` caía no erro genérico
+      `1`, junto de falha de rede e JSON inválido.
+
+      | Exit | Significado | Conserto |
+      |---|---|---|
+      | `0` | olhei, nada mudou | — |
+      | `2` | olhei, **mudou** | ler o diff |
+      | `3` | 🔴 **CEGO** — `ele-c.json` deu 403/401 | **olhar a URL** |
+      | `1` | erro de execução (rede, 5xx, JSON inválido) | esperar e repetir |
+
+      🔴 **`3` e `1` separados é o ponto inteiro.** "O endereço está errado" se conserta
+      olhando a URL; "o servidor caiu" se conserta esperando. Colapsados, devolvem a
+      ambiguidade que custou dois dos três dias da janela de 15–17/09. A saída do `3` traz o
+      aviso literal *"NÃO SIGNIFICA 'o TSE ainda não publicou'"* e os dois endereços de
+      ambiente lado a lado.
+
+- [x] **Defeito achado de passagem e consertado**: um leiaute que **estava respondendo** e
+      passava a dar 403 saía com a mesma linha do 403 crônico e **não contava como
+      mudança** — ficar cego numa fonte vigiada passava despercebido. A assimetria estava
+      visível no próprio arquivo: o caminho inverso ("voltou a responder") já era
+      registrado; só a ida ao silêncio não era. Agora sai como `PERDEMOS VISÃO` e conta.
+
+      **4 mutações, 4 vermelhas** (11 testes em `tests/unit/scripts/tse-watch.test.ts`,
+      antes 7):
+
+      | Mutação | Resultado |
+      |---|---|
+      | `exit 3` volta a ser `exit 1` | 1 failed |
+      | `exit 3` incondicional (500 vira CEGO) | 1 failed |
+      | regressão de visão não conta como mudança | 1 failed |
+      | toda inacessibilidade vira regressão (403 crônico grita) | 2 failed |
+
+      ⚠️ As duas últimas são um **par deliberado**: sem a segunda, o conserto viraria ruído.
+      `www.tse.jus.br` responde 403 a cliente não-navegador em 9 dos 10 alvos, **sempre** —
+      se a perda de visão fosse detectada sem olhar o estado anterior, toda corrida sairia
+      com exit 2 e o sinal morreria de tanto gritar.
 
 ### 6. Os 16 RFs fora da matriz principal — migração **feita**, resíduo aberto
 
