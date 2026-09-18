@@ -48,12 +48,7 @@ import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent, formatPp } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
-import {
-  colorForParty,
-  normalizePartySlug,
-  PARTY_FALLBACK_SLUG,
-  textForParty,
-} from "@/lib/utils/party-color";
+import { normalizePartySlug, PARTY_FALLBACK_SLUG, textForParty } from "@/lib/utils/party-color";
 
 /** Mesma tabela de `GovernorCard.tsx` — sem módulo compartilhado em `lib/utils/**`
  * pra este propósito, então repetida aqui (padrão já existente no repo). */

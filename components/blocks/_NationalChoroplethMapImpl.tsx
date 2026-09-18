@@ -16,7 +16,7 @@
  * Constituição § 2: cores via getComputedStyle(CSS tokens), nunca hex oficial.
  *
  * S07/Bloco 1 (ADR-0025, design system Atlas Menna):
- *   - Cor por partido (ADR-0024) via `resolvePartyHex`/`colorForParty` quando
+ *   - Cor por partido (ADR-0024) via `resolvePartyHex`/`textForParty` (RNF-035) quando
  *     `EdgeCandidate.partido` do líder é conhecido; fallback pro mecanismo
  *     de rank pré-existente (`cand-color.ts`, ADR-0013 superseded) quando
  *     não é — nunca uma UF sem cor.
@@ -53,7 +53,6 @@ import type { ViewMode } from "@/lib/state/view-mode";
 import { colorForRank, resolveBandHex, resolveCandHex } from "@/lib/utils/cand-color";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import {
-  colorForParty,
   intensityLevelForMargin,
   normalizePartySlug,
   PARTY_FALLBACK_SLUG,
