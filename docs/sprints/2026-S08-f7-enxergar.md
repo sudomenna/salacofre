@@ -486,11 +486,11 @@ Cada linha abaixo é algo que alguém consegue conferir.
       **Bloqueado pela decisão adiada do dono** (§ 1). Os outros itens desta lista não
       dependem dele e seguem.
 
-- [ ] 🔴 **A mutação do percentil do RF-015 fica vermelha.** Prova exigida, nesta ordem:
-      trocar `2.5/97.5` por `10.0/90.0` em `api/model/extrapolation.py:389-398`, rodar
-      `.venv-model/bin/python3.14 -m pytest`, **colar a saída mostrando pelo menos um
-      vermelho**, restaurar por cópia do scratchpad e provar com `diff` vazio.
-      Hoje esse mesmo procedimento devolve **560 passed** — medido em 18/09.
+- [x] 🔴 **A mutação do percentil do RF-015 fica vermelha** — feito em 18/09.
+      `2.5/97.5` → `10.0/90.0` devolveu **3 failed, 14 passed**; `2.5` → `2.6`, **1 failed**;
+      `lower` ↔ `upper`, **2 failed**. Restaurado por cópia do scratchpad, `diff` vazio,
+      `git diff` vazio, **576 passed**. Antes desta sprint o mesmo procedimento devolvia
+      560 passed — zero vermelhos.
 - 🔶 **O vigia externo detecta um ciclo que não rodou** — a **lógica** está provada por
       mutação (4 aplicadas à mão em 18/09, 4 vermelhas):
 
@@ -542,19 +542,43 @@ Cada linha abaixo é algo que alguém consegue conferir.
 - [x] **`rf-coverage-checker` retorna ✅ para a spec 019** — **14/14 em 18/09**, — a migração dos 16 RFs para a
       matriz principal ficou pronta em 18/09; o que falta provar é o gate **rodando** e
       passando, agora que os 14 RFs da 019 têm coluna `Teste` preenchida.
-- [ ] **RF-057 tem dono único** e o frontmatter da spec 012 lista RF-012.1/RF-012.2 —
-      verificável por `grep "^requirements:" docs/specs/012-dashboard-status/spec.md`.
-- [ ] **Nenhum documento operacional ensina o endereço errado do TSE** — fora de `risks.md:19`
-      (registro histórico do 403) e das notas datadas de correção, `grep` pelo endereço em
-      `docs/` não devolve **instrução**. E `pnpm tse:watch --once` distingue 403 de "sem
-      mudança" na saída.
-- [ ] **Spec 010 dividida**, com o `depends_on` da fatia em voo sem a spec 012.
-- [ ] 🔴 **Mutação aplicada à mão em cada teste novo desta sprint** — para cada teste
-      escrito: aplicar a mutação, confirmar o **vermelho**, restaurar, e provar a
-      restauração com `diff`. Relatório de agente **não** substitui a mutação feita à mão.
-      É a regra da casa e foi ela que pegou os defeitos reais de 18/09.
-- [ ] `pnpm typecheck && pnpm lint && pnpm test` verde e
-      `.venv-model/bin/python3.14 -m pytest` verde (baseline: 560).
+- [x] **RF-057 tem dono único** — e **RF-056 também tinha duas donas**, o que esta linha
+      não previa. `012.requirements = [RF-012.1, RF-012.2]`; os dois voltaram para a 010.
+      Também caiu o **ciclo** `depends_on` 010↔012. Verificável por
+      `grep "^requirements:\|^depends_on:" docs/specs/01{0,2}-*/spec.md`.
+- [x] **`pnpm tse:watch --once` distingue 403 de "sem mudança"** — exit **3 = CEGO**,
+      separado do `1` (erro de execução) e do `0` (nada mudou), com o aviso literal na
+      saída e a base-url em uso impressa. 4 mutações, 4 vermelhas. A regra virou seção
+      própria no topo de `tse-simulados.md` e do runbook.
+- [x] **Spec 010 dividida** — seção `## Fatiamento` no corpo, `depends_on: [001-ingestao-tse]`.
+      RF-057 e RF-060 em voo; RF-056/058/059 para a S11, nomeados nos dois arquivos.
+- [x] 🔴 **Mutação aplicada à mão em cada teste novo desta sprint** — **30 no total, 30
+      vermelhas**: 14 no alarme de série cega (2 reaplicadas pelo orquestrador de forma
+      independente, batendo com o relatório do agente), 4 no vigia externo, 3 no RF-015,
+      4 no `tse-watch`, 3 no RF-060, 5 no RF-057, mais 1 no portão de CI.
+
+      **Duas sobreviveram e viraram achado**, que é o motivo de a regra existir:
+      (a) a ordem das guardas do vigia deixava 12 testes verdes — o caso que a mata foi
+      escrito depois; (b) a mutação do percentil "sobreviveu" por **bytecode em cache**,
+      não por frouxidão do teste — registrado em
+      [`../_meta/orquestracao-paralela.md`](../_meta/orquestracao-paralela.md) § 7.4.
+
+      **E um teste foi REMOVIDO por não discriminar** (`cron-enabled`, "nenhum GET ao CDN"):
+      passava com a mutação porque o banco mockado não tem alvos. A lacuna ficou escrita no
+      arquivo em vez de maquiada.
+- [x] **Gates verdes, conferidos por código de saída** — 18/09: `pnpm lint` exit 0
+      (438 arquivos), `pnpm typecheck` exit 0, **vitest 2.607 passando**, **pytest 576**.
+
+      ⚠️ **`vitest` sai com código 1 neste ambiente, e isso É o baseline**: 10 arquivos
+      falham na **coleta** por falta de `DATABASE_URL` (`ingest-cycle`,
+      `ingest-model-trigger`, `ingest-routes-auth-cargo`, `model-cycle`,
+      `model-edge-cases`, `unit/model/repository`, `unit/tse/acompanhamento`,
+      `unit/tse/geo-coverage`, `unit/tse/historical-coverage`, `unit/tse/repository`).
+      Listados um a um em 18/09 e confirmados como os mesmos de sempre, nenhum novo.
+
+      🔴 **Conferir por código de saída, não pela última linha.** Nesta sprint um
+      `pnpm typecheck 2>&1 | tail -1` devolveu saída vazia enquanto o comando saía com 1 e
+      havia **cinco erros de tipo** — o próprio comando de verificação os escondeu.
 
 ---
 
