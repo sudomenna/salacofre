@@ -863,9 +863,35 @@ class SeriePorCandidatoBruta(NamedTuple):
 #: saída ali, e um erro dessa consulta só apareceria em produção.
 #:
 #: Duas janelas no `WHERE`, e as duas são necessárias: `ts` é a coluna do índice
-#: `ix_proj_serie` e limita a varredura; `COALESCE(dado_ts, ts)` limita o EIXO.
-#: Sem a segunda, um boletim do TSE travado há três dias entraria pela porta do
-#: `ts` recente e esticaria o eixo para muito além da janela.
+#: `ix_proj_serie` e limita a VARREDURA; `dado_ts` limita o EIXO. Sem a segunda,
+#: um boletim do TSE travado há três dias entraria pela porta do `ts` recente e
+#: esticaria o eixo para muito além da janela.
+#:
+#: 🔴 **O `COALESCE(dado_ts, ts)` saiu daqui por decisão do dono, 2026-09-18** —
+#: das três posições em que ele estava (balde, `momento` e a janela do eixo).
+#: Estava escrito no design da spec 020 (§ 2.2d, e o § 8 item 2 o chamava de
+#: "carga, não defesa"); a decisão o revoga, e o documento é que fica devendo.
+#:
+#: O que ele fazia: linha sem hora do boletim era ancorada no relógio de
+#: CÁLCULO (`projections.ts`, `defaultNow()` em `lib/db/schema.ts:169`) e virava
+#: um ponto indistinguível de um ponto vindo de boletim. Medido em produção em
+#: 18/09, sobre os 25 ciclos posteriores à migration 0009: 22 sem `dado_ts`;
+#: das 572 linhas sem `dado_ts`, **zero** têm `pct_atual`; das 78 com `dado_ts`,
+#: **todas** têm. Hora do boletim e voto medido vêm da mesma fonte — sem
+#: boletim não há nem hora nem voto. Mas `pct_projetado` existe e MUDA (39
+#: valores distintos naquelas 572 linhas), então a linha da projeção marchava
+#: para a direita sobre ciclos em que nada chegou do TSE: exatamente o modo de
+#: falha que o ADR-0038 existe para impedir, e que a docstring de
+#: `EdgeSeriePorCandidato.eixo` (`lib/edge-config/types.ts`) descreve.
+#:
+#: ⚠️ A consequência, aceita: **toda linha anterior à 0009 tem `dado_ts` NULL e
+#: some da série**, junto com os ciclos cegos. O custo é pequeno e é o mesmo
+#: número acima — essas linhas não têm `pct_atual` nenhum, então só a linha da
+#: PROJEÇÃO perde histórico, e é histórico de entressafra, sem voto medido.
+#:
+#: O `dado_ts IS NOT NULL` é redundante com a janela (`NULL > x` já é `NULL` e
+#: já reprova o `WHERE`) e está escrito assim mesmo: é o filtro que a decisão
+#: nomeia, e um leitor não deve ter de derivá-lo da lógica ternária do SQL.
 _SERIE_POR_CANDIDATO_SQL = """
     SELECT DISTINCT ON (uf, candidato_id, balde)
            uf, candidato_id, balde, momento, pct_atual, pct_projetado
@@ -873,16 +899,17 @@ _SERIE_POR_CANDIDATO_SQL = """
         SELECT
             uf,
             candidato_id,
-            floor(extract(epoch FROM COALESCE(dado_ts, ts)) / %(largura)s)
+            floor(extract(epoch FROM dado_ts) / %(largura)s)
                 * %(largura)s AS balde,
-            COALESCE(dado_ts, ts) AS momento,
+            dado_ts AS momento,
             pct_atual,
             pct_projetado
         FROM projections
         WHERE cargo = %(cargo)s
           AND turno = %(turno)s
+          AND dado_ts IS NOT NULL
           AND ts > NOW() - (%(janela)s || ' hours')::interval
-          AND COALESCE(dado_ts, ts) > NOW() - (%(janela)s || ' hours')::interval
+          AND dado_ts > NOW() - (%(janela)s || ' hours')::interval
     ) AS pontos
     ORDER BY uf, candidato_id, balde, momento DESC
 """
@@ -902,13 +929,20 @@ def fetch_series_por_candidato(
     tela sabe mostrar (`sem_serie`); derrubar o ciclo do modelo por causa de um
     eixo horizontal não é (constituição § 7).
 
-    ⚠️ O `COALESCE(dado_ts, ts)` é **carga, não defesa**: toda linha anterior à
-    migration 0009 tem `dado_ts` NULL, e ciclos em que nenhum par trouxe hora
-    legível continuam gravando NULL — o ADR-0038 D1 proíbe cair para outro
-    relógio NA COLUNA. Aqui, na leitura, a queda é para o único relógio que
-    sobrou, e é assim que `anexar_ponto_corrente` também se comporta, para que
-    o ponto do ciclo caia no mesmo lugar em que ele será relido no ciclo
-    seguinte.
+    🔴 **Ciclo sem hora legível do TSE não vira ponto: vira buraco.** Decisão
+    do dono, 2026-09-18 — ver o bloco sobre `_SERIE_POR_CANDIDATO_SQL` para o
+    número que a sustenta e para a consequência (as linhas anteriores à 0009
+    somem da série). Esta função é METADE da decisão: a outra é
+    `anexar_ponto_corrente`, que pelo mesmo motivo deixou de ancorar o ponto do
+    ciclo em `ts_iso`.
+
+    ⚠️ **As duas metades são uma coisa só, e corrigir uma sem a outra é pior
+    que não corrigir nenhuma.** A linha do ciclo cego é gravada em
+    `projections` com `dado_ts` NULL de qualquer jeito (o ADR-0038 D1 proíbe a
+    coluna cair para outro relógio). Se só `anexar_ponto_corrente` fosse
+    corrigida, o `COALESCE` daqui traria essa mesma linha de volta no ciclo
+    seguinte, no mesmo lugar errado — e a linha passaria a PISCAR: some no
+    ciclo em que nasce, reaparece no seguinte.
     """
     # 🔴 A consulta bucketiza na cadência mais FINA da lista, não na cadência
     # da janela declarada. A cadência final é uma função do que a noite de fato
@@ -1020,15 +1054,22 @@ def anexar_ponto_corrente(
        função é **chamada**, nunca reimplementada. Recomputar a razão de somas
        aqui reabriria exatamente a divergência de quinto decimal entre o gráfico
        e o placar que a Fase 1 fechou.
-    2. O instante é `dado_ts` e, na falta dele, `ts_iso`. Não é uma queda para
-       "outro relógio" no sentido do ADR-0038 D1 (a COLUNA continua gravando
-       NULL): é o espelho exato do `COALESCE(dado_ts, ts)` com que esta mesma
-       linha será relida no ciclo seguinte. Sem o espelho, o ponto apareceria
-       num lugar hoje e noutro amanhã.
+    2. O instante é `dado_ts`, **e só ele**. 🔴 Decisão do dono, 2026-09-18:
+       ciclo sem hora legível do TSE não vira ponto, vira buraco — `ts_iso` é o
+       relógio de CÁLCULO e ancorar nele produzia um ponto visualmente
+       indistinguível de um vindo de boletim. `ts_iso` continua na assinatura
+       porque quem chama tem de continuar passando os dois relógios do ciclo
+       (ADR-0038 D2); ele só não decide mais onde o ponto cai.
+
+       O `COALESCE(dado_ts, ts)` que esta regra espelhava saiu de
+       `_SERIE_POR_CANDIDATO_SQL` no MESMO commit — ver lá o número medido e a
+       consequência. Espelho é a palavra certa: as duas metades têm de andar
+       juntas, ou a linha do ciclo cego some aqui e volta pela leitura do ciclo
+       seguinte, que é piscar em vez de ficar honesta.
 
     Devolve estrutura nova; `bruta` não é mutada.
     """
-    momento = _dado_ts_para_coluna(dado_ts) or _dado_ts_para_coluna(ts_iso)
+    momento = _dado_ts_para_coluna(dado_ts)
     if momento is None:
         _log("warn", "ponto corrente sem relogio legivel — serie fica um ciclo atras")
         return bruta

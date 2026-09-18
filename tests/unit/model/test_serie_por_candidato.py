@@ -5,7 +5,7 @@ Cobre as quatro peças novas de `api/model/project.py`:
   - `cadencia_para_janela` / `SERIE_MAX_PONTOS` — o teto que re-bucketiza
     (T6, ADR-0046 D2);
   - `fetch_series_por_candidato` — o downsample dentro do SQL, último do balde,
-    `COALESCE(dado_ts, ts)`;
+    e o descarte da linha sem hora do boletim;
   - `anexar_ponto_corrente` — a defasagem de um ciclo entre a série e o placar
     ao lado (T4, RF-169);
   - `ordenar_por_parcial` / `montar_serie_por_candidato` — o elenco das quatro
@@ -24,6 +24,11 @@ lições estão aplicadas aqui:
   2. Comparação **posição a posição** de colunas e placeholders, porque
      `"dado_ts" in sql` continua verdadeiro com a coluna fora da lista, graças
      ao `%(dado_ts)s` do VALUES.
+
+E a lição de 18/09, que é de outra natureza: asserção sobre o TEXTO do SQL não
+prova o que a consulta DEVOLVE. `_ConnDeProjections`, mais abaixo, é um Postgres
+de brinquedo que deriva o resultado do texto da consulta — é ele que torna
+possível provar que corrigir só um dos dois lados da decisão não resolve nada.
 
 Nenhum teste aqui toca banco: são fakes de conexão. `ALLOW_DB_WRITE_TESTS`
 não tem nada a ver com este arquivo e não deve ser declarada para rodá-lo.
@@ -498,25 +503,40 @@ def test_ponto_corrente_sem_relogio_nenhum_nao_inventa_hora() -> None:
     assert igual.por_escopo == bruta.por_escopo
 
 
-def test_ponto_corrente_cai_no_ts_quando_o_boletim_nao_tem_hora() -> None:
-    """Espelho do `COALESCE(dado_ts, ts)` da leitura.
+def test_ponto_corrente_sem_hora_do_boletim_vira_buraco_e_nao_ponto() -> None:
+    """🔴 Decisão do dono, 2026-09-18 — e ela REVOGA o design § 2.2d/§ 8.
 
-    Não é queda para "outro relógio" no sentido do ADR-0038 D1 — a COLUNA
-    continua NULL. É garantir que o ponto do ciclo caia hoje no MESMO balde em
-    que ele será relido amanhã. Sem o espelho, o ponto pularia de lugar entre
-    dois ciclos consecutivos.
+    Até aqui esta função caía para `ts_iso` quando o boletim não trazia hora,
+    espelhando o `COALESCE(dado_ts, ts)` da leitura. `ts_iso` é o relógio de
+    CÁLCULO: o ponto entrava no eixo indistinguível de um ponto vindo de
+    boletim, e como `pct_projetado` muda a cada ciclo mesmo sem dado novo do
+    TSE, a linha da projeção marchava para a direita sobre uma ingestão parada.
+
+    Mutação que este teste mata: `_dado_ts_para_coluna(dado_ts) or
+    _dado_ts_para_coluna(ts_iso)`. A asserção é dupla de propósito — a
+    estrutura tem de sair IGUAL à que entrou (nenhum balde novo em escopo
+    nenhum) E o balde do `ts_iso` não pode existir em lugar nenhum. Só a
+    primeira passaria se um dia o ponto caísse num balde já ocupado.
     """
     uf_rows, national_rows, bruta = _mundo_de_um_ciclo()
     ts_iso = (BOLETIM + timedelta(hours=1)).isoformat()
-    com_ts = anexar_ponto_corrente(
+
+    cego = anexar_ponto_corrente(
         bruta,
         uf_rows=uf_rows,
         national_rows=national_rows,
         dado_ts=None,
         ts_iso=ts_iso,
     )
-    balde = _balde_epoch(BOLETIM + timedelta(hours=1), 5)
-    assert balde in com_ts.por_escopo["SP"][13]
+
+    assert cego.por_escopo == bruta.por_escopo
+    balde_do_relogio_de_calculo = _balde_epoch(BOLETIM + timedelta(hours=1), 5)
+    for escopo, por_cand in cego.por_escopo.items():
+        for cid, baldes in por_cand.items():
+            assert balde_do_relogio_de_calculo not in baldes, (
+                f"escopo {escopo}, candidatura {cid}: o ponto do ciclo cego "
+                "caiu no relógio de cálculo"
+            )
 
 
 # ===========================================================================
@@ -1055,28 +1075,45 @@ def _sql_de_uma_leitura() -> str:
     return conn.capturado["sql"]
 
 
-def test_sql_bucketiza_pelo_coalesce_e_nao_pelo_ts() -> None:
-    """`COALESCE(dado_ts, ts)` é CARGA, não defesa (design § 8, item 2).
+def test_sql_bucketiza_pelo_dado_ts_e_nunca_pelo_relogio_de_calculo() -> None:
+    """🔴 Decisão do dono, 2026-09-18 — o `COALESCE(dado_ts, ts)` SAIU.
 
-    Toda linha anterior à migration 0009 tem `dado_ts` NULL, e ciclos em que
-    nenhum par trouxe hora legível continuam gravando NULL. Sem o COALESCE a
-    série perderia esses pontos inteiros.
+    Era o design da spec 020 (§ 2.2d; o § 8 item 2 o chamava de "carga, não
+    defesa"), e a decisão o revoga: ciclo sem hora do TSE vira buraco, não
+    ponto. Em produção, das 572 linhas sem `dado_ts` posteriores à migration
+    0009, ZERO têm `pct_atual` — o que some é só a linha da projeção, e ela é
+    justamente a que marchava para a direita sobre dado congelado.
 
     A asserção olha o ARGUMENTO do `floor(extract(epoch FROM …))`, e não a
-    presença da palavra no SQL: `dado_ts` aparece em várias posições da
-    consulta, e um `"dado_ts" in sql` continuaria verdadeiro com o balde
-    derivado de `ts` puro — foi assim que uma mutação sobreviveu na Fase 1.
+    ausência da palavra no SQL: `COALESCE` poderia sumir do balde e ficar no
+    `momento`, e o gráfico continuaria mentindo — foi assim que uma mutação
+    sobreviveu na Fase 1. Por isso as três posições são conferidas uma a uma.
     """
     sql = _sql_de_uma_leitura()
-    fonte_do_balde = re.search(
-        r"floor\(extract\(epoch FROM ([^)]*\)?)\s*\)\s*/", sql
-    )
+    fonte_do_balde = re.search(r"floor\(extract\(epoch FROM ([^)]*\)?)\s*\)\s*/", sql)
     assert fonte_do_balde is not None, "expressão do balde não encontrada no SQL"
-    assert fonte_do_balde.group(1).strip() == "COALESCE(dado_ts, ts)"
+    assert fonte_do_balde.group(1).strip() == "dado_ts"
 
     # E o representante do balde é escolhido pelo MESMO relógio, em ordem DESC.
     assert re.search(r"ORDER BY uf, candidato_id, balde, momento DESC", sql)
-    assert re.search(r"COALESCE\(dado_ts, ts\) AS momento", sql)
+    assert re.search(r"(?<![_\w])dado_ts AS momento", sql)
+
+    # Nenhuma das três posições sobreviveu com o fallback.
+    assert "COALESCE" not in sql.upper(), (
+        "o relógio de cálculo voltou a ancorar a série (decisão de 18/09)"
+    )
+
+
+def test_sql_descarta_a_linha_sem_hora_do_boletim() -> None:
+    """O filtro que a decisão de 18/09 nomeia, e o seu INVERSO.
+
+    Mutação que este teste mata: `dado_ts IS NULL` no lugar de `IS NOT NULL` —
+    o inverso exato do filtro, que publicaria SÓ os ciclos cegos e nenhum
+    boletim. `"dado_ts IS" in sql` passaria nos dois casos.
+    """
+    sql = _sql_de_uma_leitura()
+    assert "dado_ts IS NOT NULL" in sql
+    assert re.search(r"dado_ts IS NULL", sql) is None
 
 
 def test_sql_e_leitura_pura_e_limita_o_eixo_pelos_dois_relogios() -> None:
@@ -1085,10 +1122,283 @@ def test_sql_e_leitura_pura_e_limita_o_eixo_pelos_dois_relogios() -> None:
     alto = sql.upper()
     for proibido in ("INSERT", "UPDATE", "DELETE", "ON CONFLICT"):
         assert proibido not in alto
-    # Sem a segunda janela, um boletim travado há três dias entraria pela porta
-    # do `ts` recente e esticaria o eixo para muito além da janela pedida.
-    assert "ts > NOW()" in sql
-    assert "COALESCE(dado_ts, ts) > NOW()" in sql
+    # Duas janelas, com papéis diferentes: `ts` é a coluna do índice
+    # `ix_proj_serie` e limita a VARREDURA; `dado_ts` limita o EIXO. Sem a
+    # segunda, um boletim travado há três dias entraria pela porta do `ts`
+    # recente e esticaria o eixo para muito além da janela pedida.
+    #
+    # ⚠️ `"ts > NOW()" in sql` NÃO discrimina: `dado_ts > NOW()` contém essa
+    # substring, e a asserção passaria com a janela do índice removida. O
+    # lookbehind é o que separa as duas colunas.
+    assert re.search(r"(?<![_\w])ts > NOW\(\)", sql), "janela da VARREDURA sumiu"
+    assert "dado_ts > NOW()" in sql, "janela do EIXO sumiu"
+
+
+# ---------------------------------------------------------------------------
+# Um Postgres de brinquedo — a única forma de provar que os DOIS lados andam
+# juntos
+# ---------------------------------------------------------------------------
+#
+# `_ConnDeLeitura` devolve as linhas que recebeu, qualquer que seja o SQL: ele
+# serve para inspecionar a CONSULTA, e não o resultado dela. Com ele, "voltar o
+# `COALESCE(dado_ts, ts)` na leitura" não muda coisa nenhuma — e a mutação mais
+# perigosa desta decisão é exatamente essa, porque ela sobrevive a corrigir só
+# a outra metade (`anexar_ponto_corrente`).
+#
+# Este emulador fecha o buraco: ele DERIVA o comportamento do texto do SQL.
+# Lê qual expressão o SQL usa como relógio, aplica o filtro de NULL que o SQL
+# declara, bucketiza e resolve o `DISTINCT ON` pelo último do balde. Trocar a
+# consulta troca o resultado, que é o que torna os dois testes abaixo capazes
+# de discriminar.
+#
+# O que ele NÃO emula, de propósito: a janela `NOW() - interval`. As fixtures
+# deste arquivo vivem em 04/10/2026 (`BOLETIM`), e amarrar o emulador ao
+# relógio de parede faria estes testes mudarem de resultado conforme o dia em
+# que a suíte roda. A janela é coberta por asserção de texto, logo acima.
+
+#: As duas únicas expressões de relógio que o emulador conhece. Qualquer outra
+#: levanta: um SQL novo tem de passar por aqui conscientemente, nunca ser
+#: silenciosamente tratado como um dos dois casos conhecidos.
+_RELOGIOS_CONHECIDOS = {
+    "dado_ts": lambda linha: linha["dado_ts"],
+    "COALESCE(dado_ts, ts)": lambda linha: linha["dado_ts"] or linha["ts"],
+}
+
+
+class _CursorDeProjections:
+    def __init__(self, capturado: dict[str, Any], linhas: list[dict[str, Any]]) -> None:
+        self._capturado = capturado
+        self._linhas = linhas
+        self._rows: list[tuple[Any, ...]] = []
+
+    def __enter__(self) -> _CursorDeProjections:
+        return self
+
+    def __exit__(self, *_exc: object) -> bool:
+        return False
+
+    @staticmethod
+    def _relogio(sql: str):
+        """Qual coluna o SQL usa como relógio — e ela tem de ser UMA só.
+
+        ⚠️ `pytest.fail`, não `assert`: `fetch_series_por_candidato` engole
+        `Exception` de propósito (série ausente não derruba o ciclo,
+        constituição § 7), e um `AssertionError` daqui viraria "série vazia" —
+        vermelho, mas com a causa apagada. `Failed` herda de `BaseException` e
+        atravessa aquele `except`.
+        """
+        achado = re.search(r"floor\(extract\(epoch FROM ([^)]*\)?)\s*\)\s*/", sql)
+        if achado is None:
+            pytest.fail("expressão do balde não encontrada no SQL")
+        balde = achado.group(1).strip()
+        momento = re.search(r"([\w()., ]+?) AS momento", sql)
+        if momento is None:
+            pytest.fail("expressão de `momento` não encontrada no SQL")
+        if balde != momento.group(1).strip():
+            pytest.fail(
+                "balde e `momento` saem de relógios DIFERENTES — o "
+                f"representante do balde não é o último dele: balde={balde!r} "
+                f"momento={momento.group(1).strip()!r}"
+            )
+        if balde not in _RELOGIOS_CONHECIDOS:
+            pytest.fail(
+                f"relógio {balde!r} desconhecido do emulador — ensine-o aqui "
+                "antes de mudar a consulta"
+            )
+        return _RELOGIOS_CONHECIDOS[balde]
+
+    def execute(self, sql: str, params: Any = None) -> None:
+        self._capturado["sql"] = sql
+        relogio = self._relogio(sql)
+        largura = int(params["largura"])
+        exige_nao_nulo = "dado_ts IS NOT NULL" in sql
+        exige_nulo = re.search(r"dado_ts IS NULL", sql) is not None
+
+        ultimo_do_balde: dict[tuple[Any, int, int], tuple[Any, ...]] = {}
+        for linha in self._linhas:
+            if exige_nao_nulo and linha["dado_ts"] is None:
+                continue
+            if exige_nulo and linha["dado_ts"] is not None:
+                continue
+            momento = relogio(linha)
+            # `NULL > x` é NULL, e NULL reprova o `WHERE` — a linha não sai do
+            # Postgres. Mesmo efeito aqui.
+            if momento is None:
+                continue
+            balde = _balde_epoch(momento, largura // 60)
+            chave = (linha["uf"], linha["candidato_id"], balde)
+            anterior = ultimo_do_balde.get(chave)
+            if anterior is None or momento > anterior[3]:
+                ultimo_do_balde[chave] = (
+                    linha["uf"],
+                    linha["candidato_id"],
+                    float(balde),
+                    momento,
+                    linha["pct_atual"],
+                    linha["pct_projetado"],
+                )
+        self._rows = list(ultimo_do_balde.values())
+
+    def fetchall(self) -> list[tuple[Any, ...]]:
+        return self._rows
+
+
+class _ConnDeProjections:
+    def __init__(self, linhas: list[dict[str, Any]]) -> None:
+        self.capturado: dict[str, Any] = {}
+        self._linhas = linhas
+
+    def cursor(self) -> _CursorDeProjections:
+        return _CursorDeProjections(self.capturado, self._linhas)
+
+
+def _eixo_do_balde(momento: datetime, cadencia_min: int) -> str:
+    """Rótulo de eixo do balde que contém `momento` (`…T20:25:00Z`).
+
+    Recalculado aqui a partir de `_balde_epoch` em vez de importado de
+    `_eixo_iso`: a asserção é sobre a AUSÊNCIA de um instante no eixo, e
+    reaproveitar a função que produz o eixo faria as duas pontas errarem
+    juntas.
+    """
+    inicio = datetime.fromtimestamp(
+        _balde_epoch(momento, cadencia_min), tz=timezone.utc
+    )
+    return inicio.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _linha_de_projections(
+    *,
+    dado_ts: datetime | None,
+    ts: datetime,
+    pct_atual: float | None,
+    pct_projetado: float,
+) -> dict[str, Any]:
+    """Uma linha de `projections` como a 0009 a grava, para SP/candidatura 13."""
+    return {
+        "uf": "SP",
+        "candidato_id": 13,
+        "dado_ts": dado_ts,
+        "ts": ts,
+        "pct_atual": pct_atual,
+        "pct_projetado": pct_projetado,
+    }
+
+
+#: A noite real em três ciclos: boletim, cego, boletim (decisão de 18/09).
+#:
+#: Os números vêm da medição de produção de 18/09 e não são decorativos:
+#:
+#:   - o ciclo cego tem `pct_atual` NULL, porque das 572 linhas sem `dado_ts`
+#:     posteriores à 0009, ZERO têm `pct_atual`. Hora do boletim e voto medido
+#:     vêm da mesma fonte;
+#:   - o `pct_projetado` dele é DIFERENTE dos outros dois, porque o modelo
+#:     reprojeta a cada ciclo mesmo sem dado novo (39 valores distintos naquelas
+#:     572 linhas). É esse número que marchava para a direita sobre uma
+#:     ingestão parada.
+#:
+#: O `ts` do ciclo cego (20:26) cai num balde ADIANTE dos dois boletins (20:00 e
+#: 20:05), e essa folga é o que faz o teste discriminar pelo COMPRIMENTO do
+#: eixo, e não só pelo valor de um ponto: com o relógio de cálculo de volta, a
+#: grade vai de 20:00 a 20:25 — seis baldes onde cabem dois. Lag de ~20 min
+#: entre o carimbo do TSE e o ciclo do modelo é o cenário normal, não o extremo.
+_CICLO_CEGO_TS = BOLETIM + timedelta(minutes=26)
+_TRES_CICLOS = [
+    _linha_de_projections(
+        dado_ts=BOLETIM,
+        ts=BOLETIM + timedelta(minutes=20),
+        pct_atual=41.11,
+        pct_projetado=44.11,
+    ),
+    _linha_de_projections(
+        dado_ts=None,
+        ts=_CICLO_CEGO_TS,
+        pct_atual=None,
+        pct_projetado=47.11,
+    ),
+    _linha_de_projections(
+        dado_ts=BOLETIM + timedelta(minutes=5),
+        ts=BOLETIM + timedelta(minutes=32),
+        pct_atual=42.11,
+        pct_projetado=44.55,
+    ),
+]
+
+
+def _serie_dos_tres_ciclos(conn: _ConnDeProjections) -> dict[str, Any]:
+    bruta = fetch_series_por_candidato(conn, 1, 1)
+    serie = montar_serie_por_candidato(bruta, "SP", [_cand(13, "A", "PT", 42.11, 44.55)])
+    assert serie is not None
+    return serie
+
+
+def test_a_noite_com_um_ciclo_cego_tem_dois_pontos_e_nao_tres() -> None:
+    """Boletim, ciclo cego, boletim — o eixo tem DOIS pontos.
+
+    Mutação que este teste mata: `COALESCE(dado_ts, ts)` de volta em qualquer
+    das três posições da consulta. Diferente das asserções de texto acima, esta
+    passa pelo emulador: é o resultado que muda, não o `str`.
+
+    Duas asserções e as duas necessárias. O comprimento do eixo pega o ponto a
+    mais; a do `projetado` pega o caso em que o ciclo cego cai num balde JÁ
+    ocupado e substitui o boletim como último do balde, sem mudar o
+    comprimento.
+    """
+    serie = _serie_dos_tres_ciclos(_ConnDeProjections(_TRES_CICLOS))
+
+    assert serie["eixo"] == ["2026-10-04T20:00:00Z", "2026-10-04T20:05:00Z"]
+
+    # O instante do ciclo cego não está no eixo — nem ele, nem o balde dele.
+    instante_cego = _eixo_do_balde(_CICLO_CEGO_TS, serie["cadencia_min"])
+    assert instante_cego not in serie["eixo"]
+
+    linha = serie["candidatos"][0]
+    assert linha["projetado"] == [44.11, 44.55], (
+        "a projeção do ciclo cego (47.11) entrou na série — a linha marchou "
+        "para a direita sobre um ciclo em que nenhum boletim chegou"
+    )
+    assert linha["apurado"] == [41.11, 42.11]
+
+
+def test_com_o_coalesce_de_volta_na_leitura_o_ciclo_cego_ressuscita(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A metade da decisão que mora na LEITURA — e a prova de que o emulador vê.
+
+    🔴 Este é o caso que o dono destacou: corrigir só `anexar_ponto_corrente`
+    não resolve nada. A linha do ciclo cego é gravada em `projections` com
+    `dado_ts` NULL de qualquer jeito (o ADR-0038 D1 proíbe a coluna cair para
+    outro relógio), e o `COALESCE` da consulta a traria de volta no ciclo
+    seguinte, no mesmo lugar errado — a linha passaria a PISCAR: some no ciclo
+    em que nasce, reaparece no seguinte.
+
+    Aqui a consulta antiga é remontada a partir da atual e injetada. Se ela
+    NÃO ressuscitasse o ciclo cego, o emulador seria cego ao SQL e o teste
+    acima não provaria nada — é por isso que este existe.
+    """
+    import api.model.project as proj
+
+    atual = proj._SERIE_POR_CANDIDATO_SQL
+    antiga = (
+        atual.replace(
+            "floor(extract(epoch FROM dado_ts)",
+            "floor(extract(epoch FROM COALESCE(dado_ts, ts))",
+        )
+        .replace("dado_ts AS momento", "COALESCE(dado_ts, ts) AS momento")
+        .replace("          AND dado_ts IS NOT NULL\n", "")
+        .replace("AND dado_ts > NOW()", "AND COALESCE(dado_ts, ts) > NOW()")
+    )
+    assert antiga != atual, (
+        "a consulta de produção voltou a ser a antiga — o `COALESCE` está de "
+        "volta na leitura (decisão do dono, 18/09)"
+    )
+
+    monkeypatch.setattr(proj, "_SERIE_POR_CANDIDATO_SQL", antiga)
+    serie = _serie_dos_tres_ciclos(_ConnDeProjections(_TRES_CICLOS))
+
+    instante_cego = _eixo_do_balde(_CICLO_CEGO_TS, serie["cadencia_min"])
+    assert instante_cego in serie["eixo"]
+    assert 47.11 in serie["candidatos"][0]["projetado"]
+    assert len(serie["eixo"]) > 2
 
 
 def test_sql_bucketiza_na_cadencia_mais_fina_qualquer_que_seja_a_janela() -> None:
