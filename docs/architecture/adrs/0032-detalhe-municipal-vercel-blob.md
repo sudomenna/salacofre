@@ -34,6 +34,22 @@ ADRs anteriores herdaram errado: o limite real do Edge Config — produto renome
 é **1 MB por store inteiro** (todas as chaves e valores somados, igual em Hobby/Pro/Enterprise), não
 os 512 KB que `lib/edge-config/writer.ts:171,266,275,317,325` codifica hoje como `hardLimit`.
 
+### Emenda 2026-09-17 — série por candidato: teto duro por construção muda de lado da divisória no escopo nacional (ADR-0046)
+
+**Nota 2026-09-17 ([ADR-0046](0046-serie-por-candidato-limitada-por-construcao.md)).** A reserva
+deixada pelo item 1 deste ADR ("a série por candidato... nunca uma chave nova de Global Config")
+resolve o caso **por UF**: a série por candidato de UF continua no mesmo objeto Blob,
+`UfDetailBlob.series_temporais.por_candidato`, sem esquema novo. O ADR-0046 resolve o caso
+**nacional**, que este ADR não havia precificado separadamente: sem o multiplicador ×27 UF, a série
+por candidato nacional (forma colunar, teto duro de 120 pontos por construção — nunca ilimitada como
+`municipios`) custa 6.905 B, e entra como campo novo dentro da chave de Global Config nacional que já
+existe — não um Blob nacional, não uma chave nova. O ADR-0046 nomeia o critério que faltava aqui: um
+detalhe cujo crescimento é **limitado por construção** (teto duro, nunca cortado, re-bucketizado)
+pode caber do lado "Global Config" da divisória mesmo crescendo com o tempo decorrido, quando o
+escopo não multiplica por UF. A divisória em si — resumo limitado por construção vs. detalhe que
+cresce sem teto ou multiplicado por UF — não muda; ganha esse critério adicional para o caso em que
+"cresce com o tempo" e "tem teto duro" coexistem no mesmo campo.
+
 ## Contexto
 
 O read path de UF (`EdgePayloadUf`, `lib/edge-config/types.ts:687-787`) inclui hoje o array

@@ -27,7 +27,7 @@ Documentação Spec-Driven Development (SDD) do SalaCofre — plataforma web pú
 
 ---
 
-## Specs (17)
+## Specs (18)
 
 | # | Spec | Status | Prioridade | Telas |
 |---|---|---|---|---|
@@ -48,6 +48,7 @@ Documentação Spec-Driven Development (SDD) do SalaCofre — plataforma web pú
 | 017 | [Deputado Federal](./specs/017-deputado-federal/) | shipped | M | T-11, T-12 |
 | 018 | [Identidade de Candidatura](./specs/018-identidade-candidatura/) | draft | M | T-13, T-14 |
 | 019 | [Fase pré-eleição](./specs/019-fase-pre-eleicao/) | draft | M | T-15, T-16 |
+| 020 | [Evolução da apuração](./specs/020-evolucao-da-apuracao/) | draft | M | T-01, T-03, T-04, T-10 |
 
 Cada spec contém `spec.md` (requirements em EARS) e `design.md` (decisões técnicas). `tasks.md` será adicionado no início da implementação de cada uma.
 
@@ -88,6 +89,6 @@ Antes de criar/editar specs, ler [_meta/conventions.md](./_meta/conventions.md):
 
 ## Status atual
 
-- **Documentação**: atualizada S07 Fase 8 (60 RFs do PRD + 69 RFs adicionados nas specs mapeados = 129 RFs totais; 43 ADRs — 42 accepted + 1 proposed; 34 RNFs; 17 specs com 14 ativas).
+- **Documentação**: atualizada S07 Fase 8 (60 RFs do PRD + 79 RFs adicionados nas specs mapeados = 139 RFs totais; 46 ADRs — 43 accepted + 3 superseded; 36 RNFs; 20 specs, 19 ativas + 1 superseded).
 - **Código**: Implementação em progresso (S07 Fase 8: specs 001–006 + 016 shipped/implementing; **017 (Deputado Federal) implementada em 12/09, `shipped`, 4 gates PASS**; specs 002/008-013 em draft/ready; specs 014-015 diferidas; spec 019 em draft).
 - **Próximo passo**: Simulado TSE 1 (15–17/09) — ver [roadmap](./product/roadmap.md) e [sprint S07 ativa](./sprints/2026-S07-f6-simulado-hero-1t.md).

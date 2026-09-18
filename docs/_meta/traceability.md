@@ -151,6 +151,16 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-150 | "Fonte: TSE" visível e carimbo de frescor | M | [018](../specs/018-identidade-candidatura/) | `<CandidaturasFonte>` | unit (injeta `fonte_ts`, tela diz aquele valor — nunca literal) |
 | RF-151 | Fallback de avatar quando não há foto | M | [018](../specs/018-identidade-candidatura/) | `<CandidatoAvatar>` | unit (dimensões 161×225 sem foto, CLS zero, sem `colorForParty` como área) |
 | RF-152 | Cadência de reimportação e guarda de encolhimento | M | [018](../specs/018-identidade-candidatura/) | — | unit (`candidatos-import.test.ts::test_encolhimento_aborta_98_pctile`, `test_encolhimento_janela_critica_02_03_outubro`) |
+| RF-167 | O percentual por candidatura é persistido, não recalculado | M | [020](../specs/020-evolucao-da-apuracao/) | — (produtor Python) | ⚠️ **sem cobertura** — exige a migration 0009 e o INSERT em `api/model/project.py`, que são Fase 1 e **não foram implementados**. Nenhum teste existe hoje. |
+| RF-168 | A série é limitada por construção, nunca por corte | M | [020](../specs/020-evolucao-da-apuracao/) | — (produtor Python) | ⚠️ **sem cobertura** — `fetch_series_por_candidato` (cadência adaptativa, teto de 120, último-do-balde) é Fase 1 e **não foi implementada**. |
+| RF-169 | O último ponto é o número publicado ao lado | M | [020](../specs/020-evolucao-da-apuracao/) | — (produtor Python) | ⚠️ **sem cobertura** — depende de `anexar_ponto_corrente` (Fase 1). Hoje a leitura da série precede o INSERT do ciclo em `api/model/project.py`, então o defeito **existe e não é detectado**. |
+| RF-170 | Quatro linhas, escolhidas agora, desenhadas desde o início | M | [020](../specs/020-evolucao-da-apuracao/) | `<SerieApuracaoChart />`, `rankByParcial` | 🟡 **parcial** — o comparador tem cobertura própria (`tests/unit/utils/rank-parcial.test.ts`, 6 casos, 6 mutações mortas). A **seleção das 4 no produtor** é Fase 1 e não tem teste. |
+| RF-171 | A cor é do partido; o rank escolhe quem entra, nunca de que cor | M | [020](../specs/020-evolucao-da-apuracao/) | `<SerieApuracaoChart />` | ✅ unit (`tests/unit/components/serie-apuracao-chart.test.tsx`, bloco “T7: mata a cor por rank”): cor estável sob inversão da ordem, partidos distintos com cores distintas, e asserção **negativa** de que `--color-cand-` não ocorre no HTML. Mutação aplicada e morta. |
+| RF-172 | As duas visões alternam pelo controle que já existe | M | [020](../specs/020-evolucao-da-apuracao/) | `<SerieApuracaoChart />`, `<ViewModeSwitch />` | ✅ unit (`tests/unit/components/serie-apuracao-chart.test.tsx`): os dois grupos `data-view-only` no HTML do servidor. ⚠️ O item (b) — 0 B de bundle — **ainda não é medido**: depende de `tests/e2e/perf-budget.spec.ts` rodar sobre as 4 rotas. |
+| RF-173 | Senador: quatro linhas, duas vagas legíveis sem cor | M | [020](../specs/020-evolucao-da-apuracao/) | `<SerieApuracaoChart />` | ✅ unit (`tests/unit/components/serie-apuracao-chart.test.tsx`, bloco “RF-173: Senador elege duas”, 4 casos): espessura maior nas 2 primeiras, ausência de `opacity`, régua da 2ª vaga, e a legenda nomeando as duas. |
+| RF-174 | Antes de 04/10 o gráfico desenha os eixos e diz que ainda não é hora | M | [020](../specs/020-evolucao-da-apuracao/) | `<SerieApuracaoChart />` | ✅ unit (`tests/unit/components/serie-apuracao-chart.test.tsx`, 4 casos): sem traçado, “projeção” ausente de toda superfície, régua de 0–50% e horários do protótipo. ✅ integration: as 4 rotas conferem `data-estado="antes-do-dia"` quando o payload **nacional** traz a fase. |
+| RF-175 | Três estados degradados, nenhum silencioso | M | [020](../specs/020-evolucao-da-apuracao/) | `<SerieApuracaoChart />`, `<DetailUnavailable />` | ✅ unit (`tests/unit/components/serie-apuracao-chart.test.tsx`, blocos “T3” e “T5”): 0/1/**2** pontos (o caso NO limiar), traço interrompido em dois segmentos no furo, nenhuma coordenada na linha de zero e a célula dizendo “sem medição”. Mutação `?? 0` aplicada e morta. |
+| RF-176 | Tabela completa para leitor de tela, com as duas bases | M | [020](../specs/020-evolucao-da-apuracao/) | `<SerieApuracaoChart />` | ✅ unit (`tests/unit/components/serie-apuracao-chart.test.tsx`, bloco “RF-176”, 4 casos): uma linha por instante, hora legível (nunca ISO cru), legenda declarando a projeção como não oficial, SVG com papel de imagem. ⚠️ O item (e) — axe nas 4 rotas × 2 temas × 2 viewports — **ainda não foi rodado**. |
 
 ## RFs adicionados pelas specs (não estavam no PRD)
 
@@ -212,6 +222,16 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-150 | "Fonte: TSE" e carimbo de frescor | [018](../specs/018-identidade-candidatura/) |
 | RF-151 | Fallback de avatar | [018](../specs/018-identidade-candidatura/) |
 | RF-152 | Cadência de reimportação e guarda | [018](../specs/018-identidade-candidatura/) |
+| RF-167 | Percentual por candidatura persistido | [020](../specs/020-evolucao-da-apuracao/) |
+| RF-168 | Série limitada por construção, cadência adaptativa | [020](../specs/020-evolucao-da-apuracao/) |
+| RF-169 | Último ponto síncrono com payload | [020](../specs/020-evolucao-da-apuracao/) |
+| RF-170 | Quatro linhas, escolhidas agora, desenhadas desde o início | [020](../specs/020-evolucao-da-apuracao/) |
+| RF-171 | Cor por partido, não por rank | [020](../specs/020-evolucao-da-apuracao/) |
+| RF-172 | Duas visões alternam por controle existente | [020](../specs/020-evolucao-da-apuracao/) |
+| RF-173 | Senador: duas vagas legíveis sem cor | [020](../specs/020-evolucao-da-apuracao/) |
+| RF-174 | Antes de 04/10: eixos e mensagem de espera | [020](../specs/020-evolucao-da-apuracao/) |
+| RF-175 | Três estados degradados, nenhum silencioso | [020](../specs/020-evolucao-da-apuracao/) |
+| RF-176 | Tabela a11y com duas bases, horas formatadas | [020](../specs/020-evolucao-da-apuracao/) |
 | RF-153 | `fase` no payload, lida em um só lugar | [019](../specs/019-fase-pre-eleicao/) |
 | RF-154 | Os quatro painéis de medição somem inteiros | [019](../specs/019-fase-pre-eleicao/) |
 | RF-155 | `ResultPanel` em modo identidade | [019](../specs/019-fase-pre-eleicao/) |

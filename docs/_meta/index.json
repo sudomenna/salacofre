@@ -399,6 +399,14 @@
       "date": "2026-09-17",
       "note": "Decisão do dono em 17/09, escopo completo (ingestão + modelo + página). Exterior vota SÓ para Presidente (CE art. 225); medido no simulado: 184 localidades, 1 zona (0001), 760.913 aptos, arquivos zz-c0001/zz-e021270-ab/zz<mun>-z0001. Supersede parcialmente a tarefa T01 da spec 002 (filtro uf <> 'ZZ'). CargoInfo.abrangeExterior (true só no cargo 1) + unidadesDeApuracao(cargo). municipios recebe 184 linhas com chave sintética cod_ibge='ZZ'+lpad(cod_tse,5) — sem migration de schema (centroid/meso/populacao já nuláveis); zonas +184 pares; eleitorado do exterior vem do CSV de 2022 (o de 2024 é municipal e não tem ZZ) via script novo, e eleitorado-import passa a apagar com AND uf <> 'ZZ'. Granularidade zona (+184 alvos no cargo 1, ~252 s de 300). No modelo, ZZ agrupa por localidade (cod_zona := cod_municipio_tse) — sem isso as 184 linhas colapsam em 1 unidade e o bootstrap dá IC de largura zero (constituição §6). swing_vs_2022 nulo no exterior. UI: cartograma segue com 27 (não inventar geografia), linha 'Exterior' na tabela nacional, página /uf/ZZ só presidencial e sem mapa, 404 nos demais cargos; contadores '27' passam a unidadesDeApuracao. Continuam excluindo ZZ: build-replay-fixtures (gate OT-4) e simulacao-gerar.",
       "path": "docs/architecture/adrs/0045-exterior-zz-apuracao-presidencial.md"
+    },
+    {
+      "id": "0046",
+      "title": "Série por candidato limitada por construção — forma colunar, teto de 120 pontos, elenco decidido no produtor, sem chave nova de Global Config",
+      "status": "accepted",
+      "date": "2026-09-17",
+      "note": "Emenda o ADR-0032 (não supersede). Motivada pela spec 020 (Evolução da apuração). D1: forma colunar (eixo + arrays paralelos por candidato), não array de objetos — 6.905 B contra 32.356 B a 96 pontos. D2: SERIE_MAX_PONTOS=120, cadência adaptativa [5,10,15,30]min, re-bucketiza (nunca corta o início), balde = último ponto (nunca média, para não regredir quantidade quase-monotônica), balde derivado do epoch de dado_ts (não do índice) — teto absoluto 8.553 B por corrida, para sempre. D3: série por UF continua no Blob (UfDetailBlob.series_temporais.por_candidato); série NACIONAL entra em campo novo (serie_por_candidato) na chave de Global Config já existente, não em chave nova — UF em Global Config custaria 559.305 B (27 UF x 3 cargos), levando o store a ~969 KB, acima do limiar de erro 940.000 B; nacional custa +6.905 B, chega a ~24.206 B, longe do teto de 75 KB por chave nacional. Reabre a letra do ADR-0032 mas não o espírito: teto duro por construção (D2) é o critério novo que decide de que lado da divisória (Global Config vs Blob) uma série cai. D4: elenco (top-4) decidido no Python pelo MESMO comparador de rankByParcial (pct_atual desc -> pct_projetado desc -> id asc), não pelo rank que o Python já calcula só por pct_projetado (project.py:3155-3157) — evita o elenco do gráfico divergir do painel de resultado acima dele. Consumidor não reordena. rankByParcial triplicado (pages de pres/gov/sen) a extrair para lib/utils/rank-parcial.ts — não feito por este ADR. D5: cor por colorForParty(partido), nunca o campo `cor` do payload (var(--color-cand-{rank}), aposentado pelo ADR-0024) — evita a linha trocar de cor ao vivo numa ultrapassagem. Consequência negativa registrada e aceita pelo dono: candidatura que cai do top-4 some do gráfico inclusive do próprio passado; ultrapassagem que a derrubou fica invisível como evento — mitigado por rótulo e tabela acessível (RF-176), não resolvido.",
+      "path": "docs/architecture/adrs/0046-serie-por-candidato-limitada-por-construcao.md"
     }
   ],
   "nfr": {
@@ -1613,6 +1621,80 @@
       "ship_blocked_on": [],
       "notes": "Escrita em 2026-09-13 sobre leitura linha a linha dos nove componentes de telas nacionais. Nenhuma implementação existe. Decisão marcante: campo `fase` próprio no payload (ADR-0043), não derivado de percentual ou calendário. Duas decisões do orquestrador documentadas em design.md: (1) RF-159 alcança também `/candidatos`, `/sobre-o-modelo` e `/status` em 04/10, porque aquelas rotas nunca foram ao vivo e o defeito presente do selo é uma regressão sim, é um conserto — removido de open questions; (2) a supressão de `MapViewToggle` em RF-157 significa que o controle desaparece entre 20/09 e 04/10 se a fase pré começar cedo — decidido e aceito. Risco residual R1 (leitor entende placar zerado como 'começou, ninguém pontuou') **assumido explicitamente pelo dono em 13/09**, registrado em risks.md. Pendências abertas: R7 (emptyPayload de `/governador` e `/senador` cai em modo normal sem fase, sem aviso, quando Global Config falha).",
       "path": "docs/specs/019-fase-pre-eleicao/"
+    },
+    {
+      "id": "020-evolucao-da-apuracao",
+      "title": "Evolução da apuração — a noite como linha, quatro candidaturas, duas bases",
+      "status": "draft",
+      "priority": "M",
+      "personas": [
+        "P1",
+        "P2",
+        "P3"
+      ],
+      "screens": [
+        "T-01",
+        "T-03",
+        "T-04",
+        "T-10"
+      ],
+      "requirements": [
+        "RF-167",
+        "RF-168",
+        "RF-169",
+        "RF-170",
+        "RF-171",
+        "RF-172",
+        "RF-173",
+        "RF-174",
+        "RF-175",
+        "RF-176"
+      ],
+      "depends_on": [
+        "002-modelo-estatistico",
+        "003-home-nacional",
+        "004-pagina-uf-presidencial",
+        "005-pagina-uf-governador",
+        "016-senador",
+        "019-fase-pre-eleicao"
+      ],
+      "apis": [],
+      "components": [
+        "SerieApuracaoChart",
+        "DetailUnavailable",
+        "Panel",
+        "ViewModeSwitch",
+        "TimeSeriesChart"
+      ],
+      "nfr": [
+        "RNF-002",
+        "RNF-007a",
+        "RNF-022",
+        "RNF-023",
+        "RNF-024",
+        "RNF-026"
+      ],
+      "adrs": [
+        "0046",
+        "0011",
+        "0012",
+        "0017",
+        "0024",
+        "0029",
+        "0031",
+        "0032",
+        "0038",
+        "0043"
+      ],
+      "amends": [
+        "003-home-nacional",
+        "004-pagina-uf-presidencial",
+        "005-pagina-uf-governador",
+        "016-senador"
+      ],
+      "ship_blocked_on": [],
+      "notes": "Escrita em 2026-09-17 a partir de protótipo visual do dono do produto e de decisões dele na mesma sessão (spec.md § Decisões do dono). Fase 0 implementada: componente `<SerieApuracaoChart />` (Server Component SVG, sem lib de charting), testes novos (`serie-apuracao-chart.test.tsx`, `rank-parcial.test.ts`), dados persistidos em `projections` (RF-167), forma colunar limitada por construção (RF-168), últimoponto síncrono com payload (RF-169). RFs RF-170-176 (escolha de elenco, cor por partido, apresentação, estados degradados, tabela a11y) **não implementadas**; bloqueadores: migration 0009 antes de 04/10, Python no gerador de séries, fixtures de simulação de gov/sen. Consequência registrada e aceita: candidatura que cai do top-4 desaparece do gráfico inclusive do passado; ultrapassagem fica invisível — mitigado por legenda e tabela acessível, não resolvido.",
+      "path": "docs/specs/020-evolucao-da-apuracao/"
     }
   ]
 }
