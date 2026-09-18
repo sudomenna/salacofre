@@ -507,3 +507,34 @@ def test_insert_lista_as_tres_colunas_novas_e_nao_atualiza_nada() -> None:
     assert "ON CONFLICT" not in alto
     assert "UPDATE" not in alto
     assert "DELETE" not in alto
+
+
+# ---------------------------------------------------------------------------
+# Escopo do que é persistido — decisão do dono, 2026-09-17
+# ---------------------------------------------------------------------------
+
+
+def test_deputado_federal_fica_fora_da_serie_persistida() -> None:
+    """Cargo 6 NÃO entra em `projections`.
+
+    Decisão do dono em 2026-09-17, com a conta na mesa: 7.791 candidaturas a
+    Deputado Federal × 480 ciclos de uma noite = ~3,7 milhões de linhas, nove
+    vezes todo o resto somado. Este teste existe para que reverter a decisão
+    seja um ato deliberado — acrescentar o 6 ao conjunto fica vermelho aqui.
+    """
+    from api.model.project import CARGOS_COM_SERIE_PERSISTIDA
+
+    assert 6 not in CARGOS_COM_SERIE_PERSISTIDA
+
+
+def test_presidente_governador_e_senador_entram() -> None:
+    """E os três que entram, incluindo Presidente POR UF.
+
+    Presidente aparece aqui uma vez só (o código do cargo), mas o orchestrator
+    grava tanto as linhas de UF quanto a nacional — e é o dado por UF que
+    alimenta o gráfico da spec 020 nas 27 telas de estado. Remover o escopo de
+    UF do Presidente esvaziaria o gráfico em 27 rotas, deixando-o só na home.
+    """
+    from api.model.project import CARGOS_COM_SERIE_PERSISTIDA
+
+    assert CARGOS_COM_SERIE_PERSISTIDA == frozenset({1, 3, 5})

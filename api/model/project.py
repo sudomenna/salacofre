@@ -983,6 +983,24 @@ def _dado_ts_para_coluna(dado_ts: str | None) -> datetime | None:
     return momento
 
 
+#: Cargos cuja série histórica é persistida em `projections`.
+#:
+#: **Decisão do dono, 2026-09-17.** Presidente (nacional E por UF — é o dado por
+#: UF que alimenta o gráfico da spec 020 nas 27 telas de estado), Governador e
+#: Senador. **Deputado Federal (6) fica FORA**: são 7.791 candidaturas
+#: registradas, que a 480 ciclos de uma noite dariam ~3,7 milhões de linhas —
+#: nove vezes todo o resto somado (Presidente ~175k, Senador ~153k, Governador
+#: ~96k). Se um dia precisar, o caminho é guardar só as candidaturas mais
+#: votadas, nunca as 7.791.
+#:
+#: Hoje o cargo 6 tem caminho próprio (`api/model/deputado.py`) e não chega
+#: aqui; esta constante existe para que ligá-lo um dia seja uma DECISÃO, e não
+#: um efeito colateral. A validação de entrada aceita 1..99 de propósito (um
+#: código inesperado não pode derrubar o ciclo), então a fronteira do que se
+#: GRAVA precisa morar aqui, e não na borda.
+CARGOS_COM_SERIE_PERSISTIDA = frozenset({1, 3, 5})
+
+
 def linhas_para_projections(
     uf_rows: list[dict[str, Any]],
     national_rows: list[dict[str, Any]],
@@ -5131,11 +5149,28 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
             # `dado_ts` de string ISO para datetime. `uf_rows + national_rows`
             # cru aqui levanta `ProgrammingError: query parameter missing:
             # pct_atual` na primeira linha nacional.
-            insert_projections(
-                conn,
-                linhas_para_projections(uf_rows, national_rows, relogio.dado_ts),
-            )
-            conn.commit()
+            # 🔴 O escopo do que se GRAVA é decisão de produto, não consequência
+            # da validação de entrada (que aceita 1..99 de propósito, para um
+            # código inesperado não derrubar o ciclo). Ver
+            # `CARGOS_COM_SERIE_PERSISTIDA`: Deputado Federal fica fora porque
+            # suas 7.791 candidaturas dariam ~3,7 milhões de linhas por noite,
+            # nove vezes todo o resto somado.
+            if req.cargo in CARGOS_COM_SERIE_PERSISTIDA:
+                insert_projections(
+                    conn,
+                    linhas_para_projections(uf_rows, national_rows, relogio.dado_ts),
+                )
+                conn.commit()
+            else:
+                # Ruidoso de propósito: um cargo que deixa de ser persistido em
+                # silêncio some do replay e do gráfico sem ninguém notar.
+                _log(
+                    "warn",
+                    "serie nao persistida: cargo fora de CARGOS_COM_SERIE_PERSISTIDA",
+                    cargo=req.cargo,
+                    turno=req.turno,
+                    linhas_descartadas=len(uf_rows) + len(national_rows),
+                )
 
             uf_count = len(estimates_by_uf)
 
