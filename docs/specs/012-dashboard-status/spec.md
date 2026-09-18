@@ -5,8 +5,8 @@ status: draft
 priority: M
 personas: []
 screens: [T-07]
-requirements: [RF-056, RF-057, RF-012.1, RF-012.2]
-depends_on: [001-ingestao-tse, 010-operacao-monitoramento]
+requirements: [RF-012.1, RF-012.2]
+depends_on: [001-ingestao-tse]
 apis: []
 components: []
 nfr: [RNF-009, RNF-032, RNF-033, RNF-034]
@@ -14,6 +14,31 @@ adrs: []
 ---
 
 # Spec 012 — Dashboard Operacional `/_status`
+
+> ## ⏸️ Cortada pelo dono em 2026-09-18 — e o frontmatter foi reconciliado
+>
+> `app/_status/` contém um único `.gitkeep`: **zero código**. A spec permanece
+> `draft` porque não há status `cancelled` nas
+> [convenções](../../_meta/conventions.md); o corte está registrado aqui e na
+> [S08](../../sprints/2026-S08-f7-enxergar.md) § 6.
+>
+> **Duas correções de rastro feitas em 18/09**, ambas porque o gate
+> `rf-coverage-checker` lê o `requirements:` do frontmatter e um RF com **duas
+> donas** é ambiguidade, não redundância inofensiva:
+>
+> | RF | Estava | Ficou | Por quê |
+> |---|---|---|---|
+> | **RF-057** (alertas) | em 010 **e** 012 | só em **010** | A [matriz](../../_meta/traceability.md) já dava o RF-057 à 010 sozinha — o outlier era este frontmatter. E alerta não precisa de painel para mandar mensagem. |
+> | **RF-056** (dashboard de saúde) | em 010 **e** 012 | só em **010** | A 010 é o guarda-chuva que sobrevive ao corte; a 012 era a tela dele. Com a tela cortada, o requisito continua vivo sob a 010 e volta na [S11](../../sprints/2026-S11-f7-resiliencia.md). |
+>
+> **Ciclo de dependência desfeito**: a 010 declarava `depends_on: [012]` e a 012
+> declarava `depends_on: [010]`. Duas specs esperando uma pela outra não é
+> dependência, é impasse.
+>
+> O que **continua** pertencendo a esta spec são os seus dois RFs próprios,
+> RF-012.1 e RF-012.2 (os botões "Pausar Cron" e "Forçar refresh"), que não
+> existem em spec nenhuma além desta. Eles seguem **sem cobertura, por ausência
+> de implementação** — não de linha na matriz.
 
 **Rota**: `/_status` (protegido por auth básica)
 

@@ -321,7 +321,54 @@ linha na matriz e o RF fora do frontmatter, o gate continua sem vê-los.
 `requirements:` de **duas** specs — a 010 (que esta sprint coloca em voo) e a 012
 (cortada). Duas specs donas do mesmo RF é ambiguidade de rastro, não redundância inofensiva.
 
-- [ ] Frontmatter da spec 012 reconciliado: RF-012.1/RF-012.2 listados, RF-057 com dono único.
+- [x] **Frontmatter da spec 012 reconciliado** — 18/09. O estado encontrado era **pior** do
+      que esta seção descrevia, e melhor num ponto:
+
+      - ✅ RF-012.1 e RF-012.2 **já estavam** no `requirements:` (alguém corrigiu antes).
+      - 🔴 **RF-056 também tinha duas donas**, não só o RF-057 — a 012 reivindicava os dois.
+      - 🔴 **Havia um ciclo de dependência**: a 010 declarava `depends_on: [012]` e a 012
+        declarava `depends_on: [010]`. Duas specs esperando uma pela outra não é
+        dependência, é impasse. Desfeito nos dois lados.
+
+      Resolução: `012.requirements = [RF-012.1, RF-012.2]` (só o que é dela), RF-056 e
+      RF-057 ficam com a **010** — que é o guarda-chuva que sobrevive ao corte — e a matriz
+      passou a listar dono único para o RF-056. A 012 continua `draft` porque **não existe
+      status `cancelled`** nas convenções; o corte está escrito no corpo dela.
+
+- [x] **Spec 010 fatiada** — `## Fatiamento` no corpo, com `depends_on: [001-ingestao-tse]`.
+      RF-057 e RF-060 em voo na S08; RF-056, RF-058 e RF-059 diferidos para a S11, nomeados
+      nos **dois** arquivos (é o risco que esta sprint listou).
+
+- [x] **RF-060 ganhou o teste que faltava** — `tests/unit/tse/cron-enabled.test.ts`, 3 casos,
+      **sem banco e sem rede**.
+
+      🔴 **A matriz dizia `unit` e estava otimista.** O único teste que exercitava o
+      desligamento vivia em `tests/integration/ingest-cycle.test.ts:367` — um dos **cinco
+      arquivos atrás da guarda `ALLOW_DB_WRITE_TESTS`**. Ele não roda localmente (falha na
+      coleta sem `DATABASE_URL`) nem no CI (que deliberadamente não declara a variável,
+      porque ligá-la foi o incidente de 17/09). **Nenhuma máquina jamais executou aquela
+      asserção.** Cobertura nominal: o portão via uma linha na matriz e um arquivo com o
+      nome certo.
+
+      | Mutação em `ingest-handler.ts:399` | Resultado |
+      |---|---|
+      | `enabled = true` (nunca desliga) | 1 failed |
+      | `enabled = false` (sempre desliga) | 2 failed |
+      | comparação tolera `"False"`/`"FALSE"` | 1 failed |
+
+      A terceira prende uma armadilha real: `!== "false"` é igualdade **exata**. Quem
+      digitar `False` ou `0` no painel da Vercel vai acreditar que desligou o cron, e ele
+      continua batendo no TSE. O teste não propõe tolerar as variantes — propõe que o
+      comportamento esteja **travado**, para que mudá-lo seja decisão e não acidente.
+
+      ⚠️ **Um quarto caso foi escrito e depois REMOVIDO por não discriminar**, e isso está
+      dito no próprio arquivo: `expect(fetchEA20Spy).not.toHaveBeenCalled()` passava com a
+      mutação `enabled = true`, porque com o banco mockado não há alvos e a requisição não
+      sairia de qualquer jeito — ele provava a ausência de uma chamada que nunca
+      aconteceria. O contrafactual também não funcionou: o ciclo para antes do fetch, no
+      lock anti-overlap, que exige banco. A metade "nenhum GET ao CDN" continua coberta
+      **só** pela integração atrás da guarda, e a lacuna está escrita em vez de maquiada.
+
 - [ ] `rf-coverage-checker` executado para as specs 010 e 019 depois da reconciliação.
 
 ### 7. Herdados da S07 — triados no fechamento de 18/09

@@ -6,7 +6,9 @@ priority: M
 personas: []
 screens: [T-07]
 requirements: [RF-056, RF-057, RF-058, RF-059, RF-060]
-depends_on: [001-ingestao-tse, 012-dashboard-status, 013-pagina-manutencao]
+depends_on: [001-ingestao-tse]
+# 🔴 A spec 012 saiu daqui em 18/09 (cortada pelo dono, e o par formava ciclo);
+# a 013 saiu porque só RF-058 depende dela, e RF-058 foi diferido. Ver ## Fatiamento.
 apis: []
 components: []
 nfr: [RNF-009, RNF-010, RNF-011, RNF-012, RNF-031, RNF-032, RNF-033, RNF-034]
@@ -14,6 +16,32 @@ adrs: []
 ---
 
 # Spec 010 — Operação e Monitoramento
+
+> ## Fatiamento — 2026-09-18
+>
+> Esta spec entra em voo **parcial**. Os cinco RFs não são uma unidade: dois
+> mandam mensagem, três dependem de tela ou de plataforma.
+>
+> | RF | Fatia | Onde |
+> |---|---|---|
+> | **RF-057** — alertas quando o lag passa de 60 s | ✅ **em voo** | [S08 — Enxergar](../../sprints/2026-S08-f7-enxergar.md) § 1 |
+> | **RF-060** — cron desligável por env var | ✅ **em voo** | S08 (o interruptor já existe em `lib/tse/ingest-handler.ts:399`; falta o teste que prova o desligamento) |
+> | **RF-056** — painel de saúde do pipeline | ⏸️ diferido | [S11](../../sprints/2026-S11-f7-resiliencia.md) — herdado da 012, que foi cortada |
+> | **RF-058** — modo manutenção | ⏸️ diferido | S11, junto da [spec 013](../013-pagina-manutencao/spec.md) |
+> | **RF-059** — rolling release com rollback | ⏸️ diferido | S11 |
+>
+> **Por que a divisão foi necessária**, e não é organização por gosto: o
+> frontmatter declarava `depends_on: [001, 012, 013]`, e a **spec 012 foi
+> cortada pelo dono** — `app/_status/` tem só um `.gitkeep`. Seguir a
+> dependência ao pé da letra trancava o RF-057 atrás de uma tela que não vai
+> existir. **Alerta não precisa de painel nenhum para mandar mensagem.**
+>
+> Havia também um **ciclo**: a 010 dependia da 012 e a 012 dependia da 010.
+> Desfeito nos dois lados em 18/09.
+>
+> ⚠️ A fatia diferida é nomeada aqui **e** na S11, de propósito: a S08 registra
+> o risco de RF-056/RF-058/RF-059 ficarem sem casa se a divisão não for escrita
+> nos dois lugares.
 
 ## Objetivo
 

@@ -110,7 +110,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-053 | URL com timestamp (snapshot) | C | [009](../specs/009-compartilhamento-meta/) | — | — |
 | RF-054 | Página Sobre o Modelo | M | [011](../specs/011-sobre-o-modelo/), [009](../specs/009-compartilhamento-meta/) | (MDX) | manual |
 | RF-055 | Footer fontes + disclaimer | M | [009](../specs/009-compartilhamento-meta/) | `<Footer />` | unit |
-| RF-056 | Dashboard saúde pipeline | M | [010](../specs/010-operacao-monitoramento/), [012](../specs/012-dashboard-status/) | `<MetricCard />` | manual |
+| RF-056 | Dashboard saúde pipeline | M | [010](../specs/010-operacao-monitoramento/) | `<MetricCard />` | manual — diferido S11 (a 012 foi cortada em 18/09; dono único para o gate ver) |
 | RF-012.1 | Botão "Pausar Cron" (`/_status`) | M | [012](../specs/012-dashboard-status/) | — | ❌ **SEM COBERTURA — a spec 012 não foi implementada.** `app/_status/` contém **só** um `.gitkeep`; não existe rota, componente nem teste. A ausência aqui é de **código**, não de linha na matriz: enquanto `/_status` não existir, não há o que testar. Bloqueia `shipped` da spec 012. |
 | RF-012.2 | Botão "Forçar refresh" (`/_status`) | M | [012](../specs/012-dashboard-status/) | — | ❌ **SEM COBERTURA — idem RF-012.1.** Mesma causa: `app/_status/` só tem `.gitkeep`. Bloqueia `shipped` da spec 012. |
 | RF-057 | Alertas Slack se lag >60s | M | [010](../specs/010-operacao-monitoramento/) | — | manual (forçar) |
@@ -118,7 +118,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-058.1 | Modo transição 1T→2T | M | [013](../specs/013-pagina-manutencao/) | `<TurnoTransitionBanner />` | unit |
 | RF-058.2 | Roteamento e redirect manutenção | M | [013](../specs/013-pagina-manutencao/) | (middleware) | unit |
 | RF-059 | Rolling release rollback | M | [010](../specs/010-operacao-monitoramento/) | — | manual |
-| RF-060 | Cron toggle via env var | M | [010](../specs/010-operacao-monitoramento/) | — | unit |
+| RF-060 | Cron toggle via env var | M | [010](../specs/010-operacao-monitoramento/) | — | `tests/unit/tse/cron-enabled.test.ts` (3 casos, sem banco) — ✅ 18/09. ⚠️ Antes dizia só "unit" e o único teste vivia em `tests/integration/ingest-cycle.test.ts:367`, atrás da guarda `ALLOW_DB_WRITE_TESTS`: **nunca executava**, nem local nem no CI |
 | RF-100 | Ingestão do cargo 5 em granularidade de zona | M | [016](../specs/016-senador/) | — | unit (`tse/targets.test.ts`, um alvo por par + guarda contra volta a `uf`; `config/cargos.test.ts`) |
 | RF-101 | Suplentes preservados no snapshot | M | [016](../specs/016-senador/) | — | unit (`ea20-senador-suplentes.test.ts`) |
 | RF-102 | Projeção por regra de três, zona a zona | M | [016](../specs/016-senador/) | — | pytest (`test_senador.py`) |
