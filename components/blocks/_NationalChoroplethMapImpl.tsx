@@ -598,15 +598,54 @@ export function NationalChoroplethMapImpl({
                 "fill-opacity": 0.88,
               },
             },
+            // RNF-035 (SC 1.4.11) — HALO, duas linhas, não uma.
+            //
+            // Uma UF é um "preenchimento com extensão" (RNF-035 § remédios): o
+            // contorno é o remédio certo, não a variante `-text` — que nem
+            // existe para os níveis de margem (`--party-<sigla>-1..5`, usados
+            // pela view "margin"/"turnout") e QUEBRARIA a escala se existisse
+            // (constituição § 2: só a intensidade varia com a margem — forçar
+            // o nível 1, "disputa apertada", a escurecer destruiria o próprio
+            // sinal que a escala existe para dar).
+            //
+            // Mas um contorno de UMA cor não fecha a conta: medido em 18/09,
+            // `--map-stroke` sozinho (quase-papel) reprova 3:1 contra 62 dos
+            // 155 tokens de nível no claro (e 93/155 no escuro) — exatamente os
+            // níveis PÁLIDOS (1–2 claro, 1–3 escuro), que por definição da
+            // escala ficam perto da própria luminância do papel. Trocar por um
+            // contorno escuro (`--map-stroke-focus`) sozinho resolve os pálidos
+            // e QUEBRA os saturados (8 a 21 dos 33 tokens-base a depender do
+            // candidato testado) — os dois extremos de luminância não cabem
+            // numa cor só.
+            //
+            // O HALO fecha: duas linhas, uma clara (`--map-stroke`, por baixo,
+            // mais larga) e uma escura (`--map-stroke-focus`, por cima, mais
+            // fina) — a técnica cartográfica padrão pra rótulo/traço sobre fundo
+            // variável (ver `docs/mapas/acessibilidade.md`). Medido: das 186
+            // combinações reais de preenchimento (33 bases + 155 níveis − tie/
+            // none, que o mapa nunca pinta) em CADA tema, e também
+            // `--map-uncounted`, `--color-tossup`, os 7 tokens `--color-cand-*`
+            // e os 7 `--color-cand-band-*` (fallback pré-ADR-0024 por rank) —
+            // ZERO ficam abaixo de 3:1 contra AS DUAS linhas ao mesmo tempo.
+            // Sempre uma das duas alcança o piso.
+            {
+              id: "ufs-stroke-halo",
+              type: "line",
+              source: "ufs",
+              "source-layer": "ufs",
+              paint: {
+                "line-color": getCssVar("--map-stroke") || "#fbfbfc",
+                "line-width": 1.4,
+              },
+            },
             {
               id: "ufs-stroke",
               type: "line",
               source: "ufs",
               "source-layer": "ufs",
               paint: {
-                // Traço cor de papel do design system Atlas Menna (S07/Bloco 1).
-                "line-color": getCssVar("--map-stroke") || "#fbfbfc",
-                "line-width": 0.8,
+                "line-color": getCssVar("--map-stroke-focus") || "#14171b",
+                "line-width": 0.6,
               },
             },
             {

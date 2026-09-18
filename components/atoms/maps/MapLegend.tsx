@@ -54,6 +54,32 @@
 
 import type { CSSProperties } from "react";
 
+/**
+ * RNF-035 (SC 1.4.11) — contorno dos degraus da rampa, em HALO (duas linhas),
+ * não uma cor só.
+ *
+ * Cada degrau é o MESMO token que `_NationalChoroplethMapImpl.tsx` pinta no
+ * mapa (`intensityForParty`/`resolvePartyHex`, níveis 1–5) — inclusive
+ * `--party-tie` (1,73:1 contra `--surface-page` no claro, medido em 18/09) e
+ * `--map-uncounted`. Sem contorno nenhum, os degraus hoje só se separam pelo
+ * `gap: 2` da página por baixo — que é exatamente por onde `--party-tie`
+ * desaparece.
+ *
+ * Uma cor só de contorno não fecha a conta pro mesmo motivo do mapa: os
+ * níveis pálidos (1–2 no claro, 1–3 no escuro) ficam perto da luminância do
+ * papel e reprovam contra um contorno claro; os níveis saturados (4–5)
+ * reprovam contra um contorno escuro. `box-shadow` empilhado simula as DUAS
+ * linhas do halo do mapa sem roubar espaço de layout do degrau (`border`
+ * mudaria a caixa; `box-shadow` não) — anel externo claro (`--map-stroke`) +
+ * anel interno escuro (`--map-stroke-focus`), os MESMOS dois tokens medidos
+ * em `_NationalChoroplethMapImpl.tsx` contra as 186 combinações reais de
+ * preenchimento (base + níveis 1–5, dois temas) + `--map-uncounted` +
+ * `--color-tossup` + fallback de rank — zero abaixo de 3:1 contra as duas
+ * linhas ao mesmo tempo.
+ */
+const LEGEND_STEP_HALO: CSSProperties["boxShadow"] =
+  "inset 0 0 0 1px var(--map-stroke-focus), 0 0 0 1px var(--map-stroke)";
+
 export interface MapLegendProps {
   /** Rótulo da ponta esquerda — ex. "Lula" ou "PT". */
   leftLabel: string;
@@ -117,14 +143,14 @@ export function MapLegend({
             data-testid="map-legend-step"
             data-side="left"
             className="flex-1"
-            style={{ height: 10, background: c }}
+            style={{ height: 10, background: c, boxShadow: LEGEND_STEP_HALO }}
           />
         ))}
         <span
           data-testid="map-legend-step"
           data-side="tie"
           className="flex-1"
-          style={{ height: 10, background: tieColor }}
+          style={{ height: 10, background: tieColor, boxShadow: LEGEND_STEP_HALO }}
         />
         {rightColors
           .slice()
@@ -135,7 +161,7 @@ export function MapLegend({
               data-testid="map-legend-step"
               data-side="right"
               className="flex-1"
-              style={{ height: 10, background: c }}
+              style={{ height: 10, background: c, boxShadow: LEGEND_STEP_HALO }}
             />
           ))}
       </div>
@@ -266,7 +292,7 @@ export function CandidateLegendGroup({
                 key={`${entry.label}-${c}`}
                 data-testid="map-legend-group-step"
                 className="flex-1"
-                style={{ height: 8, background: c }}
+                style={{ height: 8, background: c, boxShadow: LEGEND_STEP_HALO }}
               />
             ))}
           </div>

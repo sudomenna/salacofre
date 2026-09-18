@@ -63,33 +63,90 @@ claro:
 No tema escuro as mesmas quatro medem entre 9,3 e 12,8 — **o problema é só do
 claro**, e é por isso que medir um tema só engana.
 
-### Lacunas abertas do RNF-035 — 2026-09-18
+### Lacunas do RNF-035 — 2026-09-18, 1ª passagem
 
-Duas ficam **abaixo do piso e sem variante `-text`**, e não são identidade de
-partido. Estão isentas no teste com a razão escrita, e ficam aqui para não
-sumirem:
+Uma fica **abaixo do piso e sem variante `-text`**, e não é identidade de
+partido. Está isenta no teste com a razão escrita, e fica aqui para não
+sumir:
 
 | Token | Claro | Estado |
 |---|---|---|
 | `--party-none` | 1,16:1 | **Zero consumidores.** `grep -rn party-none lib components app` fora do arquivo de tokens = 0. Definido e nunca usado — nada a consertar até ter uso. |
-| `--party-tie` | 1,73:1 | Degrau de rampa na legenda do mapa (`MapLegend.tsx:127`, faixa de 10px). É preenchimento com extensão ⇒ remédio é contorno. 🔴 **E a rampa inteira não tem contorno nenhum** — os degraus se separam por `gap: 2` sobre a página, e o degrau mais claro encosta no papel sem fronteira. É achado do componente de mapa, com verificação visual própria. |
 
-⚠️ **Fora de escopo da passagem de 18/09**, e dito para não passar por feito:
-o mapa coroplético em si (`_NationalChoroplethMapImpl`) pinta REGIÕES com a
-cor-base. Região é preenchimento com extensão, e a decisão lá é diferente da
-do quadradinho — envolve contraste entre regiões vizinhas, não só contra o
-papel. A passagem de 18/09 cobriu os **marcadores de identidade** (quadradinho
-do balão, pontos da folha de UF) e a **extensão da barra**.
+`--party-tie` (1,73:1) e o mapa coroplético em si foram fechados na **2ª
+passagem do mesmo dia**, abaixo.
+
+### 2026-09-18, 2ª passagem — as regiões do mapa e a rampa da legenda
+
+A 1ª passagem cobriu os **marcadores de identidade** (quadradinho do balão,
+pontos da folha de UF) e a **extensão da barra** (`DATA_FILL_STROKE`). Ficou
+de fora, e dito explicitamente para não passar por feito: o mapa coroplético
+em si (`_NationalChoroplethMapImpl.tsx`) pinta REGIÕES (UFs) com a cor de
+partido, e a legenda (`MapLegend.tsx`) desenha os mesmos degraus sem contorno
+nenhum.
+
+**Por que a decisão aqui não é a mesma do quadradinho.** Região é
+preenchimento com extensão — mesma família de problema da barra — mas a barra
+mede contra uma calha de superfície FIXA (quase-branca/quase-preta); a UF
+mede contra OUTRA UF, de cor imprevisível. Medido: `--text-secondary`
+(o remédio da barra) reprova 3:1 contra **31 das 33** cores-base de partido —
+inadequado aqui. Um contorno de **uma cor só** também não fecha: `--map-stroke`
+(quase-papel, o traço que já existia) reprova contra os níveis PÁLIDOS da
+escala de margem (`--party-<sigla>-1` e `-2`, usados pela view "margin" em
+disputas apertadas) — **62 dos 155 tokens de nível no tema claro, 93 dos 155
+no escuro** — porque esses níveis ficam, por desenho da escala, perto da
+própria luminância do papel. Um contorno escuro sozinho resolveria os pálidos
+e quebraria os saturados (8 a 21 dos 33 tokens-base, a depender da cor de
+teste). **Nenhuma cor única cobre as duas pontas da escala de intensidade.**
+Trocar as regiões para a variante `-text` também não serve: ela não existe
+para os níveis 1–5 (só para a base), e forçá-la quebraria a própria razão de
+existir da escala (constituição § 2: "só a intensidade varia com a margem").
+
+**A decisão: HALO, duas linhas.** Técnica cartográfica padrão para traço sobre
+fundo variável — uma linha clara por baixo (`--map-stroke`, mais larga) e uma
+escura por cima (`--map-stroke-focus`, mais fina; o mesmo token que já
+existia só para o traço de hover). Medido contra as **186 combinações reais**
+de preenchimento que o mapa pode pintar (33 cores-base + 155 níveis de
+margem, dois temas) mais `--map-uncounted`, `--color-tossup` e os tokens de
+fallback por rank (`--color-cand-*`/`--color-cand-band-*`): **zero ficam
+abaixo de 3:1 contra as DUAS linhas ao mesmo tempo** — sempre uma das duas
+alcança o piso, qualquer que seja a cor do lado. `--party-tie` também está
+coberto (1,84:1 contra `--map-stroke` no claro, mas 9,44:1 contra
+`--map-stroke-focus`), embora ele não seja hoje uma cor que o mapa de fato
+pinta (`resolvePartyHex` nunca resolve para "tie"; o token só aparecia na
+legenda).
+
+Implementado:
+- `components/blocks/_NationalChoroplethMapImpl.tsx` — a camada `ufs-stroke`
+  (traço único, 0.8px) virou duas: `ufs-stroke-halo` (clara, 1.4px, por baixo)
+  + `ufs-stroke` (escura, 0.6px, por cima), as duas permanentes (sem filtro de
+  hover — o traço de hover, `ufs-stroke-hover`, continua existindo por cima
+  das duas, só na UF sob o cursor).
+- `components/atoms/maps/MapLegend.tsx` — `LEGEND_STEP_HALO`, um
+  `box-shadow` de dois anéis (`inset` escuro + externo claro, os mesmos dois
+  tokens) aplicado a cada degrau de `<MapLegend>` (`left`/`tie`/`right`) e de
+  `<CandidateLegendGroup>` (`map-legend-group-step` — a legenda que de fato
+  está em produção hoje). `box-shadow` em vez de `border` porque não consome
+  espaço de layout dos degraus `flex-1`.
+
+Não fechado nesta passagem, achado mas fora do escopo pedido:
+`components/atoms/maps/ChoroplethMapUF.tsx` (o mapa de município dentro de
+uma UF) tem o MESMO padrão — traço único hardcoded (`#ffffff`/`#222222`
+literais, nem token) em vez de halo. Mesma classe de problema, arquivo
+diferente.
 
 ### Validação executável
 
-`tests/unit/design-system/contraste-nao-texto.test.ts` (7 casos) mede este RNF
-a cada corrida: toda variante `-text` nas 4 superfícies × 2 temas, o contorno
-de `DATA_FILL_STROKE`, e o separador da barra. Um caso mede **o instrumento**,
-não o produto — confere a fórmula contra um número que o próprio
-`tokens-party.css` documenta em comentário (4,91:1), porque na primeira
-tentativa de medir isto o bloco lido foi o **escuro** achando que era o claro,
-e o resultado foi "71 cores reprovando" com toda `-text` idêntica à base.
+`tests/unit/design-system/contraste-nao-texto.test.ts` (10 casos) mede este
+RNF a cada corrida: toda variante `-text` nas 4 superfícies × 2 temas, o
+contorno de `DATA_FILL_STROKE`, o separador da barra, e — desde a 2ª passagem
+de 18/09 — o halo das regiões do mapa (as 186 combinações reais contra as
+duas linhas, nos 2 temas) e a presença do halo nos degraus das duas legendas.
+Um caso mede **o instrumento**, não o produto — confere a fórmula contra um
+número que o próprio `tokens-party.css` documenta em comentário (4,91:1),
+porque na primeira tentativa de medir isto o bloco lido foi o **escuro**
+achando que era o claro, e o resultado foi "71 cores reprovando" com toda
+`-text` idêntica à base.
 
 ## Validação
 

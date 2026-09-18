@@ -227,3 +227,113 @@ describe("RNF-035 — o contorno é o remédio do preenchimento com extensão", 
     expect(vb, "a calha perdeu o contorno de extensão").toMatch(/border:\s*DATA_FILL_STROKE/);
   });
 });
+
+describe("RNF-035 — o HALO é o remédio das REGIÕES do mapa (2026-09-18, 2ª passagem)", () => {
+  // A passagem anterior (mesmo dia) cobriu o marcador de identidade e o
+  // contorno de barra. Ficou em aberto o mapa coroplético em si: a região
+  // (UF) é preenchimento com extensão como a barra, mas o remédio de UMA cor
+  // (`--text-secondary`) não fecha aqui — medido: reprova 3:1 contra 31 das
+  // 33 cores-base de partido (a barra fica sobre uma calha quase-branca fixa;
+  // a UF fica ao lado de OUTRA UF colorida, de luminância imprevisível). Uma
+  // cor só de contorno também não fecha: `--map-stroke` (quase-papel) sozinho
+  // reprova contra os níveis PÁLIDOS da escala de margem (62/155 no claro,
+  // 93/155 no escuro — os níveis 1–2/1–3, que por desenho da escala ficam
+  // perto da luminância do papel); `--map-stroke-focus` (escuro) sozinho
+  // reprovaria contra os SATURADOS. Two é o número certo: as duas linhas do
+  // HALO, uma clara e uma escura — sempre uma alcança 3:1, qualquer que seja
+  // a cor do lado.
+
+  function tokensGlobaisPorTema(): {
+    claro: Record<string, string>;
+    escuro: Record<string, string>;
+  } {
+    const linhas = readFileSync(resolve(RAIZ, "app/globals.css"), "utf8").split("\n");
+    const claro: Record<string, string> = {};
+    const escuro: Record<string, string> = {};
+    let alvo: Record<string, string> | null = null;
+    for (const linha of linhas) {
+      if (linha.includes("@theme static")) alvo = claro;
+      else if (linha.includes('data-theme="dark"')) alvo = escuro;
+      const m = /^\s*--(map-stroke(?:-focus)?):\s*(#[0-9a-fA-F]{6})/.exec(linha);
+      // Só a PRIMEIRA ocorrência de cada tema — o claro tem só um bloco
+      // `@theme static`, mas o escuro tem vários `:root[data-theme="dark"]`
+      // no arquivo (ver grep de 18/09) e só o primeiro define `--map-stroke`.
+      const chave = m?.[1];
+      const valor = m?.[2];
+      if (chave && valor && alvo && !(chave in alvo)) alvo[chave] = valor;
+    }
+    return { claro, escuro };
+  }
+
+  it("todo token de partido (base + níveis 1–5) passa 3:1 contra UMA das duas linhas do halo, nos 2 temas", () => {
+    const party = tokensPorTema();
+    const globais = tokensGlobaisPorTema();
+    const NIVEL = /^party-[a-z]+-[1-5]$/;
+    const falhas: string[] = [];
+
+    for (const tema of ["claro", "escuro"] as const) {
+      const stroke = globais[tema]["map-stroke"];
+      const focus = globais[tema]["map-stroke-focus"];
+      expect(stroke, `--map-stroke não encontrado no tema ${tema}`).toBeDefined();
+      expect(focus, `--map-stroke-focus não encontrado no tema ${tema}`).toBeDefined();
+
+      for (const [nome, hex] of Object.entries(party[tema])) {
+        if (!(SO_BASE.test(nome) || NIVEL.test(nome))) continue;
+        const okStroke = contraste(hex, stroke as string) >= PISO_NAO_TEXTO;
+        const okFocus = contraste(hex, focus as string) >= PISO_NAO_TEXTO;
+        if (!okStroke && !okFocus) {
+          falhas.push(
+            `${tema}/${nome} (${hex}): stroke=${contraste(hex, stroke as string).toFixed(2)} ` +
+              `focus=${contraste(hex, focus as string).toFixed(2)}`,
+          );
+        }
+      }
+    }
+    expect(falhas, "cor de UF sem NENHUMA das duas linhas do halo passando 3:1").toEqual([]);
+  });
+
+  it("o mapa desenha as DUAS linhas do halo, sempre (não só no hover)", () => {
+    // 🔴 Anti-engano: `ufs-stroke-hover` já usava `--map-stroke-focus`, mas só
+    // filtrado pra UF sob o cursor (`filter: ["==", "SIGLA_UF", ""]` em
+    // repouso) — isso NUNCA cobriu a fronteira entre duas UFs paradas. A
+    // guarda aqui é que a linha escura apareça numa camada SEM esse filtro de
+    // hover: procura o bloco de `ufs-stroke` (a linha de baixo/permanente) e
+    // confirma que ele não tem `filter` nenhum antes do próximo `id:`.
+    const impl = readFileSync(
+      resolve(RAIZ, "components/blocks/_NationalChoroplethMapImpl.tsx"),
+      "utf8",
+    );
+    expect(impl, "camada clara do halo sumiu").toMatch(
+      /id:\s*"ufs-stroke-halo"[\s\S]{0,200}--map-stroke"\)/,
+    );
+    const blocoStrokeEscuro = /id:\s*"ufs-stroke",[\s\S]*?\n\s*\},/.exec(impl)?.[0] ?? "";
+    expect(blocoStrokeEscuro, "camada escura do halo sumiu ou mudou de forma").toMatch(
+      /--map-stroke-focus"\)/,
+    );
+    expect(
+      blocoStrokeEscuro,
+      "a linha escura do halo ganhou filter — deixou de ser permanente, virou hover",
+    ).not.toMatch(/filter/);
+  });
+});
+
+describe("RNF-035 — o HALO chega às legendas (`MapLegend.tsx`), não só ao mapa", () => {
+  it("os degraus de `<MapLegend>` e `<CandidateLegendGroup>` usam o mesmo halo de duas cores", () => {
+    // `--party-tie` (1,73:1 contra `--surface-page` no claro) é exatamente o
+    // token que motivou esta lacuna: sem contorno, o degrau de empate
+    // encostava no papel sem fronteira (ver `docs/nfr/accessibility.md`).
+    const src = readFileSync(resolve(RAIZ, "components/atoms/maps/MapLegend.tsx"), "utf8");
+    expect(src, "LEGEND_STEP_HALO não referencia as duas linhas do halo").toMatch(
+      /LEGEND_STEP_HALO[\s\S]{0,120}--map-stroke-focus[\s\S]{0,120}--map-stroke\)/,
+    );
+    const usosMapLegend = [...src.matchAll(/data-testid="map-legend-step"[\s\S]{0,160}?\/>/g)];
+    const usosGroup = [...src.matchAll(/data-testid="map-legend-group-step"[\s\S]{0,160}?\/>/g)];
+    expect(usosMapLegend.length, "esperados 3 degraus em <MapLegend> (left/tie/right)").toBe(3);
+    expect(usosGroup.length, "esperado 1 uso de map-legend-group-step").toBe(1);
+    for (const [bloco] of [...usosMapLegend, ...usosGroup]) {
+      expect(bloco, `degrau sem LEGEND_STEP_HALO: ${bloco.slice(0, 60)}…`).toMatch(
+        /LEGEND_STEP_HALO/,
+      );
+    }
+  });
+});
