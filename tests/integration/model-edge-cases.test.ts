@@ -178,10 +178,12 @@ function pythonBinary(): string | null {
 }
 
 /** Linha capturada de `insert_projections` — espelha `_uf_projection_row`
- * (api/model/project.py) e as linhas nacionais de `compute_national`.
- * Campos como `metodo`/`comparecimento`/`votos_atuais` NÃO são
- * persistidos em `projections` (colunas não existem) — só chegam até
- * aqui via a interceptação feita pelo script inline abaixo. */
+ * (api/model/project.py) e as linhas nacionais de `compute_national`, depois
+ * de passarem por `linhas_para_projections`.
+ * `metodo`/`comparecimento` NÃO são persistidos em `projections` (colunas não
+ * existem) — só chegam até aqui via a interceptação feita pelo script inline
+ * abaixo. `pct_atual`/`votos_atuais`/`dado_ts` passaram a ser colunas de
+ * verdade na migration 0009 (spec 020). */
 interface CapturedRow {
   cargo: number;
   turno: number;
@@ -221,9 +223,13 @@ interface CapturedRow {
  * `insert_projections` é interceptado DENTRO deste subprocess efêmero
  * (não em `api/model/**`) só para CAPTURAR os `rows` que ele recebe —
  * a implementação real ainda roda por baixo (grava no Neon de verdade,
- * mesmo caminho de produção). Isso expõe `metodo`/`comparecimento`/
- * `votos_atuais`, que `projections` não persiste, sem precisar mockar
- * nada em código de produção.
+ * mesmo caminho de produção). Isso expõe `metodo`/`comparecimento`, que
+ * `projections` não persiste, sem precisar mockar nada em código de produção.
+ *
+ * ⚠️ Como a escrita é real, este teste exige o banco apontado por
+ * `DATABASE_URL` já com a **migration 0009** aplicada (`pnpm db:migrate:0009`).
+ * Sem ela o INSERT referencia `pct_atual`/`votos_atuais`/`dado_ts`, que não
+ * existem, e o subprocess falha.
  *
  * Retorna `{status, payload, rows}` — `payload` é o JSON de resposta do
  * endpoint; `rows` é `uf_rows + national_rows` (uf=null nas nacionais).

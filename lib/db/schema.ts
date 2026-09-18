@@ -224,12 +224,60 @@ export const projections = pgTable(
     pctProjetadoLower: numeric("pct_projetado_lower", { precision: 8, scale: 5 }),
     pctProjetadoUpper: numeric("pct_projetado_upper", { precision: 8, scale: 5 }),
     pVitoria: numeric("p_vitoria", { precision: 5, scale: 4 }),
+    /**
+     * **Progresso da apuração** no escopo da linha, 0–100. 37 = "37% das
+     * seções já foram apuradas".
+     *
+     * ⚠️ NÃO confundir com `pctAtual`, a coluna vizinha: aquela é a *fatia de
+     * votos da candidatura*. Mesma unidade, significados opostos.
+     */
     pctApurado: numeric("pct_apurado", { precision: 5, scale: 2 }),
+    /**
+     * **Fatia de votos da candidatura** sobre os votos já apurados, 0–100
+     * (migration 0009, spec 020). 37 = "esta candidatura tem 37% dos votos
+     * contados até agora".
+     *
+     * ⚠️ NÃO confundir com `pctApurado`, a coluna vizinha, que é o *progresso
+     * da apuração*. As duas são 0–100 e medem coisas opostas. O nome
+     * `pct_atual` é o que o dicionário Python, `EdgeUfCandidate` e
+     * `EdgeCandidate` já usam ponta a ponta — um quarto nome criaria mais uma
+     * tradução na pilha.
+     *
+     * É a base "apurado" do gráfico de evolução. `NULL` = não foi medido
+     * (linhas anteriores à 0009, ou ciclo sem votos apurados) — nunca `0`,
+     * que seria a afirmação falsa "tinha zero voto neste instante".
+     */
+    pctAtual: numeric("pct_atual", { precision: 8, scale: 5 }),
+    /**
+     * O **numerador** de `pctAtual`: votos já apurados da candidatura.
+     *
+     * Existe porque `pctAtual` tem denominador móvel (os votos válidos crescem
+     * a noite toda) e percentual não se re-agrega: sem o numerador, a série
+     * nacional não se reconstrói a partir das UFs sem rodar o modelo de novo.
+     */
+    votosAtuais: bigint("votos_atuais", { mode: "bigint" }),
+    /**
+     * A hora do **boletim** do TSE (ADR-0038), não a do cálculo — esta é `ts`,
+     * que continua significando "quando o Python rodou".
+     *
+     * É o eixo horizontal do gráfico de evolução. Sem ela o eixo viraria o
+     * relógio do servidor, que é exatamente o que o ADR-0038 proíbe: com a
+     * ingestão parada, o modelo segue publicando `ts` fresco sobre dado
+     * congelado. `NULL` quando nenhum par do ciclo trouxe `dg`/`hg` legível —
+     * sem fallback para outro relógio (ADR-0038 D1).
+     */
+    dadoTs: timestamp("dado_ts", { withTimezone: true }),
     // S05/F4c — ver doc do bloco.
     modelFallbackTier: smallint("model_fallback_tier"),
     cenario2tJson: jsonb("cenario_2t_json"),
   },
-  (t) => [index("ix_proj_lookup").on(t.cargo, t.turno, t.uf, t.ts)],
+  (t) => [
+    index("ix_proj_lookup").on(t.cargo, t.turno, t.uf, t.ts),
+    // Leitura da série do gráfico (spec 020): uma linha do gráfico é
+    // exatamente um prefixo desta chave. `ix_proj_lookup` para em `uf` e
+    // obrigaria a varrer todas as candidaturas da UF para desenhar uma.
+    index("ix_proj_serie").on(t.cargo, t.turno, t.uf, t.candidatoId, t.ts),
+  ],
 );
 
 /**

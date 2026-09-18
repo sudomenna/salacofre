@@ -904,12 +904,145 @@ def fetch_municipio_aggregates(
     return out
 
 
+def _pct_razao_de_somas(votos: dict[int, int], total: int) -> dict[int, float]:
+    """`{candidato: 100 * votos / total}` — a razão de somas, num lugar só.
+
+    Separada de `pct_atual_nacional_por_candidato` porque o payload nacional
+    tem uma segunda fonte de votos (o fallback por município, para callers
+    legados) e precisa da MESMA aritmética sobre ela. `{}` quando não há
+    denominador: ausência, não zero.
+    """
+    if total <= 0:
+        return {}
+    return {cid: 100.0 * v / total for cid, v in votos.items()}
+
+
+def pct_atual_nacional_por_candidato(
+    uf_rows: list[dict[str, Any]],
+) -> tuple[dict[int, float], dict[int, int], int]:
+    """Razão de somas: Σ `votos_atuais` da candidatura ÷ Σ `votos_atuais` de todas.
+
+    Devolve `(pct_por_candidato, votos_por_candidato, total_de_votos)`, os três
+    sobre as linhas de UF (as com `uf` não-nulo e `votos_atuais` presente). O
+    percentual sai em 0–100, como todo o resto da fronteira de escala.
+
+    ## Por que é função, e não duas contas inline
+
+    O mesmo número é usado em dois lugares: a coluna `pct_atual` das linhas
+    NACIONAIS de `projections` (a base "apurado" do gráfico, spec 020) e o
+    `pct_atual` de `national.candidatos[]` no payload do Edge Config (o placar
+    da home). Com duas implementações, o gráfico e o placar divergiriam no
+    quinto decimal e não haveria como dizer qual está certo.
+
+    ## Por que razão de somas, e não média dos percentuais das UFs
+
+    Porque percentual não se re-agrega. A média simples de 60% em Roraima
+    (300 mil votos) com 40% em São Paulo (30 milhões) dá 50%; a resposta certa
+    é ~40,2%. Só o numerador se soma — é exatamente por isso que
+    `votos_atuais` virou coluna na migration 0009.
+
+    As linhas nacionais (`uf is None`) são ignoradas de propósito: somá-las
+    contaria cada voto duas vezes.
+    """
+    votos: dict[int, int] = {}
+    total = 0
+    for r in uf_rows:
+        if r.get("uf") is None or r.get("votos_atuais") is None:
+            continue
+        cid = int(r["candidato_id"])
+        va = int(r["votos_atuais"])
+        votos[cid] = votos.get(cid, 0) + va
+        total += va
+    return _pct_razao_de_somas(votos, total), votos, total
+
+
+def _dado_ts_para_coluna(dado_ts: str | None) -> datetime | None:
+    """`relogio.dado_ts` (ISO 8601 **string**) → `datetime` aware, para o driver.
+
+    ⚠️ `RelogioDoDado.dado_ts` é `str | None`, não `datetime`: o valor sai de
+    `.isoformat()` em `api/model/dado_ts.py`. A conversão vive AQUI, no ponto
+    único por onde as duas listas de linhas passam — nunca espalhada pelos call
+    sites, que é como duas interpretações da mesma data nascem.
+
+    `None` entra e `None` sai: o ADR-0038 D1 proíbe substituir a ausência do
+    relógio do dado por qualquer outro relógio. Uma string ilegível também vira
+    `None` (com warn): ela só pode vir de um bug nosso — o valor é produzido
+    por `.isoformat()` sobre datetime aware — e derrubar o INSERT de
+    `projections`, que é a fonte de verdade, por causa de uma coluna de eixo
+    horizontal seria a troca errada.
+    """
+    if not dado_ts:
+        return None
+    try:
+        momento = datetime.fromisoformat(dado_ts)
+    except (TypeError, ValueError):
+        _log("warn", "dado_ts ilegivel — coluna fica NULL", dado_ts=dado_ts)
+        return None
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return momento
+
+
+def linhas_para_projections(
+    uf_rows: list[dict[str, Any]],
+    national_rows: list[dict[str, Any]],
+    dado_ts: str | None,
+) -> list[dict[str, Any]]:
+    """As duas listas prontas para `insert_projections`, com as colunas da 0009.
+
+    ## A armadilha que esta função existe para fechar
+
+    `national_rows` nasce em `compute_national` **sem** a chave `pct_atual` —
+    o `pct_atual` nacional só é calculado depois, na montagem do payload, fora
+    da transação. Um `executemany` com `%(pct_atual)s` sobre
+    `uf_rows + national_rows` levanta `ProgrammingError: query parameter
+    missing: pct_atual` na primeira linha nacional, derrubando a persistência
+    do ciclo inteiro. Listar a coluna no INSERT sem passar por aqui é o defeito.
+
+    Devolve **cópias**: `uf_rows`/`national_rows` seguem para
+    `build_edge_payload` e `build_uf_payloads` depois do INSERT, e nenhum dos
+    dois deve ver campos que apareceram por efeito colateral da persistência.
+
+    `pct_atual`/`votos_atuais` das linhas nacionais saem de
+    `pct_atual_nacional_por_candidato` — a MESMA função que o payload usa.
+    Quando não há voto apurado ainda, as duas ficam `None`, nunca `0`: `NULL` é
+    "não foi medido", `0` seria "mediu zero voto", e o gráfico desenharia a
+    segunda como um mergulho ao chão.
+    """
+    momento = _dado_ts_para_coluna(dado_ts)
+    pct_nat, votos_nat, _total = pct_atual_nacional_por_candidato(uf_rows)
+
+    prontas: list[dict[str, Any]] = []
+    for r in uf_rows:
+        prontas.append({**r, "dado_ts": momento})
+    for r in national_rows:
+        cid = int(r["candidato_id"])
+        prontas.append(
+            {
+                **r,
+                "pct_atual": pct_nat.get(cid),
+                "votos_atuais": votos_nat.get(cid),
+                "dado_ts": momento,
+            }
+        )
+    return prontas
+
+
 def insert_projections(conn, rows: list[dict[str, Any]]) -> int:
     """INSERT em projections (append-only — constituição § 10).
 
     Zero ON CONFLICT, zero UPDATE — re-execução gera linhas novas com `ts`
     distinto (defaultNow no schema). `executemany` em uma transação única;
     a transação é commitada pelo caller via `with conn:`.
+
+    ⚠️ `rows` precisa vir de `linhas_para_projections`, e não de
+    `uf_rows + national_rows` cru: as três colunas da migration 0009
+    (`pct_atual`, `votos_atuais`, `dado_ts`) não existem nas linhas nacionais
+    como `compute_national` as produz. Ver a docstring daquela função.
+
+    ⚠️ `pct_atual` NÃO é `pct_apurado`. A primeira é a fatia de votos da
+    candidatura; a segunda é o progresso da apuração. As duas são 0–100 e são
+    colunas vizinhas (migration 0009, spec 020 § 2.1).
 
     Retorna número de linhas inseridas (== len(rows)) para o response.
     """
@@ -920,12 +1053,14 @@ def insert_projections(conn, rows: list[dict[str, Any]]) -> int:
             cargo, turno, uf, candidato_id,
             votos_projetados, pct_projetado,
             pct_projetado_lower, pct_projetado_upper,
-            p_vitoria, pct_apurado
+            p_vitoria, pct_apurado,
+            pct_atual, votos_atuais, dado_ts
         ) VALUES (
             %(cargo)s, %(turno)s, %(uf)s, %(candidato_id)s,
             %(votos_projetados)s, %(pct_projetado)s,
             %(pct_projetado_lower)s, %(pct_projetado_upper)s,
-            %(p_vitoria)s, %(pct_apurado)s
+            %(p_vitoria)s, %(pct_apurado)s,
+            %(pct_atual)s, %(votos_atuais)s, %(dado_ts)s
         )
     """
     with conn.cursor() as cur:
@@ -3670,15 +3805,18 @@ def build_edge_payload(
     # `compute_uf_projections`/`extrapolation.estimate_uf_candidatos`).
     # PRIMÁRIO. `municipio_aggregates` fica como FALLBACK para callers
     # legados (testes antigos) que passam `uf_rows` sem os campos novos.
-    votos_atuais_nat: dict[int, int] = {}
-    total_votos_atuais_nat = 0
-    for r in uf_rows:
-        if r.get("uf") is None or r.get("votos_atuais") is None:
-            continue
-        cid_r = int(r["candidato_id"])
-        va = int(r["votos_atuais"])
-        votos_atuais_nat[cid_r] = votos_atuais_nat.get(cid_r, 0) + va
-        total_votos_atuais_nat += va
+    #
+    # Spec 020 — a conta vive em `pct_atual_nacional_por_candidato`, e este
+    # bloco a CHAMA em vez de recomputá-la. A mesma função povoa a coluna
+    # `pct_atual` das linhas nacionais de `projections`
+    # (`linhas_para_projections`): com duas implementações, o gráfico e este
+    # placar divergiriam no quinto decimal e não haveria como saber qual está
+    # certo.
+    (
+        pct_atual_nat,
+        votos_atuais_nat,
+        total_votos_atuais_nat,
+    ) = pct_atual_nacional_por_candidato(uf_rows)
 
     votos_por_cand_nat: dict[int, int] = {}
     total_votos_nat = 0
@@ -3688,6 +3826,8 @@ def build_edge_payload(
         votos_por_cand_nat, total_votos_nat = _national_votos_por_candidato(
             municipio_aggregates
         )
+        # Fonte diferente, MESMA aritmética — ver `_pct_razao_de_somas`.
+        pct_atual_nat = _pct_razao_de_somas(votos_por_cand_nat, total_votos_nat)
 
     # Spec 018 / RF-145 — nome real no bloco NACIONAL **só em cargo 1**.
     #
@@ -3724,11 +3864,12 @@ def build_edge_payload(
         # ausente (caller legado), coalesce para a posição+1 no array.
         rank = int(r.get("rank") or (len(national_candidatos) + 1))
         cid = int(r["candidato_id"])
-        pct_atual_cand = (
-            100.0 * votos_por_cand_nat.get(cid, 0) / total_votos_nat
-            if total_votos_nat > 0
-            else 0.0
-        )
+        # 0.0 quando a candidatura não aparece no dado apurado: aqui é o
+        # PAYLOAD, cujo contrato com a UI é numérico. A coluna `pct_atual` de
+        # `projections` guarda `None` no mesmo caso, de propósito — lá o
+        # destino é um gráfico, onde `0` seria um mergulho ao chão e `NULL` é
+        # um furo na linha.
+        pct_atual_cand = pct_atual_nat.get(cid, 0.0)
         if rank >= 4:
             pct_atual_outros_sum += pct_atual_cand
         ident_nat = identidade_nacional.get(cid) or {}
@@ -4983,7 +5124,17 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
             )
 
             # Persistência append-only (constituição § 10).
-            insert_projections(conn, uf_rows + national_rows)
+            #
+            # Spec 020 — `linhas_para_projections` é obrigatória, não
+            # cosmética: ela povoa `pct_atual`/`votos_atuais` das linhas
+            # NACIONAIS (que `compute_national` não produz) e converte o
+            # `dado_ts` de string ISO para datetime. `uf_rows + national_rows`
+            # cru aqui levanta `ProgrammingError: query parameter missing:
+            # pct_atual` na primeira linha nacional.
+            insert_projections(
+                conn,
+                linhas_para_projections(uf_rows, national_rows, relogio.dado_ts),
+            )
             conn.commit()
 
             uf_count = len(estimates_by_uf)

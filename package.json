@@ -24,6 +24,7 @@
     "db:postgis": "node scripts/apply-postgis.mjs",
     "db:migrate:0006": "node --experimental-strip-types data-pipeline/migrations/0006_pares_municipio_zona.ts && node --experimental-strip-types data-pipeline/migrations/0007_municipio_boa_esperanca_do_norte.ts && node --experimental-strip-types data-pipeline/eleitorado-import.ts && node --experimental-strip-types data-pipeline/zonas-import.ts",
     "db:migrate:0008": "node --experimental-strip-types data-pipeline/migrations/0008_candidatos.ts && node --experimental-strip-types data-pipeline/candidatos-import.ts",
+    "db:migrate:0009": "node --experimental-strip-types data-pipeline/migrations/0009_projections_pct_atual.ts",
     "candidatos:import": "node --experimental-strip-types data-pipeline/candidatos-import.ts",
     "candidatos:publish": "tsx data-pipeline/candidatos-publish.ts",
     "candidatos:fotos": "tsx data-pipeline/candidatos-fotos-import.ts",
