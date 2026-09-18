@@ -408,7 +408,7 @@ type EdgeSeriePorCandidato = {
 type EdgeSerieCandidato = {
   id: number;                       // = EdgeCandidate.id
   nome: string;
-  partido: string;                  // a COR sai daqui (colorForParty), nunca de `cor`
+  partido: string;                  // a COR sai daqui (textForParty), nunca de `cor`
   sqcand?: string;
   apurado: (number | null)[];       // fatia da candidatura, 0–100, alinhada ao eixo
   projetado: (number | null)[];     // idem
@@ -427,6 +427,19 @@ type EdgeSerieCandidato = {
    nunca zera. Daí as colunas serem `(number | null)[]`.
 3. **`apurado` é fatia da candidatura**, não `pct_apurado` — mesma armadilha da
    seção «`pct_apurado` ≠ `pct_atual`» acima, agora no transporte.
+
+**O eixo só tem instantes com hora do TSE** ([ADR-0047](adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md)
+D2, 2026-09-18): linha de `projections` com `dado_ts` NULL não entra na série, e
+o ciclo cujo `relogio_do_dado` devolve `None` não anexa ponto. Não há `COALESCE`
+para `projections.ts`, que é o relógio de **cálculo** — com ele, a linha da
+projeção marchava para a direita sobre ciclos em que nenhum boletim chegou.
+Consequência aceita: as 13.180 linhas anteriores à migration 0009 (nenhuma com
+`pct_atual`) ficam fora do eixo.
+
+**A cor da linha é `textForParty(partido)`** (ADR-0047 D1), a variante legível do
+mesmo token — a base é cor de área e reprova o piso de 3:1 do WCAG 2.1 SC 1.4.11
+em quatro partidos no tema claro. A fonte continua sendo a **sigla**, nunca o
+campo `cor` (ADR-0046 D5, ADR-0024).
 
 **Por que colunar.** A chave `"ts"` repetida uma vez por PONTO em vez de uma vez
 por SÉRIE é o custo inteiro da forma rejeitada:

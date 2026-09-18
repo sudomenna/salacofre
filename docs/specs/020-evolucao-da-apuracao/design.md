@@ -93,16 +93,36 @@ downsample **dentro do SQL**:
 
 ```sql
 SELECT DISTINCT ON (uf, candidato_id, balde)
-       uf, candidato_id,
-       to_timestamp(floor(extract(epoch from COALESCE(dado_ts, ts)) / (%(cad)s * 60))
-                    * (%(cad)s * 60)) AS balde,
-       COALESCE(dado_ts, ts) AS dado_ts,
-       pct_atual, pct_projetado
-FROM projections
-WHERE cargo = %(cargo)s AND turno = %(turno)s
-  AND ts > NOW() - (%(janela)s || ' hours')::interval
-ORDER BY uf, candidato_id, balde, COALESCE(dado_ts, ts) DESC;
+       uf, candidato_id, balde, momento, pct_atual, pct_projetado
+FROM (
+    SELECT uf, candidato_id,
+           floor(extract(epoch FROM dado_ts) / %(largura)s) * %(largura)s AS balde,
+           dado_ts AS momento,
+           pct_atual, pct_projetado
+    FROM projections
+    WHERE cargo = %(cargo)s AND turno = %(turno)s
+      AND dado_ts IS NOT NULL
+      AND ts      > NOW() - (%(janela)s || ' hours')::interval
+      AND dado_ts > NOW() - (%(janela)s || ' hours')::interval
+) AS pontos
+ORDER BY uf, candidato_id, balde, momento DESC;
 ```
+
+> ⚠️ **Emenda de 2026-09-18 — decisão do dono,
+> [ADR-0047](../../architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md) D2.**
+> Esta consulta estava escrita com `COALESCE(dado_ts, ts)` nas **três** posições
+> (balde, representante e janela). Saiu; entrou `AND dado_ts IS NOT NULL`. O que
+> o `COALESCE` fazia era ancorar a linha sem hora do boletim no relógio de
+> **cálculo** (`projections.ts` é `defaultNow()`, `lib/db/schema.ts:169`) e
+> produzir um ponto indistinguível de um ponto vindo de boletim. Medido em
+> produção em 18/09: 22 dos 25 ciclos posteriores à 0009 não têm `dado_ts`; das
+> 572 linhas sem hora, **zero** têm `pct_atual` — mas o `pct_projetado` muda (39
+> valores distintos), então a linha da projeção marchava para a direita sobre
+> ciclos cegos. As **duas janelas** do `WHERE` são necessárias e continuam: `ts`
+> é a coluna do índice `ix_proj_serie` e limita a **varredura**; `dado_ts` limita
+> o **eixo** — sem a segunda, um boletim travado há três dias entraria pela porta
+> do `ts` recente. O `dado_ts IS NOT NULL` é redundante com a janela do eixo e
+> está escrito assim mesmo: é o filtro que a decisão nomeia.
 
 Três decisões dentro dessa consulta:
 
@@ -124,6 +144,16 @@ ao lado. Ninguém nota hoje porque nenhuma tela consome série; com o widget, o
 ponto do ciclo a partir dos valores em memória, com a mesma regra de
 último-do-balde — não mover a leitura para depois do INSERT, que custaria uma
 segunda varredura dentro do orçamento de 60 s.
+
+⚠️ **O instante do ponto é `dado_ts`, e só ele** (ADR-0047 D2, 2026-09-18): sem
+hora legível do boletim, o ponto do ciclo **não é publicado** — loga `warn` e a
+série fica um ciclo atrás, que é a leitura honesta. `ts_iso` continua na
+assinatura porque o chamador tem de seguir passando os dois relógios (ADR-0038
+D2); ele só não decide mais onde o ponto cai. **Esta metade e o filtro do
+§ 2.2(d) são uma coisa só**: corrigir uma sem a outra faz a linha do ciclo cego
+sumir aqui e voltar, no mesmo lugar errado, pela leitura do ciclo seguinte —
+piscar em vez de ficar honesta. Coberto por
+`tests/unit/model/test_serie_por_candidato.py::test_com_o_coalesce_de_volta_na_leitura_o_ciclo_cego_ressuscita`.
 
 ## 3. Forma, volume e transporte
 
@@ -226,9 +256,20 @@ reconstruir a série de quem não veio. A ordem do array vira contrato; o
 consumidor não re-ordena.
 
 **Cor e rank são eixos ortogonais.** O rank escolhe quem entra; o partido escolhe
-a cor, por `colorForParty(c.partido)`. O widget não lê `c.cor`, que ainda publica
+a cor, por `textForParty(c.partido)`. O widget não lê `c.cor`, que ainda publica
 a cor por rank aposentada pelo ADR-0024 — lê-la aqui reintroduziria o defeito no
 único lugar onde ele seria visível como movimento.
+
+⚠️ **Emenda de 2026-09-18 (ADR-0047 D1):** este parágrafo dizia
+`colorForParty(c.partido)`. Aquela é a cor de **área** do partido; o traço de
+1,5–2,5 px é objeto gráfico (WCAG 2.1 SC 1.4.11, piso **3:1**), e sobre
+`--surface-page` quatro bases reprovam esse piso — PSOL 2,08:1, PSB 2,19:1, o
+fallback `outros` 2,39:1 e NOVO 2,72:1. `textForParty` é a **mesma matiz noutra
+intensidade**, deriva da mesma sigla, e em **17 dos 31 partidos é a própria
+base** (PT, PL e UNIÃO entre eles — nenhum pixel muda no tema claro). Custo no
+tema escuro, aceito e registrado no ADR-0047: oito tokens ficam mais pálidos que
+a base sem que contraste exigisse. Gate: bloco "T8" de
+`tests/unit/components/serie-apuracao-chart.test.tsx`.
 
 ## 5. O componente
 
@@ -371,10 +412,18 @@ telas, correto e honesto, sem depender de nada do pipeline.
    somas.** `anexar_ponto_corrente` deve **chamá-la** para o ponto do ciclo
    corrente. Recomputar ali reabre exatamente a divergência de quinto decimal
    que a Fase 1 fechou — o payload da home e o gráfico ao lado discordariam.
-2. **O `COALESCE(dado_ts, ts)` do § 2.2(d) é carga, não defesa.** Toda linha
-   anterior à 0009 tem `dado_ts` NULL, e ciclos em que nenhum par trouxe hora
-   legível continuam gravando NULL — o ADR-0038 D1 proíbe cair para outro
-   relógio.
+2. ~~**O `COALESCE(dado_ts, ts)` do § 2.2(d) é carga, não defesa.**~~ **Revogado
+   em 2026-09-18** (decisão do dono,
+   [ADR-0047](../../architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md) D2).
+   O item original supunha que o `COALESCE` só alcançaria linhas antigas. A
+   suposição estava errada e o banco diz de quanto: **22 dos 25 ciclos**
+   posteriores à 0009 gravaram `dado_ts` NULL, porque `relogio_do_dado`
+   (`api/model/dado_ts.py`) devolve `None` sempre que **nenhum** par do ciclo traz
+   `dg`/`hg` legível. Era defesa contra nada e carga sobre o eixo: ancorava a
+   linha da projeção no relógio de cálculo. O que **continua** verdadeiro do item
+   original: toda linha anterior à 0009 e todo ciclo cego seguem gravando
+   `dado_ts` NULL — o ADR-0038 D1 proíbe cair para outro relógio na **coluna**
+   também. A diferença é que agora essas linhas simplesmente não entram na série.
 3. **`pct_atual` nacional é `None`, não `0`, quando não há voto medido** —
    inclusive para candidatura que existe no nacional e não aparece em UF
    nenhuma. O `apurado: (number | null)[]` vai receber furos de verdade; **não
@@ -403,6 +452,7 @@ mude o resultado.
 | T5 | `?? 0` em qualquer ponto | furo no meio (`[30, null, 32]`): **dois** traçados, nenhuma coordenada em 0%, tabela com "sem medição" |
 | T6 | teto virar `LIMIT` de SQL | propriedade: janelas de 1h a 24h → no máximo 120 pontos, cadência é a **menor** que satisfaz, bytes < 9.000 |
 | T7 | ler `c.cor` | renderizar com o array invertido: `stroke` idêntico por id; `--color-cand-` ausente do HTML |
+| T8 | `textForParty` → `colorForParty` (ADR-0047 D1) | fixture com os **quatro** partidos cuja base reprova 3:1 (PSOL, PSB, NOVO e o fallback `outros`); mede a cor **emitida** contra os dois papéis de cada tema. Com PT/PL a mutação passaria |
 
 **Existentes a atualizar** (ordem de blocos e contagem de `<h1>`, que **não pode
 mudar**): `tests/integration/home-page.test.tsx`,

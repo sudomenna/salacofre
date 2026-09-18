@@ -438,12 +438,21 @@ API de consumo (`lib/utils/party-color.ts`, exports reais):
 
 | Função | O que faz |
 |---|---|
-| `colorForParty(sigla)` | sigla → `var(--party-<slug>)`; sigla desconhecida → `var(--party-outros)` |
+| `colorForParty(sigla)` | sigla → `var(--party-<slug>)`; sigla desconhecida → `var(--party-outros)`. É cor de **área** (chip, barra, polígono do mapa) |
+| `textForParty(sigla)` | sigla → `var(--party-<slug>-text)`, a variante legível **sobre o papel**. Em 17 dos 31 partidos **é** a base. Use para texto colorido por identidade **e para traçado de gráfico** — ver a nota abaixo |
+| `partyChipInk(sigla)` | par `{ background, ink }` pronto para superfície sólida com rótulo em cima (≥ 4,5:1 medido pelo gerador) |
 | `intensityForParty(sigla, nivel)` | sigla + nível 1..5 → `var(--party-<slug>-<n>)` |
 | `intensityLevelForMargin(margemPp)` | margem em pp → nível 1..5 |
 | `intensityLevelForBand(band)` | banda de `NeedleBand` → nível 1..4 |
 | `resolvePartyHex(sigla, nivel?)` | hex resolvido por `getComputedStyle`, SSR-safe — é o **único** caminho de cor para o MapLibre, que não aceita `var()` em paint value |
 | `normalizePartySlug(sigla)` | normaliza (`"PC do B"` → `pcdob`) |
+
+**Traçado fino de gráfico usa `textForParty`, não a base** ([ADR-0047](../architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md)
+D1, 2026-09-18). Uma linha de 1,5–2,5 px é objeto gráfico: WCAG 2.1 SC 1.4.11, piso **3:1** — e
+sobre `--surface-page` (#f3f4f6) quatro bases reprovam esse piso (PSOL 2,08:1, PSB 2,19:1, o
+fallback `outros` 2,39:1, NOVO 2,72:1). A base continua certa para **área** (o polígono do mapa, a
+barra, o chip), onde a superfície é grande. No tema escuro nenhuma base reprova 3:1, então ali a
+variante é escolha de coerência, não de contraste — e deixa oito tokens mais pálidos que a base.
 
 **Federação não tem token próprio**: usa a cor do partido-líder (ADR-0024), e a composição vem do
 feed EA20 (`fed[]`, `lib/tse/ea20-schema.ts`) — nunca de lista hardcoded, porque a composição muda

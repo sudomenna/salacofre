@@ -202,6 +202,22 @@ recalculada por rank). Isso não conflita com o elenco dinâmico de D4: quem ent
 uma pergunta de rank; de que cor cada um que está lá é uma pergunta de partido. São eixos ortogonais,
 e o payload já carrega os dois separadamente (`candidato_id`/rank de um lado, `partido` do outro).
 
+> ⚠️ **Emenda de 2026-09-18 ([ADR-0047](0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md) D1):
+> a variante do token muda; a fonte da cor, não.** O resolvedor escrito acima —
+> `colorForParty(candidato.partido)` — devolve `--party-<sigla>`, a cor de **identidade**, calibrada
+> como cor de **área**. O que o widget desenha é um traço de 1,5–2,5 px, que é objeto gráfico: WCAG
+> 2.1 SC 1.4.11, piso **3:1**. Medido contra `--surface-page` (#f3f4f6), quatro bases reprovam esse
+> piso — PSOL 2,08:1, PSB 2,19:1, o fallback `outros` 2,39:1 e NOVO 2,72:1. Por decisão do dono, o
+> componente passa a resolver a cor por **`textForParty`** (`--party-<sigla>-text`, a mesma matiz
+> noutra intensidade), que leva os quatro a ~4,5:1 e, em **17 dos 31 partidos, é a própria base** —
+> PT, PL e UNIÃO entre eles, nenhum pixel muda no tema claro.
+>
+> **Tudo o que D5 protege continua intacto**: `textForParty` também deriva da **sigla do partido**,
+> o widget segue sem consumir `EdgeCandidate.cor`/`var(--color-cand-{rank})`, e a linha continua sem
+> trocar de cor numa ultrapassagem. Muda **qual variante do token do partido** é usada, não de onde
+> a cor vem. O custo (oito tokens mais pálidos no tema escuro, sem que contraste exigisse) está
+> medido e registrado no ADR-0047.
+
 ## Consequência de produto, registrada explicitamente
 
 Com D4, a candidatura que cai do top-4 desaparece do gráfico **inclusive do seu próprio passado**, e
@@ -266,7 +282,8 @@ D4 em primeiro lugar.
 - D5 evita reabrir, no único widget do produto onde seria visível como movimento ao vivo, um defeito
   que o ADR-0024 já eliminou por construção em todo o resto da UI.
 - Zero infraestrutura nova: reaproveita o Blob do ADR-0032, a chave de Global Config já existente, o
-  `colorForParty` do ADR-0024, e o comparador que a tela já usa — a única peça de código genuinamente
+  `colorForParty` do ADR-0024 (desde a emenda de 18/09, a variante `textForParty` do mesmo token de
+  partido — ADR-0047 D1), e o comparador que a tela já usa — a única peça de código genuinamente
   nova é o cálculo da série em si (bucketização + seleção de elenco no produtor).
 
 **Negativas**:
@@ -312,10 +329,13 @@ D4 em primeiro lugar.
   rank; `EdgeCandidate.cor`/`var(--color-cand-{rank})` mantido só por compatibilidade, não consumido
   pelo widget novo.
 - [ADR-0031](0031-piso-separacao-entre-partidos.md) — piso de separação perceptual (ΔE76 ≥ 12) entre
-  as cores de partido que D5 reaproveita via `colorForParty`.
+  as cores de partido que D5 reaproveita via `colorForParty` — e, desde a emenda de 18/09
+  (ADR-0047 D1), via `textForParty`, gerada sob o mesmo piso de separação.
 - [ADR-0038](0038-dado-ts-hora-do-dado-nao-hora-do-calculo.md) — `dado_ts` é o relógio que compõe o
   eixo `eixo: string[]` de D1/D2; a série usa a hora do boletim do TSE, não a hora em que o modelo
-  rodou.
+  rodou. Desde o [ADR-0047](0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md) D2 (18/09),
+  ciclo **sem** `dado_ts` não entra no eixo de forma alguma — não há `COALESCE` para o relógio de
+  cálculo, nem na leitura nem no ponto corrente.
 - Constituição § 2 (neutralidade política — base do ADR-0024/0031 que D5 aplica), § 6 (determinismo —
   bucket derivado de epoch, não de índice, D2), § 9 (stack 100% Vercel — nenhuma infraestrutura nova):
   [../../constitution.md](../../constitution.md)
@@ -334,7 +354,9 @@ D4 em primeiro lugar.
 - `app/(pres)/uf/[sigla]/page.tsx:267`, `app/(gov)/uf/[sigla]/governador/page.tsx:209`,
   `app/(sen)/uf/[sigla]/senador/page.tsx:154` — as três cópias de `rankByParcial` que D4 reaproveita e
   que a implementação da spec 020 deve extrair para `lib/utils/rank-parcial.ts` (não existe hoje).
-- `lib/utils/party-color.ts:203` (`colorForParty`) — resolvedor de cor que D5 exige.
+- `lib/utils/party-color.ts:203` (`colorForParty`) — resolvedor de cor que D5 exigia até 18/09;
+  desde a emenda (ADR-0047 D1) o widget usa `textForParty` (`:277`), a variante legível do **mesmo**
+  token de partido. A fonte da cor (a sigla) não mudou.
 - `app/globals.css:108` (`--container-sidebar: 400px`) — base da justificativa de densidade de D2.
 - `data-pipeline/simulacao-gerar.ts:2820` (`SERIE_PASSO_MIN = 5`), `app/(sen)/uf/[sigla]/senador/page.tsx:72`
   (`CADENCIA_MIN = 5`) — precedentes já existentes da cadência de 5 min escolhida em D2.

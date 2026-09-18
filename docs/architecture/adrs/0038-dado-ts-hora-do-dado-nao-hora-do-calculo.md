@@ -12,6 +12,19 @@ amends: 0001, 0011, 0012, 0026, 0032, 0036
 
 Aceito. Este ADR **emenda o ADR-0001** (read path — dois novos campos no mesmo Edge Config/Blob, nenhum destino novo), o **ADR-0011** (a cadência de 60s vira a base do limiar de alarme de Presidente/Governador), o **ADR-0012** (nenhuma chave nova — os campos entram nos payloads já publicados nas chaves existentes), o **ADR-0026** (seu item 5 já exigia "`ts` por payload" como sinal de transparência de cadência; este ADR corrige o que esse `ts` de fato mede e acrescenta o segundo relógio que faltava), o **ADR-0032** (o objeto Blob de detalhe municipal ganha, por composição na página, acesso ao mesmo sinal, sem mudança de schema do Blob em si — ver D5) e o **ADR-0036** (a cadência de Deputado Federal usada na tabela de limiares de D3 é a que aquele ADR fixou — 30 min, não os 15 min vigentes quando a investigação deste ADR começou; ver nota abaixo). Não supersede nenhum dos seis: os princípios de fundo de cada um permanecem intactos.
 
+> ⚠️ **Nota 2026-09-18 — D1 passa a valer também para o EIXO publicado
+> ([ADR-0047](0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md) D2).** Quando este ADR foi
+> escrito, `dado_ts` era um **carimbo** de frescor: a decisão de "ausência → `null` explícito, nunca
+> fallback" governava o que a tela **diz**. A spec 020 criou uma superfície que não existia em
+> 13/09 — um eixo horizontal desenhado a partir de `dado_ts` —, e a Fase 2 nasceu com um
+> `COALESCE(dado_ts, ts)` na leitura da série, isto é, com o fallback que D1 proíbe, só que numa
+> coordenada em vez de num rótulo. Por decisão do dono, o `COALESCE` saiu das duas metades
+> (leitura e ponto corrente) no mesmo commit: **ciclo sem hora legível do TSE não vira ponto, vira
+> buraco**. Medido em produção em 18/09: dos 25 ciclos posteriores à migration 0009, 22 não têm
+> `dado_ts`, e nenhuma das 572 linhas sem hora tem `pct_atual` — mas o `pct_projetado` delas muda,
+> então a linha da projeção marchava para a direita sobre dado congelado, exatamente o modo de
+> falha que este ADR existe para impedir. Nenhuma decisão deste documento é revogada.
+
 **Nota 2026-09-13 — números reconferidos contra um HEAD mais novo.** A investigação original deste ADR foi feita contra um worktree 15 commits atrás de `main`. Nesse intervalo, dois ADRs novos entraram (`ADR-0036`, Deputado Federal em granularidade zona/par, fatiado em 6, volta completa em 30 min; `ADR-0037`, agregação nacional do IC95 de cadeiras) e `api/model/project.py` ganhou código suficiente para deslocar a maioria das linhas citadas na primeira redação. Este documento já nasce escrito contra o HEAD corrigido — todo `arquivo:linha` abaixo foi reconferido nele. Nenhuma das cinco decisões (D1–D5) mudou de mérito; mudaram a cadência de Deputado usada em D3 (era 15 min, é 30 min) e a descrição de como o cargo 6 chega à lista em granularidade de par (não é mais "27 linhas por UF", é a mesma lista de pares que os outros três cargos, só que agregada por uma função diferente rio abaixo — ver Contexto e D1). **ADR-0037 é ortogonal a este documento** — trata de como o IC95 nacional de cadeiras agrega UFs sem faixa própria, não de relógios nem de payload `ts`; citado aqui só para registro, sem relação de emenda.
 
 ## Contexto

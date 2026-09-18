@@ -10,7 +10,7 @@ depends_on: [002-modelo-estatistico, 003-home-nacional, 004-pagina-uf-presidenci
 apis: []
 components: [SerieApuracaoChart, DetailUnavailable, Panel, ViewModeSwitch, TimeSeriesChart]
 nfr: [RNF-002, RNF-007a, RNF-022, RNF-023, RNF-024, RNF-026]
-adrs: [0046, 0011, 0012, 0017, 0024, 0029, 0031, 0032, 0038, 0043]
+adrs: [0046, 0047, 0011, 0012, 0017, 0024, 0029, 0031, 0032, 0038, 0043]
 amends: [003-home-nacional, 004-pagina-uf-presidencial, 005-pagina-uf-governador, 016-senador]
 ship_blocked_on: []
 ---
@@ -83,6 +83,26 @@ modelo projeta) alternadas pelo controle que já existe no topo da tela.
 top-4 desaparece do gráfico **inclusive do seu próprio passado**, e a
 ultrapassagem que a derrubou fica invisível — vê-se o resultado dela, não o
 evento. Mitigado por rótulo explícito e pela tabela acessível; não resolvido.
+
+## Decisões do dono (2026-09-18 — não re-litigar)
+
+Duas emendas às decisões acima, tomadas com o dado real na tela na Fase 2.
+Formalizadas no [ADR-0047](../../architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md).
+
+| | Decisão |
+|---|---|
+| D-F | A linha usa a variante **legível** da cor do partido (`textForParty`), não a base — a cor continua saindo do partido, muda só a variante (RF-171, ADR-0047 D1) |
+| D-G | **Ciclo sem hora do TSE não vira ponto**: sem `dado_ts` não há ponto, nem na leitura nem no ponto corrente (RF-168e / RF-169d, ADR-0047 D2) |
+
+**Custo de D-F registrado e aceito:** no tema **escuro**, oito tokens ficam mais
+pálidos que a identidade do partido (PL, REPUBLICANOS, UNIÃO, UP, PSTU,
+DEMOCRATA, PDT, PCdoB) sem que contraste exigisse — nenhuma base reprova 3:1 lá
+(a pior é UNIÃO, 3,09:1 contra o card). É efeito colateral de a variante ter sido
+calibrada para o piso de **texto** (4,5:1), que no tema escuro só se atinge
+clareando.
+
+**Custo de D-G registrado e aceito:** a série perde todo histórico anterior à
+migration 0009 — só na base "projeção", que é a única com valor naquelas linhas.
 
 ## Escopo
 
@@ -158,7 +178,10 @@ de maior `dado_ts` dentro dele, e SHALL declarar a cadência escolhida no payloa
 descontinuidades e poderia fazer uma quantidade quase-monotônica regredir;
 (c) o teto **re-bucketiza**, nunca descarta o começo da noite; (d) o balde deriva
 do epoch de `dado_ts`, nunca do índice do array: um ciclo perdido não desloca os
-pontos anteriores (constituição § 6).
+pontos anteriores (constituição § 6); (e) linha **sem `dado_ts`** não produz
+ponto — não há `COALESCE` para o relógio de cálculo, nem na leitura nem no ponto
+corrente ([ADR-0047](../../architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md)
+D2, emenda de 2026-09-18).
 
 **RF-169 — O último ponto é o número publicado ao lado**
 
@@ -169,7 +192,22 @@ linha seja idêntico ao `pct_atual` / `pct_projetado` publicados no mesmo payloa
 *Aceitação:* (a) `serie.candidatos[i].apurado.at(-1)` é igual ao `pct_atual` da
 mesma candidatura no payload, na mesma renderização; (b) vale sem reconsultar
 `projections` depois da escrita do ciclo; (c) o teste falha se a leitura da série
-voltar a preceder a escrita — hoje ela precede, e a série sai um ciclo atrasada.
+voltar a preceder a escrita — hoje ela precede, e a série sai um ciclo atrasada;
+(d) ciclo **sem hora legível do boletim** não anexa ponto nenhum: o ponto do
+ciclo é ancorado em `dado_ts` e só nele, nunca em `ts_iso`.
+
+> ⚠️ **Emenda de 2026-09-18 — decisão do dono, [ADR-0047](../../architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md) D2.**
+> **Ciclo sem hora do TSE não vira ponto: vira buraco**, nas duas metades e no
+> mesmo commit — o filtro na leitura (`dado_ts IS NOT NULL`) e a ausência de
+> fallback no ponto corrente. Corrigir só uma faz a linha **piscar**: a linha
+> cega some no ciclo em que nasce e volta, no mesmo lugar errado, pela leitura do
+> ciclo seguinte. Medido em produção em 18/09: dos 25 ciclos posteriores à
+> migration 0009, **22 sem `dado_ts`**; das 572 linhas sem hora, **zero** têm
+> `pct_atual` — mas o `pct_projetado` delas muda, e a linha da projeção marchava
+> para a direita sobre ciclos em que nada chegou do TSE. Consequência aceita:
+> toda linha anterior à 0009 (13.180 na tabela inteira, nenhuma com `pct_atual`)
+> sai da série; só a base "projeção" perde histórico, e é histórico sem voto
+> medido.
 
 ### Elenco e cor
 
@@ -188,8 +226,9 @@ de nenhuma linha remanescente.
 
 **RF-171 — A cor é do partido; o rank escolhe quem entra, nunca de que cor**
 
-WHILE o widget renderiza, the system SHALL resolver a cor de cada linha por
-`colorForParty(candidato.partido)`, e SHALL NOT consumir o campo `cor` do
+WHILE o widget renderiza, the system SHALL resolver a cor do traçado e do ponto
+final de cada linha por `textForParty(candidato.partido)` — a variante **legível
+sobre o papel** do token do partido —, e SHALL NOT consumir o campo `cor` do
 payload.
 
 *Aceitação:* (a) renderizar a mesma série com o array de candidaturas em ordem
@@ -197,7 +236,20 @@ invertida produz `stroke` idêntico por `id`; (b) a string `--color-cand-` não
 ocorre no HTML do widget — é a cor por rank que o
 [ADR-0024](../../architecture/adrs/0024-paleta-editorial-por-partido.md)
 aposentou, e que o payload ainda publica; (c) partido sem token cai no token de
-"outros", nunca em cor ausente.
+"outros", nunca em cor ausente; (d) o traçado e o ponto final saem na **mesma**
+cor, e para os quatro partidos cuja base reprova o piso de 3:1 do WCAG 2.1 SC
+1.4.11 (PSOL 2,08:1, PSB 2,19:1, o fallback "outros" 2,39:1 e NOVO 2,72:1 sobre
+`--surface-page`) a cor emitida passa esse piso **nos dois temas e nas duas
+superfícies de cada um**.
+
+> ⚠️ **Emenda de 2026-09-18 — decisão do dono, [ADR-0047](../../architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md) D1.**
+> Este RF dizia `colorForParty(candidato.partido)`. Aquela função devolve a cor
+> de **área** do partido; o que o widget desenha é um traço de 1,5–2,5 px, que é
+> objeto gráfico (piso 3:1, não 4,5:1), e quatro bases reprovam esse piso no tema
+> claro. `textForParty` deriva da **mesma sigla** e é a mesma matiz noutra
+> intensidade — em 17 dos 31 partidos ela **é** a base (PT, PL e UNIÃO entre
+> eles). A intenção original do RF e do ADR-0046 D5 fica intacta: a cor sai do
+> **partido**, nunca do rank. Muda a variante, não a fonte.
 
 ### Apresentação
 
@@ -279,7 +331,7 @@ nunca "0%"; (d) os traçados internos são ocultos à árvore de acessibilidade;
 |---|---|
 | RNF-007a (bundle) | Server Component puro, SVG inline, sem lib de charting; alternância por CSS. Contribuição esperada: 0 B |
 | RNF-023 (gráfico com tabela) | RF-176 |
-| RNF-022 (contraste) | Cor por partido com ΔE76 ≥ 12 ([ADR-0031](../../architecture/adrs/0031-piso-separacao-entre-partidos.md)); destaque por espessura, nunca opacidade |
+| RNF-022 (contraste) | Cor por partido com ΔE76 ≥ 12 ([ADR-0031](../../architecture/adrs/0031-piso-separacao-entre-partidos.md)); destaque por espessura, nunca opacidade. ⚠️ O traçado é medido contra o piso de **3:1** do WCAG 2.1 SC 1.4.11 (não-texto), via `textForParty` ([ADR-0047](../../architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md) D1) — RNF-022 cobre só **texto** (4,5:1), e o piso de não-texto **não tem RNF próprio** hoje |
 | RNF-024 (teclado) | O widget não tem foco próprio; o controle de visão é o do shell, já navegável |
 | RNF-026 (movimento) | Zero animação — nada a zerar sob `prefers-reduced-motion` |
 | RNF-002 (latência) | Nenhuma leitura nova no read path: UF reaproveita o `readUfDetail` do `Promise.all` existente; nacional viaja no payload que a página já lê |
@@ -335,6 +387,7 @@ contagem.
 ## Cross-refs
 
 - [ADR-0046](../../architecture/adrs/0046-serie-por-candidato-limitada-por-construcao.md) — as cinco decisões de forma, volume, destino, elenco e cor
+- [ADR-0047](../../architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md) — as duas emendas de 18/09: a variante legível da cor (D-F) e o ciclo sem hora fora do eixo (D-G)
 - [ADR-0032](../../architecture/adrs/0032-detalhe-municipal-vercel-blob.md) — a divisória que o 0046 emenda
 - [ADR-0038](../../architecture/adrs/0038-dado-ts-hora-do-dado-nao-hora-do-calculo.md) — o eixo do tempo é a hora do boletim
 - [ADR-0043](../../architecture/adrs/0043-fase-pre-eleicao-campo-proprio-nao-derivada.md) — a fase vem do campo, não da data
