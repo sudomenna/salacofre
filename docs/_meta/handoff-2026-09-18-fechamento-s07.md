@@ -9,7 +9,8 @@ supersedes: handoff-2026-09-18.md
 
 # Handoff — 2026-09-18, segunda sessão
 
-**17 commits, NENHUM empurrado.** `main` está **17 à frente** de `origin/main`.
+**Nenhum commit empurrado.** `main` está à frente de `origin/main` — confira quantos com
+`git status -sb`, não com este número, que envelhece no próprio commit que o escreve.
 Árvore limpa.
 
 A sessão fez três coisas, nesta ordem: fechou a S07 depois de auditar as 76 caixas
@@ -20,11 +21,15 @@ das S09/S10 que não depende de ninguém.
 
 ## 1. 🔴 A primeira coisa a fazer
 
-**Empurrar.** São 17 commits de trabalho só na máquina local.
+**Empurrar.** O trabalho desta sessão está só na máquina local.
 
 ```bash
-cd /Users/tiagomenna/Projetos/AtlasMenna && git push
+cd /Users/tiagomenna/Projetos/AtlasMenna && git status -sb | head -1 && git push
 ```
+
+⚠️ **Confira o número com o comando, não com este documento.** Um handoff não
+consegue contar o próprio commit: quando escrevi "17" ainda faltava commitar este
+arquivo. `git status -sb` diz a verdade sempre.
 
 ⚠️ Confira antes que o CI está verde na `main` — o job `test` ganhou um passo novo
 (`pytest`) nesta sessão e **nunca rodou no GitHub**. Está provado localmente com o
@@ -71,7 +76,7 @@ seguir, o que falta está listado no § 5.
 
 ---
 
-## 4. O que entrou — 17 commits
+## 4. O que entrou
 
 ```
 a6c9571  a S07 fecha admitindo que não cumpriu o objetivo, e as 76 caixas ganham destino
@@ -277,7 +282,8 @@ Todos estão nas mensagens de commit, com o número medido. Os quatro que mais e
 Retomando o SalaCofre. Leia primeiro `docs/_meta/handoff-2026-09-18-fechamento-s07.md`
 — ele supersede o de 18/09 e tem o estado, as armadilhas medidas e o que falta.
 
-🔴 PRIMEIRA COISA: há 17 commits NÃO EMPURRADOS na main. Confira e empurre.
+🔴 PRIMEIRA COISA: o trabalho da sessão anterior NÃO foi empurrado.
+`git status -sb` diz quantos commits; confira e empurre.
 O CI ganhou um passo novo (pytest) que nunca rodou no GitHub.
 
 A sprint ativa é a S08 — Enxergar. Ela está travada no que é do dono: 5 das 9
