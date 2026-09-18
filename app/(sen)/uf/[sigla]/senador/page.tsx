@@ -48,6 +48,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { SerieApuracaoChart } from "@/components/atoms/charts/SerieApuracaoChart";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { CandidaturasAguardando } from "@/components/blocks/CandidaturasAguardando";
 import { ChancesPanel } from "@/components/blocks/ChancesPanel";
@@ -55,10 +56,12 @@ import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { ResultPanel } from "@/components/blocks/ResultPanel";
 import { Footer } from "@/components/layout/Footer";
 import { cargoInfo } from "@/lib/config/cargos";
+import { isPreEleicao } from "@/lib/config/fase";
 import { resultadoEleitoral, simulacaoSenadorUf } from "@/lib/dev/simulacao";
-import { readUfProjection } from "@/lib/edge-config/reader";
+import { readProjection, readUfProjection } from "@/lib/edge-config/reader";
 import type { EdgePayloadUf, EdgeUfCandidate } from "@/lib/edge-config/types";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
+import { rankByParcial } from "@/lib/utils/rank-parcial";
 import senUfFixture from "@/tests/fixtures/edge-config/sen-uf.json" with { type: "json" };
 
 /** Ver a nota em `app/(sen)/senador/page.tsx`: o fallback sai da tabela
@@ -142,24 +145,6 @@ function ResultTitle({ sigla }: { sigla: string }) {
 }
 
 /**
- * DERIVAÇÃO DO RANK — a ordem deste array É o rank exibido, e é ela que o
- * `<ResultPanel>` usa para decidir quem ocupa vaga e onde fica o corte.
- *
- * Espelho exato de `rankByParcial` nas rotas de Presidente e Governador:
- * `pct_atual` desc (o apurado, que é o que o leitor confere contra o boletim
- * do TSE), com `pct_projetado` desc como desempate — sem ele, antes do
- * primeiro boletim todos os `pct_atual` são 0 e a ordem sairia arbitrária —
- * e `id` asc como desempate estável final.
- */
-function rankByParcial(candidatos: readonly EdgeUfCandidate[]): EdgeUfCandidate[] {
-  return [...candidatos].sort((a, b) => {
-    if (b.pct_atual !== a.pct_atual) return b.pct_atual - a.pct_atual;
-    if (b.pct_projetado !== a.pct_projetado) return b.pct_projetado - a.pct_projetado;
-    return a.id - b.id;
-  });
-}
-
-/**
  * A projeção tem incerteza MEDIDA? Só então `p_eleito` pode ser lido como
  * "chance".
  *
@@ -211,7 +196,18 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
 
   if (!payload) {
     // RF-149 — cargo 5 nesta UF.
-    const grade = await CandidaturasAguardando({ cargo: 5, uf: sigla });
+    // 🔴 Spec 020 (RF-174d) — a fase vem do payload NACIONAL desta corrida
+    // (`projection-current-sen-t1`, uma das chaves do semeador), pelo ponto
+    // único `isPreEleicao`. Nunca por data de calendário.
+    //
+    // Lida só neste ramo: a rota não tem payload próprio em fase pré, porque o
+    // semeador nunca escreve chave de UF. **Custo: zero hop a mais** — o ramo
+    // já esperava por `CandidaturasAguardando`, e a leitura cabe dentro dessa
+    // mesma espera. O caminho com dado não ganha leitura nenhuma (RNF-002).
+    const [grade, nacional] = await Promise.all([
+      CandidaturasAguardando({ cargo: 5, uf: sigla }),
+      readProjection({ cargo: "sen", turno: 1 }),
+    ]);
 
     return (
       <main
@@ -235,6 +231,20 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
 
         {/* Acrescentar, nunca substituir: a grade entra DEPOIS do parágrafo. */}
         {grade}
+
+        {/* Spec 020 (RF-174, RF-175) — o bloco vive também neste ramo, onde
+            separa "a eleição ainda não começou" de "não sabemos". */}
+        <Panel kicker="Evolução da apuração">
+          <SerieApuracaoChart
+            cadenciaMin={CADENCIA_MIN}
+            candidatos={[]}
+            eixo={[]}
+            escopo={`Senado ${sigla}`}
+            preEleicao={isPreEleicao(nacional)}
+            titleId="serie-apuracao-heading"
+            vagas={VAGAS_PADRAO === 2 ? 2 : 1}
+          />
+        </Panel>
 
         <Footer />
       </main>
@@ -316,6 +326,33 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
           </p>
         </Panel>
       )}
+
+      {/* Seção 2b — spec 020 (RF-174 + RF-173): a evolução da apuração, no
+          slot T-10 (entre o painel de chances e o de metodologia). Nunca
+          acima do painel de resultado: o `<h1>` vive nele.
+
+          `vagas` liga o destaque das duas posições que elegem (RF-173) — o
+          mesmo número que o `<ResultPanel>` acima usa, lido do payload e não
+          de um literal, para que as duas seções nunca discordem sobre quantas
+          cadeiras estão em jogo.
+
+          Fase 0 entrega o bloco vazio: a série só existe a partir da Fase 1.
+
+          🔴 `preEleicao={false}` é DECISÃO — há payload desta UF, e payload de
+          UF só nasce do orchestrator; o semeador da fase pré grava apenas as
+          chaves nacionais. A pergunta cara é feita no ramo de espera, acima, e
+          só lá (RNF-002). */}
+      <Panel kicker="Evolução da apuração">
+        <SerieApuracaoChart
+          cadenciaMin={CADENCIA_MIN}
+          candidatos={[]}
+          eixo={[]}
+          escopo={`Senado ${sigla}`}
+          preEleicao={false}
+          titleId="serie-apuracao-heading"
+          vagas={vagas === 2 ? 2 : 1}
+        />
+      </Panel>
 
       {/* Seção 3 — RF-108 e constituição § 8: o bloco de transparência é
           obrigatório em toda página com projeção. Aqui ele carrega os dois

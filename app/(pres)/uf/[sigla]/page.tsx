@@ -123,6 +123,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { DadoParadoBanner } from "@/components/atoms/banners/DadoParadoBanner";
+import { SerieApuracaoChart } from "@/components/atoms/charts/SerieApuracaoChart";
 import { DetailFreshness, DetailUnavailable } from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { CandidaturasAguardando } from "@/components/blocks/CandidaturasAguardando";
@@ -134,6 +135,7 @@ import { Footer } from "@/components/layout/Footer";
 import { municipiosFrom, readUfDetail, type UfDetailResult } from "@/lib/blob/uf-detail";
 import { currentPresidentialTurno } from "@/lib/config/calendar";
 import { avaliarFrescorDado } from "@/lib/config/dado-freshness";
+import { isPreEleicao } from "@/lib/config/fase";
 import {
   resultadoEleitoral,
   simulacaoLigada,
@@ -141,14 +143,10 @@ import {
   simulacaoNacional,
   simulacaoUfPresidente,
 } from "@/lib/dev/simulacao";
-import { readUfProjection } from "@/lib/edge-config/reader";
-import type {
-  EdgePayload,
-  EdgePayloadUf,
-  EdgeUfCandidate,
-  EdgeUfMunicipio,
-} from "@/lib/edge-config/types";
+import { readNationalProjection, readUfProjection } from "@/lib/edge-config/reader";
+import type { EdgePayload, EdgePayloadUf, EdgeUfMunicipio } from "@/lib/edge-config/types";
 import { primeiroNomeExibicao } from "@/lib/utils/nome-candidato";
+import { rankByParcial } from "@/lib/utils/rank-parcial";
 import nationalFixture from "@/tests/fixtures/edge-config/projection-current.json" with {
   type: "json",
 };
@@ -237,39 +235,6 @@ export async function generateMetadata({ params }: UFPageProps): Promise<Metadat
       description,
     },
   };
-}
-
-/**
- * DERIVAÇÃO DO RANK — a ordem deste array É o rank exibido.
- *
- * `EdgeUfCandidate` (`lib/edge-config/types.ts:570-588`) é, por definição, um
- * subset do `EdgeCandidate` nacional: tem `votos_atuais`, `pct_atual`,
- * `pct_projetado` e `ci95`, mas **não tem `rank`**. O `<ResultPanel>` cai no
- * índice do array quando a chave está ausente (`candidateResultRowProps(c, i +
- * 1)`), e lê `candidatos[0]`/`[1]` como líder e 2º colocado para a figura de
- * margem e para a barra de maioria. Ou seja: ordenar aqui é derivar o rank.
- *
- * Critério primário: **`pct_atual` desc** — o resultado APURADO, que é o
- * número que o leitor confere contra o boletim do TSE, e é sobre `pct` que o
- * protótipo ordena (`ui_kits/atlas-menna/App.jsx:22`, `rows[0]`/`rows[1]`).
- *
- * Dois desempates, e nenhum é cosmético:
- *
- *   1. `pct_projetado` desc. Antes da primeira zona apurada TODOS os
- *      `pct_atual` valem 0 e o critério primário não separa ninguém; sem este
- *      desempate a ordem cairia na do array de origem e a página abriria a
- *      noite eleitoral com um "líder" arbitrário — na numeração, na margem e
- *      na barra. `pct_projetado` carrega o prior pré-eleitoral e é a única
- *      leitura disponível nesse instante. (Era o critério primário até 09/09.)
- *   2. `id` asc — desempate estável final, a mesma convenção do payload
- *      nacional (`EdgeNational.candidatos`).
- */
-function rankByParcial(candidatos: readonly EdgeUfCandidate[]): EdgeUfCandidate[] {
-  return [...candidatos].sort((a, b) => {
-    if (b.pct_atual !== a.pct_atual) return b.pct_atual - a.pct_atual;
-    if (b.pct_projetado !== a.pct_projetado) return b.pct_projetado - a.pct_projetado;
-    return a.id - b.id;
-  });
 }
 
 /**
@@ -466,7 +431,27 @@ export default async function UFPage({ params }: UFPageProps) {
     // RF-149 — a corrida desta tela é a NACIONAL: as candidaturas a Presidente
     // na cédula de qualquer estado são as mesmas 12 do país, e a fatia mora sob
     // `BR` (design 018 § D1). `sigla` endereça a projeção, não o cadastro.
-    const grade = await CandidaturasAguardando({ cargo: 1, uf: "BR" });
+    // 🔴 Spec 020 (RF-174d) — a fase é lida do payload NACIONAL, e é lida
+    // **aqui dentro**, no único ramo que não consegue respondê-la sozinho.
+    //
+    // Esta rota não tem payload próprio em fase pré: o semeador grava apenas
+    // as três chaves nacionais mais o alias (`data-pipeline/projection-seed.ts`
+    // § chavesDeDestino), nunca uma chave de UF. Sem perguntar ao nacional,
+    // este ramo funde dois estados distintos — "a eleição não começou" e "não
+    // sabemos" — no mesmo texto de espera.
+    //
+    // **Custo: zero hop a mais.** O ramo já esperava por `CandidaturasAguardando`
+    // (uma ida ao Blob); a leitura do nacional entra no MESMO `Promise.all` e
+    // termina dentro daquela espera. O caminho feliz — a rota de maior tráfego
+    // com dado, na noite de 04/10 — não ganha leitura nenhuma (RNF-002).
+    //
+    // `isPreEleicao(null)` é `false` por contrato de `lib/config/fase.ts`: uma
+    // falha de leitura do Global Config não pode virar uma afirmação sobre o
+    // calendário eleitoral.
+    const [grade, nacional] = await Promise.all([
+      CandidaturasAguardando({ cargo: 1, uf: "BR" }),
+      readNationalProjection(),
+    ]);
 
     return (
       <main
@@ -494,12 +479,29 @@ export default async function UFPage({ params }: UFPageProps) {
         {/* Acrescentar, nunca substituir: a grade entra DEPOIS do parágrafo. */}
         {grade}
 
+        {/* Spec 020 (RF-174, RF-175) — o bloco existe também AQUI, e é neste
+            ramo que ele paga o próprio aluguel: com o nacional em fase pré ele
+            desenha os eixos e diz "disponível apenas no dia das eleições";
+            sem nacional nenhum ele diz que a série não chegou. Os dois textos
+            são estados diferentes, que o parágrafo de espera acima não
+            distingue. */}
+        <Panel kicker="Evolução da apuração">
+          <SerieApuracaoChart
+            cadenciaMin={5}
+            candidatos={[]}
+            eixo={[]}
+            escopo={sigla}
+            preEleicao={isPreEleicao(nacional)}
+            titleId="serie-apuracao-heading"
+          />
+        </Panel>
+
         <Footer />
       </main>
     );
   }
 
-  // A ordem deste array é o rank exibido — ver `rankByParcial` acima.
+  // A ordem deste array é o rank exibido — ver `lib/utils/rank-parcial.ts`.
   const rankedCandidatos = rankByParcial(payload.candidatos);
 
   // ADR-0038 D4 — frescor do DADO desta UF, calculado no servidor a partir do
@@ -589,6 +591,39 @@ export default async function UFPage({ params }: UFPageProps) {
         title={<ResultTitle sigla={sigla} />}
         titleId="resultado-heading"
       />
+
+      {/* Seção 1b — spec 020 (RF-174): a evolução da apuração, no slot T-03
+          (entre o painel de resultado e o de municípios). Nunca acima do
+          painel: o `<h1>` da página vive nele.
+
+          Fase 0 entrega o bloco vazio — `eixo` e `candidatos` só ganham
+          conteúdo quando o produtor publicar a série (Fase 1 da spec). Zeros
+          de enfeite estão fora de questão.
+
+          🔴 `preEleicao={false}`, e isso é uma DECISÃO, não um esquecimento.
+          Chegar até aqui significa que `readUfProjection` devolveu payload
+          desta UF — e payload de UF só existe porque o orchestrator o gravou.
+          O semeador da fase pré escreve apenas as chaves NACIONAIS (o conjunto
+          de `chavesDeDestino()` em `data-pipeline/projection-seed.ts`), nunca
+          uma chave de UF; logo, este ramo é inalcançável em fase pré, e
+          perguntar a fase aqui custaria uma leitura por render na rota de
+          maior tráfego do produto para receber sempre a mesma resposta
+          (RNF-002: nenhuma leitura nova no read path). Quem precisa da
+          pergunta é o ramo de espera, acima, e é lá que ela é feita.
+
+          Se algum dia o produtor passar a gravar UF em fase pré, o campo
+          `fase` virá no payload e o lugar certo de lê-lo será `isPreEleicao`
+          sobre ele — não uma segunda fonte inventada aqui. */}
+      <Panel kicker="Evolução da apuração">
+        <SerieApuracaoChart
+          cadenciaMin={5}
+          candidatos={[]}
+          eixo={[]}
+          escopo={sigla}
+          preEleicao={false}
+          titleId="serie-apuracao-heading"
+        />
+      </Panel>
 
       {/* Seção 2 — RF-037: municípios. Tocar num município abre a folha
           (`<Sheet>`) com os números dele (S07/Bloco 2).

@@ -442,14 +442,55 @@ describe("HomePage (integration / smoke)", () => {
     // 2026-09-09: o marcador de "primeiro conteúdo do painel" deixou de ser o
     // heading dos termômetros e passou a ser a primeira linha de candidato.
     const listaDeCandidatos = at("candidate-result-row");
+    // Spec 020 — o bloco de evolução da apuração entrou no fluxo em 17/09,
+    // abaixo do painel de resultado e acima do rodapé. Está na ordem esperada
+    // desde então; o slot exato é fixado pelo teste (v2), logo abaixo.
+    const serie = at('data-testid="serie-apuracao-chart"');
     const rodape = at("Não oficial. Fonte:");
 
     // TrilhaKicker imediatamente acima do painel que carrega o <h1>
     // (ADR-0019 preservado dentro da nova ordem).
     expect(kicker).toBeLessThan(painel);
     expect(painel).toBeLessThan(listaDeCandidatos);
+    expect(listaDeCandidatos).toBeLessThan(serie);
     // O rodapé constitucional continua fechando a página.
-    expect(listaDeCandidatos).toBeLessThan(rodape);
+    expect(serie).toBeLessThan(rodape);
+  });
+
+  /**
+   * Spec 020 / RF-174 — o SLOT do bloco, não a presença dele.
+   *
+   * "Presente" passaria com o bloco em qualquer lugar da página, inclusive
+   * acima do painel de resultado — que é o único lugar onde ele não pode
+   * estar, porque lá vive o `<h1>`. Por isso as três asserções abaixo são
+   * posicionais e a quarta reconta os `<h1>`.
+   */
+  it("(v2) a evolução da apuração fica ENTRE as chances e os redutos (slot T-01)", async () => {
+    const node = await HomePage();
+    const doc = parse(renderToStaticMarkup(node));
+    const html = doc.querySelector("main[data-trilha]")?.innerHTML ?? "";
+    const at = (marcador: string) => {
+      const i = html.indexOf(marcador);
+      expect(i, `marcador ausente: ${marcador}`).toBeGreaterThanOrEqual(0);
+      return i;
+    };
+
+    const chances = at('data-testid="chances-panel-meters"');
+    const serie = at('data-testid="serie-apuracao-chart"');
+    const redutos = at("strongholds-panel-heading");
+
+    expect(chances).toBeLessThan(serie);
+    expect(serie).toBeLessThan(redutos);
+
+    // Sem série publicada (Fase 0 da spec), o bloco não desenha traçado nem
+    // percentual nenhum — e mesmo assim NÃO some do DOM (ADR-0017).
+    expect(doc.querySelector('[data-testid="serie-apuracao-chart"]')).not.toBeNull();
+    expect(doc.querySelectorAll("[data-traco]")).toHaveLength(0);
+
+    // 🔴 A contagem de `<h1>` não pode mudar: o bloco novo não é um heading de
+    // página e nunca sobe acima do painel de resultado.
+    expect(doc.querySelectorAll("h1")).toHaveLength(1);
+    expect(doc.querySelector("h1")?.getAttribute("id")).toBe("resultado-heading");
   });
 
   it("(x) o painel de resultado é o PRIMEIRO conteúdo da coluna que rola", async () => {

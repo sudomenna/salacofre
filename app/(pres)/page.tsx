@@ -156,6 +156,7 @@ import { RaceTypeIndicator } from "@/components/atoms/badges/RaceTypeIndicator";
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { DadoParadoBanner } from "@/components/atoms/banners/DadoParadoBanner";
 import { FasePreEleicaoBanner } from "@/components/atoms/banners/FasePreEleicaoBanner";
+import { SerieApuracaoChart } from "@/components/atoms/charts/SerieApuracaoChart";
 import { TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { ApuracaoMeta } from "@/components/blocks/ApuracaoMeta";
@@ -915,6 +916,39 @@ export default async function HomePage() {
           está olhando. Vale `null` quando o Blob de candidaturas não responde,
           e a página segue de pé (constituição § 7). */}
       {gradeCandidaturas}
+
+      {/* Seção 3c — spec 020 (RF-174): a evolução da apuração.
+
+          Slot do design 020 § Telas (T-01): entre o painel de chances e o de
+          redutos. Fica DEPOIS da grade de candidaturas para não separar o
+          `{gradeCandidaturas}` do painel de identidade a que o RF-149 o
+          pendurou.
+
+          Fase 0 da spec entrega o bloco **vazio, e honesto**: não há série
+          publicada ainda (o produtor é a Fase 1), então `eixo` e `candidatos`
+          vão vazios de propósito — nunca com zeros de enfeite. Em fase pré o
+          componente desenha os eixos e diz que o gráfico vale só no dia da
+          eleição; fora dela, diz que a série ainda não chegou. Nos dois casos
+          o bloco PERMANECE no DOM (ADR-0017, ADR-0032 item 3).
+
+          🔴 `preEleicao` vem de `pre`, que é o `isPreEleicao(payload)` do
+          RF-153 — o mesmo e único gatilho de fase da página, nunca uma
+          segunda leitura nem uma data de calendário. O componente não decide
+          fase; quem decide é este chamador.
+
+          `cadenciaMin` só é impressa na legenda da tabela, que existe apenas
+          no estado com dado — aqui ela é inerte até a Fase 1 publicar a
+          cadência real junto com a série. */}
+      <Panel kicker="Evolução da apuração">
+        <SerieApuracaoChart
+          cadenciaMin={5}
+          candidatos={[]}
+          eixo={[]}
+          escopo="Brasil"
+          preEleicao={pre}
+          titleId="serie-apuracao-heading"
+        />
+      </Panel>
 
       {/* Seção 4 — redutos por candidato (S07/Bloco 1).
 

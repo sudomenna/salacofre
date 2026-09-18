@@ -20,6 +20,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SenadoPage from "@/app/(sen)/senador/page";
 import UFSenadorPage from "@/app/(sen)/uf/[sigla]/senador/page";
+import { FASE_PRE_ELEICAO } from "@/lib/config/fase";
 import type {
   EdgeCandidate,
   EdgePayload,
@@ -545,6 +546,64 @@ describe("/uf/[sigla]/senador (T-10)", () => {
     expect(doc.querySelectorAll("h1").length).toBe(1);
     expect(doc.body.textContent).toContain("Aguardando dados");
     expect(doc.body.textContent).toContain("2 vagas por estado");
+  });
+
+  /**
+   * Spec 020 / RF-174 + RF-173 — o SLOT do bloco (T-10), não a presença dele.
+   *
+   * "Está no DOM" passaria com o bloco em qualquer posição, inclusive acima do
+   * painel de resultado — o único lugar proibido, porque lá vive o `<h1>`.
+   */
+  it("(x) a evolução da apuração fica entre as chances e a metodologia", async () => {
+    readUfProjectionMock.mockResolvedValue(ufPayload());
+    const doc = await render(UFSenadorPage(PARAMS_SP));
+
+    const paineis = [...doc.querySelectorAll('[data-testid="panel"]')];
+    const kickers = paineis.map(
+      (p) => p.querySelector('[data-testid="panel-kicker"]')?.textContent ?? "",
+    );
+    const iSerie = paineis.findIndex((p) =>
+      p.querySelector('[data-testid="serie-apuracao-chart"]'),
+    );
+
+    expect(paineis[0]?.getAttribute("aria-labelledby")).toBe("resultado-heading");
+    expect(kickers[iSerie - 1]).toBe("Modelo Atlas Menna");
+    expect(kickers[iSerie]).toBe("Evolução da apuração");
+    expect(kickers[iSerie + 1]).toBe("Metodologia");
+    expect(iSerie).toBe(2);
+
+    // Fase 0: sem série publicada, nenhum traçado.
+    expect(doc.querySelectorAll("[data-traco]")).toHaveLength(0);
+
+    // 🔴 A contagem de `<h1>` não muda.
+    expect(doc.querySelectorAll("h1").length).toBe(1);
+  });
+
+  /**
+   * Spec 020 / RF-174(d) — no ramo de espera a fase vem do payload NACIONAL
+   * do Senado. Os dois casos são o par que discrimina: `preEleicao` fixo em
+   * `false` derruba o primeiro, fixo em `true` derruba o segundo.
+   */
+  it("(y) sem payload de UF, o estado do bloco vem da fase do NACIONAL", async () => {
+    readUfProjectionMock.mockResolvedValueOnce(null);
+    readProjectionMock.mockResolvedValueOnce({ fase: FASE_PRE_ELEICAO });
+    const pre = await render(UFSenadorPage(PARAMS_SP));
+    const blocoPre = pre.querySelector('[data-testid="serie-apuracao-chart"]');
+    expect(blocoPre?.getAttribute("data-estado")).toBe("antes-do-dia");
+    expect(pre.body.textContent).toContain("disponível apenas no dia das eleições");
+    expect(blocoPre?.textContent?.toLowerCase()).not.toContain("projeção");
+    expect(pre.querySelectorAll("h1").length).toBe(1);
+    // A fase é perguntada ao nacional DESTA corrida, com cargo e turno
+    // explícitos (ADR-0028) — nunca ao presidencial nem a uma data.
+    expect(readProjectionMock).toHaveBeenCalledWith({ cargo: "sen", turno: 1 });
+
+    readUfProjectionMock.mockResolvedValueOnce(null);
+    readProjectionMock.mockResolvedValueOnce(null);
+    const semNada = await render(UFSenadorPage(PARAMS_SP));
+    expect(
+      semNada.querySelector('[data-testid="serie-apuracao-chart"]')?.getAttribute("data-estado"),
+    ).toBe("indisponivel");
+    expect(semNada.querySelectorAll("h1").length).toBe(1);
   });
 
   it("(w) a ordem exibida é a do apurado, com a projeção como desempate", async () => {

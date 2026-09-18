@@ -95,6 +95,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { DadoParadoBanner } from "@/components/atoms/banners/DadoParadoBanner";
+import { SerieApuracaoChart } from "@/components/atoms/charts/SerieApuracaoChart";
 import { DetailFreshness, DetailUnavailable } from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { CandidaturasAguardando } from "@/components/blocks/CandidaturasAguardando";
@@ -105,13 +106,14 @@ import { ResultPanel } from "@/components/blocks/ResultPanel";
 import { Footer } from "@/components/layout/Footer";
 import { municipiosFrom, readUfDetail, type UfDetailResult } from "@/lib/blob/uf-detail";
 import { avaliarFrescorDado } from "@/lib/config/dado-freshness";
+import { isPreEleicao } from "@/lib/config/fase";
 import {
   resultadoEleitoral,
   simulacaoLigada,
   simulacaoMunicipiosUf,
   simulacaoNacional,
 } from "@/lib/dev/simulacao";
-import { readUfProjection } from "@/lib/edge-config/reader";
+import { readProjection, readUfProjection } from "@/lib/edge-config/reader";
 import type {
   EdgePayload,
   EdgePayloadUf,
@@ -119,6 +121,7 @@ import type {
   EdgeUfMunicipio,
 } from "@/lib/edge-config/types";
 import { primeiroNomeExibicao } from "@/lib/utils/nome-candidato";
+import { rankByParcial } from "@/lib/utils/rank-parcial";
 import govFixture from "@/tests/fixtures/edge-config/gov-current.json" with { type: "json" };
 
 export const revalidate = 60;
@@ -191,27 +194,6 @@ export async function generateMetadata({ params }: UFGovernadorPageProps): Promi
     },
     twitter: { card: "summary_large_image", title, description },
   };
-}
-
-/**
- * DERIVAÇÃO DO RANK — a ordem deste array É o rank exibido. Espelho exato de
- * `rankByParcial` em `app/(pres)/uf/[sigla]/page.tsx`, onde o raciocínio está
- * escrito por extenso.
- *
- * Resumo: `EdgeUfCandidate` (`lib/edge-config/types.ts:570-588`) não tem
- * `rank` — o `<ResultPanel>` cai no índice do array e lê `candidatos[0]`/`[1]`
- * como líder e 2º. Ordena-se por `pct_atual` desc (o apurado, que é o que o
- * protótipo ordena e o que o leitor confere contra o boletim do TSE), com
- * `pct_projetado` desc como desempate — sem ele, antes da primeira zona
- * apurada todos os `pct_atual` são 0 e o "líder" sairia arbitrário — e `id`
- * asc como desempate estável final.
- */
-function rankByParcial(candidatos: readonly EdgeUfCandidate[]): EdgeUfCandidate[] {
-  return [...candidatos].sort((a, b) => {
-    if (b.pct_atual !== a.pct_atual) return b.pct_atual - a.pct_atual;
-    if (b.pct_projetado !== a.pct_projetado) return b.pct_projetado - a.pct_projetado;
-    return a.id - b.id;
-  });
 }
 
 /**
@@ -400,7 +382,22 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
 
   if (!payload) {
     // RF-149 — cargo 3 nesta UF: a corrida é estadual, e a fatia também.
-    const grade = await CandidaturasAguardando({ cargo: 3, uf: sigla });
+    // 🔴 Spec 020 (RF-174d) — a fase vem do payload NACIONAL desta corrida
+    // (`projection-current-gov-t1`, uma das chaves que o semeador grava), pelo
+    // ponto único `isPreEleicao`. Nunca por data de calendário: `revalidate`
+    // congela o relógio no build.
+    //
+    // Lida **só aqui**, no ramo que não consegue responder sozinho: esta rota
+    // não tem payload próprio em fase pré, porque o semeador nunca escreve
+    // chave de UF (`data-pipeline/projection-seed.ts` § chavesDeDestino).
+    //
+    // **Custo: zero hop a mais.** O ramo já esperava por `CandidaturasAguardando`;
+    // a leitura entra no MESMO `Promise.all` e cabe dentro daquela espera. O
+    // caminho com dado não ganha leitura nenhuma (RNF-002).
+    const [grade, nacional] = await Promise.all([
+      CandidaturasAguardando({ cargo: 3, uf: sigla }),
+      readProjection({ cargo: "gov", turno: 1 }),
+    ]);
 
     return (
       <main
@@ -424,12 +421,26 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
         {/* Acrescentar, nunca substituir: a grade entra DEPOIS do parágrafo. */}
         {grade}
 
+        {/* Spec 020 (RF-174, RF-175) — o bloco também vive neste ramo, e é
+            aqui que ele separa "a eleição ainda não começou" de "não sabemos",
+            que o parágrafo de espera acima funde num texto só. */}
+        <Panel kicker="Evolução da apuração">
+          <SerieApuracaoChart
+            cadenciaMin={5}
+            candidatos={[]}
+            eixo={[]}
+            escopo={`Governador ${sigla}`}
+            preEleicao={isPreEleicao(nacional)}
+            titleId="serie-apuracao-heading"
+          />
+        </Panel>
+
         <Footer />
       </main>
     );
   }
 
-  // A ordem deste array é o rank exibido — ver `rankByParcial` acima.
+  // A ordem deste array é o rank exibido — ver `lib/utils/rank-parcial.ts`.
   const rankedCandidatos = rankByParcial(payload.candidatos);
 
   // ADR-0038 D4 — frescor do DADO desta UF, do servidor, a partir do `dado_ts`
@@ -517,6 +528,31 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
         titleId="resultado-heading"
         ufDaFoto={sigla}
       />
+
+      {/* Seção 1b — spec 020 (RF-174): a evolução da apuração, no slot T-04
+          (entre o painel de resultado e o de municípios). Nunca acima do
+          painel: o `<h1>` da página vive nele.
+
+          Fase 0 entrega o bloco vazio: `eixo` e `candidatos` só ganham
+          conteúdo quando o produtor publicar a série (Fase 1 da spec).
+
+          🔴 `preEleicao={false}` é DECISÃO, não esquecimento — mesma razão da
+          rota presidencial de UF. Chegar aqui significa que existe payload
+          desta UF, e payload de UF só nasce do orchestrator: o semeador da
+          fase pré grava apenas as chaves NACIONAIS. Perguntar a fase neste
+          ramo custaria uma leitura por render para receber sempre a mesma
+          resposta (RNF-002). Quem precisa da pergunta é o ramo de espera, e é
+          lá que ela é feita. */}
+      <Panel kicker="Evolução da apuração">
+        <SerieApuracaoChart
+          cadenciaMin={5}
+          candidatos={[]}
+          eixo={[]}
+          escopo={`Governador ${sigla}`}
+          preEleicao={false}
+          titleId="serie-apuracao-heading"
+        />
+      </Panel>
 
       {/* Seção 2 — maiores municípios, ligados à folha do município
           (`<Sheet>`). É o `BiggestPanel` do protótipo (`App.jsx:353`).

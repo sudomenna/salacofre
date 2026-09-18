@@ -22,6 +22,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import UFGovernadorPage from "@/app/(gov)/uf/[sigla]/governador/page";
 import type { UfDetailBlob, UfDetailResult } from "@/lib/blob/uf-detail";
+import { FASE_PRE_ELEICAO } from "@/lib/config/fase";
 import type { EdgePayloadUf, EdgeUfMunicipio } from "@/lib/edge-config/types";
 
 function makeMunicipio(i: number): EdgeUfMunicipio {
@@ -177,6 +178,16 @@ function buildUfPayload(opts: {
 
 const readUfProjectionMock = vi.fn();
 /**
+ * Spec 020 (RF-174d) — o ramo de espera desta rota passou a perguntar a FASE
+ * ao payload NACIONAL desta corrida (`projection-current-gov-t1`), porque a
+ * rota não tem payload próprio em fase pré: o semeador grava só as chaves
+ * nacionais. Deixa de ser constante para que os DOIS estados possam ser
+ * exercitados — nacional semeado e nacional ausente.
+ */
+const readProjectionMock = vi.fn(
+  async (_opts?: { cargo?: string; turno?: number }): Promise<unknown> => null,
+);
+/**
  * RF-149 (spec 018) — o estado "aguardando dados" desta rota passou a ler a
  * fatia de candidaturas do Blob. Sem este mock o arquivo faz uma requisição de
  * REDE de verdade (`BLOB_PUBLIC_BASE_URL` vem do `.env.local`), que o happy-dom
@@ -193,7 +204,7 @@ vi.mock("@/lib/blob/candidatos", () => ({
 }));
 
 vi.mock("@/lib/edge-config/reader", () => ({
-  readProjection: vi.fn(async () => null),
+  readProjection: (opts?: { cargo?: string; turno?: number }) => readProjectionMock(opts),
   readNationalProjection: vi.fn(async () => null),
   readArchivedProjection: vi.fn(async () => null),
   readUfProjection: (sigla: string, opts?: { cargo?: string }) => readUfProjectionMock(sigla, opts),
@@ -507,6 +518,65 @@ describe("UFGovernadorPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
     expect(texto).not.toContain("Cada quadrado é um município");
     expect(texto).not.toContain("Forecast ao vivo — Governador SP");
     expect(texto).not.toContain("Margem ao longo do tempo");
+  });
+
+  /**
+   * Spec 020 / RF-174 — o SLOT do bloco (T-04), não a presença dele.
+   *
+   * "Está no DOM" passaria com o bloco em qualquer posição, inclusive acima do
+   * painel de resultado — o único lugar proibido, porque lá vive o `<h1>`.
+   */
+  it("(r2) a evolução da apuração é o 2º painel: depois do resultado, antes dos municípios", async () => {
+    const doc = await renderGov();
+    const paineis = [...doc.querySelectorAll('[data-testid="panel"]')];
+    const kickers = paineis.map(
+      (p) => p.querySelector('[data-testid="panel-kicker"]')?.textContent ?? "",
+    );
+    const iSerie = paineis.findIndex((p) =>
+      p.querySelector('[data-testid="serie-apuracao-chart"]'),
+    );
+
+    expect(paineis[0]?.getAttribute("aria-labelledby")).toBe("resultado-heading");
+    expect(iSerie).toBe(1);
+    expect(kickers[iSerie]).toBe("Evolução da apuração");
+    expect(kickers.indexOf("Municípios")).toBe(2);
+
+    // Fase 0: sem série publicada, nenhum traçado.
+    expect(doc.querySelectorAll("[data-traco]")).toHaveLength(0);
+
+    // 🔴 A contagem de `<h1>` não muda.
+    expect(doc.querySelectorAll("h1")).toHaveLength(1);
+    expect(doc.querySelector("h1")?.getAttribute("id")).toBe("resultado-heading");
+  });
+
+  /**
+   * Spec 020 / RF-174(d) — no ramo de espera a fase vem do payload NACIONAL
+   * desta corrida. Os dois casos são o par que discrimina: `preEleicao` fixo
+   * em `false` derruba o primeiro, fixo em `true` derruba o segundo.
+   */
+  it("(r3) sem payload de UF, o estado do bloco vem da fase do NACIONAL", async () => {
+    readUfProjectionMock.mockResolvedValueOnce(null);
+    readProjectionMock.mockResolvedValueOnce({ fase: FASE_PRE_ELEICAO });
+    const pre = new DOMParser().parseFromString(
+      renderToStaticMarkup(await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) })),
+      "text/html",
+    );
+    const blocoPre = pre.querySelector('[data-testid="serie-apuracao-chart"]');
+    expect(blocoPre?.getAttribute("data-estado")).toBe("antes-do-dia");
+    expect(pre.body.textContent).toContain("disponível apenas no dia das eleições");
+    expect(blocoPre?.textContent?.toLowerCase()).not.toContain("projeção");
+    expect(pre.querySelectorAll("h1")).toHaveLength(1);
+
+    readUfProjectionMock.mockResolvedValueOnce(null);
+    readProjectionMock.mockResolvedValueOnce(null);
+    const semNada = new DOMParser().parseFromString(
+      renderToStaticMarkup(await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) })),
+      "text/html",
+    );
+    expect(
+      semNada.querySelector('[data-testid="serie-apuracao-chart"]')?.getAttribute("data-estado"),
+    ).toBe("indisponivel");
+    expect(semNada.querySelectorAll("h1")).toHaveLength(1);
   });
 });
 
