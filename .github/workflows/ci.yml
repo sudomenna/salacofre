@@ -100,12 +100,22 @@ jobs:
         with:
           python-version-file: .python-version
 
+      # 🔴 `requirements-DEV.txt`, não `requirements.txt`. O de produção é
+      # deliberadamente minimalista — só o que entra no bundle da função na
+      # Vercel (numpy, pydantic, psycopg) — e **não tem pytest**. O de dev faz
+      # `-r requirements.txt` e acrescenta o pytest.
+      #
+      # Até 18/09 este passo instalava o de produção, e o passo do pytest morria
+      # com `No module named pytest`. Não apareceu antes porque a conferência do
+      # segredo do banco abortava o job antes de chegar lá, e porque o `.venv-model`
+      # da máquina local tem pytest instalado à mão — "provado localmente com o
+      # comando exato do CI" era verdade na máquina e falso no runner.
       - name: Dependências do modelo em .venv-model
         run: |
           python -m venv .venv-model
           .venv-model/bin/python -m pip install --quiet --upgrade pip
-          .venv-model/bin/python -m pip install --quiet -r api/model/requirements.txt
-          .venv-model/bin/python3.14 -c "import numpy, pydantic, psycopg; print('deps do modelo ok')"
+          .venv-model/bin/python -m pip install --quiet -r api/model/requirements-dev.txt
+          .venv-model/bin/python3.14 -c "import numpy, pydantic, psycopg, pytest; print('deps do modelo ok')"
 
       # Os 560 testes do modelo estatístico não tinham portão nenhum até 18/09:
       # o job montava o `.venv-model` só para que `model-cycle` e
