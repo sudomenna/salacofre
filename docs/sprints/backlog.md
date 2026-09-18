@@ -68,6 +68,30 @@ Lista append-only de itens que **vão precisar acontecer** mas ainda não foram 
 - [ ] Considerar criar subagent `sprint-planner` quando o projeto tiver 3+ sprints fechadas (hoje overkill)
 - [ ] Hook pre-commit que dispara `constitution-guard` automaticamente
 
+## Herdados da S07 — triados no fechamento de 18/09
+
+Sem bloqueio e sem data. Referência: [S07 § Triagem](./2026-S07-f6-simulado-hero-1t.md#triagem-das-60-caixas-restantes).
+
+- [ ] **`GET /api/projection?cargo=deputado-federal`** *(S07 linha 424)* — paridade com
+      Presidente/Governador. ⚠️ **Pode não ser necessária**: nem Senador nem Deputado usam
+      essa rota; ambos leem `readProjection`/`readDeputadoProjection` direto no servidor e
+      ficam de propósito fora do `<PersistentMapFrame>`, que só aceita `cargo: "pres" | "gov"`
+      (`components/layout/PersistentMapFrame.tsx:91`). **Decidir se a paridade é desejada
+      antes de implementar** — hoje não há consumidor pedindo.
+- [ ] **Token da Vercel de prazo curto, fora do texto puro** *(S07 linha 426)* — explicitamente
+      pós-outubro. Conferido em 18/09: não há token em texto puro em `.env.local` nem em
+      `.github/workflows/`.
+- [ ] **EA12 online no ciclo de ingestão** *(S07 linha 454)* — hoje `data-pipeline/zonas-import.ts --ea12`
+      roda à mão, fora do ciclo. **Condicional**: só vale se o diff EA12 × tabela der > 0.
+- [ ] **CSV de mesorregião IBGE 2022 + re-run da migration 0005** *(S07 linha 785)* — **ação do
+      dono**. A migration `data-pipeline/migrations/0005_municipios_mesorregiao.ts` e toda a
+      plumbing existem (`lib/db/schema.ts:88`, `lib/edge-config/types.ts:1163`,
+      `api/model/project.py:3510`), mas `docs/ibge-2022/municipios-mesorregiao.csv` **não existe
+      no disco** — a coluna fica vazia até o CSV chegar.
+
+> Os gates de CI de bundle e Lighthouse (S07 linhas 753/754) já constavam em **Infra & DX**
+> acima; a triagem os confirmou abertos, sem duplicar a entrada.
+
 ## Ideias / Could (não priorizadas)
 
 - [ ] RF-053 — URL com timestamp pra snapshot histórico (Could no PRD)

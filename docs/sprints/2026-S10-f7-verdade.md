@@ -2,7 +2,7 @@
 id: 2026-S10
 title: Sprint 10 — Só afirmar o que sustenta
 status: planned
-start: null        # D2 (2026-09-18): sprints por dependência, não por data
+start: null        # D9 (2026-09-18): sprints por dependência, não por data
 end: null
 sequence: 3
 depends_on_sprint: 2026-S09
@@ -14,7 +14,7 @@ specs_planned_next: [013-pagina-manutencao, 010-operacao-monitoramento]
 
 # Sprint 10 — Só afirmar o que sustenta
 
-> **Sprint sem datas (D2, 2026-09-18).** `sequence: 3`, depende da S09 fechada.
+> **Sprint sem datas (D9, 2026-09-18).** `sequence: 3`, depende da S09 fechada.
 
 ## Objetivo único
 
@@ -169,6 +169,71 @@ Portões obrigatórios por spec (CLAUDE.md § 9): `rf-coverage-checker` ✅,
 - [ ] **020-evolucao-da-apuracao** — Fase 4 entregue; as duas decisões do dono de 18/09 já
       viraram norma no ADR-0047.
 - [ ] **002-modelo-estatistico** — destravada por D1 (item 1).
+
+---
+
+### 4. Herdados da S07 — triados no fechamento de 18/09
+
+Referência: [S07 § Triagem](./2026-S07-f6-simulado-hero-1t.md#triagem-das-60-caixas-restantes).
+
+🔴 **Pré-requisito que mora na S08, não aqui**: o *assert de percentil do RF-015* (S07 linha
+270). A chore 1 desta sprint muda exatamente esse número por decisão D8, e hoje **nenhum
+teste o protege** — mutação medida em 18/09: trocar `2.5/97.5` por `10.0/90.0` em
+`api/model/extrapolation.py:389-398`, o que reduz o intervalo de 95% para 80%, deixa os
+**560 pytest verdes**. Não começar a chore 1 antes desse assert existir.
+
+**Contraste (complementa a chore 2):**
+
+- [ ] **Mapa nacional** *(S07 linha 422)* — `components/blocks/_NationalChoroplethMapImpl.tsx:335`
+      segue em `colorForParty` (cor-base). O ADR-0047 D1 fechou só a **linha do gráfico**.
+      ⚠️ **Reclassificação de 18/09**: isto **não** é violação da constituição § 2
+      (neutralidade) — a paleta é editorial própria, não a oficial do partido. É **§ 4 /
+      WCAG SC 1.4.11**, contraste de elemento **não-texto** contra piso de 3:1.
+      Demais superfícies na mesma condição: `StateResultSheet.tsx:107`,
+      `_candidateColor.ts:47`, `app/(dep)/deputado-federal/page.tsx:175`,
+      `app/(dep)/uf/[sigla]/deputado-federal/page.tsx:189`.
+      ℹ️ Lacuna estrutural registrada e **não fechada**: `docs/nfr/accessibility.md` só tem
+      RNF-022 (contraste de **texto**, 4,5:1). O piso de 3:1 para não-texto **não tem RNF**.
+- [ ] **Luminância dinâmica no `HexCartogramBrasil`** *(S07 linha 787)* —
+      `components/blocks/HexCartogramBrasil.tsx:93-95` decide a cor do rótulo por uma matriz
+      estática `[1,2,5,6]` de posições, sem calcular a luminância da cor de fundo real.
+- [ ] **`landmark-unique` no canvas do mapa (`/uf/*`)** *(S07 linha 780, metade)* — a outra
+      metade (`nested-interactive` em `HexCartogramBrasil`) **está feita**: `:51-67` usa
+      `role="group"` de propósito, com comentário datado 10/09.
+
+**Portões e cobertura (complementa a chore 3):**
+
+- [ ] **Deputado Federal no gate e2e de a11y** *(S07 linha 425, metade)* — `tests/e2e/a11y-audit.spec.ts:38-45`
+      cobre 6 rotas e **Senador está entre elas** (`/uf/SP/senador`); **Deputado Federal não
+      aparece em nenhuma das suas duas rotas**. A metade do Senador fecha; esta fica.
+- [ ] **`a11y-perf-auditor` completo com payload real** *(S07 linha 532)* — ⚠️ `rm -rf .next`
+      antes, e o gate **não roda contra build local** (o Vercel BotID derruba e o sintoma é
+      timeout de navegação). `PLAYWRIGHT_BASE_URL` contra o site publicado, `npx playwright
+      install webkit` antes.
+- [ ] **`rf-coverage-checker` re-rodar na spec 018** *(S07 linha 429)* — ℹ️ **os dois bloqueios
+      nomeados já estão fechados**, medidos e **provados por mutação** em 18/09: RF-144
+      (`fetch_identidade_cadastro`/`merge_identidade_cadastro`, `api/model/project.py:2644-2814`)
+      e RF-149 (`CandidaturasAguardando` nos 4 ramos). O que falta é o gate **rodar** e a
+      `traceability.md:147,152` parar de mostrar o estado velho.
+- [ ] **Os três gates finais da spec 002** *(S07 linha 272)* e **spec 002 sai de `implementing`**
+      *(S07 linha 700)* — ⚠️ o pré-requisito histórico "modelo convergir" **caiu com a D8**;
+      as caixas da S07 que pediam a 3ª tentativa do OT-4 (271, 303, 531) foram **descartadas**.
+- [ ] **Peso de `/uf/SP/deputado-federal` em rede lenta** *(S07 linha 446)* — medido em 18/09
+      contra o site publicado: **274.598 bytes** de HTML, confirmando os ~266 KB. Falta a
+      medição em 4G.
+
+**Modelo — o que a spec 002 ainda promete e não entrega:**
+
+- [ ] **`compute_swing_descritivo`** *(S07 linhas 228 e 268)* — existe só em comentário;
+      `swing_vs_2022` emite `None` (`api/model/project.py:4668`). ℹ️ O conserto urgente **já foi
+      feito**: era `0.0` hardcoded, o que afirmava na tela "nada mudou desde 2022". Hoje diz
+      "não sei", que é verdade. Falta o valor real.
+- [ ] **`brancos_nulos` no mesmo `idx` dos candidatos** *(S07 linhas 228 e 269)* — campo existe,
+      sempre `None`.
+- [ ] **`BaseToggle` + `?base=comparecimento`** *(S07 linha 228)* — RSC, sem JS novo.
+- [ ] **E2E de Playwright da spec 020** *(S07 linha 302)* — cobre RF-172(b) (0 B de bundle no
+      toggle de visão) e RF-176(e) (axe nas 4 rotas × 2 temas × 2 viewports), as **duas lacunas
+      reais** que impedem a 020 de fechar. Nenhum arquivo em `tests/e2e/` menciona a série.
 
 ---
 

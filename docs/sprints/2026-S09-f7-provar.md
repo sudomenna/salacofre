@@ -2,7 +2,7 @@
 id: 2026-S09
 title: Sprint 09 — Provar
 status: planned
-start: null        # D2 (2026-09-18): sprints por dependência, não por data
+start: null        # D9 (2026-09-18): sprints por dependência, não por data
 end: null
 sequence: 2
 depends_on_sprint: 2026-S08
@@ -15,7 +15,7 @@ specs_planned_next: [016-senador, 018-identidade-candidatura, 019-fase-pre-eleic
 
 # Sprint 09 — Provar
 
-> **Sprint sem datas (D2, 2026-09-18).** `sequence: 2`, depende da S08 estar fechada.
+> **Sprint sem datas (D9, 2026-09-18).** `sequence: 2`, depende da S08 estar fechada.
 > As janelas de simulado do TSE têm data de terceiro e vivem no **trilho externo** — o que
 > está aqui é o **preparo** para usá-las, que não depende de quando elas acontecerem.
 
@@ -169,6 +169,38 @@ estados" de 14/09 existem para não produzir, entrando pela porta dos fundos.
 
 ---
 
+### 5. Herdados da S07 — triados no fechamento de 18/09
+
+Referência: [S07 § Triagem](./2026-S07-f6-simulado-hero-1t.md#triagem-das-60-caixas-restantes).
+
+- [ ] **Fase 3 da spec 020: `serie_por_candidato` nas fixtures** *(S07 linha 405)* — é a
+      chore 1 desta sprint. ℹ️ A caixa da S07 estava prestes a ser marcada como feita por um
+      agente que conferiu se os **arquivos** de fixture existem (existem) em vez de conferir
+      se a **série está dentro** deles (não está: `grep -l serie_por_candidato
+      tests/fixtures/simulacao/*.json` → zero sobre as 9). Erro pego no fechamento.
+- [ ] **`EDGE_CONFIG_STORE_GUARD_BYTES`** *(S07 linha 432)* — o ADR-0032 especifica um freio de
+      983.040 B que **recusaria** a escrita; o código só tem `GLOBAL_CONFIG_STORE_WARN_BYTES`
+      (780.000) e `..._CRITICAL_BYTES` (940.000) em `lib/edge-config/writer.ts:329,339`, e
+      **os dois apenas registram no log** — não há `throw` antes do `fetch`. Encaixa na chore 4.
+- [ ] **`archiveProjectionKey` é lida e nunca escrita** *(S07 linha 437)* — `lib/edge-config/reader.ts:213`
+      lê; nenhum escritor grava. Ou passa a ser escrita, ou a leitura sai.
+- [ ] **Incorporar as fixtures `2026-sim` à suíte** *(S07 linha 528)* — os 14 arquivos reais do
+      simulado (`tests/fixtures/tse/2026-sim/`) **não são consumidos por nenhum teste
+      automatizado**. O teste que valida `EA20Schema` usa `tests/fixtures/tse/2026/`, um
+      diretório **sintético diferente** derivado do dicionário do TSE. O único consumidor do
+      dado real é o script manual `scripts/verify-fatia-premise.ts`.
+- [ ] **`scripts/profile-model.py` quebrado** *(S07 linha 172)* — gera payload achatado da era
+      pré-Fase 1. ⚠️ Ele também cita **RNF-006 quatro vezes** (`:2,10,19,358`) para um limite de
+      `p95 < 2000 ms` que **não existe em `docs/nfr/`** — ver o achado do RNF fantasma na
+      [auditoria da S07](./2026-S07-f6-simulado-hero-1t.md#tr%C3%AAs-achados-que-nenhuma-caixa-cobria).
+- [ ] **Batch de Postgres em `repository.ts`/`route.ts`** *(S07 linha 213)* — **condicional**: só
+      se a janela de 22–24/09 confirmar lag > 90 s inaceitável.
+- [ ] **Edge Config externo** *(S07 linha 748)* — `EDGE_CONFIG` segue comentada em `.env.local`
+      desde 18/05. ℹ️ **Novidade de 18/09**: a variável **existe no escopo Preview da Vercel**
+      (criada há ~21 h, conferida com `vercel env ls preview`). Investigar o local, não o remoto.
+
+---
+
 ## Definition of Done
 
 - [ ] **`pnpm dev:sim` mostra o gráfico DESENHADO nas 4 rotas** — captura de tela de cada
@@ -237,7 +269,7 @@ _(preencher se mudar)_
 - Sprint anterior: [2026-S08-f7-enxergar.md](./2026-S08-f7-enxergar.md)
 - Próxima sprint: [2026-S10-f7-verdade.md](./2026-S10-f7-verdade.md)
 - Plano de F7 (referência): [../_meta/plano-s07-2026-09-05.md](../_meta/plano-s07-2026-09-05.md)
-- Estado do projeto: [../_meta/handoff-2026-09-17.md](../_meta/handoff-2026-09-17.md)
+- Estado do projeto: [../_meta/handoff-2026-09-18.md](../_meta/handoff-2026-09-18.md) — supersede o de 17/09
 - Specs tocadas: [020-evolucao-da-apuracao](../specs/020-evolucao-da-apuracao/spec.md) · [001-ingestao-tse](../specs/001-ingestao-tse/spec.md) · [002-modelo-estatistico](../specs/002-modelo-estatistico/spec.md)
 - ADRs da série: [0046](../architecture/adrs/0046-serie-por-candidato-limitada-por-construcao.md) · [0047](../architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md)
 - Protocolo dos simulados: [../testing/tse-simulados.md](../testing/tse-simulados.md)

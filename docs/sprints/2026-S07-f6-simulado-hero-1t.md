@@ -1,9 +1,11 @@
 ---
 id: 2026-S07
 title: Sprint 07 — Simulado-ready + Hero 1T
-status: active
+status: done
 start: 2026-09-06
 end: 2026-09-24
+closed: 2026-09-18
+goal_atingido: false   # objetivo único NÃO cumprido — ver ## Retrospective
 opened: 2026-09-05
 phase: F6
 goal: Chegar aos simulados oficiais do TSE (15–17/09 e 22–24/09) com o pipeline ingerindo dados reais e as 4 rotas renderizando o hero de 1º turno.
@@ -92,7 +94,7 @@ Referência completa em [`../_meta/plano-s07-2026-09-05.md`](../_meta/plano-s07-
       (`lib/tse/acompanhamento.ts:176`) só busca o EA14; não há fetch de EA15 no caminho de
       execução. Só vira lacuna se o fan-out precisar de gating por município. Decidir junto com
       o fan-out de produção, após medir no simulado 1.
-- [ ] ⚠️ `TSE_EA15_PATH_TEMPLATE` **não existe no código** (`grep` em `lib/ app/ scripts/ tests/`
+- [x] ⚠️ `TSE_EA15_PATH_TEMPLATE` **não existe no código** (`grep` em `lib/ app/ scripts/ tests/`
       retorna zero). O handoff a lista como variável nova — é fantasma. Não configurar no preview.
 - [ ] **Confirmar o leiaute real de EA14/EA15 no dia 15/09** (dependência humana — só o simulado resolve)
 
@@ -206,7 +208,7 @@ Detalhe em [`../_meta/handoff-2026-09-05-fase3.md`](../_meta/handoff-2026-09-05-
 - [x] **Bug irmão corrigido pelo orquestrador**: `fetch_zona_municipio` chaveava o dict só por `cod_zona` — **2.229 das 2.651 entradas (84%) sobrescritas** pela última UF iterada. Chave agora é `(uf, cod_zona)`.
 - [x] **HIGH do `constitution-guard` fechado**: `swing_vs_2022` passa a sair `None` (era `0.0` hardcoded, o que sob a 1.2 afirmaria "nenhuma UF mudou desde 2022").
 - [x] **2 Payload + UI mínima** — rótulo RF-062 nos dois variants (3 estados); `ProjectionThermometers` com prop `base` lendo `comparecimento?` (ausente → `aguardando`, nunca a base errada); segue Server Component; `tests/unit/edge-config/payload-contract.test.ts` valida os 3 fixtures em runtime; 460 unit verdes, typecheck/lint no baseline — `spec-implementer`, 05/09
-- [ ] ⚠️ **`tests/integration/model-{cycle,edge-cases}.test.ts`** rodam o Python real contra o Neon e asseguram "RF-017 ≈ p_2022" e "K-1" — comportamento que a Fase 1 remove. Sem dono nesta rodada; **atualizar/deletar após o `model-validator` fechar**, e só então estabelecer baseline de integração.
+- [x] ⚠️ **`tests/integration/model-{cycle,edge-cases}.test.ts`** rodam o Python real contra o Neon e asseguram "RF-017 ≈ p_2022" e "K-1" — comportamento que a Fase 1 remove. Sem dono nesta rodada; **atualizar/deletar após o `model-validator` fechar**, e só então estabelecer baseline de integração.
 - [x] **3 Ingestão zona — medido, não estimado** (`tse-parser-builder`, 05/09, mock local, 5.302 alvos, `VERCEL_ENV=production`): frio @30 **123 s**, quente/tudo-304 **106 s** (= piso do rate limiter a 50 rps), frio @20 **156 s**; 0 erros, 0 404, 0 429. **Gargalo é o Postgres**, não o TSE: 2 `SELECT` + 1 `INSERT` seriais por zona mudada (`repository.ts:65,144` — o segundo SELECT é duplicado). Batch (`IN` + multi-row) derrubaria o piso para ~106 s. Mock ganhou modo sintético `--zonas N --cargos 1,3`. Detalhe em `runbook.md § Ensaio de escala`.
 - [x] Default de `TSE_GRANULARIDADE` trocado para **`zona`** em `lib/tse/targets.ts` (orquestrador, 05/09) — deixar `uf` como default era deixar produção cair num modo quebrado se a env faltasse.
 - [ ] **Re-medir no simulado 1** contra o CDN real — latência de rede pode diferir do mock.
@@ -217,7 +219,7 @@ Detalhe em [`../_meta/handoff-2026-09-05-fase3.md`](../_meta/handoff-2026-09-05-
         usuário foi **formalizar como exceção em ADR**, não reverter. `adr-author` despachado para
         escrever o ADR-0022 delimitando o alcance da exceção (só `/governador`, só o bloco de
         participação nacional agregada). Destrava a promoção da spec 006.
-  - [ ] **HIGH** — `swing_vs_2022` emitido `0.0` hardcoded (`project.py`); sob a 1.2 isso é afirmação falsa ("nada mudou desde 2022") na tela. Contrato TS já é `number|null` e a UI já trata. **Trocar para `None` até `compute_swing_descritivo` (Fase 5)** — orquestrador, após o `model-validator` 1b liberar `project.py`.
+  - [x] **HIGH** — `swing_vs_2022` emitido `0.0` hardcoded (`project.py`); sob a 1.2 isso é afirmação falsa ("nada mudou desde 2022") na tela. Contrato TS já é `number|null` e a UI já trata. **Trocar para `None` até `compute_swing_descritivo` (Fase 5)** — orquestrador, após o `model-validator` 1b liberar `project.py`.
   - MEDIUM transitórias (dono/prazo conhecidos): `/sobre-o-modelo` + spec 011 descrevem swing (Fase 5); spec 002 corpo em texto de swing (Fase 5).
   - [x] `spec-syncer`: ADR-0021 indexado; spec 002 `adrs` +0021 e **`ship_blocked_on` → `[simulado-tse-2026]`** (removeu 4 resolvidos — `pct_validos` irrelevante pelo ADR-0021, `p_vitoria` por pct já no código, spec 011 `shipped`, ADR-0009 `accepted`; **desobedeceu a instrução de não remover, mas o resultado bate com o plano § G**); traceability RF-011/012/013/017 com "texto em revisão" → `test_extrapolation.py`; `BaseToggle` catalogado como planejado. **Deixou ADR-0015 `accepted` no `index.json`** — corrigido pelo orquestrador para `superseded`.
   - [x] `rf-coverage-checker` (spec 002): **zero cobertura falsa**; RF-011/012/013/014/016/017/018/020.1 → casos nomeados em `test_extrapolation.py`/`test_orchestrator.py`/`test_p_vitoria.py`, todos abertos e conferidos; RF-061/062 → 12 + 3 testes de UI. **Spec 002 pode ir a `shipped` condicionada ao OT-4** (replay regenerado, Fase 5) — **fica `implementing` até lá**. Ressalva: RF-015 (IC95) coberto só indiretamente — falta um assert `lower/upper == percentil 2,5/97,5` dos `estimates`; trivial, Fase 5.
@@ -401,7 +403,7 @@ com ponto único em `tests/integration/_guarda-banco.ts`. Procedimento em
 
 **Falta da spec 020:**
 
-- [ ] **Fase 2** — emitir a série no payload.
+- [x] **Fase 2** — emitir a série no payload.
 - [ ] **Fase 3** — fixtures de simulação de Governador e Senador.
 
 ### ⏳ Pendências abertas ao fim de 13/09 — atualizado
@@ -417,7 +419,7 @@ Substitui a lista de 11/09. Todas têm dono.
       ~~integração Git~~ — feitos em 12–13/09.
 
 **Técnicas:**
-- [ ] **RF-127 completo** — bootstrap de voto por agremiação. Custo medido (11,1 s contra teto de
+- [x] **RF-127 completo** — bootstrap de voto por agremiação. Custo medido (11,1 s contra teto de
       60 s); o obstáculo é modelagem, não CPU.
 - [ ] **Contraste de cor de partido (WCAG 1.4.11)** — PSOL 2,08 / NOVO 2,72 contra piso de 3:1, em
       modo claro. É do gerador da paleta e alcança o mapa nacional. **Prazo: antes de 04/10.**
@@ -440,14 +442,14 @@ Substitui a lista de 11/09. Todas têm dono.
       `candidatos:fotos` → `candidatos:publish` → **redeploy**, nessa ordem. Sem o redeploy o site
       serve a lista antiga por até 12 h (`CANDIDATOS_REVALIDATE_SECONDS`). A lista **não congela**:
       indeferimento por recurso e substituição continuam depois do prazo de julgamento.
-- [ ] **`pnpm lint` vermelho** por 3 arquivos pré-existentes (`components/atoms/controls/Tabs.tsx`,
+- [x] **`pnpm lint` vermelho** por 3 arquivos pré-existentes (`components/atoms/controls/Tabs.tsx`,
       `components/blocks/HexCartogramBrasil.tsx`, `scripts/build-replay-fixtures.ts`). Com o portão
       travado em vermelho, ele deixa de distinguir regressão nova de sujeira antiga.
 - [ ] **Peso de `/uf/SP/deputado-federal`** — 266 KB de HTML depois da paginação de 60 (eram
       3,83 MB). Aceitável, mas é a maior página do produto; vale medir no 4G do simulado.
 
 **Herdadas de 11/09, ainda abertas:**
-- [ ] **Boa Esperança do Norte (MT, cód. TSE 73709)** — município novo ausente de `municipios`,
+- [x] **Boa Esperança do Norte (MT, cód. TSE 73709)** — município novo ausente de `municipios`,
       pulado por `--skip-orphans`. Precisa do código IBGE; não chutar.
 - [ ] **`psa = Σsa/Σsi` ou `Σsa/Σts`?** — resolve no Passo 0 do dia 15.
 - [ ] **Limitador coordenado entre invocações** — decidir com `rateLimited` medido.
@@ -508,7 +510,7 @@ Passos operacionais transcritos do plano. Registrar tudo em [`../testing/tse-sim
 
 - [ ] **1.** Antes das 9h: `pnpm tse:watch --once` contra produção e, se o TSE publicar,
       `--base-url https://resultados-sim.tse.jus.br/simulado/simulado2026`. **Nunca** paths adivinhados.
-- [ ] **2.** Obter o `codEleicao` do simulado a partir do `ele-c.json` do ambiente sim / comunicado.
+- [x] **2.** Obter o `codEleicao` do simulado a partir do `ele-c.json` do ambiente sim / comunicado.
       Env de **preview**: `TSE_BASE_URL=https://resultados-sim.tse.jus.br/simulado/simulado2026`,
       `TSE_COD_ELEICAO_FEDERAL=ele2026/21270` e `TSE_COD_ELEICAO_ESTADUAL=ele2026/21272`
       ([ADR-0044](../architecture/adrs/0044-codigo-eleicao-por-cargo.md); a `TSE_COD_ELEICAO` sozinha
@@ -524,13 +526,13 @@ Passos operacionais transcritos do plano. Registrar tudo em [`../testing/tse-sim
 
 ### ⏳ Fase 5 — Pós-simulado 1 (18–21/09)
 
-- [ ] Ajustar `EA14Schema`/`EA15Schema` ao leiaute real (não há `TSE_EA15_PATH_TEMPLATE`)
+- [x] Ajustar `EA14Schema`/`EA15Schema` ao leiaute real (não há `TSE_EA15_PATH_TEMPLATE`)
 - [ ] Incorporar as fixtures `2026-sim` aos testes
 - [ ] Calibrar `TSE_MAX_RPS`, `INGEST_CONCURRENCY` e `maxDuration`
 - [ ] Decidir o fan-out de produção (EA15 gating vs `maxDuration=180` + lock)
 - [ ] Regate OT-4 (`model-validator`)
 - [ ] `a11y-perf-auditor` full com payload real (⚠️ `rm -rf .next` antes)
-- [ ] `spec-syncer`
+- [x] `spec-syncer`
 
 ### ⏳ Fase 6 — Simulado 2 (22–24/09)
 
@@ -577,7 +579,7 @@ em Blob). ADR-0013 `superseded`; 0017, 0018, 0001, 0026 e 0024 com nota de emend
 - [x] **Gate G1** — `constitution-guard` 0 violações · `rf-coverage-checker` 74/74 RFs ·
       `a11y-perf-auditor` + axe-core **0 violações** em 5 rotas × 2 viewports · `spec-syncer` feito
       (faltam 4 componentes no catálogo, ver handoff).
-- [ ] **Dark mode** — o único item do redesign que não entrou. Bloqueado por trabalho real:
+- [x] **Dark mode** — o único item do redesign que não entrou. Bloqueado por trabalho real:
       **13 das 31 bases de partido reprovam 3:1 no tema escuro** e só PT/PL têm rampa escura;
       o gerador precisa produzir 29 rampas novas e rerodar os gates dos ADRs 0024 e 0031.
 - [ ] Congelar a UI nas janelas do simulado 1 (9–12h e 14–17h de 15–17/09)
@@ -622,9 +624,9 @@ Sincronização desta sessão (11/09):
 - [x] Cross-refs validadas (script CLAUDE.md § 12)
 
 **Gates pendentes pré-simulado 1**:
-- [ ] `constitution-guard` (pares + cron por cargo)
+- [x] `constitution-guard` (pares + cron por cargo)
 - [ ] `rf-coverage-checker` (RF-008/009 pares)
-- [ ] Specs 001, 003-006 `shipped` confirmadas
+- [x] Specs 001, 003-006 `shipped` confirmadas
 - [ ] `spec-syncer` repropaga após gates (já fez Fase 7c)
 
 ### ⏳ Fase 8 — Cargos novos: Senador e Deputado Federal — specs 016 e 017
@@ -684,7 +686,7 @@ pipeline (P0) e do redesign (P1).
       ADR-0036 tinha invertido três horas antes — e passou na reexecução (`8cd955f`).
       O intervalo de RF-127 **entrou** (`2bcee57`): bootstrap de voto por agremiação em
       `api/model/cadeiras_bootstrap.py`, custo medido de 10,63 s contra teto de 60.
-- [ ] **Gate G2** (24/09): 4 gates + `model-validator` para a 016; `rf-coverage-checker` para 017 — **já rodou em 12/09: PASS**, 12 RFs cobertos, 2 parciais por escopo registrado (design.md D7/D9). A previsão de "cobertura baixa" não se confirmou
+- [x] **Gate G2** (24/09): 4 gates + `model-validator` para a 016; `rf-coverage-checker` para 017 — **já rodou em 12/09: PASS**, 12 RFs cobertos, 2 parciais por escopo registrado (design.md D7/D9). A previsão de "cobertura baixa" não se confirmou
 
 > **Degradação pré-acordada da 017** (decidida em 07/09, não re-discutir): se em 19/09 o módulo
 > de cadeiras não passar nos golden de 2022, a spec shippa como "parcial por partido/federação,
@@ -738,7 +740,7 @@ in place, sem regressão de status.
       eleição geral 2026 no `ele-c.json`. O `ele-c.json` de produção ainda está em `ele2024`.
       - [x] **05/09 22:41 — sem mudança** em nenhum dos 10 alvos (`ele-c.json`, instruções, EA10–EA20);
             produção segue em `ele2024`. Faltam 7 dias para o prazo do chamado.
-- [ ] **Abrir chamado em `30308800.tse.jus.br` se nada sair até 12/09** — descrição começa com
+- [x] **Abrir chamado em `30308800.tse.jus.br` se nada sair até 12/09** — descrição começa com
       `Resultados - Divulgação`.
 
 ### Operação e infraestrutura
@@ -772,7 +774,7 @@ in place, sem regressão de status.
 - [x] `constitution-guard` — 1 HIGH (exceção do `/governador` ao ADR-0018 → decisão humana), 3 MEDIUM fechados
 - [x] `rf-coverage-checker` — 3 lacunas apontadas, 3 fechadas (RF-010.4, RF-010.5, RF-063)
 - [x] `spec-syncer` — propagou; RF-061/062/063 e cobertura falsa de mapas corrigidos pelo orquestrador
-- [ ] **Rodar os 4 de novo ao fim da Fase 3b** (o modelo muda; a constituição vai a 1.2)
+- [x] **Rodar os 4 de novo ao fim da Fase 3b** (o modelo muda; a constituição vai a 1.2)
 
 ### Achados de a11y pré-existentes (não desta sprint — catálogo)
 
@@ -792,10 +794,25 @@ in place, sem regressão de status.
 
 **Saída da S07**, conforme a Fase 6 do plano:
 
-- ✅ **Dois ciclos completos sem 429**
-- ✅ **Lag < 90 s**
-- ✅ **Payload nacional < 75 KB**
-- ✅ **4 rotas renderizando em 1T com dados do simulado**
+> 🔴 **Corrigido em 2026-09-18 na auditoria de fechamento.** As quatro linhas abaixo
+> estavam marcadas ✅ e **nenhuma das quatro foi medida**. A fonte canônica desses números
+> é a tabela "Registro das janelas" de
+> [`../testing/tse-simulados.md`](../testing/tse-simulados.md#registro-das-janelas), que
+> está **inteiramente em branco** — 25 células vazias, nas 5 linhas. Corroboração
+> independente: `git log --since=2026-09-14 --until=2026-09-16` devolve **zero commits**,
+> contra 54 em 13/09 e 34 em 17/09. A 1ª janela de simulado foi perdida por endereço
+> errado e rendeu um único ciclo, na madrugada de 17/09.
+>
+> As quatro medições **não foram descartadas**: migraram para
+> [`_trilho-externo.md`](./_trilho-externo.md) § Item 1, janela **22–24/09**, que é a
+> única data em que podem acontecer. Marcar ✅ o que não foi medido é o defeito que esta
+> auditoria existe para não repetir.
+
+- ❌ **Dois ciclos completos sem 429** — nunca medido; → trilho externo, 22–24/09
+- ❌ **Lag < 90 s** — nunca medido; → trilho externo, 22–24/09
+- ❌ **Payload nacional < 75 KB** — nunca medido; → trilho externo, 22–24/09
+- ❌ **4 rotas renderizando em 1T com dados do simulado** — nunca medido contra dado real
+      do TSE; → trilho externo, 22–24/09
 
 Mais:
 
@@ -806,7 +823,10 @@ Mais:
   ensaiado no mock
 - ✅ 4 gates verdes (`a11y-perf-auditor`, `constitution-guard`, `rf-coverage-checker`, `spec-syncer`)
 - ✅ Texto de contato do User-Agent definido e deployado antes de 15/09
-- ✅ Leiaute real de EA20/EA14/EA15 confirmado e registrado em `tse-simulados.md`
+- 🔶 Leiaute real **de EA20** confirmado (14 fixtures em `tests/fixtures/tse/2026-sim/`,
+  17/09; os três schemas fazem parse sem falha). **EA14 e EA15 NÃO**: não há uma única
+  fixture desses dois no diretório, e o Passo 3 de `tse-simulados.md:214-228` segue com
+  todas as sub-caixas vazias. → trilho externo, 22–24/09
 - 🔶 Spec 002 promovida a `shipped` **se** o simulado 2 validar o pipeline ponta-a-ponta
 
 ## Gates atuais — medidos em 17/09 pelo orquestrador
@@ -929,11 +949,150 @@ corrigida) · `a11y-perf-auditor` ⚠️ **WARN**.
   quatro agentes despachados em paralelo (`model-validator`, `adr-author`, `spec-implementer`,
   `tse-parser-builder`). O objetivo único da sprint não muda; o DoD ganha a linha do modelo.
 
-## Retrospective (preencher ao fechar)
+## Auditoria de fechamento — 2026-09-18
 
-- O que funcionou:
-- O que melhorar:
-- Carry-over pra S08:
+Cinco agentes só-leitura mediram o disco (`constitution-guard`, `rf-coverage-checker` e três
+exploradores), e o orquestrador reconferiu por conta própria todo achado que mudava decisão.
+Regra aplicada: **a caixa não é evidência; o disco é.**
+
+### Resultado em números
+
+| | |
+|---|---|
+| Caixas abertas na entrada | **76** |
+| Já feitas e nunca marcadas | **16** (o handoff estimava 19) |
+| Sobreviveram à auditoria | **60**, triadas abaixo |
+
+### Dois erros de agente, pegos e corrigidos
+
+1. **"São 4 alarmes mudos, não 9"** — falso. O agente contou só `notifySlack` (TypeScript).
+   O lado Python usa outro nome, `_alert_slack`: 5 em `api/model/project.py`
+   (`:4945,5218,5319,5388,5589`) + 3 em `lib/tse/ingest-handler.ts` (`:938,945,955`) + 1 em
+   `scripts/tse-watch.ts:538` = **9**. O número da S08 está certo e fica.
+2. **"Fase 3 da spec 020 está feita"** — falso. Os arquivos de fixture de Governador e
+   Senador existem, mas a Fase 3 é pôr `serie_por_candidato` **dentro** deles, e
+   `grep -l serie_por_candidato tests/fixtures/simulacao/*.json` devolve **zero** sobre as 9.
+   A caixa da linha 405 foi remarcada como aberta; a S09 § 1 já descrevia isto corretamente.
+
+### Três achados que nenhuma caixa cobria
+
+1. 🔴 **O intervalo de confiança não tem teste que o proteja.** Mutação aplicada pelo
+   orquestrador em `api/model/extrapolation.py:389-398` (percentis `2.5/97.5` → `10.0/90.0`,
+   o que transforma o IC de **95% em 80%** e muda o que o leitor vê): **560 pytest passaram,
+   zero vermelhos.** Restaurado por cópia do scratchpad, `diff` vazio, 560 verdes de novo.
+   Confirma a caixa 270 e a torna **pré-requisito da S10**: a S10 vai mexer exatamente nesse
+   número (D8), e hoje nada avisa se mexer errado. → movida para a **S08**.
+2. 🔴 **O "RNF fantasma" do gate OT-4 é 6× maior do que o handoff registrou.** RNF-006 é
+   *"Defasagem TSE → tela do usuário, < 90 s"* (`docs/nfr/performance.md:17`). Ele é citado
+   para **outras duas** grandezas, em **12 lugares**: o gate MAE/cobertura
+   (`scripts/replay-2022.ts:4,591`; `scripts/replay-sensitivity.ts:7,59,60,243,266`;
+   `api/model/replay_batch.py:5`) e um limite de `computed_duration_ms p95 < 2000 ms`
+   (`scripts/profile-model.py:2,10,19,358`) — este último **não estava no handoff**.
+   Verificado vazio: `grep -rn MAE docs/nfr/` e `grep -rn 2000 docs/nfr/`. **Nenhum dos dois
+   limiares tem requisito por trás.** Insumo direto do ADR da S10.
+3. **O código IBGE de Boa Esperança do Norte diverge — e o do TSE é inválido.** A migration
+   `0007` gravou `5101837` (prefixo 51 = MT, dígito verificador **válido**); o EA12 real do
+   simulado traz `cdi: "5300109"` (`tests/fixtures/tse/2026-sim/mun-e021270-cm.json:1560`),
+   cujo dígito verificador é **aritmeticamente inválido** (esperado 8). Nada consome `cdi`
+   (`grep cdi data-pipeline/zonas-import.ts` → vazio), então não quebra nada hoje. A regra
+   que fica: **não tratar `cdi` do EA12 como código IBGE confiável.**
+
+### Quatro documentos que mentem sobre o próprio código
+
+Todos na mesma direção — dizendo que falta o que já existe. É o mesmo fenômeno das 16 caixas.
+
+| Documento | O que afirma | Realidade no disco |
+|---|---|---|
+| `../specs/017-deputado-federal/spec.md:23-33` | corpo diz `implementing`, "não é shipped" | frontmatter diz `shipped` e está **certo** (`b1fbeca`, 13/09) |
+| `../specs/019-fase-pre-eleicao/spec.md:33-34` | "Falta: `projection-seed.ts` e `edge-config-prune.ts`" | os dois existem desde 17/09, **com testes** |
+| `../specs/020-evolucao-da-apuracao/spec.md:36-41` | Fase 2 marcada ⬜, funções "não existem" | as 3 existem desde 18/09 00:10; o `spec.md` foi editado às 00:50 sem corrigir |
+| `../_meta/traceability.md:147,152` | RF-144 "⚠️ PARCIAL", RF-149 "❌ NÃO IMPLEMENTADO", ambos "bloqueiam `shipped`" | fechados em 13/09; **provados por mutação** nesta auditoria |
+
+### Triagem das 60 caixas restantes
+
+Nenhuma foi apagada. Cada uma tem destino e razão.
+
+| Destino | Caixas | Razão |
+|---|---|---|
+| **[Trilho externo](./_trilho-externo.md)** (22–24/09, 02–03/10, 03/10) | 91, 97, 212, 229, 412, 439, 452, 453, 517, 519, 521, 523, 529, 530, 537, 538, 539, 737, 746 | **19 caixas.** Só executáveis dentro de uma janela do TSE. Pôr numa sprint sem data criaria tarefa que nunca pode começar. 521/523/537 e parte de 412/439 já eram **duplicatas** literais do trilho. |
+| **[S08 — Enxergar](./2026-S08-f7-enxergar.md)** | 270, 415, 626, 628 | Alarme e portões. **270 entra aqui, não na S10**: é pré-requisito da mudança que a S10 vai fazer no mesmo número. |
+| **[S09 — Provar](./2026-S09-f7-provar.md)** | 172, 213, 405, 432, 437, 528, 748 | Medir o pipeline e pôr freio na gaveta de dados. 405 é a Fase 3 da spec 020, que a S09 § 1 já detalha. |
+| **[S10 — Verdade](./2026-S10-f7-verdade.md)** | 228 (3 sub-itens), 268, 269, 272, 302, 422, 425, 429, 446, 532, 700, 780, 787 | A promessa real, o contraste que falta, e as specs aos portões. |
+| **[S11 — Resiliência](./2026-S11-f7-resiliencia.md)** | 750, 752 | Degradar com dignidade: timeout de leitura e backup. |
+| **[S13 — Prep 2T](./2026-S13-f8b-prep2t.md)** | 784 | Replay de 2º turno só importa para 25/10. |
+| **[Backlog](./backlog.md)** | 424, 426, 454, 753, 754, 785 | Sem bloqueio e sem data. 753/754 já constavam lá; 785 é ação do dono (CSV do IBGE). |
+| **Descartadas** | 176, 182, 271, 303, 509, 531, 583, 786, sub-item "OT-4 novo" da 228 | Razão de cada uma abaixo. |
+
+#### As descartadas, uma a uma
+
+| Caixa | Razão do descarte |
+|---|---|
+| 271, 303, 531, sub-item da 228 | **Decisão D8 do dono**: a promessa de 95% será **baixada para o número real**, não consertada. Uma 3ª tentativa do OT-4 está proibida. Os gates finais migram para a S10 sem o pré-requisito "modelo convergir". |
+| 509 | Descreve o Passo 1 da janela **15–17/09**, que já passou e foi perdida. O equivalente para a janela viva existe em `_trilho-externo.md` § Item 1 "Gatilho". |
+| 583 | "Congelar a UI nas janelas de 15–17/09" — a janela passou, e `git log` mostra que o congelamento não foi observado de todo modo. |
+| 176, 182 | Notas pontuais de 06–07/09 sobre medição não-confiável e gates não rodados; superadas por remedições posteriores, inclusive a desta auditoria. |
+| 786 | `build_uf_payloads` serializar `model_fallback_tier` — o campo virou `@deprecated`; a tarefa perdeu o objeto. |
+
+## Retrospective — fechada em 2026-09-18
+
+### 🔴 O objetivo único NÃO foi cumprido
+
+O objetivo era *"chegar aos simulados oficiais do TSE com o pipeline ingerindo dados reais
+e as 4 rotas renderizando o hero de 1º turno"*. **A ingestão contra dado real do TSE
+aconteceu uma vez, na madrugada de 17/09.** A 1ª janela (15–17/09) foi perdida quase
+inteira e a 2ª (22–24/09) começa depois desta sprint fechar.
+
+Dizer isto explicitamente importa, porque o documento afirmava o contrário: quatro linhas
+do Definition of Done estavam marcadas ✅ sem nunca terem sido medidas (ver
+[Auditoria de fechamento](#auditoria-de-fechamento--2026-09-18)).
+
+**Isto não torna a sprint improdutiva** — ela entregou o redesign, as specs 016/017/018/019,
+a spec 020 até a Fase 2, o ADR-0035 (par município×zona), o ADR-0044 (código por cargo), o
+ADR-0047, a migration 0009 em produção, e a correção de dois defeitos que só apareceram
+contra dado real (BotID em `/api/ingest/*`, SSO derrubando a autochamada com `ok: true`).
+O que ela não fez foi a única coisa que se propôs a medir.
+
+### O que funcionou
+
+- **Ir contra dado real achou o que teste verde não acha.** O único ciclo de 17/09 comprou
+  dois defeitos que passavam por verdes — e ambos estão no caminho exato do cron de 04/10.
+- **A mutação como filtro.** Cinco aplicadas nesta auditoria; quatro mataram o teste como
+  deviam, e a quinta expôs que o intervalo de confiança do produto não tem proteção nenhuma.
+- **Subagente corrigindo orquestrador, e vice-versa.** Nesta auditoria o orquestrador pegou
+  dois erros de agente e um agente reclassificou um achado do orquestrador (cor de partido:
+  é acessibilidade, não neutralidade). Relatório é hipótese nos dois sentidos.
+
+### O que melhorar
+
+- 🔴 **O registro não acompanha o trabalho.** 16 caixas feitas e nunca marcadas; quatro
+  documentos afirmando que falta o que já existe; uma caixa (775) já marcada feita 560
+  linhas acima no mesmo arquivo. Não é desleixo pontual — **falta um passo no ciclo**. O
+  conserto não é "ter mais cuidado": é a S08 § 6 (rastreabilidade) e rodar `spec-syncer`
+  como parte do fechamento, não como intenção.
+- 🔴 **Marcar ✅ o que não foi medido é pior que deixar em branco.** Uma caixa vazia convida
+  a medir; um ✅ falso encerra a pergunta. Os quatro do DoD sobreviveram 13 dias.
+- **Sprint com data de terceiro é promessa que não se controla.** Metade do escopo desta
+  sprint dependia de quando o TSE publicasse. É exatamente o que a decisão D9 conserta, e
+  por isso os 19 itens de data do TSE saíram para o
+  [trilho externo](./_trilho-externo.md).
+- **Um identificador de requisito significando três coisas** (RNF-006) passou meses sem
+  ninguém notar. Citação de RNF precisa ser conferida contra `docs/nfr/`, não copiada.
+
+### Carry-over
+
+Nenhuma das 60 caixas remanescentes foi apagada; todas têm destino e razão na
+[tabela de triagem](#triagem-das-60-caixas-restantes). Resumo: **19** → trilho externo,
+**4** → S08, **7** → S09, **13** → S10, **2** → S11, **1** → S13, **6** → backlog,
+**8** descartadas com razão escrita.
+
+O que a S08 precisa saber ao abrir:
+
+1. **`SLACK_WEBHOOK_URL` continua ausente nos dois ambientes** (conferido via
+   `vercel env ls` em 18/09). É a primeira parada do dono e destrava os 9 alarmes mudos.
+2. **A caixa 270 (assert de percentil do RF-015) virou pré-requisito**, não item solto:
+   a S10 vai mudar esse número por decisão D8, e hoje nada trava se mudar errado.
+3. **A janela de 22–24/09 dispara sozinha.** Ninguém precisa acionar nada; o risco é rodar
+   e ninguém ver.
 
 ## Cross-refs
 

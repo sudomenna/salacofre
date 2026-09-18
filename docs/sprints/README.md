@@ -29,8 +29,8 @@ Camada temporal entre o [roadmap macro](../product/roadmap.md) (fases F1–F8) e
 | [S04](./2026-S04-f4a-home-uf.md) | F4a | 06/jul → 19/jul (2 sem) | done | Home + UF + Sobre-o-modelo (T-01, T-03, T-06) |
 | [S05](./2026-S05-f4c-multi-candidato.md) | F4c | 20/jul → 02/ago (2 sem) | done | Foundation multi-candidato 1T presidencial |
 | [S06](./2026-S06-f4d-2t-governadores.md) | F4d | 03/ago → 16/ago (2 sem) | done | 2º turno presidencial + Governadores 27 corridas |
-| [S07](./2026-S07-f6-simulado-hero-1t.md) | F6 | 06/set → 24/set (2.5 sem) | **active** | Simulado-ready + Hero 1T (simulados TSE 15–17/09 e 22–24/09) |
-| [S08](./2026-S08-f7-enxergar.md) | F7 | **sem data** (`sequence: 1`) | planned | Enxergar — alarme, vigia externo, pytest no CI, matriz de rastreabilidade |
+| [S07](./2026-S07-f6-simulado-hero-1t.md) | F6 | 06/set → 24/set (2.5 sem) | done ⚠️ | Simulado-ready + Hero 1T — **objetivo único NÃO cumprido** (ingestão real do TSE aconteceu 1×); fechada 18/09, ver [Retrospective](./2026-S07-f6-simulado-hero-1t.md#retrospective--fechada-em-2026-09-18) |
+| [S08](./2026-S08-f7-enxergar.md) | F7 | **sem data** (`sequence: 1`) | **active** | Enxergar — alarme, vigia externo, pytest no CI, matriz de rastreabilidade |
 | [S09](./2026-S09-f7-provar.md) | F7 | **sem data** (`sequence: 2`) | planned | Provar — o gráfico desenhado, o pipeline medido, freio no store |
 | [S10](./2026-S10-f7-verdade.md) | F7 | **sem data** (`sequence: 3`) | planned | Só afirmar o que sustenta — a promessa real, contraste, 4 specs a `shipped` |
 | [S11](./2026-S11-f7-resiliencia.md) | F7 | **sem data** (`sequence: 4`) | planned | Sobreviver ao pior — manutenção, backup, carga, checklist pré-prod |

@@ -1,10 +1,11 @@
 ---
 id: 2026-S08
 title: Sprint 08 — Enxergar
-status: planned
-start: null        # D2 (2026-09-18): sprints por dependência, não por data
+status: active
+start: null        # D9 (2026-09-18): sprints por dependência, não por data
 end: null
 sequence: 1
+opened: 2026-09-18
 phase: F7
 goal: Parar de trabalhar às cegas — o alarme sai do código e chega a um canal, um vigia de fora prova que o ciclo rodou, e o portão de CI passa a enxergar o modelo.
 specs_in_flight: [010-operacao-monitoramento]
@@ -13,10 +14,27 @@ specs_planned_next: [020-evolucao-da-apuracao, 001-ingestao-tse, 002-modelo-esta
 
 # Sprint 08 — Enxergar
 
-> **Sprint sem datas, por decisão do dono (D2, 2026-09-18).** O sequenciamento é por
+> **Sprint sem datas, por decisão do dono (D9, 2026-09-18).** O sequenciamento é por
 > dependência, não por calendário: `sequence: 1`, e nada aqui depende de sprint anterior.
 > Os três itens com data de terceiros (código de eleição do TSE, janelas de simulado,
 > reimportação obrigatória de candidatos) vivem no **trilho externo**, fora deste arquivo.
+
+## Calendário — o que tem data e não é nosso
+
+Esta sprint **não tem data**. Mas ela é a sprint `active`, e por isso carrega o ponteiro
+para o que tem data de terceiro. O roteiro **não** é copiado aqui — ele vive em
+[`_trilho-externo.md`](./_trilho-externo.md).
+
+| Data | Evento | Onde está o roteiro |
+|---|---|---|
+| **22–24/09** | 2ª janela de simulado do TSE, 9h–12h e 14h–17h BRT | [trilho § Item 1](./_trilho-externo.md#item-1--janela-de-simulado-do-tse--gatilho-2224092026) |
+| **02–03/10** | Reimportação obrigatória do cadastro de candidaturas | [trilho § Item 3](./_trilho-externo.md#item-3--reimportação-do-cadastro-de-candidaturas--gatilho-0203102026) |
+| **03/10** | Código da eleição de produção — bloqueante absoluto | [trilho § Item 2](./_trilho-externo.md#item-2--código-da-eleição-de-produção--gatilho-03102026) |
+
+🔴 **O simulado de 22–24/09 dispara sozinho** — o preview está armado (cron ligado, janela
+`9-17`, os dois códigos de eleição criados; conferido com `vercel env ls` em 18/09).
+**Ninguém precisa acionar nada.** O risco é ele rodar e ninguém ver, e é por isso que esta
+sprint vem primeiro.
 
 ## Objetivo único
 
@@ -68,14 +86,24 @@ existem e estão mudos, e o CI já constrói o `.venv-model` que falta usar.
 
 ### 1. Ligar o canal de alarme
 
-`SLACK_WEBHOOK_URL` **não existe no `.env.local`** (conferido em 18/09: zero ocorrências).
-São **9 pontos de alerta** no código, todos mudos hoje:
+`SLACK_WEBHOOK_URL` **não existe em nenhum ambiente** — conferido em 18/09 por
+`vercel env ls` (Preview, Production e Development) e por `grep` no `.env.local`.
+São **10 pontos de alerta** no código, todos mudos hoje:
 
-| Arquivo | Linhas |
-|---|---|
-| `api/model/project.py` | `:4945`, `:5218`, `:5319`, `:5388`, `:5589` |
-| `lib/tse/ingest-handler.ts` | `:938`, `:945`, `:955` |
-| `scripts/tse-watch.ts` | `:538` |
+| Arquivo | Linhas | Função |
+|---|---|---|
+| `api/model/project.py` | `:1321`, `:5148`, `:5421`, `:5522`, `:5591`, `:5792` | `_alert_slack` |
+| `lib/tse/ingest-handler.ts` | `:938`, `:945`, `:955` | `notifySlack` |
+| `scripts/tse-watch.ts` | `:538` | `notifySlack` |
+
+> **Eram 9, e viraram 10 em 18/09** com o alarme de série cega do § 3 — recontado no disco
+> depois de escrevê-lo, não estimado. As linhas de `project.py` também mudaram todas de
+> número, porque o arquivo cresceu 215 linhas no mesmo trabalho.
+>
+> ⚠️ **Contar com `grep` de um nome só subconta aqui.** O mesmo conceito tem dois nomes: o
+> lado Python chama `_alert_slack` e o TypeScript chama `notifySlack`. Um agente contou só o
+> segundo em 18/09 e "corrigiu" o total para 4, com evidência colada e tudo. O total é a
+> **soma dos dois**.
 
 O ponto único de decisão é `api/model/project.py:4815` — lê a variável e, quando ela não
 existe, registra `"slack alert skipped — SLACK_WEBHOOK_URL ausente"` (`:4826`) e segue. A
@@ -84,6 +112,11 @@ contraparte TypeScript faz o mesmo em `lib/tse/alerts.ts:62`. Risco catalogado e
 [ADR-0038 § D3](../architecture/adrs/0038-dado-ts-hora-do-dado-nao-hora-do-calculo.md).
 
 - [ ] Decidir o destino (canal Slack ou webhook de outro sistema) — **decisão do dono**.
+      ⏸️ **Adiada pelo dono em 18/09**, com o resto da sprint seguindo sem ela. Consequência
+      aceita e registrada: se a janela de **22–24/09** rodar antes desta caixa fechar, ela
+      roda **sem ninguém ser avisado de falha** — exatamente o cenário que esta sprint
+      existe para evitar. O vigia externo (§ 2) reduz o dano mas não substitui o canal:
+      ele prova que o ciclo parou, não *por que* parou.
 - [ ] Configurar em Vercel (Preview **e** Production) e no `.env.local`.
 - [ ] Forçar um alarme **contra o mock local** (`pnpm tse:mock`) e confirmar a chegada.
       🔴 **Nunca forçar erro contra o CDN do TSE** — `docs/operations/pre-prod-checklist.md:38`
@@ -102,11 +135,31 @@ O `heartbeat` diurno de `vercel.ts:114-117` **não resolve isto**: ele aponta pa
 `/api/ingest`, isto é, para nós mesmos. Um vigia que mora dentro do processo vigiado não é
 um vigia.
 
-- [ ] Vigia **fora da Vercel** (cron de outra infra, serviço de dead-man's switch, ou o
-      mesmo agendador externo que já vai rodar `pnpm tse:watch --once`) que confirme
-      periodicamente que um ciclo rodou — via `dado_ts` do payload publicado, que é o
-      relógio do boletim e não o do cálculo ([ADR-0038](../architecture/adrs/0038-dado-ts-hora-do-dado-nao-hora-do-calculo.md) D1).
-- [ ] Documentar o vigia no [runbook](../operations/runbook.md): quem recebe, o que fazer.
+- [x] **`pnpm vigia:ciclo`** — `scripts/vigia-ciclo.ts`, 18/09. Núcleo puro `avaliarCiclo`
+      (sem rede, sem env, sem relógio implícito) + casca fina de I/O. Lê `dado_ts` do payload
+      publicado, nunca `ts` ([ADR-0038](../architecture/adrs/0038-dado-ts-hora-do-dado-nao-hora-do-calculo.md) D1).
+      Roda no agendador horário `~/.claude/scheduled-tasks/vigia-tse-2026/`, **fora da Vercel**.
+
+      🔴 **Descoberta que mudou o desenho, medida em 18/09**: o vigia **não pode** bater em
+      `/api/*`. Todas as rotas de API de produção respondem **HTTP 403 `bot_detected`** a
+      cliente automatizado (Vercel BotID); só a página HTML responde 200, e ela **só mostra a
+      hora do boletim quando há apuração** — em fase pré-eleição não há carimbo, e "não achei
+      a hora" seria indistinguível de "o ciclo morreu". Por isso o vigia lê o payload **na
+      fonte** (store do Global Config), não pela porta do site.
+
+      **Seis estados, três desfechos** — `pre_eleicao`/`fora_da_janela`/`fresco` → exit 0;
+      `parado`/`sem_payload` → exit **2**; `indeterminado` → exit **1**.
+      🔴 O exit 1 separado não é cosmético: *"não consegui olhar"* jamais pode sair com a
+      mesma cara de *"olhei e está parado"*. Foi essa indistinção — 403 permanente lido como
+      "o TSE ainda não publicou" — que custou dois dos três dias da janela de 15–17/09.
+
+      Cobertura: `tests/unit/scripts/vigia-ciclo.test.ts`, **13 casos**, 4 mutações aplicadas
+      à mão e todas vermelhas (ver o § Definition of Done).
+- [x] **Documentado no [runbook](../operations/runbook.md)** § "Vigia externo — `pnpm vigia:ciclo`":
+      quem recebe, os seis estados, o que fazer com cada um, e o que ainda não está feito.
+- [ ] ⏸️ **Dead-man's switch hospedado** — o que existe hoje depende da **máquina do dono estar
+      ligada**. Um serviço externo com página de status própria é mais robusto e continua
+      aberto. Custa dinheiro ou conta nova ⇒ **decisão do dono**.
 
 ### 3. Alarme para "série parada enquanto o placar anda"
 
@@ -122,9 +175,32 @@ Deixa de ser inofensivo se o TSE mudar o formato da data e o parser Python não 
 aí um ciclo **com voto** some da série enquanto o placar ao lado continua andando, e a
 linha congela em silêncio visual. O próprio ADR registra que não cria esse alarme.
 
-- [ ] Contador de ciclos descartados por `dado_ts` ausente, por cargo.
-- [ ] Alarme quando o contador cresce **e** o percentual apurado do mesmo cargo também
-      cresce — é essa conjunção que distingue "lull legítimo do TSE" de "série cega".
+- [x] **Contador de ciclos descartados por `dado_ts` ausente, por cargo** — 18/09.
+      `vigiar_serie_cega` (`api/model/project.py:1234`), chamada no orquestrador em `:5989`
+      **antes** de `anexar_ponto_corrente`. Emite
+      `_log("warn", "serie: ciclo descartado por dado_ts ausente", cargo=…, ciclos_cegos=…,
+      placar_andou=…, delta_pp=…)`. Hora **ilegível** conta como cegueira, não só hora
+      ausente — é o modo de falha que o alarme existe para cobrir.
+- [x] **Alarme na conjunção** — `api/model/project.py:1310`, deduplicado por sequência cega
+      (um alarme por sequência, não um por ciclo). Piso de movimento
+      `SERIE_PLACAR_EPSILON_PP = 0.01`, acoplado a `SERIE_CASAS_DECIMAIS` — é a precisão
+      **publicada**, não um número escolhido a dedo.
+
+      **Decisão de projeto**, justificada no código acima de `vigiar_serie_cega`: o baseline
+      do placar sai da **série já em memória** (`SeriePorCandidatoBruta`), não de uma consulta
+      nova nem do payload anterior. O `pct_atual` do último balde **é** a ponta da linha do
+      gráfico; comparar o placar deste ciclo contra ele não aproxima a discrepância — é
+      exatamente os dois números que apareceriam lado a lado na tela. Zero query, zero rede,
+      dentro do orçamento de 60 s.
+
+      ⚠️ **Limite assumido por escrito**: o contador vive no processo, por `(cargo, turno)`, e
+      conta ciclos cegos **consecutivos**. Instância fria recomeça do zero — ele
+      **subestima, nunca superestima**. Aceitável porque não é o gatilho sozinho: a metade que
+      distingue pausa legítima de série cega é o placar ter andado, e essa metade é medida
+      contra a série, que é estado persistido.
+
+      ⏸️ **O alarme nasce mudo** (`SLACK_WEBHOOK_URL` ausente, § 1). O **contador no log
+      estruturado funciona desde já** — por isso as duas caixas eram separadas.
 
 ### 4. `pytest` no CI
 
@@ -137,10 +213,17 @@ O custo é baixo porque **o CI já constrói o ambiente**: `.github/workflows/ci
 instala Python e monta o `.venv-model` com as dependências, só para que os testes de
 integração consigam invocar o modelo em subprocesso. Falta o passo que o executa.
 
-- [ ] Passo novo no job `test`: `.venv-model/bin/python3.14 -m pytest`.
-      ⚠️ **Não** usar `pnpm test:py` — o script é literalmente `python -m pytest`
-      (`package.json:21`) e pega o `python` do PATH, morrendo com `ModuleNotFoundError:
-      pydantic` antes do primeiro teste.
+- [x] **Passo novo no job `test`** — `.github/workflows/ci.yml`, 18/09: `Testes do modelo
+      (pytest)`, entre a montagem do `.venv-model` e o `pnpm test`. Usa
+      `.venv-model/bin/python3.14 -m pytest`, **não** `pnpm test:py` (que pega o `python` do
+      PATH e morre com `ModuleNotFoundError: pydantic` antes do primeiro teste).
+
+      🔴 **O passo NÃO recebe `DATABASE_URL`, e a ausência é deliberada** — é a mitigação do
+      risco listado no § Riscos desta sprint. `pyproject.toml` fixa
+      `testpaths = ["tests/unit/model"]`, que não toca o banco: medido em 18/09,
+      `env -u DATABASE_URL .venv-model/bin/python3.14 -m pytest` → **560 passed**. Passar a
+      credencial só criaria a chance de um teste futuro escrever num banco real por acidente,
+      que é exatamente o incidente de 17/09 (1.877 linhas de harness em produção).
 
 ### 5. Corrigir os documentos que ensinam o endereço errado do TSE
 
@@ -206,20 +289,110 @@ linha na matriz e o RF fora do frontmatter, o gate continua sem vê-los.
 - [ ] Frontmatter da spec 012 reconciliado: RF-012.1/RF-012.2 listados, RF-057 com dono único.
 - [ ] `rf-coverage-checker` executado para as specs 010 e 019 depois da reconciliação.
 
+### 7. Herdados da S07 — triados no fechamento de 18/09
+
+Quatro caixas da S07 caíram nesta sprint. A referência de cada uma é a linha original no
+arquivo da [S07](./2026-S07-f6-simulado-hero-1t.md#triagem-das-60-caixas-restantes).
+
+- [ ] 🔴 **Assert de percentil do RF-015** *(S07 linha 270)* — **o mais urgente dos quatro,
+      e é pré-requisito da S10.** Medido em 18/09 pelo orquestrador: trocar
+      `np.percentile(est_v, 2.5/97.5)` por `10.0/90.0` em
+      `api/model/extrapolation.py:389-398` — o que transforma o intervalo de confiança de
+      **95% em 80%**, mudando o que o leitor vê — deixa os **560 testes pytest verdes**.
+      Nada no repositório trava esse número.
+      **Por que entra aqui e não na S10**: a S10 § 1 vai mexer exatamente nesse valor por
+      decisão D8 (baixar a promessa para o número real). Mudar um número que nenhum teste
+      protege é como consertar no escuro. O assert vem antes.
+      ⚠️ O teste tem de asserir o **percentil** (que `ci_lower` é o 2,5 e `ci_upper` o 97,5
+      da distribuição de resamples), não a largura relativa — a largura já é coberta pelo
+      RF-018 (×1,5) e foi ela que deixou a mutação passar.
+
+- [ ] **`rf-coverage-checker` sobre RF-008/RF-009 (pares município×zona)** *(S07 linha 626)*
+      — a matriz já lista `geo-coverage.test.ts` (`traceability.md:35-36`), mas o teste
+      exige `DATABASE_URL` contra o Neon real e o gate nunca rodou formalmente desde a
+      Fase 7c. Encaixa no item 6 desta sprint.
+      🔴 Rodar **somente** contra banco descartável, nunca com `.env.local` carregado.
+
+- [ ] **`spec-syncer` repropagando após os gates** *(S07 linha 628)* — bloqueado por 626 até
+      agora. **É o conserto estrutural da lição central da S07**: 16 caixas feitas e nunca
+      marcadas, e quatro documentos afirmando que falta o que já existe. Alvos conhecidos,
+      todos medidos em 18/09:
+      - `../specs/017-deputado-federal/spec.md:23-33` — corpo diz `implementing`, frontmatter
+        diz `shipped` (o frontmatter é o certo)
+      - `../specs/019-fase-pre-eleicao/spec.md:33-34` — "Falta" dois arquivos que existem
+        desde 17/09
+      - `../specs/020-evolucao-da-apuracao/spec.md:36-41` — Fase 2 marcada ⬜, entregue em 18/09
+      - `../_meta/traceability.md:147,152` — RF-144 e RF-149 como bloqueadores, fechados em 13/09
+      - `../architecture/tech-stack.md:56-60` — lista `@vercel/analytics`,
+        `@vercel/speed-insights` e `@vercel/config` como stack; **nenhum está instalado**
+
+- [ ] **`SLACK_WEBHOOK_URL`** *(S07 linha 415)* — é o item 1 desta sprint; a caixa da S07
+      fica fechada por migração, não por conclusão.
+
 ---
 
 ## Definition of Done
 
 Cada linha abaixo é algo que alguém consegue conferir.
 
-- [ ] **Um alarme forçado contra o mock local (`pnpm tse:mock`) chega ao canal** — captura
+- [ ] ⏸️ **Um alarme forçado contra o mock local (`pnpm tse:mock`) chega ao canal** — captura
       da mensagem recebida, com hora. Zero requisições ao CDN do TSE durante o teste.
-- [ ] **O vigia externo detecta um ciclo que não rodou** — ensaio: desligar o cron
-      (`CRON_ENABLED=false`), esperar o intervalo do vigia, receber o aviso; religar.
-- [ ] **O CI reprova com um teste de modelo quebrado de propósito** — abrir um PR com
-      uma mutação em `api/model/`, ver o job `test` vermelho, reverter.
-- [ ] **Existe contador de ciclo descartado por `dado_ts` ausente**, visível no log
+      **Bloqueado pela decisão adiada do dono** (§ 1). Os outros itens desta lista não
+      dependem dele e seguem.
+
+- [ ] 🔴 **A mutação do percentil do RF-015 fica vermelha.** Prova exigida, nesta ordem:
+      trocar `2.5/97.5` por `10.0/90.0` em `api/model/extrapolation.py:389-398`, rodar
+      `.venv-model/bin/python3.14 -m pytest`, **colar a saída mostrando pelo menos um
+      vermelho**, restaurar por cópia do scratchpad e provar com `diff` vazio.
+      Hoje esse mesmo procedimento devolve **560 passed** — medido em 18/09.
+- 🔶 **O vigia externo detecta um ciclo que não rodou** — a **lógica** está provada por
+      mutação (4 aplicadas à mão em 18/09, 4 vermelhas):
+
+      | Mutação em `scripts/vigia-ciclo.ts` | Vermelho? |
+      |---|---|
+      | limiar `idade > limite` → `>=` | ✅ *"exatamente no limite ainda é fresco"* |
+      | remover a guarda de hora ilegível | ✅ *"hora de boletim ilegível é alarme, não 'fresco por acidente'"* |
+      | trocar a ordem das guardas credencial ↔ fase | ✅ *"cego + payload de pré-eleição ainda é indeterminado"* |
+      | remover a guarda de janela de ingestão | ✅ *"fora da janela não cobra frescura"* |
+
+      ⚠️ **A terceira sobreviveu na primeira tentativa** — 12 verdes com a ordem trocada. O
+      caso que a mata foi escrito depois, e o defeito que passava era real: com um payload
+      obsoleto em cache, o vigia diria *"não há o que apurar, silêncio é o certo"* quando na
+      verdade não tinha conseguido ler nada. É a regra da casa funcionando.
+
+      ⏸️ **O ensaio ponta-a-ponta (desligar `CRON_ENABLED`, esperar, religar) NÃO foi feito, de
+      propósito.** Mexer no interruptor do cron às vésperas da janela de **22–24/09** arrisca
+      deixá-lo desligado justamente quando ela abrir — e a janela anterior já foi perdida por
+      um erro de configuração que ninguém viu. **Fazer o ensaio depois de 24/09.**
+- [x] **O portão de CI reprova com um teste de modelo quebrado de propósito** — provado
+      em 18/09 rodando **o comando exato que o CI roda**:
+      mutação em `api/model/cadeiras_bootstrap.py:142-143` (percentis `2.5/97.5` → `20.0/80.0`)
+      → `.venv-model/bin/python3.14 -m pytest` devolveu **`3 failed, 557 passed`, exit code 1**
+      (qualquer código ≠ 0 reprova o job). Restaurado por cópia do scratchpad, `diff` vazio,
+      **560 passed**, exit 0.
+      ⏸️ Falta a confirmação **no GitHub**, que exige abrir PR — ordem explícita do dono
+      (`CLAUDE.md` § 11). O comando é o mesmo; o que falta provar é o encanamento do Actions.
+- [x] **Existe contador de ciclo descartado por `dado_ts` ausente**, visível no log
       estruturado, e um alarme que dispara na conjunção "série parada + placar andando".
+      `tests/unit/model/test_serie_cega_alarme.py` (12 casos) +
+      `test_orchestrator.py::test_vigia_da_serie_cega_roda_antes_de_anexar_o_ponto`.
+      Pytest: **560 → 573**, zero falhas.
+
+      **14 mutações aplicadas, 14 vermelhas**, todas restauradas com `diff` vazio. Duas foram
+      **reaplicadas à mão pelo orquestrador**, de forma independente, e bateram com o relatório:
+
+      | Mutação conferida pelo orquestrador | Resultado medido |
+      |---|---|
+      | `and` → `or` na conjunção (`:1310`) | **5 failed, 7 passed** |
+      | apagar a chamada do vigia no orquestrador (`:5989`) | **1 failed, 572 passed** |
+
+      🔴 A segunda é a que mais importa, e o próprio agente a levantou: **apagar a chamada
+      deixava os 572 testes verdes** antes de ele escrever o teste de fiação. Um alarme
+      correto e nunca invocado é um alarme mudo — que é exatamente o defeito que esta sprint
+      existe para consertar. As outras 12 estão na tabela do relatório e cobrem: contador sem
+      incremento, hora legível que não zera, hora ilegível tratada como visão, piso de
+      movimento zerado, baseline ausente imputado como `0.0`, ausência de deduplicação,
+      contador global em vez de por cargo, e a ordem da chamada.
 - [ ] **`rf-coverage-checker` retorna ✅ para a spec 019** — a migração dos 16 RFs para a
       matriz principal ficou pronta em 18/09; o que falta provar é o gate **rodando** e
       passando, agora que os 14 RFs da 019 têm coluna `Teste` preenchida.
@@ -281,7 +454,7 @@ _(preencher se mudar)_
 - Sprint anterior: [2026-S07-f6-simulado-hero-1t.md](./2026-S07-f6-simulado-hero-1t.md)
 - Próxima sprint: [2026-S09-f7-provar.md](./2026-S09-f7-provar.md)
 - Plano de F7 (referência): [../_meta/plano-s07-2026-09-05.md](../_meta/plano-s07-2026-09-05.md)
-- Estado do projeto: [../_meta/handoff-2026-09-17.md](../_meta/handoff-2026-09-17.md)
+- Estado do projeto: [../_meta/handoff-2026-09-18.md](../_meta/handoff-2026-09-18.md) — supersede o de 17/09
 - Spec tocada: [010-operacao-monitoramento](../specs/010-operacao-monitoramento/spec.md)
 - ADRs do alarme: [0038](../architecture/adrs/0038-dado-ts-hora-do-dado-nao-hora-do-calculo.md) · [0047](../architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md)
 - Riscos: [../reference/risks.md](../reference/risks.md)

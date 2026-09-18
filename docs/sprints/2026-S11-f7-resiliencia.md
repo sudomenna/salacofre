@@ -2,7 +2,7 @@
 id: 2026-S11
 title: Sprint 11 — Sobreviver ao pior
 status: planned
-start: null        # D2 (2026-09-18): sprints por dependência, não por data
+start: null        # D9 (2026-09-18): sprints por dependência, não por data
 end: null
 sequence: 4
 depends_on_sprint: 2026-S10
@@ -15,7 +15,7 @@ specs_planned_next: []
 
 # Sprint 11 — Sobreviver ao pior
 
-> **Sprint sem datas (D2, 2026-09-18).** `sequence: 4`, depende da S10 fechada. É a última
+> **Sprint sem datas (D9, 2026-09-18).** `sequence: 4`, depende da S10 fechada. É a última
 > sprint antes do marco [D1 — 04/10](./_D1-04out2026.md).
 >
 > **Esta sprint absorve a antiga `2026-S08-f7-estabilizacao.md`** — os quatro blocos do seu
@@ -199,6 +199,22 @@ entram no Definition of Done e não bloqueiam nada.
 - **Replay do 2º turno** — o harness (`scripts/replay-2022.ts`, `api/model/replay_batch.py`)
   roda só 1º turno. Carry-over aberto desde a S06.
 - **Melhorias do mapa de Deputado Federal.**
+
+---
+
+### 8. Herdados da S07 — triados no fechamento de 18/09
+
+Referência: [S07 § Triagem](./2026-S07-f6-simulado-hero-1t.md#triagem-das-60-caixas-restantes).
+
+- [ ] **Endurecer `readProjection` com `AbortController`** *(S07 linha 750)* — carry-over que
+      vem desde a S06. Conferido em 18/09: `grep -n "AbortController\|timeout\|signal"
+      lib/edge-config/reader.ts` → **zero ocorrências**. Não há timeout nenhum hoje; uma
+      leitura lenta do Edge Config prende o render sem teto. Medições anteriores: ~1 s em
+      dev, ~5 s em produção.
+- [ ] **Backup do Postgres (snapshot diário do Neon)** *(S07 linha 752)* — é a chore 2 desta
+      sprint. Conferido em 18/09: não há workflow, cron nem script de backup em lugar nenhum
+      do repositório (`.github/workflows/` tem só `ci.yml`, com 3 jobs). Só o console do Neon
+      pode confirmar se existe algo fora do repositório.
 
 ---
 
