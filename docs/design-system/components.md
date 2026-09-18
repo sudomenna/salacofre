@@ -3,7 +3,7 @@ title: Catálogo de Componentes
 description: Catálogo de componentes com referência cruzada a RFs, arquivo real e teste
 status: stable
 source: PRD.md § 14.3
-last_updated: 2026-09-11
+last_updated: 2026-09-18
 ---
 
 # Catálogo de Componentes
@@ -38,14 +38,18 @@ last_updated: 2026-09-11
 | `<MapSkeleton />` | ✅ | (ADR-0010 — placeholder de carga do chunk MapLibre) | `components/atoms/maps/MapSkeleton.tsx` | `tests/unit/components/MapSkeleton.test.tsx` |
 | `<MapPlaceholder />` | ✅ | (ADR-0010 — fallback client dos wrappers dinâmicos) | `components/atoms/maps/MapPlaceholder.tsx` | — (sem teste dedicado) |
 | `<CandidateRow />` | ✅ | RF-033 | `components/atoms/tables/CandidateRow.tsx` | `tests/unit/components/CandidateRow.test.tsx` |
+| `<CandidateResultRow />` | ✅ | RF-033 ext (ADR-0029 § 7 — parcial/projeção lado a lado) | `components/atoms/tables/CandidateResultRow.tsx` | `tests/unit/components/CandidateResultRow.test.tsx` |
+| `<CandidateAvatar />` | ✅ | RF-151 | `components/atoms/data/CandidateAvatar.tsx` | `tests/unit/components/CandidateAvatar.test.tsx`. ⚠️ Spec 018 e `traceability.md` citam `<CandidatoAvatar>` (português) — nome divergente, mesmo componente |
 | `<WinnerBanner />` | ✅ | RF-032 | `components/atoms/banners/WinnerBanner.tsx` | `tests/unit/components/WinnerBanner.test.tsx` |
 | `<DadoParadoBanner />` | ✅ | (ADR-0038 D4 — degradação graceful quando `dado_ts` excede limiar por cargo) | `components/atoms/banners/DadoParadoBanner.tsx` | `tests/unit/components/DadoParadoBanner.test.tsx` |
+| `<FasePreEleicaoBanner />` | ✅ S08 | RF-160 (spec 019) | `components/atoms/banners/FasePreEleicaoBanner.tsx` | `tests/unit/pages/fase-pre-eleicao.test.tsx`, bloco «RF-160» |
 | `<NewsClippingPlaceholder />` | ⛔ órfão | (spec 004 — slot visual, sem RF formal) | `components/atoms/banners/NewsClippingPlaceholder.tsx` | tests não existem; componente órfão desde 08/09 |
 | `<TurnoBadge />` | ✅ S05 | RF-030 ext | `components/atoms/badges/TurnoBadge.tsx` | `tests/unit/components/TurnoBadge.test.tsx` |
 | `<RaceTypeIndicator />` | ✅ S05 | RF-030 ext | `components/atoms/badges/RaceTypeIndicator.tsx` | `tests/unit/components/RaceTypeIndicator.test.tsx` |
 | `<MinorCandidatesList />` | ✅ S05 | RF-030 ext, RF-031..044 ext | `components/atoms/lists/MinorCandidatesList.tsx` | `tests/unit/components/MinorCandidatesList.test.tsx` |
 | `<MapViewToggle />` | ✅ | RF-030.2 | `components/atoms/controls/MapViewToggle.tsx` | `tests/unit/components/MapViewToggle.test.tsx` |
 | `<BaseToggle />` | ✅ S07 (não integrado) | RF-062 (E2b) | `components/atoms/controls/BaseToggle.tsx` | `tests/unit/components/BaseToggle.test.tsx` |
+| `<ViewModeSwitch />` | ✅ S08 | RF-172 (spec 020, ADR-0029 § 2) | `components/atoms/controls/ViewModeSwitch.tsx` | coberto por `tests/unit/components/serie-apuracao-chart.test.tsx` (os dois grupos `data-view-only`); sem teste unit dedicado |
 | `<Tabs />` | ✅ | RF-029, RF-030, RF-006.5 | `components/atoms/controls/Tabs.tsx` | `tests/unit/components/Tabs.test.tsx`, `Tabs.disabled.test.tsx` |
 | `<UFBreadcrumb />` | ✅ | RF-031, RF-063 | `components/atoms/nav/UFBreadcrumb.tsx` | `tests/unit/components/UFBreadcrumb.test.tsx` |
 | `<TrilhaKicker />` | ✅ S07 | RF-063 | `components/atoms/nav/TrilhaKicker.tsx` | `tests/unit/components/TrilhaKicker.test.tsx` |
@@ -105,6 +109,12 @@ Notas dos atoms não construídos:
 | `<ChancesPanel />` | ✅ S07+ | RF-030.7, RF-107 (migrado de `TwoRoundIndicator`, ADR-0034 D21) | `components/blocks/ChancesPanel.tsx` | `tests/unit/components/ChancesPanel.test.tsx` (S07: refator para exibir composição de vagas projetadas por partido/federação em Senador nível nacional (54 vagas) e para Deputado também exibir `eleitos` por agremiação) |
 | `<DeputadoMetodologia />` | ✅ S07 | RF-127, RF-128 | `components/blocks/DeputadoMetodologia.tsx` | — (Server Component sem testes dedicados; integrado em rotas de Deputado Federal). ⚠️ Propósito: explicar por que o cargo 6 **não usa** `<ForecastTransparency>` (design.md § D9) — não há modelo, só aritmética do ADR-0027 sobre voto apurado. Cadência (RF-128) vem do payload, nunca literal. |
 | `<NationalMapBlock />` | ✅ S07 | RF-030.1-4 (refator layout, ADR-0033) | `components/blocks/NationalMapBlock.tsx` | — (não tem componente separado de teste; coberto pelo smoke de home) |
+| `<CandidatosGrid />` | ✅ | RF-146, RF-148, RF-149 | `components/blocks/CandidatosGrid.tsx` | `tests/unit/components/CandidatosGrid.test.tsx` |
+| `<CandidaturasFonte />` | ✅ | RF-150 | `components/blocks/CandidaturasFonte.tsx` | — (sem teste dedicado; coberto indiretamente por `tests/unit/pages/candidatos.test.tsx`) |
+| `<CandidaturasAguardando />` | ✅ S08 | RF-149 (compõe `<CandidatosGrid>` nos 4 estados de espera) | `components/blocks/CandidaturasAguardando.tsx` | `tests/unit/pages/aguardando-candidatos.test.tsx` |
+| `<UfLinksGrid />` | ✅ S08 | RF-162, RF-163 (spec 019) | `components/blocks/UfLinksGrid.tsx` | `tests/unit/pages/fase-pre-eleicao.test.tsx`, bloco «RF-162 / RF-163»; `tests/integration/simulacao-gates.test.tsx` |
+| `<RemainingPanel />` | ✅ | RF-154 (spec 019 — some inteiro em fase pré) | `components/blocks/RemainingPanel.tsx` | `tests/unit/components/RemainingPanel.test.tsx` |
+| `<BulletinPanel />` | ✅ | RF-026, RF-044, RF-154 (spec 019 — some inteiro em fase pré) | `components/blocks/BulletinPanel.tsx` | `tests/unit/components/BulletinPanel.test.tsx` |
 | `<UFForecastTable />` | 🕐 planejada | RF-025 (deferido desde S05) | *previsto*: `components/blocks/UFForecastTable.tsx` | — |
 | `<MaintenancePageMessage />` | 🕐 planejada | RF-058 | *previsto*: `components/blocks/MaintenancePageMessage.tsx` | — |
 | `<TurnoTransitionBanner />` | 🕐 planejada | RF-058.1 | *previsto*: `components/blocks/TurnoTransitionBanner.tsx` | — |
@@ -119,6 +129,8 @@ Notas dos atoms não construídos:
 |---|---|---|---|---|
 | `<RaceHeader />` | ✅ S07 | RF-063 | `components/layout/RaceHeader.tsx` | `tests/integration/home-page.test.tsx`, `governador-page.test.tsx`, `uf-governador-page.test.tsx`, `tests/unit/components/UFPage.test.tsx` |
 | `<LiveBadge />` | ✅ | RF-026, RF-028 | `components/layout/LiveBadge.tsx` | `tests/unit/components/LiveBadge.test.tsx` |
+| `<ShellLiveBadge />` | ✅ S08 | RF-159 (spec 019 — selo do topo do shell, ADR-0029 § 4) | `components/layout/ShellLiveBadge.tsx` | `tests/unit/components/ShellLiveBadge.test.tsx`; `tests/unit/pages/fase-pre-eleicao.test.tsx`, bloco (D) |
+| `<CargoTabs />` | ✅ S07 | (navegação global de cargos do shell — substitui `<UFBreadcrumb>`, ADR-0034 D23, ADR-0025 § 2) | `components/layout/CargoTabs.tsx` | `tests/unit/components/CargoTabs.test.tsx` |
 | `<Footer />` | ✅ | RF-055 | `components/layout/Footer.tsx` | `tests/unit/components/Footer.test.tsx` |
 | `<AppShellSplit />` | ✅ S07 | (shell de duas colunas, ADR-0033) | `components/layout/AppShellSplit.tsx` | — (coberto por smoke de UF pages) |
 | `<PersistentMapFrame />` | ✅ S07 | RF-030.1-4 (moldura persistente, ADR-0033 § 1) | `components/layout/PersistentMapFrame.tsx` | — (coberto por smoke de UF pages) |

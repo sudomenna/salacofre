@@ -30,8 +30,9 @@ emendas do dono após leitura linha a linha dos componentes. **Código
 implementado**: `lib/config/fase.ts`, `components/atoms/banners/FasePreEleicaoBanner.tsx`,
 `components/blocks/UfLinksGrid.tsx`, emendas em `lib/edge-config/reader.ts`,
 `app/(pres)/page.tsx`, `components/blocks/ForecastTransparency.tsx` e demais
-superfícies mensuradas. **Falta**: `data-pipeline/projection-seed.ts` (semeador)
-e `scripts/edge-config-prune.ts` (fiscal).
+superfícies mensuradas, **e desde 17/09** `data-pipeline/projection-seed.ts`
+(semeador) e `scripts/edge-config-prune.ts` (fiscal) — os 14 RFs da spec têm
+cobertura confirmada (`docs/_meta/traceability.md`).
 
 Esta spec **não re-litiga a decisão**. O dono do produto quer o placar zerado
 com os candidatos reais — nome, foto, partido, cor — no lugar do texto de

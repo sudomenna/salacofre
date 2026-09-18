@@ -365,7 +365,7 @@ ANALYZE=true pnpm build        # bundle analyzer (RNF-007a/b/c)
 **explicitamente**:
 
 ```bash
-.venv-model/bin/python3.14 -m pytest      # 501 verdes em 17/09
+.venv-model/bin/python3.14 -m pytest      # 576 verdes em 18/09
 ```
 
 **🔴 `ALLOW_DB_WRITE_TESTS` — cinco testes escrevem no banco de `DATABASE_URL`.**
@@ -476,7 +476,7 @@ Em paralelo:
 
 1. **[docs/_meta/index.json](./docs/_meta/index.json)** — mapa completo.
 2. **[docs/constitution.md](./docs/constitution.md)** — limites.
-3. **[docs/README.md](./docs/README.md)** — as 13 specs.
+3. **[docs/README.md](./docs/README.md)** — as 20 specs.
 4. **[AGENTS.md](./AGENTS.md)** — pra entender o que seus subagents carregam.
 
 Daí você está pronto pra orquestrar.

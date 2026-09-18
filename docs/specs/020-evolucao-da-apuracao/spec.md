@@ -29,15 +29,16 @@ já existe para alternar entre apurado e projetado.
 `draft`. Escrita em 2026-09-17 a partir de um protótipo visual do dono do
 produto e de cinco decisões tomadas por ele na mesma sessão (§ Decisões do dono).
 
-**Fases 0 e 1 implementadas e em produção no mesmo dia.** Permanece `draft`
-porque RF-168 e RF-169 ainda não existem em código — a spec só é candidata a
-`shipped` quando a Fase 2 fechar e os quatro gates passarem.
+**Fases 0, 1 e 2 implementadas.** Permanece `draft` porque as Fases 3 e 4 estão
+abertas e o veredito de cobertura de RF-168/RF-169 aguarda `rf-coverage-checker`
+formal (nota 2026-09-18 em `docs/_meta/traceability.md`) — a spec só é candidata
+a `shipped` quando as quatro fases fecharem e os quatro gates passarem.
 
 | Fase | Estado | O que entrou |
 |---|---|---|
 | **0 — a tela** | ✅ | `components/atoms/charts/SerieApuracaoChart.tsx` nas 4 rotas; `scale.ts` (com `makeTimeScale`, eixo por relógio); `lib/utils/rank-parcial.ts` extraído de 3 cópias idênticas |
 | **1 — o dado** | ✅ | migration `0009` **aplicada em produção**; `pct_atual`/`votos_atuais`/`dado_ts` gravados a cada ciclo; `EdgeSeriePorCandidato`; `seriePorCandidatoFrom`; motivo `sem_serie` |
-| **2 — a série na tela** | ⬜ | `fetch_series_por_candidato`, `anexar_ponto_corrente`, emissão no payload, props reais. **RF-168 e RF-169 dependem dela** |
+| **2 — a série na tela** | ✅ | `fetch_series_por_candidato`, `anexar_ponto_corrente`, `montar_serie_por_candidato` (`api/model/project.py`, desde 18/09); testes em `tests/unit/model/test_serie_por_candidato.py` e `test_serie_cega_alarme.py` |
 | **3 — simulação** | ⬜ | série por candidatura no gerador; fixtures de governador e senador |
 | **4 — verdade** | ⬜ | replay sobre os 5 instantes reais de 2022; e2e de performance e a11y |
 

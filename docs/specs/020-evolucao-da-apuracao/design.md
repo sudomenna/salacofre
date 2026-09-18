@@ -1,5 +1,6 @@
 ---
 id: 020-evolucao-da-apuracao
+type: design
 title: Design — Evolução da apuração
 spec: ./spec.md
 ---

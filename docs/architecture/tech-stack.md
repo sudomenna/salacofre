@@ -32,7 +32,7 @@ source: PRD.md § 10
 | Storage objeto | Vercel Blob | latest | PMTiles, raw archives; ⚠️ **S07 planejado**: drill-down de UF de Deputado Federal (`deputado:uf:<sigla>.json`, exceção ao ADR-0001) |
 | Cron | Vercel Cron | latest | Trigger do ingest em **três rotas**: `/api/ingest` (todos os cargos, manual/heartbeat), `/api/ingest/[cargo]` (Presidente e Governador a 60s; Senador a cada 5 min) e `/api/ingest/deputado-federal/<1..6>` (6 fatias intercaladas a cada 5 min — volta completa em 30 min, ADR-0036). Implementado, não mais "futura expansão" |
 | Rate limit TSE | Python + Node.js | — | Teto **por cargo** em `lib/config/cargos.ts` (`rpsMax`): **25 rps** Presidente/Governador/Senador, **5 rps** Deputado Federal. Ceiling 50 por processo; pior caso agregado dos 4 crons 25+25+25+5 = **80 rps** < 100 documentado (ADR-0026 nota 11/09; ADR-0036). `TSE_MAX_RPS_DEFAULT` = 5 vale só para caller sem cargo |
-| Config | `vercel.ts` (`@vercel/config`) | latest | TS-typed, dynamic |
+| Config | `vercel.ts` | — | TS-typed, dynamic. ⚠️ **`@vercel/config` NÃO é dependência instalada** — decisão deliberada registrada em `vercel.ts:1-7`: o pacote não existe consolidado no npm; o projeto usa um shape literal validado por `pnpm typecheck` |
 | MDX | `@next/mdx` | latest | Página `/sobre-o-modelo` |
 | Validação | Zod | latest | Schema do TSE, payloads de API |
 | Testes unit | Vitest | latest | Mais rápido que Jest |
@@ -40,7 +40,7 @@ source: PRD.md § 10
 | Load test | k6 | latest | 20k VUs simulados |
 | Lint/Format | Biome | latest | Substitui ESLint + Prettier (mais rápido) |
 | CI/CD | Vercel + GitHub Actions | — | Preview deployments por PR |
-| Observabilidade | Vercel Analytics + Speed Insights | latest | Core Web Vitals automáticos |
+| Observabilidade | Vercel Analytics + Speed Insights | latest | Core Web Vitals automáticos. ⚠️ **`@vercel/analytics` e `@vercel/speed-insights` NÃO estão instalados** (confira `package.json`) — gap contra a meta de [RNF-031](../nfr/observability.md), não decisão registrada. Pendência, não conserto de código aqui |
 | Logs | Vercel Logs + structured JSON | — | Filtrable por correlation-id |
 | Proteção | Vercel BotID | latest | Bot detection no edge |
 | Pacote manager | pnpm | 9+ | Workspaces, deduplicação |
@@ -55,9 +55,8 @@ source: PRD.md § 10
     "react-dom": "^19.0.0",
     "@vercel/edge-config": "^2.0.0",
     "@vercel/blob": "^2.0.0",
-    "@vercel/analytics": "^2.0.0",
-    "@vercel/speed-insights": "^2.0.0",
-    "@vercel/config": "^1.0.0",
+    // @vercel/analytics, @vercel/speed-insights: NÃO instalados — gap contra RNF-031, não decisão
+    // @vercel/config: NÃO instalado por decisão deliberada — pacote não existe consolidado no npm; ver vercel.ts:1-7
     "drizzle-orm": "^0.40.0",
     "@neondatabase/serverless": "^1.0.0",
     "zustand": "^5.0.0",
