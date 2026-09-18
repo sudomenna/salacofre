@@ -29,6 +29,34 @@ já existe para alternar entre apurado e projetado.
 `draft`. Escrita em 2026-09-17 a partir de um protótipo visual do dono do
 produto e de cinco decisões tomadas por ele na mesma sessão (§ Decisões do dono).
 
+**Fases 0 e 1 implementadas e em produção no mesmo dia.** Permanece `draft`
+porque RF-168 e RF-169 ainda não existem em código — a spec só é candidata a
+`shipped` quando a Fase 2 fechar e os quatro gates passarem.
+
+| Fase | Estado | O que entrou |
+|---|---|---|
+| **0 — a tela** | ✅ | `components/atoms/charts/SerieApuracaoChart.tsx` nas 4 rotas; `scale.ts` (com `makeTimeScale`, eixo por relógio); `lib/utils/rank-parcial.ts` extraído de 3 cópias idênticas |
+| **1 — o dado** | ✅ | migration `0009` **aplicada em produção**; `pct_atual`/`votos_atuais`/`dado_ts` gravados a cada ciclo; `EdgeSeriePorCandidato`; `seriePorCandidatoFrom`; motivo `sem_serie` |
+| **2 — a série na tela** | ⬜ | `fetch_series_por_candidato`, `anexar_ponto_corrente`, emissão no payload, props reais. **RF-168 e RF-169 dependem dela** |
+| **3 — simulação** | ⬜ | série por candidatura no gerador; fixtures de governador e senador |
+| **4 — verdade** | ⬜ | replay sobre os 5 instantes reais de 2022; e2e de performance e a11y |
+
+**Escopo de persistência** (decisão do dono, 2026-09-17): `CARGOS_COM_SERIE_PERSISTIDA
+= {1, 3, 5}` em `api/model/project.py`. Presidente entra com os **dois** escopos,
+nacional e por UF — é o dado por UF que alimenta o gráfico nas 27 telas de
+estado. Deputado Federal fica **fora**: 7.791 candidaturas × 480 ciclos ≈ 3,7
+milhões de linhas por noite, nove vezes todo o resto somado. Dois testes travam
+a decisão.
+
+**Três defeitos que só a tela pegou**, com typecheck, lint e 24 testes verdes:
+a moldura saía sem régua (o RF-174 proibia "qualquer percentual" e assim
+proibia a própria régua — corrigido, ver a emenda do RF-161 na spec 019); o SVG
+transbordava a coluna de 400px das rotas de UF; e `height="auto"` não existe
+como atributo de SVG. **E um quarto que só o SITE pegou**: o bloco existia nos
+testes e **não existia em produção**, porque a home tem dois ramos e ele entrou
+só num deles — coberto agora pelo caso `(a2)` de
+`tests/unit/pages/aguardando-candidatos.test.tsx`.
+
 ## Objetivo
 
 As telas de apuração mostram um retrato: quem está à frente **agora**. Não

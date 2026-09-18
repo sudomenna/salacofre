@@ -107,7 +107,7 @@ CREATE INDEX ix_snap_ts ON snapshots (ts DESC);
 -- Cálculos de projeção (histórico do modelo)
 CREATE TABLE projections (
   id BIGSERIAL PRIMARY KEY,
-  ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ts TIMESTAMPTZ NOT NULL DEFAULT NOW(),  -- quando o Python rodou
   cargo SMALLINT NOT NULL,
   turno SMALLINT NOT NULL,
   uf CHAR(2),                       -- NULL = nacional
@@ -117,9 +117,20 @@ CREATE TABLE projections (
   pct_projetado_lower NUMERIC(8,5), -- CI95 lower
   pct_projetado_upper NUMERIC(8,5),
   p_vitoria NUMERIC(5,4),
-  pct_apurado NUMERIC(5,2)
+  pct_apurado NUMERIC(5,2),         -- ⚠️ PROGRESSO da apuração, não fatia de candidatura
+  -- migration 0009 — a base "apurado" da série da spec 020. As três são
+  -- ANULÁVEIS e SEM DEFAULT de propósito: NULL é "não foi medido", 0 seria
+  -- uma afirmação. A própria migration reprova se alguém as criar com
+  -- NOT NULL ou DEFAULT. Ver «pct_apurado ≠ pct_atual» logo abaixo.
+  pct_atual NUMERIC(8,5),           -- ⚠️ FATIA de votos da candidatura, 0–100
+  votos_atuais BIGINT,              -- numerador de pct_atual (denominador é móvel)
+  dado_ts TIMESTAMPTZ               -- hora do BOLETIM do TSE (ADR-0038), não do cálculo
 );
 CREATE INDEX ix_proj_lookup ON projections (cargo, turno, uf NULLS FIRST, ts DESC);
+-- 0009: uma linha do gráfico é exatamente um prefixo desta chave. O
+-- ix_proj_lookup para em `uf` e obrigaria a varrer todas as candidaturas
+-- da UF para desenhar uma.
+CREATE INDEX ix_proj_serie ON projections (cargo, turno, uf, candidato_id, ts);
 
 -- Operational
 CREATE TABLE ingest_log (
@@ -132,6 +143,66 @@ CREATE TABLE ingest_log (
   notes TEXT
 );
 ```
+
+## `pct_apurado` ≠ `pct_atual` — colunas vizinhas, significados opostos
+
+As duas moram na mesma tabela, as duas são `0–100`, e medem coisas contrárias.
+É a confusão mais provável deste schema, e por isso está escrita aqui, na
+migration (`data-pipeline/migrations/0009_projections_pct_atual.ts`) e no
+docstring de `insert_projections`.
+
+| Coluna | Grandeza | Denominador | `37` significa |
+|---|---|---|---|
+| `pct_apurado` (pré-existente) | **progresso da apuração** no escopo da linha | seções/zonas esperadas | "37% da apuração já saiu" |
+| `pct_atual` (0009) | **fatia de votos da candidatura** | votos a votáveis já apurados (`v.vvc`) | "esta candidatura tem 37% dos votos contados até agora" |
+
+O nome `pct_atual` foi mantido porque é o que o dicionário Python,
+`EdgeCandidate` e `EdgeUfCandidate` já usam ponta a ponta — um quarto nome
+criaria mais uma tradução na pilha. O mesmo par de nomes atravessa o payload e
+os tipos de transporte, com a mesma armadilha.
+
+**Por que `votos_atuais` existe.** `pct_atual` tem denominador **móvel** (os
+votos a votáveis crescem a noite toda) e percentual não se re-agrega: sem o
+numerador, a série nacional não se reconstrói a partir das UFs sem rodar o
+modelo de novo. O nacional é **razão de somas** — `Σ votos_atuais` da
+candidatura ÷ `Σ votos_atuais` de todas as UFs — nunca média dos percentuais
+das 27 UFs (`pct_atual_nacional_por_candidato`, `api/model/project.py`).
+
+**Por que `dado_ts` existe.** É o eixo horizontal do gráfico da spec 020, e tem
+de ser a hora do **boletim** ([ADR-0038](adrs/0038-dado-ts-hora-do-dado-nao-hora-do-calculo.md)).
+Com `ts` (hora do cálculo), uma ingestão parada desenharia uma linha que
+continua avançando no eixo sobre dado congelado. `ts` não muda de significado:
+continua sendo "quando o Python rodou".
+
+**Prazo.** A migration é pré-requisito do gráfico da noite e **já está aplicada
+em produção**. Cada ciclo que rodasse sem ela seria um ponto perdido para
+sempre — o EA20 publica o acumulado corrente, não o histórico, e passado não se
+reconstrói depois.
+
+### Escopo do que é persistido — `CARGOS_COM_SERIE_PERSISTIDA`
+
+`CARGOS_COM_SERIE_PERSISTIDA = frozenset({1, 3, 5})` em `api/model/project.py`:
+**Presidente** (nacional **e** por UF), **Governador** e **Senador** têm série
+gravada. **Deputado Federal (6) fica de fora.**
+
+Volume medido por ciclo e por noite de 8h a 60s (480 ciclos):
+
+| Cargo | Linhas/ciclo | Linhas/noite |
+|---|---|---|
+| Presidente (nacional + 27 UFs) | 364 | ~175.000 |
+| Senador | 319 | ~153.000 |
+| Governador | 200 | ~96.000 |
+| **Subtotal persistido** | **883** | **~424.000** |
+| ~~Deputado Federal~~ (excluído) | 7.791 | ~3.700.000 |
+
+Deputado Federal sozinho seria **nove vezes todo o resto somado**. Hoje o cargo
+6 tem caminho próprio (`api/model/deputado.py`) e nem chega a este ponto — a
+constante existe para que ligá-lo um dia seja uma **decisão**, e não efeito
+colateral: a validação de entrada aceita `cargo` 1..99 de propósito (um código
+inesperado não pode derrubar o ciclo), então a fronteira do que se **grava**
+mora na constante, não na borda. Se um dia precisar, o caminho é guardar só as
+candidaturas mais votadas, nunca as 7.791. Dois testes travam a decisão
+(`tests/unit/model/test_projections_serie.py`).
 
 ## Escala de percentuais
 
@@ -159,6 +230,12 @@ com linhas novas sem normalizar a escala.
 `pct_apurado` (tabela `snapshots`, `historical_results.pct_total`, campo
 `pct_apurado` de `rows`/payload) sempre foi 0–100 — não sofre essa
 conversão em nenhum ponto do pipeline.
+
+`projections.pct_atual` (0009) fica do lado **percentual** da mesma fronteira:
+chega já convertido, na mesma linha de `rows` que alimenta
+`insert_projections`, `build_uf_payloads` e `build_edge_payload`. Daí ele sair
+`NUMERIC(8,5)`, espelhando `pct_projetado`, e não `NUMERIC(5,2)` como
+`pct_apurado`.
 
 ## Payload do Edge Config
 
@@ -313,6 +390,88 @@ seções de detalhe renderizam `<DetailUnavailable>` — explícito e **sempre n
 DOM** ([ADR-0017](adrs/0017-transparencia-total-3-camadas.md)) — nunca somem
 nem ficam vazias em silêncio. Global Config e Blob falham independentemente.
 
+### Série por candidatura (spec 020 / ADR-0046)
+
+O gráfico de evolução da noite precisa de uma série temporal **por
+candidatura**, que `EdgeUfSeriesTemporais` não tinha: `margem`, `p_vitoria` e
+`turnout` são três séries sobre a corrida inteira, não uma por candidato. Os
+dois tipos novos vivem em `lib/edge-config/types.ts`:
+
+```ts
+/** Forma COLUNAR: um eixo compartilhado + arrays paralelos por candidatura. */
+type EdgeSeriePorCandidato = {
+  eixo: string[];                   // `dado_ts` ISO8601, ASC — hora do BOLETIM
+  cadencia_min: number;             // declarada pelo produtor, nunca inferida do eixo
+  candidatos: EdgeSerieCandidato[]; // ORDEM DE EXIBIÇÃO — contrato, não se re-ordena
+};
+
+type EdgeSerieCandidato = {
+  id: number;                       // = EdgeCandidate.id
+  nome: string;
+  partido: string;                  // a COR sai daqui (colorForParty), nunca de `cor`
+  sqcand?: string;
+  apurado: (number | null)[];       // fatia da candidatura, 0–100, alinhada ao eixo
+  projetado: (number | null)[];     // idem
+};
+```
+
+**Três invariantes que a forma carrega:**
+
+1. **`eixo.length === apurado.length === projetado.length`** para todo
+   candidato — é o que torna a forma colunar legível: o valor de índice `i` de
+   qualquer candidato pertence ao instante `eixo[i]`.
+2. **`null` é balde sem ciclo, nunca `0`.** É a regra dos três estados aplicada
+   a um ponto: "não medimos neste balde" e "mediu-se zero por cento" são fatos
+   diferentes, e colapsá-los num `?? 0` desenha um mergulho ao chão que nunca
+   aconteceu. O consumidor quebra o traçado em dois no furo — nunca interpola,
+   nunca zera. Daí as colunas serem `(number | null)[]`.
+3. **`apurado` é fatia da candidatura**, não `pct_apurado` — mesma armadilha da
+   seção «`pct_apurado` ≠ `pct_atual`» acima, agora no transporte.
+
+**Por que colunar.** A chave `"ts"` repetida uma vez por PONTO em vez de uma vez
+por SÉRIE é o custo inteiro da forma rejeitada:
+
+| Forma | Escopo UF (pior caso) | Escopo nacional |
+|---|---|---|
+| Array de objetos `{ts,pct}` | 160.460 B | 32.356 B |
+| **Colunar** (adotada) | 33.249 B | **6.905 B** |
+
+**Teto por construção.** `SERIE_MAX_PONTOS = 120` ([ADR-0046](adrs/0046-serie-por-candidato-limitada-por-construcao.md)
+D2): a cadência é o menor valor de `[5, 10, 15, 30]` minutos tal que
+`ceil(janela_min / cadência) ≤ 120`. O teto **re-bucketiza**, nunca corta o
+começo da noite. Cada balde é o ponto de **maior `dado_ts`** dentro dele — o
+último, nunca a média, que suavizaria descontinuidades e poderia fazer uma
+quantidade quase-monotônica regredir. O balde deriva do **epoch de `dado_ts`**,
+não do índice do array: um ciclo perdido não desloca os pontos publicados antes
+dele (constituição § 6). Consequência: **8.553 B por corrida é o máximo
+absoluto, para sempre.**
+
+**Onde cada escopo mora (ADR-0046 D3 — emenda o ADR-0032, não o supersede):**
+
+| Escopo | Campo | Destino | Por quê |
+|---|---|---|---|
+| Nacional | `EdgePayload.serie_por_candidato?` | chave de Global Config **já existente** | 17.301 B + 6.905 B = ~24.206 B, contra teto de aviso de 75 KB por chave nacional (`EDGE_CONFIG_NATIONAL_WARN_BYTES`) — folga de 3× |
+| UF | `EdgeUfSeriesTemporais.por_candidato?` | Vercel Blob (objeto do ADR-0032) | 27 UF × 3 cargos × 6.905 B = **559.305 B** |
+
+⚠️ **`EdgePayloadUf` não ganhou campo nenhum** — e a conta acima é o motivo. Os
+559.305 B levariam o store de ~410 KB a **~969 KB**: acima do limiar de erro de
+940.000 B do writer e a 31 KB do teto de 1 MB, com a escrita **recusada na noite
+de 04/10**. Nada precisou mudar em `splitUfPayload` (`lib/blob/uf-detail.ts`)
+para a série de UF viajar: o destructuring já leva o objeto de séries **inteiro**
+ao Blob, com o campo novo dentro.
+
+Os dois campos são **opcionais**. Payloads e blobs gravados antes da spec 020
+seguem válidos, e a fase pré-eleição não tem série para emitir — ausente ≡ "o
+produtor não emitiu", que a tela trata como estado próprio (`sem_serie`),
+distinto de "a fonte não respondeu".
+
+**A cor da linha sai de `partido`, nunca de `EdgeCandidate.cor`** (ADR-0046 D5).
+`cor` ainda publica `var(--color-cand-{rank})`, a cor por rank que o
+[ADR-0024](adrs/0024-paleta-editorial-por-partido.md) aposentou; consumi-la aqui
+reintroduziria o defeito no único componente do produto onde ele seria visível
+como **movimento** — a linha trocaria de cor ao vivo, no instante exato de uma
+ultrapassagem.
+
 ### Duas bases por candidato (S07/Fase 2 — extrapolação do apurado)
 
 A projeção de candidatos passa a ser **extrapolação do apurado por zona**
@@ -395,6 +554,38 @@ ramifica o rótulo por valor. `n_zonas_imputadas` é opcional: ausente ≡ 0.
   campo segue no tipo apenas para não quebrar payloads gravados. Novos
   consumidores não devem lê-lo.
 
+## Operação e manutenção do banco
+
+### Quem pode ESCREVER no banco a partir de um teste (2026-09-17)
+
+Cinco testes de integração inserem linhas reais em `projections`, `snapshots`,
+`eleitorado` e `historical_results`. O único freio era a **ausência** de
+`DATABASE_URL` — e ausência é um estado que se perde por acidente: quem
+carregasse o `.env.local` para qualquer outra coisa (conferir uma migration,
+por exemplo) e rodasse `vitest run` passava a escrever **no banco de produção**,
+o mesmo que vai guardar a apuração de 04/10/2026.
+
+Foi o que aconteceu. **1.877 linhas de harness** ficaram no banco de produção:
+**1.233** sob cargos que não existem (91, 92, 93) e **644 sob o cargo REAL 1**,
+com as candidaturas sintéticas 101 e 102 ao lado das candidaturas de verdade.
+As linhas foram removidas.
+
+Duas causas, as duas fechadas:
+
+| Causa | Correção |
+|---|---|
+| A guarda era a ausência de uma variável | `tests/integration/_guarda-banco.ts` — a escrita exige `ALLOW_DB_WRITE_TESTS=1` **declarado** (igualdade exata com `"1"`); a dúvida resolve para "não escreve" |
+| O cleanup filtrava `uf IN (…)`, e `IN` **nunca casa com `NULL`** | filtro passa a ser `(uf IS NULL OR uf IN (…))` |
+
+O furo de SQL é o que explica o resíduo ter crescido por meses sem ninguém
+notar: as linhas de escopo **nacional** (`uf IS NULL`) são justamente as que o
+modelo cria em todo ciclo, e o teste limpava o que via e deixava o que não via.
+
+Detectar "é produção" pelo host seria adivinhação, e adivinhação com default
+permissivo é a rede de mão única que este repositório já pagou caro — uma URL
+nova, um host de preview, um proxy, e o teste volta a escrever achando que está
+seguro. Consentimento explícito não tem esse modo de falha.
+
 ## Princípios
 
 - **Snapshots são append-only** (princípio § 10 da constituição) — habilita replay e auditoria.
@@ -406,4 +597,7 @@ ramifica o rótulo por valor. `n_zonas_imputadas` é opcional: ausente ≡ 0.
 - Constituição § 7 (resiliência) e § 10 (append-only): [../constitution.md](../constitution.md)
 - ADR-0001 Edge Config no read path: [./adrs/0001-edge-config-no-read-path.md](./adrs/0001-edge-config-no-read-path.md)
 - ADR-0008 Não Convex: [./adrs/0008-nao-convex.md](./adrs/0008-nao-convex.md)
-- Specs que consomem: [001-ingestao-tse](../specs/001-ingestao-tse/), [002-modelo-estatistico](../specs/002-modelo-estatistico/)
+- ADR-0032 Detalhe municipal no Vercel Blob: [./adrs/0032-detalhe-municipal-vercel-blob.md](./adrs/0032-detalhe-municipal-vercel-blob.md)
+- ADR-0038 `dado_ts` é a hora do dado, não a do cálculo: [./adrs/0038-dado-ts-hora-do-dado-nao-hora-do-calculo.md](./adrs/0038-dado-ts-hora-do-dado-nao-hora-do-calculo.md)
+- ADR-0046 Série por candidato limitada por construção: [./adrs/0046-serie-por-candidato-limitada-por-construcao.md](./adrs/0046-serie-por-candidato-limitada-por-construcao.md)
+- Specs que consomem: [001-ingestao-tse](../specs/001-ingestao-tse/), [002-modelo-estatistico](../specs/002-modelo-estatistico/), [020-evolucao-da-apuracao](../specs/020-evolucao-da-apuracao/)

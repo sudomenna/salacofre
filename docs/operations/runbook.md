@@ -66,6 +66,48 @@ em 9 POSTs antes da detecção.
 lsof -i :3000  # deve retornar vazio
 ```
 
+## 🔴 Regra operacional crítica — `ALLOW_DB_WRITE_TESTS` (17/09/2026)
+
+**Cinco testes de integração escrevem de verdade** no banco apontado por `DATABASE_URL`:
+`tests/integration/model-edge-cases`, `model-cycle`, `ingest-cycle`, `ingest-model-trigger` e
+o bloco de lock de `ingest-routes-auth-cargo`. Em `.env.local` esse banco é **produção** — o
+mesmo que vai guardar a apuração de 04/10.
+
+**O que aconteceu em 17/09**: até então o único freio era a **ausência** de `DATABASE_URL`.
+Alguém carregou o `.env.local` para conferir uma migration, rodou `npx vitest run`, e
+**1.877 linhas de harness** ficaram no banco de produção — **1.233** sob cargos que não
+existem (91, 92, 93) e **644 sob o cargo REAL 1**, com as candidaturas sintéticas 101 e 102
+ao lado das candidaturas de verdade. O resíduo cresceu por meses sem ninguém notar porque o
+cleanup filtrava por `uf IN (…)` e `IN` nunca casa com `NULL`: as linhas de escopo
+**nacional** (`uf IS NULL`) — justamente as que o modelo cria a cada ciclo — nunca eram
+apagadas.
+
+**Como está agora**: a escrita exige `ALLOW_DB_WRITE_TESTS=1` **declarado**, com igualdade
+exata a `"1"` (`=true`, `=0` ou vazio não liberam nada). O ponto único de decisão é
+`tests/integration/_guarda-banco.ts` (`podeEscreverNoBanco()`); sem autorização os blocos
+viram `describe.skip` com o motivo na mensagem. A guarda **não** tenta adivinhar "isto é
+produção" pelo host — adivinhação com default permissivo é a rede de mão única que este
+repositório já pagou caro.
+
+**Como rodá-los de propósito** — só contra um banco descartável, nunca o de `.env.local`:
+
+```bash
+DATABASE_URL='postgres://…/banco-descartavel' ALLOW_DB_WRITE_TESTS=1 \
+  npx vitest run tests/integration/model-cycle.test.ts
+```
+
+⛔ **Não declare `ALLOW_DB_WRITE_TESTS` com o `.env.local` carregado no shell.** As duas
+coisas juntas — variável declarada + `DATABASE_URL` de produção — reproduzem exatamente o
+incidente, e desta vez com autorização explícita. Se você precisa das duas na mesma sessão,
+abra outro terminal.
+
+**Como conferir resíduo de harness no banco**: ver
+[Série por candidatura](#série-por-candidatura--o-que-é-gravado-a-cada-ciclo-spec-020).
+
+**Rede antes do commit**: `core.hooksPath=.githooks` está ativo desde 17/09 — o
+`.githooks/pre-commit` roda `biome check` na árvore inteira e **aborta o commit** se
+reprovar. `--no-verify` exige ordem explícita do dono (CLAUDE.md § 11).
+
 ## Cenários cobertos
 
 - **TSE indisponível** (>60s, >5min, >15min) — diagnóstico, banner, escalada.
@@ -607,6 +649,60 @@ sem ameaçar o limite por objeto.
 município/séries mostram o estado "detalhe indisponível". Não é bug — é o
 comportamento declarado.
 
+## Série por candidatura — o que é gravado a cada ciclo (spec 020)
+
+Desde 17/09 (migration **0009**, ADR-0046) a tabela `projections` guarda, a cada ciclo, a
+fatia de votos de **cada candidatura**: `pct_atual`, `votos_atuais` e `dado_ts` (a hora do
+**boletim**, ADR-0038 — não a do cálculo). É essa série que alimenta o gráfico da noite. A
+migration é aditiva e idempotente (`ADD COLUMN IF NOT EXISTS` / `CREATE INDEX IF NOT
+EXISTS`), O(1) em PG 11+, e **já foi aplicada em produção em 17/09**:
+
+```bash
+set -a; . ./.env.local; set +a
+pnpm db:migrate:0009
+```
+
+⚠️ **`pct_apurado` e `pct_atual` são coisas opostas** e o nome engana: `pct_apurado` é quanto
+da urna já chegou; `pct_atual` é a fatia da candidatura sobre os votos já contados.
+
+### Só os cargos 1, 3 e 5 são persistidos
+
+`CARGOS_COM_SERIE_PERSISTIDA = {1, 3, 5}` em `api/model/project.py` — Presidente, Governador e
+Senador. **Deputado Federal (6) está fora por volume**: suas ~7,8 mil candidaturas dariam
+**~3,7 milhões de linhas por noite**, nove vezes todo o resto somado. O cargo 6 hoje tem
+caminho próprio (`api/model/deputado.py`) e nem chega aqui; a constante existe para que
+ligá-lo um dia seja uma **decisão**, e não efeito colateral da validação de entrada (que
+aceita 1..99 de propósito, para um código inesperado não derrubar o ciclo).
+
+**O descarte é ruidoso de propósito.** Quando um cargo cai fora, o ciclo loga em `warn`:
+
+```
+serie nao persistida: cargo fora de CARGOS_COM_SERIE_PERSISTIDA
+  cargo=… turno=… linhas_descartadas=…
+```
+
+➜ **Se essa linha aparecer para um cargo que deveria entrar (1, 3 ou 5), é configuração
+errada**, não comportamento normal — a série daquele cargo some do gráfico e do replay sem
+nenhum outro sinal.
+
+### Conferir resíduo de harness no banco
+
+Depois do incidente de 17/09 (ver
+[`ALLOW_DB_WRITE_TESTS`](#-regra-operacional-crítica--allow_db_write_tests-17092026)), estas
+duas consultas dizem em segundos se sobrou lixo de teste em `projections`:
+
+```sql
+-- 1. cargos que não existem (o harness usava 91, 92, 93)
+SELECT cargo, count(*) FROM projections WHERE cargo NOT IN (1,3,5,6) GROUP BY cargo;
+
+-- 2. candidaturas sintéticas sob o cargo REAL 1 (as de verdade têm id < 100)
+SELECT count(*) FROM projections WHERE cargo = 1 AND candidato_id BETWEEN 100 AND 299;
+```
+
+As duas devem devolver **zero**. A primeira é a fácil de ver; a segunda é a perigosa — linha
+de harness sob o cargo real, misturada às candidaturas de verdade, entra no gráfico como se
+fosse resultado.
+
 ## Ferramentas do pipeline TSE
 
 Três ferramentas introduzidas no hardening pré-simulado (Fase 0 da S07). As duas primeiras existem para que **nenhum teste precise tocar o CDN do TSE**.
@@ -660,9 +756,18 @@ Verificar na resposta: `rateLimited` (retry de 429 funcionou), `changed > 0`, `n
 > Carregar `.env.local` antes da suíte completa — 8 arquivos de teste dependem do Neon:
 > ```bash
 > set -a; . ./.env.local; set +a
-> pnpm test          # vitest
-> pnpm test:py       # pytest (ou .venv-model/bin/python -m pytest -q)
+> pnpm test                             # vitest — 2.606 verdes em 17/09
+> .venv-model/bin/python3.14 -m pytest  # 501 verdes em 17/09
 > ```
+> ⚠️ Duas ressalvas de 17/09, as duas medidas:
+> 1. **`pnpm test:py` está quebrado** — o script é `python -m pytest`, pega o `python` do PATH
+>    e morre com `ModuleNotFoundError: pydantic`. Use o intérprete do venv, explícito, como
+>    acima.
+> 2. Com `.env.local` carregado, os cinco testes que **escrevem** no banco ficam em
+>    `describe.skip` — é o desenho, ver
+>    [`ALLOW_DB_WRITE_TESTS`](#-regra-operacional-crítica--allow_db_write_tests-17092026).
+>    Resta 1 falha de ambiente pré-existente em `ResultPanelAvatar`, que assume Blob não
+>    configurado.
 
 ## Cross-refs
 

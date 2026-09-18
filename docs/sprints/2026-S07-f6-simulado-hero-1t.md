@@ -355,6 +355,55 @@ A objeção foi levantada — um placar zerado mostra a *forma* de um resultado,
 
 **Será desenvolvida numa sessão nova.** Não iniciar aqui.
 
+### 🔄 Fase 12 — Spec 020: a noite vira linha — 17/09, Fases 0 e 1 entregues
+
+Não estava no plano da sprint. Nasceu de um protótipo visual e de cinco decisões do dono: as
+telas de apuração ganham um gráfico de linhas — uma por candidatura à frente, fatia de votos no
+eixo vertical, horário do **boletim** no horizontal.
+
+- [x] **Spec 020 escrita** (`docs/specs/020-evolucao-da-apuracao/`, `status: draft`) — RF-167 a
+      RF-176, 4 telas (T-01, T-03, T-04, T-10), nenhuma rota nova.
+- [x] **[ADR-0046](../architecture/adrs/0046-serie-por-candidato-limitada-por-construcao.md)**
+      (`accepted`) — série por candidato limitada **por construção**: forma colunar, teto de 120
+      pontos re-bucketizados (nunca cortados), elenco decidido no produtor, **sem chave nova de
+      Global Config**. **Emenda o ADR-0032**, não o supersede: o critério que faltava é que uma
+      série com teto duro deixa de cair automaticamente no lado "Blob" da divisória quando o
+      escopo é nacional. Nota de emenda registrada no ADR-0032.
+- [x] **Fase 0 — o gráfico entra nas telas** — `SerieApuracaoChart`
+      (`components/atoms/charts/`) nas **4 rotas**: `/`, `/uf/[sigla]`,
+      `/uf/[sigla]/governador` e `/uf/[sigla]/senador`. `scale.ts` (régua) e
+      `lib/utils/rank-parcial.ts` extraídos — o comparador existia em **3 cópias idênticas**
+      dentro dos arquivos que o usavam.
+- [x] **Fase 1 — o dado passa a ser guardado** — migration **0009** aplicada em produção
+      (`projections.pct_atual`, `votos_atuais`, `dado_ts`; `ADD COLUMN IF NOT EXISTS`,
+      idempotente e O(1)); persistência no Python; tipos de transporte; `seriePorCandidatoFrom`;
+      motivo `sem_serie` para o estado sem série.
+- [x] **Escopo do que se grava vira decisão escrita** — `CARGOS_COM_SERIE_PERSISTIDA = {1, 3, 5}`
+      em `api/model/project.py`. Deputado Federal fica **fora por volume** (~3,7 milhões de
+      linhas por noite). O descarte é logado em `warn` de propósito — cargo que deixa de ser
+      persistido em silêncio some do gráfico e do replay sem ninguém notar. Registrado no
+      [runbook](../operations/runbook.md).
+- [x] **Dois testes vermelhos na `main` desde `4f4cce6`/`171889c` consertados** — o literal da
+      fase escapava por **dois comentários**.
+- [x] **Lint da `main` zerado** (estava com 4 erros) e **hook de pre-commit restaurado** —
+      `core.hooksPath=.githooks`, `biome check` na árvore inteira, **aborta o commit** se
+      reprovar. Os dois commits de 13/09 que o criavam estavam presos num worktree e nunca
+      chegaram à `main`. Barrou commits **três vezes** em 17/09.
+
+🔴 **A suíte escrevia no banco de PRODUÇÃO — 1.877 linhas de harness removidas.** O único freio
+era a **ausência** de `DATABASE_URL`; bastou alguém carregar o `.env.local` para conferir uma
+migration e rodar `npx vitest run`. Ficaram 1.233 linhas sob cargos inexistentes (91/92/93) e
+**644 sob o cargo REAL 1**, com as candidaturas sintéticas 101/102 ao lado das de verdade — o
+cleanup filtrava por `uf IN (…)` e `IN` nunca casa com `NULL`, então as linhas nacionais nunca
+eram apagadas. Agora os cinco testes de escrita exigem **`ALLOW_DB_WRITE_TESTS=1` declarado**,
+com ponto único em `tests/integration/_guarda-banco.ts`. Procedimento em
+[runbook § `ALLOW_DB_WRITE_TESTS`](../operations/runbook.md).
+
+**Falta da spec 020:**
+
+- [ ] **Fase 2** — emitir a série no payload.
+- [ ] **Fase 3** — fixtures de simulação de Governador e Senador.
+
 ### ⏳ Pendências abertas ao fim de 13/09 — atualizado
 
 Substitui a lista de 11/09. Todas têm dono.
@@ -746,7 +795,18 @@ Mais:
 - ✅ Leiaute real de EA20/EA14/EA15 confirmado e registrado em `tse-simulados.md`
 - 🔶 Spec 002 promovida a `shipped` **se** o simulado 2 validar o pipeline ponta-a-ponta
 
-## Gates atuais — medidos em 07/09 pelo orquestrador, com a árvore parada
+## Gates atuais — medidos em 17/09 pelo orquestrador
+
+| Gate | Estado |
+|---|---|
+| Vitest | **2.606 verdes** — com `.env.local` carregado; **1 falha de ambiente pré-existente** em `ResultPanelAvatar`, que assume Blob não configurado |
+| Pytest | **501 verdes** — via `.venv-model/bin/python3.14 -m pytest`; `pnpm test:py` está **quebrado** (pega o `python` do PATH, `ModuleNotFoundError: pydantic`) |
+
+> ⚠️ Com `.env.local` carregado, os cinco testes de integração que **escrevem** no banco ficam
+> em `describe.skip` — é o desenho novo de 17/09, não regressão. Ver
+> [runbook § `ALLOW_DB_WRITE_TESTS`](../operations/runbook.md).
+
+## Gates de 07/09 — medidos pelo orquestrador, com a árvore parada
 
 | Gate | Estado |
 |---|---|

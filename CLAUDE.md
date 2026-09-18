@@ -299,7 +299,7 @@ Stack completa em [docs/architecture/tech-stack.md](./docs/architecture/tech-sta
 - **Sem LLM em insights** ([ADR-0005](./docs/architecture/adrs/0005-templates-nao-llm.md)). Use templates determinísticos.
 - **Cores via tokens** — PT=vermelho, PL=azul. Nunca cores oficiais de partido (constituição § 2).
 - **Snapshots append-only** (constituição § 10). Nunca UPDATE/DELETE em `snapshots`.
-- **Resolução TSE 2026** ainda não publicada — watch ativo em [docs/reference/regulatory.md](./docs/reference/regulatory.md). 23.736/2024 só vale como referência de práticas.
+- **Resolução TSE 23.751/2026 (arts. 264–269) está PUBLICADA e rege o pleito** — fonte canônica em [docs/reference/regulatory.md](./docs/reference/regulatory.md). ⚠️ A 23.736/2024 (municipais) **não** é mais referência de práticas: foi a analogia com ela que produziu as premissas falsas de maio/2026 (cadastro inexistente, abandono do EA20). Não há watch pendente aqui.
 
 ---
 
@@ -354,10 +354,44 @@ pnpm build
 pnpm typecheck                 # tsc --noEmit
 pnpm lint                      # biome check .
 pnpm test                      # vitest
-pnpm test:py                   # pytest — SÓ dentro de .venv-model/bin/python3.14
+pnpm test:py                   # ⚠️ QUEBRADO — ver "Python" logo abaixo
 pnpm test:e2e                  # playwright
 ANALYZE=true pnpm build        # bundle analyzer (RNF-007a/b/c)
 ```
+
+**Python — `pnpm test:py` não resolve o venv sozinho.** O script é literalmente
+`python -m pytest` (`package.json`), então ele pega o `python` do PATH e morre com
+`ModuleNotFoundError: pydantic` antes do primeiro teste. Chame o intérprete do venv
+**explicitamente**:
+
+```bash
+.venv-model/bin/python3.14 -m pytest      # 501 verdes em 17/09
+```
+
+**🔴 `ALLOW_DB_WRITE_TESTS` — cinco testes escrevem no banco de `DATABASE_URL`.**
+São `tests/integration/model-edge-cases`, `model-cycle`, `ingest-cycle`,
+`ingest-model-trigger` e o bloco de lock de `ingest-routes-auth-cargo`. Desde 17/09 eles só
+rodam com a variável **declarada**; o ponto único de decisão é
+`tests/integration/_guarda-banco.ts` (`podeEscreverNoBanco()`), e a igualdade é exata com `"1"`.
+
+```bash
+# de propósito, SEMPRE contra um banco descartável:
+DATABASE_URL=<banco-descartavel> ALLOW_DB_WRITE_TESTS=1 npx vitest run tests/integration/model-cycle.test.ts
+```
+
+**Nunca declare essa variável com o `.env.local` carregado.** O `DATABASE_URL` de
+`.env.local` é **produção** — o banco que vai guardar a apuração de 04/10. Até 17/09 o único
+freio era a *ausência* de `DATABASE_URL`, e ausência é um estado que se perde por acidente:
+bastou alguém carregar o `.env.local` para conferir uma migration e rodar `npx vitest run`
+para **1.877 linhas de harness** entrarem em produção (1.233 sob os cargos inexistentes
+91/92/93 e 644 sob o cargo **real** 1, com as candidaturas sintéticas 101/102 ao lado das de
+verdade). Como conferir resíduo: [runbook § série por candidatura](./docs/operations/runbook.md).
+
+**Hook de pre-commit ATIVO** (restaurado em 17/09 — os dois commits de 13/09 estavam presos
+num worktree e nunca chegaram à `main`). `core.hooksPath=.githooks`; o
+`.githooks/pre-commit` roda `biome check` na **árvore inteira** (~150 ms) e **aborta o
+commit** se reprovar — barrou três commits em 17/09. Conserto: `pnpm lint:fix`.
+`--no-verify` continua exigindo ordem explícita do dono (§ 11).
 
 Modelo e gate OT-4:
 
@@ -381,9 +415,15 @@ Banco — migrations são **manuais e numeradas**, nunca `drizzle-kit push`:
 
 ```bash
 pnpm db:migrate:0006           # migration + eleitorado-import + zonas-import, nessa ordem
+pnpm db:migrate:0009           # série por candidatura: pct_atual, votos_atuais, dado_ts
 pnpm db:push:DANGEROUS         # NÃO USE. Renomeado porque o push regride o banco
 pnpm edge-config:smoke         # grava/lê/apaga no Global Config — exige EDGE_CONFIG_TOKEN
 ```
+
+A **0009 já foi aplicada em produção em 17/09**. É aditiva e idempotente (todo o DDL é
+`ADD COLUMN IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`) e O(1) — `ADD COLUMN` sem default
+não reescreve a tabela em PG 11+. Rodar de novo é seguro; as linhas anteriores ficam com
+`pct_atual` nulo **de propósito**.
 
 Validação de docs (sem deps):
 
@@ -424,7 +464,7 @@ grep -l "status: shipped" docs/specs/*/spec.md
 | Modelo retornando NaN ou MAE alto | `model-validator` |
 | Pipeline TSE com lag | `tse-parser-builder` + leia [docs/operations/runbook.md](./docs/operations/runbook.md) |
 | Spec contradiz ADR | Pare e reporte ao usuário — nível mais alto vence |
-| Resolução TSE 2026 publicada | Releia [docs/reference/regulatory.md](./docs/reference/regulatory.md); despache `tse-parser-builder` para diff técnico |
+| Mudança no leiaute ou na norma do TSE | Releia [docs/reference/regulatory.md](./docs/reference/regulatory.md) e [tse-2026-leiautes.md](./docs/reference/tse-2026-leiautes.md); despache `tse-parser-builder` para diff técnico |
 | RF aparece em spec mas falta em traceability | `spec-syncer` |
 | Decisão técnica ambígua | `adr-author` |
 

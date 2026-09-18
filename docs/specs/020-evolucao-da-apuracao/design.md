@@ -329,14 +329,37 @@ animação para zerar.
 
 | Fase | Conteúdo | Depende de |
 |---|---|---|
-| **0** | `scale.ts`; `rank-parcial.ts`; `SerieApuracaoChart` completo com os 4 estados; fiação de fase nas 3 rotas de UF; bloco nos 4 slots; testes de ordem atualizados | nada |
-| **1** | migration 0009; `pct_atual_nacional_por_candidato`; INSERT; `fetch_series_por_candidato`; `anexar_ponto_corrente`; tipos TS ⟨tipos em paralelo⟩ | 0 |
+| **0** ✅ | `scale.ts`; `rank-parcial.ts`; `SerieApuracaoChart` completo com os 4 estados; fiação de fase nas 3 rotas de UF; bloco nos 4 slots **e nos DOIS ramos de cada um**; testes de ordem atualizados | nada |
+| **1** ✅ | migration 0009 (**aplicada em produção**); `pct_atual_nacional_por_candidato`; `linhas_para_projections`; INSERT; tipos TS. ⚠️ `fetch_series_por_candidato` e `anexar_ponto_corrente` **ficaram para a Fase 2** — são leitura, não persistência | 0 |
 | **2** | produtor emite a série (UF e nacional); páginas passam props reais; testes T1–T7 | 1 |
 | **3** ⟨paralelo⟩ | gerador de simulação emite série por candidatura; fixtures de gov e sen; gate de coerência | 0 |
 | **4** | teste sobre os 5 instantes reais de 2022; e2e de performance e a11y | 2 |
 
 A Fase 0 é desenhada para **entregar sozinha**: o estado do protótipo nas quatro
 telas, correto e honesto, sem depender de nada do pipeline.
+
+### O que a Fase 2 herda da Fase 1 (medido, não suposto)
+
+1. **`pct_atual_nacional_por_candidato(uf_rows)` é o ponto único da razão de
+   somas.** `anexar_ponto_corrente` deve **chamá-la** para o ponto do ciclo
+   corrente. Recomputar ali reabre exatamente a divergência de quinto decimal
+   que a Fase 1 fechou — o payload da home e o gráfico ao lado discordariam.
+2. **O `COALESCE(dado_ts, ts)` do § 2.2(d) é carga, não defesa.** Toda linha
+   anterior à 0009 tem `dado_ts` NULL, e ciclos em que nenhum par trouxe hora
+   legível continuam gravando NULL — o ADR-0038 D1 proíbe cair para outro
+   relógio.
+3. **`pct_atual` nacional é `None`, não `0`, quando não há voto medido** —
+   inclusive para candidatura que existe no nacional e não aparece em UF
+   nenhuma. O `apurado: (number | null)[]` vai receber furos de verdade; **não
+   os preencha na serialização**.
+4. O índice `ix_proj_serie (cargo, turno, uf, candidato_id, ts)` casa com o
+   `WHERE`/`ORDER BY` do `fetch_series_por_candidato`: o
+   `DISTINCT ON (uf, candidato_id, balde)` sai dele sem sort adicional.
+5. **Decisão em aberto para o dono:** grava-se o `dado_ts` do **ciclo**
+   (`relogio.dado_ts`), como esta spec especifica. Existe `relogio_uf` (ADR-0038
+   D2) no mesmo call site — uma UF cujo boletim travou às 21h aparece hoje com a
+   hora do ciclo, não com a dela. Mudar contraria o contrato escrito, então não
+   foi feito.
 
 ## 9. Testes que matam mutação
 

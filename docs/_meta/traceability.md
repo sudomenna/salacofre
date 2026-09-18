@@ -151,10 +151,10 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-150 | "Fonte: TSE" visível e carimbo de frescor | M | [018](../specs/018-identidade-candidatura/) | `<CandidaturasFonte>` | unit (injeta `fonte_ts`, tela diz aquele valor — nunca literal) |
 | RF-151 | Fallback de avatar quando não há foto | M | [018](../specs/018-identidade-candidatura/) | `<CandidatoAvatar>` | unit (dimensões 161×225 sem foto, CLS zero, sem `colorForParty` como área) |
 | RF-152 | Cadência de reimportação e guarda de encolhimento | M | [018](../specs/018-identidade-candidatura/) | — | unit (`candidatos-import.test.ts::test_encolhimento_aborta_98_pctile`, `test_encolhimento_janela_critica_02_03_outubro`) |
-| RF-167 | O percentual por candidatura é persistido, não recalculado | M | [020](../specs/020-evolucao-da-apuracao/) | — (produtor Python) | ⚠️ **sem cobertura** — exige a migration 0009 e o INSERT em `api/model/project.py`, que são Fase 1 e **não foram implementados**. Nenhum teste existe hoje. |
-| RF-168 | A série é limitada por construção, nunca por corte | M | [020](../specs/020-evolucao-da-apuracao/) | — (produtor Python) | ⚠️ **sem cobertura** — `fetch_series_por_candidato` (cadência adaptativa, teto de 120, último-do-balde) é Fase 1 e **não foi implementada**. |
-| RF-169 | O último ponto é o número publicado ao lado | M | [020](../specs/020-evolucao-da-apuracao/) | — (produtor Python) | ⚠️ **sem cobertura** — depende de `anexar_ponto_corrente` (Fase 1). Hoje a leitura da série precede o INSERT do ciclo em `api/model/project.py`, então o defeito **existe e não é detectado**. |
-| RF-170 | Quatro linhas, escolhidas agora, desenhadas desde o início | M | [020](../specs/020-evolucao-da-apuracao/) | `<SerieApuracaoChart />`, `rankByParcial` | 🟡 **parcial** — o comparador tem cobertura própria (`tests/unit/utils/rank-parcial.test.ts`, 6 casos, 6 mutações mortas). A **seleção das 4 no produtor** é Fase 1 e não tem teste. |
+| RF-167 | O percentual por candidatura é persistido, não recalculado | M | [020](../specs/020-evolucao-da-apuracao/) | — (produtor Python) | ✅ unit (`tests/unit/model/test_projections_serie.py`, 15 casos): migration 0009 **aplicada em produção**, e `linhas_para_projections`/`insert_projections` (`api/model/project.py`) gravam `pct_atual`/`votos_atuais`/`dado_ts`. 8 mutações aplicadas, todas mortas — entre elas `?? 0` sobre linha sem medição, `dado_ts or now()` (o relógio do ciclo no lugar do boletim, ADR-0038), nacional como média das UFs em vez de razão de somas, e tirar `dado_ts` da lista do INSERT. Escopo travado por `CARGOS_COM_SERIE_PERSISTIDA = {1, 3, 5}` (2 casos: Deputado Federal fora, Presidente/Governador/Senador dentro). |
+| RF-168 | A série é limitada por construção, nunca por corte | M | [020](../specs/020-evolucao-da-apuracao/) | — (produtor Python) | ⚠️ **sem cobertura** — `fetch_series_por_candidato` (cadência adaptativa, teto de 120, último-do-balde) é **Fase 2** e não existe no repositório (grep vazio em `api/`, `lib/`, `tests/`). O teto e a forma colunar estão decididos no [ADR-0046](../architecture/adrs/0046-serie-por-candidato-limitada-por-construcao.md) D2 e tipados em `lib/edge-config/types.ts`, mas **tipo não é teste**. |
+| RF-169 | O último ponto é o número publicado ao lado | M | [020](../specs/020-evolucao-da-apuracao/) | — (produtor Python) | ⚠️ **sem cobertura** — depende de `anexar_ponto_corrente` (**Fase 2**), que não existe no repositório. Hoje a leitura da série precede o INSERT do ciclo em `api/model/project.py`, então o defeito **existe e não é detectado**. |
+| RF-170 | Quatro linhas, escolhidas agora, desenhadas desde o início | M | [020](../specs/020-evolucao-da-apuracao/) | `<SerieApuracaoChart />`, `rankByParcial` | 🟡 **parcial** — o comparador tem cobertura própria (`tests/unit/utils/rank-parcial.test.ts`, 6 casos, 6 mutações mortas). A **seleção das 4 no produtor** é **Fase 2** e não tem teste. |
 | RF-171 | A cor é do partido; o rank escolhe quem entra, nunca de que cor | M | [020](../specs/020-evolucao-da-apuracao/) | `<SerieApuracaoChart />` | ✅ unit (`tests/unit/components/serie-apuracao-chart.test.tsx`, bloco “T7: mata a cor por rank”): cor estável sob inversão da ordem, partidos distintos com cores distintas, e asserção **negativa** de que `--color-cand-` não ocorre no HTML. Mutação aplicada e morta. |
 | RF-172 | As duas visões alternam pelo controle que já existe | M | [020](../specs/020-evolucao-da-apuracao/) | `<SerieApuracaoChart />`, `<ViewModeSwitch />` | ✅ unit (`tests/unit/components/serie-apuracao-chart.test.tsx`): os dois grupos `data-view-only` no HTML do servidor. ⚠️ O item (b) — 0 B de bundle — **ainda não é medido**: depende de `tests/e2e/perf-budget.spec.ts` rodar sobre as 4 rotas. |
 | RF-173 | Senador: quatro linhas, duas vagas legíveis sem cor | M | [020](../specs/020-evolucao-da-apuracao/) | `<SerieApuracaoChart />` | ✅ unit (`tests/unit/components/serie-apuracao-chart.test.tsx`, bloco “RF-173: Senador elege duas”, 4 casos): espessura maior nas 2 primeiras, ausência de `opacity`, régua da 2ª vaga, e a legenda nomeando as duas. |
@@ -249,7 +249,16 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 
 ## Cobertura
 
-**60 RFs originais do PRD** + 69 RFs adicionados nas specs (RF-005.1-4, RF-006.1-5, RF-012.1-2, RF-058.1-2, RF-010.1-6, RF-020.1-3, RF-030.7-9, RF-061-63, RF-100-108, RF-120-130+125.1, RF-140-166) = **129 RFs no total**. Todos mapeados pra alguma spec.
+**152 RFs distintos** listados neste documento (60 originais do PRD + os
+adicionados pelas specs: RF-005.1-4, RF-006.1-5, RF-010.1-6, RF-012.1-2,
+RF-020.1-3, RF-030.7-9, RF-058.1-2, RF-061-63, RF-100-108, RF-120-130+125.1,
+RF-140-176). Todos mapeados pra alguma spec.
+
+> ⚠️ **16 deles não estão na matriz principal** — a única tabela com coluna
+> "Teste", e a única que o gate `rf-coverage-checker` lê. Aparecem só no índice
+> "RFs adicionados pelas specs", onde **não há afirmação de cobertura nenhuma**:
+> RF-012.1, RF-012.2 (spec 012) e RF-153..RF-166 (spec 019). Estar ali não é
+> cobertura — é uma linha faltando na matriz de cima.
 
 ## RNFs
 
@@ -257,10 +266,10 @@ NFRs cobertos em [../nfr/](../nfr/) — 34 RNFs (RNF-001..RNF-034). Cada spec li
 
 ## ADRs
 
-35 ADRs em [../architecture/adrs/](../architecture/adrs/) — 34 `accepted`, 1 `proposed` (ADR-0024). Specs referenciam ADRs aplicáveis no frontmatter.
+46 ADRs em [../architecture/adrs/](../architecture/adrs/) (ADR-0001..ADR-0046) — 43 `accepted`, 3 `superseded` (ADR-0013, ADR-0015, ADR-0018). Specs referenciam ADRs aplicáveis no frontmatter.
 
 **Novos em 2026-09-07**:
-- ADR-0024 (paleta editorial por partido) — `proposed`, supersede condicional de ADR-0013
+- ADR-0024 (paleta editorial por partido) — hoje `accepted`; supersede o ADR-0013
 - ADR-0025 (design system Atlas Menna restyle-in-place) — `accepted`, afeta specs 003/004/005/006/011
 - ADR-0026 (Senador e Deputado Federal) — `accepted`, emenda ADR-0001 (Vercel Blob como exceção ao read path para Deputado)
 
@@ -270,6 +279,9 @@ NFRs cobertos em [../nfr/](../nfr/) — 34 RNFs (RNF-001..RNF-034). Cada spec li
 **Novos em 2026-09-13** (Fase 8, S07):
 - ADR-0036 (Cargo 6 em granularidade zona fatiada em 6) — `accepted`, emenda ADR-0026 (cargo 5 idem em 11/09)
 - ADR-0037 (UF sem faixa entra como constante no IC95 nacional) — `accepted`
+
+**Novos em 2026-09-17** (spec 020):
+- ADR-0046 (série por candidato limitada por construção) — `accepted`, **emenda** o ADR-0032 (não o supersede): forma colunar, teto de 120 pontos re-bucketizado, elenco decidido no produtor, e o escopo nacional na chave de Global Config já existente em vez de chave nova. Ver [../architecture/data-model.md](../architecture/data-model.md) § «Série por candidatura».
 
 Spec 016 (Senador) — `draft`, implementada em S07. Spec 017 (Deputado Federal) — **`shipped` em 13/09**, com os 4 gates aprovados: `rf-coverage-checker` PASS (12 RFs), `constitution-guard` PASS **na reexecução** (a primeira rodada reprovou — `<DeputadoMetodologia>` afirmava ao leitor uma granularidade que o ADR-0036 tinha acabado de inverter; corrigido em `8cd955f`), `a11y-perf-auditor` PASS (Lighthouse a11y 100/100, axe 0 violações em 12 combinações, bundle idêntico byte a byte), e `spec-syncer` executado. RF-127 completo desde `2bcee57` — o intervalo de cadeiras existe, e a marcação de cadeira indefinida **coexiste** com ele.
 
