@@ -80,8 +80,9 @@
 // 4. 🔴 O campo `fase` NÃO é emitido
 // ════════════════════════════════════════════════════════════════════════════
 //
-// `EdgePayload.fase` tem exatamente um valor, `"pre_eleicao"`, e significa
-// "este placar está zerado por não ter começado". Este payload representa o
+// `EdgePayload.fase` tem exatamente um valor — o exportado como
+// `FASE_PRE_ELEICAO` por `lib/config/fase.ts`, que é o dono do literal — e
+// significa "este placar está zerado por não ter começado". Este payload representa o
 // oposto — está apurando. Emitir `fase` aqui faria as telas anunciarem "a
 // eleição ainda não começou" em cima de um placar de 25%.
 //

@@ -278,7 +278,8 @@ export const metadata: Metadata = {
 function fixturePayload(): EdgePayload {
   const variant = process.env.FIXTURE_VARIANT;
   // `pre` serve o payload que `data-pipeline/projection-seed.ts` grava: as 12
-  // candidaturas presidenciais reais do cadastro do TSE, `fase: "pre_eleicao"`,
+  // candidaturas presidenciais reais do cadastro do TSE, o campo `fase` com o
+  // valor de `FASE_PRE_ELEICAO` (`lib/config/fase.ts`, o dono do literal),
   // `pct_apurado_total: 0` e `por_uf: []`. É a única forma de VER as telas
   // T-15/T-16 em `pnpm dev`, porque o reader devolve `null` localmente
   // (`EDGE_CONFIG` não existe em `.env.local`) e semear o Global Config de

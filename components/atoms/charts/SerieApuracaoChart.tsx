@@ -461,10 +461,16 @@ export function SerieApuracaoChart({
         aria-labelledby={titleId}
         style={MOLDURA}
       >
+        {/* 🔴 A frase diz só o que vale nos DOIS escopos que montam este
+            componente. A versão anterior afirmava "o arquivo de detalhe foi
+            lido, mas sem a série" — verdade nas rotas de UF, e **falsa na
+            home**, que não tem arquivo de detalhe nenhum: ali a série viaja no
+            próprio payload. Era uma causa inventada, da mesma família dos zeros
+            fabricados que a spec 019 existe para impedir, e mandaria quem
+            estivesse depurando na noite de 04/10 procurar no lugar errado. */}
         <p id={titleId} data-testid="serie-apuracao-nota" style={NOTA}>
-          A evolução da apuração em {escopo} ainda não chegou — o arquivo de detalhe foi lido, mas
-          sem a série por candidatura. Os números do resumo acima vêm de outra fonte e não são
-          afetados por isto.
+          A evolução da apuração em {escopo} ainda não chegou — a série por candidatura ainda não é
+          publicada. Os números do resumo acima vêm de outra fonte e não são afetados por isto.
         </p>
       </figure>
     );
