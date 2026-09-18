@@ -47,6 +47,7 @@ import {
   resetPmtilesProtocol,
 } from "@/components/atoms/maps/_pmtiles-protocol";
 import { HoverCard, type HoverCardRow } from "@/components/atoms/overlays/HoverCard";
+import { FILL_OPACITY, fillOpacityExpression, swingToColor } from "@/components/blocks/_swingRamp";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { useHoverStore } from "@/lib/state/hover-store";
 import type { ViewMode } from "@/lib/state/view-mode";
@@ -182,24 +183,6 @@ function turnoutToRankColor(pct: number, rank: number): string {
   return resolveBandHex(rank);
 }
 
-/**
- * Swing (view "swing") — é um delta vs 2022; não tem cor partidária natural
- * (swing > 0 = "movimento em favor do líder atual", swing < 0 = "fuga").
- * Usamos paleta neutra: âmbar/ocre pro positivo, cinza-azulado pro negativo.
- * Para manter o código simples e neutro, mapeamos para os tokens band
- * neutros (band-likely / band-lean) — sem cor partidária ou por-rank.
- * **Sem mudança no Bloco 1**: a cor por partido (ADR-0024) modula
- * identidade × margem projetada; swing é um eixo ortogonal (delta) que não
- * tem dono partidário, então continua na paleta neutra pré-existente.
- */
-function swingToColor(swing: number): string {
-  const abs = Math.abs(swing);
-  if (abs < 2) return getCssVar("--color-tossup");
-  if (swing > 0)
-    return abs >= 10 ? getCssVar("--color-band-very_likely") : getCssVar("--color-band-likely");
-  return abs >= 10 ? getCssVar("--color-band-very_likely") : getCssVar("--color-band-lean");
-}
-
 function rankFor(id: number, rankByLider: Record<number, number> | undefined): number {
   // Fallback: sem rankByLider → rank 99 (→ cor "other" cinza). Pré-S05 e
   // testes legados usam isso.
@@ -257,10 +240,21 @@ function resolveColor(
         ? resolvePartyHex(partido, intensityLevelForMargin(margem))
         : marginToRankColor(margem, rank);
     case "swing":
-      // `swing_vs_2022` aceita null desde S07/Fase 2 (UF/candidato sem
-      // número em 2022). Sem comparação, a UF fica na cor neutra do meio da
-      // rampa — que é exatamente `swingToColor(0)`.
-      return swingToColor(row.swing_vs_2022 ?? 0);
+      // 🔴 O `?? 0` daqui pintava "SEM COMPARAÇÃO" com a cor de "NÃO MUDOU".
+      // Enquanto `swing_vs_2022` era `None` em toda UF isso era inofensivo —
+      // o mapa inteiro era neutro. A partir do commit que ligou o número real
+      // os dois estados convivem na mesma tela, e viraram indistinguíveis:
+      // exatamente o erro que a decisão do dono de 14/09 já nomeia ("não
+      // começou / não sabemos / apurando são TRÊS estados").
+      //
+      // A cor devolvida aqui para `null` é irrelevante: `applyOpacity` abaixo
+      // zera o preenchimento dessas UFs, e elas ficam como CONTORNO VAZIO. Foi
+      // a única saída — medido em ΔE76, nenhum token da paleta fica a 10 do
+      // neutro da rampa (`--map-uncounted` × `--color-tossup` = 4,4 no claro e
+      // 6,8 no escuro). "Sem comparação" não cabia em cor; cabe em ausência.
+      return row.swing_vs_2022 === null
+        ? getCssVar("--map-uncounted")
+        : swingToColor(row.swing_vs_2022, getCssVar);
     case "turnout":
       if (row.pct_apurado === 0) return getCssVar("--color-tossup");
       return useParty
@@ -302,6 +296,11 @@ function applyColors(
   }
   expression.push(fallback);
   map.setPaintProperty("ufs-fill", "fill-color", expression as unknown as string);
+  map.setPaintProperty(
+    "ufs-fill",
+    "fill-opacity",
+    fillOpacityExpression(view, rows) as unknown as string,
+  );
 }
 
 /**
@@ -595,7 +594,7 @@ export function NationalChoroplethMapImpl({
                 // `["match", ["get", "SIGLA_UF"], ...]` assim que `rows` chega.
                 "fill-color": getCssVar("--map-uncounted") || "#e1e4e8",
                 "fill-color-transition": fillTransition,
-                "fill-opacity": 0.88,
+                "fill-opacity": FILL_OPACITY,
               },
             },
             // RNF-035 (SC 1.4.11) — HALO, duas linhas, não uma.
