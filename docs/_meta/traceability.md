@@ -113,7 +113,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-056 | Dashboard saúde pipeline | M | [010](../specs/010-operacao-monitoramento/) | `<MetricCard />` | manual — diferido S11 (a 012 foi cortada em 18/09; dono único para o gate ver) |
 | RF-012.1 | Botão "Pausar Cron" (`/_status`) | M | [012](../specs/012-dashboard-status/) | — | ❌ **SEM COBERTURA — a spec 012 não foi implementada.** `app/_status/` contém **só** um `.gitkeep`; não existe rota, componente nem teste. A ausência aqui é de **código**, não de linha na matriz: enquanto `/_status` não existir, não há o que testar. Bloqueia `shipped` da spec 012. |
 | RF-012.2 | Botão "Forçar refresh" (`/_status`) | M | [012](../specs/012-dashboard-status/) | — | ❌ **SEM COBERTURA — idem RF-012.1.** Mesma causa: `app/_status/` só tem `.gitkeep`. Bloqueia `shipped` da spec 012. |
-| RF-057 | Alertas Slack se lag >60s | M | [010](../specs/010-operacao-monitoramento/) | — | manual (forçar) |
+| RF-057 | Alertas Slack se lag >60s | M | [010](../specs/010-operacao-monitoramento/) | — | `tests/unit/tse/alerts.test.ts` (13 casos) — ✅ 18/09. A **regra** (`alertasDoCiclo`) e o **transporte** (`notifySlack`) testados em separado, sem banco, sem rede e sem `SLACK_WEBHOOK_URL`. ⚠️ Antes dizia só "manual (forçar)" — e o manual nunca foi feito: `grep -rln notifySlack tests/` devolvia **zero** |
 | RF-058 | Modo manutenção amigável | M | [010](../specs/010-operacao-monitoramento/), [013](../specs/013-pagina-manutencao/) | — | manual |
 | RF-058.1 | Modo transição 1T→2T | M | [013](../specs/013-pagina-manutencao/) | `<TurnoTransitionBanner />` | unit |
 | RF-058.2 | Roteamento e redirect manutenção | M | [013](../specs/013-pagina-manutencao/) | (middleware) | unit |

@@ -369,7 +369,47 @@ linha na matriz e o RF fora do frontmatter, o gate continua sem vê-los.
       lock anti-overlap, que exige banco. A metade "nenhum GET ao CDN" continua coberta
       **só** pela integração atrás da guarda, e a lacuna está escrita em vez de maquiada.
 
-- [ ] `rf-coverage-checker` executado para as specs 010 e 019 depois da reconciliação.
+- [x] **`rf-coverage-checker` executado nas specs 010 e 019** — 18/09, depois da
+      reconciliação. Vereditos:
+      - **Spec 019 — ✅ 14/14**, todos executam de verdade, nenhum deles nos 10 arquivos que
+        falham na coleta sem `DATABASE_URL`. Fecha a linha correspondente do DoD.
+      - **Spec 010, fatia em voo — ❌ na hora do relatório**: RF-060 ✅, **RF-057 com zero
+        teste**. Corrigido na sequência, ver abaixo.
+
+- [x] 🔴 **RF-057 ganhou os testes que nunca teve** — e o achado é do próprio gate, que
+      apontou o que eu não tinha visto: *"a lógica pura do limiar é testável **sem** a
+      variável de ambiente"*. Estava certo.
+
+      `grep -rln "notifySlack\|tse/alerts" tests/` devolvia **zero**. A matriz dizia
+      "manual (forçar)" e o manual também nunca foi feito. A causa não era desleixo: as três
+      condições viviam soltas dentro de `runIngestCycle`, **depois** de tudo que exige
+      Postgres, lock anti-overlap e CDN — não havia como chegar nelas.
+
+      **Regra separada do transporte**: `alertasDoCiclo` (`lib/tse/alerts.ts`) decide *quais*
+      alarmes o ciclo emite, em aritmética pura; `notifySlack` continua sendo o transporte.
+      O handler passou a iterar sobre a regra, com comportamento idêntico (2.594 vitest
+      seguiram verdes antes de eu escrever um único teste novo).
+
+      `tests/unit/tse/alerts.test.ts`, **13 casos**, sem banco, sem rede e **sem
+      `SLACK_WEBHOOK_URL`** — o canal estar mudo é configuração, nunca foi impedimento para
+      medir a lógica.
+
+      | Mutação | Resultado |
+      |---|---|
+      | limiar de lag `>` vira `>=` | 1 failed |
+      | lag `null` passa a alarmar | 1 failed |
+      | erros `>=` vira `>` | 1 failed |
+      | 429 passa a exigir mais de um | 1 failed |
+      | `notifySlack` volta a lançar em erro de rede | 1 failed |
+
+      Três casos que valem além da contagem: **exatamente 60 s não alarma** (o RF diz
+      `> 60`; meta cumprida no limite não é violação); **lag `null` não alarma** — "não sei"
+      não é "está ruim", que é a mesma distinção de três estados do vigia externo; e
+      **falha de rede não lança**, porque um alarme que derruba o ciclo que observa é pior
+      que um alarme mudo.
+
+      ⏸️ O que **continua** aberto é só o canal: com `SLACK_WEBHOOK_URL` ausente, o alarme é
+      decidido, montado e descartado em silêncio.
 
 ### 7. Herdados da S07 — triados no fechamento de 18/09
 
@@ -499,7 +539,7 @@ Cada linha abaixo é algo que alguém consegue conferir.
       incremento, hora legível que não zera, hora ilegível tratada como visão, piso de
       movimento zerado, baseline ausente imputado como `0.0`, ausência de deduplicação,
       contador global em vez de por cargo, e a ordem da chamada.
-- [ ] **`rf-coverage-checker` retorna ✅ para a spec 019** — a migração dos 16 RFs para a
+- [x] **`rf-coverage-checker` retorna ✅ para a spec 019** — **14/14 em 18/09**, — a migração dos 16 RFs para a
       matriz principal ficou pronta em 18/09; o que falta provar é o gate **rodando** e
       passando, agora que os 14 RFs da 019 têm coluna `Teste` preenchida.
 - [ ] **RF-057 tem dono único** e o frontmatter da spec 012 lista RF-012.1/RF-012.2 —

@@ -41,7 +41,7 @@ import { after, NextResponse } from "next/server";
 import { type CargoTse, cargoInfo, rpsMaxParaCargos } from "@/lib/config/cargos";
 import type { AcompanhamentoPrevious } from "@/lib/tse/acompanhamento";
 import { detectChangedUfs } from "@/lib/tse/acompanhamento";
-import { notifySlack } from "@/lib/tse/alerts";
+import { alertasDoCiclo, notifySlack } from "@/lib/tse/alerts";
 import { fetchEA20, getClientStats, resetClientStats } from "@/lib/tse/client";
 import { parseEA20Numeric } from "@/lib/tse/ea20-schema";
 import { serialiseCause } from "@/lib/tse/errors";
@@ -933,30 +933,19 @@ export async function runIngestCycle(
 
   // TS narrowing perde o reassign dentro do async closure de `Promise.all`,
   // então fazemos o cast explícito aqui.
+  // A REGRA de quando alarmar vive em `alertasDoCiclo` (lib/tse/alerts.ts),
+  // separada do transporte. Antes de 18/09 as três condições eram `if`s soltos
+  // aqui, depois de tudo que exige banco e rede — e por isso o RF-057 tinha
+  // **zero teste**: chegar a estas linhas pedia Postgres, lock e CDN. A regra é
+  // aritmética pura e agora é exercitada sem nada disso.
   const lagFinal = maxLagSeconds as number | null;
-  if (lagFinal !== null && lagFinal > 60) {
-    void notifySlack({
-      severity: "warn",
-      msg: `tse.lag_seconds > 60 (atual: ${lagFinal.toFixed(1)}s)`,
-      ctx: { maxLagSeconds: lagFinal, filesChanged: changed, errors: errorsCount, env, turno },
-    });
-  }
-  if (errorsCount >= 3) {
-    void notifySlack({
-      severity: "error",
-      msg: `${errorsCount} erros consecutivos no ciclo`,
-      ctx: { errors: errorsCount, filesFetched: targets.length, env, turno },
-    });
-  }
-  if (clientStatsSnapshot.rateLimited > 0) {
-    // 429 sustentado é o sinal mais direto de que TSE_MAX_RPS/INGEST_CONCURRENCY
-    // estão desalinhados com o limite real de 100 req/s/IP do TSE (ou outro
-    // processo compartilha o IP).
-    void notifySlack({
-      severity: "error",
-      msg: `${clientStatsSnapshot.rateLimited} respostas 429 (rate limited) neste ciclo`,
-      ctx: { rateLimited: clientStatsSnapshot.rateLimited, waitedMs, env, turno },
-    });
+  for (const alerta of alertasDoCiclo({
+    lagSegundos: lagFinal,
+    errosConsecutivos: errorsCount,
+    rateLimited: clientStatsSnapshot.rateLimited,
+    ctx: { filesChanged: changed, filesFetched: targets.length, waitedMs, env, turno },
+  })) {
+    void notifySlack(alerta);
   }
 
   return NextResponse.json({
