@@ -176,6 +176,26 @@ describe("RF-149 — grade de candidaturas no estado aguardando (home)", () => {
     expect(vemDepois(aguardando as Element, g as Element)).toBe(true);
   });
 
+  it("(a2) spec 020: a evolução da apuração existe NESTE ramo, e diz não saber", async () => {
+    // 🔴 Este é o ramo que a PRODUÇÃO serve hoje: sem chave no Global Config a
+    // home nunca chega ao ramo com payload. O widget entrou primeiro só no
+    // outro ramo, e o resultado foi um bloco que passava nos testes e **não
+    // existia no site** — conferido em https://salacofre.vercel.app em
+    // 2026-09-17, com o deploy verde.
+    //
+    // Mutações que devem derrubá-lo:
+    //   - remover o bloco deste ramo (o defeito original);
+    //   - passar `preEleicao` aqui: este ramo é alcançado tanto antes de 04/10
+    //     quanto por falha de leitura, e a tela não distingue os dois — afirmar
+    //     o calendário seria dar uma causa que ninguém mediu.
+    const doc = parse(renderToStaticMarkup(await HomePage()));
+
+    const bloco = doc.querySelector('[data-testid="serie-apuracao-chart"]');
+    expect(bloco, "o bloco da spec 020 sumiu do ramo que produção serve").not.toBeNull();
+    expect(bloco?.getAttribute("data-estado")).toBe("indisponivel");
+    expect(doc.body.textContent).not.toContain("disponível apenas no dia das eleições");
+  });
+
   it("(b) sem payload, a grade traz o nome REAL da fatia — não `Candidato {n}`", async () => {
     // Mutação que deve derrubá-lo: montar a grade a partir de
     // `payload.national.candidatos` (que aqui nem existe) ou de um placeholder.

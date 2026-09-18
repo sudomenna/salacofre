@@ -482,6 +482,27 @@ async function AguardandoNacional() {
           parágrafo acima, e é `null` quando o Blob não responde. */}
       {grade}
 
+      {/* Spec 020 — a evolução da apuração também neste ramo, e é ele que
+          PRODUÇÃO serve hoje: sem chave no Global Config a home nunca chega ao
+          ramo com payload, e o bloco simplesmente não existiria na tela real.
+
+          🔴 `preEleicao={false}` é DECISÃO, não esquecimento. Este ramo é
+          alcançado tanto antes de 04/10 quanto por uma falha de leitura do
+          Global Config, e a tela **não distingue os dois** — é a mesma razão
+          que pôs `variante="sem_dados"` no bloco de metodologia logo abaixo.
+          Afirmar "disponível apenas no dia das eleições" aqui seria dar uma
+          causa que ninguém mediu. O componente cai no estado "não sabemos",
+          que é o terceiro estado e o honesto para este ramo. */}
+      <Panel kicker="Evolução da apuração">
+        <SerieApuracaoChart
+          eixo={[]}
+          cadenciaMin={5}
+          candidatos={[]}
+          escopo="Brasil"
+          titleId="serie-apuracao-aguardando-titulo"
+        />
+      </Panel>
+
       {/* 🔴 RF-158, emenda de 2026-09-14 — o bloco FICA e vai a PROSA.
           Até hoje ele entrava aqui como `<ForecastTransparency pctApurado={0}>`
           e publicava, neste ramo, a decomposição numérica do forecast:
