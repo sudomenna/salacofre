@@ -301,9 +301,22 @@ export async function readNationalProjection(): Promise<EdgePayload | null> {
  *
  *   `projection-archive-<cargo>-t<turno>`  →  ex. `projection-archive-pres-t1`
  *
- * O orchestrator grava o archive na transição de turno (S07 — virada 1T→2T)
- * congelando o último `projection-current-pres-t1` antes de mover a chave
- * dinâmica `projection-current` para `pres-t2`. Simetria total com
+ * ⚠️ **Corrigido em 2026-09-18.** Este parágrafo dizia que *"o orchestrator
+ * grava o archive na transição de turno (S07 — virada 1T→2T)"*. **Ninguém
+ * grava essa chave** — `grep -rn archiveProjectionKey` acha só leitura, e
+ * `api/model/` não menciona archive em lugar nenhum. A S07 fechou sem a
+ * transição, e a frase ficou falsa no meio do caminho.
+ *
+ * Como funciona de verdade, e por que não precisou de job novo: a chave
+ * `projection-current-<cargo>-t<N>` **carrega o turno**, e o turno ativo vem
+ * do calendário. Virada a data de 25/10, o ciclo passa a escrever `-t2` e
+ * ninguém mais toca `-t1` — que vira, **por construção**, o retrato final do
+ * 1º turno. A leitura cai nele como terceiro degrau, e só para turno já
+ * encerrado.
+ *
+ * A chave `projection-archive-*` segue suportada e tem precedência: se um dia
+ * algo passar a gravá-la (para congelar antes da virada, ou para sobreviver a
+ * uma reingestão de `-t1`), ela ganha sem mudar nada aqui. Simetria total com
  * `readProjection`: mesmo shape `EdgePayload`, mesma serialização.
  *
  * Comportamento de retorno
@@ -334,13 +347,37 @@ export async function readArchivedProjection(opts: {
   const cargo = opts.cargo;
   const turno = opts.turno ?? currentPresidentialTurno();
 
+  // 🔴 O terceiro degrau existe porque os dois primeiros NUNCA SÃO ESCRITOS.
+  //
+  // Medido em 2026-09-18: `grep -rn archiveProjectionKey` acha só leitura, e
+  // `grep -rn archive api/model/*.py` não acha nada. A docstring acima dizia
+  // que "o orchestrator grava o archive na transição de turno (S07)" — a S07
+  // fechou em 18/09 sem isso, e a afirmação ficou falsa no meio do caminho.
+  // Sem o degrau, `<TurnoOneRecap>` seria `null` a noite inteira de 25/10.
+  //
+  // O congelamento já acontece SOZINHO, e é por isso que o degrau é seguro: a
+  // chave `projection-current-<cargo>-t<N>` inclui o turno, e o turno ativo
+  // vem do CALENDÁRIO (`currentPresidentialRace`). Virada a data, o ciclo
+  // passa a escrever `-t2` e ninguém mais toca `-t1` — que vira, por
+  // construção, o retrato final do turno encerrado.
+  //
+  // ⚠️ A guarda `turno < turnoAtivo` não é zelo: sem ela, pedir o "arquivo" do
+  // turno em andamento devolveria o payload AO VIVO travestido de histórico,
+  // e a tela mostraria o placar de agora como se fosse o resultado fechado do
+  // turno anterior. É a mesma família de erro dos três estados — apresentar
+  // uma coisa como outra.
+  const turnoAtivo = currentPresidentialTurno();
+  const turnoEncerrado = turno < turnoAtivo;
+
   return resolver(
     await getFirst<EdgePayload>(() => [
       archiveProjectionKey(cargo, turno),
       // DEPRECADO — remover em 2026-10-26.
       deprecatedColonArchiveProjectionKey(cargo, turno),
+      // Só para turno JÁ ENCERRADO. Ver a nota acima.
+      ...(turnoEncerrado ? [currentProjectionKey(cargo, turno)] : []),
     ]),
-    { fn: "readArchivedProjection", cargo, turno },
+    { fn: "readArchivedProjection", cargo, turno, turnoEncerrado },
   );
 }
 

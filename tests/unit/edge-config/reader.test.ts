@@ -214,6 +214,71 @@ describe("readArchivedProjection — ordem de fallback", () => {
   });
 });
 
+/**
+ * 🔴 O terceiro degrau: `projection-current-<cargo>-t<N>` de turno encerrado.
+ *
+ * Medido em 18/09: **ninguém grava `projection-archive-*`.**
+ * `grep -rn archiveProjectionKey` acha só leitura, e `api/model/` não menciona
+ * archive. A docstring de `readArchivedProjection` afirmava que o orchestrator
+ * gravava na virada de turno — a S07 fechou sem isso e a frase ficou falsa.
+ *
+ * Consequência que ninguém veria até a noite: em 25/10 o `<TurnoOneRecap>` do
+ * hero de 2º turno seria `null` a noite inteira, sem erro e sem alarme.
+ *
+ * O congelamento já acontece sozinho — a chave carrega o turno, o turno vem do
+ * calendário, e virada a data ninguém mais escreve em `-t1`.
+ */
+describe("readArchivedProjection — o degrau do turno encerrado", () => {
+  /** Depois de 25/10: a corrida ativa é (pres, 2). */
+  function noSegundoTurno() {
+    vi.setSystemTime(new Date("2026-10-26T12:00:00-03:00"));
+  }
+
+  it("com o 1T encerrado, cai no `projection-current-pres-t1` congelado", async () => {
+    noSegundoTurno();
+    withStore({ "projection-current-pres-t1": { ts: "retrato final do 1T" } });
+
+    expect(await readArchivedProjection({ cargo: "pres", turno: 1 })).toEqual({
+      ts: "retrato final do 1T",
+    });
+    expect(keysRead()).toEqual([
+      "projection-archive-pres-t1",
+      "projection:archive:pres:t1",
+      "projection-current-pres-t1",
+    ]);
+  });
+
+  it("🔴 com o turno EM ANDAMENTO, NÃO toca a chave corrente", async () => {
+    // Par com o caso acima, e a razão de a guarda existir. Sem ela, pedir o
+    // "arquivo" do turno que está rolando devolveria o placar AO VIVO
+    // travestido de histórico — a tela mostraria o número de agora como se
+    // fosse o resultado fechado. Mesma família dos três estados: apresentar
+    // uma coisa como outra.
+    //
+    // O relógio do harness já está em 08/09, com (pres, 1) ativo.
+    withStore({ "projection-current-pres-t1": { ts: "AO VIVO, não é arquivo" } });
+
+    expect(await readArchivedProjection({ cargo: "pres", turno: 1 })).toBeNull();
+    expect(keysRead()).not.toContain("projection-current-pres-t1");
+  });
+
+  it("o archive de verdade tem precedência sobre o degrau", async () => {
+    // Se algum dia algo passar a gravar `projection-archive-*` — para congelar
+    // antes da virada, ou para sobreviver a uma reingestão de `-t1` — ele
+    // ganha sem precisar mexer aqui.
+    noSegundoTurno();
+    withStore({
+      "projection-archive-pres-t1": { ts: "congelado de propósito" },
+      "projection-current-pres-t1": { ts: "retrato final do 1T" },
+    });
+
+    expect(await readArchivedProjection({ cargo: "pres", turno: 1 })).toEqual({
+      ts: "congelado de propósito",
+    });
+    expect(keysRead()).toEqual(["projection-archive-pres-t1"]);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Sem credencial
 // ---------------------------------------------------------------------------

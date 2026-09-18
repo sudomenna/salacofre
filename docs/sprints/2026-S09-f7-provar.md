@@ -218,8 +218,37 @@ Referência: [S07 § Triagem](./2026-S07-f6-simulado-hero-1t.md#triagem-das-60-c
       983.040 B que **recusaria** a escrita; o código só tem `GLOBAL_CONFIG_STORE_WARN_BYTES`
       (780.000) e `..._CRITICAL_BYTES` (940.000) em `lib/edge-config/writer.ts:329,339`, e
       **os dois apenas registram no log** — não há `throw` antes do `fetch`. Encaixa na chore 4.
-- [ ] **`archiveProjectionKey` é lida e nunca escrita** *(S07 linha 437)* — `lib/edge-config/reader.ts:213`
-      lê; nenhum escritor grava. Ou passa a ser escrita, ou a leitura sai.
+- [x] **`archiveProjectionKey` lida e nunca escrita** *(S07 linha 437)* — 18/09. Não era só
+      rastro solto: era **defeito funcional silencioso com data marcada**.
+
+      `grep -rn archiveProjectionKey` acha só leitura; `grep -rn archive api/model/*.py` não
+      acha nada. E a docstring de `readArchivedProjection` **afirmava** que *"o orchestrator
+      grava o archive na transição de turno (S07 — virada 1T→2T)"*. A S07 fechou em 18/09
+      sem a transição, e a frase ficou falsa no caminho.
+
+      Consequência que ninguém veria até a noite: em **25/10** o `<TurnoOneRecap>` do hero de
+      2º turno seria `null` a noite inteira — sem erro, sem alarme, só um bloco ausente.
+
+      **O conserto não precisou de job novo**, e a razão é o que importa: a chave
+      `projection-current-<cargo>-t<N>` **carrega o turno**, e o turno ativo vem do
+      **calendário** (`currentPresidentialRace`). Virada a data, o ciclo passa a escrever
+      `-t2` e ninguém mais toca `-t1` — que vira, **por construção**, o retrato final do 1º
+      turno. A leitura ganhou um terceiro degrau que cai nele.
+
+      Um job de congelamento seria um passo operacional a mais para alguém esquecer no dia
+      25. `projection-archive-*` segue suportada e **tem precedência**: se algo passar a
+      gravá-la, ganha sem mexer em nada.
+
+      ⚠️ **A guarda `turno < turnoAtivo` não é zelo.** Sem ela, pedir o "arquivo" do turno em
+      andamento devolveria o **placar ao vivo travestido de histórico** — a tela mostraria o
+      número de agora como se fosse o resultado fechado do turno anterior. Mesma família dos
+      três estados: apresentar uma coisa como outra.
+
+      | Mutação | Resultado |
+      |---|---|
+      | remove o degrau (volta ao recap vazio) | 1 failed |
+      | degrau sem a guarda de turno encerrado | 2 failed |
+      | degrau antes do archive (precedência invertida) | 2 failed |
 - [x] **Fixtures `2026-sim` incorporadas à suíte** *(S07 linha 528)* — 18/09,
       `tests/unit/tse/simulado-2026-real.test.ts`, **17 casos**. Os 14 arquivos reais do
       simulado passam a ser lidos em toda corrida.
