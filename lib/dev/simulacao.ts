@@ -240,6 +240,21 @@ function comRelogioAgora<T>(payload: T, agoraMs: number): T {
     saida.series_temporais = deslocarSeries(series as Record<string, unknown>, delta);
   }
 
+  // 🔴 A série por candidatura do payload NACIONAL mora no TOPO
+  // (`EdgePayload.serie_por_candidato`), não dentro de `series_temporais` — que
+  // é onde vivem `margem`/`p_vitoria`/`turnout` e onde o detalhe por UF guarda
+  // a dele. São dois lugares, e o deslocador só olhava um.
+  //
+  // Encontrado em 18/09 OLHANDO A TELA, não por teste: com as fixtures da Fase 3
+  // recém-geradas, a home mostrava o cabeçalho em "agora" e o gráfico parado no
+  // horário da fixture, enquanto `/uf/SP` acompanhava — as duas telas da mesma
+  // sessão de `dev:sim` discordando sobre que horas são. É literalmente o
+  // defeito que a nota de `deslocarSeries` avisa ("o cabeçalho dizendo 'agora'
+  // com o gráfico novo plantado horas atrás"), aparecendo pelo outro caminho.
+  if (delta !== 0) {
+    saida.serie_por_candidato = deslocarEixoPorCandidato(bruto.serie_por_candidato, delta);
+  }
+
   return saida as T;
 }
 

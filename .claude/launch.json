@@ -8,6 +8,12 @@
       "port": 3000
     },
     {
+      "name": "salacofre-dev-sim",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev:sim"],
+      "port": 3000
+    },
+    {
       "name": "salacofre-dev-pre",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev:pre"],
