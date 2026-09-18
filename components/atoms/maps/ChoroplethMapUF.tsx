@@ -172,6 +172,47 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
                 "fill-opacity": 0.88,
               },
             },
+            // RNF-035 (SC 1.4.11) — HALO, duas linhas, como o mapa nacional.
+            //
+            // Até 18/09 (3ª sessão) este mapa tinha UMA linha, `#ffffff`
+            // **cravada no código** — não token. Medido nas 54 cores que ESTE
+            // mapa realmente pinta (as 33 bases de partido + `--color-tossup`
+            // + os 7 `--color-cand-*` + os 7 `--color-cand-band-*` de fallback
+            // por rank — ele NÃO usa a escala de margem `-1..5`, que é do mapa
+            // nacional; a cor vem de `municipios[].cor`, a cor-base do líder):
+            //
+            //   contra o `#ffffff` cravado ..... 14 reprovam 3:1 no claro,
+            //                                    17 no escuro
+            //   contra as DUAS linhas do halo ... 0 e 0
+            //
+            // Piores do claro: `--party-none` 1,28 · as seis faixas
+            // `--color-cand-band-*` 1,43 a 1,63 · `--party-tie` 1,90. No escuro
+            // é pior e por outro motivo: as cores de partido são mais CLARAS lá
+            // (`--party-psol` #ffd47d mede 1,40 contra branco), e um traço
+            // branco cravado num tema escuro é a única coisa da tela que não
+            // sabe que o tema mudou.
+            //
+            // 🔴 Por isso o remédio é TOKEN, não outra cor cravada: no claro
+            // `--map-stroke` é #fbfbfc e `--map-stroke-focus` é #14171b; no
+            // escuro os dois **trocam de lado** (#14171b e #eceef1). É o mesmo
+            // par do nacional (`ufs-stroke-halo` + `ufs-stroke`), e sempre uma
+            // das duas alcança o piso.
+            //
+            // ⚠️ As espessuras NÃO são as do nacional (1,4 + 0,6). Município é
+            // polígono pequeno e denso — 5.570 contra 27, e 645 só em SP — e o
+            // traço do nacional deixaria o mapa sujo. Aqui é 0,9 + 0,35: mesma
+            // proporção num traço mais fino, com o total perto do 0,5 anterior.
+            {
+              id: "municipios-stroke-halo",
+              type: "line",
+              source: "municipios",
+              "source-layer": "municipios",
+              filter: ufFilter,
+              paint: {
+                "line-color": resolveCssColor("var(--map-stroke, #fbfbfc)"),
+                "line-width": 0.9,
+              },
+            },
             {
               id: "municipios-stroke",
               type: "line",
@@ -179,8 +220,8 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
               "source-layer": "municipios",
               filter: ufFilter,
               paint: {
-                "line-color": "#ffffff",
-                "line-width": 0.5,
+                "line-color": resolveCssColor("var(--map-stroke-focus, #14171b)"),
+                "line-width": 0.35,
               },
             },
             {
@@ -189,7 +230,7 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
               source: "municipios",
               "source-layer": "municipios",
               paint: {
-                "line-color": "#222222",
+                "line-color": resolveCssColor("var(--map-stroke-focus, #14171b)"),
                 "line-width": 2.5,
               },
               // `["all", ufFilter, ...]` — o hover (abaixo) substitui esse

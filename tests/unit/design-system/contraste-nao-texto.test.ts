@@ -81,6 +81,41 @@ function tokensPorTema(): { claro: Record<string, string>; escuro: Record<string
 const SO_BASE = /^party-[a-z]+$/;
 
 /**
+ * Tokens de `app/globals.css` por tema — as duas linhas do halo e as paletas de
+ * fallback por rank.
+ *
+ * Estava aninhado dentro do `describe` do mapa nacional até 18/09 (3ª sessão);
+ * subiu para o escopo do módulo quando o mapa de MUNICÍPIO passou a precisar
+ * dele. A regex ganhou `color-cand*` e `color-tossup` no mesmo movimento — o
+ * teste do nacional lê só as chaves `map-stroke*`, então alargar não muda nada
+ * para ele.
+ */
+function tokensGlobaisPorTema(): {
+  claro: Record<string, string>;
+  escuro: Record<string, string>;
+} {
+  const linhas = readFileSync(resolve(RAIZ, "app/globals.css"), "utf8").split("\n");
+  const claro: Record<string, string> = {};
+  const escuro: Record<string, string> = {};
+  let alvo: Record<string, string> | null = null;
+  for (const linha of linhas) {
+    if (linha.includes("@theme static")) alvo = claro;
+    else if (linha.includes('data-theme="dark"')) alvo = escuro;
+    const m =
+      /^\s*--((?:map-stroke(?:-focus)?)|(?:color-cand[a-z0-9-]*)|(?:color-tossup)):\s*(#[0-9a-fA-F]{6})/.exec(
+        linha,
+      );
+    // Só a PRIMEIRA ocorrência de cada tema — o claro tem só um bloco
+    // `@theme static`, mas o escuro tem vários `:root[data-theme="dark"]`
+    // no arquivo (ver grep de 18/09) e só o primeiro define `--map-stroke`.
+    const chave = m?.[1];
+    const valor = m?.[2];
+    if (chave && valor && alvo && !(chave in alvo)) alvo[chave] = valor;
+  }
+  return { claro, escuro };
+}
+
+/**
  * Tokens que reprovam o piso e **não têm** variante `-text` — por razão
  * escrita, não por conveniência.
  *
@@ -243,28 +278,6 @@ describe("RNF-035 — o HALO é o remédio das REGIÕES do mapa (2026-09-18, 2ª
   // HALO, uma clara e uma escura — sempre uma alcança 3:1, qualquer que seja
   // a cor do lado.
 
-  function tokensGlobaisPorTema(): {
-    claro: Record<string, string>;
-    escuro: Record<string, string>;
-  } {
-    const linhas = readFileSync(resolve(RAIZ, "app/globals.css"), "utf8").split("\n");
-    const claro: Record<string, string> = {};
-    const escuro: Record<string, string> = {};
-    let alvo: Record<string, string> | null = null;
-    for (const linha of linhas) {
-      if (linha.includes("@theme static")) alvo = claro;
-      else if (linha.includes('data-theme="dark"')) alvo = escuro;
-      const m = /^\s*--(map-stroke(?:-focus)?):\s*(#[0-9a-fA-F]{6})/.exec(linha);
-      // Só a PRIMEIRA ocorrência de cada tema — o claro tem só um bloco
-      // `@theme static`, mas o escuro tem vários `:root[data-theme="dark"]`
-      // no arquivo (ver grep de 18/09) e só o primeiro define `--map-stroke`.
-      const chave = m?.[1];
-      const valor = m?.[2];
-      if (chave && valor && alvo && !(chave in alvo)) alvo[chave] = valor;
-    }
-    return { claro, escuro };
-  }
-
   it("todo token de partido (base + níveis 1–5) passa 3:1 contra UMA das duas linhas do halo, nos 2 temas", () => {
     const party = tokensPorTema();
     const globais = tokensGlobaisPorTema();
@@ -335,5 +348,93 @@ describe("RNF-035 — o HALO chega às legendas (`MapLegend.tsx`), não só ao m
         /LEGEND_STEP_HALO/,
       );
     }
+  });
+});
+
+describe("RNF-035 — o mapa de MUNICÍPIO (`ChoroplethMapUF`) também", () => {
+  const UF_MAP = "components/atoms/maps/ChoroplethMapUF.tsx";
+
+  /**
+   * As cores que ESTE mapa pinta são diferentes das do nacional, e a diferença
+   * importa: o fill vem de `municipios[].cor`, que é a **cor-base do líder**
+   * (`MunicipioExplorer`), nunca um nível da escala de margem `-1..5`. Em
+   * compensação ele alcança dois grupos que o teste do mapa nacional **não**
+   * cobre, porque eles vivem em `globals.css` e não em `tokens-party.css`:
+   * `--color-cand-*` e `--color-cand-band-*` (fallback por rank, pré-ADR-0024).
+   *
+   * E são justamente esses os piores: as seis faixas medem de 1,43 a 1,63
+   * contra branco no tema claro.
+   */
+  function coresQueEsteMapaPinta(tema: "claro" | "escuro"): Record<string, string> {
+    const party = tokensPorTema()[tema];
+    const globais = tokensGlobaisPorTema()[tema];
+    return {
+      ...Object.fromEntries(Object.entries(party).filter(([k]) => SO_BASE.test(k))),
+      ...Object.fromEntries(
+        Object.entries(globais).filter(([k]) => /^color-cand|^color-tossup/.test(k)),
+      ),
+    };
+  }
+
+  it("as cores do mapa de município passam 3:1 contra UMA das duas linhas do halo, nos 2 temas", () => {
+    const falhas: string[] = [];
+    for (const tema of ["claro", "escuro"] as const) {
+      const globais = tokensGlobaisPorTema()[tema];
+      const stroke = globais["map-stroke"];
+      const focus = globais["map-stroke-focus"];
+      expect(stroke, `--map-stroke ausente no tema ${tema}`).toBeDefined();
+      expect(focus, `--map-stroke-focus ausente no tema ${tema}`).toBeDefined();
+
+      const cores = coresQueEsteMapaPinta(tema);
+      // Guarda do instrumento: se a extração devolvesse pouca coisa, o teste
+      // passaria sem ter olhado o que importa. Medido em 18/09: 54 cores.
+      expect(
+        Object.keys(cores).length,
+        `só ${Object.keys(cores).length} cores extraídas no tema ${tema} — esperava ~54`,
+      ).toBeGreaterThan(40);
+
+      for (const [nome, hex] of Object.entries(cores)) {
+        const ok =
+          contraste(hex, stroke as string) >= PISO_NAO_TEXTO ||
+          contraste(hex, focus as string) >= PISO_NAO_TEXTO;
+        if (!ok) falhas.push(`${tema}/${nome} (${hex})`);
+      }
+    }
+    expect(falhas, "cor de município sem nenhuma das duas linhas do halo passando 3:1").toEqual([]);
+  });
+
+  it("🔴 o traço branco cravado que existia antes REPROVA — é a prova de que a troca valeu", () => {
+    // Este caso não protege o código: ele **documenta o motivo** da mudança, e
+    // trava a interpretação. Se um dia alguém "simplificar" o halo de volta
+    // para uma linha branca, este número é o argumento contra.
+    //
+    // Medido em 18/09: 14 reprovações no claro, 17 no escuro, de 54 cores.
+    const porTema: Record<string, number> = {};
+    for (const tema of ["claro", "escuro"] as const) {
+      porTema[tema] = Object.values(coresQueEsteMapaPinta(tema)).filter(
+        (hex) => contraste(hex, "#ffffff") < PISO_NAO_TEXTO,
+      ).length;
+    }
+    expect(porTema.claro, "no claro, o branco cravado reprovava contra 14 cores").toBe(14);
+    expect(porTema.escuro, "no escuro, contra 17").toBe(17);
+  });
+
+  it("o mapa de município desenha as DUAS linhas e não usa cor cravada no traço", () => {
+    const src = readFileSync(resolve(RAIZ, UF_MAP), "utf8");
+
+    expect(src, "camada clara do halo ausente").toMatch(
+      /id:\s*"municipios-stroke-halo"[\s\S]{0,260}--map-stroke,/,
+    );
+    const blocoEscuro = /id:\s*"municipios-stroke",[\s\S]*?\n\s*\},/.exec(src)?.[0] ?? "";
+    expect(blocoEscuro, "camada escura permanente ausente ou mudou de forma").toMatch(
+      /--map-stroke-focus,/,
+    );
+
+    // 🔴 O defeito original: `"line-color": "#ffffff"` cravado. Nenhum
+    // `line-color` deste arquivo pode voltar a ser hex literal — em tema
+    // escuro, cor cravada é a única coisa da tela que não sabe que o tema
+    // mudou.
+    const cravadas = [...src.matchAll(/"line-color":\s*"(#[0-9a-fA-F]{3,8})"/g)].map((m) => m[1]);
+    expect(cravadas, "line-color com hex cravado voltou ao mapa de município").toEqual([]);
   });
 });
