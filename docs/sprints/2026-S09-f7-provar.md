@@ -220,11 +220,37 @@ Referência: [S07 § Triagem](./2026-S07-f6-simulado-hero-1t.md#triagem-das-60-c
       **os dois apenas registram no log** — não há `throw` antes do `fetch`. Encaixa na chore 4.
 - [ ] **`archiveProjectionKey` é lida e nunca escrita** *(S07 linha 437)* — `lib/edge-config/reader.ts:213`
       lê; nenhum escritor grava. Ou passa a ser escrita, ou a leitura sai.
-- [ ] **Incorporar as fixtures `2026-sim` à suíte** *(S07 linha 528)* — os 14 arquivos reais do
-      simulado (`tests/fixtures/tse/2026-sim/`) **não são consumidos por nenhum teste
-      automatizado**. O teste que valida `EA20Schema` usa `tests/fixtures/tse/2026/`, um
-      diretório **sintético diferente** derivado do dicionário do TSE. O único consumidor do
-      dado real é o script manual `scripts/verify-fatia-premise.ts`.
+- [x] **Fixtures `2026-sim` incorporadas à suíte** *(S07 linha 528)* — 18/09,
+      `tests/unit/tse/simulado-2026-real.test.ts`, **17 casos**. Os 14 arquivos reais do
+      simulado passam a ser lidos em toda corrida.
+
+      Antes, o teste de `EA20Schema` usava `tests/fixtures/tse/2026/` — diretório
+      **sintético**, derivado do dicionário de campos, porque o TSE não publica exemplo de
+      JSON completo. Ele prova que o parser casa com a **documentação**; um simulado existe
+      justamente para revelar onde documentação e realidade divergem. As duas suítes ficam.
+
+      🔴 **A premissa da fatia virou teste, e sem banco.** `verify-fatia-premise.ts` exige
+      `DATABASE_URL` e por isso nunca roda em toda corrida. Mas Rio Branco e Bujari dividem a
+      zona 0009 e temos os dois arquivos — o discriminador está inteiro dentro deles:
+
+      | | Rio Branco | Bujari |
+      |---|---|---|
+      | município `e.te` | 279.602 | 25.657 |
+      | zona 0001 | 150.897 | — |
+      | zona 0009 | **128.705** | **25.657** |
+      | soma | 279.602 ✅ | 25.657 ✅ |
+
+      Duas provas independentes: a mesma zona dá números **diferentes** nos dois municípios
+      (se fosse a zona inteira, seriam iguais), e o município **fecha exatamente** com a soma
+      das zonas dele (a mais forte — falha também se os números forem diferentes mas errados).
+
+      **3 mutações, 3 vermelhas:** fabricar o mundo da multiplicação (3 failed), apagar um
+      arquivo capturado (3 failed — anti-vácuo), e exigir no schema um campo que o TSE não
+      manda (10 failed).
+
+      ⚠️ Armadilha de campo que quase me pegou: `e.a` é **abstenção**, não aptos. O total de
+      eleitores é `e.te`. Os três convivem no mesmo objeto e `e.c` (comparecimento) é maior
+      que `e.a` em vários arquivos, o que faz o erro parecer plausível.
 - [ ] **`scripts/profile-model.py` quebrado** *(S07 linha 172)* — gera payload achatado da era
       pré-Fase 1. ⚠️ Ele também cita **RNF-006 quatro vezes** (`:2,10,19,358`) para um limite de
       `p95 < 2000 ms` que **não existe em `docs/nfr/`** — ver o achado do RNF fantasma na

@@ -28,10 +28,47 @@ Conselheiro Distrital).
 
 ## Para que servem
 
+> ✅ **Desde 18/09 estes arquivos são GUARDA, não só amostra.**
+> `tests/unit/tse/simulado-2026-real.test.ts` (17 casos) os lê em toda corrida da suíte.
+> Antes disso o único consumidor era o script manual `verify-fatia-premise.ts`, e as duas
+> afirmações abaixo eram prosa de README conferida à mão uma vez — prosa de README não
+> reprova build.
+
 - **Passo 0 do protocolo** (`pnpm verify-fatia-premise`): os pares de Rio Branco e Bujari, que
   dividem a zona 0009, são o que prova que cada arquivo de zona traz **a fatia do município**, e não
   a zona inteira repetida. Veredito medido em 17/09: **FATIA CONFIRMADA**.
-- **Validação dos leiautes**: `EA20Schema`, `EA14Schema` e `EA15Schema` passam em todos os arquivos.
+
+  🔴 **O teste automatizado prova o mesmo SEM BANCO**, por dois caminhos independentes — o
+  script exige `DATABASE_URL` e por isso não roda em toda corrida:
+
+  | | Rio Branco (`ac01392`) | Bujari (`ac01007`) |
+  |---|---|---|
+  | município, `e.te` | 279.602 | 25.657 |
+  | zona 0001 | 150.897 | — |
+  | zona 0009 | **128.705** | **25.657** |
+  | soma das zonas | 279.602 ✅ fecha | 25.657 ✅ fecha |
+
+  1. a mesma zona 0009 dá **128.705 para um município e 25.657 para o outro** — se cada
+     arquivo trouxesse a zona inteira, os dois seriam idênticos;
+  2. o arquivo do **município fecha exatamente** com a soma dos arquivos das zonas dele — se
+     cada zona trouxesse o próprio total, a soma de Rio Branco estouraria o município.
+
+  A (2) é a prova forte: ela também falha num mundo em que os números são diferentes **mas
+  errados**. Mutação aplicada em 18/09 (fabricar o mundo da multiplicação, pondo o total nos
+  dois arquivos): **3 testes vermelhos**.
+
+  ⚠️ `e.te` é o total de eleitores. **Não confundir com `e.a`, que é abstenção**, nem com
+  `e.c`, que é comparecimento — os três convivem no mesmo objeto e os dois últimos são
+  maiores em alguns arquivos, o que faz um erro de campo parecer plausível.
+
+- **Validação dos leiautes**: `EA20Schema`, `EA14Schema` e `EA15Schema` passam em todos os
+  arquivos — agora **verificado em toda corrida**, contra o que o TSE de fato mandou.
+
+  Por que isso importa e não é redundante com `tests/unit/tse/ea20-fixtures-2026.test.ts`:
+  aquelas fixtures são **derivadas do dicionário de campos** (o TSE não publica exemplo de
+  JSON completo), então provam que o parser casa com a **documentação**. Um simulado existe
+  justamente para revelar onde documentação e realidade divergem. Mutação em 18/09 (exigir
+  no schema um campo que o TSE não manda): **10 testes vermelhos**.
 - **Exterior**: os três arquivos `zz*` são a base do [ADR-0045](../../../../docs/architecture/adrs/0045-exterior-zz-apuracao-presidencial.md).
 
 ## Regras
