@@ -125,6 +125,26 @@ jobs:
           .venv-model/bin/python -m pip install --quiet -r api/model/requirements.txt
           .venv-model/bin/python3.14 -c "import numpy, pydantic, psycopg; print('deps do modelo ok')"
 
+      # Os 560 testes do modelo estatístico não tinham portão nenhum até 18/09:
+      # o job montava o `.venv-model` só para que `model-cycle` e
+      # `model-edge-cases` (vitest) conseguissem invocar o modelo em subprocesso,
+      # e nunca executava a suíte Python. Uma regressão em `api/model/` — o
+      # coração aritmético do produto — passava verde. Item 4 da sprint S08.
+      #
+      # ⚠️ NÃO use `pnpm test:py`: o script é literalmente `python -m pytest`
+      # (package.json), pega o `python` do PATH e morre com
+      # `ModuleNotFoundError: pydantic` antes do primeiro teste.
+      #
+      # 🔴 Este passo NÃO recebe `DATABASE_URL`, e a ausência é deliberada.
+      # `pyproject.toml` fixa `testpaths = ["tests/unit/model"]`, que não toca o
+      # banco — medido em 18/09: `env -u DATABASE_URL … -m pytest` → 560 passed.
+      # Passar a credencial aqui só criaria a chance de algum teste futuro
+      # escrever num banco real por acidente, que é exatamente o incidente de
+      # 17/09 (1.877 linhas de harness em produção). Ver
+      # tests/integration/_guarda-banco.ts e docs/operations/runbook.md.
+      - name: Testes do modelo (pytest)
+        run: .venv-model/bin/python3.14 -m pytest
+
       - name: Unit tests
         run: pnpm test
         env:

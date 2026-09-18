@@ -703,6 +703,98 @@ As duas devem devolver **zero**. A primeira é a fácil de ver; a segunda é a p
 de harness sob o cargo real, misturada às candidaturas de verdade, entra no gráfico como se
 fosse resultado.
 
+## Vigia externo — `pnpm vigia:ciclo` (S08 item 2, 2026-09-18)
+
+> **Quem recebe**: a tarefa horária `~/.claude/scheduled-tasks/vigia-tse-2026/`, que roda na
+> máquina do dono, **fora da Vercel**. Ela reporta em linguagem comum e não conserta nada.
+
+### Por que existe
+
+**Todos os 9 alarmes do projeto moram dentro do próprio ciclo** — 5 em `api/model/project.py`
+(`_alert_slack`), 3 em `lib/tse/ingest-handler.ts` e 1 em `scripts/tse-watch.ts`
+(`notifySlack`). Eles só disparam a partir de código que roda **se o cron for invocado**. Se a
+Vercel parar de invocar o cron, ou a função morrer antes do primeiro alerta, **nada avisa** — e
+o site segue servindo o último payload, com cara de normalidade.
+
+O `heartbeat` diurno de `vercel.ts:114-117` não cobre isso: ele aponta para `/api/ingest`,
+isto é, para nós mesmos. **Um vigia que mora dentro do processo vigiado não é um vigia.**
+
+### 🔴 Por que ele não bate na porta do site — medido em 18/09
+
+```
+GET https://salacofre.vercel.app/               → HTTP 200 (HTML)
+GET https://salacofre.vercel.app/api/projection → HTTP 403 {"error":"bot_detected"}
+GET https://salacofre.vercel.app/api/health     → HTTP 403 {"error":"bot_detected"}
+```
+
+O Vercel BotID trata qualquer cliente automatizado como robô: **todas as rotas `/api/*` estão
+fechadas para um vigia**, e isso está certo — elas são rotas de leitura pública, não de
+máquina. A página HTML responde, mas **só traz a hora do boletim quando há apuração**; em fase
+pré-eleição não há carimbo algum, e "não achei a hora" seria indistinguível de "o ciclo
+morreu".
+
+Por isso o vigia lê o **payload publicado na sua fonte** (o store do Global Config), não pela
+porta do site. Efeito colateral útil: se o app cair mas o store estiver fresco, os dois sinais
+discordam — e a discordância é informação.
+
+### Uso
+
+```bash
+set -a; . ./.env.local; set +a
+pnpm vigia:ciclo                      # limite padrão: 15 min
+pnpm vigia:ciclo --limite-min 30      # mais tolerante
+```
+
+### Os seis estados e o que fazer com cada um
+
+O relógio é **`dado_ts`** (a hora que o TSE carimbou no boletim), nunca `ts` (a hora do nosso
+cálculo) — [ADR-0038 D1](../architecture/adrs/0038-dado-ts-hora-do-dado-nao-hora-do-calculo.md).
+Um pipeline que roda a cada minuto sobre um boletim congelado tem `ts` sempre novo e `dado_ts`
+parado: é exatamente a falha que se quer pegar, e olhar `ts` a esconderia.
+
+| Estado | Exit | O que significa | O que fazer |
+|---|---|---|---|
+| `pre_eleicao` | 0 | Não há o que apurar ainda | Nada. Silêncio é o certo. |
+| `fora_da_janela` | 0 | O ciclo não deveria estar rodando agora | Nada. |
+| `fresco` | 0 | Boletim dentro do limite | Nada. |
+| `parado` | **2** | 🔴 Dentro da janela e o boletim não anda | Ver § Alarme de dado parado abaixo; conferir o log da função na Vercel **e** a tela. |
+| `sem_payload` | **2** | 🔴 Dentro da janela e não há payload nenhum | Nenhum ciclo publicou. Conferir `CRON_ENABLED` e o log. |
+| `indeterminado` | **1** | O vigia está cego (falta credencial) | Conferir `EDGE_CONFIG`/`EDGE_CONFIG_TOKEN`. **Não** concluir que o ciclo parou. |
+
+🔴 **`indeterminado` sai com 1, não com 2, e a diferença não é cosmética.** "Não consegui
+olhar" jamais pode ter a mesma cara de "olhei e está parado". Foi precisamente essa
+indistinção — um 403 permanente lido como "o TSE ainda não publicou" — que custou dois dos
+três dias da primeira janela de simulado (15–17/09), com **zero commits em 14, 15 e 16/09**.
+
+### Três estados, não dois
+
+O vigia respeita a decisão do dono de 14/09: "não começou", "não sabemos" e "apurando" são
+**três** estados distintos. Um vigia que grita em fase pré-eleição é um vigia que ninguém lê
+em 04/10.
+
+### O que ainda NÃO está feito
+
+- ⏸️ **Não há canal de alarme.** `SLACK_WEBHOOK_URL` não existe em nenhum ambiente (decisão do
+  dono adiada em 18/09). O vigia **reporta**, não notifica: depende de alguém ler o relatório
+  da tarefa horária.
+- ⏸️ **O ensaio do `Definition of Done` da S08 não foi executado** — desligar `CRON_ENABLED`,
+  esperar o vigia acusar, religar. Fazer isso **depois** da janela de 22–24/09: mexer no
+  interruptor do cron às vésperas arrisca deixá-lo desligado justamente na janela.
+- ⏸️ **O vigia depende da máquina do dono estar ligada.** Um dead-man's switch hospedado
+  (serviço externo com página de status própria) é mais robusto e continua em aberto na S08 § 2.
+
+### Cobertura de teste
+
+`tests/unit/scripts/vigia-ciclo.test.ts` — 13 casos sobre o núcleo puro `avaliarCiclo`, sem
+rede e sem relógio implícito. Quatro mutações aplicadas à mão em 18/09, todas vermelhas:
+inverter o limiar (`>` → `>=`), remover a guarda de hora ilegível, trocar a ordem das guardas
+de credencial e fase, e remover a guarda de janela.
+
+⚠️ **A terceira sobreviveu na primeira tentativa** e o caso que a mata foi acrescentado depois
+(`"cego + payload de pré-eleição ainda é indeterminado"`). O defeito que passava: com um
+payload obsoleto em cache, o vigia relataria "não há o que apurar" quando na verdade não tinha
+conseguido ler nada.
+
 ## Ferramentas do pipeline TSE
 
 Três ferramentas introduzidas no hardening pré-simulado (Fase 0 da S07). As duas primeiras existem para que **nenhum teste precise tocar o CDN do TSE**.
