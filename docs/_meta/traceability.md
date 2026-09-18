@@ -111,6 +111,8 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-054 | Página Sobre o Modelo | M | [011](../specs/011-sobre-o-modelo/), [009](../specs/009-compartilhamento-meta/) | (MDX) | manual |
 | RF-055 | Footer fontes + disclaimer | M | [009](../specs/009-compartilhamento-meta/) | `<Footer />` | unit |
 | RF-056 | Dashboard saúde pipeline | M | [010](../specs/010-operacao-monitoramento/), [012](../specs/012-dashboard-status/) | `<MetricCard />` | manual |
+| RF-012.1 | Botão "Pausar Cron" (`/_status`) | M | [012](../specs/012-dashboard-status/) | — | ❌ **SEM COBERTURA — a spec 012 não foi implementada.** `app/_status/` contém **só** um `.gitkeep`; não existe rota, componente nem teste. A ausência aqui é de **código**, não de linha na matriz: enquanto `/_status` não existir, não há o que testar. Bloqueia `shipped` da spec 012. |
+| RF-012.2 | Botão "Forçar refresh" (`/_status`) | M | [012](../specs/012-dashboard-status/) | — | ❌ **SEM COBERTURA — idem RF-012.1.** Mesma causa: `app/_status/` só tem `.gitkeep`. Bloqueia `shipped` da spec 012. |
 | RF-057 | Alertas Slack se lag >60s | M | [010](../specs/010-operacao-monitoramento/) | — | manual (forçar) |
 | RF-058 | Modo manutenção amigável | M | [010](../specs/010-operacao-monitoramento/), [013](../specs/013-pagina-manutencao/) | — | manual |
 | RF-058.1 | Modo transição 1T→2T | M | [013](../specs/013-pagina-manutencao/) | `<TurnoTransitionBanner />` | unit |
@@ -151,6 +153,20 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-150 | "Fonte: TSE" visível e carimbo de frescor | M | [018](../specs/018-identidade-candidatura/) | `<CandidaturasFonte>` | unit (injeta `fonte_ts`, tela diz aquele valor — nunca literal) |
 | RF-151 | Fallback de avatar quando não há foto | M | [018](../specs/018-identidade-candidatura/) | `<CandidatoAvatar>` | unit (dimensões 161×225 sem foto, CLS zero, sem `colorForParty` como área) |
 | RF-152 | Cadência de reimportação e guarda de encolhimento | M | [018](../specs/018-identidade-candidatura/) | — | unit (`candidatos-import.test.ts::test_encolhimento_aborta_98_pctile`, `test_encolhimento_janela_critica_02_03_outubro`) |
+| RF-153 | `fase` no payload, lida em um só lugar, nunca derivada de percentual | M | [019](../specs/019-fase-pre-eleicao/) | — (`lib/config/fase.ts`) | ✅ unit (`tests/unit/config/fase.test.ts`, 12 casos + `tests/unit/api/edge-write-fase.test.ts`, 5 casos). O caso que discrimina é o **M2**: payload **sem** `fase`, com `pct_apurado_total: 0` e `por_uf: []` ⇒ modo **NORMAL** (`fase.test.ts:51`) — qualquer derivação por percentual zerado inverteria esse caso, e o par M3 (com `fase` e 37,4% apurado ⇒ modo PRÉ, `:72`) fecha a pinça nos dois sentidos. Complementos: comparação por **igualdade exata** do literal (`:108`), `composition.pre_election: 1` sem `fase` **não** liga o modo ([ADR-0043](../architecture/adrs/0043-fase-pre-eleicao-campo-proprio-nao-derivada.md) D2, `:90`), e guarda **estrutural** de que a string `pre_eleicao` não ocorre em `app/` nem `components/` (`:174`) e fora deles só vive nos donos declarados (`:197`). Na borda de escrita: `fase: "pre_eleicao"` atravessa **até o writer** sem ser descartado em silêncio (`edge-write-fase.test.ts:106`) e qualquer outro valor é 400 nos dois envelopes (`:130`, `:139`). |
+| RF-154 | Os quatro painéis de medição somem inteiros | M | [019](../specs/019-fase-pre-eleicao/) | `<RemainingPanel />`, `<ChancesPanel />`, `<BulletinPanel />`, `<StateGroupedTable />` (suprimidos **pelo chamador**) | ✅ unit (`tests/unit/pages/fase-pre-eleicao.test.tsx`, bloco «RF-154», `:185-244`). O par que discrimina é **M4 × M6**: em fase pré os quatro `data-testid` **não existem** no DOM (`:195`, `queryBy…` devolvendo `null` — nunca `toBeEmpty()`), e em modo normal **zerado**, sem `fase`, os quatro **continuam lá** (`:202`). Sem esse segundo caso, supressão por `fase` e supressão por número zero passariam iguais. Mais o controle positivo de que os quatro seletores devolvem não-nulo em modo normal (`:186`) e a varredura **sobre o texto**, não sobre o componente, das quatro frases da tabela de mentiras (M5, `:211`), com o par de que a frase do `RemainingPanel` de fato aparece quando deve (`:226`). |
+| RF-155 | `ResultPanel` em modo identidade: sem barra, sem margem, sem rank | M | [019](../specs/019-fase-pre-eleicao/) | `<ResultPanel />` | ✅ unit (`fase-pre-eleicao.test.tsx`, bloco «RF-155», `:245-299`). Três asserções negativas, **cada uma com seu controle positivo em modo normal** — que é o que impede um seletor quebrado de passar: nenhum `<VoteBar>` em fase pré (`:246`) vs. presente em modo normal (`:252`); as strings `"pp"`, `"Margem"` e `"+0,0"` ausentes (`:257`) vs. presentes (`:268`); nenhuma linha de candidatura com posição ordinal (`:274`) vs. lista ordinal (`:289`). Repetido nos dois layouts da home (`binary` e `multi-1t`, `:1275`). |
+| RF-156 | `RaceTypeIndicator` conta quem concorre, não quem pontuou | M | [019](../specs/019-fase-pre-eleicao/) | `<RaceTypeIndicator />` | ✅ unit (`tests/unit/components/RaceTypeIndicator.preEleicao.test.tsx`, 5 casos + `fase-pre-eleicao.test.tsx:300`). O caso que discrimina é o **M7**: o **mesmo array** produz **12** em fase pré e **7** em fase normal (`RaceTypeIndicator.preEleicao.test.tsx:30`) — um número igual nos dois lados provaria que a contagem não mudou de fonte. Reforços: 12 candidaturas zeradas dizem 12, onde hoje diria "0" (`:47`); o número sai de `candidatos.length` e **nunca** de literal no JSX (`:61`, lição D8 da spec 017); `turno === 2` cai no fallback já existente (`:70`); e sem a prop o default é fase **normal** (`:81`). Na página, o mesmo M7 (`fase-pre-eleicao.test.tsx:306`) e a frase "Disputa entre 12 candidatos" (`:301`). |
+| RF-157 | Mapa: cor neutra na 1ª linha de `resolveColor`, controle suprimido, legenda trocada | M | [019](../specs/019-fase-pre-eleicao/) | `<NationalChoroplethMap />`, `<MapViewToggle />`, `<MapLegend />` | ✅ unit (`tests/unit/components/NationalChoroplethMap.preEleicao.test.tsx` + `NationalMapBlock.preEleicao.test.tsx` + `NationalChoroplethMap.legend.test.tsx:211`). **M8**: em fase pré as 27 UFs saem `--map-uncounted` nas **seis** combinações de vista (`preEleicao.test.tsx:251`), com o controle de que em modo normal as mesmas seis pintam com cor de identidade (`:237`) e de que a guarda antiga (`parcial` + 0% apurado) continua valendo em fase normal (`:264`). **M9** é o que não deixa a guarda migrar para o ramo errado — três asserções **estruturais** sobre `resolveColor`: vem antes de resolver `liderId` a partir de `top_candidatos[0]` (`:320`), antes do `switch (view)` e de qualquer leitura de `viewMode` (`:326`), e é a **primeira instrução do corpo** (`:334`). Chrome do bloco: `<MapViewToggle>` fora do DOM em fase pré com par de controle (`NationalMapBlock…:68`, `:76`), o `<UfPicker>` **permanece** — navegação não é medição (`:83`) —, legenda de partidos trocada pela de geografia (`:95` e `legend.test.tsx:211`), título deixa de dizer "quem lidera" (`:112`) e o mapa continua na tela (RNF-023, `:119`). |
+| RF-158 | `ForecastTransparency` vira parágrafo, e não some | M | [019](../specs/019-fase-pre-eleicao/) | `<ForecastTransparency />` | ✅ unit (`tests/unit/components/ForecastTransparency.test.tsx`, bloco de prosa `:121-176` + `fase-pre-eleicao.test.tsx`, bloco «RF-158», `:320-363`). **M10**: o bloco está presente nas três telas semeadas em fase pré **sem fração, barra nem percentual** (`:321`) — é o "e não some" que a constituição § 8 exige, e `/deputado-federal` tem o bloco de metodologia dele (`:340`); o controle é a decomposição numérica voltar em modo normal (`:352`). No componente, as duas variantes são distinguidas pelo que **podem afirmar**: `nao_comecou` pode dizer que ninguém votou (`:125`), `sem_dados` **não** afirma a causa e fala só de nós (`:134`), o default do ramo é `nao_comecou` (`:147`), e o fail-safe — `variante` sem `preEleicao` liga a prosa (`:152`) — tem o par de controle sem nenhuma das props (`:166`). |
+| RF-159 | O selo do shell para de afirmar liveness, para os olhos e para o leitor de tela | M | [019](../specs/019-fase-pre-eleicao/) | `<ShellLiveBadge />` | ✅ unit (`tests/unit/components/ShellLiveBadge.test.tsx`, bloco «RF-159», `:144-245` + `fase-pre-eleicao.test.tsx`, bloco (D), `:1072-1154`). **M11**: em fase pré o leitor de tela **não ouve** "Apuração ao vivo" (`:172`), com o par de modo normal em que, havendo percentual publicado, o selo **volta** a afirmar liveness (`:181`). O que sustenta a asserção: as duas frases acessíveis moram no DOM e **nunca** em `content` de CSS (`:145`) — uma frase em CSS não seria vista por `getByText` nem por leitor de tela —, e todo default do CSS é silêncio (`:159`). Variante `sem_dados`: publica **uma** só propriedade e não afirma causa nenhuma (`:222`); na cascata real, o leitor não ouve **nenhuma** das duas frases (`:233`). Por rota: cada rota em espera publica o selo silencioso (`fase-pre-eleicao.test.tsx:1074`), o par semeado publica as quatro (`:1093`), e há controle de que o helper `declaracoes` lê mesmo o que a página publica (`:1106`). |
+| RF-160 | Camada A: faixa `FasePreEleicaoBanner`, primeiro filho do `<main>`, não dispensável | M | [019](../specs/019-fase-pre-eleicao/) | `<FasePreEleicaoBanner />` | ✅ unit (`fase-pre-eleicao.test.tsx`, bloco «RF-160», `:364-507`). A asserção que discrimina é de **ordem, não de presença**: **M12** — a faixa é `firstElementChild` do `<main>` em cada rota (`:373`), repetido no ramo de espera da home (`:947`) e nos dois layouts (`:1341`); uma faixa presente mas abaixo do `<h1>` passaria num teste de presença e falha aqui. **M13** fixa a forma: `<section aria-labelledby>`, **sem** `role="alert"` e sem roubar foco (`:380`). Mais: a faixa traz a data e não fala como máquina (`:412`); "a eleição ainda não começou" só nas telas **semeadas**, nunca no ramo de espera (`:430`), onde a faixa diz "sem dados" (`:959`) e **não promete** uma lista de estados que a home não tem (`:976`, com par em que os estados existem, `:992`); em fase normal a faixa não existe em rota nenhuma (`:455`); e em `/deputado-federal` fica **acima** do parágrafo honesto, que continua lá (`:466`). |
+| RF-161 | Camada B: texto no lugar de cada zero, proibição de "projeção", ordem por número na urna | M | [019](../specs/019-fase-pre-eleicao/) | `<ResultPanel />`, `<FasePreEleicaoBanner />` | ✅ unit (`fase-pre-eleicao.test.tsx`, bloco «RF-161», `:508-669` + `tests/unit/components/ResultPanelAvatar.test.tsx:171`). **M14** é uma **varredura de vocabulário sobre o HTML renderizado**, não sobre uma lista de componentes: "projeç"/"projec" ocorre **zero** vezes fora do bloco do RF-158, rota a rota (`:520`), com o controle de que em modo normal a palavra **volta** a ocorrer (`:603`); a lista negra de medição não ocorre (`:527`) e a divergência de `/deputado-federal` está fixada em **exatamente três** ocorrências nomeadas (`:555`), o que impede a quarta entrar sem alarme. **M15** cobre a ordem: por **número na urna**, crescente, com o payload chegando **desordenado** de propósito (`:631`) e estável entre renders (`:647`), com par em modo normal onde a ordem volta a ser a de `pct_projetado` (`:657`). Mais o `<h1>` dizendo "Quem está concorrendo" (`:609`) e a `note` explicando que a lista é de registro (`:624`). O avatar é refém da mesma varredura: `ResultPanelAvatar.test.tsx:171` proíbe `%` **dentro do atributo `style`**, porque a varredura não distingue um `18%` de corte de um percentual na tela — e já reprovou a linha de identidade por isso em 14/09. |
+| RF-162 | Governador e Senador nacionais: 27 links, nenhuma grade de rostos | M | [019](../specs/019-fase-pre-eleicao/) | `<UfLinksGrid />` | ✅ unit (`fase-pre-eleicao.test.tsx`, bloco «RF-162 / RF-163», `:670-760` + `tests/unit/data-pipeline/projection-seed.test.ts:241`). **M16** são duas asserções, e a que discrimina é a negativa: exatamente **27** links de UF por rota (`:678`) **e nenhum nome de candidatura no documento** (`:693`) — a positiva sozinha passaria com os 27 links e uma grade de rostos logo abaixo. No semeador, a mesma regra do lado do dado: só o cargo 1 recebe identidade, `gov` e `sen` ficam **sem nome** (`projection-seed.test.ts:241`). Também coberto: com payload ausente, `/governador` e `/senador` não mostram percentual nem zero solto (`:763`), as duas frases do `emptyPayload()` não ocorrem (`:769`) e a estrutura fica de pé (constituição § 3, `:776`), com o controle 🔴 de que o payload antigo **dispara todas** as varreduras (`:802`). |
+| RF-163 | Deputado Federal não é semeado; a tela de espera ganha faixa, selo e 27 links | M | [019](../specs/019-fase-pre-eleicao/) | `<UfLinksGrid />`, `AguardandoNacional` | ✅ unit (`projection-seed.test.ts`, bloco «RF-163 / RF-164», `:179-273` + `fase-pre-eleicao.test.tsx:702`, `:466`). **M17** é uma asserção **negativa sobre o conjunto de chaves efetivamente gravadas**, verificada contra o store, não contra a intenção do script: **nenhuma** chave de cargo `dep` é escrita (`projection-seed.test.ts:180`). Na tela: o semeador não alimenta `/deputado-federal`, que continua sem payload (`fase-pre-eleicao.test.tsx:702`), e a faixa do RF-160 fica **acima** do parágrafo `data-testid="dep-aguardando"`, que **não é reescrito** (`:466`). |
+| RF-164 | Semeador `projection-seed.ts`: `por_uf` vazio, ordem `gov → sen → pres`, reentrância fechada | M | [019](../specs/019-fase-pre-eleicao/) | — (`data-pipeline/projection-seed.ts`) | ✅ unit (`tests/unit/data-pipeline/projection-seed.test.ts`, blocos «RF-164» `:122-178` e `:319-386`). Payload: `fase: "pre_eleicao"` com `por_uf: []` (`:123`), **todo** campo de medição da candidatura zerado enquanto a identidade sobrevive (`:136`), `ehSemeado` por igualdade exata — a dúvida resolve para **não escrever** (`:167`) — e o tamanho **medido, não estimado**: ~10 KB ([ADR-0032](../architecture/adrs/0032-detalhe-municipal-vercel-blob.md), `:251`), com `dryRun` que mede sem gravar (`:261`). Ordem (**M18**): a ordem **declarada** é `gov → sen → pres` (`:214`) **e** a ordem de gravação **observada** é a declarada (`:219`) — declarar sem observar deixaria a constante certa e o laço errado; o alias `projection-current` carrega o payload do **cargo 1** (`:199`). Reentrância (**M19**): chave existente **sem** `fase` ⇒ não grava **nada** e lança (`:322`), a recusa **nomeia** as chaves ocupadas (`:338`), chave **com** `fase` sobrescreve (re-semear é esperado, `:348`), `--force` levanta **só** essa recusa (`:358`), e a guarda cobre os **quatro** destinos — as três nomeadas e o alias (`:377`). |
+| RF-165 | Fiscal de limpeza `scripts/edge-config-prune.ts` | M | [019](../specs/019-fase-pre-eleicao/) | — (`scripts/edge-config-prune.ts`) | ✅ unit (`tests/unit/scripts/edge-config-prune.test.ts`, 11 casos em 2 blocos). A asserção que discrimina é sobre **o que sobrou**, não sobre o que foi apagado: com as duas flags, remove só as chaves que têm `fase` (`:71`), e **nunca** toca chave sem o campo, mesmo quando ela se parece com uma semeada (`:86`). Duas travas: sem argumento apenas **lista** (`:48`) e `--apagar` sem `--confirmar` continua não apagando (`:62`). O que impede o fiscal de virar adivinho: varre o store **inteiro**, não uma lista fixa de nomes esperados (`:108`); `carregaFaseSemeada` é igualdade exata, gravação fora do contrato não é apagada (`:121`); e ele **não deriva a fase** de `pct_apurado_total`, `por_uf.length` nem `composition.pre_election` (`:157`) — a mesma proibição do RF-153, do outro lado do pipeline. Operação: o relatório traz cargo, turno e bytes (`:128`), uma falha ao apagar não derruba o ciclo e a chave conta como sobrevivente (`:135`), flag desconhecida é erro e não silêncio (`:150`), e no caminho feliz (transição concluída) não encontra nada (`:99`). |
+| RF-166 | Transição de 04/10: o primeiro upsert real apaga a fase | M | [019](../specs/019-fase-pre-eleicao/) | — (produtor Python) | ✅ unit (`projection-seed.test.ts`, bloco «RF-166», `:274-318` + `tests/unit/model/test_fase_ausente_no_emissor.py`, 4 casos). Do lado da gravação: é **substituição integral** — um merge deixaria `fase` por baixo do dado real e a tela ficaria em modo pré indefinidamente, sem alarme (`:275`) — e a transição é **por cargo**: um cron atrasado não arrasta os outros dois (`:299`). Do lado do produtor, a prova é **negativa sobre o JSON emitido**: `api/model/project.py` e `api/model/deputado_payload.py` **nunca** emitem a chave `fase` (`test_fase_ausente_no_emissor.py:133`, `:145`) — um emissor que escrevesse `fase: null` ou `fase: "normal"` passaria num teste positivo e falha aqui —, inclusive com zero apurado (`:155`), e `composition.pre_election` continua existindo **sem** ser a fase (`:169`). Fecha com a guarda estrutural de `tests/unit/config/fase.test.ts:214`: os dois emissores Python não conhecem o literal. |
 | RF-167 | O percentual por candidatura é persistido, não recalculado | M | [020](../specs/020-evolucao-da-apuracao/) | — (produtor Python) | ✅ unit (`tests/unit/model/test_projections_serie.py`, 15 casos): migration 0009 **aplicada em produção**, e `linhas_para_projections`/`insert_projections` (`api/model/project.py`) gravam `pct_atual`/`votos_atuais`/`dado_ts`. 8 mutações aplicadas, todas mortas — entre elas `?? 0` sobre linha sem medição, `dado_ts or now()` (o relógio do ciclo no lugar do boletim, ADR-0038), nacional como média das UFs em vez de razão de somas, e tirar `dado_ts` da lista do INSERT. Escopo travado por `CARGOS_COM_SERIE_PERSISTIDA = {1, 3, 5}` (2 casos: Deputado Federal fora, Presidente/Governador/Senador dentro). |
 | RF-168 | A série é limitada por construção, nunca por corte | M | [020](../specs/020-evolucao-da-apuracao/) | — (produtor Python) | ⚠️ **sem cobertura** — `fetch_series_por_candidato` (cadência adaptativa, teto de 120, último-do-balde) é **Fase 2** e não existe no repositório (grep vazio em `api/`, `lib/`, `tests/`). O teto e a forma colunar estão decididos no [ADR-0046](../architecture/adrs/0046-serie-por-candidato-limitada-por-construcao.md) D2 e tipados em `lib/edge-config/types.ts`, mas **tipo não é teste**. ⚠️ **Nota 2026-09-18**: a Fase 2 entrou — `fetch_series_por_candidato`/`montar_serie_por_candidato` existem (`api/model/project.py`) com testes em `tests/unit/model/test_serie_por_candidato.py`, e o eixo ganhou a regra do [ADR-0047](../architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md) D2 (RF-168e: linha sem `dado_ts` não vira ponto; `test_sql_descarta_a_linha_sem_hora_do_boletim`). O **veredito de cobertura desta linha aguarda `rf-coverage-checker`** — esta nota registra o estado do código, não um gate. |
 | RF-169 | O último ponto é o número publicado ao lado | M | [020](../specs/020-evolucao-da-apuracao/) | — (produtor Python) | ⚠️ **sem cobertura** — depende de `anexar_ponto_corrente` (**Fase 2**), que não existe no repositório. Hoje a leitura da série precede o INSERT do ciclo em `api/model/project.py`, então o defeito **existe e não é detectado**. ⚠️ **Nota 2026-09-18**: `anexar_ponto_corrente` entrou (`api/model/project.py:1028`), com testes em `tests/unit/model/test_serie_por_candidato.py`, e ganhou a regra do [ADR-0047](../architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md) D2 (RF-169d: sem hora legível, o ponto do ciclo **não** é publicado — `test_ponto_corrente_sem_hora_do_boletim_vira_buraco_e_nao_ponto`, e `test_com_o_coalesce_de_volta_na_leitura_o_ciclo_cego_ressuscita` para a meia-correção). O **veredito de cobertura aguarda `rf-coverage-checker`**. |
@@ -163,6 +179,12 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-176 | Tabela completa para leitor de tela, com as duas bases | M | [020](../specs/020-evolucao-da-apuracao/) | `<SerieApuracaoChart />` | ✅ unit (`tests/unit/components/serie-apuracao-chart.test.tsx`, bloco “RF-176”, 4 casos): uma linha por instante, hora legível (nunca ISO cru), legenda declarando a projeção como não oficial, SVG com papel de imagem. ⚠️ O item (e) — axe nas 4 rotas × 2 temas × 2 viewports — **ainda não foi rodado**. |
 
 ## RFs adicionados pelas specs (não estavam no PRD)
+
+> **O que esta tabela é**: um índice de **origem** — qual RF nasceu em qual spec.
+> **O que ela não é**: afirmação de cobertura. A coluna "Teste" existe só na matriz
+> principal acima, e é só ela que o gate `rf-coverage-checker` lê. Desde 2026-09-18
+> todo RF listado aqui **também** tem linha lá em cima; se um dia um RF aparecer só
+> aqui, isso é um defeito, não uma escolha de organização.
 
 | RF spec-local | Descrição | Spec |
 |---|---|---|
@@ -249,24 +271,72 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 
 ## Cobertura
 
-**152 RFs distintos** listados neste documento (60 originais do PRD + os
-adicionados pelas specs: RF-005.1-4, RF-006.1-5, RF-010.1-6, RF-012.1-2,
-RF-020.1-3, RF-030.7-9, RF-058.1-2, RF-061-63, RF-100-108, RF-120-130+125.1,
-RF-140-176). Todos mapeados pra alguma spec.
+**152 RFs distintos**, todos na matriz principal.
 
-> ⚠️ **16 deles não estão na matriz principal** — a única tabela com coluna
-> "Teste", e a única que o gate `rf-coverage-checker` lê. Aparecem só no índice
-> "RFs adicionados pelas specs", onde **não há afirmação de cobertura nenhuma**:
-> RF-012.1, RF-012.2 (spec 012) e RF-153..RF-166 (spec 019). Estar ali não é
-> cobertura — é uma linha faltando na matriz de cima.
+> **Critério da contagem** (escrito aqui porque a ausência dele foi o que deixou
+> este número divergir do `README.md` até 2026-09-18): conta-se **identificador
+> distinto**, e um RF com sufixo decimal conta como **um** identificador próprio —
+> `RF-030` e `RF-030.1` são dois, não um. Sob esse critério: **66 vêm do PRD**
+> (RF-001..RF-060 mais RF-030.1..RF-030.6) e **86 foram acrescentados pelas specs**
+> (RF-005.1-4, RF-006.1-5, RF-010.1-6, RF-012.1-2, RF-020.1-3, RF-030.7-9,
+> RF-058.1-2, RF-061-063, RF-100-108, RF-120-130 + RF-125.1, RF-140-176).
+> Medido em 2026-09-18 contando IDs únicos na primeira coluna da matriz principal.
+
+**Os 16 RFs que viviam só no índice de origem foram promovidos em 2026-09-18.** Até
+essa data, `RF-012.1`, `RF-012.2` (spec 012) e `RF-153..RF-166` (spec 019) apareciam
+**apenas** na tabela "RFs adicionados pelas specs", que não tem coluna "Teste" — e é a
+coluna "Teste" da matriz principal a única coisa que o gate `rf-coverage-checker` lê.
+Consequência: 16 RFs eram invisíveis ao portão, e a spec 019 podia ser promovida a
+`shipped` sem que nada os confrontasse. As 16 linhas agora existem lá em cima, com a
+coluna "Teste" preenchida contra arquivo e número de linha conferidos no disco.
+
+**Estado depois da migração**:
+
+- **RF-153..RF-166 (spec 019) — 14 de 14 com cobertura confirmada.** Todos os arquivos
+  citados foram abertos; as asserções descritas na matriz são as que **discriminam**
+  (o par M2/M3 do RF-153, o par M4/M6 do RF-154, o mesmo array dando 12 e 7 no RF-156,
+  a ordem `firstElementChild` do RF-160, a varredura de vocabulário do RF-161, a
+  asserção sobre o conjunto de chaves gravadas do RF-163/165), não a mera presença de
+  um arquivo com o nome certo.
+- **RF-012.1 e RF-012.2 (spec 012) — sem cobertura, porque não há código.** `app/_status/`
+  contém só um `.gitkeep`: a rota `/_status` nunca foi implementada. Esta é uma ausência
+  de **implementação**, não de linha na matriz — e é a diferença que importa: as outras 14
+  estavam testadas e invisíveis; estas duas estão visíveis e não testadas. Bloqueia
+  `shipped` da spec 012.
+
+⚠️ **Divergência registrada em 2026-09-18**: o frontmatter de
+[`docs/specs/012-dashboard-status/spec.md`](../specs/012-dashboard-status/spec.md) declara
+`requirements: [RF-056, RF-057]` — **não** lista RF-012.1 nem RF-012.2, embora a própria
+spec os defina em EARS (`spec.md:45-53`). O `rf-coverage-checker` parte do `requirements:`
+do frontmatter; enquanto ele não citar os dois, o gate continuaria sem vê-los mesmo com a
+linha na matriz. Correção pendente na spec (fora do escopo desta passagem).
 
 ## RNFs
 
-NFRs cobertos em [../nfr/](../nfr/) — 34 RNFs (RNF-001..RNF-034). Cada spec lista no frontmatter quais NFRs aplicam.
+NFRs cobertos em [../nfr/](../nfr/). Duas contagens, porque dependem do critério — e é
+por não declararem o critério que este arquivo dizia 34 e o [`README.md`](../README.md)
+dizia 36 até 2026-09-18:
+
+- **34 identificadores-base**: RNF-001..RNF-034, sem buracos.
+- **36 metas mensuráveis vigentes**: os 34 acima, menos RNF-007 — que deixou de valer
+  sozinho quando foi desdobrado em RNF-007a/b/c ([../nfr/performance.md](../nfr/performance.md), § do
+  refinamento de 2026-05-17: a meta original "<150KB total" era inalcançável com MapLibre) —, mais
+  os três desdobramentos. 33 + 3 = 36. `RNF-007a-floor` **não** entra: é linha
+  informacional (piso de framework medido), não meta.
+
+Medido em 2026-09-18 por IDs únicos em `docs/nfr/*.md`. Cada spec lista no frontmatter quais
+NFRs aplicam.
 
 ## ADRs
 
-46 ADRs em [../architecture/adrs/](../architecture/adrs/) (ADR-0001..ADR-0046) — 43 `accepted`, 3 `superseded` (ADR-0013, ADR-0015, ADR-0018). Specs referenciam ADRs aplicáveis no frontmatter.
+**47 ADRs** em [../architecture/adrs/](../architecture/adrs/) (ADR-0001..ADR-0047) — **44 `accepted`,
+3 `superseded`** (ADR-0013, ADR-0015, ADR-0018). Critério: um arquivo `.md` por ADR no diretório,
+contado em 2026-09-18 (`ls docs/architecture/adrs/*.md | wc -l`), com o status lido do frontmatter
+de cada um. Specs referenciam ADRs aplicáveis no frontmatter.
+
+> As listas "Novos em ..." abaixo são um **log de destaques**, não o inventário completo — o
+> número autoritativo é o do parágrafo acima, medido no diretório. ADR-0044 (código de eleição por
+> cargo) e ADR-0045 (exterior ZZ) são de 2026-09-17 e não aparecem aqui.
 
 **Novos em 2026-09-07**:
 - ADR-0024 (paleta editorial por partido) — hoje `accepted`; supersede o ADR-0013
@@ -282,6 +352,14 @@ NFRs cobertos em [../nfr/](../nfr/) — 34 RNFs (RNF-001..RNF-034). Cada spec li
 
 **Novos em 2026-09-17** (spec 020):
 - ADR-0046 (série por candidato limitada por construção) — `accepted`, **emenda** o ADR-0032 (não o supersede): forma colunar, teto de 120 pontos re-bucketizado, elenco decidido no produtor, e o escopo nacional na chave de Global Config já existente em vez de chave nova. Ver [../architecture/data-model.md](../architecture/data-model.md) § «Série por candidatura».
+
+**Novos em 2026-09-18** (spec 020):
+- [ADR-0047](../architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md) (as duas
+  emendas do dono à série) — `accepted`, **emenda** o ADR-0046 (D5, cor da linha) e o ADR-0038 (D1, o
+  que fazer sem hora do dado); **não supersede** nenhum dos dois. D1: a linha usa `textForParty` (a
+  variante legível), não a cor-base — quatro partidos reprovavam o piso de 3:1 do SC 1.4.11 no tema
+  claro. D2: ciclo sem `dado_ts` vira **buraco na linha**, não ponto no relógio de cálculo. Já citado
+  no corpo desta matriz por RF-168, RF-169 e RF-171.
 
 Spec 016 (Senador) — `draft`, implementada em S07. Spec 017 (Deputado Federal) — **`shipped` em 13/09**, com os 4 gates aprovados: `rf-coverage-checker` PASS (12 RFs), `constitution-guard` PASS **na reexecução** (a primeira rodada reprovou — `<DeputadoMetodologia>` afirmava ao leitor uma granularidade que o ADR-0036 tinha acabado de inverter; corrigido em `8cd955f`), `a11y-perf-auditor` PASS (Lighthouse a11y 100/100, axe 0 violações em 12 combinações, bundle idêntico byte a byte), e `spec-syncer` executado. RF-127 completo desde `2bcee57` — o intervalo de cadeiras existe, e a marcação de cadeira indefinida **coexiste** com ele.
 

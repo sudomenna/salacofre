@@ -55,7 +55,7 @@ Lista append-only de itens que **vão precisar acontecer** mas ainda não foram 
   (`v.vvc = v.vv + v.van + v.vansj`) — ver [ADR-0020](../architecture/adrs/0020-conformidade-res-23751-2026.md).
   Não citar "art. 265 §2º": esse parágrafo não foi confirmado em nenhuma fonte.
 - [ ] Monitorar mudança de leiaute até o dia D — não há freeze; `pnpm tse:watch --once` diário
-  a partir de agendador externo (ver [S08](./2026-S08-f7-estabilizacao.md))
+  a partir de agendador externo (ver [S08 — Enxergar](./2026-S08-f7-enxergar.md))
 
 ## Observabilidade
 

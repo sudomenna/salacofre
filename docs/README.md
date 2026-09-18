@@ -27,7 +27,7 @@ Documentação Spec-Driven Development (SDD) do SalaCofre — plataforma web pú
 
 ---
 
-## Specs (18)
+## Specs (20)
 
 | # | Spec | Status | Prioridade | Telas |
 |---|---|---|---|---|
@@ -44,6 +44,8 @@ Documentação Spec-Driven Development (SDD) do SalaCofre — plataforma web pú
 | 011 | [Sobre o Modelo](./specs/011-sobre-o-modelo/) | shipped | M | T-06 |
 | 012 | [Dashboard /_status](./specs/012-dashboard-status/) | draft | M | T-07 |
 | 013 | [Página de Manutenção](./specs/013-pagina-manutencao/) | ready | M | T-08 |
+| 014 | [Boca de urna + recorte demográfico](./specs/014-boca-de-urna/) | draft | S | — |
+| 015 | [Drill-down município](./specs/015-drill-down-municipio/) | draft | S | — |
 | 016 | [Senador](./specs/016-senador/) | draft | M | T-09, T-10 |
 | 017 | [Deputado Federal](./specs/017-deputado-federal/) | shipped | M | T-11, T-12 |
 | 018 | [Identidade de Candidatura](./specs/018-identidade-candidatura/) | draft | M | T-13, T-14 |
@@ -62,7 +64,7 @@ docs/
 ├── PRD.md                             # snapshot v0.1 (read-only)
 ├── constitution.md                    # princípios não-negociáveis
 ├── product/                           # vision, personas, use-cases, metrics, roadmap
-├── specs/                             # 15 specs (4 superseded/deferred, 11 ativas)
+├── specs/                             # 20 specs (1 superseded: 001.1; 19 ativas)
 ├── architecture/                      # overview, stack, data, APIs, ADRs
 ├── design-system/                     # tokens, grid, components, animations
 ├── mapas/                             # PMTiles, MapLibre, brushing, mobile
@@ -89,6 +91,7 @@ Antes de criar/editar specs, ler [_meta/conventions.md](./_meta/conventions.md):
 
 ## Status atual
 
-- **Documentação**: atualizada S07 Fase 8 (60 RFs do PRD + 79 RFs adicionados nas specs mapeados = 139 RFs totais; 46 ADRs — 43 accepted + 3 superseded; 36 RNFs; 20 specs, 19 ativas + 1 superseded).
+- **Documentação**: contagens medidas no disco em 2026-09-18 — **152 RFs** (66 do PRD: RF-001..RF-060 mais RF-030.1..RF-030.6; 86 acrescentados pelas specs), todos na matriz principal de [_meta/traceability.md](./_meta/traceability.md); **47 ADRs** (44 accepted + 3 superseded); **36 RNFs** vigentes (34 IDs-base RNF-001..RNF-034, sendo que RNF-007 não vale sozinho e conta como RNF-007a/b/c); **20 specs** (19 ativas + 1 superseded: 001.1).
+  > **Critério**, para os números pararem de divergir entre arquivos: RF com sufixo decimal conta como identificador próprio (`RF-030` e `RF-030.1` são dois); ADR é arquivo `.md` no diretório; RNF "vigente" exclui o ID desdobrado e inclui os desdobramentos, e não conta `RNF-007a-floor`, que é linha informacional. Os mesmos critérios estão escritos em [_meta/traceability.md](./_meta/traceability.md) §§ Cobertura, RNFs e ADRs.
 - **Código**: Implementação em progresso (S07 Fase 8: specs 001–006 + 016 shipped/implementing; **017 (Deputado Federal) implementada em 12/09, `shipped`, 4 gates PASS**; specs 002/008-013 em draft/ready; specs 014-015 diferidas; spec 019 em draft).
 - **Próximo passo**: Simulado TSE 1 (15–17/09) — ver [roadmap](./product/roadmap.md) e [sprint S07 ativa](./sprints/2026-S07-f6-simulado-hero-1t.md).

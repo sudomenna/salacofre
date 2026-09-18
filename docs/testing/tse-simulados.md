@@ -167,8 +167,45 @@ nenhuma do TSE):
 | `TSE_GRANULARIDADE` | `zona` | **não** `uf` — o modo `uf` quebra o modelo. Hoje é redundante (os **quatro** cargos são `zona` por padrão desde o [ADR-0036](../architecture/adrs/0036-deputado-federal-granularidade-zona-fatiada.md)), e chegou a **desativar em silêncio** o interruptor de emergência do cargo 6 até a precedência ser invertida em `bafe601` — o específico passa a vencer o global |
 | `CRON_ENABLED` | `false` | os primeiros ciclos são manuais |
 
-**Falta uma só**: `TSE_COD_ELEICAO`, no escopo **preview**, com o valor obtido no Passo 1.
-Ela não tem default e `getCodEleicao` (`lib/tse/targets.ts`) **lança** sem ela.
+**Faltam duas, não uma** — 🔴 **corrigido em 2026-09-18.** Até aqui este passo dizia "falta uma só:
+`TSE_COD_ELEICAO`". Essa variável **foi substituída** pelo
+[ADR-0044](../architecture/adrs/0044-codigo-eleicao-por-cargo.md) (17/09), porque o pleito 2026 não é
+uma eleição só: sob o mesmo pleito `17801` e o mesmo ciclo `ele2026` existem **duas árvores de URL
+paralelas**, cada uma com seu código. As duas variáveis, no escopo **preview**:
+
+| Variável | Valor do simulado | Cargos que ela resolve |
+|---|---|---|
+| `TSE_COD_ELEICAO_FEDERAL` | `ele2026/21270` | Presidente (cargo 1) |
+| `TSE_COD_ELEICAO_ESTADUAL` | `ele2026/21272` | Governador (3), Senador (5), Deputado Federal (6) |
+
+Os valores vêm do `ele-c.json` real do simulado, hoje no repositório em
+`tests/fixtures/tse/2026-sim/ele-c.json` — pleito `17801`, ciclo `ele2026` (que vive em `pl[].c`, não
+na raiz), com três eleições e nada mais:
+
+- `21270` — "Eleição Ordinária Federal - 2026 - 17801 1º Turno" → **Presidente**
+- `21272` — "Eleição Ordinária Estadual - 2026 - 17801 1º Turno" → **Governador, Senador, Deputados**
+- `21274` — "Eleição Ordinária Municipal - 2026 - 17801 - 26/04/2026 1º Turno" → **fora de escopo**
+
+Implementação em `lib/tse/targets.ts:293-367`. O que importa saber antes de configurar:
+
+- `getCodEleicao(eleicao)` (`targets.ts:332`) **exige** o parâmetro — não existe mais uma chamada
+  "para todos os cargos". `getCodEleicaoDoCargo(cargo)` (`targets.ts:366`) é o atalho que o pipeline usa.
+- A resolução é: específica → `TSE_COD_ELEICAO` (legado) → **throw** (`targets.ts:339-346`). Nenhuma
+  das duas tem default; sem valor, o ciclo **lança**, não degrada.
+- 🔴 **Uma específica nunca supre a outra eleição.** Setar só `TSE_COD_ELEICAO_FEDERAL` **não** dá
+  valor nenhum à estadual — ela lança do mesmo jeito. Isso é deliberado: autorizar a travessia seria o
+  mesmo "default silencioso em conversor de enum" que esta base já pagou quatro vezes, e o sintoma
+  aqui seria um **404 sistemático** nos três cargos estaduais, difícil de diagnosticar.
+- O formato é validado por regex `^ele\d{4}/\d+$` (`targets.ts:300`, `:348`) — uma URL malformada
+  contra o TSE real pode disparar bloqueio de IP por 10 min.
+- `TSE_BASE_URL` continua respondendo **só** por host+ambiente. A eleição é dimensão **ortogonal**,
+  resolvida por cargo, nunca embutida no base URL.
+
+⚠️ **Para produção o código continua DESCONHECIDO.** A última leitura da vigia
+(`build/tse-watch/state.json`, `updatedAt: 2026-09-18T05:29:40Z` — 02h29 BRT) ainda reporta
+`eleC.ciclo: "ele2024"`, com as eleições de 2024. O TSE publica os parâmetros oficiais em **03/10**.
+**Jamais adivinhar** — os códigos de produção não são necessariamente 21270/21272, e uma URL
+malformada pode bloquear o IP por 10 min.
 
 Vigia automática rodando de hora em hora desde 13/09 (`vigia-tse-2026`, em
 `~/.claude/scheduled-tasks/`): roda `pnpm tse:watch --once` contra produção e contra o simulado, e

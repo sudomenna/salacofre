@@ -3,7 +3,7 @@
   "name": "SalaCofre Docs Index",
   "description": "Índice machine-readable da documentação SDD do SalaCofre. Carregar este arquivo dá a um agente o mapa completo das specs, NFRs, ADRs e fontes canônicas.",
   "version": "1.0",
-  "last_updated": "2026-09-17",
+  "last_updated": "2026-09-18",
   "source_prd": "docs/PRD.md",
   "constitution": "docs/constitution.md",
   "conventions": "docs/_meta/conventions.md",
@@ -540,16 +540,56 @@
       },
       {
         "id": "2026-S08",
+        "title": "Sprint 08 — Enxergar",
         "phase": "F7",
         "status": "planned",
-        "start": "2026-09-25",
-        "end": "2026-10-03",
+        "start": null,
+        "end": null,
+        "sequence": 1,
+        "specs_in_flight": ["010-operacao-monitoramento"],
+        "path": "docs/sprints/2026-S08-f7-enxergar.md"
+      },
+      {
+        "id": "2026-S09",
+        "title": "Sprint 09 — Provar",
+        "phase": "F7",
+        "status": "planned",
+        "start": null,
+        "end": null,
+        "sequence": 2,
+        "depends_on_sprint": "2026-S08",
+        "specs_in_flight": ["020-evolucao-da-apuracao"],
+        "path": "docs/sprints/2026-S09-f7-provar.md"
+      },
+      {
+        "id": "2026-S10",
+        "title": "Sprint 10 — Só afirmar o que sustenta",
+        "phase": "F7",
+        "status": "planned",
+        "start": null,
+        "end": null,
+        "sequence": 3,
+        "depends_on_sprint": "2026-S09",
         "specs_in_flight": [
-          "009-compartilhamento-meta",
-          "010-operacao-monitoramento",
-          "013-pagina-manutencao"
+          "002-modelo-estatistico",
+          "016-senador",
+          "018-identidade-candidatura",
+          "019-fase-pre-eleicao",
+          "020-evolucao-da-apuracao"
         ],
-        "path": "docs/sprints/2026-S08-f7-estabilizacao.md"
+        "path": "docs/sprints/2026-S10-f7-verdade.md"
+      },
+      {
+        "id": "2026-S11",
+        "title": "Sprint 11 — Sobreviver ao pior",
+        "phase": "F7",
+        "status": "planned",
+        "start": null,
+        "end": null,
+        "sequence": 4,
+        "depends_on_sprint": "2026-S10",
+        "specs_in_flight": ["013-pagina-manutencao", "010-operacao-monitoramento"],
+        "path": "docs/sprints/2026-S11-f7-resiliencia.md"
       },
       {
         "id": "D1",
@@ -559,22 +599,26 @@
         "path": "docs/sprints/_D1-04out2026.md"
       },
       {
-        "id": "2026-S09",
+        "id": "2026-S12",
+        "title": "Sprint 12 — Pós-1T (análise + recalibração para 2T)",
         "phase": "F8a",
         "status": "planned",
         "start": "2026-10-05",
         "end": "2026-10-14",
         "specs_in_flight": [],
-        "path": "docs/sprints/2026-S09-f8a-retro1t.md"
+        "path": "docs/sprints/2026-S12-f8a-retro1t.md",
+        "note": "Renumerada de 2026-S09 em 2026-09-18: a faixa S08–S11 passou a ser das sprints por dependência."
       },
       {
-        "id": "2026-S10",
+        "id": "2026-S13",
+        "title": "Sprint 13 — Preparação para o 2º turno",
         "phase": "F8b",
         "status": "planned",
         "start": "2026-10-15",
         "end": "2026-10-24",
         "specs_in_flight": [],
-        "path": "docs/sprints/2026-S10-f8b-prep2t.md"
+        "path": "docs/sprints/2026-S13-f8b-prep2t.md",
+        "note": "Renumerada de 2026-S10 em 2026-09-18."
       },
       {
         "id": "D2",
@@ -583,7 +627,9 @@
         "date": "2026-10-25",
         "path": "docs/sprints/_D2-25out2026.md"
       }
-    ]
+    ],
+    "trilho_externo": "docs/sprints/_trilho-externo.md",
+    "nota_sem_data": "Desde 2026-09-18 há duas formas de sprint: com janela (data de terceiro) e por dependência (start/end null, ordem por `sequence`/`depends_on_sprint`). Ver docs/sprints/README.md § Duas formas de sprint."
   },
   "specs": [
     {
@@ -1023,7 +1069,7 @@
       "priority": "M",
       "personas": [],
       "screens": ["T-07"],
-      "requirements": ["RF-056", "RF-057"],
+      "requirements": ["RF-056", "RF-057", "RF-012.1", "RF-012.2"],
       "depends_on": ["001-ingestao-tse", "010-operacao-monitoramento"],
       "apis": [],
       "components": [],
@@ -1334,5 +1380,7 @@
       "notes": "Escrita em 2026-09-17 a partir de protótipo visual do dono do produto e de decisões dele na mesma sessão (spec.md § Decisões do dono). Fase 0 implementada: componente `<SerieApuracaoChart />` (Server Component SVG, sem lib de charting), testes novos (`serie-apuracao-chart.test.tsx`, `rank-parcial.test.ts`), dados persistidos em `projections` (RF-167), forma colunar limitada por construção (RF-168), últimoponto síncrono com payload (RF-169). RFs RF-170-176 (escolha de elenco, cor por partido, apresentação, estados degradados, tabela a11y) **não implementadas**; bloqueadores: migration 0009 antes de 04/10, Python no gerador de séries, fixtures de simulação de gov/sen. Consequência registrada e aceita: candidatura que cai do top-4 desaparece do gráfico inclusive do passado; ultrapassagem fica invisível — mitigado por legenda e tabela acessível, não resolvido. Duas emendas do dono em 2026-09-18, formalizadas no ADR-0047 e propagadas para RF-171 (cor por textForParty, a variante legível do token do partido — a fonte continua sendo a sigla) e RF-168e/RF-169d (ciclo sem dado_ts não vira ponto, nas duas metades: leitura e ponto corrente).",
       "path": "docs/specs/020-evolucao-da-apuracao/"
     }
-  ]
+  ],
+  "orquestracao_paralela": "docs/_meta/orquestracao-paralela.md",
+  "handoff_atual": "docs/_meta/handoff-2026-09-18.md"
 }

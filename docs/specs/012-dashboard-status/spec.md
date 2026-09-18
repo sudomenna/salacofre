@@ -5,7 +5,7 @@ status: draft
 priority: M
 personas: []
 screens: [T-07]
-requirements: [RF-056, RF-057]
+requirements: [RF-056, RF-057, RF-012.1, RF-012.2]
 depends_on: [001-ingestao-tse, 010-operacao-monitoramento]
 apis: []
 components: []

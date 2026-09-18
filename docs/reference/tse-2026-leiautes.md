@@ -1,8 +1,9 @@
 ---
 title: Leiautes TSE 2026 — EA10/EA11/EA12/EA14/EA15/EA16/EA18/EA20
-description: Diff campo-a-campo dos 9 PDFs oficiais do TSE (recebidos 2026-09-05) contra a implementação em lib/tse/
+description: Diff campo-a-campo dos 9 PDFs oficiais do TSE (recebidos 2026-09-05) contra a implementação em lib/tse/, mais o que o dado real do simulado de 16–17/09 confirmou e corrigiu (§ 7)
 status: stable
-source: tse_docs/*.pdf (9 arquivos), texto extraído em tse_docs/txt/*.txt (pdftotext -layout)
+source: tse_docs/*.pdf (9 arquivos), texto extraído em tse_docs/txt/*.txt (pdftotext -layout); dado real em tests/fixtures/tse/2026-sim/ (14 JSON, coletados 2026-09-17)
+updated: 2026-09-18
 ---
 
 # Leiautes TSE 2026
@@ -14,6 +15,14 @@ documento vence** — os PDFs são posteriores e mais específicos que qualquer 
 
 Todos os documentos foram convertidos para texto via `pdftotext -layout` e vivem em `tse_docs/txt/*.txt`. Citações
 abaixo usam o formato `arquivo.txt:linha`.
+
+> 🔴 **Atualizado em 2026-09-18 — este documento tinha ficado parado em 11/09, antes do simulado.**
+> Duas coisas mudaram: (a) a conclusão "**nenhuma mudança necessária**" sobre `getCodEleicao` (§ 4)
+> estava **errada** e foi corrigida — ver [ADR-0044](../architecture/adrs/0044-codigo-eleicao-por-cargo.md);
+> (b) o documento passou a ter, no **§ 7**, o que o **dado real** do simulado de 16–17/09 confirmou e
+> desmentiu. Até aqui tudo aqui vinha de PDF; agora há 14 arquivos JSON reais no repositório
+> (`tests/fixtures/tse/2026-sim/`), baixados byte a byte do CDN do TSE. **Onde o dado real e o PDF
+> divergirem, o dado real vence** — pela mesma razão que o PDF vence a inferência de 2022.
 
 ## Versões e datas dos documentos
 
@@ -227,21 +236,61 @@ com hash SHA-256 por item de UF + ETag do arquivo inteiro, fail-open em qualquer
 
 - **EA11** (`tse-ea11-arquivo-de-configuracao-de-eleicoes.txt:31-326`): `pl[].e[].cd` (código da eleição),
   `pl[].e[].t` (turno), `pl[].e[].abr[].cd` (UF ou `br`), `pl[].e[].abr[].cp[].cd` (código do cargo) — **igual**
-  ao que `design.md` já documentava. `dg`/`hg` na raiz seguem o mesmo formato `dd/mm/aaaa` do EA20 (confirmado
-  também no `ele-c.json` real de produção citado pelo orquestrador). Campo `c` na raiz = ciclo eleitoral (ex.:
-  `"ele2024"`) — não confundir com o campo `c` do elemento `e`/`s` do EA20/EA14/EA15 (comparecimento/totalizadas),
-  são elementos diferentes em documentos diferentes.
+  ao que `design.md` já documentava. `dg`/`hg` na raiz seguem o mesmo formato `dd/mm/aaaa` do EA20.
+  🔴 **Corrigido em 18/09 contra o arquivo real**: o ciclo **não está na raiz**. O `ele-c.json` do simulado
+  (`tests/fixtures/tse/2026-sim/ele-c.json`) tem na raiz exatamente `dg, hg, f, idg, arq, pl` — **não há campo
+  `c` ali**; o ciclo vive em **`pl[].c`** (medido: `pl[0].c == "ele2026"`, `pl[0].cd == "17801"`). Foi por
+  procurar o ciclo na raiz que a vigia não o encontrou até o conserto em `9a56ef4`. O campo `c` do elemento
+  `e`/`s` do EA20/EA14/EA15 (comparecimento/totalizadas) continua sendo outra coisa, em outro documento.
 - **EA12** (`tse-ea12-arquivo-de-configuracao-de-municipios.txt:38-63`): `abr[].mu[].z[]` lista os números de
   zona (4 dígitos) de cada município — usado para popular `zonas`/`municipios` (RF-008). **Divergência encontrada
   em 11/09**: em 2022 o EA12 era **um arquivo por UF** (`comum/config/{uf}/{uf}-p000407-cm.json`). Em 2026 é
-  **arquivo único nacional** (`comum/config/mun-e<eleição6>-cm.json`). Campo novo: `mu[].c` (boolean) indica
-  se o município é capital. Parser em `lib/tse/ea12-schema.ts` com `.passthrough()`.
+  **arquivo único nacional** (`comum/config/mun-e<eleição6>-cm.json`). Campo novo: `mu[].c` indica se o município
+  é capital. 🔴 **Corrigido em 18/09**: ele **não é boolean** — é a string `"s"`/`"n"`
+  (`tse-ea12-arquivo-de-configuracao-de-municipios.txt:130-132`: "s - sim, é capital da UF ou n - não é a
+  capital da UF"), e o arquivo real confirma: 27 municípios com `"s"` e 5.728 com `"n"`. Ler `mu[].c` como
+  boolean em JS daria **capital para todo mundo** — `Boolean("n") === true`. Parser em `lib/tse/ea12-schema.ts`
+  com `.passthrough()`.
 
-`lib/tse/targets.ts` `getCodEleicao()` já assumia `TSE_COD_ELEICAO="ele<AAAA>/<dígitos>"` representando
-`<ciclo>/<eleição>` concatenados por `/` — **confirmado correto**: a pasta `[ciclo]` do CDN é literalmente
-`ele<AAAA>` e `[eleição]` é o `pl[].e[].cd` numérico do EA11 (Instruções §3, IDs de pasta 2 e 3). Nenhuma
-mudança necessária nessa função. Parser EA12 novo em `lib/tse/ea12-schema.ts` (`zonas-import --ea12 <path|url>`
-via `lib/tse/targets.ts` `buildEA12Url`).
+### 🔴 `getCodEleicao()` — a conclusão desta seção estava ERRADA (corrigida em 17/09)
+
+Até 2026-09-17 esta seção terminava afirmando, sobre `lib/tse/targets.ts::getCodEleicao()`:
+"**Nenhuma mudança necessária nessa função**". **Essa conclusão é falsa**, e o
+[ADR-0044](../architecture/adrs/0044-codigo-eleicao-por-cargo.md) a declara errada por nome.
+
+O que estava certo e continua certo: o formato `"ele<AAAA>/<dígitos>"` representa `<ciclo>/<eleição>`
+concatenados por `/` — a pasta `[ciclo]` do CDN é literalmente `ele<AAAA>` e `[eleição]` é o `pl[].e[].cd`
+numérico do EA11 (Instruções § 3, IDs de pasta 2 e 3).
+
+O que estava errado: a função lia **um único** valor de ambiente (`TSE_COD_ELEICAO`) e o aplicava a **todos**
+os cargos. Isso embute a suposição de que o pleito tem uma eleição só — verdadeira por acidente enquanto o
+produto cobria apenas Presidente, e **falsa para 2026**. O `ele-c.json` real (medido em 17/09, fixture no
+repositório) mostra **três** eleições sob o mesmo pleito `17801` e o mesmo ciclo `ele2026`:
+
+| Eleição | `cd` | Cargos | Escopo do SalaCofre |
+|---|---|---|---|
+| Ordinária **Federal** | `21270` | Presidente (1) | ✅ |
+| Ordinária **Estadual** | `21272` | Governador (3), Senador (5), Deputado Federal (6) — e Estadual/Distrital (7/8) | ✅ (menos 7/8) |
+| Ordinária **Municipal** | `21274` | Conselheiro Distrital | ❌ fora de escopo |
+
+São **duas árvores de URL paralelas**, cada uma com sua hierarquia de pastas e seu **próprio** EA14 nacional
+(`br-e021270-ab.json` e `br-e021272-ab.json`) — não um arquivo compartilhado. Sob a suposição antiga, ativar
+Senador/Deputado com o código do Presidente produziria **404 sistemático** em produção, ou pior, o payload de
+outra eleição.
+
+**Correção implementada** (ADR-0044, `lib/tse/targets.ts:293-367`): `getCodEleicao(eleicao)` passa a **exigir**
+o parâmetro; as variáveis são `TSE_COD_ELEICAO_FEDERAL` e `TSE_COD_ELEICAO_ESTADUAL`, com `TSE_COD_ELEICAO`
+sobrevivendo só como fallback legado; e **uma específica nunca supre a outra eleição** — sem valor, lança
+(`targets.ts:339-346`). O mapeamento cargo→eleição vive na tabela `CARGOS` (`lib/config/cargos.ts`) como campo
+obrigatório, sem ramo `default`.
+
+**A lição de método, que é o que faz esta correção valer a pena**: a frase "nenhuma mudança necessária" foi
+escrita a partir do **PDF**, que descreve o formato da URL corretamente e nada diz sobre **quantas** eleições
+existem no pleito. O leiaute estava certo; a **premissa de cardinalidade** é que era invisível ali. Ler o
+`ele-c.json` real teria mostrado as três eleições em 05/09 — e mostrou, em 17/09, doze dias depois.
+
+Parser EA12 novo em `lib/tse/ea12-schema.ts` (`zonas-import --ea12 <path|url>` via `lib/tse/targets.ts`
+`buildEA12Url`).
 
 ---
 
@@ -309,7 +358,121 @@ modelo estatístico, fora do meu escopo (`api/model/` está em "não toque").
 
 ---
 
-## 7. Cross-refs
+## 7. O dado real do simulado (16–17/09) — o que confirmou e o que corrigiu
+
+Tudo acima, até 11/09, vinha de PDF. Em 2026-09-17 foram baixados **14 arquivos JSON reais** do CDN do
+simulado (`https://resultados-sim.tse.jus.br/simulado/simulado2026`), byte a byte, usando **apenas**
+endereços publicados pelo TSE — nenhuma URL adivinhada (constituição § 1). Eles vivem em
+`tests/fixtures/tse/2026-sim/`, com [README próprio](../../tests/fixtures/tse/2026-sim/README.md).
+`biome.json` os isenta do formatador de propósito: reformatar destruiria a fidelidade byte a byte.
+
+Estado dos arquivos de resultado: fim da janela da tarde de **16/09**. Os números abaixo foram medidos
+nos arquivos, não estimados.
+
+### 7.1. O envelope, medido
+
+| Campo | Valor medido | Onde |
+|---|---|---|
+| `f` | `"s"` em **todos os 14** arquivos, inclusive os dois de configuração | raiz |
+| `dg` | `"16/09/2026"` nos 12 de resultado/acompanhamento; `"14/09/2026"` nos dois de configuração | raiz |
+| `hg` | `"16:11:08"` no EA20 Brasil (`br-c0001-e021270-u.json`); varia por arquivo — `"16:40:07"` no EA20 do Governador do AC | raiz |
+| `ele` | string, `"21270"` ou `"21272"` | raiz |
+| `tpabr` | `"br"`, `"uf"`, `"mu"`, `"zona"` no EA20 | raiz |
+
+**`f` marca o ambiente, não uma fase do arquivo.** O dicionário oficial é literal:
+"`f` — s – se o arquivo foi gerado durante o simulado"
+(`tse-ea20-arquivo-de-resultado-unificado.txt:492`). Como os 14 arquivos trazem `"s"`, `f` **não** serve
+para distinguir um arquivo de outro dentro da mesma janela — serve só para provar de que ambiente o
+arquivo veio. A tabela do § 2 chama `f` de "fase"; a palavra é imprecisa e fica registrada aqui.
+
+**`dg` no formato `dd/mm/aaaa` e `hg` em `hh:mm:ss` — confirmados no dado real**, o que fecha a
+Divergência 2 do § 1 com evidência de campo e não só de PDF.
+
+### 7.2. O EA15 é por **eleição**, não por cargo
+
+`ac-e021270-ab.json` e `zz-e021270-ab.json`: o nome do arquivo **não traz cargo** — só UF e eleição,
+exatamente como a tabela do § 1 já previa (`<uf>-e<eleicao6>-ab.json`, **sem cargo**). O dado real
+confirma e acrescenta a consequência prática: **há um EA15 por eleição**, então um mesmo arquivo cobre
+todos os cargos daquela eleição naquela UF. Não existe "o EA15 do Senador".
+
+Contagens medidas: `ac-e021270-ab.json` tem **23** itens em `abr[]` (1 com `tpabr: "uf"` + 22 `"mun"`);
+`zz-e021270-ab.json` tem **185** (1 `"uf"` + 184 localidades do exterior); o EA14
+`br-e021270-ab.json` tem **29** (1 `"br"` + 28 `"uf"` — as 27 UFs mais `zz`).
+
+⚠️ **`"mun"` no EA14/EA15 × `"mu"` no EA20.** O mesmo conceito, dois literais diferentes em documentos
+diferentes: itens de município do EA15 trazem `tpabr: "mun"`, enquanto o EA20 de município traz
+`tpabr: "mu"` (e é `"mu"` que está em `KNOWN_EA20_TPABR`, `lib/tse/ea20-schema.ts:312`). Comparar os
+dois literais entre si é bug garantido.
+
+### 7.3. Campos que o schema nunca declarou e passam pelo `.passthrough()`
+
+Os itens de `abr[]` do EA15 e do EA14 trazem contadores de município/UF que **nenhum dos nossos schemas
+declara**. Eles chegam ao código apenas porque `EA14AbrItemSchema` e `EA15AbrItemSchema` terminam em
+`.passthrough()` (`lib/tse/acompanhamento.ts:67`, `:97`) — `grep munnr` no repositório inteiro não acha
+nada fora das fixtures.
+
+Onde eles aparecem, medido:
+
+- **No item `tpabr: "uf"` do EA15** (e no item `"uf"` do EA14): `munnr`, `munpt`, `munf` (municípios **não
+  recebidos**, **parcialmente totalizados** e **finalizados**) mais os percentuais `pmunnr`, `pmunpt`,
+  `pmunf` e as variantes normalizadas `pmunnrn`, `pmunptn`, `pmunfn` — **nove** campos, não seis.
+- **No item `tpabr: "br"` do EA14**, o conjunto análogo **por UF**: `ufsnr`, `ufspt`, `ufsf`, `pufsnr`,
+  `pufspt`, `pufsf`, `pufsnrn`, `pufsptn`, `pufsfn`.
+- **Nos itens `tpabr: "mun"` do EA15, não aparecem**: esses itens têm só `and, tpabr, cdabr, dt, ht, s, e`.
+  A distinção importa — um leitor que espere `munf` em todo item de EA15 encontra `undefined` em 22 dos 23.
+
+Isso é oportunidade, não defeito: `munf`/`pmunf` respondem "quantos municípios desta UF já fecharam"
+com **um GET**, sem fan-out. Declarar esses campos no schema é trabalho aberto — hoje eles existem no
+dado e são invisíveis ao tipo.
+
+### 7.4. O que o dado real confirmou do § 2 (envelope EA20)
+
+Verificado em `br-c0001-e021270-u.json`: **não há `abr[]` na raiz** — a premissa que o § 2 derrubou a
+partir do PDF está derrubada também no dado. A raiz real é
+`and, carg, cdabr, dg, dt, dv, e, esae, ele, f, hg, ht, idg, mnae, s, sup, t, tf, tpabr, v` — ou seja, os
+três objetos `s`/`e`/`v` estão lá, e há campos de raiz que a tabela do § 2 **não lista** (`and`, `dt`,
+`ht`, `dv`, `esae`, `mnae`, `sup`, `t`, `tf`), também salvos pelo `.passthrough()`.
+
+A hierarquia de candidatos confirma o § 2: `carg[] → fed[] | agr[].par[].cand[]`. No arquivo do
+Presidente: 1 `carg`, 2 `fed`, 13 `agr`, e **13 candidaturas** no total. As chaves reais de `cand[]` são
+`n, sqcand, nm, nmu, dt, dvt, seq, e, st, vap, pvap, pvapn, vs` — partido (`par.sg`, `par.nm`) e
+coligação (`agr.nm`, `agr.tp`) seguem um e dois níveis **acima**, como o § 2 afirma.
+
+⚠️ **Nem todo campo do § 2 aparece em todo arquivo**: `carg[].qe` e os campos de voto de legenda
+(`par[].tvtl`, `par[].tval`) **não** estão no arquivo do Presidente — são de cargo proporcional. Ausência
+por cargo, não divergência de leiaute.
+
+### 7.5. EA12 real — as contagens que o fan-out usa
+
+Medido em `mun-e021270-cm.json`: **28 abrangências**, **5.755 municípios**, **6.289 pares
+(município × zona)** — dos quais **184 são do exterior** (`cd: "zz"`, um par por localidade), restando
+**6.105 pares** no território nacional.
+
+⚠️ **Divergência de 5 pares, não resolvida aqui.** As specs 001, 016 e 017 dizem **~6.110** alvos de
+nível zona por cargo ([ADR-0035](../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md);
+`docs/specs/016-senador/spec.md:78` chega a fixar "exatamente 6.110" numa asserção). O EA12 real do
+simulado dá **6.105** sem o exterior e **6.289** com ele. Nenhum dos dois é 6.110. Não sei de onde vem a
+diferença — pode ser o EA12 de 2022 usado na estimativa original, pode ser tratamento do exterior
+(ADR-0045, escrito e **não** implementado), pode ser zona-sentinela. **Medir com
+`pnpm list-targets --env production --cargo 1` contra o EA12 de 2026 antes de tratar 6.110 como verdade**
+— há uma asserção de teste apoiada nesse número.
+
+### 7.6. O que ainda NÃO foi feito com estas fixtures
+
+⚠️ **Elas não estão nos testes de schema.** `grep -rl 2026-sim tests/ lib/ scripts/` acha apenas
+`scripts/tse-watch.ts`, `scripts/verify-fatia-premise.ts` e `tests/unit/scripts/tse-watch.test.ts`.
+Nenhum teste roda `EA20Schema.parse`, `EA14Schema.parse` ou `EA15Schema.parse` sobre estes 14 arquivos —
+o README das fixtures afirma que os três schemas passam, mas **essa afirmação não tem teste que a
+sustente**. O item correspondente do [checklist pré-produção](../operations/pre-prod-checklist.md)
+("Fixtures reais de 2026 incorporadas aos testes") segue, corretamente, **em aberto**.
+
+⚠️ **Só um arquivo da eleição estadual.** `ac-c0003-e021272-u.json` (Governador do AC) é o **único**
+arquivo sob `21272` na coleta. Não há EA20 de Senador nem de Deputado Federal reais, e não há EA14 da
+eleição estadual (`br-e021272-ab.json`). A segunda janela (22–24/09) é a oportunidade de fechar isso.
+
+---
+
+## 8. Cross-refs
 
 - Design técnico da ingestão: [../specs/001-ingestao-tse/design.md](../specs/001-ingestao-tse/design.md) —
   precisa reabrir a seção "Schema EA20" (§2 deste documento) e o exemplo de URL (§1 deste documento).
@@ -317,3 +480,7 @@ modelo estatístico, fora do meu escopo (`api/model/` está em "não toque").
 - Regulamentação: [./regulatory.md](./regulatory.md)
 - Fontes de dados: [./data-sources.md](./data-sources.md)
 - Simulados: [../testing/tse-simulados.md](../testing/tse-simulados.md)
+- Código de eleição por cargo (corrige a conclusão do § 4): [../architecture/adrs/0044-codigo-eleicao-por-cargo.md](../architecture/adrs/0044-codigo-eleicao-por-cargo.md)
+- Exterior (ZZ) na apuração presidencial: [../architecture/adrs/0045-exterior-zz-apuracao-presidencial.md](../architecture/adrs/0045-exterior-zz-apuracao-presidencial.md)
+- Dado real do simulado (§ 7): [../../tests/fixtures/tse/2026-sim/README.md](../../tests/fixtures/tse/2026-sim/README.md)
+- Checklist pré-produção: [../operations/pre-prod-checklist.md](../operations/pre-prod-checklist.md)

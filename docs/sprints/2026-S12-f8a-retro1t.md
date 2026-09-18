@@ -1,6 +1,6 @@
 ---
-id: 2026-S09
-title: Sprint 09 — Pós-1T (análise + recalibração para 2T)
+id: 2026-S12
+title: Sprint 12 — Pós-1T (análise + recalibração para 2T)
 status: planned
 start: 2026-10-05
 end: 2026-10-14
@@ -10,7 +10,12 @@ specs_in_flight: []
 specs_planned_next: []
 ---
 
-# Sprint 09 — Retro pós-1T
+# Sprint 12 — Retro pós-1T
+
+> ⚠️ **Renumerada em 2026-09-18**: esta sprint era a **S09**. As quatro sprints
+> novas de prontidão para produção (S08–S11, ordenadas por dependência e sem data —
+> decisão do dono D2) ocuparam a faixa S08–S11, e as duas sprints pós-eleição desceram
+> para S12 e S13. O conteúdo não mudou; só o número e o nome do arquivo.
 
 ## Objetivo único
 
@@ -49,7 +54,7 @@ Aprender com o 1T e ajustar o que for necessário pra o 2T. Sem feature nova; s�
 - ✅ MAE real do 1T calculado e documentado
 - ✅ Decisão registrada: modelo é mantido como está, ajustado, ou refeito para 2T
 - ✅ `historical_results` com dados do 1T 2026
-- ✅ Plano de ajustes pra S10 priorizado
+- ✅ Plano de ajustes pra S13 priorizado
 - ✅ Comunicado público publicado
 
 ## Riscos da sprint
@@ -70,5 +75,5 @@ _(preencher se mudar)_
 ## Cross-refs
 
 - Sprint anterior (marco): [_D1-04out2026.md](./_D1-04out2026.md)
-- Próxima sprint: [2026-S10-f8b-prep2t.md](./2026-S10-f8b-prep2t.md)
+- Próxima sprint: [2026-S13-f8b-prep2t.md](./2026-S13-f8b-prep2t.md)
 - Validação do modelo: [../testing/replay.md](../testing/replay.md)

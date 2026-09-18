@@ -494,11 +494,25 @@ sprint.
 
 Passos operacionais transcritos do plano. Registrar tudo em [`../testing/tse-simulados.md`](../testing/tse-simulados.md).
 
+> 🔴 **Correção de 2026-09-18 — o endereço abaixo estava errado, e o erro custou dois dias.**
+> Até 17/09 os passos 1 e 2 mandavam apontar a vigia para `resultados-sim.tse.jus.br/**oficial**`.
+> Esse endereço responde **403 para sempre**: o segmento do caminho é o **ambiente**, e `oficial` é o
+> de **produção** — nunca foi o do simulado. Lido como "o TSE ainda não publicou", o 403 fez a vigia
+> não enxergar o ambiente subir em 14/09. Resultado medido no `git log`: **zero commits em 14, 15 e
+> 16/09** — dois dos três dias da primeira janela de simulado perdidos. O endereço correto é
+> `https://resultados-sim.tse.jus.br/simulado/simulado2026`, confirmado pela coleta de 17/09 em
+> [`tests/fixtures/tse/2026-sim/README.md`](../../tests/fixtures/tse/2026-sim/README.md). A regra que
+> sobra: **403 neste host nunca significa "ainda não publicado"** — significa que o caminho está
+> errado. Ver [`../reference/risks.md`](../reference/risks.md) e o protocolo vivo em
+> [`../testing/tse-simulados.md`](../testing/tse-simulados.md).
+
 - [ ] **1.** Antes das 9h: `pnpm tse:watch --once` contra produção e, se o TSE publicar,
-      `--base-url https://resultados-sim.tse.jus.br/oficial`. **Nunca** paths adivinhados.
+      `--base-url https://resultados-sim.tse.jus.br/simulado/simulado2026`. **Nunca** paths adivinhados.
 - [ ] **2.** Obter o `codEleicao` do simulado a partir do `ele-c.json` do ambiente sim / comunicado.
-      Env de **preview**: `TSE_BASE_URL=https://resultados-sim.tse.jus.br/oficial`,
-      `TSE_COD_ELEICAO=ele2026/<n>`, `INGEST_WINDOW=9-17`, `TSE_MAX_RPS=20`,
+      Env de **preview**: `TSE_BASE_URL=https://resultados-sim.tse.jus.br/simulado/simulado2026`,
+      `TSE_COD_ELEICAO_FEDERAL=ele2026/21270` e `TSE_COD_ELEICAO_ESTADUAL=ele2026/21272`
+      ([ADR-0044](../architecture/adrs/0044-codigo-eleicao-por-cargo.md); a `TSE_COD_ELEICAO` sozinha
+      sobrevive só como fallback legado), `INGEST_WINDOW=9-17`, `TSE_MAX_RPS=20`,
       `TSE_TARGETS_WHITELIST=SP:1,SP:3,SP:5,SP:6` (era `SP:1,SP:3`; os cargos 5 e 6 eram rejeitados **no código** até `bafe601`), `TSE_ACOMPANHAMENTO=off`.
 - [ ] **3.** Baixar 1 EA20, 1 EA15 e o EA14 → `tests/fixtures/tse/2026-sim/`; rodar `EA20Schema.parse`;
       diff vs 2022; confirmar o valor real de `f`; diff do EA15 vs o stub.
@@ -707,7 +721,7 @@ in place, sem regressão de status.
 ### Herdadas da S07 antiga — realocadas
 
 009, 010 e 013 vão para a **S08** (são exatamente o conteúdo da Fase 7 do plano: alertas,
-`/manutencao`, OG/share). 012 fica **diferida** — ver [S08](./2026-S08-f7-estabilizacao.md).
+`/manutencao`, OG/share). 012 fica **diferida** — e em 18/09 o dono a **cortou**; ver [S08 — Enxergar](./2026-S08-f7-enxergar.md).
 
 ---
 
@@ -931,4 +945,6 @@ corrigida) · `a11y-perf-auditor` ⚠️ **WARN**.
 - Protocolo de simulado: [../testing/tse-simulados.md](../testing/tse-simulados.md)
 - Runbook: [../operations/runbook.md](../operations/runbook.md)
 - Sprint anterior: [2026-S06-f4d-2t-governadores.md](./2026-S06-f4d-2t-governadores.md)
-- Próxima sprint: [2026-S08-f7-estabilizacao.md](./2026-S08-f7-estabilizacao.md)
+- Próxima sprint: [2026-S08-f7-enxergar.md](./2026-S08-f7-enxergar.md) — primeira das quatro
+  sprints **sem data** (S08→S11, ordenadas por dependência). A antiga
+  `2026-S08-f7-estabilizacao.md` foi absorvida pela [S11](./2026-S11-f7-resiliencia.md) em 18/09.

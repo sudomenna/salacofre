@@ -27,7 +27,11 @@ source: PRD.md § 21
 > vazio antes do dia D. F6 foi redefinida em torno das duas janelas de simulado oficial do TSE
 > e absorveu o hero de 1º turno; F7 passou a encostar na véspera do 1º turno. Detalhamento em
 > [../sprints/2026-S07-f6-simulado-hero-1t.md](../sprints/2026-S07-f6-simulado-hero-1t.md) e
-> [../sprints/2026-S08-f7-estabilizacao.md](../sprints/2026-S08-f7-estabilizacao.md).
+> [../sprints/README.md](../sprints/README.md) § "Duas formas de sprint". ⚠️ **Emenda de
+> 2026-09-18**: a F7 deixou de ser uma sprint com janela e virou **quatro sprints sem data**,
+> ordenadas por dependência (decisão do dono): [S08](../sprints/2026-S08-f7-enxergar.md),
+> [S09](../sprints/2026-S09-f7-provar.md), [S10](../sprints/2026-S10-f7-verdade.md) e
+> [S11](../sprints/2026-S11-f7-resiliencia.md). As pós-eleição foram renumeradas para S12/S13.
 
 ---
 
