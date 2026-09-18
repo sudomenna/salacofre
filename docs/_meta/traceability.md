@@ -70,7 +70,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-005.4 | Maiores colégios eleitorais (8 municípios, capital primeiro, eleitorado + % apurado em S07, ADR-0035 D2) | M | [005](../specs/005-pagina-uf-governador/) | `<MunicipioTable mode="top-by-eleitorado" />` | unit (`MunicipioTable.topByEleitorado.test.tsx` em S07) |
 | RF-006.1 | Header com contagem de chamadas | M | [006](../specs/006-grid-governadores/) | `<RaceStatsCards />` | unit |
 | RF-006.2 | Filtros por status | M | [006](../specs/006-grid-governadores/) | `<FilterBar />` | unit |
-| RF-006.3 | Cartograma hexagonal | M | [006](../specs/006-grid-governadores/) | `<HexCartogramBrasil />` | unit |
+| RF-006.3 | Mapa coroplético nacional por líder de UF | M | [006](../specs/006-grid-governadores/) | `<NationalMapBlock>`, `<NationalChoroplethMap>` | integration (`governador-page.test.tsx`); `<HexCartogramBrasil />` preservado sem uso |
 | RF-006.4 | Breaking news ticker | M | [006](../specs/006-grid-governadores/) | `<BreakingNewsTicker />` | unit |
 | RF-006.5 | Tabs cargo com disabled | M | [006](../specs/006-grid-governadores/) | `<Tabs disabled />` | unit |
 | RF-030.1 | Mapa coroplético hero | M | [003](../specs/003-home-nacional/) | `<NationalChoroplethMap />` | unit (SSR shell) + e2e (deferred S05) |
@@ -123,9 +123,9 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-101 | Suplentes preservados no snapshot | M | [016](../specs/016-senador/) | — | unit (`ea20-senador-suplentes.test.ts`) |
 | RF-102 | Projeção por regra de três, zona a zona | M | [016](../specs/016-senador/) | — | pytest (`test_senador.py`) |
 | RF-103 | `p_eleito` para duas vagas | M | [016](../specs/016-senador/) | — | pytest (`test_p_eleito.py`), unit (`ResultPanelVagas.test.tsx`) |
-| RF-104 | Margem relevante é a do 2º para o 3º | M | [016](../specs/016-senador/) | `<ResultPanel>` | integration (`senador.test.tsx`) |
-| RF-105 | Painel de resultado com duas vagas (T-10) | M | [016](../specs/016-senador/) | `<ResultPanel>` | integration (`senador.test.tsx`), unit (`ResultPanelVagas.test.tsx`) |
-| RF-106 | Rótulo explícito de duas vagas | M | [016](../specs/016-senador/) | `<RaceHeader />` | integration (`senador.test.tsx`) |
+| RF-104 | Margem relevante é a do 2º para o 3º, inclusive na cor do mapa | M | [016](../specs/016-senador/) | `<ResultPanel>`, `<NationalChoroplethMap>` (intensidade), `lib/utils/margem-senado.ts` | integration (`senador.test.tsx`) |
+| RF-105 | Painel de resultado com duas vagas, reaproveitado no mapa nacional | M | [016](../specs/016-senador/) | `<ResultPanel>`, `<StateResultSheet>` | integration (`senador.test.tsx`), unit (`ResultPanelVagas.test.tsx`) |
+| RF-106 | Rótulo explícito de duas vagas, incluindo no nome acessível do mapa | M | [016](../specs/016-senador/) | `<RaceHeader />`, `<NationalChoroplethMap>` (`aria-label`), `lib/utils/margem-senado.ts::ariaRessalvaVagas` | integration (`senador.test.tsx`) |
 | RF-107 | Composição nacional das 54 vagas (T-09) | M | [016](../specs/016-senador/) | `<ChancesPanel />` | integration (`senador.test.tsx`) |
 | RF-108 | Transparência de cadência | M | [016](../specs/016-senador/) | `<ForecastTransparency />` | integration (`senador.test.tsx`) |
 | RF-120 | Ingestão do cargo 6 em granularidade zona (6 fatias) | M | [017](../specs/017-deputado-federal/) | — | unit (`tse/targets.test.ts` — ~6.110 alvos par (município×zona), fatiado em 6, sem tocar o banco); cron em `vercel.ts` com ciclo ~300s (ADR-0036) |

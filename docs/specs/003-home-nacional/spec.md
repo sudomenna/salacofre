@@ -221,6 +221,10 @@ IF `p_segundo_turno_overall ≥ 0,4` e a home está em modo `multi-1t`, the syst
 - Given `p_segundo_turno_overall = 0.72` e `cenarios_2t` com 3 pares, when a home renderiza, then os 3 duelos aparecem ordenados por probabilidade decrescente.
 - Given `p_segundo_turno_overall = 0.25`, when a home renderiza, then o bloco é omitido (gate de relevância — abaixo de 0,4 o cenário de 2T é ruído).
 
+### Extensão do coroplético a outros cargos (S08)
+
+RF-030.1 a RF-030.6 (mapa coroplético nacional com toggles de visualização) foram estendidos em 2026-09-18 a **Governador** (`/governador`, spec 006 RF-006.3 reenumerada) e **Senador** (`/senador` nível Brasil, spec 016 novo). A mudança está registrada no [ADR-0048](../../architecture/adrs/0048-coropletico-substitui-cartograma-governador-estreia-senador.md), que salienta que o mapa reutiliza `<NationalMapBlock>` e `<NationalChoroplethMap>` já existentes em Presidente, sem novo componente — a extensão é uma reexecução do mesmo padrão em novos cargos, validada sob as mesmas metas de bundle e acessibilidade.
+
 ### Hero de seis termômetros e identidade de trilha (S07)
 
 **RF-061 — Hero de seis termômetros de projeção no 1º turno**

@@ -83,7 +83,7 @@ Notas dos atoms não construídos:
 | `<NationalNeedle />` | ✅ | RF-021, RF-022, RF-023 | `components/blocks/NationalNeedle.tsx` | `tests/unit/components/NationalNeedle.test.tsx` |
 | `<HeadlineScore />` | ✅ | RF-022, RF-023, RF-030.5 | `components/blocks/HeadlineScore.tsx` | `tests/unit/components/HeadlineScore.test.tsx` |
 | `<ProjectionThermometers />` | ✅ S07 | RF-061, RF-062 | `components/blocks/ProjectionThermometers.tsx` | `tests/unit/components/ProjectionThermometers.test.tsx` (testa `base` prop Fase 5) |
-| `<NationalChoroplethMap />` | ✅ | RF-030.1, RF-030.3, RF-030.4 | `components/blocks/NationalChoroplethMap.tsx` | `tests/unit/components/NationalChoroplethMap.test.tsx` |
+| `<NationalChoroplethMap />` | ✅ | RF-030.1-4 (Presidente), RF-006.3 (Governador), RF-104-106 (Senador — intensidade de cor, nome acessível) | `components/blocks/NationalChoroplethMap.tsx` | `tests/unit/components/NationalChoroplethMap.test.tsx` |
 | `<_NationalChoroplethMapImpl />` | ✅ | RF-030.1..RF-030.4 (interno — só via `next/dynamic`, ADR-0010) | `components/blocks/_NationalChoroplethMapImpl.tsx` | coberto por `NationalChoroplethMap.test.tsx` |
 | `<StateGroupedTable />` | ✅ | RF-030.6 | `components/blocks/StateGroupedTable.tsx` | `tests/unit/components/StateGroupedTable.test.tsx` |
 | `<DecisiveUFsGrid />` | ⛔ órfão | ~~RF-024~~ | `components/blocks/DecisiveUFsGrid.tsx` | tests existem mas sem call site em produção |
@@ -101,14 +101,14 @@ Notas dos atoms não construídos:
 | `<TwoRoundIndicator />` | ⛔ órfão | ~~RF-030.7~~ | `components/blocks/TwoRoundIndicator.tsx` | tests existem mas sem call site em produção (RF-030.7 migrou para `<ChancesPanel />`) |
 | `<CandidateRanking />` | ✅ S05 | RF-030 ext, RF-031..044 ext (rank 3–6) | `components/blocks/CandidateRanking.tsx` | `tests/unit/components/CandidateRanking.test.tsx` |
 | `<GovernorCard />` | ✅ S06 | RF-006.3 | `components/blocks/GovernorCard.tsx` | `tests/unit/components/GovernorCard.test.tsx` |
-| `<HexCartogramBrasil />` | ✅ S06 | RF-006.3 | `components/blocks/HexCartogramBrasil.tsx` | `tests/unit/components/HexCartogramBrasil.test.tsx` |
+| `<HexCartogramBrasil />` | ✅ S06 — sem uso em `/governador` | RF-006.3 (histórico pré-ADR-0048) | `components/blocks/HexCartogramBrasil.tsx` | `tests/unit/components/HexCartogramBrasil.test.tsx` (verde, preservado por decisão explícita do dono) |
 | `<RaceStatsCards />` | ✅ S06 | RF-006.1 | `components/blocks/RaceStatsCards.tsx` | `tests/unit/components/RaceStatsCards.test.tsx` |
 | `<BreakingNewsTicker />` | ✅ S06 | RF-006.4 | `components/blocks/BreakingNewsTicker.tsx` | `tests/unit/components/BreakingNewsTicker.test.tsx` |
 | `<ResultPanel />` | ✅ S07+ | RF-022, RF-023, RF-030.5, RF-030.6, RF-030.8, RF-105, RF-127 | `components/blocks/ResultPanel.tsx` | `tests/unit/components/ResultPanel.test.tsx` (S07: refator para duas vagas em Senador com marcação visual de ocupantes + margem 2º↔3º em Senador e `eleitos` em Deputado; a altura de linha e spacing para destacar a 2ª vaga no Senador está definida em tokens e no componente via `role="region"` com `aria-label="Ocupantes das vagas"`) |
 | `<CandidateListCollapse />` | ✅ S07 | RF-030.8 (colapso visual preservando DOM, ADR-0034 D21) | `components/blocks/CandidateListCollapse.tsx` | coberto por `ResultPanel.test.tsx` |
 | `<ChancesPanel />` | ✅ S07+ | RF-030.7, RF-107 (migrado de `TwoRoundIndicator`, ADR-0034 D21) | `components/blocks/ChancesPanel.tsx` | `tests/unit/components/ChancesPanel.test.tsx` (S07: refator para exibir composição de vagas projetadas por partido/federação em Senador nível nacional (54 vagas) e para Deputado também exibir `eleitos` por agremiação) |
 | `<DeputadoMetodologia />` | ✅ S07 | RF-127, RF-128 | `components/blocks/DeputadoMetodologia.tsx` | — (Server Component sem testes dedicados; integrado em rotas de Deputado Federal). ⚠️ Propósito: explicar por que o cargo 6 **não usa** `<ForecastTransparency>` (design.md § D9) — não há modelo, só aritmética do ADR-0027 sobre voto apurado. Cadência (RF-128) vem do payload, nunca literal. |
-| `<NationalMapBlock />` | ✅ S07 | RF-030.1-4 (refator layout, ADR-0033) | `components/blocks/NationalMapBlock.tsx` | — (não tem componente separado de teste; coberto pelo smoke de home) |
+| `<NationalMapBlock />` | ✅ S07+ | RF-030.1-4 (Presidente, refator layout ADR-0033), RF-006.3 (Governador, ADR-0048), RF-104-106 (Senador, ADR-0048) | `components/blocks/NationalMapBlock.tsx` | — (não tem componente separado de teste; coberto pelo smoke de home e governador/senador pages) |
 | `<CandidatosGrid />` | ✅ | RF-146, RF-148, RF-149 | `components/blocks/CandidatosGrid.tsx` | `tests/unit/components/CandidatosGrid.test.tsx` |
 | `<CandidaturasFonte />` | ✅ | RF-150 | `components/blocks/CandidaturasFonte.tsx` | — (sem teste dedicado; coberto indiretamente por `tests/unit/pages/candidatos.test.tsx`) |
 | `<CandidaturasAguardando />` | ✅ S08 | RF-149 (compõe `<CandidatosGrid>` nos 4 estados de espera) | `components/blocks/CandidaturasAguardando.tsx` | `tests/unit/pages/aguardando-candidatos.test.tsx` |

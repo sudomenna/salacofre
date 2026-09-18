@@ -11,7 +11,7 @@ depends_on: [001-ingestao-tse, 002-modelo-estatistico, 005-pagina-uf-governador]
 apis: [GET /api/projection?cargo=governador]
 components: [GovernorCard, HexCartogramBrasil, RaceStatsCards, BreakingNewsTicker, LiveBadge, Tabs, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-022, RNF-023, RNF-024]
-adrs: [0001, 0002, 0010, 0011, 0012, 0013, 0017, 0018, 0019, 0022, 0025, 0034, 0038]
+adrs: [0001, 0002, 0010, 0011, 0012, 0013, 0017, 0018, 0019, 0022, 0025, 0034, 0038, 0048]
 ---
 
 # Spec 006 — Grid Nacional Governadores
@@ -86,9 +86,11 @@ WHEN a página renderiza, the system SHALL exibir `<RaceStatsCards />` com count
 
 WHEN o usuário clica em um filtro, the system SHALL navegar para `/governador?status=<filtro>` e re-renderizar com `por_uf` filtrado por bucket. Filtros: `todas | em_disputa | decididos_1t | vai_2t | chamadas`. WHEN filtro inválido na URL, the system SHALL coalescer para `todas`.
 
-**RF-006.3 — Cartograma hexagonal NYT-style**
+**RF-006.3 — Mapa coroplético nacional por líder de UF (adoção do ADR-0048)**
 
-WHEN há ao menos 1 UF no payload, the system SHALL renderizar `<HexCartogramBrasil />` SVG inline com 27 hex pintados por líder via `colorForRank()`. UFs com `bucket === "indefinido"` recebem cinza neutro.
+WHEN há ao menos 1 UF no payload, the system SHALL renderizar um mapa coroplético nacional (MapLibre + PMTiles, variant `frame`, cargo `gov`) com cada UF pintada pela cor do partido do líder projetado naquela UF. UFs com `bucket === "indefinido"` recebem cinza neutro.
+
+> **Histórico**: de 2026-05-18 até 2026-09-18, este RF normatizava `<HexCartogramBrasil />` SVG inline pintado por `colorForRank()` — um rank 1 igual em todos os estados, resultando em cores que comunicavam posição na paleta local, não partido real. O [ADR-0048](../../architecture/adrs/0048-coropletico-substitui-cartograma-governador-estreia-senador.md) (2026-09-18) substitui o cartograma pelo coroplético que já cobria Presidente, pagando a dívida do [ADR-0024](../../architecture/adrs/0024-paleta-editorial-por-partido.md) de 11 dias antes. `<HexCartogramBrasil />` permanece no repositório, sem uso nesta rota, preservado por decisão explícita do dono.
 
 **RF-006.4 — Breaking news ticker (broadcast)**
 

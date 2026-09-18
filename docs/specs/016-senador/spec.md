@@ -10,7 +10,7 @@ depends_on: [001-ingestao-tse, 002-modelo-estatistico]
 apis: [GET /api/ingest/senador, POST /api/ingest/senador, GET /api/projection?cargo=senador]
 components: [ResultPanel, CandidateListCollapse, ChancesPanel, CargoTabs, RaceHeader, ForecastTransparency]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-006, RNF-022, RNF-023, RNF-024]
-adrs: [0001, 0012, 0020, 0021, 0026, 0028, 0033, 0034, 0035, 0038, 0042]
+adrs: [0001, 0012, 0020, 0021, 0026, 0028, 0033, 0034, 0035, 0038, 0042, 0048]
 opens_after: 2026-09-11
 ---
 
@@ -122,40 +122,52 @@ candidato termina em **1º ou 2º lugar**, e NÃO `p_vitoria` (1º lugar).
 - Given a mesma semente, when o modelo roda duas vezes, then a saída é idêntica
   bit a bit (constituição § 6).
 
-**RF-104 — Margem relevante é a do 2º para o 3º**
+**RF-104 — Margem relevante é a do 2º para o 3º, inclusive na intensidade da cor do mapa**
 
 WHEN a UI exibe a margem de uma UF de Senador, the system SHALL exibir a
 diferença entre o **2º e o 3º** colocados, rotulada como "margem para a 2ª vaga",
-e não a diferença entre 1º e 2º.
+e não a diferença entre 1º e 2º. Esta margem alimenta três superfícies:
+(1) a figura textual na ficha de estado (UR T-10);
+(2) o rótulo da view de "margem" no seletor de visualizações;
+(3) a intensidade da cor do estado no mapa nacional (`<NationalChoroplethMap>`, ADR-0048) — a cor avança do neutrino para o saturado conforme a margem 2º→3º cresce.
 
 **Aceitação**:
 - Given 1º com 40%, 2º com 30% e 3º com 29%, when a tela renderiza, then a
   margem exibida é **1 pp**, não 10 pp.
+- Given uma UF com margem 2º→3º de 15 pp, when o mapa renderiza, then a cor é mais
+  saturada que uma UF com margem 1 pp.
 
 ### Telas
 
-**RF-105 — Painel de resultado com duas vagas (T-10)**
+**RF-105 — Painel de resultado com duas vagas (T-10), reaproveitado no mapa nacional**
 
 WHEN `/uf/[sigla]/senador` renderiza, the system SHALL marcar visualmente os
 **dois** primeiros colocados como ocupantes das vagas, com o mesmo tratamento —
-sem hierarquia visual entre 1º e 2º, que não existe no resultado.
+sem hierarquia visual entre 1º e 2º, que não existe no resultado. Este mesmo
+tratamento é reaproveitado na ficha (`<StateResultSheet>`) que abre ao clicar
+num estado no mapa nacional (`/senador`, nivel Brasil, ADR-0048).
 
 **Aceitação**:
 - Given o payload de uma UF, when a tela renderiza, then exatamente 2 linhas
   carregam o marcador de vaga.
 - Given a lista completa, when colapsada (ADR-0034 D21), then as 2 linhas de vaga
   permanecem no DOM, visíveis (ADR-0017).
+- Given `/senador` (nível Brasil) + clique numa UF, when a ficha abre, then os
+  dois ocupantes das vagas são marcados visualmente (mesmos `role="region"`/styles).
 
-**RF-106 — Rótulo explícito de duas vagas**
+**RF-106 — Rótulo explícito de duas vagas, incluindo no nome acessível do mapa**
 
 WHEN qualquer tela de Senador renderiza, the system SHALL exibir o texto "2 vagas
-por estado" junto ao título da corrida.
+por estado" junto ao título da corrida. Este aviso também entra no nome acessível
+do mapa nacional (`aria-label` de `<NationalChoroplethMap>` no nível Brasil, ADR-0048 item 5, RNF-025/WCAG SC 4.1.2) — quem ouve "Por líder — Senado: 2 vagas por estado" sabe que a cor única não promete um vencedor único.
 
 **Aceitação**:
 - Given `/senador` ou `/uf/XX/senador`, when renderiza, then o texto está
   presente. ⚠️ O kit de UI rotula **"1 vaga"**
   (`docs/architecture/adrs/0029-home-mobile-first-mapa-primeiro-fiel-ao-kit.md:56`)
   — esse rótulo **não deve ser herdado**.
+- Given `/senador` (nível Brasil) + leitor de tela, when navega para o mapa,
+  then ouve a menção de "2 vagas por estado" no `aria-label`.
 
 **RF-107 — Composição nacional das 54 vagas (T-09)**
 

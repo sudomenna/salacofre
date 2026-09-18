@@ -389,6 +389,14 @@
       "amends": ["0038", "0046"],
       "note": "Duas decisões do dono de 18/09, com o código já verde e os documentos dizendo o contrário (divergência bloqueante para promover a spec 020 a shipped). Emenda o ADR-0046 (D5) e estende o ADR-0038 (D1); NÃO emenda o ADR-0024, que é reforçado. D1 — cor: SerieApuracaoChart resolve stroke e fill do ponto final por textForParty (--party-<sigla>-text), não por colorForParty (a base, que é cor de ÁREA). Motivo medido: o traço de 1,5-2,5 px é objeto gráfico, WCAG 2.1 SC 1.4.11, piso 3:1 — sobre --surface-page (#f3f4f6) quatro bases reprovam: PSOL 2,08:1, PSB 2,19:1, o fallback `outros` 2,39:1, NOVO 2,72:1 (comentários gerados em app/tokens-party.css:329,263,439,142). A variante leva os quatro a ~4,5:1. A FONTE da cor não muda (a sigla do partido), o campo `cor` do payload segue não consumido, e em 17 dos 31 partidos a variante É a base (party-color.ts:265) — PT, PL e UNIÃO entre eles, nenhum pixel muda no tema claro. Custo registrado: no tema ESCURO 8 tokens divergem da base e ficam mais pálidos (pl, up, pstu, democrata, republicanos, uniao, pdt, pcdob) SEM que contraste exigisse — nenhuma base reprova 3:1 lá; a pior é UNIÃO 3,09:1 contra o card #1c1f24 e 3,36:1 contra a página #14171b (o briefing citava 3,53:1, número NÃO reproduzido — a conclusão não muda). ΔE76 de --party-uniao-text ao --text-muted do escuro: 25,6 (base: 56,0) — continua distinguível. Gate: bloco T8 de tests/unit/components/serie-apuracao-chart.test.tsx (2 temas x 2 papéis, fixture feita dos 4 partidos que reprovam). D2 — eixo: ciclo sem hora do TSE não vira ponto, vira buraco, nas DUAS metades e no mesmo commit: `dado_ts IS NOT NULL` na leitura (_SERIE_POR_CANDIDATO_SQL, saiu o COALESCE(dado_ts, ts) das 3 posições) e fim do fallback para ts_iso em anexar_ponto_corrente. Corrigir só uma faz a linha PISCAR (some no ciclo em que nasce, volta pela leitura do seguinte) — teste dedicado: test_com_o_coalesce_de_volta_na_leitura_o_ciclo_cego_ressuscita. Medido no banco de produção em 18/09: 25 ciclos desde a migration 0009, 22 sem dado_ts; das 572 linhas sem hora, ZERO têm pct_atual; das 78 com hora, 78/78 têm; tabela inteira: 13.180 linhas sem dado_ts, nenhuma com pct_atual. O que sobra nas linhas cegas é pct_projetado, e ele MUDA (39 valores distintos) — a linha da projeção marchava para a direita sobre ciclos em que nada chegou do TSE, o modo de falha que o ADR-0038 existe para impedir. Consequência aceita: toda linha anterior à 0009 some da série; só a base projeção perde histórico, e é histórico sem voto medido. Negativa registrada: D2 converte 'hora ilegível' em 'ciclo invisível' — se o parser de dg/hg regredir, um ciclo COM voto sumiria da série em silêncio visual, e não há alarme dedicado para 'série parada enquanto o placar anda'.",
       "path": "docs/architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md"
+    },
+    {
+      "id": "0048",
+      "title": "Coroplético MapLibre+PMTiles substitui o cartograma hexagonal em Governador e estreia em Senador, não um segundo sistema de mapa por cargo",
+      "status": "accepted",
+      "date": "2026-09-18",
+      "note": "Decisão do dono 18/09: paga a dívida que o ADR-0024 abriu (HexCartogramBrasil pintava por rank via colorForRank, não por partido) — NationalMapBlock variant=\"frame\" substitui o favo no nível Brasil de /governador; HexCartogramBrasil.tsx fica no repo, sem uso. Senador estreia com moldura própria (app/(sen)/layout.tsx, novo) só no nível Brasil, pintado pelo líder local com rótulo \"· 2 vagas\" no cabeçalho E no nome acessível (ariaRessalvaVagas, RNF-025/WCAG SC 4.1.2) — sem nível UF (fonte sem dado municipal, spec 016 § Escopo/Fora). Corrige RF-104: a margem que decide a cor passa a ser 2º→3º (margemSegundaVaga, NaN quando não há 3 candidatos), não 1º→2º. Consequências aceitas: sem legenda e sem rankByLider em cargo 3/5 (rank reinicia por UF); nome no bloco nacional desses cargos continua \"Candidato {id}\" (ADR-0042). CARGO_LABEL/HOME_HREF em PersistentMapFrame.tsx viram Record totais (4ª ocorrência da classe de defeito que o ADR-0028 nomeava). Contraria RF-006.3 (spec 006, shipped) no texto — emenda pendente via spec-syncer.",
+      "path": "docs/architecture/adrs/0048-coropletico-substitui-cartograma-governador-estreia-senador.md"
     }
   ],
   "nfr": {
@@ -993,7 +1001,9 @@
         "0019",
         "0022",
         "0025",
-        "0034"
+        "0034",
+        "0038",
+        "0048"
       ]
     },
     {
@@ -1158,7 +1168,20 @@
         "ForecastTransparency"
       ],
       "nfr": ["RNF-001", "RNF-002", "RNF-003", "RNF-006", "RNF-022", "RNF-023", "RNF-024"],
-      "adrs": ["0001", "0012", "0020", "0021", "0026", "0028", "0033", "0034", "0035"],
+      "adrs": [
+        "0001",
+        "0012",
+        "0020",
+        "0021",
+        "0026",
+        "0028",
+        "0033",
+        "0034",
+        "0035",
+        "0038",
+        "0042",
+        "0048"
+      ],
       "opens_after": "2026-09-11"
     },
     {
