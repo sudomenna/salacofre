@@ -14,6 +14,8 @@
 
 import type { CSSProperties } from "react";
 
+import { makeScale } from "@/components/atoms/charts/scale";
+
 export interface TimeSeriesPoint {
   /** Timestamp ISO. */
   ts: string;
@@ -62,17 +64,16 @@ export function TimeSeriesChart({
 
   const padX = 32;
   const padY = 20;
-  const innerW = width - 2 * padX;
-  const innerH = height - 2 * padY;
 
-  const xs = points.map((_, i) => i);
   const ys = points.map((p) => p.margemPp);
   const yMin = Math.min(...ys, 0);
   const yMax = Math.max(...ys, 1);
-  const yRange = yMax - yMin || 1;
 
-  const xFor = (i: number) => padX + (xs.length > 1 ? (i / (xs.length - 1)) * innerW : innerW / 2);
-  const yFor = (v: number) => padY + ((yMax - v) / yRange) * innerH;
+  // Eixo horizontal por POSIÇÃO NA FILA — o que este gráfico sempre fez, e o
+  // que ele deve continuar fazendo. O eixo por relógio (`makeTimeScale`) é do
+  // `<SerieApuracaoChart>`, que desenha a noite de apuração e onde um atraso do
+  // TSE precisa aparecer como vão. Ver o bloco no topo de `scale.ts`.
+  const { xFor, yFor } = makeScale({ width, height, padX, padY, n: points.length, yMin, yMax });
 
   const path = `M ${points
     .map((p, i) => `${xFor(i).toFixed(1)},${yFor(p.margemPp).toFixed(1)}`)
