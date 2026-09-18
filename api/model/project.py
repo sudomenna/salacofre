@@ -60,6 +60,7 @@ from http.server import BaseHTTPRequestHandler
 import hashlib
 import json
 import logging
+import math
 import os
 import time
 import traceback
@@ -68,7 +69,7 @@ import urllib.request
 import uuid
 from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
-from typing import Any, TypedDict
+from typing import Any, NamedTuple, TypedDict
 
 import numpy as np
 from pydantic import BaseModel, Field, ValidationError
@@ -743,6 +744,504 @@ def fetch_series_temporais(
             )
         out[uf_key] = timeline
     return out
+
+
+# ---------------------------------------------------------------------------
+# Spec 020 — a série por CANDIDATURA (ADR-0046)
+# ---------------------------------------------------------------------------
+#
+# `fetch_series_temporais`, logo acima, é a irmã AGREGADA: três séries sobre a
+# corrida (margem, p_vitoria, turnout), cada uma um array só. Aqui a pergunta é
+# outra — "N candidaturas × M pontos" — e ela traz três decisões que a irmã não
+# precisou tomar: quantos pontos cabem (`SERIE_MAX_PONTOS`), quem entra
+# (`ordenar_por_parcial`) e de que lado do relógio o último ponto fica
+# (`anexar_ponto_corrente`).
+
+#: Teto duro de pontos de uma série publicada (ADR-0046 D2).
+#:
+#: O teto **re-bucketiza**, nunca corta. Cortar os pontos mais antigos apagaria
+#: o começo da noite — exatamente o trecho que mostra quem largou na frente
+#: antes de o Norte/Nordeste apurar, um dos dois eventos que a spec 020 existe
+#: para mostrar. É por isso que ele NÃO é um `LIMIT` de SQL.
+SERIE_MAX_PONTOS = 120
+
+#: Cadências admissíveis, em minutos, da menor para a maior (ADR-0046 D2).
+#:
+#: 5 min não é número novo no projeto: `SERIE_PASSO_MIN` no gerador de simulação
+#: e `CADENCIA_MIN` na página de senador já usam o mesmo valor. É a primeira
+#: cadência em que o traço tem 3,5 px por ponto na coluna de 400 px das rotas de
+#: UF — abaixo dela o ponto é sub-pixel e a linha vira ruído.
+SERIE_CADENCIAS_MIN: tuple[int, ...] = (5, 10, 15, 30)
+
+#: Casas decimais dos percentuais publicados na série.
+#:
+#: ⚠️ **Decisão de implementação, não escrita na spec.** A coluna
+#: `pct_atual`/`pct_projetado` é `numeric(8,5)` e o float em memória tem 17
+#: dígitos; publicar tudo isso custaria ~12 KB por série, contra os ~9 KB da
+#: grade cheia com duas casas (ADR-0046 D2) — o eixo e as 8 colunas são o payload
+#: inteiro. 0,01 pp é invisível no desenho: mesmo na escala mais apertada que o
+#: componente produz (10 pp de amplitude em ~180 px de altura útil) um centésimo
+#: de ponto percentual vale 0,18 px. Uma casa só (0,1 pp) daria degraus de ~2 px
+#: nessa mesma escala, visíveis como escada — por isso duas, e não uma.
+SERIE_CASAS_DECIMAIS = 2
+
+#: Janela lida de `projections` para montar a série, em horas.
+SERIE_JANELA_HORAS = 24
+
+#: Quantas candidaturas entram no gráfico (ADR-0046 D4, decisão do dono D-A).
+SERIE_ELENCO = 4
+
+
+def cadencia_para_janela(janela_min: int) -> int:
+    """A MENOR cadência de {@link SERIE_CADENCIAS_MIN} que cabe no teto.
+
+    `ceil(janela_min / cadência) <= SERIE_MAX_PONTOS` (ADR-0046 D2). "Menor que
+    satisfaz" é a regra inteira: pegar sempre a maior daria uma linha grosseira
+    numa noite curta, e pegar sempre a menor estouraria o teto numa longa.
+
+    Nenhuma cadência da lista serve (janela > 60 h)? Devolve a maior e o
+    `montar_serie_por_candidato` re-bucketiza o que sobrar — nunca corta. Não
+    acontece em produção: a janela é nossa e vale `SERIE_JANELA_HORAS`.
+    """
+    for cadencia in SERIE_CADENCIAS_MIN:
+        if math.ceil(janela_min / cadencia) <= SERIE_MAX_PONTOS:
+            return cadencia
+    return SERIE_CADENCIAS_MIN[-1]
+
+
+def _momento_aware(momento: datetime) -> datetime:
+    """Datetime ingênuo → UTC. Mesma convenção de `_dado_ts_para_coluna`.
+
+    Sem isto, `datetime.timestamp()` sobre um ingênuo assume o fuso da MÁQUINA
+    — e o balde de um mesmo instante mudaria conforme o servidor, o que a
+    constituição § 6 proíbe.
+    """
+    if momento.tzinfo is None:
+        return momento.replace(tzinfo=timezone.utc)
+    return momento
+
+
+def _balde_epoch(momento: datetime, cadencia_min: int) -> int:
+    """Epoch (s) do INÍCIO do balde que contém `momento`.
+
+    Balde derivado do **epoch**, nunca do índice do array (ADR-0046 D2): um
+    ciclo perdido não desloca os pontos publicados antes dele. Mesma aritmética
+    do `floor(extract(epoch …) / largura) * largura` do SQL, de propósito — é a
+    mesma função nos dois lados.
+    """
+    largura = cadencia_min * 60
+    return (int(_momento_aware(momento).timestamp()) // largura) * largura
+
+
+class SeriePorCandidatoBruta(NamedTuple):
+    """O material bruto da série, antes de virar payload.
+
+    `por_escopo[uf][candidato_id][balde_epoch] = {momento, pct_atual,
+    pct_projetado}`, com `uf = None` para o escopo NACIONAL — a mesma convenção
+    da coluna `uf` de `projections`.
+
+    Chaveado por balde (e não por lista) porque é isso que torna
+    `anexar_ponto_corrente` uma atribuição: o ponto do ciclo corrente cai no seu
+    balde e substitui o que estivesse lá, que é exatamente a regra de
+    último-do-balde do ADR-0046 D2.
+    """
+
+    cadencia_min: int
+    por_escopo: dict[str | None, dict[int, dict[int, dict[str, Any]]]]
+
+
+#: O downsample mora no SQL, não em TypeScript (design da spec 020 § 2.2d).
+#:
+#: Fazê-lo na leitura pagaria o transporte inteiro para descartar 80% do outro
+#: lado do CDN; o limite do store é de ESCRITA. `DISTINCT ON` + `ORDER BY …
+#: DESC` = o **último** do balde, nunca a média: média suavizaria
+#: descontinuidades e poderia fazer uma quantidade quase-monotônica regredir, o
+#: que a regra dos três estados proíbe.
+#:
+#: O `balde` é calculado numa subconsulta e só então usado no `DISTINCT ON` —
+#: a forma com o apelido direto depende de o parser aceitar nome de coluna de
+#: saída ali, e um erro dessa consulta só apareceria em produção.
+#:
+#: Duas janelas no `WHERE`, e as duas são necessárias: `ts` é a coluna do índice
+#: `ix_proj_serie` e limita a varredura; `COALESCE(dado_ts, ts)` limita o EIXO.
+#: Sem a segunda, um boletim do TSE travado há três dias entraria pela porta do
+#: `ts` recente e esticaria o eixo para muito além da janela.
+_SERIE_POR_CANDIDATO_SQL = """
+    SELECT DISTINCT ON (uf, candidato_id, balde)
+           uf, candidato_id, balde, momento, pct_atual, pct_projetado
+    FROM (
+        SELECT
+            uf,
+            candidato_id,
+            floor(extract(epoch FROM COALESCE(dado_ts, ts)) / %(largura)s)
+                * %(largura)s AS balde,
+            COALESCE(dado_ts, ts) AS momento,
+            pct_atual,
+            pct_projetado
+        FROM projections
+        WHERE cargo = %(cargo)s
+          AND turno = %(turno)s
+          AND ts > NOW() - (%(janela)s || ' hours')::interval
+          AND COALESCE(dado_ts, ts) > NOW() - (%(janela)s || ' hours')::interval
+    ) AS pontos
+    ORDER BY uf, candidato_id, balde, momento DESC
+"""
+
+
+def fetch_series_por_candidato(
+    conn,
+    cargo: int,
+    turno: int,
+    window_hours: int = SERIE_JANELA_HORAS,
+) -> SeriePorCandidatoBruta:
+    """Lê `projections` já bucketizada por (uf, candidato, balde) — spec 020.
+
+    Irmã de `fetch_series_temporais`, com a mesma tolerância a falha: erro de
+    consulta (coluna ausente num banco sem a 0009, `projections` vazia em
+    dev/preview) vira log warn + escopos vazios. Série ausente é um estado que a
+    tela sabe mostrar (`sem_serie`); derrubar o ciclo do modelo por causa de um
+    eixo horizontal não é (constituição § 7).
+
+    ⚠️ O `COALESCE(dado_ts, ts)` é **carga, não defesa**: toda linha anterior à
+    migration 0009 tem `dado_ts` NULL, e ciclos em que nenhum par trouxe hora
+    legível continuam gravando NULL — o ADR-0038 D1 proíbe cair para outro
+    relógio NA COLUNA. Aqui, na leitura, a queda é para o único relógio que
+    sobrou, e é assim que `anexar_ponto_corrente` também se comporta, para que
+    o ponto do ciclo caia no mesmo lugar em que ele será relido no ciclo
+    seguinte.
+    """
+    # 🔴 A consulta bucketiza na cadência mais FINA da lista, não na cadência
+    # da janela declarada. A cadência final é uma função do que a noite de fato
+    # durou, e às 19h a apuração tem uma hora de vida, não vinte e quatro:
+    # derivá-la de `window_hours` publicaria a noite inteira em baldes de 15
+    # min, quando 5 min cabem folgados no teto. Quem decide é
+    # `montar_serie_por_candidato`, que conhece o primeiro e o último ponto —
+    # esta cadência é o PISO, e ela só sobe de lá para cima.
+    cadencia = SERIE_CADENCIAS_MIN[0]
+    params = {
+        "largura": cadencia * 60,
+        "cargo": int(cargo),
+        "turno": int(turno),
+        "janela": str(window_hours),
+    }
+    try:
+        with conn.cursor() as cur:
+            cur.execute(_SERIE_POR_CANDIDATO_SQL, params)
+            rows = cur.fetchall()
+    except Exception as exc:  # noqa: BLE001 — sem série é OK; sem ciclo não é
+        _log("warn", "fetch_series_por_candidato failed", error=str(exc))
+        return SeriePorCandidatoBruta(cadencia, {})
+
+    por_escopo: dict[str | None, dict[int, dict[int, dict[str, Any]]]] = {}
+    for uf, candidato_id, balde, momento, pct_atual, pct_projetado in rows:
+        baldes = por_escopo.setdefault(uf, {}).setdefault(int(candidato_id), {})
+        baldes[int(balde)] = {
+            "momento": _momento_aware(momento),
+            # `None` sobrevive: é "não foi medido", e o consumidor desenha um
+            # furo. `0.0` seria "mediu zero voto" — um mergulho ao chão que
+            # nunca aconteceu (ADR-0046 D1, regra dos três estados).
+            "pct_atual": float(pct_atual) if pct_atual is not None else None,
+            "pct_projetado": (
+                float(pct_projetado) if pct_projetado is not None else None
+            ),
+        }
+    return SeriePorCandidatoBruta(cadencia, por_escopo)
+
+
+def _chave_parcial(candidato: Mapping[str, Any]) -> tuple[float, float, int]:
+    """A chave de ordenação de `rankByParcial`, em Python.
+
+    `pct_atual` desc → `pct_projetado` desc → `id` asc. Porte literal de
+    `lib/utils/rank-parcial.ts`; qualquer mudança de critério tem de acontecer
+    nos dois arquivos no mesmo commit, ou o gráfico passa a mostrar um conjunto
+    de candidaturas diferente do que a tabela ranqueia logo acima dele.
+
+    ⚠️ **Ausência (`None`) conta como 0,0 — decisão, não descuido.** No
+    TypeScript o `pct_atual` de `EdgeUfCandidate` é `number`, e é
+    `build_uf_payloads` que já converte `None` em `0.0` ao montar o payload que
+    a tela lê. Ordenar aqui com `None` "abaixo de tudo" faria o produtor e a
+    tela discordarem justamente na candidatura imputada — o tipo de divergência
+    silenciosa que este porte existe para evitar. O desempate por
+    `pct_projetado` (que carrega o prior pré-eleitoral) é quem separa os
+    empatados em zero, exatamente como na tela.
+    """
+    cid = candidato.get("id")
+    if cid is None:
+        cid = candidato.get("candidato_id")
+    return (
+        -float(candidato.get("pct_atual") or 0.0),
+        -float(candidato.get("pct_projetado") or 0.0),
+        int(cid),
+    )
+
+
+def ordenar_por_parcial(
+    candidatos: Iterable[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Porte de `rankByParcial` (`lib/utils/rank-parcial.ts`), ADR-0046 D4.
+
+    🔴 **NÃO é o rank que este arquivo já calcula** com
+    `sorted(rows, key=lambda r: pct_projetado, reverse=True)` para achar líder e
+    segundo. Aquele ordena só por `pct_projetado`, e usá-lo aqui é a mutação
+    mais provável do projeto — é copiar código que já está logo ali. A
+    divergência entre os dois só aparece quando apurado e projetado discordam de
+    ordem: isto é, na noite da apuração, com alguém olhando o gráfico e o painel
+    de resultado ao mesmo tempo, na mesma tela.
+    """
+    return [dict(c) for c in sorted(candidatos, key=_chave_parcial)]
+
+
+def anexar_ponto_corrente(
+    bruta: SeriePorCandidatoBruta,
+    *,
+    uf_rows: list[dict[str, Any]],
+    national_rows: list[dict[str, Any]],
+    dado_ts: str | None,
+    ts_iso: str,
+) -> SeriePorCandidatoBruta:
+    """Fecha a defasagem de um ciclo entre a série e o placar ao lado (RF-169).
+
+    ## O defeito que esta função existe para corrigir
+
+    A série é lida de `projections` **centenas de linhas antes** de o ciclo
+    corrente ser escrito lá (`fetch_series_por_candidato` roda junto das outras
+    leituras; o INSERT acontece no fim). Publicada como vem do banco, ela sai um
+    ciclo — 60 s — atrasada em relação ao `pct_atual` que o mesmo payload
+    publica no placar logo acima do gráfico. Ninguém notou até agora porque
+    nenhuma tela consumia série.
+
+    🔴 **A correção NÃO é mover a leitura para depois do INSERT**: isso custaria
+    uma segunda varredura de `projections` dentro do orçamento de 60 s do ciclo.
+    É anexar o ponto a partir dos valores que já estão em memória.
+
+    ## Duas regras que não são negociáveis aqui
+
+    1. O `pct_atual` nacional sai de `pct_atual_nacional_por_candidato` — a
+       função é **chamada**, nunca reimplementada. Recomputar a razão de somas
+       aqui reabriria exatamente a divergência de quinto decimal entre o gráfico
+       e o placar que a Fase 1 fechou.
+    2. O instante é `dado_ts` e, na falta dele, `ts_iso`. Não é uma queda para
+       "outro relógio" no sentido do ADR-0038 D1 (a COLUNA continua gravando
+       NULL): é o espelho exato do `COALESCE(dado_ts, ts)` com que esta mesma
+       linha será relida no ciclo seguinte. Sem o espelho, o ponto apareceria
+       num lugar hoje e noutro amanhã.
+
+    Devolve estrutura nova; `bruta` não é mutada.
+    """
+    momento = _dado_ts_para_coluna(dado_ts) or _dado_ts_para_coluna(ts_iso)
+    if momento is None:
+        _log("warn", "ponto corrente sem relogio legivel — serie fica um ciclo atras")
+        return bruta
+
+    balde = _balde_epoch(momento, bruta.cadencia_min)
+    por_escopo: dict[str | None, dict[int, dict[int, dict[str, Any]]]] = {
+        escopo: {cid: dict(baldes) for cid, baldes in cands.items()}
+        for escopo, cands in bruta.por_escopo.items()
+    }
+
+    def _pousar(
+        escopo: str | None,
+        candidato_id: int,
+        pct_atual: float | None,
+        pct_projetado: float | None,
+    ) -> None:
+        # Atribuição direta = regra de último-do-balde: mesmo balde do último
+        # ponto ⇒ substitui; balde novo ⇒ acrescenta. O ciclo corrente é, por
+        # construção, o mais recente — é ele que o payload publica ao lado.
+        por_escopo.setdefault(escopo, {}).setdefault(candidato_id, {})[balde] = {
+            "momento": momento,
+            "pct_atual": pct_atual,
+            "pct_projetado": pct_projetado,
+        }
+
+    for r in uf_rows:
+        uf = r.get("uf")
+        if uf is None:
+            continue
+        pct_atual_raw = r.get("pct_atual")
+        pct_proj_raw = r.get("pct_projetado")
+        _pousar(
+            uf,
+            int(r["candidato_id"]),
+            # RAW, nunca coalescido: aqui `None` é furo na linha. O `0.0` que
+            # `build_uf_payloads` escreve no payload é uma exigência do contrato
+            # TS daquele campo, e não vale para este.
+            float(pct_atual_raw) if pct_atual_raw is not None else None,
+            float(pct_proj_raw) if pct_proj_raw is not None else None,
+        )
+
+    pct_nat, _votos_nat, _total = pct_atual_nacional_por_candidato(uf_rows)
+    for r in national_rows:
+        cid = int(r["candidato_id"])
+        pct_proj_raw = r.get("pct_projetado")
+        _pousar(
+            None,
+            cid,
+            # `.get(cid)` SEM default: candidatura que existe no nacional e não
+            # aparece em UF nenhuma fica `None`, não `0.0`.
+            pct_nat.get(cid),
+            float(pct_proj_raw) if pct_proj_raw is not None else None,
+        )
+
+    return SeriePorCandidatoBruta(bruta.cadencia_min, por_escopo)
+
+
+def _rebucketizar(
+    pontos: dict[int, dict[str, Any]], cadencia_min: int
+) -> dict[int, dict[str, Any]]:
+    """Reagrupa pontos já bucketizados numa cadência maior, mantendo o ÚLTIMO.
+
+    Nunca descarta o começo: baldes vizinhos se fundem, e o representante do
+    balde novo é o ponto de maior `momento` entre eles — a mesma regra do
+    `DISTINCT ON` do SQL, aplicada de novo.
+    """
+    saida: dict[int, dict[str, Any]] = {}
+    for _balde, ponto in sorted(pontos.items()):
+        novo = _balde_epoch(ponto["momento"], cadencia_min)
+        atual = saida.get(novo)
+        if atual is None or ponto["momento"] >= atual["momento"]:
+            saida[novo] = ponto
+    return saida
+
+
+def _arredondar_pct(valor: float | None) -> float | None:
+    """`None` continua `None`. Ver {@link SERIE_CASAS_DECIMAIS}."""
+    if valor is None:
+        return None
+    return round(float(valor), SERIE_CASAS_DECIMAIS)
+
+
+def _eixo_iso(epoch: int) -> str:
+    """Instante do balde em ISO 8601 UTC compacto (`…T23:15:00Z`).
+
+    ⚠️ **Decisão de implementação, não escrita na spec.** O rótulo do eixo é o
+    **início do balde**, não o `dado_ts` exato do boletim que representa o
+    balde. Dois motivos:
+
+      1. Balde sem ciclo nenhum precisa existir no eixo para virar `null` na
+         coluna de cada candidatura (RF-175b: o traço INTERROMPE). Um balde
+         vazio não tem boletim para nomear, então o eixo tem de ser a grade.
+      2. A grade regular é o que torna `eixo.length <= SERIE_MAX_PONTOS`
+         verdadeiro por construção, e o que fixa o teto de bytes: o eixo é a
+         string mais repetida do payload.
+
+    A forma compacta (`Z`, 20 caracteres) em vez de `+00:00` (25) economiza
+    ~600 B numa série de 120 pontos — dentro do mesmo orçamento. `new Date()`
+    lê as duas, e `formatTimeHMS` converte para `America/Sao_Paulo` do mesmo
+    jeito.
+    """
+    return datetime.fromtimestamp(epoch, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def montar_serie_por_candidato(
+    bruta: SeriePorCandidatoBruta | None,
+    uf: str | None,
+    candidatos: list[dict[str, Any]],
+    limite: int = SERIE_ELENCO,
+) -> dict[str, Any] | None:
+    """`EdgeSeriePorCandidato` de um escopo — `uf=None` é o nacional.
+
+    `candidatos` são os do PAYLOAD daquele escopo (com `id`, `nome`, `partido`,
+    `sqcand?`, `pct_atual`, `pct_projetado`), em qualquer ordem: o elenco e a
+    ordem de exibição saem daqui, por `ordenar_por_parcial`.
+
+    Forma colunar (ADR-0046 D1): um `eixo` compartilhado mais dois arrays
+    paralelos por candidatura. O custo inteiro da forma antiga era a chave
+    `"ts"` repetida uma vez por ponto POR candidatura, em vez de uma vez só.
+
+    Devolve `None` — e o campo some do payload, que é opcional dos dois lados —
+    quando não há escopo, elenco ou nenhum ponto. "Ainda não publico série" é um
+    estado que a tela sabe nomear (`sem_serie`); um objeto vazio não é.
+
+    ## O que este corpo NÃO faz
+
+    Não corta pontos para caber no teto. Quando a grade passaria de
+    `SERIE_MAX_PONTOS`, a cadência sobe e os baldes se fundem
+    (`_rebucketizar`) — o começo da noite sobrevive. Um `LIMIT` de SQL, ou uma
+    fatia dos últimos 120, apagaria justamente quem largou na frente antes de o
+    Nordeste apurar.
+    """
+    if bruta is None:
+        return None
+    dados_escopo = bruta.por_escopo.get(uf)
+    if not dados_escopo:
+        return None
+
+    elenco = ordenar_por_parcial(candidatos)[:limite]
+    if not elenco:
+        return None
+
+    por_cand: dict[int, dict[int, dict[str, Any]]] = {}
+    for c in elenco:
+        cid = int(c["id"])
+        por_cand[cid] = dict(dados_escopo.get(cid, {}))
+    if not any(por_cand.values()):
+        return None
+
+    # Teto por re-bucketização (ADR-0046 D2). Em operação normal o laço roda uma
+    # vez só: o SQL já entregou os baldes na cadência da janela. O laço existe
+    # para o caso em que os dados cobrem um intervalo maior que a janela pedida
+    # — e para que o teto seja verdadeiro AQUI, e não apenas por causa de um
+    # `WHERE` que um teste unitário não consegue exercer.
+    #
+    # O ponto de partida é `cadencia_para_janela` sobre o que a noite DE FATO
+    # durou — do primeiro ao último ponto medido, e não sobre a janela nominal
+    # de leitura. Às 19h a apuração tem uma hora de vida: publicá-la em baldes
+    # de 15 min só porque a consulta olha 24h para trás desenharia quatro pontos
+    # onde cabem doze. `bruta.cadencia_min` entra como PISO — a consulta já
+    # perdeu a resolução abaixo dela, e descer mais seria inventar detalhe.
+    momentos = [p["momento"] for pontos in por_cand.values() for p in pontos.values()]
+    span_min = math.ceil((max(momentos) - min(momentos)).total_seconds() / 60)
+    piso = max(cadencia_para_janela(span_min), bruta.cadencia_min)
+
+    cadencia = piso
+    candidatas = [c for c in SERIE_CADENCIAS_MIN if c >= piso] or [piso]
+    for candidata in candidatas:
+        cadencia = candidata
+        agrupado = {cid: _rebucketizar(p, cadencia) for cid, p in por_cand.items()}
+        ocupados = sorted({b for p in agrupado.values() for b in p})
+        largura = cadencia * 60
+        n_pontos = (ocupados[-1] - ocupados[0]) // largura + 1
+        if n_pontos <= SERIE_MAX_PONTOS:
+            break
+
+    grade = list(range(ocupados[0], ocupados[-1] + 1, largura))
+
+    saida_candidatos: list[dict[str, Any]] = []
+    for c in elenco:
+        cid = int(c["id"])
+        pontos = agrupado.get(cid, {})
+        candidato: dict[str, Any] = {
+            "id": cid,
+            "nome": str(c.get("nome") or f"Candidato {cid}"),
+            # A cor sai DAQUI, via `colorForParty(partido)` no consumidor. O
+            # campo `cor` do payload (`var(--color-cand-{rank})`) não entra
+            # nesta série e não deve ser lido a partir dela: ele é a cor por
+            # rank que o ADR-0024 aposentou, e aqui ela seria visível como
+            # MOVIMENTO — a linha trocando de cor no instante da ultrapassagem.
+            "partido": str(c.get("partido") or "—"),
+            "apurado": [
+                _arredondar_pct(pontos[b]["pct_atual"]) if b in pontos else None
+                for b in grade
+            ],
+            "projetado": [
+                _arredondar_pct(pontos[b]["pct_projetado"]) if b in pontos else None
+                for b in grade
+            ],
+        }
+        sqcand = c.get("sqcand")
+        if sqcand:
+            candidato["sqcand"] = str(sqcand)
+        saida_candidatos.append(candidato)
+
+    return {
+        "eixo": [_eixo_iso(b) for b in grade],
+        # Declarada, nunca inferida pelo consumidor: o primeiro intervalo do
+        # eixo pode conter um furo, e quem inferisse dele desenharia a noite
+        # inteira na cadência errada por causa de um buraco no começo.
+        "cadencia_min": int(cadencia),
+        "candidatos": saida_candidatos,
+    }
 
 
 def fetch_municipio_aggregates(
@@ -3200,6 +3699,7 @@ def build_uf_payloads(
     partido_by_cand: dict[int, str] | None = None,
     relogio_by_uf: dict[str, RelogioDoDado] | None = None,
     identidade_by_cand: dict[tuple[str, int], dict[str, str]] | None = None,
+    serie_bruta: SeriePorCandidatoBruta | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Constrói payloads canônicos `EdgePayloadUf` por UF (S04/F2).
 
@@ -3578,6 +4078,12 @@ def build_uf_payloads(
             {"ts": pt["ts"], "pct_apurado": float(pt["pct_apurado"])} for pt in timeline
         ]
 
+        # Spec 020 (RF-170) — o elenco das quatro sai de `candidatos`, que é a
+        # MESMA lista que a tela recebe, reordenada pelo comparador de
+        # `rankByParcial`. Passar `ordered` (que está por `pct_projetado`) no
+        # lugar é a mutação que o teste T2 mata.
+        serie_uf_payload = montar_serie_por_candidato(serie_bruta, sigla, candidatos)
+
         # Margem atual UF p/ derivar needle.
         top_pct = float(top.get("pct_projetado") or 0.0) if top else 0.0
         second_pct = float(second.get("pct_projetado") or 0.0) if second else 0.0
@@ -3611,6 +4117,21 @@ def build_uf_payloads(
                 "margem": series_margem,
                 "p_vitoria": series_pv,
                 "turnout": series_turnout,
+                # Spec 020 / ADR-0046 D3 — a série por candidatura desta UF mora
+                # AQUI DENTRO, e portanto no objeto Blob do ADR-0032: 27 UF × 3
+                # cargos × ~6,9 KB levariam o store de Global Config a ~969 KB,
+                # acima do limiar de erro do writer — escrita recusada na noite
+                # de 04/10. `splitUfPayload` não precisou mudar: o
+                # destructuring já leva o objeto de séries inteiro ao Blob.
+                #
+                # Campo OPCIONAL: ausente enquanto não há ponto nenhum, e o
+                # consumidor nomeia esse estado (`sem_serie`) em vez de desenhar
+                # um gráfico vazio.
+                **(
+                    {"por_candidato": serie_uf_payload}
+                    if serie_uf_payload is not None
+                    else {}
+                ),
             },
         }
         # Spec 016 — quantas cadeiras esta UF elege no cargo (RF-105/RF-106) e
@@ -3661,6 +4182,7 @@ def build_edge_payload(
     dado_ts: str | None = None,
     pares_atrasados: int | None = None,
     identidade_by_cand: dict[tuple[str, int], dict[str, str]] | None = None,
+    serie_bruta: SeriePorCandidatoBruta | None = None,
 ) -> dict[str, Any]:
     """Monta o shape canônico `EdgePayload` (lib/edge-config/types.ts).
 
@@ -3941,6 +4463,17 @@ def build_edge_payload(
                 }
         national_candidatos.append(candidato_nat)
 
+    # Spec 020 / ADR-0046 D3 — a série NACIONAL viaja num campo novo da chave de
+    # Global Config que já existe, e não numa chave nova nem num Blob nacional:
+    # +6,9 KB sobre os ~17,3 KB do payload, contra um limiar de aviso de 75 KB.
+    # É o teto duro de 120 pontos (D2) que permite isso sem reabrir o ADR-0032.
+    #
+    # `national_candidatos` já está montado com `id`/`nome`/`partido`/`sqcand`/
+    # `pct_atual`/`pct_projetado` — os mesmos números que a tela lê. O elenco sai
+    # dele, reordenado pelo comparador de `rankByParcial`, e NÃO da ordem
+    # semântica acima (líder, segundo, cauda por `pct_projetado`).
+    serie_nacional = montar_serie_por_candidato(serie_bruta, None, national_candidatos)
+
     # Fase 1a — patch `pct_atual` de "outros" com o dado real recém
     # computado (só quando houve alguma fonte de votos reais; sem ela,
     # `outros_nacional["pct_atual"]` permanece `None`, vindo de
@@ -4205,6 +4738,13 @@ def build_edge_payload(
             ),
         },
         "por_uf": por_uf,
+        # Spec 020 — opcional: ausente enquanto não há ponto nenhum. Ver o bloco
+        # que o monta, acima.
+        **(
+            {"serie_por_candidato": serie_nacional}
+            if serie_nacional is not None
+            else {}
+        ),
         "insights": [],
         "composition": {
             "pre_election": 0.0,
@@ -5025,6 +5565,17 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
             series_by_uf = fetch_series_temporais(
                 conn, req.cargo, req.turno, window_hours=24
             )
+            # Spec 020 — a série por candidatura, lida na mesma rodada de
+            # leituras que as outras. Só para os cargos cuja série é de fato
+            # persistida: nos demais a consulta não teria o que encontrar, e
+            # pagá-la a cada ciclo seria puro desperdício de orçamento.
+            serie_bruta = (
+                fetch_series_por_candidato(
+                    conn, req.cargo, req.turno, window_hours=SERIE_JANELA_HORAS
+                )
+                if req.cargo in CARGOS_COM_SERIE_PERSISTIDA
+                else None
+            )
 
             if not snapshots:
                 _log(
@@ -5178,6 +5729,22 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
         # Falha aqui não desfaz `projections` (fonte de verdade) — o
         # próximo ciclo do cron ressincroniza em <60s.
         ts_iso = datetime.now(timezone.utc).isoformat()
+
+        # Spec 020 / RF-169 — a série foi lida ANTES do INSERT deste ciclo (a
+        # leitura está centenas de linhas acima). Sem este passo ela sairia 60 s
+        # atrasada em relação ao `pct_atual` que o mesmo payload publica no
+        # placar logo acima do gráfico. A correção é anexar o ponto a partir da
+        # memória — nunca reler `projections` depois da escrita, que custaria
+        # uma segunda varredura dentro do orçamento de 60 s do ciclo.
+        if serie_bruta is not None:
+            serie_bruta = anexar_ponto_corrente(
+                serie_bruta,
+                uf_rows=uf_rows,
+                national_rows=national_rows,
+                dado_ts=relogio.dado_ts,
+                ts_iso=ts_iso,
+            )
+
         try:
             edge_payload = build_edge_payload(
                 cargo=req.cargo,
@@ -5209,6 +5776,9 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 # Spec 018 — RF-144 em `top_candidatos`, RF-145 no nacional
                 # (que filtra por cargo 1 lá dentro, não aqui).
                 identidade_by_cand=identidade_by_cand,
+                # Spec 020 — material bruto da série; o elenco e a forma
+                # colunar saem lá dentro, a partir de `national.candidatos`.
+                serie_bruta=serie_bruta,
             )
             # S04/F2 — payloads UF ricos (candidatos com votos, municípios,
             # séries temporais). Envia junto do nacional; endpoint Node
@@ -5238,6 +5808,9 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 relogio_by_uf=relogio_uf,
                 # Spec 018 / RF-144 — nome real no lugar de "Candidato {id}".
                 identidade_by_cand=identidade_by_cand,
+                # Spec 020 — mesma estrutura bruta do nacional; cada UF fatia a
+                # sua dentro de `build_uf_payloads`.
+                serie_bruta=serie_bruta,
             )
             post_edge_write(edge_payload, payloads_uf=uf_payloads)
         except Exception as edge_exc:  # noqa: BLE001 — never block the response

@@ -73,6 +73,11 @@ vi.mock("@/lib/blob/uf-detail", () => ({
     Promise.resolve({ status: "unavailable", reason: "not_found", url: null } as const),
   municipiosFrom: () => [],
   seriesFrom: () => null,
+  // Spec 020 (Fase 2): as rotas de UF passaram a ler a série por candidatura
+  // do MESMO resultado de `readUfDetail`. Com o mock devolvendo `unavailable`,
+  // o acessor real responderia `null` — é o que este stub reproduz, e é o
+  // estado que este arquivo mede ("Blob fora do ar").
+  seriePorCandidatoFrom: () => null,
 }));
 
 vi.mock("@/lib/blob/deputado-uf", () => ({

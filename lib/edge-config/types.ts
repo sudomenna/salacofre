@@ -730,9 +730,15 @@ export interface EdgePayload {
    * | **total** | **~24.206 B** |
    * | teto de aviso por chave nacional (`EDGE_CONFIG_NATIONAL_WARN_BYTES`) | 75 KB |
    *
-   * Cabe com folga de 3×, e o teto duro de 120 pontos (ADR-0046 D2) garante que
-   * continue cabendo por mais longa que a noite seja: 8.553 B é o máximo
-   * absoluto por corrida, para sempre.
+   * Cabe com folga de 3×, e o teto duro de **120 pontos** (ADR-0046 D2) garante
+   * que continue cabendo por mais longa que a noite seja.
+   *
+   * ⚠️ O teto é em **pontos**, não em bytes (emenda de 2026-09-17): medida no
+   * emissor real, a grade cheia de 120 pontos custa entre 8.822 e 9.066 B, e o
+   * intervalo existe porque o comprimento do nome de urna é dado do TSE. Este
+   * texto dizia "8.553 B por corrida, para sempre" — era estimativa vestida de
+   * garantia. Ver a emenda no ADR-0046, que registra também por que a primeira
+   * correção (8.775 B) também errou.
    *
    * ⚠️ **A mesma conta proíbe o caminho simétrico para UF.** 27 UF × 3 cargos ×
    * 6.905 B = **559.305 B**, que levariam o store de ~410 KB a ~969 KB — acima
@@ -963,10 +969,15 @@ export interface EdgeUfMunicipio {
  *
  * `SERIE_MAX_PONTOS = 120` (ADR-0046 D2): a cadência é o menor valor de
  * `[5, 10, 15, 30]` minutos tal que `ceil(janela_min / cadência) ≤ 120`. O teto
- * **re-bucketiza**, nunca corta o começo da noite. Consequência: teto absoluto
- * de **8.553 B por corrida, para sempre** — é isso que permite ao escopo
- * nacional viver no Global Config sem reabrir o ADR-0032 (ver
- * {@link EdgePayload.serie_por_candidato}).
+ * **re-bucketiza**, nunca corta o começo da noite. É esse teto — o de **pontos**
+ * — que permite ao escopo nacional viver no Global Config sem reabrir o
+ * ADR-0032 (ver {@link EdgePayload.serie_por_candidato}).
+ *
+ * ⚠️ **Não há teto constante em bytes** (emenda de 2026-09-17). Este texto dizia
+ * "8.553 B por corrida, para sempre". Medida no emissor real, a grade cheia
+ * custa entre 8.822 e 9.066 B — o intervalo depende do comprimento do nome de
+ * urna, que é dado do TSE e não está sob nosso controle. A garantia que sustenta
+ * a decisão é `≤ 120 pontos`, e é só essa.
  *
  * Cada balde é representado pelo ponto de **maior `dado_ts`** dentro dele (o
  * último), nunca pela média: média suavizaria descontinuidades e poderia fazer
@@ -977,12 +988,33 @@ export interface EdgeUfMunicipio {
  */
 export interface EdgeSeriePorCandidato {
   /**
-   * Eixo horizontal compartilhado por TODAS as séries: `dado_ts` ISO 8601,
-   * ordem **ASC** (constituição § 6).
+   * Eixo horizontal compartilhado por TODAS as séries: ISO 8601 UTC compacto
+   * (`2026-10-04T20:05:00Z`), ordem **ASC** (constituição § 6).
    *
-   * É `dado_ts` — a hora do boletim do TSE — e não `ts`, a hora em que o modelo
-   * rodou (ADR-0038 D1). Com o relógio errado, uma ingestão parada desenharia
-   * uma linha que continua avançando no eixo sobre dado congelado.
+   * O relógio é o do **dado** (`dado_ts`, a hora do boletim do TSE) e não `ts`,
+   * a hora em que o modelo rodou (ADR-0038 D1). Com o relógio errado, uma
+   * ingestão parada desenharia uma linha que continua avançando no eixo sobre
+   * dado congelado.
+   *
+   * ⚠️ **Cada rótulo é o INÍCIO DO BALDE, não o `dado_ts` exato do boletim que
+   * representa aquele balde** (emenda de 2026-09-17, Fase 2 — este texto dizia
+   * "é `dado_ts`" e o produtor emite a grade). Dois motivos, e o primeiro é
+   * obrigatório:
+   *
+   *   1. Um balde em que **nenhum** ciclo caiu precisa existir no eixo para
+   *      virar `null` na coluna de cada candidatura, que é como o traço
+   *      INTERROMPE (RF-175b). Um balde vazio não tem boletim para nomear —
+   *      logo o eixo tem de ser a grade, não a lista de instantes reais.
+   *      Publicar só os instantes medidos faria o furo virar um segmento reto
+   *      interpolado, exatamente o que a spec 020 proíbe.
+   *   2. A grade regular é o que torna `eixo.length <= SERIE_MAX_PONTOS`
+   *      verdadeiro por construção e o que fixa o teto de bytes — o eixo é a
+   *      string mais repetida do payload.
+   *
+   * Consequência para o consumidor, que precisa ser dita ao leitor de tela e
+   * não escondida: a hora impressa na tabela acessível é a do balde
+   * (`20:05:00`), não a do boletim (`20:07:13`). O erro é de no máximo uma
+   * cadência, e é o preço de poder desenhar a ausência.
    *
    * **Contrato de comprimento:** `eixo.length === apurado.length ===
    * projetado.length` para todo candidato. É o que torna a forma colunar

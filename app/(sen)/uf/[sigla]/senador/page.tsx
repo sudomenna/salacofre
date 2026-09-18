@@ -49,15 +49,20 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { SerieApuracaoChart } from "@/components/atoms/charts/SerieApuracaoChart";
+import {
+  DetailUnavailable,
+  type DetailUnavailableReason,
+} from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { CandidaturasAguardando } from "@/components/blocks/CandidaturasAguardando";
 import { ChancesPanel } from "@/components/blocks/ChancesPanel";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { ResultPanel } from "@/components/blocks/ResultPanel";
 import { Footer } from "@/components/layout/Footer";
+import { readUfDetail, seriePorCandidatoFrom, type UfDetailResult } from "@/lib/blob/uf-detail";
 import { cargoInfo } from "@/lib/config/cargos";
 import { isPreEleicao } from "@/lib/config/fase";
-import { resultadoEleitoral, simulacaoSenadorUf } from "@/lib/dev/simulacao";
+import { simulacaoLigada, simulacaoSenadorUf } from "@/lib/dev/simulacao";
 import { readProjection, readUfProjection } from "@/lib/edge-config/reader";
 import type { EdgePayloadUf, EdgeUfCandidate } from "@/lib/edge-config/types";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
@@ -67,6 +72,22 @@ import senUfFixture from "@/tests/fixtures/edge-config/sen-uf.json" with { type:
 /** Ver a nota em `app/(sen)/senador/page.tsx`: o fallback sai da tabela
  * canônica, nunca de literal. */
 const CARGO_SENADOR = 5 as const;
+
+/**
+ * O que `detalheLido` vale quando a leitura remota nem roda (modo simulação).
+ * Gêmeo dos de `app/(pres)/uf/[sigla]/page.tsx` e da rota de governador — a
+ * justificativa longa está na presidencial.
+ *
+ * Esta rota não tem irmão de `simulacaoMunicipiosUf`: a simulação ainda não
+ * gera arquivo de detalhe para Senador (open question 2 da spec 020, aguardando
+ * decisão). Sob `pnpm dev:sim` o bloco cai, corretamente, no estado
+ * "indisponível" — em vez de pescar o detalhe de outra corrida.
+ */
+const SEM_DETALHE_REMOTO: UfDetailResult = {
+  status: "unavailable",
+  reason: "not_configured",
+  url: null,
+};
 
 export const revalidate = 60;
 
@@ -185,14 +206,62 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
 
   // ADR-0028 — cargo e turno explícitos. Senador é turno único.
   //
-  // 🔴 Simulação ligada ⇒ ela é a fonte de verdade e o Global Config nem é
-  // lido. Ver `resultadoEleitoral` em `lib/dev/simulacao.ts`.
-  const payload = await resultadoEleitoral(
-    () => simulacaoSenadorUf(sigla),
-    async () =>
-      (await readUfProjection(sigla, { cargo: "sen", turno: 1 })) ??
-      (process.env.NODE_ENV === "development" ? fixtureUf(sigla) : null),
-  );
+  // 🔴 Simulação ligada ⇒ ela é a fonte de verdade e **nenhuma** das duas
+  // leituras remotas roda — nem o Global Config, nem o Blob. Era o que
+  // `resultadoEleitoral` fazia por esta rota até a Fase 2; com dois read paths
+  // o portão passa a ser explícito (`simulacaoLigada`), exatamente como nas
+  // rotas presidencial e de governador. Adiar as leituras, e não só ignorar o
+  // resultado delas, também tira da rota idas à rede que a segurariam à toa.
+  //
+  // ## Por que o Blob passou a ser lido AQUI (spec 020, Fase 2)
+  //
+  // Esta rota era a única das três de UF que não lia o Vercel Blob: sem tabela
+  // de municípios (spec 016 § Escopo/Fora), nunca houve detalhe a buscar. Mas a
+  // série por candidatura do gráfico de evolução mora justamente ali —
+  // `UfDetailBlob.series_temporais.por_candidato` (ADR-0046 D3) —, e o
+  // `EdgePayloadUf` do Global Config **não** a carrega, de propósito: 27 UF × 3
+  // cargos × 6.905 B levariam o store a ~969 KB e a escrita seria RECUSADA na
+  // noite de 04/10. Sem esta leitura, a decisão D5 do dono (o gráfico existe
+  // onde há UMA corrida — e T-10 é uma delas) e o RF-173 (as duas vagas)
+  // ficariam sem dado para sempre nesta tela.
+  //
+  // 🔴 **Em `Promise.all`, nunca em série.** Os dois read paths falham de forma
+  // independente (ADR-0032 item 3) e disparam juntos: a página não espera o
+  // Blob para renderizar o resumo, e o custo em tempo de parede é o do mais
+  // lento dos dois, não a soma. Dois `await` sequenciais aqui somariam uma ida
+  // à rede ao caminho crítico da rota — e é a única diferença entre as duas
+  // formas, porque o RESULTADO é idêntico. Mesma forma da rota de governador
+  // (`app/(gov)/uf/[sigla]/governador/page.tsx`).
+  const emSimulacao = simulacaoLigada();
+  const [payload, detalhe] = emSimulacao
+    ? [simulacaoSenadorUf(sigla), SEM_DETALHE_REMOTO]
+    : await Promise.all([
+        (async () =>
+          (await readUfProjection(sigla, { cargo: "sen", turno: 1 })) ??
+          (process.env.NODE_ENV === "development" ? fixtureUf(sigla) : null))(),
+        readUfDetail(sigla, { cargo: "sen", turno: 1 }),
+      ]);
+
+  /**
+   * Spec 020 (RF-168 a RF-171) — a série por candidatura desta corrida.
+   *
+   * 🔴 Repassada **como veio**: a ordem de `candidatos` é contrato do produtor
+   * (ADR-0046 D4 / RF-170c), os `null` são furos e não zeros (RF-175b), e
+   * `cadencia_min` é declarada — nunca inferida de `eixo[1] - eixo[0]`.
+   */
+  const serie = seriePorCandidatoFrom(detalhe);
+
+  /**
+   * Por que a série não pode ser desenhada (RF-175). `reason` da leitura é "a
+   * fonte não respondeu"; `"sem_serie"` é "respondeu, e o produtor não
+   * publicou". Correções opostas, motivos separados.
+   *
+   * 🔴 Um Blob ausente **não pode derrubar esta rota**, que viveu sem ele até
+   * hoje: `readUfDetail` nunca lança (ver a docstring dela), e tudo o que um
+   * `unavailable` produz é este motivo e o bloco em estado explícito.
+   */
+  const motivoSerie: DetailUnavailableReason =
+    detalhe.status !== "ok" ? detalhe.reason : "sem_serie";
 
   if (!payload) {
     // RF-149 — cargo 5 nesta UF.
@@ -208,6 +277,9 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
       CandidaturasAguardando({ cargo: 5, uf: sigla }),
       readProjection({ cargo: "sen", turno: 1 }),
     ]);
+
+    // Ponto ÚNICO de fase desta rota (RF-153 / RF-174d).
+    const preNacional = isPreEleicao(nacional);
 
     return (
       <main
@@ -233,17 +305,32 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
         {grade}
 
         {/* Spec 020 (RF-174, RF-175) — o bloco vive também neste ramo, onde
-            separa "a eleição ainda não começou" de "não sabemos". */}
+            separa "a eleição ainda não começou" de "não sabemos".
+
+            Fase 2 — a série vem do Vercel Blob, lido EM PARALELO com o resumo
+            lá em cima (ver a nota longa no topo da função). É por isso que ela
+            chega aqui mesmo sem payload de UF: os dois read paths falham de
+            forma independente (ADR-0032 item 3), e o Blob pode responder
+            enquanto a chave de Global Config ainda não existe.
+
+            🔴 A ORDEM das perguntas é o contrato do design § 6, e ela começa
+            pela fase: antes de 04/10 o Blob legitimamente não tem série, e
+            perguntar ao Blob primeiro trocaria "ainda não é hora" por "a fonte
+            não respondeu" em todos os dias que antecedem a eleição. */}
         <Panel kicker="Evolução da apuração">
-          <SerieApuracaoChart
-            cadenciaMin={CADENCIA_MIN}
-            candidatos={[]}
-            eixo={[]}
-            escopo={`Senado ${sigla}`}
-            preEleicao={isPreEleicao(nacional)}
-            titleId="serie-apuracao-heading"
-            vagas={VAGAS_PADRAO === 2 ? 2 : 1}
-          />
+          {serie || preNacional ? (
+            <SerieApuracaoChart
+              cadenciaMin={serie ? serie.cadencia_min : CADENCIA_MIN}
+              candidatos={serie ? serie.candidatos : []}
+              eixo={serie ? serie.eixo : []}
+              escopo={`Senado ${sigla}`}
+              preEleicao={preNacional}
+              titleId="serie-apuracao-heading"
+              vagas={VAGAS_PADRAO === 2 ? 2 : 1}
+            />
+          ) : (
+            <DetailUnavailable label="A evolução da apuração" reason={motivoSerie} />
+          )}
         </Panel>
 
         <Footer />
@@ -336,22 +423,30 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
           de um literal, para que as duas seções nunca discordem sobre quantas
           cadeiras estão em jogo.
 
-          Fase 0 entrega o bloco vazio: a série só existe a partir da Fase 1.
+          Fase 2 — a série vem do Blob lido em paralelo com o resumo (nota
+          longa no topo da função). Sem série o bloco continua no DOM e diz POR
+          QUE ela falta: `reason` da leitura quando a fonte não respondeu,
+          `"sem_serie"` quando ela respondeu e o produtor não publicou
+          (RF-175). Um Blob ausente degrada este bloco e não a página.
 
           🔴 `preEleicao={false}` é DECISÃO — há payload desta UF, e payload de
           UF só nasce do orchestrator; o semeador da fase pré grava apenas as
           chaves nacionais. A pergunta cara é feita no ramo de espera, acima, e
           só lá (RNF-002). */}
       <Panel kicker="Evolução da apuração">
-        <SerieApuracaoChart
-          cadenciaMin={CADENCIA_MIN}
-          candidatos={[]}
-          eixo={[]}
-          escopo={`Senado ${sigla}`}
-          preEleicao={false}
-          titleId="serie-apuracao-heading"
-          vagas={vagas === 2 ? 2 : 1}
-        />
+        {serie ? (
+          <SerieApuracaoChart
+            cadenciaMin={serie.cadencia_min}
+            candidatos={serie.candidatos}
+            eixo={serie.eixo}
+            escopo={`Senado ${sigla}`}
+            preEleicao={false}
+            titleId="serie-apuracao-heading"
+            vagas={vagas === 2 ? 2 : 1}
+          />
+        ) : (
+          <DetailUnavailable label="A evolução da apuração" reason={motivoSerie} />
+        )}
       </Panel>
 
       {/* Seção 3 — RF-108 e constituição § 8: o bloco de transparência é

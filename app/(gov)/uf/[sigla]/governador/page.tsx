@@ -96,7 +96,11 @@ import { notFound } from "next/navigation";
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { DadoParadoBanner } from "@/components/atoms/banners/DadoParadoBanner";
 import { SerieApuracaoChart } from "@/components/atoms/charts/SerieApuracaoChart";
-import { DetailFreshness, DetailUnavailable } from "@/components/atoms/surfaces/DetailUnavailable";
+import {
+  DetailFreshness,
+  DetailUnavailable,
+  type DetailUnavailableReason,
+} from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { CandidaturasAguardando } from "@/components/blocks/CandidaturasAguardando";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
@@ -104,7 +108,12 @@ import { MunicipioExplorer } from "@/components/blocks/MunicipioExplorer";
 import type { MunicipioRow } from "@/components/blocks/MunicipioTable";
 import { ResultPanel } from "@/components/blocks/ResultPanel";
 import { Footer } from "@/components/layout/Footer";
-import { municipiosFrom, readUfDetail, type UfDetailResult } from "@/lib/blob/uf-detail";
+import {
+  municipiosFrom,
+  readUfDetail,
+  seriePorCandidatoFrom,
+  type UfDetailResult,
+} from "@/lib/blob/uf-detail";
 import { avaliarFrescorDado } from "@/lib/config/dado-freshness";
 import { isPreEleicao } from "@/lib/config/fase";
 import {
@@ -358,6 +367,32 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
     ? { status: "ok", detail: detalheSim, url: "simulacao://dev" }
     : detalheLido;
 
+  /**
+   * Spec 020 (RF-168 a RF-171) — a série por candidatura desta corrida, do
+   * MESMO `readUfDetail` que a seção de municípios consome. Nenhuma leitura
+   * nova entra no read path (RNF-002); é por isso que a série de UF mora no
+   * Blob e não numa chave de Global Config (ADR-0046 D3).
+   *
+   * 🔴 Repassada **como veio**: a ordem de `candidatos` é contrato do produtor
+   * (ADR-0046 D4 / RF-170c), os `null` são furos e não zeros (RF-175b), e
+   * `cadencia_min` é declarada — nunca inferida de `eixo[1] - eixo[0]`.
+   *
+   * Declarada antes do ramo de espera porque os DOIS ramos a usam: o Blob é
+   * lido em paralelo com o resumo e não depende de o resumo existir.
+   *
+   * Espelha a rota presidencial de UF, como `municipioDetailReason` já espelha.
+   */
+  const serie = seriePorCandidatoFrom(detalhe);
+
+  /**
+   * Por que a série não pode ser desenhada (RF-175). `reason` da leitura é "a
+   * fonte não respondeu"; `"sem_serie"` é "respondeu, e o produtor não
+   * publicou". Correções opostas — colapsá-las manda quem opera caçar rede
+   * quando o que faltou foi publicação.
+   */
+  const motivoSerie: DetailUnavailableReason =
+    detalhe.status !== "ok" ? detalhe.reason : "sem_serie";
+
   // Só em `pnpm dev`: em teste (NODE_ENV=test) e em produção o caminho
   // "Aguardando dados" continua sendo exercitado de verdade.
   if (!payload) {
@@ -399,6 +434,9 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
       readProjection({ cargo: "gov", turno: 1 }),
     ]);
 
+    // Ponto ÚNICO de fase desta rota (RF-153 / RF-174d).
+    const preNacional = isPreEleicao(nacional);
+
     return (
       <main
         data-trilha="gov"
@@ -423,16 +461,25 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
 
         {/* Spec 020 (RF-174, RF-175) — o bloco também vive neste ramo, e é
             aqui que ele separa "a eleição ainda não começou" de "não sabemos",
-            que o parágrafo de espera acima funde num texto só. */}
+            que o parágrafo de espera acima funde num texto só.
+
+            🔴 A ORDEM das perguntas é o contrato do design § 6, e ela começa
+            pela fase: antes de 04/10 o Blob legitimamente não tem série, e
+            perguntar ao Blob primeiro trocaria "ainda não é hora" por "a fonte
+            não respondeu" em todos os dias que antecedem a eleição. */}
         <Panel kicker="Evolução da apuração">
-          <SerieApuracaoChart
-            cadenciaMin={5}
-            candidatos={[]}
-            eixo={[]}
-            escopo={`Governador ${sigla}`}
-            preEleicao={isPreEleicao(nacional)}
-            titleId="serie-apuracao-heading"
-          />
+          {serie || preNacional ? (
+            <SerieApuracaoChart
+              cadenciaMin={serie ? serie.cadencia_min : 5}
+              candidatos={serie ? serie.candidatos : []}
+              eixo={serie ? serie.eixo : []}
+              escopo={`Governador ${sigla}`}
+              preEleicao={preNacional}
+              titleId="serie-apuracao-heading"
+            />
+          ) : (
+            <DetailUnavailable label="A evolução da apuração" reason={motivoSerie} />
+          )}
         </Panel>
 
         <Footer />
@@ -533,8 +580,9 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
           (entre o painel de resultado e o de municípios). Nunca acima do
           painel: o `<h1>` da página vive nele.
 
-          Fase 0 entrega o bloco vazio: `eixo` e `candidatos` só ganham
-          conteúdo quando o produtor publicar a série (Fase 1 da spec).
+          Fase 2 — a série vem de `serie`, resolvida a partir do MESMO
+          `readUfDetail` que a seção de municípios consome logo abaixo. Sem
+          série o bloco continua no DOM e diz POR QUE ela falta (RF-175).
 
           🔴 `preEleicao={false}` é DECISÃO, não esquecimento — mesma razão da
           rota presidencial de UF. Chegar aqui significa que existe payload
@@ -544,14 +592,18 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
           resposta (RNF-002). Quem precisa da pergunta é o ramo de espera, e é
           lá que ela é feita. */}
       <Panel kicker="Evolução da apuração">
-        <SerieApuracaoChart
-          cadenciaMin={5}
-          candidatos={[]}
-          eixo={[]}
-          escopo={`Governador ${sigla}`}
-          preEleicao={false}
-          titleId="serie-apuracao-heading"
-        />
+        {serie ? (
+          <SerieApuracaoChart
+            cadenciaMin={serie.cadencia_min}
+            candidatos={serie.candidatos}
+            eixo={serie.eixo}
+            escopo={`Governador ${sigla}`}
+            preEleicao={false}
+            titleId="serie-apuracao-heading"
+          />
+        ) : (
+          <DetailUnavailable label="A evolução da apuração" reason={motivoSerie} />
+        )}
       </Panel>
 
       {/* Seção 2 — maiores municípios, ligados à folha do município

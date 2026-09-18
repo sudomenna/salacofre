@@ -124,7 +124,11 @@ import { notFound } from "next/navigation";
 import { TurnoBadge } from "@/components/atoms/badges/TurnoBadge";
 import { DadoParadoBanner } from "@/components/atoms/banners/DadoParadoBanner";
 import { SerieApuracaoChart } from "@/components/atoms/charts/SerieApuracaoChart";
-import { DetailFreshness, DetailUnavailable } from "@/components/atoms/surfaces/DetailUnavailable";
+import {
+  DetailFreshness,
+  DetailUnavailable,
+  type DetailUnavailableReason,
+} from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
 import { CandidaturasAguardando } from "@/components/blocks/CandidaturasAguardando";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
@@ -132,7 +136,12 @@ import { MunicipioExplorer } from "@/components/blocks/MunicipioExplorer";
 import type { MunicipioRow } from "@/components/blocks/MunicipioTable";
 import { ResultPanel } from "@/components/blocks/ResultPanel";
 import { Footer } from "@/components/layout/Footer";
-import { municipiosFrom, readUfDetail, type UfDetailResult } from "@/lib/blob/uf-detail";
+import {
+  municipiosFrom,
+  readUfDetail,
+  seriePorCandidatoFrom,
+  type UfDetailResult,
+} from "@/lib/blob/uf-detail";
 import { currentPresidentialTurno } from "@/lib/config/calendar";
 import { avaliarFrescorDado } from "@/lib/config/dado-freshness";
 import { isPreEleicao } from "@/lib/config/fase";
@@ -388,6 +397,36 @@ export default async function UFPage({ params }: UFPageProps) {
     ? { status: "ok", detail: detalheSim, url: "simulacao://dev" }
     : detalheLido;
 
+  /**
+   * Spec 020 (RF-168 a RF-171) — a série por candidatura desta UF, do MESMO
+   * `readUfDetail` que a seção de municípios consome. Nenhuma leitura nova
+   * entra no read path (RNF-002), e é o motivo de a série de UF morar no Blob
+   * e não numa chave de Global Config (ADR-0046 D3).
+   *
+   * 🔴 Repassada **como veio**: a ordem de `candidatos` é contrato do produtor
+   * (ADR-0046 D4 / RF-170c), os `null` de `apurado`/`projetado` são furos e
+   * não zeros (RF-175b), e `cadencia_min` é declarada — nunca inferida de
+   * `eixo[1] - eixo[0]`, que erraria justamente quando o primeiro intervalo
+   * contém um ciclo perdido.
+   *
+   * Declarada antes do ramo de espera porque os DOIS ramos a usam: o Blob é
+   * lido em paralelo com o resumo e não depende de o resumo existir.
+   */
+  const serie = seriePorCandidatoFrom(detalhe);
+
+  /**
+   * Por que a série não pode ser desenhada (RF-175) — só consultado quando
+   * `serie` é `null` e a corrida não está em fase pré.
+   *
+   * As duas causas têm correções OPOSTAS e por isso não podem cair no mesmo
+   * texto: `result.reason` é a fonte não ter respondido (rede, chave, formato),
+   * e `"sem_serie"` é a fonte ter respondido **sem** o campo — o produtor não
+   * publicou. Colapsá-las manda quem opera na noite de 04/10 caçar rede quando
+   * o que faltou foi publicação.
+   */
+  const motivoSerie: DetailUnavailableReason =
+    detalhe.status !== "ok" ? detalhe.reason : "sem_serie";
+
   // Fallback de DESENVOLVIMENTO: quando o reader retorna `null` (chave UF ainda
   // não publicada OR sem EDGE_CONFIG), `pnpm dev` sintetiza a partir do fixture
   // nacional, para que `/uf/SP` possa ser inspecionada de verdade sem
@@ -453,6 +492,11 @@ export default async function UFPage({ params }: UFPageProps) {
       readNationalProjection(),
     ]);
 
+    // Ponto ÚNICO de fase desta rota (RF-153 / RF-174d). Uma segunda leitura
+    // aqui — ou, pior, uma data de calendário — reabriria o defeito que o
+    // ADR-0043 fechou.
+    const preNacional = isPreEleicao(nacional);
+
     return (
       <main
         data-trilha="pres"
@@ -482,18 +526,30 @@ export default async function UFPage({ params }: UFPageProps) {
         {/* Spec 020 (RF-174, RF-175) — o bloco existe também AQUI, e é neste
             ramo que ele paga o próprio aluguel: com o nacional em fase pré ele
             desenha os eixos e diz "disponível apenas no dia das eleições";
-            sem nacional nenhum ele diz que a série não chegou. Os dois textos
-            são estados diferentes, que o parágrafo de espera acima não
-            distingue. */}
+            sem nacional nenhum ele diz por que a série não chegou. Os dois
+            textos são estados diferentes, que o parágrafo de espera acima não
+            distingue.
+
+            🔴 A ORDEM das perguntas é o contrato do design § 6, e ela começa
+            pela fase: antes de 04/10 o Blob legitimamente não tem série, e
+            perguntar ao Blob primeiro trocaria "ainda não é hora" por "a fonte
+            não respondeu" em todos os dias que antecedem a eleição.
+
+            A série sai do MESMO `readUfDetail` que a seção de municípios usa,
+            já resolvido lá em cima — nenhuma leitura nova (RNF-002). */}
         <Panel kicker="Evolução da apuração">
-          <SerieApuracaoChart
-            cadenciaMin={5}
-            candidatos={[]}
-            eixo={[]}
-            escopo={sigla}
-            preEleicao={isPreEleicao(nacional)}
-            titleId="serie-apuracao-heading"
-          />
+          {serie || preNacional ? (
+            <SerieApuracaoChart
+              cadenciaMin={serie ? serie.cadencia_min : 5}
+              candidatos={serie ? serie.candidatos : []}
+              eixo={serie ? serie.eixo : []}
+              escopo={sigla}
+              preEleicao={preNacional}
+              titleId="serie-apuracao-heading"
+            />
+          ) : (
+            <DetailUnavailable label="A evolução da apuração" reason={motivoSerie} />
+          )}
         </Panel>
 
         <Footer />
@@ -596,9 +652,12 @@ export default async function UFPage({ params }: UFPageProps) {
           (entre o painel de resultado e o de municípios). Nunca acima do
           painel: o `<h1>` da página vive nele.
 
-          Fase 0 entrega o bloco vazio — `eixo` e `candidatos` só ganham
-          conteúdo quando o produtor publicar a série (Fase 1 da spec). Zeros
-          de enfeite estão fora de questão.
+          Fase 2 — a série vem de `serie`, resolvida a partir do MESMO
+          `readUfDetail` que a seção de municípios consome logo abaixo. Sem
+          série o bloco continua no DOM e diz POR QUE ela falta: `reason` da
+          leitura quando a fonte não respondeu, `"sem_serie"` quando ela
+          respondeu e o produtor não publicou (RF-175). Zeros de enfeite estão
+          fora de questão, e um bloco que some também (ADR-0017).
 
           🔴 `preEleicao={false}`, e isso é uma DECISÃO, não um esquecimento.
           Chegar até aqui significa que `readUfProjection` devolveu payload
@@ -615,14 +674,18 @@ export default async function UFPage({ params }: UFPageProps) {
           `fase` virá no payload e o lugar certo de lê-lo será `isPreEleicao`
           sobre ele — não uma segunda fonte inventada aqui. */}
       <Panel kicker="Evolução da apuração">
-        <SerieApuracaoChart
-          cadenciaMin={5}
-          candidatos={[]}
-          eixo={[]}
-          escopo={sigla}
-          preEleicao={false}
-          titleId="serie-apuracao-heading"
-        />
+        {serie ? (
+          <SerieApuracaoChart
+            cadenciaMin={serie.cadencia_min}
+            candidatos={serie.candidatos}
+            eixo={serie.eixo}
+            escopo={sigla}
+            preEleicao={false}
+            titleId="serie-apuracao-heading"
+          />
+        ) : (
+          <DetailUnavailable label="A evolução da apuração" reason={motivoSerie} />
+        )}
       </Panel>
 
       {/* Seção 2 — RF-037: municípios. Tocar num município abre a folha

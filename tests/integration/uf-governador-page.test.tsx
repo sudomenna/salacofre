@@ -23,7 +23,11 @@ import { describe, expect, it, vi } from "vitest";
 import UFGovernadorPage from "@/app/(gov)/uf/[sigla]/governador/page";
 import type { UfDetailBlob, UfDetailResult } from "@/lib/blob/uf-detail";
 import { FASE_PRE_ELEICAO } from "@/lib/config/fase";
-import type { EdgePayloadUf, EdgeUfMunicipio } from "@/lib/edge-config/types";
+import type {
+  EdgePayloadUf,
+  EdgeSeriePorCandidato,
+  EdgeUfMunicipio,
+} from "@/lib/edge-config/types";
 
 function makeMunicipio(i: number): EdgeUfMunicipio {
   const liderId = i % 2 === 0 ? 1 : 2;
@@ -242,6 +246,42 @@ function buildUfDetail(n: number): UfDetailBlob {
     series_temporais: { margem: [], p_vitoria: [], turnout: [] },
   };
 }
+
+/**
+ * Spec 020, Fase 2 — série por candidatura para o Blob desta rota.
+ *
+ * A ordem do array é a do produtor e não é reproduzível por nenhum critério
+ * (nem `apurado`, nem `projetado`, nem `id`), e a cadência DECLARADA (15) é
+ * incoerente com o espaçamento real do eixo (5 min): as duas escolhas existem
+ * para que um `sort` ou uma inferência no consumidor mudem o resultado.
+ */
+const SERIE_GOV: EdgeSeriePorCandidato = {
+  eixo: ["2026-10-04T20:00:00-03:00", "2026-10-04T20:05:00-03:00", "2026-10-04T20:10:00-03:00"],
+  cadencia_min: 15,
+  candidatos: [
+    {
+      id: 30,
+      nome: "Terceira Via",
+      partido: "PSOL",
+      apurado: [12, 11, 10],
+      projetado: [12, 12, 12],
+    },
+    {
+      id: 10,
+      nome: "Primeira Colocada",
+      partido: "PT",
+      apurado: [30, null, 32],
+      projetado: [31, 31, 31],
+    },
+    {
+      id: 20,
+      nome: "Segunda Colocada",
+      partido: "PL",
+      apurado: [25, 26, 27],
+      projetado: [26, 26, 26],
+    },
+  ],
+};
 
 /** Enfileira os dois read paths de uma renderização — resumo e detalhe. */
 function mockUf(opts: Parameters<typeof buildUfPayload>[0]): void {
@@ -532,16 +572,16 @@ describe("UFGovernadorPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
     const kickers = paineis.map(
       (p) => p.querySelector('[data-testid="panel-kicker"]')?.textContent ?? "",
     );
-    const iSerie = paineis.findIndex((p) =>
-      p.querySelector('[data-testid="serie-apuracao-chart"]'),
-    );
+    // 🔴 O slot é localizado pelo KICKER, não pelo `testid` do gráfico: desde a
+    // Fase 2 o painel pode conter o gráfico OU o estado "indisponível", e o que
+    // este teste mede é a POSIÇÃO do painel.
+    const iSerie = kickers.indexOf("Evolução da apuração");
 
     expect(paineis[0]?.getAttribute("aria-labelledby")).toBe("resultado-heading");
     expect(iSerie).toBe(1);
-    expect(kickers[iSerie]).toBe("Evolução da apuração");
     expect(kickers.indexOf("Municípios")).toBe(2);
 
-    // Fase 0: sem série publicada, nenhum traçado.
+    // Sem série no Blob deste caso: nenhum traçado.
     expect(doc.querySelectorAll("[data-traco]")).toHaveLength(0);
 
     // 🔴 A contagem de `<h1>` não muda.
@@ -554,6 +594,53 @@ describe("UFGovernadorPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
    * desta corrida. Os dois casos são o par que discrimina: `preEleicao` fixo
    * em `false` derruba o primeiro, fixo em `true` derruba o segundo.
    */
+  /**
+   * Spec 020, Fase 2 — as props REAIS nesta rota. Três mutações num teste só,
+   * porque as três vivem na mesma linha de fiação: re-ordenar o elenco,
+   * inferir a cadência do eixo e preencher o furo com zero.
+   */
+  it("(r4) a série do Blob chega à tela como foi emitida", async () => {
+    readUfProjectionMock.mockResolvedValueOnce(
+      buildUfPayload({ municipios: 3, withMesorregioes: true, multiCandidato: true }),
+    );
+    readUfDetailMock.mockResolvedValueOnce({
+      status: "ok",
+      url: "https://example.test/municipios/uf/SP/gov/t1.json",
+      detail: {
+        ...buildUfDetail(3),
+        series_temporais: { margem: [], p_vitoria: [], turnout: [], por_candidato: SERIE_GOV },
+      },
+    });
+    const doc = new DOMParser().parseFromString(
+      renderToStaticMarkup(await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) })),
+      "text/html",
+    );
+
+    const figura = doc.querySelector('[data-testid="serie-apuracao-chart"]');
+    expect(figura).not.toBeNull();
+
+    // (a) ordem de exibição = ordem emitida (RF-170c).
+    const ordem = [...(figura?.querySelectorAll('g[data-cand][data-base="parcial"]') ?? [])]
+      .map((g) => g.getAttribute("data-cand") ?? "")
+      .filter((id, i, todos) => todos.indexOf(id) === i);
+    expect(ordem).toEqual(["30", "10", "20"]);
+
+    // (b) cadência DECLARADA (15), não a inferida do eixo (5).
+    expect(figura?.querySelector("caption")?.textContent).toContain("a cada 15 minutos");
+
+    // (c) o furo chega como furo, nunca como zero (RF-175b).
+    const celulas = [
+      ...(figura?.querySelectorAll('td[data-cand="10"][data-base="parcial"]') ?? []),
+    ].map((td) => td.textContent ?? "");
+    expect(celulas).toEqual(["30,0%", "sem medição", "32,0%"]);
+
+    // (d) a cor por rank que o ADR-0024 aposentou não entra no bloco.
+    expect(figura?.innerHTML ?? "").not.toContain("--color-cand-");
+
+    // (e) o `<h1>` continua único — o bloco não é heading de página.
+    expect(doc.querySelectorAll("h1")).toHaveLength(1);
+  });
+
   it("(r3) sem payload de UF, o estado do bloco vem da fase do NACIONAL", async () => {
     readUfProjectionMock.mockResolvedValueOnce(null);
     readProjectionMock.mockResolvedValueOnce({ fase: FASE_PRE_ELEICAO });
@@ -573,9 +660,12 @@ describe("UFGovernadorPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
       renderToStaticMarkup(await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) })),
       "text/html",
     );
+    // Sem fase pré, o bloco passa a dizer POR QUE a série não veio — com o
+    // motivo da leitura do Blob, nunca um texto genérico (RF-175).
     expect(
-      semNada.querySelector('[data-testid="serie-apuracao-chart"]')?.getAttribute("data-estado"),
-    ).toBe("indisponivel");
+      semNada.querySelector('[data-testid="detail-unavailable"]')?.getAttribute("data-reason"),
+    ).toBe("not_configured");
+    expect(semNada.querySelector('[data-testid="serie-apuracao-chart"]')).toBeNull();
     expect(semNada.querySelectorAll("h1")).toHaveLength(1);
   });
 });
@@ -626,7 +716,14 @@ describe("UFGovernadorPage — degradação do detalhe municipal (ADR-0032)", ()
       detail: buildUfDetail(12),
     });
 
-    expect(doc.querySelector('[data-testid="detail-unavailable"]')).toBeNull();
+    // 🔴 Escopo no painel de municípios: desde a Fase 2 da spec 020 a página
+    // tem DOIS blocos alimentados pelo mesmo Blob, e uma busca global pegaria o
+    // estado do GRÁFICO achando que mede o da tabela.
+    const painelMunicipios = [...doc.querySelectorAll('[data-testid="panel"]')].find(
+      (el) => el.querySelector('[data-testid="panel-kicker"]')?.textContent === "Municípios",
+    );
+    expect(painelMunicipios).toBeDefined();
+    expect(painelMunicipios?.querySelector('[data-testid="detail-unavailable"]')).toBeNull();
     expect(doc.querySelector('[data-testid="detail-freshness"]')).not.toBeNull();
     // A asserção sobre os 12 `<rect>` do waffle saiu com a grade (2026-09-08).
     expect(doc.querySelector('[data-testid="waffle-svg"]')).toBeNull();

@@ -1,7 +1,22 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-const ROUTES = ["/", "/uf/SP", "/uf/SP/governador", "/governador", "/sobre-o-modelo"];
+// `/uf/SP/senador` entra por exigência do RF-176(e): é a ÚNICA rota com
+// `vagas=2` e, por isso, a única que renderiza o destaque por espessura e a
+// régua da 2ª vaga (RF-173) — o caso mais arriscado da spec 020, justamente
+// porque o destaque é visual e sua tradução textual vive só na legenda da
+// tabela `sr-only`.
+//
+// `/governador` e `/sobre-o-modelo` estão fora do escopo da spec 020 e ficam:
+// cobrem outras specs, e tirá-las seria reduzir cobertura alheia.
+const ROUTES = [
+  "/",
+  "/uf/SP",
+  "/uf/SP/governador",
+  "/uf/SP/senador",
+  "/governador",
+  "/sobre-o-modelo",
+];
 const VIEWPORTS = [
   { name: "desktop", width: 1280, height: 900 },
   { name: "mobile", width: 375, height: 812 },

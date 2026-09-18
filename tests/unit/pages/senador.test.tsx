@@ -20,11 +20,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SenadoPage from "@/app/(sen)/senador/page";
 import UFSenadorPage from "@/app/(sen)/uf/[sigla]/senador/page";
+import type { UfDetailResult } from "@/lib/blob/uf-detail";
 import { FASE_PRE_ELEICAO } from "@/lib/config/fase";
 import type {
   EdgeCandidate,
   EdgePayload,
   EdgePayloadUf,
+  EdgeSeriePorCandidato,
   EdgeUfCandidate,
 } from "@/lib/edge-config/types";
 
@@ -52,6 +54,31 @@ vi.mock("@/lib/edge-config/reader", () => ({
   readNationalProjection: vi.fn(async () => null),
   readArchivedProjection: vi.fn(async () => null),
   readUfProjection: (sigla: string, opts?: { cargo?: string }) => readUfProjectionMock(sigla, opts),
+}));
+
+/**
+ * Spec 020, Fase 2 — esta rota passou a ler o Vercel Blob EM PARALELO com o
+ * resumo, porque é lá que mora a série por candidatura (ADR-0046 D3).
+ *
+ * Sem este mock o arquivo faria uma requisição de REDE de verdade
+ * (`BLOB_PUBLIC_BASE_URL` vem do `.env.local`), que o happy-dom bloqueia por
+ * CORS e que degrada para `fetch_error`: passaria, mas por acidente, devagar e
+ * dependendo do mundo lá fora — a mesma armadilha que o mock de
+ * `@/lib/blob/candidatos` acima já evitava.
+ *
+ * `importOriginal`: `seriePorCandidatoFrom` segue REAL. Só a ida à rede é
+ * substituída, e `not_configured` é a degradação declarada.
+ */
+const readUfDetailMock = vi.fn(
+  async (): Promise<UfDetailResult> => ({
+    status: "unavailable",
+    reason: "not_configured",
+    url: null,
+  }),
+);
+vi.mock("@/lib/blob/uf-detail", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/blob/uf-detail")>()),
+  readUfDetail: () => readUfDetailMock(),
 }));
 
 function parse(markup: string): Document {
@@ -430,6 +457,65 @@ describe("/senador (T-09)", () => {
 
 const PARAMS_SP = { params: Promise.resolve({ sigla: "SP" }) };
 
+/**
+ * Spec 020, Fase 2 — série por candidatura do Senado de SP.
+ *
+ * Quatro linhas (D4 do dono). A ordem é a do produtor e não é reproduzível por
+ * nenhum critério: por `apurado` final seria 10, 20, 30, 40; por `id`, a mesma
+ * coisa. A emitida é 30, 10, 20, 40 — e são as DUAS PRIMEIRAS DELA que ocupam
+ * vaga, não as de maior percentual. É essa diferença que faz o teste
+ * discriminar um `sort` no consumidor.
+ *
+ * A candidatura 10 carrega um furo no meio (`null`), e `cadencia_min` (15) é
+ * incoerente com o espaçamento real do eixo (5 min), de propósito.
+ */
+const SERIE_SEN: EdgeSeriePorCandidato = {
+  eixo: ["2026-10-04T20:00:00-03:00", "2026-10-04T20:05:00-03:00", "2026-10-04T20:10:00-03:00"],
+  cadencia_min: 15,
+  candidatos: [
+    {
+      id: 30,
+      nome: "Terceira Via",
+      partido: "PSOL",
+      apurado: [12, 11, 10],
+      projetado: [12, 12, 12],
+    },
+    {
+      id: 10,
+      nome: "Primeira Colocada",
+      partido: "PT",
+      apurado: [30, null, 32],
+      projetado: [31, 31, 31],
+    },
+    {
+      id: 20,
+      nome: "Segunda Colocada",
+      partido: "PL",
+      apurado: [25, 26, 27],
+      projetado: [26, 26, 26],
+    },
+    { id: 40, nome: "Quarta Colocada", partido: "MDB", apurado: [8, 9, 9], projetado: [9, 9, 9] },
+  ],
+};
+
+/** Objeto de Blob desta corrida, com ou sem a série. */
+function blobSenadorCom(serie: EdgeSeriePorCandidato | null): UfDetailResult {
+  return {
+    status: "ok",
+    url: "https://exemplo.test/municipios/uf/SP/sen/t1.json",
+    detail: {
+      ts: "2026-10-04T20:10:00-03:00",
+      uf: "SP",
+      cargo: "sen",
+      turno: 1,
+      municipios: [],
+      series_temporais: serie
+        ? { margem: [], p_vitoria: [], turnout: [], por_candidato: serie }
+        : null,
+    },
+  };
+}
+
 describe("/uf/[sigla]/senador (T-10)", () => {
   it("(l) lê a chave da UF com cargo e turno explícitos (ADR-0028)", async () => {
     readUfProjectionMock.mockResolvedValue(ufPayload());
@@ -562,20 +648,203 @@ describe("/uf/[sigla]/senador (T-10)", () => {
     const kickers = paineis.map(
       (p) => p.querySelector('[data-testid="panel-kicker"]')?.textContent ?? "",
     );
-    const iSerie = paineis.findIndex((p) =>
-      p.querySelector('[data-testid="serie-apuracao-chart"]'),
-    );
+    // 🔴 O slot é localizado pelo KICKER, não pelo `testid` do gráfico: desde a
+    // Fase 2 o painel pode conter o gráfico OU o estado "indisponível", e o que
+    // este teste mede é a POSIÇÃO do painel.
+    const iSerie = kickers.indexOf("Evolução da apuração");
 
     expect(paineis[0]?.getAttribute("aria-labelledby")).toBe("resultado-heading");
     expect(kickers[iSerie - 1]).toBe("Modelo Atlas Menna");
-    expect(kickers[iSerie]).toBe("Evolução da apuração");
     expect(kickers[iSerie + 1]).toBe("Metodologia");
     expect(iSerie).toBe(2);
 
-    // Fase 0: sem série publicada, nenhum traçado.
+    // Sem série no Blob deste caso: nenhum traçado.
     expect(doc.querySelectorAll("[data-traco]")).toHaveLength(0);
 
     // 🔴 A contagem de `<h1>` não muda.
+    expect(doc.querySelectorAll("h1").length).toBe(1);
+  });
+
+  /**
+   * Spec 020, Fase 2 — a série do Blob chega à tela desta rota, e com ela o
+   * RF-173 (duas vagas) finalmente pode renderizar COM DADO.
+   *
+   * A fixture é incoerente de propósito: o eixo é espaçado de 5 minutos e
+   * `cadencia_min` declara 15, de modo que inferir a cadência de
+   * `eixo[1] - eixo[0]` dê um número diferente. E a ordem emitida (30, 10, 20)
+   * não é reproduzível por `apurado`, `projetado` nem `id`: qualquer `sort` no
+   * consumidor muda a tela — e, aqui, mudaria QUEM a tela diz que ocupa vaga.
+   */
+  it("(x2) RF-173: com série, as duas primeiras posições são as que elegem", async () => {
+    readUfProjectionMock.mockResolvedValue(ufPayload());
+    readUfDetailMock.mockResolvedValueOnce(blobSenadorCom(SERIE_SEN));
+    const doc = await render(UFSenadorPage(PARAMS_SP));
+
+    const figura = doc.querySelector('[data-testid="serie-apuracao-chart"]');
+    expect(figura).not.toBeNull();
+
+    // (a) ordem de exibição = ordem emitida (RF-170c).
+    const ordem = [...(figura?.querySelectorAll('g[data-cand][data-base="parcial"]') ?? [])]
+      .map((g) => g.getAttribute("data-cand") ?? "")
+      .filter((id, i, todos) => todos.indexOf(id) === i);
+    expect(ordem).toEqual(["30", "10", "20", "40"]);
+
+    // (b) RF-173: o destaque é ESPESSURA, e ele segue a ordem recebida — as
+    // duas PRIMEIRAS do array, não as de maior percentual.
+    const espessura = (id: number) =>
+      figura
+        ?.querySelector(`path[data-traco][data-cand="${id}"][data-base="parcial"]`)
+        ?.getAttribute("stroke-width");
+    expect(espessura(30)).toBe("2.5");
+    expect(espessura(10)).toBe("2.5");
+    expect(espessura(20)).toBe("1.5");
+    expect(espessura(40)).toBe("1.5");
+
+    // (c) RF-173(b): NUNCA opacidade — ela derrubou 16 nós para 2,27:1 no axe
+    // em 2026-09-08, e está registrada em `app/globals.css`.
+    expect(figura?.innerHTML ?? "").not.toContain("opacity");
+
+    // (d) a régua de corte da 2ª vaga existe, numa base e na outra.
+    expect(figura?.querySelectorAll('[data-testid="serie-regua-vaga"]')).toHaveLength(2);
+
+    // (e) RF-173(d): a informação existe em TEXTO para quem não vê o gráfico,
+    // e nomeia as MESMAS duas.
+    const legenda = figura?.querySelector("caption")?.textContent ?? "";
+    expect(legenda).toContain("Esta corrida elege 2 vagas");
+    expect(legenda).toContain("Terceira Via e Primeira Colocada");
+
+    // (f) cadência DECLARADA (15), não a inferida do eixo (5).
+    expect(legenda).toContain("a cada 15 minutos");
+
+    // (g) o furo chega como furo, nunca como zero (RF-175b).
+    const celulas = [
+      ...(figura?.querySelectorAll('td[data-cand="10"][data-base="parcial"]') ?? []),
+    ].map((td) => td.textContent ?? "");
+    expect(celulas).toEqual(["30,0%", "sem medição", "32,0%"]);
+
+    // (h) a cor por rank que o ADR-0024 aposentou não entra no bloco.
+    expect(figura?.innerHTML ?? "").not.toContain("--color-cand-");
+
+    // (i) o `<h1>` continua único.
+    expect(doc.querySelectorAll("h1").length).toBe(1);
+  });
+
+  /**
+   * RF-175 — o par que discrimina, também nesta rota. "A rede caiu" e "o
+   * produtor não publicou" têm correções opostas.
+   *
+   * E, sobretudo: um Blob ausente **não derruba a página**. Esta rota viveu
+   * sem Blob até a Fase 2, e passar a lê-lo não pode ter tornado o resumo
+   * refém dele.
+   */
+  it("(x3) sem série, o bloco fica no DOM com o motivo certo — e a página inteira de pé", async () => {
+    readUfProjectionMock.mockResolvedValue(ufPayload());
+
+    readUfDetailMock.mockResolvedValueOnce(blobSenadorCom(null));
+    const semSerie = await render(UFSenadorPage(PARAMS_SP));
+    expect(
+      semSerie.querySelector('[data-testid="detail-unavailable"]')?.getAttribute("data-reason"),
+    ).toBe("sem_serie");
+
+    readUfDetailMock.mockResolvedValueOnce({
+      status: "unavailable",
+      reason: "fetch_error",
+      url: null,
+    });
+    const semBlob = await render(UFSenadorPage(PARAMS_SP));
+    expect(
+      semBlob.querySelector('[data-testid="detail-unavailable"]')?.getAttribute("data-reason"),
+    ).toBe("fetch_error");
+
+    // O resumo vem da OUTRA fonte e segue inteiro nos dois casos.
+    for (const doc of [semSerie, semBlob]) {
+      expect(doc.querySelectorAll("[data-testid='result-vaga-marker']").length).toBe(2);
+      expect(doc.querySelectorAll("h1").length).toBe(1);
+      const kickers = [...doc.querySelectorAll('[data-testid="panel-kicker"]')].map(
+        (k) => k.textContent ?? "",
+      );
+      expect(kickers).toContain("Evolução da apuração");
+      expect(kickers).toContain("Metodologia");
+    }
+  });
+
+  /**
+   * Spec 020, Fase 2 — os dois read paths desta rota disparam EM PARALELO.
+   *
+   * ## Por que este teste precisa existir
+   *
+   * Trocar o `Promise.all` por dois `await` sequenciais **não muda nenhum
+   * resultado**: a mesma tela, o mesmo HTML, os mesmos números. O que muda é o
+   * tempo de parede — a soma das duas idas à rede em vez do máximo — e é
+   * invisível para qualquer asserção sobre o DOM. Sem este teste, a única
+   * defesa contra o refactor inocente que serializa a rota seria o comentário.
+   *
+   * ## Como ele discrimina, sem medir tempo
+   *
+   * Cronômetro em teste é instável. O que se mede aqui é uma ORDEM causal: o
+   * resumo só resolve num macrotask posterior, e no instante em que resolve
+   * pergunta-se se a leitura do Blob **já foi chamada**.
+   *
+   *   - Com `Promise.all`, as duas chamadas partem antes de qualquer `await`:
+   *     no momento em que o resumo resolve, o Blob já foi chamado → `true`.
+   *   - Com `await` sequencial, o Blob só é chamado DEPOIS de o resumo
+   *     resolver → `false`.
+   *
+   * A ordem do array de chamadas, sozinha, NÃO discrimina: nas duas formas ela
+   * é ["resumo", "detalhe"]. É o instante que separa as duas.
+   */
+  it("(x5) os dois read paths partem juntos — nunca um depois do outro", async () => {
+    const chamadas: string[] = [];
+    let blobJaChamadoQuandoOResumoResolveu = false;
+
+    readUfProjectionMock.mockImplementationOnce(async () => {
+      chamadas.push("resumo");
+      // Cede o controle: só volta num macrotask posterior.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      blobJaChamadoQuandoOResumoResolveu = chamadas.includes("detalhe");
+      return ufPayload();
+    });
+    readUfDetailMock.mockImplementationOnce(async () => {
+      chamadas.push("detalhe");
+      return blobSenadorCom(SERIE_SEN);
+    });
+
+    const doc = await render(UFSenadorPage(PARAMS_SP));
+
+    expect(chamadas).toEqual(["resumo", "detalhe"]);
+    expect(blobJaChamadoQuandoOResumoResolveu).toBe(true);
+    // E o resultado é o mesmo das outras renderizações — a paralelização não
+    // pode ter custado nada em correção.
+    expect(doc.querySelector('[data-testid="serie-apuracao-chart"]')).not.toBeNull();
+  });
+
+  /**
+   * O ramo de ESPERA é um call site próprio, e o quarto defeito do handoff de
+   * 2026-09-17 nasceu de um bloco que entrou num ramo e não no outro.
+   *
+   * Sem payload de UF e COM série no Blob é combinação real: desde o ADR-0032
+   * os dois read paths falham de forma independente, e o Blob pode responder
+   * enquanto a chave de Global Config ainda não existe.
+   */
+  it("(x4) o ramo de ESPERA também recebe a série, e na ordem emitida", async () => {
+    readUfProjectionMock.mockResolvedValueOnce(null);
+    readProjectionMock.mockResolvedValueOnce(null);
+    readUfDetailMock.mockResolvedValueOnce(blobSenadorCom(SERIE_SEN));
+    const doc = await render(UFSenadorPage(PARAMS_SP));
+
+    const figura = doc.querySelector('[data-testid="serie-apuracao-chart"]');
+    const ordem = [...(figura?.querySelectorAll('g[data-cand][data-base="parcial"]') ?? [])]
+      .map((g) => g.getAttribute("data-cand") ?? "")
+      .filter((id, i, todos) => todos.indexOf(id) === i);
+    expect(ordem).toEqual(["30", "10", "20", "40"]);
+
+    // RF-173 vale também aqui: a corrida elege 2 com ou sem payload de resumo.
+    expect(
+      figura
+        ?.querySelector('path[data-traco][data-cand="30"][data-base="parcial"]')
+        ?.getAttribute("stroke-width"),
+    ).toBe("2.5");
+    expect(figura?.querySelector("caption")?.textContent ?? "").toContain("a cada 15 minutos");
     expect(doc.querySelectorAll("h1").length).toBe(1);
   });
 
@@ -600,9 +869,12 @@ describe("/uf/[sigla]/senador (T-10)", () => {
     readUfProjectionMock.mockResolvedValueOnce(null);
     readProjectionMock.mockResolvedValueOnce(null);
     const semNada = await render(UFSenadorPage(PARAMS_SP));
+    // Sem fase pré, o bloco passa a dizer POR QUE a série não veio — com o
+    // motivo da leitura do Blob, nunca um texto genérico (RF-175).
     expect(
-      semNada.querySelector('[data-testid="serie-apuracao-chart"]')?.getAttribute("data-estado"),
-    ).toBe("indisponivel");
+      semNada.querySelector('[data-testid="detail-unavailable"]')?.getAttribute("data-reason"),
+    ).toBe("not_configured");
+    expect(semNada.querySelector('[data-testid="serie-apuracao-chart"]')).toBeNull();
     expect(semNada.querySelectorAll("h1").length).toBe(1);
   });
 

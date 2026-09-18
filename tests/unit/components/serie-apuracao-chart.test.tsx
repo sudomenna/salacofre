@@ -372,6 +372,55 @@ describe("<SerieApuracaoChart /> — RF-176: a tabela acessível", () => {
     expect(legenda.toLowerCase()).toContain("não");
   });
 
+  it('o CABEÇALHO de cada coluna projetada diz "projeção", não só a legenda', () => {
+    // Mutação que este teste mata: tirar a palavra do `<th>` e deixá-la só no
+    // `<caption>`. O teste acima continuaria verde — foi essa a lacuna.
+    //
+    // Por que o `<th>` e não só a legenda (design § 7, regra 3): quem navega a
+    // tabela com leitor de tela ouve o cabeçalho da coluna a cada célula, e
+    // pode entrar na tabela por uma célula qualquer sem nunca ouvir a legenda.
+    // Sem a palavra no cabeçalho, um número projetado é anunciado como se
+    // fosse resultado apurado — que é a única coisa que esta spec não pode
+    // deixar acontecer.
+    const doisCandidatos = parse(
+      <SerieApuracaoChart
+        eixo={eixoDe(3)}
+        cadenciaMin={5}
+        candidatos={[
+          cand({ id: 13, partido: "PT", apurado: [30, 31, 32], projetado: [33, 34, 35] }),
+          cand({ id: 22, partido: "PL", apurado: [20, 21, 22], projetado: [23, 24, 25] }),
+        ]}
+        escopo="SP"
+        titleId="a11y-th"
+        height={ALTURA}
+      />,
+    );
+    const cabecalhos = [...doisCandidatos.querySelectorAll('thead th[scope="col"]')].map(
+      (th) => th.textContent ?? "",
+    );
+
+    // hora + (apurado, projeção) × 2 candidaturas
+    expect(cabecalhos).toHaveLength(5);
+
+    const deProjecao = cabecalhos.filter((t) => t.toLowerCase().includes("projeç"));
+    const deApurado = cabecalhos.filter((t) => t.toLowerCase().includes("apurado"));
+
+    // UMA coluna de projeção por candidatura — e ela nomeia de quem é, porque
+    // um "projeção" solto não diz qual das quatro linhas está sendo lida.
+    expect(deProjecao).toHaveLength(2);
+    expect(deProjecao.some((t) => t.includes("Candidata 13"))).toBe(true);
+    expect(deProjecao.some((t) => t.includes("Candidata 22"))).toBe(true);
+
+    // 🔴 A asserção de contraste, e é ela que impede a mutação preguiçosa de
+    // carimbar a palavra nos dois cabeçalhos do par: a coluna irmã é a apurada
+    // e NÃO pode se dizer projeção. Sem esta linha, `th → "…— projeção"` em
+    // todas as colunas passaria, e a tabela mentiria na direção contrária.
+    expect(deApurado).toHaveLength(2);
+    for (const t of deApurado) {
+      expect(t.toLowerCase()).not.toContain("projeç");
+    }
+  });
+
   it("os traços ficam fora da árvore de acessibilidade", () => {
     const svg = doc.querySelector("svg");
     expect(svg?.getAttribute("role")).toBe("img");

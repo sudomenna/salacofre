@@ -2320,3 +2320,81 @@ def test_ciclo_majoritario_fica_calado_quando_a_premissa_se_confirma(
     assert status == 200
     multiplicacao = [a for a in alertas if "multiplicação" in a[1]]
     assert not multiplicacao, f"alarme falso com a premissa confirmada: {multiplicacao}"
+
+
+def test_serie_por_candidato_chega_ao_payload_publicado(
+    fake_db, minimal_dataset, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Spec 020 Fase 2 — a COSTURA das três linhas novas de `_do_project`.
+
+    `tests/unit/model/test_serie_por_candidato.py` cobre cada peça em
+    isolamento: a consulta, o teto, o elenco, o ponto corrente. Este cobre o
+    fio que as liga — `fetch_series_por_candidato`, `anexar_ponto_corrente` e
+    os dois `serie_bruta=` nos construtores de payload. Sem ele, apagar
+    qualquer uma dessas linhas deixaria a suíte inteira verde e o gráfico
+    ficaria vazio em produção, nas quatro telas, sem erro em lugar nenhum.
+
+    O `FakeCursor` devolve `[]` para `FROM projections`, isto é: banco sem
+    histórico, primeira rodada da noite. Então a série publicada tem
+    exatamente **um** ponto, e esse ponto só pode ter vindo de
+    `anexar_ponto_corrente` — o que torna este teste também a prova de que o
+    ponto do ciclo corrente é anexado a partir da memória, e não relido do
+    banco depois da escrita.
+    """
+    from api.model.project import _do_project, urllib as proj_urllib
+
+    snapshots, historical, eleitorado = minimal_dataset
+    fake_db(snapshots, historical, eleitorado)
+
+    monkeypatch.setenv("MODEL_SECRET", "test-secret")
+    monkeypatch.setenv("INTERNAL_BASE_URL", "http://localhost:13000")
+
+    captured: dict[str, Any] = {}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):  # noqa: ANN204
+            return self
+
+        def __exit__(self, *a):  # noqa: ANN001,ANN204
+            return None
+
+    def fake_urlopen(req, timeout=10):  # noqa: ANN001,ARG001
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr(proj_urllib.request, "urlopen", fake_urlopen)
+
+    status, _response = _do_project(
+        json.dumps(
+            {"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}
+        ).encode("utf-8")
+    )
+    assert status == 200
+
+    payload = captured["body"]["payload"]
+    serie = payload.get("serie_por_candidato")
+    assert serie is not None, (
+        "`serie_por_candidato` ausente do payload nacional — a fiação da "
+        "spec 020 sumiu de `_do_project`"
+    )
+    assert len(serie["eixo"]) == 1
+    assert serie["cadencia_min"] in (5, 10, 15, 30)
+    assert 1 <= len(serie["candidatos"]) <= 4
+
+    # O único ponto é o do ciclo corrente, e ele bate com o placar do MESMO
+    # payload (RF-169). O banco desta fixture está vazio: se o ponto não
+    # tivesse sido anexado da memória, não haveria ponto nenhum.
+    placar = {c["id"]: c for c in payload["national"]["candidatos"]}
+    for linha in serie["candidatos"]:
+        assert linha["apurado"][-1] == round(placar[linha["id"]]["pct_atual"], 2)
+
+    # E o escopo por UF, que é onde vivem 27 das 28 telas.
+    payloads_uf = captured["body"]["payloads_uf"]
+    for sigla, uf_payload in payloads_uf.items():
+        serie_uf = uf_payload["series_temporais"].get("por_candidato")
+        assert serie_uf is not None, f"{sigla} sem série por candidatura"
+        placar_uf = {c["id"]: c for c in uf_payload["candidatos"]}
+        for linha in serie_uf["candidatos"]:
+            assert linha["apurado"][-1] == round(placar_uf[linha["id"]]["pct_atual"], 2)

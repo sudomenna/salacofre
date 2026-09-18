@@ -415,16 +415,16 @@ describe("UFPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
     const kickers = paineis.map(
       (p) => p.querySelector('[data-testid="panel-kicker"]')?.textContent ?? "",
     );
-    const iSerie = paineis.findIndex((p) =>
-      p.querySelector('[data-testid="serie-apuracao-chart"]'),
-    );
+    // 🔴 O slot é localizado pelo KICKER, não pelo `testid` do gráfico. Desde a
+    // Fase 2 o painel pode conter o gráfico OU o estado "indisponível" — o que
+    // não pode mudar é a POSIÇÃO do painel, que é o que este teste mede.
+    const iSerie = kickers.indexOf("Evolução da apuração");
 
     expect(paineis[0]?.getAttribute("aria-labelledby")).toBe("resultado-heading");
     expect(iSerie).toBe(1);
-    expect(kickers[iSerie]).toBe("Evolução da apuração");
     expect(kickers.indexOf("Municípios")).toBe(2);
 
-    // Fase 0: sem série publicada, nenhum traçado e nenhum percentual.
+    // Sem série no Blob deste caso: nenhum traçado e nenhum percentual.
     expect(doc.querySelectorAll("[data-traco]")).toHaveLength(0);
 
     // 🔴 A contagem de `<h1>` não muda — o bloco não é heading de página.
@@ -456,9 +456,12 @@ describe("UFPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
     readUfProjectionMock.mockResolvedValueOnce(null);
     readNationalProjectionMock.mockResolvedValueOnce(null);
     const semNada = parse(await UFPage({ params: Promise.resolve({ sigla: "SP" }) }));
-    expect(
-      semNada.querySelector('[data-testid="serie-apuracao-chart"]')?.getAttribute("data-estado"),
-    ).toBe("indisponivel");
+    // Sem fase pré, o bloco passa a dizer POR QUE a série não veio. O mock de
+    // `readUfDetail` deste arquivo responde `not_configured` por padrão — e é
+    // esse motivo, não um texto genérico, que precisa chegar à tela (RF-175).
+    const semNadaEstado = semNada.querySelector('[data-testid="detail-unavailable"]');
+    expect(semNadaEstado?.getAttribute("data-reason")).toBe("not_configured");
+    expect(semNada.querySelector('[data-testid="serie-apuracao-chart"]')).toBeNull();
     expect(semNada.querySelectorAll("h1")).toHaveLength(1);
 
     vi.unstubAllEnvs();
@@ -535,6 +538,22 @@ describe("UFPage — folha do município (S07/Bloco 2)", () => {
 // silêncio (ADR-0017 aplicado a uma fonte de dado).
 // ---------------------------------------------------------------------------
 describe("UFPage — degradação do detalhe municipal (ADR-0032)", () => {
+  /**
+   * O `<DetailUnavailable>` de UM painel, identificado pelo kicker.
+   *
+   * 🔴 Escopo, e não `doc.querySelector(...)` global: desde a Fase 2 da spec
+   * 020 a página tem DOIS blocos alimentados pelo mesmo Blob — municípios e a
+   * evolução da apuração —, e uma busca global devolve o primeiro do documento.
+   * Sem o escopo, `(q)` passaria a medir o estado do gráfico achando que mede o
+   * da tabela, e `(r)` falharia por um motivo que não é o dele.
+   */
+  function estadoDoPainel(doc: Document, kicker: string): Element | null {
+    const painel = [...doc.querySelectorAll('[data-testid="panel"]')].find(
+      (el) => el.querySelector('[data-testid="panel-kicker"]')?.textContent === kicker,
+    );
+    return painel?.querySelector('[data-testid="detail-unavailable"]') ?? null;
+  }
+
   function payloadPadrao(): EdgePayloadUf {
     return buildUfPayload({
       turno: 1,
@@ -599,13 +618,18 @@ describe("UFPage — degradação do detalhe municipal (ADR-0032)", () => {
 
   it("(q) Blob OK e vazio é `empty`, não `not_found` — são notícias diferentes", async () => {
     const doc = await render(detalheOk(0));
-    const estado = doc.querySelector('[data-testid="detail-unavailable"]');
-    expect(estado?.getAttribute("data-reason")).toBe("empty");
+    expect(estadoDoPainel(doc, "Municípios")?.getAttribute("data-reason")).toBe("empty");
+    // Spec 020 — o MESMO Blob, respondido com sucesso, produz motivos
+    // diferentes nos dois blocos: "não há município apurado" e "o produtor não
+    // publicou a série". Colapsá-los manda quem opera caçar a causa errada.
+    expect(estadoDoPainel(doc, "Evolução da apuração")?.getAttribute("data-reason")).toBe(
+      "sem_serie",
+    );
   });
 
   it("(r) com detalhe, a seção mostra a idade PRÓPRIA do Blob e nenhum estado de falha", async () => {
     const doc = await render(detalheOk(3));
-    expect(doc.querySelector('[data-testid="detail-unavailable"]')).toBeNull();
+    expect(estadoDoPainel(doc, "Municípios")).toBeNull();
     const frescor = doc.querySelector('[data-testid="detail-freshness"]');
     expect(frescor).not.toBeNull();
     expect(frescor?.textContent).toContain("Detalhe atualizado às");

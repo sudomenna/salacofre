@@ -493,7 +493,15 @@ async function AguardandoNacional() {
           que pôs `variante="sem_dados"` no bloco de metodologia logo abaixo.
           Afirmar "disponível apenas no dia das eleições" aqui seria dar uma
           causa que ninguém mediu. O componente cai no estado "não sabemos",
-          que é o terceiro estado e o honesto para este ramo. */}
+          que é o terceiro estado e o honesto para este ramo.
+
+          🔴 E as props seguem VAZIAS depois da Fase 2, também por decisão: os
+          dois gatilhos deste ramo são "não há payload" e "o payload veio com
+          `candidatos: []`". No primeiro não existe série para ler; no segundo
+          o elenco das quatro linhas sai do ranking dessas candidaturas, e uma
+          lista vazia não produz elenco nenhum. Passar série aqui exigiria
+          carregar o payload para dentro desta função para nunca ter o que
+          desenhar. */}
       <Panel kicker="Evolução da apuração">
         <SerieApuracaoChart
           eixo={[]}
@@ -586,6 +594,23 @@ export default async function HomePage() {
 
   const { national, por_uf, pct_apurado_total, ufs_apuradas, ts, insights, composition, turno } =
     payload;
+
+  /**
+   * Spec 020 (RF-168 a RF-171) — a série por candidatura do escopo NACIONAL.
+   *
+   * Vem do payload que esta página já leu; nenhuma leitura nova entra no read
+   * path (RNF-002). Diferente das rotas de UF, aqui não há Blob: o ADR-0046 D3
+   * pôs o nacional na própria chave de Global Config, e por isso não existe o
+   * par de estados "a fonte não respondeu" / "respondeu sem a série" — ou o
+   * payload veio com o campo, ou não veio.
+   *
+   * 🔴 O objeto é repassado **como veio**. Nada de re-ordenar `candidatos` (a
+   * ordem é contrato do produtor, ADR-0046 D4 / RF-170c), nada de `?? 0` nos
+   * furos de `apurado`/`projetado` (RF-175b) e nada de inferir a cadência de
+   * `eixo[1] - eixo[0]` — ela é declarada em `cadencia_min` justamente porque o
+   * primeiro intervalo pode conter um ciclo perdido.
+   */
+  const serieNacional = payload.serie_por_candidato ?? null;
 
   // RF-149 re-pendurado no ramo de fase pré (design 019 § D5, último bloco).
   //
@@ -946,26 +971,26 @@ export default async function HomePage() {
           `{gradeCandidaturas}` do painel de identidade a que o RF-149 o
           pendurou.
 
-          Fase 0 da spec entrega o bloco **vazio, e honesto**: não há série
-          publicada ainda (o produtor é a Fase 1), então `eixo` e `candidatos`
-          vão vazios de propósito — nunca com zeros de enfeite. Em fase pré o
-          componente desenha os eixos e diz que o gráfico vale só no dia da
-          eleição; fora dela, diz que a série ainda não chegou. Nos dois casos
-          o bloco PERMANECE no DOM (ADR-0017, ADR-0032 item 3).
+          Fase 2 — as props são as do payload (`serieNacional`). Sem série
+          publicada, `eixo` e `candidatos` vão vazios de propósito, nunca com
+          zeros de enfeite: em fase pré o componente desenha os eixos e diz que
+          o gráfico vale só no dia da eleição; fora dela, diz que a série ainda
+          não chegou. Nos dois casos o bloco PERMANECE no DOM (ADR-0017,
+          ADR-0032 item 3).
 
           🔴 `preEleicao` vem de `pre`, que é o `isPreEleicao(payload)` do
           RF-153 — o mesmo e único gatilho de fase da página, nunca uma
           segunda leitura nem uma data de calendário. O componente não decide
           fase; quem decide é este chamador.
 
-          `cadenciaMin` só é impressa na legenda da tabela, que existe apenas
-          no estado com dado — aqui ela é inerte até a Fase 1 publicar a
-          cadência real junto com a série. */}
+          🔴 `cadenciaMin` sai de `cadencia_min` do payload, **nunca** de
+          `eixo[1] - eixo[0]`. O 5 do ramo sem série é inerte: a cadência só é
+          impressa na legenda da tabela, que existe apenas no estado com dado. */}
       <Panel kicker="Evolução da apuração">
         <SerieApuracaoChart
-          cadenciaMin={5}
-          candidatos={[]}
-          eixo={[]}
+          cadenciaMin={serieNacional ? serieNacional.cadencia_min : 5}
+          candidatos={serieNacional ? serieNacional.candidatos : []}
+          eixo={serieNacional ? serieNacional.eixo : []}
           escopo="Brasil"
           preEleicao={pre}
           titleId="serie-apuracao-heading"
