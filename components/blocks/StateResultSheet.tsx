@@ -48,7 +48,12 @@ import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent, formatPp } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
-import { colorForParty, normalizePartySlug, PARTY_FALLBACK_SLUG } from "@/lib/utils/party-color";
+import {
+  colorForParty,
+  normalizePartySlug,
+  PARTY_FALLBACK_SLUG,
+  textForParty,
+} from "@/lib/utils/party-color";
 
 /** Mesma tabela de `GovernorCard.tsx` — sem módulo compartilhado em `lib/utils/**`
  * pra este propósito, então repetida aqui (padrão já existente no repo). */
@@ -101,11 +106,21 @@ function partidoIsMapped(partido: string | null | undefined): partido is string 
   return normalizePartySlug(partido) !== PARTY_FALLBACK_SLUG;
 }
 
+/**
+ * Cor do ponto de 8×8 que identifica a candidatura (linhas 162 e 200).
+ *
+ * RNF-035 / WCAG SC 1.4.11 — **`textForParty`, não `colorForParty`**. O ponto é
+ * marcador de IDENTIDADE: não tem extensão a perder, então o remédio é a
+ * variante legível, não o contorno de `DATA_FILL_STROKE` (que é para
+ * preenchimento com extensão — barra, segmento, região).
+ *
+ * Medido em 18/09, tema claro: PSOL 2,08 · PSB 2,19 · outros 2,39 · NOVO 2,72
+ * contra o piso de 3:1. No escuro as quatro passam de 9:1 — **o problema é só
+ * do claro**, e medir um tema só engana.
+ */
 function dotColorFor(cand: EdgeCandidate | undefined): string {
   if (!cand) return "var(--color-cand-other)";
-  return partidoIsMapped(cand.partido)
-    ? colorForParty(cand.partido)
-    : colorForRank(cand.rank ?? 99);
+  return partidoIsMapped(cand.partido) ? textForParty(cand.partido) : colorForRank(cand.rank ?? 99);
 }
 
 export function StateResultSheet({

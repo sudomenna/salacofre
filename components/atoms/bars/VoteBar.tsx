@@ -22,6 +22,7 @@
  */
 
 import type { CSSProperties } from "react";
+import { DATA_FILL_STROKE } from "@/components/blocks/_candidateColor";
 
 import { formatPercent } from "@/lib/utils/format";
 
@@ -87,7 +88,17 @@ export function VoteBar({
         aria-label={ariaLabel ?? voteBarLabel(segments)}
         data-testid="vote-bar-track"
         className="relative flex overflow-hidden rounded-xs"
-        style={{ height, background: "var(--surface-sunken)" }}
+        // RNF-035 / WCAG SC 1.4.11 — o contorno da CALHA delimita a extensão
+        // da barra contra a página. Sem ele, um segmento de cor clara
+        // (PSOL 2,08:1 · PSB 2,19 · outros 2,39 · NOVO 2,72 no tema claro)
+        // encosta no papel sem fronteira e o leitor perde onde a barra acaba.
+        // `--text-secondary` mede 5,52:1 sobre a página e 5,09:1 sobre a
+        // calha — é o mesmo traço de `DATA_FILL_STROKE`.
+        style={{
+          height,
+          background: "var(--surface-sunken)",
+          border: DATA_FILL_STROKE,
+        }}
       >
         {segments.map((s, i) => (
           <div
@@ -108,7 +119,16 @@ export function VoteBar({
               width: `${clampPct(s.pct)}%`,
               background: s.color ?? VOTE_BAR_FALLBACK_COLOR,
               transition: "width var(--dur-slow) var(--ease-out)",
-              borderRight: i < segments.length - 1 ? "1px solid var(--surface-card)" : undefined,
+              // 🔴 O separador era `--surface-card`, que mede **1,15:1** sobre a
+              // calha — invisível, nos DOIS temas (medido em 18/09). Não é
+              // detalhe estético: na barra de bancada o resto não apurado é um
+              // segmento pintado com a COR DA PRÓPRIA CALHA, então a fronteira
+              // entre "já contado" e "falta contar" era o único sinal de onde o
+              // dado acaba — e ela não existia.
+              //
+              // `--border-strong` restaura o limite sem o peso de um traço de
+              // texto entre cada partido numa barra de muitos segmentos.
+              borderRight: i < segments.length - 1 ? "1px solid var(--border-strong)" : undefined,
             }}
           />
         ))}

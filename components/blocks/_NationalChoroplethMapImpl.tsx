@@ -58,6 +58,7 @@ import {
   normalizePartySlug,
   PARTY_FALLBACK_SLUG,
   resolvePartyHex,
+  textForParty,
 } from "@/lib/utils/party-color";
 
 const PMTILES_BASE = "https://jbtu251tioj3y57z.public.blob.vercel-storage.com";
@@ -332,7 +333,19 @@ function buildHoverRows(
       // candidato: o nome de exibição sai daqui, senão o balão do mapa diria
       // "RONALDO CAIADO" e o painel ao lado, "CAIADO", sobre o mesmo estado.
       name: cand ? nomeExibicao(cand.nome, cand.sqcand) : `#${tc.id}`,
-      color: partidoIsMapped(partido) ? colorForParty(partido) : colorForRank(rank),
+      // RNF-035 / WCAG SC 1.4.11 — `textForParty`, não `colorForParty`.
+      // Este `color` vira um quadradinho de 8×8 no `<HoverCard>`
+      // (`components/atoms/overlays/HoverCard.tsx:163-171`): marcador de
+      // IDENTIDADE, sem extensão a perder, então o remédio é a variante
+      // legível e não o contorno. Mesma decisão do ADR-0047 D1 para a linha do
+      // gráfico — e é o que mantém a MESMA cor para o mesmo partido nos dois
+      // lugares da tela.
+      //
+      // Medido em 18/09 no tema claro: PSOL 2,08 · PSB 2,19 · outros 2,39 ·
+      // NOVO 2,72 contra o piso de 3:1. A variante `-text` passa nas 4
+      // superfícies e nos 2 temas para os 31 partidos, e em 17 deles ELA É a
+      // cor base — a maioria dos estados não muda um pixel.
+      color: partidoIsMapped(partido) ? textForParty(partido) : colorForRank(rank),
       pct: Number.NaN,
       proj: tc.pct,
     };
