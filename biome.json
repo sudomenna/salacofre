@@ -26,7 +26,8 @@
       "!docs/design-system/atlas-menna",
       "!tse_docs",
       "!.claude/worktrees",
-      "!tests/fixtures/replay-2022/snapshots.json"
+      "!tests/fixtures/replay-2022/snapshots.json",
+      "!tests/fixtures/simulacao/municipios-pres-t1.json"
     ]
   },
   "formatter": {
@@ -82,13 +83,21 @@
         "tests/fixtures/replay-2022/snapshots.json",
         "tests/fixtures/model/cadeiras-golden-2022.json"
       ],
-      "formatter": { "enabled": false },
-      "linter": { "enabled": false }
+      "formatter": {
+        "enabled": false
+      },
+      "linter": {
+        "enabled": false
+      }
     },
     {
       "includes": ["tests/fixtures/tse/2026-sim/**"],
-      "formatter": { "enabled": false },
-      "linter": { "enabled": false }
+      "formatter": {
+        "enabled": false
+      },
+      "linter": {
+        "enabled": false
+      }
     }
   ]
 }

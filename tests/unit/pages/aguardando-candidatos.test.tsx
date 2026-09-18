@@ -60,6 +60,12 @@ vi.mock("@/lib/edge-config/reader", () => ({
   readArchivedProjection: () => Promise.resolve(null),
   readUfProjection: (sigla: string, opts?: unknown) => readUfProjectionMock(sigla, opts),
   readDeputadoProjection: () => readDeputadoProjectionMock(),
+  // Spec 020 (RF-174d): o ramo de espera das rotas de UF passou a perguntar a
+  // FASE ao payload NACIONAL da corrida — essas rotas não têm payload próprio
+  // em fase pré, porque o semeador só grava as chaves nacionais. Sem este
+  // membro no mock, a página lança antes de renderizar e os casos (j)/(k)/(l)
+  // falham por módulo ausente, não pelo que eles medem.
+  readProjection: () => Promise.resolve(null),
 }));
 
 vi.mock("@/lib/blob/uf-detail", () => ({

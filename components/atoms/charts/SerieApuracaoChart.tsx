@@ -258,20 +258,25 @@ const NOTA: CSSProperties = {
   color: "var(--text-muted)",
 };
 
-/** O chip do protótipo: a frase pousada sobre a régua, não abaixo dela. */
+/**
+ * O chip do protótipo: a frase pousada sobre a régua, não abaixo dela.
+ *
+ * 🔴 A centralização vai em CLASSES (`absolute top-1/2 left-1/2 -translate-*`),
+ * nunca em `style`. Um `style={{top:"50%",transform:"translate(-50%,-50%)"}}`
+ * põe quatro `%` no HTML, e a varredura do RF-161 (spec 019) lê o `innerHTML`
+ * do `<main>` — atributos inclusive. O mesmo pixel, sem o caractere que aquela
+ * guarda existe para caçar.
+ */
+const NOTA_SOBREPOSTA_CLASSES =
+  "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full";
+
 const NOTA_SOBREPOSTA: CSSProperties = {
-  position: "absolute",
-  top: "50%",
-  left: "50%",
-  transform: "translate(-50%, -50%)",
   margin: 0,
   padding: "0.5rem 1rem",
-  borderRadius: "999px",
   background: "var(--surface-raised, var(--background))",
   boxShadow: "0 1px 3px rgb(0 0 0 / 0.08), 0 8px 24px rgb(0 0 0 / 0.06)",
   fontSize: "0.875rem",
   color: "var(--text-muted)",
-  whiteSpace: "nowrap",
 };
 
 /**
@@ -292,8 +297,12 @@ const GRADE_HORAS = ["17h", "18h", "19h", "20h", "20h30"] as const;
  * Com `width`/`height` em pixels o gráfico transbordava a coluna de
  * `--container-sidebar: 400px` das rotas de UF e o último rótulo do eixo
  * ficava fora da tela — medido no navegador em 2026-09-17.
+ *
+ * 🔴 Via CLASSE (`block h-auto w-full`), não `style`. Um `style={{width:"100%"}}`
+ * põe o caractere "%" no HTML, e a varredura do RF-161 (spec 019) lê o
+ * `innerHTML` do `<main>` — atributos inclusive —, não o `textContent`. O
+ * mesmo pixel, sem o caractere que denuncia medição fabricada.
  */
-const SVG_FLUIDO: CSSProperties = { display: "block", width: "100%", height: "auto" };
 
 const EIXO_STROKE = "var(--border-hairline)";
 const ROTULO_FILL = "var(--text-muted)";
@@ -359,15 +368,15 @@ export function SerieApuracaoChart({
         <svg
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="xMidYMid meet"
-          style={SVG_FLUIDO}
+          className="block h-auto w-full"
           role="img"
           aria-labelledby={`${titleId} ${descId}`}
           xmlns="http://www.w3.org/2000/svg"
         >
-          <title id={titleId}>Evolução da apuração — {escopo}</title>
+          <title id={titleId}>{`Evolução da apuração — ${escopo}`}</title>
           <desc id={descId}>
             Os eixos estão desenhados e ainda não há nenhuma linha. O gráfico fica disponível apenas
-            no dia das eleições, quando o primeiro boletim chegar.
+            no dia das eleições.
           </desc>
           <Eixos width={width} yBase={yBase} />
 
@@ -388,16 +397,21 @@ export function SerieApuracaoChart({
                   stroke={EIXO_STROKE}
                   strokeWidth="1"
                 />
-                <text
-                  x={SERIE_PAD_X - 6}
-                  y={y + 3}
-                  textAnchor="end"
-                  fontSize="10"
-                  fontFamily="var(--font-sans)"
-                  fill={ROTULO_FILL}
-                >
-                  {pct}%
-                </text>
+                {/* 🔴 SEM rótulo numérico aqui, e isto é decisão, não esquecimento.
+                    O RF-161 da spec 019 proíbe o caractere "%" em QUALQUER
+                    superfície da home em fase pré — `tests/unit/pages/fase-pre-eleicao.test.tsx`
+                    varre o `<main>` inteiro. A guarda é ampla de propósito:
+                    nasceu do dia em que a tela exibia "Apurado 0,0%" e "Fulano
+                    vence no 1º turno — 0%", nove afirmações falsas medidas em
+                    2026-09-13.
+
+                    As linhas de grade ficam: elas dão a moldura do gráfico sem
+                    afirmar nenhuma quantidade. A escala volta com o primeiro
+                    dado real, no estado "ok" mais abaixo, onde "%" é legítimo.
+
+                    Se o dono preferir a régua rotulada do protótipo, o caminho
+                    é uma exceção NOMEADA no RF-161 — nunca afrouxar a varredura,
+                    que protege contra um incidente que já aconteceu. */}
               </g>
             );
           })}
@@ -420,7 +434,11 @@ export function SerieApuracaoChart({
         {/* A frase fica SOBRE a régua, centrada — é onde o protótipo a põe, e
             é o que impede a moldura vazia de parecer um gráfico que falhou
             ao carregar. */}
-        <figcaption data-testid="serie-apuracao-nota" style={NOTA_SOBREPOSTA}>
+        <figcaption
+          data-testid="serie-apuracao-nota"
+          className={NOTA_SOBREPOSTA_CLASSES}
+          style={NOTA_SOBREPOSTA}
+        >
           disponível apenas no dia das eleições
         </figcaption>
       </figure>
@@ -607,12 +625,12 @@ export function SerieApuracaoChart({
       <svg
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="xMidYMid meet"
-        style={SVG_FLUIDO}
+        className="block h-auto w-full"
         role="img"
         aria-labelledby={`${titleId} ${descId}`}
         xmlns="http://www.w3.org/2000/svg"
       >
-        <title id={titleId}>Evolução da apuração — {escopo}</title>
+        <title id={titleId}>{`Evolução da apuração — ${escopo}`}</title>
         <desc id={descId}>
           Fatia de votos de {candidatos.length}{" "}
           {candidatos.length === 1 ? "candidatura" : "candidaturas"} entre {horaInicio} e {horaFim},
