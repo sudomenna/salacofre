@@ -25,6 +25,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   SerieApuracaoChart,
+  type SerieApuracaoChartProps,
   type SerieCandidatoView,
 } from "@/components/atoms/charts/SerieApuracaoChart";
 
@@ -631,5 +632,144 @@ describe("<SerieApuracaoChart /> — RF-176: a tabela acessível", () => {
   it("os traços ficam fora da árvore de acessibilidade", () => {
     const svg = doc.querySelector("svg");
     expect(svg?.getAttribute("role")).toBe("img");
+  });
+});
+
+/**
+ * RF-172 (b) e (c) — a promessa de **0 B**.
+ *
+ * 🔴 Estes dois itens de aceitação não tinham teste até 2026-09-18, 3ª sessão.
+ * O que existia cobria só o (a) — os dois grupos `data-view-only` no HTML.
+ *
+ * E o (b) não é demonstrável por orçamento. `tests/e2e/perf-budget.spec.ts`
+ * responde "a rota cabe em 150 KiB", que continuaria verde se o gráfico
+ * passasse a custar 20 KiB de JS — sobraria orçamento. A única prova de que a
+ * contribuição é **zero** é estrutural: um Server Component sem fronteira de
+ * cliente não pode chegar ao pacote do navegador, porque nada dele é enviado.
+ *
+ * Por isso a travessia abaixo segue os imports LOCAIS a partir do módulo do
+ * gráfico, recursivamente. Um `"use client"` em qualquer ponto dessa árvore
+ * arrasta o gráfico inteiro para o pacote, e é o modo de falha real: ninguém
+ * escreveria `"use client"` no gráfico: escreveriam num utilitário que ele
+ * importa, três arquivos abaixo, sem relacionar uma coisa à outra.
+ */
+describe("<SerieApuracaoChart /> — RF-172(b)(c): a promessa de 0 B", () => {
+  const RAIZ = path.join(process.cwd(), "components/atoms/charts/SerieApuracaoChart.tsx");
+
+  /** Resolve `@/x/y` para o arquivo em disco, testando as extensões usadas aqui. */
+  function resolver(espec: string): string | null {
+    const base = path.join(process.cwd(), espec.replace(/^@\//, ""));
+    for (const ext of [".ts", ".tsx", "/index.ts", "/index.tsx"]) {
+      const alvo = `${base}${ext}`;
+      try {
+        readFileSync(alvo);
+        return alvo;
+      } catch {
+        /* tenta a próxima */
+      }
+    }
+    return null;
+  }
+
+  /** Todos os módulos locais alcançáveis a partir do gráfico, incluindo ele. */
+  function arvore(): string[] {
+    const vistos = new Set<string>();
+    const fila = [RAIZ];
+    while (fila.length > 0) {
+      const atual = fila.pop();
+      if (atual === undefined || vistos.has(atual)) continue;
+      vistos.add(atual);
+      const src = readFileSync(atual, "utf-8");
+      for (const m of src.matchAll(/from\s+"(@\/[^"]+)"/g)) {
+        const alvo = resolver(m[1] ?? "");
+        if (alvo !== null && !vistos.has(alvo)) fila.push(alvo);
+      }
+    }
+    return [...vistos];
+  }
+
+  it('(b) nenhum módulo da árvore do gráfico declara "use client"', () => {
+    const modulos = arvore();
+
+    // Guarda do instrumento: se a travessia devolvesse só a raiz, ela passaria
+    // sem ter olhado nada — e é exatamente o caso que importa, porque o risco
+    // mora nos importados, não no gráfico.
+    expect(
+      modulos.length,
+      `a travessia achou ${modulos.length} módulo(s); esperava a raiz mais os importados`,
+    ).toBeGreaterThan(3);
+    expect(modulos).toContain(RAIZ);
+
+    const comUseClient = modulos.filter((f) =>
+      /^\s*["']use client["']/m.test(readFileSync(f, "utf-8")),
+    );
+    expect(
+      comUseClient.map((f) => path.relative(process.cwd(), f)),
+      'um "use client" nesta árvore quebra a promessa de 0 B do RF-172(b)',
+    ).toEqual([]);
+  });
+
+  /**
+   * 🔴 Os QUATRO estados, e não só o desenhado.
+   *
+   * A primeira versão deste caso olhava só o estado `ok`. Uma mutação que
+   * enfiou um `<button>` no `<figure>` do estado `antes-do-dia` **sobreviveu** —
+   * o componente tem quatro ramos de retorno (`antes-do-dia`, `indisponivel`,
+   * `apurando`, `ok`), cada um com o seu próprio `<figure>`, e a fixture única
+   * exercitava um. Três quartos do módulo não eram olhados.
+   *
+   * A mesma mutação repetida no `<figure>` do `ok` ficou vermelha na hora — o
+   * teste não era fraco, o alvo é que estava errado. Mas a investigação achou
+   * a lacuna de verdade, que é esta tabela.
+   */
+  const ESTADOS: { estado: string; props: Partial<SerieApuracaoChartProps> }[] = [
+    { estado: "antes-do-dia", props: { preEleicao: true } },
+    { estado: "indisponivel", props: { eixo: [], candidatos: [] } },
+    { estado: "apurando", props: { eixo: eixoDe(1) } },
+    { estado: "ok", props: {} },
+  ];
+
+  it.each(
+    ESTADOS,
+  )("(c) estado $estado renderiza sem controle próprio — nem <button>, nem <input>, nem <select>", ({
+    estado,
+    props,
+  }) => {
+    const marcado = html(
+      <SerieApuracaoChart
+        eixo={eixoDe(4)}
+        cadenciaMin={5}
+        candidatos={[
+          cand({ id: 13, apurado: [10, 20, 30, 40], projetado: [40, 33, 31, 30] }),
+          cand({ id: 22, apurado: [40, 33, 31, 30], projetado: [10, 20, 30, 40] }),
+        ]}
+        escopo="Brasil"
+        titleId="rf172c"
+        height={ALTURA}
+        {...props}
+      />,
+    );
+
+    // Guarda do instrumento, duas vezes: o ramo é o que eu penso que é, e ele
+    // renderizou alguma coisa. Sem as duas, um `props` que caísse no ramo
+    // errado passaria nas asserções abaixo por vacuidade — que é exatamente
+    // como a mutação do `<button>` sobreviveu na primeira tentativa.
+    expect(marcado, `esperava cair no ramo ${estado}`).toContain(`data-estado="${estado}"`);
+    expect(marcado.length).toBeGreaterThan(200);
+
+    expect(marcado).not.toContain("<button");
+    expect(marcado).not.toContain("<input");
+    expect(marcado).not.toContain("<select");
+  });
+
+  it("(c) o módulo não tem handler de evento em lugar nenhum", () => {
+    // `renderToStaticMarkup` descarta handlers em silêncio, então procurar
+    // `onclick` no HTML não provaria nada — nem no ramo certo. A prova é no
+    // FONTE, e vale para os quatro ramos de uma vez.
+    const fonte = readFileSync(RAIZ, "utf-8");
+    expect(
+      fonte,
+      "handler de evento no módulo do gráfico exigiria fronteira de cliente, e com ela o RF-172(b) cai",
+    ).not.toMatch(/\son[A-Z]\w+=\{/);
   });
 });

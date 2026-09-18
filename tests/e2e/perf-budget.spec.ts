@@ -64,7 +64,16 @@ const ARTIFACT_PATH = path.join(process.cwd(), "test-results", "perf-budget.json
 // não é uma medição real do chunk de mapa de UF, é reflexo de não haver dado ainda.
 // Revalidar depois que houver Edge Config populado (ou um fixture local) para medir o
 // chunk de mapa de UF de verdade.
-const ROUTES = ["/", "/uf/SP"] as const;
+// As quatro rotas que carregam o gráfico da noite (spec 020) entraram em
+// 2026-09-18, 3ª sessão, por exigência do RF-172(b). Mediam-se duas.
+//
+// ⚠️ **E medir aqui NÃO prova o "0 B" do RF-172(b).** Este arquivo responde "a
+// rota cabe em 150 KiB", e continuaria verde se o gráfico passasse a custar
+// 20 KiB de JS — sobraria orçamento. O que prova o zero é estrutural, e está em
+// `tests/unit/components/serie-apuracao-chart.test.tsx`, bloco "a promessa de
+// 0 B": a travessia dos imports locais do gráfico, provando que nenhum módulo
+// da árvore declara `"use client"`. Os dois juntos fecham (b); nenhum sozinho.
+const ROUTES = ["/", "/uf/SP", "/uf/SP/governador", "/uf/SP/senador"] as const;
 
 interface ScriptSample {
   url: string;
