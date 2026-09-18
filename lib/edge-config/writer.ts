@@ -53,8 +53,42 @@
  *   - **Guarda de tamanho do store** (ver `guardStoreSize` abaixo): o limite
  *     da Vercel é por STORE INTEIRO, não por requisição. Antes de gravar,
  *     medimos o store e comparamos com o limite real; passando do limiar,
- *     emitimos aviso acionável. A guarda NUNCA aborta a gravação nem
- *     propaga exceção — o pipeline vale mais que a instrumentação.
+ *     emitimos aviso acionável.
+ *
+ * Quando a guarda recusa
+ * ----------------------
+ * Até 2026-09-18 esta seção dizia *"a guarda NUNCA aborta a gravação nem
+ * propaga exceção — o pipeline vale mais que a instrumentação"*. Continua
+ * verdade **como princípio**, e é por isso que a recusa tem duas condições,
+ * não uma:
+ *
+ *   1. a medição foi **confiável** — o store foi medido E as chaves listadas,
+ *      de modo que `projectedBytes` é projeção de verdade e não o
+ *      `estimatedBytes` cego, que ignora tudo que não estamos escrevendo; e
+ *   2. a projeção passa do **teto duro** (1 MB), não dos limiares de aviso.
+ *
+ * Fora disso — sem credencial, medição falhada, listagem falhada, bug na
+ * própria guarda — ela segue devolvendo "pode gravar". Um defeito na
+ * instrumentação nunca derruba a ingestão.
+ *
+ * 🔴 **A recusa não previne a falha, e é importante não vendê-la assim.** A
+ * plataforma recusa sozinha acima de 1 MB: *"Updates to items in your Global
+ * Config will be rejected if the resulting size would exceed your account
+ * plan's limits"*. O que a recusa local acrescenta são três coisas:
+ *
+ *   - **diagnóstico** — em vez de um HTTP não-2xx opaco no meio da noite, a
+ *     exceção já nomeia quanto ficaria, quanto cabe, e quais chaves apagar;
+ *   - **consistência** — `writeProjection` grava várias chaves best-effort.
+ *     Com o store cheio, algumas passariam e outras não, deixando um retrato
+ *     meio gravado. Recusar o lote inteiro antes preserva o último payload
+ *     coerente;
+ *   - **alarme** — a recusa dispara `notifySlack` (mudo enquanto
+ *     `SLACK_WEBHOOK_URL` não existir, como todo alarme deste repositório).
+ *
+ * E o leitor do site não fica no escuro por outro caminho: sem gravação,
+ * `dado_ts` para de andar e a tela cai no aviso de dado parado
+ * (ADR-0038 D3) — que é a máquina de frescor que já existe, não uma tela
+ * nova.
  *   - `writeProjection`: best-effort por chave. Falha em UMA chave NÃO aborta
  *     as demais (cron é melhor parcialmente consistente do que totalmente
  *     ausente). Exceção final agrega o que falhou.
@@ -79,6 +113,7 @@ import type {
   EdgePayloadUf,
   UfPayloadInput,
 } from "@/lib/edge-config/types";
+import { notifySlack } from "@/lib/tse/alerts";
 import { logError, logInfo, logWarn } from "@/lib/tse/log";
 
 // ---------------------------------------------------------------------------
@@ -546,7 +581,20 @@ async function fetchStoreKeySizes(token: string, edgeConfigId: string): Promise<
  *
  * @param incoming Chaves que ESTE ciclo vai gravar, já com tamanho medido.
  */
-async function guardStoreSize(incoming: KeySize[]): Promise<void> {
+/**
+ * O veredicto da guarda. `recusar` só vem `true` sob as DUAS condições do
+ * § "Quando a guarda recusa" no cabeçalho deste arquivo.
+ */
+interface VeredictoDaGuarda {
+  recusar: boolean;
+  /** Mensagem já diagnosticada — quem recusa não precisa reescrevê-la. */
+  motivo: string;
+  projectedBytes: number;
+}
+
+const GUARDA_SEGUE = { recusar: false, motivo: "", projectedBytes: 0 } as const;
+
+async function guardStoreSize(incoming: KeySize[]): Promise<VeredictoDaGuarda> {
   const incomingBytes = incoming.reduce((sum, k) => sum + k.bytes, 0) + 2; // +2 = `{}`
 
   try {
@@ -555,7 +603,7 @@ async function guardStoreSize(incoming: KeySize[]): Promise<void> {
 
     // Sem credencial não há store para medir. `writeEdgePayload` já loga o
     // no-op por chave; não duplicamos o aviso aqui.
-    if (!token || !edgeConfigId) return;
+    if (!token || !edgeConfigId) return GUARDA_SEGUE;
 
     let storeBytes: number | null = null;
     let itemCount = Number.NaN;
@@ -596,7 +644,7 @@ async function guardStoreSize(incoming: KeySize[]): Promise<void> {
           formatPct(estimatedBytes, GLOBAL_CONFIG_STORE_LIMIT_BYTES).replace(",", "."),
         ),
       });
-      return;
+      return GUARDA_SEGUE;
     }
 
     // --- Acima do limiar: vale pagar pela lista de chaves. -----------------
@@ -685,6 +733,36 @@ async function guardStoreSize(incoming: KeySize[]): Promise<void> {
     } else {
       logWarn(message, ctx);
     }
+
+    // --- A recusa. Ver § "Quando a guarda recusa" no cabeçalho. -----------
+    //
+    // `medicaoConfiavel` é a metade que mais importa: `projectedBytes` só é
+    // uma projeção de verdade quando medimos o store E listamos as chaves.
+    // Sem isso ele cai em `estimatedBytes`, que ignora tudo que não estamos
+    // escrevendo agora — recusar sobre esse número seria derrubar a ingestão
+    // por causa de instrumentação cega, que é exatamente o que o desenho
+    // original desta guarda existe para não fazer.
+    const medicaoConfiavel = storeBytes !== null && storeKeys.length > 0;
+    if (medicaoConfiavel && projectedBytes > GLOBAL_CONFIG_STORE_LIMIT_BYTES) {
+      const motivo =
+        `RECUSADO ANTES DE TENTAR: o store ficaria com ${formatKb(projectedBytes)}, ` +
+        `acima do teto de ${formatKb(GLOBAL_CONFIG_STORE_LIMIT_BYTES)}. ${message}`;
+      logError(motivo, { ...ctx, recusado: true });
+      // Fire-and-forget, como todo alarme daqui: mudo enquanto
+      // `SLACK_WEBHOOK_URL` não existir, e nunca derruba o ciclo.
+      void notifySlack({
+        severity: "critical",
+        msg: "gravação no Global Config recusada — store acima do teto",
+        ctx: {
+          projectedBytes,
+          limitBytes: GLOBAL_CONFIG_STORE_LIMIT_BYTES,
+          largestKeys: largest,
+        },
+      });
+      return { recusar: true, motivo, projectedBytes };
+    }
+
+    return { recusar: false, motivo: "", projectedBytes };
   } catch (err) {
     // Rede de segurança final. Nada nesta função pode derrubar a ingestão —
     // nem um bug nela mesma.
@@ -693,6 +771,9 @@ async function guardStoreSize(incoming: KeySize[]): Promise<void> {
       incomingBytes,
       note: "gravação segue normalmente",
     });
+    // 🔴 Um bug NESTA função nunca recusa nada. A guarda é instrumentação; o
+    // pipeline vale mais que ela. Só uma medição bem-sucedida recusa.
+    return GUARDA_SEGUE;
   }
 }
 
@@ -930,10 +1011,14 @@ export async function writeProjection(
     incomingSizes.push({ key: aliasUfKey, bytes: itemBytes(aliasUfKey, ufJson) });
   }
 
-  // Guarda de tamanho do STORE (não da requisição) — roda ANTES de gravar,
-  // nunca lança, nunca aborta. Ver `guardStoreSize`. Desde o ADR-0032 ela mede
-  // o resumo JÁ SEM municípios/séries — que é o que de fato vai para o store.
-  await guardStoreSize(incomingSizes);
+  // Guarda de tamanho do STORE (não da requisição) — roda ANTES de gravar.
+  // Desde o ADR-0032 ela mede o resumo JÁ SEM municípios/séries, que é o que
+  // de fato vai para o store.
+  //
+  // ⚠️ Desde 18/09 ela PODE recusar — mas só sob medição confiável e só acima
+  // do teto duro. Ver § "Quando a guarda recusa" no cabeçalho deste arquivo.
+  const veredicto = await guardStoreSize(incomingSizes);
+  if (veredicto.recusar) throw new Error(veredicto.motivo);
 
   // Blob em paralelo com o Global Config: os dois read paths são independentes
   // (ADR-0032 item 3) e serializá-los só somaria latência ao ciclo de 60 s.
@@ -1135,10 +1220,13 @@ export async function writeDeputadoProjection(
     });
   }
 
-  // Guarda de tamanho do STORE (não da requisição) — roda ANTES de gravar,
-  // nunca lança, nunca aborta. Uma chave só: o detalhe por UF deste cargo não
-  // toca o Global Config.
-  await guardStoreSize([{ key: nationalKey, bytes: itemBytes(nationalKey, nationalJson) }]);
+  // Guarda de tamanho do STORE (não da requisição) — roda ANTES de gravar.
+  // Uma chave só: o detalhe por UF deste cargo não toca o Global Config.
+  // Desde 18/09 pode recusar; ver § "Quando a guarda recusa" no cabeçalho.
+  const veredictoDep = await guardStoreSize([
+    { key: nationalKey, bytes: itemBytes(nationalKey, nationalJson) },
+  ]);
+  if (veredictoDep.recusar) throw new Error(veredictoDep.motivo);
 
   // Blob em paralelo com o Global Config — os dois read paths são
   // independentes e serializá-los só somaria latência ao ciclo.

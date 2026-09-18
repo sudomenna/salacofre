@@ -899,6 +899,98 @@ describe("writeProjection — guarda de tamanho do store", () => {
 // ADR-0032 — a fronteira Global Config × Blob dentro de `writeProjection`
 // ---------------------------------------------------------------------------
 
+describe("writeProjection — a guarda RECUSA acima do teto duro (S09 § 4)", () => {
+  beforeEach(() => {
+    process.env.EDGE_CONFIG_TOKEN = "tok";
+    process.env.EDGE_CONFIG_ID = "ecfg_proj";
+  });
+
+  /**
+   * 🔴 As duas condições da recusa são um PAR, e testá-las juntas é o ponto.
+   *
+   * Até 18/09 esta guarda dizia, no próprio arquivo, que "NUNCA aborta a
+   * gravação nem propaga exceção — o pipeline vale mais que a instrumentação".
+   * O princípio continua de pé: a recusa exige medição **confiável** (store
+   * medido E chaves listadas) **e** projeção acima do **teto duro**. Qualquer
+   * outra combinação segue gravando.
+   *
+   * Sem o par, o conserto vira o defeito oposto: uma guarda que derruba a
+   * ingestão porque a API da Vercel piscou.
+   */
+
+  it("recusa ANTES de tentar quando a projeção passa de 1 MB", async () => {
+    // 1.020 KB de store + o payload deste ciclo ⇒ projeção acima de 1 MB.
+    // ⚠️ A primeira versão deste teste usou 995 KB e NÃO recusava: o payload
+    // de duas UFs pesa poucos KB, a projeção dava ~998 KB e ficava abaixo do
+    // teto. O teste estava errado, não o código — e só a mensagem de falha
+    // ("resolved undefined instead of rejecting") deixou isso visível.
+    const fetchMock = mockVercelApi({
+      storeSizeInBytes: 1_020_000,
+      itemCount: 60,
+      items: [{ key: "projection-archive-pres-t1", value: { filler: "x".repeat(900_000) } }],
+    });
+
+    await expect(writeProjection(buildPayload(["SP", "RJ"]))).rejects.toThrow(
+      /RECUSADO ANTES DE TENTAR/,
+    );
+
+    // "Antes de tentar" é literal: nenhum PATCH saiu. A plataforma recusaria
+    // sozinha, mas teríamos gasto o tempo do ciclo e recebido um HTTP opaco.
+    const patches = fetchMock.mock.calls.filter(
+      (call) => ((call[1] as RequestInit | undefined)?.method ?? "GET") === "PATCH",
+    );
+    expect(patches, "nenhuma escrita deveria ter sido tentada").toHaveLength(0);
+  });
+
+  it("a mensagem da recusa diagnostica: quanto ficaria, quanto cabe, o que apagar", async () => {
+    // O valor da recusa não é impedir a falha — a plataforma já recusa. É
+    // trocar um HTTP não-2xx opaco, às 20h de 04/10, por uma frase que diz o
+    // que fazer.
+    mockVercelApi({
+      storeSizeInBytes: 1_020_000,
+      items: [{ key: "projection-archive-pres-t1", value: { filler: "x".repeat(900_000) } }],
+    });
+
+    const erro = await writeProjection(buildPayload(["SP"])).catch((e: Error) => e);
+    const msg = (erro as Error).message;
+
+    expect(msg).toMatch(/RECUSADO ANTES DE TENTAR/);
+    expect(msg, "precisa dizer qual chave está grande").toMatch(/projection-archive-pres-t1/);
+    expect(msg, "precisa dizer o que fazer").toMatch(/apagar chaves projection-archive/);
+  });
+
+  it("🔴 NÃO recusa quando a medição do store falhou — instrumentação cega não derruba nada", async () => {
+    // A metade que protege o pipeline. Sem `storeBytes` a projeção cai em
+    // `estimatedBytes`, que ignora tudo que não estamos escrevendo agora:
+    // recusar sobre esse número seria parar a apuração porque a API da Vercel
+    // não respondeu.
+    mockVercelApi({ metaNetworkError: new Error("ECONNRESET") });
+    await expect(writeProjection(buildPayload(["SP"]))).resolves.toBeUndefined();
+  });
+
+  it("🔴 NÃO recusa quando a listagem de chaves falhou — projeção sem as chaves não é projeção", async () => {
+    mockVercelApi({ storeSizeInBytes: 1_020_000, itemsStatus: 500 });
+    await expect(writeProjection(buildPayload(["SP"]))).resolves.toBeUndefined();
+  });
+
+  it("NÃO recusa no limiar CRÍTICO — 940 KB avisa alto, não aborta", async () => {
+    // Par com o primeiro caso: isola o teto duro como a única variável.
+    // Confundir os dois transformaria os 60 KB de folga que existem para
+    // alguém agir numa parada imediata.
+    mockVercelApi({
+      storeSizeInBytes: 950_000,
+      items: [{ key: "projection-archive-pres-t1", value: { filler: "x".repeat(200) } }],
+    });
+    await expect(writeProjection(buildPayload(["SP"]))).resolves.toBeUndefined();
+  });
+
+  it("sem credencial não recusa — é o caso normal de CI e preview", async () => {
+    delete process.env.EDGE_CONFIG_TOKEN;
+    mockVercelApi({ storeSizeInBytes: 1_020_000 });
+    await expect(writeProjection(buildPayload(["SP"]))).resolves.toBeUndefined();
+  });
+});
+
 describe("writeProjection — split de detalhe municipal para o Blob (ADR-0032)", () => {
   /** Payload de UF como o orchestrator envia: resumo + detalhe, juntos. */
   function buildUfInput(sigla: string, municipios: number): UfPayloadInput {

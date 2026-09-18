@@ -158,8 +158,44 @@ duro do outro lado: **passado 1 MB, a plataforma recusa**, a gravação falha, e
 congela no último número — com cara de normalidade. É o modo de falha que os "três
 estados" de 14/09 existem para não produzir, entrando pela porta dos fundos.
 
-- [ ] Limiar acima do qual o writer **recusa** a gravação, em vez de avisar — com a recusa
-      virando alarme (o canal da S08) e estado explícito na tela, nunca silêncio.
+- [x] **Limiar de recusa** — 18/09, `lib/edge-config/writer.ts`. `guardStoreSize` deixou de
+      devolver `void` e passa a devolver um veredicto; os dois call sites o honram.
+
+      🔴 **A recusa tem DUAS condições, e o par é o ponto.** O arquivo dizia, sobre si
+      mesmo, que *"a guarda NUNCA aborta a gravação nem propaga exceção — o pipeline vale
+      mais que a instrumentação"*. O princípio continua de pé: só recusa quando **(1)** a
+      medição foi confiável (store medido **e** chaves listadas, de modo que
+      `projectedBytes` é projeção de verdade e não o `estimatedBytes` cego) **e** **(2)** a
+      projeção passa do **teto duro de 1 MB** — não dos limiares de aviso. Sem credencial,
+      medição falhada, listagem falhada ou bug na própria guarda: segue gravando.
+
+      ⚠️ **A recusa NÃO previne a falha, e não deve ser vendida assim.** A plataforma já
+      recusa acima de 1 MB. O que ela acrescenta são três coisas:
+      **diagnóstico** (em vez de um HTTP não-2xx opaco às 20h de 04/10, a exceção nomeia
+      quanto ficaria, quanto cabe e qual chave apagar), **consistência** (`writeProjection`
+      grava várias chaves best-effort; com o store cheio umas passariam e outras não,
+      deixando retrato meio gravado) e **alarme**.
+
+      ℹ️ **O "estado explícito na tela" já existe e não precisou de tela nova**: sem
+      gravação, `dado_ts` para de andar e a máquina de frescor do ADR-0038 D3 mostra o aviso
+      de dado parado. Construir outra superfície duplicaria a regra.
+
+      **6 casos novos, 4 mutações, 4 vermelhas:**
+
+      | Mutação | Resultado |
+      |---|---|
+      | remove a recusa (volta ao "nunca aborta") | 2 failed |
+      | recusa sem exigir medição confiável | 4 failed |
+      | recusa já no crítico (940 KB) em vez do teto | 2 failed |
+      | recusa mas grava assim mesmo (veredicto ignorado) | 2 failed |
+
+      A segunda é a que protege o pipeline: sem ela, a guarda derrubaria a ingestão porque a
+      API da Vercel piscou. A terceira isola o teto duro — confundi-lo com o crítico
+      transformaria os 60 KB de folga que existem para alguém agir numa parada imediata.
+
+      ⚠️ **O primeiro teste que escrevi não reprovava**, e o erro era meu: usei 995 KB de
+      store, o payload de duas UFs pesa poucos KB, a projeção dava ~998 KB e ficava **abaixo**
+      do teto. O código estava certo; o teste é que não alcançava a condição.
 - [ ] Pior caso de **cada campo** do payload forçado na medição, não amostra aleatória:
       nome mais longo, maior número de candidaturas por UF, série no teto de pontos
       ([ADR-0046](../architecture/adrs/0046-serie-por-candidato-limitada-por-construcao.md) D2).
