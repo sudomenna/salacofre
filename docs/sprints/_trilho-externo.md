@@ -29,6 +29,16 @@ São roteiros a executar.
 
 ## Item 1 — Janela de simulado do TSE · gatilho 22–24/09/2026
 
+> ✅ **Conferido na Vercel em 2026-09-18: o preview JÁ ESTÁ ARMADO e o ciclo dispara
+> sozinho.** `TSE_BASE_URL` aponta para `https://resultados-sim.tse.jus.br/simulado/simulado2026`
+> (o endereço CERTO), as duas chaves de eleição estão em `ele2026/21270` e `ele2026/21272`,
+> `CRON_ENABLED=true` e `INGEST_WINDOW=9-17` — que é exatamente a janela do TSE. **Nenhum
+> passo de disparo é necessário.**
+>
+> 🔴 **O que continua faltando não é disparar, é ASSISTIR**: sem `SLACK_WEBHOOK_URL` nada
+> avisa se o ciclo falhar, e a tabela "Registro das janelas" é preenchida à mão. O roteiro
+> abaixo vira, na prática, um roteiro de **observação e registro**.
+
 ### Por que este documento existe: a primeira janela foi perdida quase inteira
 
 A 1ª janela (15–17/09) rendeu **um único ciclo real**, na madrugada de 17/09. Evidência direta no
