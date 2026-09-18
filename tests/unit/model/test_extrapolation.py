@@ -349,3 +349,142 @@ def test_impute_uf_from_national_clipa_perto_das_bordas() -> None:
     assert est["por_candidato"][100]["upper_votaveis"] == pytest.approx(
         100.0, abs=1e-6
     )
+
+
+# ---------------------------------------------------------------------------
+# RF-015 — o intervalo é o percentil 2,5/97,5, e não qualquer par
+# ---------------------------------------------------------------------------
+#
+# 🔴 Por que estes três testes existem, e por que eles são a coisa mais
+# importante deste arquivo.
+#
+# Medido em 2026-09-18: trocar `np.percentile(est_v, 2.5)` por `10.0` e
+# `97.5` por `90.0` em `extrapolation.py:389-398` — o que converte o intervalo
+# de confiança de **95% para 80%**, estreitando visivelmente a faixa de
+# incerteza em TODAS as projeções que o leitor vê — deixava os **560 testes
+# passando**. Zero vermelhos. Nada no repositório prendia esse número.
+#
+# O que existia antes cobria a *largura relativa* (RF-018 infla 1,5× abaixo de
+# 5% apurado) e propriedades de agregação. Largura relativa sobrevive a
+# qualquer par simétrico de percentis: 10/90 infla 1,5× tão bem quanto 2,5/97,5.
+# Por isso a mutação passava.
+#
+# A S10 vai mexer exatamente neste número, por decisão D8 do dono (baixar a
+# promessa de 95% para o que a medição sustenta). Mexer num número que nenhum
+# teste protege é consertar no escuro — por isso o assert entrou na S08, antes.
+#
+# Os dois ângulos são deliberados e independentes:
+#   (1) identidade — o valor emitido É o percentil do array devolvido;
+#   (2) massa — ~5% dos resamples ficam fora da faixa.
+# O (1) sozinho passaria se alguém trocasse os DOIS lados coerentemente num
+# refactor; o (2) sozinho é estatístico e tolerante. Juntos, prendem o número.
+
+
+def _zonas_para_ci() -> list[ZonaCandidatos]:
+    """Trinta zonas com shares espalhados — a densidade é o ponto.
+
+    🔴 **O número de zonas não é decoração, e a primeira versão deste helper
+    errou nisso.** Com 4 zonas, reamostrar com reposição produz só **17 valores
+    distintos** na distribuição bootstrap: os percentis 2,5 e 2,6 caem
+    exatamente no mesmo valor, e uma mutação de um décimo de percentil é
+    indetectável *em princípio* — não por frouxidão da asserção, por falta de
+    resolução na amostra. Medido em 18/09.
+
+    Com 30 zonas são **214 valores distintos**, a mesma mutação move o limite
+    inferior em ~0,06 pp — bem acima da tolerância de 1e-5 — e a fixture ainda
+    passa a parecer uma UF de verdade, que tem dezenas de zonas, não quatro.
+
+    Os shares variam de forma determinística (nada de RNG aqui: o bootstrap já
+    tem a sua semente e um segundo sorteio só tornaria o teste instável).
+    """
+    return [
+        _zona(
+            i + 1,
+            1000 + i * 50,
+            {100: 200 + i * 15, 200: 800 - (200 + i * 15)},
+            votaveis=800,
+            comparecimento=800,
+        )
+        for i in range(30)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("base", "chave_lower", "chave_upper", "chave_dist"),
+    [
+        ("votáveis", "lower_votaveis", "upper_votaveis", "estimates_votaveis"),
+        (
+            "comparecimento",
+            "lower_comparecimento",
+            "upper_comparecimento",
+            "estimates_comparecimento",
+        ),
+    ],
+)
+def test_rf015_ci_emitido_e_o_percentil_2_5_e_97_5_do_proprio_bootstrap(
+    base: str,
+    chave_lower: str,
+    chave_upper: str,
+    chave_dist: str,
+) -> None:
+    """O par emitido é recomputado pelo teste a partir do array devolvido.
+
+    Sem mock: `estimates_*` é a MESMA distribuição de onde o código tirou o
+    intervalo, e vem no resultado. O teste calcula 2,5/97,5 por conta própria e
+    exige igualdade. Se o código pedir outro par, os números divergem.
+
+    `pct_apurado_uf=50` (≥ 5) mantém `inflate_ci_low_apurado` como identidade
+    (RF-018) — sem isso o intervalo emitido seria o percentil JÁ inflado e o
+    teste estaria medindo duas coisas ao mesmo tempo.
+    """
+    r = estimate_uf_candidatos(_zonas_para_ci(), pct_apurado_uf=50.0, seed=42)
+    assert r is not None
+
+    for cod in (100, 200):
+        est = r["por_candidato"][cod]
+        dist = est[chave_dist]  # type: ignore[literal-required]
+
+        esperado_lower = round(100.0 * float(np.percentile(dist, 2.5)), 5)
+        esperado_upper = round(100.0 * float(np.percentile(dist, 97.5)), 5)
+
+        assert est[chave_lower] == pytest.approx(  # type: ignore[literal-required]
+            esperado_lower, abs=1e-5
+        ), f"{base}, candidato {cod}: lower não é o percentil 2,5"
+        assert est[chave_upper] == pytest.approx(  # type: ignore[literal-required]
+            esperado_upper, abs=1e-5
+        ), f"{base}, candidato {cod}: upper não é o percentil 97,5"
+
+        # Anti-vácuo: um intervalo degenerado faria as igualdades acima
+        # passarem para qualquer par de percentis.
+        assert est[chave_upper] - est[chave_lower] > 0.5, (  # type: ignore[literal-required]
+            f"{base}, candidato {cod}: faixa quase nula — a fixture parou de "
+            "produzir dispersão e o teste deixou de discriminar"
+        )
+
+
+def test_rf015_cerca_de_5pct_da_massa_fica_fora_da_faixa() -> None:
+    """A metade estatística: a faixa deixa ~5% dos resamples de fora.
+
+    É o que "95% de confiança" significa operacionalmente, e é a asserção que
+    sobrevive a um refactor que troque a forma de calcular o percentil.
+
+    A tolerância (3%–8%) é folgada de propósito — o alvo é 5% e o ruído de
+    reamostragem em 1.000 sorteios é de alguns décimos. Um par 10/90 produziria
+    ~20% e um par 0,5/99,5 produziria ~1%: os dois caem fora por larga margem.
+    """
+    r = estimate_uf_candidatos(_zonas_para_ci(), pct_apurado_uf=50.0, seed=7)
+    assert r is not None
+
+    for cod in (100, 200):
+        est = r["por_candidato"][cod]
+        dist = est["estimates_votaveis"]
+        lower_frac = est["lower_votaveis"] / 100.0
+        upper_frac = est["upper_votaveis"] / 100.0
+
+        fora = int(np.sum((dist < lower_frac) | (dist > upper_frac)))
+        frac_fora = fora / dist.size
+
+        assert 0.03 <= frac_fora <= 0.08, (
+            f"candidato {cod}: {frac_fora:.1%} da massa fora da faixa — "
+            "um intervalo de 95% deixa ~5% de fora"
+        )

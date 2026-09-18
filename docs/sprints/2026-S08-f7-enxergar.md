@@ -294,18 +294,42 @@ linha na matriz e o RF fora do frontmatter, o gate continua sem vê-los.
 Quatro caixas da S07 caíram nesta sprint. A referência de cada uma é a linha original no
 arquivo da [S07](./2026-S07-f6-simulado-hero-1t.md#triagem-das-60-caixas-restantes).
 
-- [ ] 🔴 **Assert de percentil do RF-015** *(S07 linha 270)* — **o mais urgente dos quatro,
-      e é pré-requisito da S10.** Medido em 18/09 pelo orquestrador: trocar
-      `np.percentile(est_v, 2.5/97.5)` por `10.0/90.0` em
-      `api/model/extrapolation.py:389-398` — o que transforma o intervalo de confiança de
-      **95% em 80%**, mudando o que o leitor vê — deixa os **560 testes pytest verdes**.
-      Nada no repositório trava esse número.
-      **Por que entra aqui e não na S10**: a S10 § 1 vai mexer exatamente nesse valor por
-      decisão D8 (baixar a promessa para o número real). Mudar um número que nenhum teste
-      protege é como consertar no escuro. O assert vem antes.
-      ⚠️ O teste tem de asserir o **percentil** (que `ci_lower` é o 2,5 e `ci_upper` o 97,5
-      da distribuição de resamples), não a largura relativa — a largura já é coberta pelo
-      RF-018 (×1,5) e foi ela que deixou a mutação passar.
+- [x] 🔴 **Assert de percentil do RF-015** *(S07 linha 270)* — **fechado em 18/09.**
+      `tests/unit/model/test_extrapolation.py`, 3 casos novos, dois ângulos independentes:
+      **identidade** (o valor emitido É o percentil 2,5/97,5 do array de bootstrap que a
+      própria função devolve em `estimates_*` — sem mock, o teste recomputa por conta
+      própria) e **massa** (~5% dos resamples ficam fora da faixa, que é o que "95%"
+      significa operacionalmente). O primeiro sozinho cairia num refactor coerente dos dois
+      lados; o segundo sozinho é tolerante demais. Juntos prendem o número.
+
+      `pct_apurado_uf=50` mantém `inflate_ci_low_apurado` como identidade (RF-018) — sem
+      isso o teste mediria duas coisas ao mesmo tempo, e é por isso que a cobertura antiga
+      de *largura relativa* não pegava nada: 10/90 infla 1,5× tão bem quanto 2,5/97,5.
+
+      **Mutações, com o cache de bytecode limpo a cada passo:**
+
+      | Mutação em `extrapolation.py:389-398` | Resultado |
+      |---|---|
+      | `2.5/97.5` → `10.0/90.0` (IC de 95% vira 80%) | **3 failed**, 14 passed |
+      | `2.5` → `2.6` (um décimo de percentil) | **1 failed**, 16 passed |
+      | trocar `lower` ↔ `upper` | **2 failed**, 15 passed |
+      | restaurado | **576 passed**, `diff` vazio, `git diff` vazio |
+
+      ⚠️ **A fixture precisou de 30 zonas, e o número não é decoração.** Com 4 zonas o
+      bootstrap só produz **17 valores distintos**: os percentis 2,5 e 2,6 caem no mesmo
+      valor e a segunda mutação é indetectável *em princípio*, por falta de resolução na
+      amostra. Com 30 são 214 valores distintos, e a mesma mutação move o limite inferior em
+      ~0,06 pp. Uma UF real tem dezenas de zonas, não quatro.
+
+      🔴 **E esta caixa desenterrou uma armadilha de processo que vale mais que ela**: a
+      primeira tentativa concluiu "a mutação sobreviveu" — e estava medindo **bytecode
+      antigo**. O `cp` da restauração caiu no mesmo segundo em que o `.pyc` foi escrito, e
+      `"2.5"`/`"2.6"` têm o mesmo tamanho em bytes; o CPython invalida cache por **mtime +
+      tamanho**, então nenhuma das duas condições disparou. O `diff` estava certo sobre o
+      arquivo e o processo rodava outra coisa. Registrada em
+      [`../_meta/orquestracao-paralela.md`](../_meta/orquestracao-paralela.md) § 7.4, com o
+      procedimento corrigido. **Toda mutação de um dígito em Python preserva o tamanho do
+      arquivo** — isto é sistemático, não azar.
 
 - [ ] **`rf-coverage-checker` sobre RF-008/RF-009 (pares município×zona)** *(S07 linha 626)*
       — a matriz já lista `geo-coverage.test.ts` (`traceability.md:35-36`), mas o teste

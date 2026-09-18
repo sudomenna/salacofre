@@ -219,7 +219,67 @@ Duas classes distintas de erro, e elas exigem verificações diferentes:
   paralelo, confira também a **idade** da sua própria base: os outros agentes escreveram no disco
   desde que você leu.
 
-### 7.4. Nunca `git checkout -- <arquivo>` com trabalho de outro agente na árvore
+### 7.4. 🔴 Restaurar o arquivo não restaura o que roda — o `.pyc` sobrevive
+
+**Medido em 2026-09-18, e custou uma conclusão errada antes de ser encontrado.**
+
+Ao provar o teste do percentil do RF-015, a sequência foi a canônica: copiar para o
+scratchpad, mutar `2.5` → `2.6`, rodar, restaurar por `cp`, provar com `diff` (vazio), rodar
+de novo. A suíte passou. Conclusão aparente: *"a mutação sobreviveu"*.
+
+**O que estava acontecendo: o Python continuava executando o bytecode MUTADO.** Um espião em
+`np.percentile` mostrou a chamada chegando com `q=2.6` enquanto `sed -n '389p'` e `git diff`
+juravam `2.5`.
+
+A causa é a regra de invalidação de cache do CPython, que compara **mtime e tamanho** da
+fonte contra o que está gravado no `.pyc`. As duas condições falharam juntas:
+
+```bash
+stat -f "%Sm %N" -t "%H:%M:%S" api/model/extrapolation.py api/model/__pycache__/extrapolation.cpython-314.pyc
+# 03:40:14 api/model/extrapolation.py
+# 03:40:14 api/model/__pycache__/extrapolation.cpython-314.pyc   ← mesmo segundo
+```
+
+- **mtime igual**: o `cp` da restauração caiu no mesmo segundo em que o `.pyc` foi escrito.
+- **tamanho igual**: `"2.5"` e `"2.6"` têm o mesmo número de bytes.
+
+⚠️ **A segunda condição é a que torna isto sistemático, não azar.** A mutação mais comum
+neste repositório é trocar um dígito — um percentil, um limiar, um `>` por `>=`. **Todas
+preservam o tamanho do arquivo.** Some a isso um ciclo mutar-medir-restaurar que dura menos
+de um segundo (a suíte Python roda em ~1,2 s) e a colisão de mtime deixa de ser improvável.
+
+**O `diff` continua sendo verdade — só não é a verdade que importa.** Ele atesta o arquivo;
+o interpretador executa o `.pyc`. As duas coisas divergiram, e nenhuma verificação de disco
+teria percebido.
+
+O procedimento seguro para mutação em **Python** acrescenta uma linha:
+
+```bash
+limpa_pyc() {
+  find . -name __pycache__ -type d \
+    -not -path "./node_modules/*" -not -path "./.venv-model/*" \
+    -exec rm -rf {} + 2>/dev/null; true
+}
+
+cp <arquivo> "$SCRATCHPAD/<nome>.antes"
+# ... aplica a mutação ...
+limpa_pyc && <rodar o teste>          # mede a mutação
+cp "$SCRATCHPAD/<nome>.antes" <arquivo>
+limpa_pyc && <rodar o teste>          # mede a restauração
+diff "$SCRATCHPAD/<nome>.antes" <arquivo>   # e prova o arquivo
+```
+
+**Os dois lados precisam da limpeza**, não só o da mutação: sem ela, um "restaurei e ficou
+verde" pode estar medindo bytecode antigo nos dois sentidos.
+
+Vale também para quem **não** está mutando: `tests/integration/model-{cycle,edge-cases}`
+invocam `api/model/project.py` num subprocesso. Um `.pyc` velho ali produz um vitest que
+concorda com um código que não existe mais.
+
+ℹ️ Não se aplica a TypeScript: `tsx`/`vitest` não têm cache de bytecode em disco com esta
+semântica.
+
+### 7.5. Nunca `git checkout -- <arquivo>` com trabalho de outro agente na árvore
 
 Ao desfazer uma mutação de teste — ou qualquer edição temporária — `git checkout -- <arquivo>`
 descarta **tudo** que não está commitado naquele caminho, inclusive o que outro agente acabou de
