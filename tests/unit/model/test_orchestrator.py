@@ -210,6 +210,10 @@ class FakeCursor:
                     h["cod_candidato"],
                     h["pct_validos"],
                     h.get("partido"),
+                    # Fase 5 — `votos` entrou no SELECT (E1 usa contagem, não
+                    # `pct_validos`). Default 0 mantém as fixtures antigas
+                    # válidas: sem votos em 2022, o swing sai `None`.
+                    h.get("votos", 0),
                 )
                 for h in self._conn.historical
                 if h["cargo"] == cargo and h["turno"] == turno

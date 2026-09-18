@@ -39,6 +39,28 @@ Casos de borda:
     (`inflate_ci_low_apurado`), idêntico ao tratamento de
     `compute_uf_projections` para candidatos.
 
+⚠️ Fase 5 (2026-09-18) — `brancos_nulos` SAIU daqui em produção.
+  `project.py::compute_participacao` agora lê a métrica de
+  `extrapolation.py::estimate_uf_candidatos` (campo
+  `brancos_nulos_comparecimento`), que a calcula no MESMO `idx` do
+  bootstrap dos candidatos. Motivo: com seed e estimador próprios, este
+  módulo produzia um brancos/nulos que somava 100 ± 0,3 pp com os
+  candidatos na base comparecimento — a tela publicava partes que não
+  fechavam o inteiro que ela mesma afirma estar dividindo.
+
+  O ramo `"brancos_nulos"` de `_metric_num_den`/`metric_value`/
+  `estimate_uf_participacao` CONTINUA neste arquivo e continua correto —
+  o que ele não tem mais é caller em produção. Está aqui porque
+  `compute_participacao` mantém o caminho antigo como fallback quando o
+  caller não passa `cand_by_uf` (testes e callers legados). **Se você
+  está prestes a religar este ramo no pipeline, a identidade exata da
+  Fase 5 morre junto** — leia
+  `docs/_meta/plano-modelo-regra-de-tres-2026-09-05.md` § A, "Coerência
+  das bases (E2)", antes.
+
+  `abstencao` (base `esi`) continua sendo daqui, e continua fora do 100%
+  por E2 — a base dela não é o comparecimento.
+
 Cobre: RF-020.1 (spec 002-modelo-estatistico) — participação por
 extrapolação do apurado. Persistência em `projections` fica DEFERIDA
 (coluna `candidato_id NOT NULL` não comporta linhas de participação) —

@@ -488,3 +488,246 @@ def test_rf015_cerca_de_5pct_da_massa_fica_fora_da_faixa() -> None:
             f"candidato {cod}: {frac_fora:.1%} da massa fora da faixa — "
             "um intervalo de 95% deixa ~5% de fora"
         )
+
+
+# ---------------------------------------------------------------------------
+# Fase 5 (plano § A, "Coerência das bases (E2)") — brancos/nulos no MESMO
+# `idx`, identidade EXATA por resample.
+#
+# A promessa da Fase 5 não é "fecha em 100 ± 0,3 pp" (isso é o que a Fase 1
+# já fazia, com `brancos_nulos` vindo de `turnout.py` com seed e estimador
+# próprios). É identidade exata, resample a resample. Um teste com
+# tolerância larga passaria nos DOIS mundos e não discriminaria nada — por
+# isso as tolerâncias abaixo são de épsilon de ponto flutuante (1e-12), não
+# de décimo de ponto percentual.
+# ---------------------------------------------------------------------------
+
+
+def _zona_fechada(
+    cod_zona: int,
+    weight: int,
+    votos: dict[int, int],
+    *,
+    eleitores_aptos: int,
+    eleitores_instalados: int,
+    brancos: int,
+    nulos: int,
+    anulados: int = 0,
+) -> ZonaCandidatos:
+    """Zona em que `Σvap + brancos + nulos + anulados == comparecimento`.
+
+    É a identidade do boletim: todo mundo que compareceu votou em alguém,
+    em branco, nulo — ou teve o voto anulado/sub judice (art. 265 §2º da
+    Res. TSE 23.751/2026), que é o resíduo.
+    """
+    total_votos = sum(votos.values())
+    return {
+        "cod_zona": cod_zona,
+        "weight": weight,
+        "eleitores_aptos": eleitores_aptos,
+        "eleitores_instalados": eleitores_instalados,
+        "comparecimento": total_votos + brancos + nulos + anulados,
+        "votaveis": total_votos,
+        "validos": total_votos,
+        "brancos": brancos,
+        "nulos": nulos,
+        "votos": dict(votos),
+    }
+
+
+def _zonas_fechadas() -> list[ZonaCandidatos]:
+    return [
+        _zona_fechada(
+            1, 10000, {13: 3000, 22: 2500, 12: 500},
+            eleitores_aptos=10000, eleitores_instalados=8000,
+            brancos=300, nulos=200,
+        ),
+        _zona_fechada(
+            2, 5000, {13: 1500, 22: 2100, 12: 90},
+            eleitores_aptos=5000, eleitores_instalados=5000,
+            brancos=250, nulos=150,
+        ),
+        _zona_fechada(
+            3, 20000, {13: 5000, 22: 3500, 12: 1200},
+            eleitores_aptos=20000, eleitores_instalados=12000,
+            brancos=300, nulos=200,
+        ),
+    ]
+
+
+def test_fase5_identidade_exata_por_resample() -> None:
+    """`Σ_c share_comp(c)[r] + share_comp(bn)[r] == 1` para TODO `r`.
+
+    Não `np.allclose` com tolerância de UI: a diferença máxima sobre os
+    1.000 resamples tem que ser da ordem do épsilon de float. Se
+    brancos/nulos voltar a sair de um bootstrap com seed própria, esta
+    diferença sobe para ~1e-3 (os "± 0,3 pp" da Fase 1) e o teste quebra.
+    """
+    r = estimate_uf_candidatos(_zonas_fechadas(), pct_apurado_uf=60.0, seed=4242)
+    assert r is not None
+    bn = r["brancos_nulos_comparecimento"]
+    assert bn is not None
+
+    total = bn["estimates_comparecimento"].copy()
+    for est in r["por_candidato"].values():
+        total = total + est["estimates_comparecimento"]
+
+    desvio = float(np.max(np.abs(total - 1.0)))
+    assert desvio < 1e-12, (
+        f"máximo |Σ − 1| = {desvio:.3e} — a Fase 5 promete identidade EXATA "
+        "por resample, não 'fecha em 100 ± 0,3 pp'"
+    )
+
+
+def test_fase5_identidade_exata_tambem_no_ponto_e_no_apurado() -> None:
+    """A identidade vale no `pct_projetado` e no `pct_atual`, não só nos
+    arrays — é o que a tela mostra."""
+    r = estimate_uf_candidatos(_zonas_fechadas(), pct_apurado_uf=60.0, seed=99)
+    assert r is not None
+    bn = r["brancos_nulos_comparecimento"]
+    assert bn is not None
+
+    soma_ponto = bn["pct_projetado_comparecimento"] + sum(
+        e["pct_projetado_comparecimento"] for e in r["por_candidato"].values()
+    )
+    soma_atual = bn["pct_atual_comparecimento"] + sum(
+        e["pct_atual_comparecimento"] for e in r["por_candidato"].values()
+    )
+    # 1e-4 pp, e a folga é SÓ o arredondamento do contrato: `_frac_to_pct`
+    # corta em 5 casas (NUMERIC(8,5)), então cada um dos 4 números publicados
+    # pode estar até 0,5e-5 pp fora — no pior caso 2e-5 pp na soma. Continua
+    # quatro ORDENS DE GRANDEZA abaixo dos ±0,3 pp que a Fase 1 aceitava, que
+    # é o que este teste precisa distinguir.
+    assert abs(soma_ponto - 100.0) < 1e-4
+    assert abs(soma_atual - 100.0) < 1e-4
+
+
+def test_fase5_identidade_sobrevive_a_pos_estratificacao() -> None:
+    """Com estratos, o share da UF vira média ponderada dos shares por
+    estrato. A identidade só sobrevive se brancos/nulos percorrer o MESMO
+    caminho estratificado — um atalho que calculasse bn sem estratos
+    passaria no teste anterior e falharia aqui.
+    """
+    zonas = _zonas_fechadas()
+    estrato_by_cod_zona = {1: 1, 2: 0, 3: 2}
+    # Pesos a priori maiores que os observados (há zona não apurada no
+    # estrato) — força o caminho de reponderação.
+    te_total_by_estrato = {0: 9000.0, 1: 15000.0, 2: 30000.0}
+    r = estimate_uf_candidatos(
+        zonas,
+        pct_apurado_uf=45.0,
+        seed=31337,
+        estrato_by_cod_zona=estrato_by_cod_zona,
+        te_total_by_estrato=te_total_by_estrato,
+    )
+    assert r is not None
+    bn = r["brancos_nulos_comparecimento"]
+    assert bn is not None
+
+    total = bn["estimates_comparecimento"].copy()
+    for est in r["por_candidato"].values():
+        total = total + est["estimates_comparecimento"]
+    desvio = float(np.max(np.abs(total - 1.0)))
+    assert desvio < 1e-12, f"máximo |Σ − 1| sob estratificação = {desvio:.3e}"
+
+
+def test_fase5_residuo_de_anulados_aparece_como_residuo() -> None:
+    """Quando a zona NÃO fecha (anulados/sub judice), a soma tem que ficar
+    ABAIXO de 1 pela fração exata dos anulados — e não ser normalizada para
+    1 na marra.
+
+    Este é o teste que impede o conserto errado: forçar `bn = 1 − Σ_c`
+    passaria em todos os testes de identidade acima e esconderia o resíduo
+    que o art. 265 §2º manda mostrar.
+    """
+    zonas = [
+        _zona_fechada(
+            1, 10000, {13: 4000, 22: 3000},
+            eleitores_aptos=10000, eleitores_instalados=10000,
+            brancos=400, nulos=600, anulados=1000,
+        ),
+    ]
+    r = estimate_uf_candidatos(zonas, pct_apurado_uf=100.0, seed=7)
+    assert r is not None
+    bn = r["brancos_nulos_comparecimento"]
+    assert bn is not None
+
+    total = bn["estimates_comparecimento"].copy()
+    for est in r["por_candidato"].values():
+        total = total + est["estimates_comparecimento"]
+    # comparecimento = 9000; anulados = 1000 → resíduo = 1/9.
+    assert np.allclose(total, 1.0 - 1000.0 / 9000.0, atol=1e-12)
+    assert float(np.max(total)) < 1.0
+
+
+def test_fase5_brancos_nulos_nao_consome_sorteio_dos_candidatos() -> None:
+    """Calcular brancos/nulos não pode mover nenhum número de candidato.
+
+    Prova por independência: dois datasets com os MESMOS votos e o MESMO
+    comparecimento, mas com a divisão brancos/nulos trocada (e anulados
+    absorvendo a diferença). Se o cálculo de bn consumisse sorteios do `rng`
+    — ou entrasse em qualquer denominador de candidato — os arrays dos
+    candidatos divergiriam.
+    """
+    base = {13: 3000, 22: 2500}
+    a = [
+        _zona_fechada(
+            1, 10000, base,
+            eleitores_aptos=10000, eleitores_instalados=8000,
+            brancos=300, nulos=200, anulados=0,
+        )
+    ]
+    b = [
+        _zona_fechada(
+            1, 10000, base,
+            eleitores_aptos=10000, eleitores_instalados=8000,
+            brancos=50, nulos=50, anulados=400,
+        )
+    ]
+    ra = estimate_uf_candidatos(a, pct_apurado_uf=80.0, seed=555)
+    rb = estimate_uf_candidatos(b, pct_apurado_uf=80.0, seed=555)
+    assert ra is not None and rb is not None
+    for cod in (13, 22):
+        assert np.array_equal(
+            ra["por_candidato"][cod]["estimates_votaveis"],
+            rb["por_candidato"][cod]["estimates_votaveis"],
+        )
+        assert np.array_equal(
+            ra["por_candidato"][cod]["estimates_comparecimento"],
+            rb["por_candidato"][cod]["estimates_comparecimento"],
+        )
+    # ... e mesmo assim os brancos/nulos são DIFERENTES entre os dois (senão
+    # o teste acima seria vácuo).
+    bna = ra["brancos_nulos_comparecimento"]
+    bnb = rb["brancos_nulos_comparecimento"]
+    assert bna is not None and bnb is not None
+    assert bna["votos_atuais"] == 500
+    assert bnb["votos_atuais"] == 100
+
+
+def test_fase5_contagens_observadas_de_brancos_nulos() -> None:
+    """`votos_atuais` = Σ(brancos+nulos) apurados; `comparecimento_observado`
+    = Σ comparecimento apurado. São as duas contagens brutas que viram
+    `num`/`den` do `pct_atual` nacional em `turnout.aggregate_national_
+    participacao` — se saírem erradas, o número nacional sai errado sem que
+    nenhuma UF pareça errada."""
+    zonas = _zonas_fechadas()
+    r = estimate_uf_candidatos(zonas, pct_apurado_uf=60.0, seed=1)
+    assert r is not None
+    bn = r["brancos_nulos_comparecimento"]
+    assert bn is not None
+    assert bn["votos_atuais"] == sum(z["brancos"] + z["nulos"] for z in zonas)
+    assert r["comparecimento_observado"] == sum(z["comparecimento"] for z in zonas)
+
+
+def test_fase5_uf_imputada_do_nacional_nao_inventa_brancos_nulos() -> None:
+    """UF sem NENHUMA zona apurada: `None`, e `comparecimento_observado` 0.
+
+    A imputação nacional ancora share de CANDIDATO. Estender isso a
+    brancos/nulos publicaria uma participação medida numa UF que não
+    reportou nada.
+    """
+    national = {13: np.full(1000, 0.55), 22: np.full(1000, 0.45)}
+    est = impute_uf_from_national(national, {13: 0.55, 22: 0.45}, 100_000, 0.7)
+    assert est["brancos_nulos_comparecimento"] is None
+    assert est["comparecimento_observado"] == 0

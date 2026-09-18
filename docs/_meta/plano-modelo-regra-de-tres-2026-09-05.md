@@ -185,6 +185,21 @@ fecha em 100 ± 0,3 pp. **Fase 1 aceita** (uma casa na UI; teste com tolerância
 `brancos_nulos` para `extrapolation.py` no mesmo `idx` → identidade exata por resample;
 `turnout.py` fica só com abstenção (base `esi`, fora do 100% por E2).
 
+> **ENTREGUE 18/09.** `estimate_uf_candidatos` passou a emitir
+> `brancos_nulos_comparecimento` (mais `comparecimento_observado`, o denominador bruto que o
+> agregado nacional soma UF a UF). O corpo por candidato virou a closure `_estimate_for`, que
+> brancos/nulos reusa — mesmo `idx`, mesmos estratos, **zero sorteio novo**, logo nenhum número
+> de candidato se moveu. Medido: `max |Σ_c share_comp + bn − 1| = 0.0` sobre os 1.000 resamples,
+> contra os ~3e-3 do caminho antigo. O resíduo de anulados/sub judice (art. 265 §2º) continua
+> aparecendo como resíduo — a soma NÃO é normalizada à força. Testes em
+> `tests/unit/model/test_extrapolation.py` (bloco Fase 5) e
+> `tests/unit/model/test_participacao_brancos_nulos.py`.
+>
+> A identidade é **por UF**. No nacional ela só fecha quando todo candidato existe em toda UF
+> (o caso do cargo 1): `aggregate_national_estimates` normaliza cada candidato pelo eleitorado
+> das UFs em que ele aparece, então um candidato presente em 1 de 5 UFs sai com share inflado.
+> Isso é **anterior** a esta mudança e não foi tocado aqui.
+
 **Cargo 3**: `compute_national` inalterado — cada candidato existe numa UF; `aggregate_national_estimates`
 devolve o array da UF dele; `national.candidatos` segue catálogo. Pular imputação nacional.
 
@@ -199,9 +214,9 @@ devolve o array da UF dele; `national.candidatos` segue catálogo. Pular imputa�
 | `fetch_snapshots:197` | ⚠️ **descartar `cod_zona = 0` quando houver `cod_zona > 0` na UF**; se só houver zona 0, `weight = eleitorado_total_by_uf[uf]` (conserta o modo `uf`) |
 | `compute_uf_projections:942` | nova assinatura `(cargo, turno, seed_base, snapshots, eleitorado) -> (rows, estimates_by_uf, estimates_c_by_uf, cand_by_uf)`. Sai tudo de 2022/swing/bootstrap_uf. Entra: por UF montar `ZonaCandidatos` (`w > 0`), `uf_pct_apurado` como hoje, seed por UF, `estimate_uf_candidatos`; segunda passada para UFs `None` (cargo 1) via `impute_uf_from_national`. `rows` ganham `votos_projetados: int`, `pct_atual`, `metodo`, `n_zonas`, `n_zonas_imputadas`, bloco comparecimento |
 | `fetch_historical_2022:236` | mantém, **não-fatal** (`try` → `[]`), SQL lê `votos`; só alimenta `compute_swing_descritivo` |
-| **nova** `compute_swing_descritivo(uf_rows, historical) -> dict[str, float|None]` | E1: `pct_atual_v(líder) − votos_2022(n)/Σvotos_2022(U)`; `None` se o número não existiu. **Fase 5** |
+| **nova** `compute_swing_descritivo(uf_rows, historical) -> dict[str, float|None]` | E1: `pct_atual_v(líder) − votos_2022(n)/Σvotos_2022(U)`; `None` se o número não existiu. **Fase 5 — ENTREGUE 18/09** (`api/model/project.py`, `tests/unit/model/test_swing_descritivo.py`). Líder = líder do **apurado** (`pct_atual`), não da projeção: os dois termos da subtração precisam ser fatos observados. Chave 2022: o surrogate `cargo*1e6+ano*1000+turno*100+nr_partido` de `historical-import.ts` é reconstruído e **conferido** — código fora do formato é ignorado em vez de casar por `% 100` (senão um `SQ_CANDIDATO` terminado em 13 viraria o número 13). Só cargos 1 e 3. |
 | `compute_national:1599` | assinatura estável; kwarg opcional `votos_by_uf` → `rows[*]["votos_projetados"] = Σ_U` |
-| `compute_participacao:1497` | inalterada na Fase 1; Fase 5 troca fonte de `brancos_nulos` |
+| `compute_participacao:1497` | inalterada na Fase 1; **Fase 5 — ENTREGUE 18/09**: ganhou o kwarg opcional `cand_by_uf` e, com ele, `brancos_nulos` sai de `extrapolation.py` (`_participacao_de_brancos_nulos`). `turnout.py` segue respondendo por `abstencao`; o ramo `brancos_nulos` de `estimate_uf_participacao` continua no arquivo, **sem caller em produção** |
 | `_national_votos_por_candidato:1581` / `build_edge_payload:2427–2480` | `pct_atual`/`votos_atuais` das `national_rows` (razão de somas, não mais `0`); `votos_projetados` real; `comparecimento` por candidato; `participacao.outros.comparecimento`; `swing_vs_2022` do descritivo (Fase 5) |
 | `build_uf_payloads:2105–2130` | remover `total_votos_uf/(pct_apurado/100)`; `votos_*`/`pct_atual` do `row`; `comparecimento`; `outros` na 2ª base via `compute_outros_estimates(estimates_c_by_uf[uf], rank, 4)`; `metodo.n_zonas_imputadas` |
 | `insert_projections:581` | sem mudança de SQL; recebe `votos_projetados` inteiro |

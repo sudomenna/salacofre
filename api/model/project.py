@@ -397,11 +397,20 @@ def fetch_snapshots(conn, cargo: int, turno: int) -> list[LatestSnapshot]:
 def fetch_historical_2022(conn, cargo: int, turno: int) -> list[HistoricalRow]:
     """Resultados 2022 por (uf, cod_zona, cod_candidato) para o cargo/turno.
 
-    `pct_validos` é o ponto de partida do swing (T06). Pode vir NULL para
-    zonas históricas sem apuração efetiva — preservamos como None.
+    2022 SAIU da projeção (decisão E1). O único consumidor vivo é
+    `compute_swing_descritivo` — comparação DESCRITIVA entre dois fatos
+    observados, nunca insumo do modelo.
+
+    `votos` (plano § B, "SQL lê `votos`") é o campo que a E1 usa: o share
+    de 2022 é `votos(n) / Σvotos(UF)`, contagem sobre contagem. NÃO
+    `pct_validos`, que é uma média de percentuais por zona — somá-la ou
+    ponderá-la de volta para a UF reintroduziria exatamente o viés de
+    composição que o resto do modelo passa o tempo todo tirando. `votos`
+    é `NOT NULL` no schema; `pct_validos` continua sendo lido porque é
+    barato e documenta a diferença, mas nenhuma fórmula o usa.
     """
     sql = """
-        SELECT uf, cod_zona, cod_candidato, pct_validos, partido
+        SELECT uf, cod_zona, cod_candidato, pct_validos, partido, votos
         FROM historical_results
         WHERE ano = 2022 AND cargo = %s AND turno = %s
     """
@@ -415,6 +424,7 @@ def fetch_historical_2022(conn, cargo: int, turno: int) -> list[HistoricalRow]:
             "cod_candidato": r[2],
             "pct_validos": float(r[3]) if r[3] is not None else None,
             "partido": r[4],
+            "votos": int(r[5]) if r[5] is not None else 0,
         }
         for r in rows
     ]
@@ -2561,6 +2571,160 @@ def compute_uf_projections(
     return rows, estimates_by_uf, estimates_c_by_uf, cand_by_uf
 
 
+# Surrogate de `historical_results.cod_candidato`, definido em
+# `data-pipeline/historical-import.ts::surrogateCandidatoId`:
+#
+#     cod_candidato = cargo*1_000_000 + ano*1000 + turno*100 + nr_partido
+#
+# O CSV aberto do TSE (`votacao_partido_munzona`) não traz número de
+# candidato — traz `NR_PARTIDO`. Para Presidente e Governador o número de
+# urna É o número do partido (13, 22, 12...), que é justamente o `n` que o
+# EA20 2026 devolve em `cand[].n` e que vira `candidato_id` nas nossas
+# linhas. É essa coincidência — e só ela — que torna a E1 computável sem
+# uma tabela de-para.
+_SURROGATE_ANO_2022 = 2022
+
+
+def _nr_partido_2022(cod_candidato: int, cargo: int, turno: int) -> int | None:
+    """Extrai `nr_partido` do surrogate de 2022, ou `None` se a linha não
+    tiver o formato do surrogate.
+
+    A guarda de formato não é paranoia decorativa: se um dia o importador
+    passar a gravar o `SQ_CANDIDATO` real (11 dígitos) em `cod_candidato`,
+    um `cod % 100` cego devolveria dois dígitos arbitrários que PODEM
+    casar com o número de urna de algum candidato de 2026 — e o site
+    publicaria um swing calculado contra o partido errado, sem nenhum
+    sinal de erro. Preferimos perder a comparação (sai `None`, a UI já
+    mostra "—") a publicar um número falso: constituição § 1/§ 8.
+    """
+    nr = cod_candidato % 100
+    esperado = (
+        int(cargo) * 1_000_000
+        + _SURROGATE_ANO_2022 * 1000
+        + int(turno) * 100
+        + nr
+    )
+    if esperado != cod_candidato:
+        return None
+    return nr
+
+
+# Cargos em que o número de urna coincide com o número do partido — e,
+# portanto, em que a chave de 2022 é comparável com o `candidato_id` de
+# 2026. Senador tem número de 3 dígitos (partido + sequencial) e Deputado
+# idem; além disso o Senado renova 1/3 em 2022 contra 2/3 em 2026, o que
+# torna a comparação sem sentido mesmo se a chave casasse. Os dois nem
+# chegam aqui na prática (`historical_results` só foi importado para os
+# cargos 1 e 3), mas a lista deixa a razão escrita.
+_CARGOS_COM_SWING_2022 = frozenset({1, 3})
+
+
+def compute_swing_descritivo(
+    uf_rows: list[dict[str, Any]],
+    historical: list[HistoricalRow],
+) -> dict[str, float | None]:
+    """E1 do plano § B (Fase 5) — swing DESCRITIVO de cada UF vs 2022.
+
+        swing(U) = pct_atual_votaveis(líder de U, 2026)
+                   − 100 * votos_2022(n do líder, U) / Σ_n votos_2022(n, U)
+
+    Em PONTOS PERCENTUAIS, positivo quando o líder atual está melhor do
+    que o partido dele estava em 2022 naquela UF.
+
+    🔴 Isto NÃO é projeção (constituição § 1). Os dois termos são fatos
+    OBSERVADOS: o percentual que o líder tem no que já foi apurado hoje, e
+    o percentual que o mesmo número de urna teve em 2022. Nenhum bootstrap,
+    nenhum `pct_projetado`, nenhuma extrapolação entra aqui — usar
+    `pct_projetado` transformaria metade da subtração em estimativa e a
+    frase "mudou X pontos desde 2022" deixaria de ser verdadeira.
+
+    "Líder" é o líder do APURADO (maior `pct_atual`), não o líder da
+    projeção, pela mesma razão: comparar o `pct_atual` de um candidato
+    escolhido pela projeção misturaria os dois universos. Desempate por
+    `candidato_id` ASC — mesmo critério estável do resto do módulo.
+
+    `None` — nunca `0.0` — quando o número não existiu (plano § B, e
+    achado HIGH do `constitution-guard` em 2026-09-05: `0.0` em toda UF
+    afirma na tela que "nenhuma UF mudou desde 2022", que é falso):
+      - a UF não tem nenhuma linha de 2022 (`historical` vazio, query que
+        falhou, cargo nunca importado);
+      - Σvotos_2022 da UF é 0;
+      - o número de urna do líder não aparece em 2022 naquela UF (partido
+        novo, ou partido que não teve voto nenhum ali);
+      - ninguém tem `pct_atual` na UF ainda (nada apurado);
+      - o cargo não é comparável (`_CARGOS_COM_SWING_2022`).
+
+    Ruído conhecido, e ele é do DADO: com pouca coisa apurada o
+    `pct_atual` do líder oscila muito, então o swing também oscila. É a
+    mesma volatilidade que a UI já mostra em `pct_atual` — e é o preço de
+    o número ser descritivo em vez de suavizado por projeção.
+
+    Args:
+        uf_rows: linhas `(uf, candidato)` de `compute_uf_projections` —
+            `cargo`/`turno` saem das próprias linhas.
+        historical: saída de `fetch_historical_2022` (pode ser `[]`; a
+            leitura é não-fatal a montante).
+
+    Returns:
+        `{sigla: swing_pp | None}` com UMA entrada para cada UF presente
+        em `uf_rows` — UF sem comparação entra explicitamente como `None`,
+        para que o consumidor não confunda "sem dado" com "UF ausente".
+    """
+    rows_by_uf: dict[str, list[dict[str, Any]]] = {}
+    for r in uf_rows:
+        rows_by_uf.setdefault(str(r["uf"]), []).append(r)
+    if not rows_by_uf:
+        return {}
+
+    cargo = int(uf_rows[0].get("cargo") or 0)
+    turno = int(uf_rows[0].get("turno") or 0)
+    comparavel = cargo in _CARGOS_COM_SWING_2022
+
+    # Σvotos_2022 por (uf, nr_partido) e por uf — uma passada.
+    votos_por_uf_n: dict[tuple[str, int], int] = {}
+    total_por_uf: dict[str, int] = {}
+    if comparavel:
+        for h in historical:
+            cod = h.get("cod_candidato")
+            if cod is None:
+                continue
+            nr = _nr_partido_2022(int(cod), cargo, turno)
+            if nr is None:
+                continue
+            votos = int(h.get("votos") or 0)
+            if votos <= 0:
+                continue
+            uf_h = str(h.get("uf") or "")
+            votos_por_uf_n[(uf_h, nr)] = votos_por_uf_n.get((uf_h, nr), 0) + votos
+            total_por_uf[uf_h] = total_por_uf.get(uf_h, 0) + votos
+
+    out: dict[str, float | None] = {}
+    for sigla, rows in rows_by_uf.items():
+        out[sigla] = None
+        if not comparavel:
+            continue
+        # Líder do APURADO. Linhas sem `pct_atual` (UF imputada do
+        # nacional, candidato sem voto ainda) não concorrem à liderança —
+        # não foram observadas.
+        com_atual = [r for r in rows if r.get("pct_atual") is not None]
+        if not com_atual:
+            continue
+        lider = sorted(
+            com_atual,
+            key=lambda r: (-float(r["pct_atual"]), int(r["candidato_id"])),
+        )[0]
+        total_2022 = total_por_uf.get(sigla, 0)
+        if total_2022 <= 0:
+            continue
+        votos_lider_2022 = votos_por_uf_n.get((sigla, int(lider["candidato_id"])))
+        if votos_lider_2022 is None:
+            continue
+        pct_2022 = 100.0 * votos_lider_2022 / total_2022
+        out[sigla] = round(float(lider["pct_atual"]) - pct_2022, 5)
+
+    return out
+
+
 def compute_p_eleito_by_uf(
     estimates_by_uf: dict[str, dict[int, np.ndarray]],
     vagas: int,
@@ -3389,18 +3553,64 @@ def build_participacao_payload(
     return out
 
 
+def _participacao_de_brancos_nulos(
+    est: UfCandidatosEstimate | None,
+) -> ParticipacaoEstimate | None:
+    """Adapta o `brancos_nulos_comparecimento` de `extrapolation.py` para o
+    shape `ParticipacaoEstimate` que o payload já consome.
+
+    Fase 5 do plano § A ("Coerência das bases (E2)"): `brancos_nulos` DEIXA
+    de sair de `turnout.py`. Lá ele tinha seed própria e estimador próprio
+    (média de frações por zona ponderada por `weight`), e o resultado era
+    uma tela em que candidatos + brancos/nulos somavam 100 ± 0,3 pp — o
+    site dividia um inteiro e publicava partes que não fechavam nele. Vindo
+    do MESMO `idx` do bootstrap dos candidatos, a identidade
+    `Σ_c share_comp + bn == 1` passa a valer resample a resample.
+
+    `None` quando a UF não observou nada (imputada do nacional) — a UI
+    mostra "aguardando projeção", nunca um número inventado.
+    """
+    if est is None:
+        return None
+    bn = est.get("brancos_nulos_comparecimento")
+    if bn is None:
+        return None
+    return {
+        "pct_atual": bn["pct_atual_comparecimento"],
+        "pct_projetado": bn["pct_projetado_comparecimento"],
+        "lower": bn["lower_comparecimento"],
+        "upper": bn["upper_comparecimento"],
+        "n_zonas": est["n_zonas"],
+        # `num`/`den` são as CONTAGENS BRUTAS observadas — é delas que
+        # `aggregate_national_participacao` tira o `pct_atual` nacional
+        # (Σnum/Σden, não média de percentuais das UFs).
+        "num": bn["votos_atuais"],
+        "den": est["comparecimento_observado"],
+        "estimates": bn["estimates_comparecimento"],
+    }
+
+
 def compute_participacao(
     cargo: int,
     turno: int,
     seed_base: int,
     snapshots: list[LatestSnapshot],
     eleitorado: dict[tuple[str, int], int],
+    cand_by_uf: dict[str, UfCandidatosEstimate] | None = None,
 ) -> tuple[
     dict[str, dict[str, ParticipacaoEstimate | None]],
     dict[str, ParticipacaoEstimate | None],
 ]:
-    """Fiação da Fase 1a (RF-020.1) — projeta abstenção e brancos/nulos por
-    UF (regra de três, D5, `turnout.py`) e agrega nacionalmente.
+    """Fiação da Fase 1a (RF-020.1) — projeta abstenção por UF (regra de
+    três, D5, `turnout.py`) e agrega nacionalmente; brancos/nulos vêm de
+    `extrapolation.py` desde a Fase 5.
+
+    `cand_by_uf` (Fase 5, plano § A) é a saída de
+    `compute_uf_projections` — quando fornecido, `brancos_nulos` sai do
+    MESMO bootstrap dos candidatos (`_participacao_de_brancos_nulos`) e
+    `turnout.py` não é mais consultado para essa métrica. Sem ele
+    (callers legados/testes), o caminho antigo continua valendo — é a
+    única razão de o parâmetro ser opcional.
 
     Reusa o MESMO snapshot mais recente por zona já lido por
     `fetch_snapshots`/consumido por `compute_uf_projections` — nenhuma
@@ -3454,6 +3664,16 @@ def compute_participacao(
 
         uf_result: dict[str, ParticipacaoEstimate | None] = {}
         for metric in metrics:
+            # Fase 5 — brancos/nulos NÃO passa mais por `turnout.py` quando
+            # o caller entregou o resultado do bootstrap de candidatos.
+            # Nenhuma seed é derivada aqui para essa métrica: o valor vem do
+            # `idx` que já sorteou os candidatos da mesma UF, e é isso que
+            # faz a soma fechar exatamente em 100 na base comparecimento.
+            if metric == "brancos_nulos" and cand_by_uf is not None:
+                uf_result[metric] = _participacao_de_brancos_nulos(
+                    cand_by_uf.get(uf)
+                )
+                continue
             local_seed = (
                 seed_base
                 ^ int(
@@ -4427,6 +4647,7 @@ def build_edge_payload(
     pares_atrasados: int | None = None,
     identidade_by_cand: dict[tuple[str, int], dict[str, str]] | None = None,
     serie_bruta: SeriePorCandidatoBruta | None = None,
+    swing_by_uf: dict[str, float | None] | None = None,
 ) -> dict[str, Any]:
     """Monta o shape canônico `EdgePayload` (lib/edge-config/types.ts).
 
@@ -4860,15 +5081,21 @@ def build_edge_payload(
                 # Placeholder v1: regra simples até spec de "chamada" definitiva.
                 "chamada": chamada,
                 # `None`, nunca 0.0. Sob a constituição 1.2 (§ 8) a comparação
-                # com 2022 é um FATO OBSERVADO exibido ao leitor, não mais um
+                # com 2022 é um FATO OBSERVADO exibido ao leitor, não um
                 # insumo interno do modelo — e `0.0` em toda UF afirmaria na
                 # tela que "nenhuma UF mudou desde 2022", que é falso. O tipo
                 # `EdgeUfRow.swing_vs_2022` já é `number | null` e a UI já
-                # renderiza "—" para null. O valor real passa a ser calculado
-                # por `compute_swing_descritivo` na Fase 5 (ADR-0021), a partir
-                # de `historical_results.votos`. Achado HIGH do
-                # `constitution-guard` em 2026-09-05.
-                "swing_vs_2022": None,
+                # renderiza "—" para null. Achado HIGH do `constitution-guard`
+                # em 2026-09-05.
+                #
+                # Fase 5 (2026-09-18): o valor real passou a existir —
+                # `compute_swing_descritivo` (E1 do plano § B) o calcula a
+                # partir de `historical_results.votos`. Quem NÃO tem número de
+                # 2022 continua saindo `None` por este mesmo `.get`, que é o
+                # ponto: o default do dict ausente é `None`, não `0.0`, e
+                # continuará sendo mesmo que `swing_by_uf` não seja passado
+                # (caller legado, replay, fixture).
+                "swing_vs_2022": (swing_by_uf or {}).get(sigla),
                 # S05/F4c — multi-candidato (ADR-0017).
                 "top_candidatos": top_candidatos,
                 "vai_a_2t": vai_a_2t,
@@ -5891,8 +6118,10 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 estimates_c_by_uf, eleitorado_total_by_uf
             )
 
-            # Fase 1a (RF-020.1) — participação (abstenção, brancos/nulos)
-            # por regra de três (D5, `turnout.py`). Reusa os MESMOS
+            # Fase 1a (RF-020.1) — participação. Abstenção continua por
+            # regra de três em `turnout.py` (base `esi`, fora do 100% por
+            # E2); brancos/nulos vem do MESMO bootstrap dos candidatos
+            # (`cand_by_uf`, Fase 5 do plano § A). Reusa os MESMOS
             # `snapshots`/`eleitorado` já buscados acima — sem query nova.
             participacao_by_uf, participacao_nacional = compute_participacao(
                 cargo=req.cargo,
@@ -5900,7 +6129,14 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 seed_base=seed_base,
                 snapshots=snapshots,
                 eleitorado=eleitorado,
+                cand_by_uf=cand_by_uf,
             )
+
+            # Fase 5 (E1 do plano § B) — comparação DESCRITIVA com 2022.
+            # Fora do modelo: não entra em `p_vitoria`, não entra em
+            # `estimates_*`, não altera nenhuma projeção. `historical` já
+            # foi lido acima de forma não-fatal; vazio => todo swing `None`.
+            swing_by_uf = compute_swing_descritivo(uf_rows, historical)
 
             # Spec 016 (RF-103) — `p_eleito` por candidato, por UF. Pura
             # função dos `estimates_by_uf` já calculados; zero sorteio novo,
@@ -6035,6 +6271,9 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 # Spec 020 — material bruto da série; o elenco e a forma
                 # colunar saem lá dentro, a partir de `national.candidatos`.
                 serie_bruta=serie_bruta,
+                # Fase 5 (E1) — swing descritivo vs 2022, `None` por UF sem
+                # número de 2022.
+                swing_by_uf=swing_by_uf,
             )
             # S04/F2 — payloads UF ricos (candidatos com votos, municípios,
             # séries temporais). Envia junto do nacional; endpoint Node

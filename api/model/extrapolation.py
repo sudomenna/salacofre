@@ -116,8 +116,10 @@ class ZonaCandidatos(TypedDict):
     participação já prontos.
 
     `validos` (EA20 `v.vv`) é carregado por completude — não participa
-    das fórmulas de `estimate_uf_candidatos` na Fase 1 (reservado para a
-    identidade exata `brancos_nulos` da Fase 5, plano § A).
+    de nenhuma fórmula de `estimate_uf_candidatos`. A identidade exata de
+    brancos/nulos da Fase 5 (plano § A) usa `brancos + nulos` sobre a base
+    COMPARECIMENTO, não `vv`: `vv` é uma terceira base, e somar `vv` com
+    shares em base comparecimento misturaria denominadores.
     """
 
     cod_zona: int
@@ -158,9 +160,16 @@ class UfCandidatosEstimate(TypedDict):
     n_zonas_imputadas: int
     base_votaveis_projetada: int
     base_comparecimento_projetada: int
+    # Σ comparecimento OBSERVADO nas zonas apuradas (sem `k`, sem
+    # extrapolação) — é o denominador bruto de `pct_atual` de
+    # brancos/nulos, e é o `den` que `turnout.aggregate_national_
+    # participacao` soma UF a UF para o `pct_atual` nacional. Fica `0`
+    # numa UF imputada (`impute_uf_from_national`), que por definição não
+    # observou nada.
+    comparecimento_observado: int
     # Fase 5 (plano § A): brancos/nulos no MESMO `idx` do bootstrap acima
-    # — identidade exata `Σ share_comp + bn = 1`. Na Fase 1 fica `None`;
-    # `brancos_nulos` continua vindo de `turnout.py` com seed própria.
+    # — identidade exata `Σ share_comp + bn = 1` resample a resample.
+    # `None` só quando não há o que observar (UF imputada do nacional).
     brancos_nulos_comparecimento: CandidatoEstimate | None
 
 
@@ -304,9 +313,24 @@ def estimate_uf_candidatos(
         # inconsistente) -> desiste da estratificação, mantém o share UF.
         estratificar = bool(strata_boot)
 
-    por_candidato: dict[int, CandidatoEstimate] = {}
-    for cod in sorted(candidatos):
-        vap_arr = np.array([float(z["votos"].get(cod, 0)) for z in apuradas])
+    def _estimate_for(vap_arr: np.ndarray) -> CandidatoEstimate:
+        """Estimativa nas DUAS bases para UM numerador por zona apurada.
+
+        `vap_arr` é o vetor de contagens brutas da entidade sendo estimada,
+        na MESMA ordem de `apuradas`: os votos de um candidato, ou —
+        Fase 5 do plano § A — `brancos + nulos` da zona. Tudo o que é
+        comum a todas as entidades (`k_arr`, `idx`, `den_*_boot`, os
+        estratos) vem do closure: é **o mesmo sorteio**, e é isso que
+        torna a identidade `Σ_c share_comp(c) + share_comp(bn) == 1`
+        exata resample a resample, em vez de fechar "em 100 ± 0,3 pp"
+        como fechava quando `brancos_nulos` vinha de `turnout.py` com
+        seed própria e estimador próprio.
+
+        NÃO consome nada do `rng`: `idx`/`idx_k` já foram sorteados acima.
+        Chamar esta função uma vez a mais (para brancos/nulos) portanto
+        **não move nenhum número de candidato** — reprodutibilidade
+        byte-a-byte preservada (constituição § 6).
+        """
         vc_arr = vap_arr * k_arr
 
         sum_vap = float(vap_arr.sum())
@@ -403,7 +427,7 @@ def estimate_uf_candidatos(
         point_v = _clip01(ci_v["point"])
         votos_projetados = int(round(point_v * base_votaveis_projetada))
 
-        por_candidato[cod] = {
+        return {
             "pct_atual_votaveis": (
                 _frac_to_pct(pct_atual_v) if pct_atual_v is not None else None
             ),
@@ -422,13 +446,49 @@ def estimate_uf_candidatos(
             "estimates_comparecimento": np.clip(est_c, 0.0, 1.0),
         }
 
+    por_candidato: dict[int, CandidatoEstimate] = {}
+    for cod in sorted(candidatos):
+        por_candidato[cod] = _estimate_for(
+            np.array([float(z["votos"].get(cod, 0)) for z in apuradas])
+        )
+
+    # Fase 5 (plano § A, "Coerência das bases (E2)") — brancos + nulos pelo
+    # MESMO caminho, com o MESMO `idx`. Antes disto o número vinha de
+    # `turnout.py::estimate_uf_participacao` com seed própria E estimador
+    # próprio (média de frações por zona ponderada por `weight`, contra a
+    # razão de somas escalada por `k` daqui), e o resultado era uma soma que
+    # "fechava em 100 ± 0,3 pp" — ou seja, a tela publicava candidatos e
+    # brancos/nulos que não somavam o inteiro que a própria tela afirma
+    # estar dividindo. Agora:
+    #
+    #     Σ_c estimates_comparecimento[c][r] + bn[r] == 1   para TODO r
+    #
+    # exatamente (a menos do épsilon de ponto flutuante), porque numerador e
+    # denominador saem do mesmo resample `idx[r]` e o denominador `c*k` é
+    # literalmente a soma dos numeradores quando a zona satisfaz
+    # `Σ_c vap + brancos + nulos == comparecimento`. O resíduo que sobra
+    # quando essa identidade NÃO vale na zona (anulados/sub judice, art. 265
+    # §2º da Res. 23.751/2026) é dado do TSE, não erro de amostragem nosso —
+    # e agora aparece como resíduo em vez de se misturar com ruído de seed.
+    #
+    # ⚠️ Os campos `*_votaveis` deste `CandidatoEstimate` existem porque o
+    # tipo é compartilhado; para brancos/nulos eles significam "(b+n) sobre
+    # a base votáveis", que NÃO é a base que a UI rotula. Só os
+    # `*_comparecimento` (e `votos_atuais`/`votos_projetados`, que são
+    # contagens absolutas e independem da base) devem ser consumidos — é o
+    # que `project.py::_participacao_de_brancos_nulos` lê.
+    brancos_nulos = _estimate_for(
+        np.array([float(z["brancos"] + z["nulos"]) for z in apuradas])
+    )
+
     return {
         "por_candidato": por_candidato,
         "n_zonas": len(apuradas),
         "n_zonas_imputadas": len(nao_apuradas),
         "base_votaveis_projetada": int(round(base_votaveis_projetada)),
         "base_comparecimento_projetada": int(round(base_comparecimento_projetada)),
-        "brancos_nulos_comparecimento": None,
+        "comparecimento_observado": int(round(sum_c)),
+        "brancos_nulos_comparecimento": brancos_nulos,
     }
 
 
@@ -514,6 +574,12 @@ def impute_uf_from_national(
         "n_zonas_imputadas": 0,
         "base_votaveis_projetada": int(round(base_votaveis_projetada)),
         "base_comparecimento_projetada": int(round(base_votaveis_projetada)),
+        # UF sem NENHUMA zona apurada: não há comparecimento observado e não
+        # há brancos/nulos observados. `None`/`0` — nunca um número imputado
+        # do nacional, porque brancos/nulos não é o que esta função ancora
+        # (ela ancora share de candidato) e publicar um valor aqui afirmaria
+        # ter medido participação numa UF que não reportou nada.
+        "comparecimento_observado": 0,
         "brancos_nulos_comparecimento": None,
     }
 
