@@ -111718,36 +111718,6 @@
     "turno": 1,
     "municipios": [
       {
-        "cod_ibge": "4300001",
-        "nome": "Lagoa Mirim",
-        "pct_apurado": 100,
-        "lider": {
-          "candidato_id": 13,
-          "partido": "PT",
-          "votos": 1,
-          "margem_pp": 100
-        },
-        "votos_reportados": {
-          "13": 1
-        },
-        "eleitores": 1
-      },
-      {
-        "cod_ibge": "4300002",
-        "nome": "Lagoa dos Patos",
-        "pct_apurado": 100,
-        "lider": {
-          "candidato_id": 13,
-          "partido": "PT",
-          "votos": 1,
-          "margem_pp": 100
-        },
-        "votos_reportados": {
-          "13": 1
-        },
-        "eleitores": 1
-      },
-      {
         "cod_ibge": "4300034",
         "nome": "Aceguá",
         "pct_apurado": 31.5,

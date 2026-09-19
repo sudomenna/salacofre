@@ -50,6 +50,7 @@ import {
 import { resolveCssColor, UF_BBOX, ufCodigoIbge } from "@/components/atoms/maps/_shared";
 import { HoverCard, type HoverCardRow } from "@/components/atoms/overlays/HoverCard";
 import { useMunicipioSheetStore } from "@/components/shared/municipio-sheet-store";
+import { CODIGOS_IBGE_NAO_MUNICIPIO } from "@/lib/config/malha-ibge";
 import type { EdgeUfCandidate, EdgeUfMunicipio } from "@/lib/edge-config/types";
 import { useHoverStore } from "@/lib/state/hover-store";
 import { votosPorCandidatoMunicipio } from "@/lib/utils/municipio-votos";
@@ -216,10 +217,35 @@ const STYLE_LOAD_TIMEOUT_MS = 10_000;
  * legado e rejeitar a expression aninhada (`layers[2].filter[1][1]: string
  * expected, array found`) — o estilo nunca termina de carregar (mesmo
  * sintoma do bug de cache do pmtiles, mas causa totalmente diferente).
+ *
+ * 🔴 **O recorte por prefixo NÃO basta, e é por isso que há um segundo termo.**
+ * A malha do IBGE traz corpos d'água como feições próprias, com código no
+ * mesmo formato de município, e `Math.floor(4300001 / 100000)` é **43** — o
+ * Rio Grande do Sul. Só com o `floor`, a Lagoa Mirim e a Lagoa dos Patos
+ * entram no recorte do RS e viram municípios para todos os efeitos: pintadas
+ * (cinza do `coalesce`, porque nunca recebem dado), com contorno e cursor
+ * `pointer` no hover, escrevendo no `hover-store` um `codIbge` que a tabela de
+ * municípios não conhece, e **abrindo a ficha de município no clique**.
+ *
+ * Na noite da apuração o efeito é editorial, não cosmético: às 23h, com o RS
+ * inteiro colorido, duas manchas grandes — a Lagoa dos Patos é uma das maiores
+ * formas do estado — ficam no mesmo cinza de "ainda não apurou", e ficam para
+ * sempre. Quem lê o mapa conclui que pedaços grandes do estado não apuraram.
+ *
+ * Excluir aqui, e só aqui, cobre **todas** as superfícies de uma vez: os
+ * quatro outros filtros deste arquivo compõem a partir desta função, e os
+ * handlers de `mousemove`/`click` são registrados na camada `municipios-fill`,
+ * então feição filtrada fora nem chega a eles. Ver `lib/config/malha-ibge.ts`.
  */
-function ufFloorFilter(sigla: string): maplibregl.ExpressionSpecification {
+export function ufFloorFilter(sigla: string): maplibregl.ExpressionSpecification {
   const ufCodigo = ufCodigoIbge(sigla) ?? -1;
-  return ["==", ["floor", ["/", ["to-number", ["get", "CD_MUN"]], 100000]], ufCodigo];
+  return [
+    "all",
+    ["==", ["floor", ["/", ["to-number", ["get", "CD_MUN"]], 100000]], ufCodigo],
+    // `to-number` pelo mesmo motivo do `floor` acima: o tile pode entregar
+    // `CD_MUN` como string, e `["in", "4300002", [4300001, 4300002]]` não casa.
+    ["!", ["in", ["to-number", ["get", "CD_MUN"]], ["literal", [...CODIGOS_IBGE_NAO_MUNICIPIO]]]],
+  ];
 }
 
 export function ChoroplethMapUF({

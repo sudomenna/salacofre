@@ -172,6 +172,7 @@ import type {
 } from "@/lib/blob/deputado-uf";
 import type { UfDetailBlob } from "@/lib/blob/uf-detail";
 import { type CargoTse, cargoInfo } from "@/lib/config/cargos";
+import { ehMunicipioDeVerdade } from "@/lib/config/malha-ibge";
 import type {
   EdgeAgremiacaoBancada,
   EdgeCandidate,
@@ -1138,7 +1139,7 @@ export async function carregarDados(): Promise<DadosSimulacao> {
       forcaPartido[r.partido.trim().toUpperCase()] = (100 * Number(r.votos)) / totalForca;
     }
 
-    const municipios: MunicipioBruto[] = (
+    const municipiosBrutos: MunicipioBruto[] = (
       muns.rows as Array<Omit<MunicipioBruto, "aptos"> & { aptos: string }>
     ).map((m) => ({
       ...m,
@@ -1147,6 +1148,34 @@ export async function carregarDados(): Promise<DadosSimulacao> {
       nome: String(m.nome).trim(),
       aptos: Number(m.aptos),
     }));
+
+    // 🔴 A malha do IBGE que alimenta a tabela `municipios` inclui corpos
+    // d'água como feições próprias (`lib/config/malha-ibge.ts`). Sem este
+    // recorte o gerador os trata como município: eles caem no ramo `aptos <= 0`
+    // logo abaixo, recebem peso rateado pela população e **ganham voto**.
+    //
+    // Foi o que o dono viu em 2026-09-19: a Lagoa dos Patos na tela do RS com
+    // "100% apurado · LULA · PT · 1 voto · 100,0%". Medido nas três fixtures.
+    //
+    // Excluir aqui, e não na tela, porque a fixture é lida por teste, por
+    // `pnpm dev:sim` e pelo painel municipal — três consumidores que
+    // redescobririam a mesma regra, e um deles esqueceria.
+    const naoMunicipios = municipiosBrutos.filter((m) => !ehMunicipioDeVerdade(m.cod_ibge));
+    const municipios = municipiosBrutos.filter((m) => ehMunicipioDeVerdade(m.cod_ibge));
+    if (naoMunicipios.length > 0) {
+      avisos.push(
+        `${naoMunicipios.length} feição(ões) da malha do IBGE descartada(s) por não ` +
+          `ser(em) município: ${naoMunicipios.map((m) => `${m.uf}/${m.nome}`).join(", ")}.`,
+      );
+    }
+
+    // ⚠️ Este aviso NÃO é sobre corpos d'água — eles já saíram acima. Aqui
+    // sobram municípios de VERDADE cujo eleitorado a tabela não tem, e isso é
+    // um buraco de dado a investigar, não um recorte a fazer. Em 19/09 os dois
+    // nomes eram DF/Brasília e PE/Fernando de Noronha, ambos com eleitor de
+    // verdade (Brasília tem ~2 milhões). Manter o aviso separado é o que
+    // impede que "não é município" e "faltou dado deste município" voltem a
+    // ser lidos como a mesma coisa — foi essa confusão que escondeu as lagoas.
     const semAptos = municipios.filter((m) => m.aptos <= 0);
     if (semAptos.length > 0) {
       avisos.push(

@@ -21,6 +21,7 @@
 import { readdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { CODIGOS_IBGE_NAO_MUNICIPIO } from "@/lib/config/malha-ibge";
 import { CACHE_DIR, getPool, iterCsv, readCsvHeader, toIntOrNull } from "./_tse-common.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -70,10 +71,15 @@ const MANUAL_IBGE_TO_TSE: Record<string, number | "SKIP"> = {
   "1100346": 337,
   // RO: Espigão D'Oeste → ESPIGÃO DO OESTE
   "1100098": 256,
-  // RS: Lagoa Mirim — não é município real (IBGE water body code 4300001)
-  "4300001": "SKIP",
-  // RS: Lagoa dos Patos — não é município real (IBGE water body code 4300002)
-  "4300002": "SKIP",
+  // RS: Lagoa Mirim e Lagoa dos Patos — corpos d'água, não municípios.
+  //
+  // ⚠️ Os dois códigos NÃO são escritos aqui: entram de
+  // `CODIGOS_IBGE_NAO_MUNICIPIO` (`lib/config/malha-ibge.ts`), que é a fonte
+  // única. Até 2026-09-19 esta era a ÚNICA parte do sistema que sabia disso, e
+  // o mapa e o gerador de simulação nunca souberam — a Lagoa dos Patos foi
+  // parar na tela do dono com "100% apurado, 1 voto". Manter a lista aqui em
+  // paralelo é como as duas cópias voltariam a divergir.
+  ...Object.fromEntries(CODIGOS_IBGE_NAO_MUNICIPIO.map((cod) => [String(cod), "SKIP" as const])),
   // SE: Amparo do São Francisco → AMPARO DE SÃO FRANCISCO (preposição)
   "2800100": 31011,
   // SE: Gracho Cardoso → GRACCHO CARDOSO (cc duplo no TSE)
