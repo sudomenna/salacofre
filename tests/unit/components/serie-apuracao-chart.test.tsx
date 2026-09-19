@@ -412,7 +412,7 @@ describe("<SerieApuracaoChart /> — T8: mata a volta para a cor de PREENCHIMENT
 
   it("nos 17 partidos em que a base já lê, nenhum pixel muda", () => {
     // O outro lado da moeda: a correção não pode virar desculpa para mover a
-    // identidade de quem já estava legível. PT, PL e UNIÃO saem com o hex da
+    // identidade de quem já estava legível. PT, PSD e UNIÃO saem com o hex da
     // base no tema claro — se um dia deixarem de sair, é aqui que se vê.
     const claro = TEMAS[0].tokens;
     const docPT = parse(
@@ -421,7 +421,7 @@ describe("<SerieApuracaoChart /> — T8: mata a volta para a cor de PREENCHIMENT
         cadenciaMin={5}
         candidatos={[
           cand({ id: 13, partido: "PT", apurado: [30, 31], projetado: [30, 31] }),
-          cand({ id: 22, partido: "PL", apurado: [28, 29], projetado: [28, 29] }),
+          cand({ id: 22, partido: "PSD", apurado: [28, 29], projetado: [28, 29] }),
           cand({ id: 44, partido: "UNIÃO", apurado: [12, 13], projetado: [12, 13] }),
         ]}
         escopo="Brasil"
@@ -429,9 +429,20 @@ describe("<SerieApuracaoChart /> — T8: mata a volta para a cor de PREENCHIMENT
         height={ALTURA}
       />,
     );
+    // ⚠️ 2026-09-19: a amostra era `pt`, **`pl`**, `uniao`. As bases de PL e PSD
+    // foram trocadas entre si a pedido do dono, e isso inverteu a pertinência
+    // dos dois a este grupo — sem mudar o TAMANHO dele, que segue em 17:
+    //
+    //   - PL virou verde (`#2f8f6b`): a base para em 3,63:1 sobre o papel, então
+    //     a variante `-text` escurece para `#1a7f5c` (4,51:1). **Saiu** daqui.
+    //   - PSD virou azul (`#2247b8`): a base já dá 7,17:1, e a variante **é** a
+    //     base. **Entrou** no lugar.
+    //
+    // Um por um, o que é coincidência e não garantia — se um dia não fosse, o
+    // recálculo de `--party-*-text` acusaria, não este caso.
     for (const [id, slug] of [
       [13, "pt"],
-      [22, "pl"],
+      [22, "psd"],
       [44, "uniao"],
     ] as const) {
       const token = nomeDoToken(tracos(docPT, id, "parcial")[0]?.getAttribute("stroke") ?? "");

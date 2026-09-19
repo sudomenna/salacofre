@@ -167,9 +167,28 @@ interface PartyEntry {
 const PARTY_BASE: readonly PartyEntry[] = [
   // Polos presidenciais.
   { slug: "pt", base: "#C62E49", nome: "PT" },
-  { slug: "pl", base: "#2247B8", nome: "PL" },
+  // 🔴 PL e PSD tiveram as bases TROCADAS entre si em 2026-09-19, a pedido do
+  // dono. O PL era `#2247B8` (azul) e o PSD `#2F8F6B` (verde).
+  //
+  // Medido antes de trocar, contra `party-official-hexes.json`, com o piso de
+  // `DELTA_E_FLOOR` = 12 que a constituição § 2 exige:
+  //
+  //   | partido | menor ΔE76 antes | menor ΔE76 depois |
+  //   |---------|------------------|-------------------|
+  //   | PL      | 13,54 (#2A3591)  | **78,73** (#0051A0) |
+  //   | PSD     | 49,30 (#7FC341)  | **24,98** (#013F88) |
+  //
+  // A troca **melhora o elo mais fraco da paleta inteira**: o PL azul estava a
+  // 1,54 do piso — a menor folga entre os 31 partidos —, e o gargalo passa a ser
+  // o PSD a 24,98, o dobro do mínimo. É contraintuitivo (dar azul ao PSD, que
+  // tem dois azuis oficiais) e mede bem justamente porque os azuis do PSD são
+  // MUITO escuros (#022A59, #013F88) e o `#2247B8` é um azul médio.
+  //
+  // A separação ENTRE os dois não muda (ΔE 101,39): é o mesmo par de cores, só
+  // que invertido — e por isso nenhuma distância entre partidos se altera.
+  { slug: "pl", base: "#2F8F6B", nome: "PL" },
   // Demais partidos com token no kit.
-  { slug: "psd", base: "#2F8F6B", nome: "PSD" },
+  { slug: "psd", base: "#2247B8", nome: "PSD" },
   { slug: "novo", base: "#E07B1D", nome: "NOVO" },
   { slug: "avante", base: "#794CAE", nome: "Avante" },
   { slug: "missao", base: "#1E7F8C", nome: "Missão" },
