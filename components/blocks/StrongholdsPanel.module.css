@@ -34,12 +34,22 @@
   min-width: 0;
 }
 
+/* `padding: 0 10px` é o valor do kit (`App.jsx:75`), não um aperto ad hoc: a
+ * implementação tinha subido para `var(--space-3)` (12px) sem registro. Os
+ * 2px por lado × 5 pílulas = 20px que a volta ao kit devolve são metade do que
+ * falta para a fileira de cinco caber em uma linha dentro da coluna de 400px —
+ * a outra metade vem do `<main>` parar de engordar a margem lá
+ * (`AppShellSplit.module.css`, bloco `min-width: 960px`).
+ *
+ * O piso de toque continua garantido pela ALTURA (`--tap-min`), não pela
+ * largura: a pílula mais estreita possível aqui é um primeiro nome de 4 letras
+ * ("LULA"), medida em 50,8px após o corte — acima dos 44px de WCAG 2.5.5. */
 .chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: var(--tap-min);
-  padding: 0 var(--space-3);
+  padding: 0 10px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--border-hairline);
   background: transparent;

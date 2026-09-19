@@ -122,6 +122,38 @@
     border-right: 1px solid var(--border-strong);
   }
 
+  /* A margem lateral do `<main>` PARA de engordar aqui dentro.
+   *
+   * Os `<main>` das rotas trazem `px-4 py-6 md:px-6 md:py-10`: 16px de margem
+   * lateral no mobile, 24px a partir de 768px. Essa media query lê a largura
+   * da JANELA, mas neste breakpoint o conteúdo deixou de ocupar a janela —
+   * mudou-se para uma coluna de `--container-sidebar` (400px), que é MAIS
+   * ESTREITA que a moldura mobile de `--container-mobile` (430px). O
+   * utilitário conclui "há espaço de sobra" no exato ponto em que passou a
+   * haver menos, e a margem cresce contra o conteúdo.
+   *
+   * Medido em 2026-09-19, coluna de 400px, `/`:
+   *   400 − 16 (barra de rolagem desta coluna) − 48 (24+24) = 336px úteis
+   * contra 396px na moldura mobile de 430px. A fileira de cinco pílulas de
+   * `<StrongholdsPanel>` pedia 358px e quebrava em duas linhas.
+   *
+   * Voltar aos 16px devolve 16px e alinha a coluna à mesma respiração lateral
+   * que ela tem no mobile — que é o que o kit desenha, já que lá a coluna e a
+   * moldura são a mesma coisa. A margem VERTICAL (`md:py-10`) não entra: essa
+   * o breakpoint acerta, a coluna rola e altura não é o recurso escasso.
+   *
+   * Por que uma regra e não editar os `md:px-6` das páginas: o mesmo
+   * utilitário serve rotas FORA desta grade (`/sobre-o-modelo`, os
+   * `loading.tsx`), onde o `<main>` ocupa a janela inteira e 24px está certo.
+   * Quem sabe que o conteúdo foi para uma coluna estreita é esta grade, então
+   * a correção mora aqui. Utilitário do Tailwind v4 vive na cascade layer
+   * `utilities`; CSS Module é unlayered e vence a layer independente de
+   * especificidade. */
+  .split .panels > main {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+
   .split .map {
     grid-column: 2;
     order: 0;
