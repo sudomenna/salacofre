@@ -28,12 +28,23 @@
  *
  * ## Cor
  *
- * A barra usa a cor de identidade do candidato (`cor`, token
- * `var(--color-cand-N)` — ADR-0013/ADR-0024): é preenchimento, não texto.
+ * A barra usa a cor de identidade do candidato (`cor`): é preenchimento, não
+ * texto.
+ *
+ * 🔴 **Desde 2026-09-19 essa cor sai da SIGLA, não da colocação.** Até então
+ * `candidateResultRowProps` lia `candidato.cor` do payload, onde o produtor
+ * grava `var(--color-cand-N)` — a paleta por rank do ADR-0013, que o ADR-0024
+ * superou. Ver o comentário em {@link candidateResultRowProps} para o defeito
+ * medido (CAIADO/PSD laranja na lista e verde na legenda, mesma tela) e para a
+ * razão constitucional (§ 2: a cor "não muda por rank").
+ *
  * Os **números não são pintados com cor de partido**: quatro bases da paleta
  * reprovam contraste como texto (PSOL 2,08 · PSB 2,20 · Outros 2,39 ·
- * NOVO 2,72), e o token `--party-<slug>-text` que resolveria isso ainda não
- * existe. Até lá, parcial em `--text-primary` e projeção em `--accent-text`
+ * NOVO 2,72). ⚠️ A frase anterior dizia que o token `--party-<slug>-text` "ainda
+ * não existe" — ele **existe** desde 18/09 (`app/tokens-party.css`) e é o que o
+ * balão do mapa já usa. Pintar os números com ele é possível e **não** foi feito
+ * aqui: é decisão de design que muda quatro telas, fora do escopo desta
+ * correção. Por ora, parcial em `--text-primary` e projeção em `--accent-text`
  * (5,12:1 sobre `--paper-1`, o mesmo tom que o `<Panel>` já usa no kicker —
  * e não `--accent-strong`, 4,21:1, que reprovaria RNF-022).
  *
@@ -43,6 +54,7 @@
 import type { CSSProperties } from "react";
 import { CandidateAvatar } from "@/components/atoms/data/CandidateAvatar";
 import { PartyTag } from "@/components/atoms/data/PartyTag";
+import { candidateColor } from "@/components/blocks/_candidateColor";
 import type { EdgeCandidate } from "@/lib/edge-config/types";
 import { formatPercent, formatVotes, formatVotesCompact } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
@@ -52,7 +64,14 @@ export interface CandidateResultRowProps {
   rank: number;
   nome: string;
   partido: string;
-  /** Token de cor do candidato (`var(--color-cand-N)`) — usado só no preenchimento. */
+  /**
+   * Cor de identidade do candidato — usada só no preenchimento (barra e ponto
+   * da `<PartyTag>`), nunca em texto.
+   *
+   * Quem monta pelo payload deve usar {@link candidateResultRowProps}, que a
+   * resolve pela **sigla**. Um `var(--color-cand-N)` aqui é cor por colocação e
+   * é exatamente o defeito corrigido em 2026-09-19.
+   */
   cor: string;
   /** % apurado agora (0–100). */
   pctAtual: number;
@@ -420,7 +439,29 @@ export function candidateResultRowProps(
     // divergiu entre telas em 12/09 por não ter um ponto assim.
     nome: nomeExibicao(candidato.nome, candidato.sqcand),
     partido: candidato.partido,
-    cor: candidato.cor,
+    // 🔴 `candidateColor(sigla, rank)` e NÃO `candidato.cor` — mesma decisão
+    // que `ResultPanel.tsx` já documenta no chip dele desde a fase pré.
+    //
+    // O produtor grava `cor: "var(--color-cand-N)"` — a paleta por COLOCAÇÃO,
+    // não por partido. Lido direto, o 3º colocado sai laranja
+    // (`--color-cand-3`, #c97c1f) enquanto o mapa e a legenda o pintam com a
+    // cor do partido dele. Achado pelo dono em 2026-09-19: CAIADO/PSD laranja
+    // na lista e verde (`--party-psd`, #2f8f6b) na legenda, na mesma tela.
+    //
+    // Os dois primeiros colocados ESCONDEM o defeito: `--color-cand-1` é
+    // vermelho e `--color-cand-2` é azul, que é o que PT e PL receberiam de
+    // qualquer jeito. A divergência só fica visível do 3º em diante — e foi
+    // por isso que sobreviveu ao ADR-0024.
+    //
+    // Pior que a divergência: a constituição § 2 exige que a cor de um partido
+    // seja **estável durante toda a noite** e "não muda por rank". A cor do
+    // payload É o rank. Se o 3º ultrapassa o 2º ao vivo, os dois TROCAM de cor
+    // no meio da apuração enquanto o mapa não troca — a tela se contradiz
+    // sozinha, na hora em que mais gente está olhando.
+    //
+    // `candidateColor` cai em `colorForRank` só quando a sigla não está na
+    // paleta editorial, que é o caso legítimo do fallback.
+    cor: candidateColor(candidato.partido, candidato.rank ?? fallbackRank),
     pctAtual: candidato.pct_atual,
     pctProjetado: candidato.pct_projetado,
     votos: candidato.votos_atuais ?? null,

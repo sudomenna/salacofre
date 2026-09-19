@@ -73,10 +73,28 @@ describe("<CandidateRanking />", () => {
       }),
     ];
     const html = renderToStaticMarkup(<CandidateRanking candidatos={cands} />);
-    expect(html).toContain("var(--color-cand-3)");
+
+    // 🔴 Este caso AFIRMAVA O DEFEITO até 2026-09-19: exigia
+    // `var(--color-cand-3)` no markup, isto é, exigia que a barra fosse pintada
+    // pela COLOCAÇÃO. Note o `cor: "var(--color-cand-3)"` na fixture acima — é
+    // o que o produtor grava, e o componente o lia direto.
+    //
+    // O defeito era visível na tela: CAIADO/PSD saía laranja na lista e verde
+    // na legenda do mapa, que sempre resolveu pela sigla. E contraria a
+    // constituição § 2, que exige cor estável e diz que ela "não muda por rank".
+    //
+    // A fixture mantém a `cor` de rank de propósito: o que se prova aqui é que
+    // ela é **ignorada**.
+    expect(html).toContain("var(--party-mdb)");
+    expect(html).not.toContain("var(--color-cand-3)");
+
     // Cor de partido/candidato em TEXTO reprova contraste em quatro bases da
-    // paleta; enquanto `--party-<slug>-text` não existe, número é --text-*.
-    expect(html).not.toMatch(/color\s*:\s*var\(--color-cand-/);
+    // paleta (PSOL 2,08 · PSB 2,20 · Outros 2,39 · NOVO 2,72): a cor entra só
+    // no preenchimento. ⚠️ A redação anterior justificava isso com
+    // "`--party-<slug>-text` não existe" — ele existe desde 18/09; o que mantém
+    // os números em `--text-*` hoje é decisão de design não reaberta, não a
+    // falta do token.
+    expect(html).not.toMatch(/color\s*:\s*var\(--(color-cand|party)-/);
   });
 
   it("(d) aria-labels anunciam as DUAS bases (ADR-0029 § 7)", () => {
