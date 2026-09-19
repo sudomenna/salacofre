@@ -45,6 +45,31 @@ de emenda aplicada ao `## Status` do ADR-0026.
 > que torna dado parado invisível ao leitor (constituição § 8) — é pré-existente, não é
 > criado por este ADR, e está registrado à parte.
 
+> **Nota 2026-09-19 (emenda) — a correção de 2026-09-13 04:16 (`9cf8a2d`) foi verdadeira por
+> 17 minutos, e ninguém voltou para atualizá-la.** A alínea "Granularidade" da Decisão e as
+> entradas correspondentes em Consequências (Positivas, Negativas) e Cross-refs afirmavam,
+> desde aquele commit, que `check_zona_merge_sanity` **não** cobria o cargo 6. Isso deixou de
+> ser verdade em `550fbb2` (2026-09-13 04:33), 17 minutos depois: a trava passou a ser chamada
+> também no ramo proporcional (`api/model/project.py:5658`, dentro de
+> `_do_project_proporcional`, `:5573`). Cronologia completa, medida nesta sessão:
+>
+> | hora | commit | o quê |
+> |---|---|---|
+> | 02:11 | `e2f3240` | cria a exposição — cargo 6 passa a granularidade zona, sem trava |
+> | 04:16 | `9cf8a2d` | corrige o ADR (afirmava que a trava vinha junto) — correto no instante em que foi escrito |
+> | 04:33 | `550fbb2` | implementa a trava no ramo proporcional — a correção das 04:16 envelhece |
+>
+> Seis dias depois, a afirmação vencida havia se propagado para `docs/reference/risks.md`,
+> para o handoff de 2026-09-19 e para a priorização do dono como trabalho pendente — quando já
+> estava feito desde a madrugada de 13/09. Este ADR foi emendado nos quatro pontos afetados
+> (Decisão, duas ocorrências em Consequências e uma em Cross-refs) para refletir o estado
+> real; o texto original de cada ponto foi preservado, tachado, com a correção ao lado — ver
+> as notas datadas 2026-09-19 abaixo. Dois resíduos reais substituem a dívida fechada: o
+> alarme Slack não tem destino configurado (`SLACK_WEBHOOK_URL` ausente das 27 chaves de
+> `.env.local`) e a guarda do ramo proporcional vive dentro de `if eleitorado:` — uma falha em
+> `fetch_eleitorado` desliga a trava em silêncio (ambos detalhados em Consequências →
+> Negativas).
+
 ## Contexto
 
 RF-127 (spec 017, `docs/specs/017-deputado-federal/spec.md:201-209`) exige que a tela de
@@ -101,6 +126,34 @@ schema: é o mesmo builder `buildEA20UrlZona` já usado por Presidente, Governad
 > **A consequência operacional está registrada em Consequências → Negativas** e é o motivo
 > desta correção existir: a trava de sanidade contra multiplicação de votos **não acompanha**
 > o cargo 6.
+>
+> ⚠️ **Segunda correção, 2026-09-19 — a correção acima foi verdadeira por 17 minutos.**
+> Cronologia exata, medida nesta sessão: `e2f3240` (13/09 02:11) cria a exposição —
+> granularidade zona no cargo 6, sem trava; `9cf8a2d` (13/09 04:16) é o commit desta correção,
+> e estava certo no instante em que foi escrito; `550fbb2` (13/09 04:33) implementa a trava no
+> ramo proporcional. **A partir de 04:33 de 13/09, a frase "`check_zona_merge_sanity` é
+> chamada só no ramo majoritário" deixou de ser verdade** — ninguém voltou a este parágrafo
+> para atualizá-la, e ela se propagou por seis dias para `docs/reference/risks.md`, o handoff
+> de 19/09 e a priorização do dono.
+>
+> Estado verificado em 2026-09-19: `check_zona_merge_sanity` é chamada nos **dois** ramos —
+> majoritário, após `merge_pairs_into_zonas` (`api/model/project.py:5999` chama o merge,
+> `:6027` chama a guarda) — e proporcional, em modo `merged_rows=None`
+> (`api/model/project.py:5658`, dentro de `_do_project_proporcional`, `:5573`, sob
+> `if eleitorado:` em `:5657`). O modo `merged_rows=None` tem docstring própria
+> (`api/model/zona_merge.py:565-580`) explicando que somar `Σ e.te` dos pares é idêntico ao
+> que o merge produziria — mesmos limiares, mesma semântica de log, "uma guarda só, dois
+> chamadores". As linhas `:4143`/`:4171`/`:3832` citadas no parágrafo original já não
+> correspondem ao conteúdo descrito nem em 13/09 à tarde — os arquivos cresceram, e ninguém
+> conferiu de novo antes de propagar a afirmação. `combinar_entradas`
+> (`api/model/deputado.py`) continua em `:412`, por coincidência.
+>
+> O que continua verdadeiro do parágrafo original: o ramo proporcional realmente não chama
+> `merge_pairs_into_zonas` (só o majoritário faz a recomposição de pares antes do estimador) —
+> a diferença de **agregação** entre os dois ramos é real e permanece. O que era falso, e
+> ficou falso de novo assim que a correção envelheceu, foi a inferência de que essa diferença
+> de agregação implicava ausência de **guarda**. Ver Consequências → Negativas para os dois
+> resíduos reais que sobram depois de 04:33 de 13/09.
 
 **`rpsMax` do cargo 6 não muda: continua 5.** O teto por cargo não é reaberto por este ADR.
 `piorCasoAgregadoRps()` (`lib/config/cargos.ts:248-250`) soma os quatro `rpsMax` —
@@ -183,33 +236,67 @@ diagnóstico") ou um equivalente específico ao cargo 6 — que devolva o cargo 
   zonas por UF**. Nenhuma UF fica com `k_a = 1`.
 - O cargo 6 passa a usar o mesmo **caminho de ingestão** dos outros três cargos (mesmo
   builder de URL, mesma tabela `zonas`, mesmos alvos) — menos código de exceção no pipeline.
-  ⚠️ **Corrigido em 13/09**: isto vale para a ingestão, **não** para a agregação. Os dois
-  ramos do modelo continuam distintos, e a trava de sanidade não é compartilhada — ver
-  Negativas.
+  ⚠️ **Corrigido em 13/09, 04:16**: isto vale para a ingestão, **não** para a agregação. Os
+  dois ramos do modelo continuam distintos — o majoritário recompõe pares em zona via
+  `merge_pairs_into_zonas` antes do estimador, o proporcional soma direto por
+  `combinar_entradas`. ~~E a trava de sanidade não é compartilhada — ver Negativas.~~
+  ⚠️ **Segunda correção, 2026-09-19**: essa última frase deixou de ser verdade 17 minutos
+  depois, em `550fbb2` (04:33): `check_zona_merge_sanity` passou a ser chamada nos dois ramos
+  (`api/model/project.py:5658` no proporcional, `:6027` no majoritário) — a guarda é uma só,
+  com dois chamadores (`api/model/zona_merge.py:578-580`). O que continua diferente entre os
+  ramos é só a agregação, não a cobertura da guarda. Ver Negativas para o estado atual e os
+  dois resíduos reais.
 - Nenhum dado novo é inventado: o par (município, zona) já é publicado pelo TSE para o cargo
   6 (mesma tabela oficial que já cobre os outros três,
   `tse_docs/txt/tse-ea20-arquivo-de-resultado-unificado.txt`); a mudança pede um arquivo
   diferente do mesmo cargo, não cria uma nova fonte.
 
 **Negativas**:
-- ⚠️ **A trava de sanidade contra multiplicação de votos NÃO cobre o cargo 6 — e esta
-  decisão é o que criou a exposição.** `check_zona_merge_sanity` (`api/model/zona_merge.py`)
-  é chamada apenas no ramo majoritário (`api/model/project.py:4171`): ela compara o ANTES e
-  o DEPOIS de `merge_pairs_into_zonas` e, se a razão `Σ e.te dos pares / eleitorado da zona`
-  for compatível com multiplicação (`>= 1,8`), loga `error` e aciona o Slack. O ramo
-  proporcional não passa por lá: lê `fetch_snapshots` direto (`:3832`) e soma os pares em
-  `combinar_entradas` (`api/model/deputado.py:412`), **sem nenhuma guarda**.
+- ✅ **RESOLVIDO em 2026-09-13 04:33 (`550fbb2`).** ~~A trava de sanidade contra
+  multiplicação de votos NÃO cobre o cargo 6 — e esta decisão é o que criou a exposição.~~
+  `check_zona_merge_sanity` (`api/model/zona_merge.py`) passou a ser chamada também no ramo
+  proporcional, em modo `merged_rows=None` (`api/model/project.py:5658`, dentro de
+  `_do_project_proporcional`, `:5573`), 17 minutos depois do commit que registrou a lacuna
+  (`9cf8a2d`, 04:16) — a mesma madrugada de implementação que a criou (`e2f3240`, 02:11) a
+  fechou. O ramo majoritário continua chamando a guarda depois de `merge_pairs_into_zonas`
+  (`api/model/project.py:5999` o merge, `:6027` a guarda); o proporcional chama a mesma
+  função direto sobre os pares crus, sem o merge — os dois modos medem a mesma razão `Σ e.te
+  dos pares / eleitorado da zona`, com os mesmos limiares (`api/model/zona_merge.py:565-580`).
+  **Esta correção só foi propagada para este ADR em 2026-09-19** — por seis dias o texto
+  abaixo, escrito antes das 04:33, esteve desatualizado em `docs/reference/risks.md`, no
+  handoff de 19/09 e na priorização do dono.
 
-  Antes desta decisão o cargo 6 não tinha exposição nenhuma — um arquivo por UF, nada a
+  ~~Antes desta decisão o cargo 6 não tinha exposição nenhuma — um arquivo por UF, nada a
   somar. Depois dela, se a premissa da fatia por município (Passo 0,
   `docs/testing/tse-simulados.md`) for falsa, os votos de Deputado multiplicam por até 8× em
-  ~62% das zonas **em silêncio**, enquanto os outros três cargos gritam. O `Passo 0` decide a
-  premissa antes do simulado, mas a trava de runtime é a rede para o caso de algo mudar no
-  meio da apuração — e ela não existe aqui.
+  ~62% das zonas em silêncio, enquanto os outros três cargos gritam.~~ Isto descreve
+  corretamente a janela de exposição real, entre 02:11 e 04:33 de 13/09 (22 minutos) — não o
+  estado atual, nem nunca esteve em produção com dado real (`snapshots` só tinha linhas de
+  cargo 3 até aquela data).
 
-  Registrado como **dívida aberta, com prazo 04/10**. A redação original deste ADR afirmava o
+  ~~Registrado como dívida aberta, com prazo 04/10. A redação original deste ADR afirmava o
   contrário (que a trava vinha junto), o que escondeu a lacuna por algumas horas — ver a
-  correção na Decisão.
+  correção na Decisão.~~ A dívida fechou dentro da mesma madrugada, 21 dias antes do prazo —
+  não pelas "algumas horas" que a correção original estimava, mas por 17 minutos.
+
+  **Dois resíduos reais substituem a dívida fechada** (não reabrir a dívida antiga — estes são
+  os dois problemas que sobram, registrados em 2026-09-19):
+  1. **O alarme não tem destino.** `_alert_slack` (`api/model/project.py:5250`) lê
+     `os.environ.get("SLACK_WEBHOOK_URL")` (`:5265`); ausente, loga "slack alert skipped —
+     SLACK_WEBHOOK_URL ausente" (`:5276`) e retorna, best-effort que nunca levanta
+     (constituição § 7). A variável não está entre as 27 chaves de `.env.local` (medido em
+     2026-09-19). Sem ela, a guarda continua detectando e logando — mas ninguém fora dos logs
+     estruturados é avisado. Objetivo declarado da sprint ativa S08 — Enxergar, travado no
+     dono.
+  2. **A guarda do ramo proporcional vive dentro de `if eleitorado:`**
+     (`api/model/project.py:5657`). Acima, `fetch_eleitorado` degrada para `eleitorado = {}`
+     num `except` com `_log("warn", ...)` (`:5633-5638`) — degradação deliberada (constituição
+     § 7: perder o eleitorado pesa o `pct_apurado_total`, não derruba a bancada). Consequência
+     não deliberada: **uma falha na consulta ao eleitorado desliga a trava em silêncio**, no
+     mesmo ciclo em que ela mais faria falta. Registrado como observação, não como defeito a
+     corrigir já — o trade-off de não abortar o ciclo por causa do eleitorado é legítimo; o
+     acoplamento entre essa degradação e a guarda de multiplicação é um efeito colateral que
+     ninguém decidiu de propósito.
 - **A cadência de atualização cai pela metade**: 30 min contra os 15 min que o ADR-0026
   havia fixado e que a UI hoje anuncia (`vercel.ts:143`, comentário "atualizado a cada 15
   min"). O texto da tela de Deputado precisa mudar para **"atualizado a cada 30 min"** —
@@ -251,12 +338,15 @@ diagnóstico") ou um equivalente específico ao cargo 6 — que devolva o cargo 
   por cargo) e nota "2026-09-11 (b)" (Senador uf→zona pelo mesmo diagnóstico), emendados por
   este ADR. Nota de emenda aplicada ao `## Status`.
 - [ADR-0035](0035-par-municipio-zona-unidade-de-ingestao.md) — D1/D2 fixam o par (município,
-  zona) como unidade de ingestão, reaproveitada aqui sem alteração. ⚠️ `merge_pairs_into_zonas`
-  e a trava `check_zona_merge_sanity` que o acompanha **não** são reaproveitados: são do ramo
-  majoritário, e o proporcional soma por `combinar_entradas` — ver a correção na Decisão e a
-  dívida em Negativas; D3 fixa o precedente de segmento de rota para
-  distinguir invocações e a trava anti-overlap por cargo, que este ADR estende para
-  `(cargo, fatia)`.
+  zona) como unidade de ingestão, reaproveitada aqui sem alteração. `merge_pairs_into_zonas`
+  não é reaproveitado pelo ramo proporcional (soma direto por `combinar_entradas`, sem
+  recompor pares em zona) — essa parte da correção de 13/09 04:16 continua verdadeira.
+  ⚠️ **O que não continua verdadeiro** (corrigido em 2026-09-19): ~~a trava
+  `check_zona_merge_sanity` que o acompanha **não** é reaproveitada~~ — ela **é**
+  reaproveitada, desde `550fbb2` (13/09 04:33), chamada em modo `merged_rows=None` também no
+  ramo proporcional (`api/model/project.py:5658`). Ver a segunda correção na Decisão e o
+  estado resolvido em Negativas. D3 fixa o precedente de segmento de rota para distinguir
+  invocações e a trava anti-overlap por cargo, que este ADR estende para `(cargo, fatia)`.
 - [ADR-0006](0006-bootstrap-nao-bayesiano.md) — bootstrap não-paramétrico cuja unidade de
   reamostragem motiva esta decisão inteira.
 - [ADR-0027](0027-conversao-votos-em-cadeiras-deputado-federal.md) — método de conversão de
