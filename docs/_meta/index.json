@@ -691,7 +691,7 @@
         "RNF-033",
         "RNF-034"
       ],
-      "adrs": ["0001", "0002", "0008", "0011", "0012", "0020"]
+      "adrs": ["0001", "0002", "0008", "0011", "0012", "0020", "0035", "0038"]
     },
     {
       "id": "001.1-tse-json-refactor",
@@ -736,7 +736,7 @@
       "apis": ["POST /api/model/project"],
       "components": [],
       "nfr": ["RNF-006"],
-      "adrs": ["0006", "0007", "0012", "0014", "0018", "0020", "0021", "0023"],
+      "adrs": ["0006", "0007", "0012", "0014", "0018", "0020", "0021", "0023", "0035", "0038"],
       "ship_blocked_on": ["simulado-tse-2026"]
     },
     {
@@ -823,7 +823,8 @@
         "0019",
         "0025",
         "0033",
-        "0034"
+        "0034",
+        "0038"
       ],
       "shipped_with_carry_overs": ""
     },
@@ -892,7 +893,8 @@
         "0025",
         "0032",
         "0033",
-        "0034"
+        "0034",
+        "0038"
       ],
       "shipped_with_carry_overs": ""
     },
@@ -957,7 +959,8 @@
         "0025",
         "0032",
         "0033",
-        "0034"
+        "0034",
+        "0038"
       ]
     },
     {
@@ -1091,7 +1094,7 @@
       "priority": "M",
       "personas": [],
       "screens": ["T-07"],
-      "requirements": ["RF-056", "RF-057", "RF-012.1", "RF-012.2"],
+      "requirements": ["RF-012.1", "RF-012.2"],
       "depends_on": ["001-ingestao-tse", "010-operacao-monitoramento"],
       "apis": [],
       "components": [],
@@ -1211,7 +1214,8 @@
         "RF-127",
         "RF-128",
         "RF-129",
-        "RF-130"
+        "RF-130",
+        "RF-131"
       ],
       "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "016-senador"],
       "apis": [
@@ -1219,7 +1223,15 @@
         "POST /api/ingest/deputado-federal",
         "GET /api/projection?cargo=deputado-federal"
       ],
-      "components": ["CargoTabs", "DeputadoMetodologia", "VoteBar", "Figure", "Panel", "Footer"],
+      "components": [
+        "CargoTabs",
+        "DeputadoMetodologia",
+        "VoteBar",
+        "Figure",
+        "Panel",
+        "Footer",
+        "CamaraHemiciclo"
+      ],
       "nfr": [
         "RNF-001",
         "RNF-002",
@@ -1228,7 +1240,8 @@
         "RNF-007a",
         "RNF-022",
         "RNF-023",
-        "RNF-024"
+        "RNF-024",
+        "RNF-035"
       ],
       "adrs": [
         "0001",
@@ -1242,7 +1255,10 @@
         "0034",
         "0035",
         "0036",
-        "0037"
+        "0037",
+        "0038",
+        "0042",
+        "0049"
       ],
       "ship_blocked_on": [],
       "opens_after": "2026-09-11",

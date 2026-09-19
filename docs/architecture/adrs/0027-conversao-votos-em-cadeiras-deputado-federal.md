@@ -26,6 +26,22 @@ TSE, vigência e revogações, não de fórmula eleitoral. Texto conferido pesso
 documento — **não aplicada** por este ADR; cabe ao `spec-syncer` ou a uma edição explícita
 posterior.
 
+> ⚠️ **Emenda 2026-09-19 — o desfecho do PLP 177/2023, citado em três pontos deste ADR como "sem
+> desfecho confirmado", chegou e está fechado.** O PLP foi aprovado por Câmara e Senado em
+> junho/2025, **vetado integralmente pela Presidência da República em julho/2025**, e o STF
+> decidiu manter a distribuição de **513** cadeiras para o pleito de 2026, regido pela Resolução
+> TSE 23.751/2026 (`docs/reference/regulatory.md`). Os três pontos afetados — Contexto (parágrafo
+> final, sobre `lugaresAPreencher`), Alternativas consideradas (hardcodar a tabela por UF) e
+> Consequências → Negativas (tabela de cadeiras por UF) — foram emendados com o texto original
+> preservado e tachado, cada um com nota datada. **O método de conversão não é reaberto**:
+> quociente eleitoral (art. 106), quociente partidário e cláusula dos 10% (arts. 107–108), sobras
+> em duas fases (art. 109, interpretação conforme das ADIs 7228/7263/7325) e a Decisão de ler
+> `lugaresAPreencher` do envelope do TSE, nunca de tabela hardcoded, permanecem intocados — o
+> desfecho do PLP fecha apenas o **total nacional** (513, já tratado como fato conhecido neste
+> ADR desde 11/09), não a distribuição **por UF**, que segue sendo o denominador do quociente
+> eleitoral e segue vindo do dado do TSE. Fato do total nacional registrado em
+> `api/model/cargos.py::TOTAL_CADEIRAS`/`VAGAS_EM_DISPUTA_2026` (2026-09-19).
+
 ## Contexto
 
 O SalaCofre projeta Deputado Federal (cargo TSE 6) desde o ADR-0026, que decidiu ingestão em
@@ -78,10 +94,23 @@ inteiras, não um "mais votados individualmente" fora da lógica partidária.
 
 Por fim, o número de cadeiras por UF (`lugaresAPreencher`) **não está confirmado em fonte
 primária estável** para 2026. A Res.-TSE 23.748/2026, art. 7º § 1º, remete à Lei Complementar
-78/1993 para a distribuição, mas há tramitação legislativa em curso (PLP 177/2023, que discutiria
-elevar o total de 513 para 531 cadeiras) sem desfecho confirmado até 2026-09-11. O total nacional
-de 513 está confirmado para 2026; a tabela **por UF** não. Hardcodar essa tabela seria apostar
-num número que pode não bater no dia — ver Decisão.
+78/1993 para a distribuição, mas ~~há tramitação legislativa em curso (PLP 177/2023, que
+discutiria elevar o total de 513 para 531 cadeiras) sem desfecho confirmado até 2026-09-11~~ o PLP
+177/2023, que discutia elevar o total de 513 para 531 cadeiras, já teve desfecho — fechado desde
+julho/2025, ver nota 2026-09-19 abaixo. O total nacional de 513 está confirmado para 2026; a
+tabela **por UF** não está reproduzida nem verificada por este ADR contra nenhuma fonte primária.
+Hardcodar essa tabela seria apostar num número que pode não bater no dia — ver Decisão.
+
+> ⚠️ **Nota 2026-09-19 — o desfecho do PLP 177/2023 chegou, e está fechado.** O projeto foi
+> aprovado pela Câmara e pelo Senado em junho/2025, **vetado integralmente pela Presidência da
+> República em julho/2025**, e o STF decidiu manter a distribuição de **513** cadeiras para o
+> pleito de 2026, regido pela Resolução TSE 23.751/2026 (`docs/reference/regulatory.md`). A
+> Câmara de 04/10/2026 tem 513 cadeiras, todas em disputa — fato hoje declarado em
+> `api/model/cargos.py::TOTAL_CADEIRAS` e `VAGAS_EM_DISPUTA_2026`, ao lado do Senado. Isto fecha a
+> incerteza sobre o **total nacional**; não fecha a tabela **por UF**, que este ADR nunca
+> reproduziu contra a LC 78/1993 e que continua saindo do dado do TSE, não de tabela hardcoded — a
+> Decisão abaixo não é reaberta por esta nota, e o argumento que a sustenta passa a ser robustez
+> contra qualquer divergência futura, não mais a espera de um desfecho pendente.
 
 ## Decisão
 
@@ -231,10 +260,13 @@ contradiga.
 - **Restringir toda a fase de sobras aos pisos de 80%/20%, sem fase aberta.** Rejeitada: violaria
   a interpretação conforme das ADIs 7228/7263/7325, que exige que **todos** os partidos disputem
   as sobras remanescentes uma vez esgotados os que atendem aos dois pisos.
-- **Hardcodar a tabela de vagas por UF (LC 78/1993) no código.** Rejeitada: a tabela por UF não
+- **Hardcodar a tabela de vagas por UF (LC 78/1993) no código.** Rejeitada: ~~a tabela por UF não
   está confirmada em fonte primária estável para 2026 (PLP 177/2023 em tramitação, desfecho não
-  confirmado); o próprio TSE publica o número no envelope de dados, e usá-lo elimina o risco de
-  divergência entre o número mantido à mão e o que o TSE realmente aplicar no dia.
+  confirmado)~~ o PLP 177/2023 já teve desfecho (vetado em julho/2025, STF mantendo 513 — nota
+  2026-09-19 no Contexto), mas a tabela por UF segue fora de qualquer fonte primária verificada
+  por este ADR; o próprio TSE publica o número no envelope de dados, e usá-lo elimina o risco de
+  divergência entre o número mantido à mão e o que o TSE realmente aplicar no dia — hoje por
+  robustez contra qualquer mudança futura, não mais por aguardar um desfecho pendente.
 - **Modelar federação como partidos separados, com atribuição posterior de cadeiras entre
   membros.** Rejeitada: a lei trata federação como partido único para o cálculo inteiro (QP,
   médias); separar depois introduziria uma etapa de atribuição interna sem base legal.
@@ -261,11 +293,13 @@ contradiga.
 
 **Negativas**:
 - **A tabela de cadeiras por UF não está confirmada em fonte primária estável.** A Res.-TSE
-  23.748/2026 remete à LC 78/1993, mas há tramitação legislativa em aberto (PLP 177/2023) sem
-  desfecho conhecido em 2026-09-11. A decisão de ler `lugaresAPreencher` do dado do TSE mitiga o
-  risco de número errado no código, mas não elimina o risco de o próprio TSE publicar um valor
-  diferente do esperado sem aviso — só um smoke test no simulado detecta isso, não uma auditoria
-  estática.
+  23.748/2026 remete à LC 78/1993, mas ~~há tramitação legislativa em aberto (PLP 177/2023) sem
+  desfecho conhecido em 2026-09-11~~ o PLP 177/2023 já teve desfecho — vetado em julho/2025, STF
+  mantendo 513 (nota 2026-09-19 no Contexto) —, e isso fecha o **total nacional**, não a
+  distribuição **por UF**, que este ADR nunca verificou contra a LC 78/1993 e continua sem fonte
+  primária citada aqui. A decisão de ler `lugaresAPreencher` do dado do TSE mitiga o risco de
+  número errado no código, mas não elimina o risco de o próprio TSE publicar um valor diferente do
+  esperado sem aviso — só um smoke test no simulado detecta isso, não uma auditoria estática.
 - **A questão "candidato ainda não eleito" no piso de 20% da Fase 2 permanece sem base legal ou
   jurisprudencial explícita.** A leitura operacional adotada é defensável, mas não é certeza
   jurídica — um caso real em que o texto literal e a leitura operacional divirjam pode exigir
@@ -294,6 +328,10 @@ contradiga.
   path (Edge Config ou Blob, conforme volume, a decidir na spec 017).
 - [ADR-0020](0020-conformidade-res-23751-2026.md) — RF-010.3 e os denominadores `vvc`/`c`
   aplicam-se igualmente à corrida de Deputado Federal; este ADR não os altera.
+- `api/model/cargos.py` (`TOTAL_CADEIRAS`, `VAGAS_EM_DISPUTA_2026`) — onde o total nacional de 513
+  cadeiras (desfecho do PLP 177/2023: vetado em julho/2025, STF mantendo 513) está declarado desde
+  2026-09-19, ao lado das 81/54 do Senado. Fonte da emenda no `## Status` e das notas de
+  2026-09-19 no Contexto, Alternativas consideradas e Consequências → Negativas deste ADR.
 - Constituição § 1 (dado oficial intocável; § 1 também exige identificação honesta perante o TSE —
   aplica-se à leitura do campo `lugaresAPreencher`, nunca sondado, sempre lido do envelope
   oficial), § 6 (determinismo — o algoritmo acima é puro e reprodutível a partir do snapshot

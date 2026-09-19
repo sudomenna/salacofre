@@ -31,7 +31,13 @@ import depSim from "@/tests/fixtures/simulacao/deputado.json" with { type: "json
 const KIB = 1024;
 
 /**
- * Teto do hemiciclo no pior caso plausível (531 cadeiras), em bytes de markup.
+ * Teto do hemiciclo no pior caso coberto (531 cadeiras), em bytes de markup.
+ *
+ * ⚠️ 2026-09-19: 531 **não é o número da eleição de 2026** e não está por vir — o
+ * PLP 177/2023 foi vetado em julho/2025 e o STF manteve as 513 (ADR-0049, emenda).
+ * O teto continua calibrado em 531 de propósito: um orçamento medido acima do N
+ * real dá margem sem afrouxar o gate, e as duas regressões abaixo aparecem do
+ * mesmo jeito com 513.
  *
  * 36 KiB é folga de ~25% sobre os 29.462 B medidos — e é apertado o bastante
  * para pegar as duas regressões que realmente aconteceriam:

@@ -115,6 +115,7 @@ Notas dos atoms não construídos:
 | `<UfLinksGrid />` | ✅ S08 | RF-162, RF-163 (spec 019) | `components/blocks/UfLinksGrid.tsx` | `tests/unit/pages/fase-pre-eleicao.test.tsx`, bloco «RF-162 / RF-163»; `tests/integration/simulacao-gates.test.tsx` |
 | `<RemainingPanel />` | ✅ | RF-154 (spec 019 — some inteiro em fase pré) | `components/blocks/RemainingPanel.tsx` | `tests/unit/components/RemainingPanel.test.tsx` |
 | `<BulletinPanel />` | ✅ | RF-026, RF-044, RF-154 (spec 019 — some inteiro em fase pré) | `components/blocks/BulletinPanel.tsx` | `tests/unit/components/BulletinPanel.test.tsx` |
+| `<CamaraHemiciclo />` | ✅ S07 | RF-131 | `components/blocks/CamaraHemiciclo.tsx` | `tests/unit/components/CamaraHemiciclo.test.tsx`, `tests/unit/components/camara-hemiciclo-peso.test.tsx` (ADR-0049: 513 cadeiras com arcos fixos, 12 linhas; estado indefinida com anel colorido; ordem por tamanho de bancada) |
 | `<UFForecastTable />` | 🕐 planejada | RF-025 (deferido desde S05) | *previsto*: `components/blocks/UFForecastTable.tsx` | — |
 | `<MaintenancePageMessage />` | 🕐 planejada | RF-058 | *previsto*: `components/blocks/MaintenancePageMessage.tsx` | — |
 | `<TurnoTransitionBanner />` | 🕐 planejada | RF-058.1 | *previsto*: `components/blocks/TurnoTransitionBanner.tsx` | — |

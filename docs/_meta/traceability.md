@@ -132,7 +132,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-121 | Votos de legenda preservados | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_deputado.py` — legenda do agregado e fallback pela soma dos partidos); golden 2022 usa legenda real |
 | RF-122 | Federação conta como uma agremiação | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_deputado.py::test_federacao_vira_uma_agremiacao*`, verificado por mutação); `test_cadeiras.py::test_caso6_*` mede 2 cadeiras de diferença |
 | RF-123 | Quociente eleitoral com o arredondamento da lei | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_cadeiras.py::test_caso1_*`, 3 casos). ⚠️ O golden de 2022 **exercita** mas **não discrimina** esta regra — ver `test_cadeiras_golden_2022.py::test_o_golden_exercita_mas_nao_discrimina_o_arredondamento` |
-| RF-124 | Número de vagas NUNCA hardcoded | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_deputado.py` — `lugares_a_preencher` sai de `carg[].nv`; ausente vira `None`, nunca palpite) |
+| RF-124 | Número de vagas NUNCA hardcoded | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_deputado.py` — `lugares_a_preencher` sai de `carg[].nv`; ausente vira `None`, nunca palpite); 2º critério (`f93f98f`) — `conferir_total_de_cadeiras()` compara a soma das **27** contra `TOTAL_CADEIRAS[6]`, alarma sem abortar, e **não** alarma abaixo de 27: `test_deputado_payload.py::test_a_soma_das_27_que_fecha_em_513_nao_produz_divergencia`, `::test_a_soma_das_27_fora_de_513_produz_divergencia`, `::test_ciclo_com_as_27_fora_de_513_alarma_e_nao_aborta`, `::test_ciclo_com_poucas_ufs_nao_alarma` |
 | RF-125 | Distribuição em três fases, conforme ADR-0027 | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_cadeiras.py`, 9 casos de borda do ADR-0027) + `test_cadeiras_golden_2022.py` (511/513 cadeiras reais) |
 | RF-125.1 | Cadeiras exibidas ≠ vagas obtidas para o denominador | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_cadeiras.py::test_caso2b_*`) + golden 2022 (Σ cadeiras == vagas nas 27 UFs) |
 | RF-126 | Testes golden contra 2022 | M | [017](../specs/017-deputado-federal/) | — | pytest (`test_cadeiras_golden_2022.py`) — **511/513 cadeiras de 2022**; fase 1 exata nas 27 UFs; 2 divergências nomeadas (MG, RS) sem explicação pelo dado |
@@ -140,6 +140,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-128 | Cadência de 30 minutos visível | M | [017](../specs/017-deputado-federal/) | `<DeputadoMetodologia>` | ✅ Telas implementadas. `<ForecastTransparency />` deliberadamente NÃO reutilizado (design.md D9: cadências variam por cargo; ForecastTransparency calcula pctModel = 100 − pctApurado, inválido para cargo 6 sem modelo). A cadência é LIDA de `atualizacao_min` do payload, nunca literal no JSX (design.md D8) — teste injeta 7 e exige que a tela diga 7 (ciclo completo: 6 fatias × 5 min = 30 min, ADR-0036) |
 | RF-129 | Drill-down por UF vem do Blob | M | [017](../specs/017-deputado-federal/) | — | ✅ Implementado: `lib/blob/deputado-uf.ts::readDeputadoUfDetail()` + testes (`tests/unit/blob/deputado-uf.test.ts`). Payload `DeputadoUfDetail` em `deputado/uf/<SIGLA>.json` |
 | RF-130 | Voto de legenda visível | M | [017](../specs/017-deputado-federal/) | `<VoteBar>`, `<Figure>` | ✅ Telas `/deputado-federal` (nacional) e `/uf/[sigla]/deputado-federal` (UF) implementadas. Separa nominais e legenda (design.md D4, D6) |
+| RF-131 | Hemiciclo da Câmara: um assento por cadeira, três estados, ordem por tamanho de bancada | M | [017](../specs/017-deputado-federal/) | `<CamaraHemiciclo />` | ✅ Implementado em `16d4a26`: componente `components/blocks/CamaraHemiciclo.tsx` + helpers `lib/utils/hemiciclo.ts`, `lib/utils/bancada.ts` (ADR-0049). Testes nos **quatro** arquivos: `tests/unit/lib/hemiciclo.test.ts` (geometria), `tests/unit/components/CamaraHemiciclo.test.tsx`, `tests/unit/components/camara-hemiciclo-peso.test.tsx` (teto de 36 KiB de markup), `tests/unit/pages/deputado-federal-hemiciclo.test.tsx`. Renderizado em `app/(dep)/deputado-federal/page.tsx` pelo símbolo `<CamaraHemiciclo>` — citado por símbolo e não por linha **de propósito**: uma coordenada morta impede de conferir o fato e a afirmação vira folclore (handoff de 19/09 § 4.6) |
 | RF-140 | Ingestão do cadastro de candidaturas, dois pacotes unidos por `SQ_CANDIDATO` | M | [018](../specs/018-identidade-candidatura/) | — | unit (`data-pipeline/tests/unit/data-pipeline/candidatos-parse.test.ts`), integration (ingestão real contra TSE em 12/09) |
 | RF-141 | Publicabilidade fail-closed; situação de julgamento é texto, nunca filtro | M | [018](../specs/018-identidade-candidatura/) | — | unit (`candidatos-parse.test.ts::test_publicavel_fail_closed*`, asserts de 7.698 publicáveis), integration |
 | RF-142 | Foto de candidato no Blob, binária, cache de um ano | M | [018](../specs/018-identidade-candidatura/) | — | unit (`tests/unit/blob/write.test.ts::test_putBinary_cacheControlMaxAge_imutavel`), integration (387 fotos Acre) |
@@ -231,6 +232,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-128 | Cadência de 30 minutos visível | [017](../specs/017-deputado-federal/) |
 | RF-129 | Drill-down por UF vem do Blob | [017](../specs/017-deputado-federal/) |
 | RF-130 | Voto de legenda visível | [017](../specs/017-deputado-federal/) |
+| RF-131 | Hemiciclo da Câmara | [017](../specs/017-deputado-federal/) |
 | RF-140 | Ingestão do cadastro de candidaturas | [018](../specs/018-identidade-candidatura/) |
 | RF-141 | Publicabilidade fail-closed | [018](../specs/018-identidade-candidatura/) |
 | RF-142 | Foto de candidato no Blob | [018](../specs/018-identidade-candidatura/) |
@@ -271,16 +273,27 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 
 ## Cobertura
 
-**152 RFs distintos**, todos na matriz principal.
+**153 RFs distintos**, todos na matriz principal.
 
 > **Critério da contagem** (escrito aqui porque a ausência dele foi o que deixou
 > este número divergir do `README.md` até 2026-09-18): conta-se **identificador
 > distinto**, e um RF com sufixo decimal conta como **um** identificador próprio —
 > `RF-030` e `RF-030.1` são dois, não um. Sob esse critério: **66 vêm do PRD**
-> (RF-001..RF-060 mais RF-030.1..RF-030.6) e **86 foram acrescentados pelas specs**
+> (RF-001..RF-060 mais RF-030.1..RF-030.6) e **87 foram acrescentados pelas specs**
 > (RF-005.1-4, RF-006.1-5, RF-010.1-6, RF-012.1-2, RF-020.1-3, RF-030.7-9,
-> RF-058.1-2, RF-061-063, RF-100-108, RF-120-130 + RF-125.1, RF-140-176).
-> Medido em 2026-09-18 contando IDs únicos na primeira coluna da matriz principal.
+> RF-058.1-2, RF-061-063, RF-100-108, RF-120-**131** + RF-125.1, RF-140-176).
+> Medido em 2026-09-19 contando IDs únicos na primeira coluna da matriz principal
+> (era 152/86 até RF-131 entrar em `ff7edab`).
+>
+> 🔴 **RF-133 é um ID ÓRFÃO — não o reutilize e não o trate como existente.**
+> `docs/reference/risks.md:105` cita "RF-133" ao descrever o estado de espera
+> ("Aguardando o primeiro boletim…") implementado em 13/09. Verificado em 19/09: o
+> ID **não existe** em nenhuma spec, nem nesta matriz, nem em `index.json`, nem em
+> código — é referência de narrativa que nunca foi formalizada. O comportamento que
+> ela descreve **é real e está no ar**; o que não existe é o requisito. Resolver
+> exige decisão do dono (formalizar o RF ou remover a citação), e é por isso que
+> fica registrado aqui em vez de consertado: renumerar ou inventar o RF para
+> "fechar o buraco" criaria um requisito que ninguém escreveu.
 
 **Os 16 RFs que viviam só no índice de origem foram promovidos em 2026-09-18.** Até
 essa data, `RF-012.1`, `RF-012.2` (spec 012) e `RF-153..RF-166` (spec 019) apareciam

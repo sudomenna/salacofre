@@ -68,7 +68,12 @@ describe("hemiciclo — o número de ARCOS é constante, e é por isso que é", 
   // 🔴 MUTAÇÃO: derivar os arcos de `N` (por exemplo o
   // `clamp(round(sqrt(N/10)), 6, 14)` que o plano desta tarefa propunha).
   // Com 513 ele dá 7 e com um N maior daria 8 — e o leitor veria o plenário
-  // mudar de forma por causa de uma decisão do Congresso sobre o Censo.
+  // mudar de forma por causa de uma decisão do Congresso sobre o tamanho da casa.
+  //
+  // ⚠️ 2026-09-19: 531 aqui é **caso de robustez, não desfecho por vir**. O PLP
+  // 177/2023 foi vetado em julho/2025 e o STF manteve as 513 (ADR-0049, emenda).
+  // O caso fica: é justamente por 531 NÃO ser o número da eleição que ele prova
+  // que o desenho não escondeu o tamanho da casa em camada nenhuma.
   it("513 e 531 desenham o MESMO número de arcos", () => {
     expect(arcosPara(513)).toBe(ARCOS_PADRAO);
     expect(arcosPara(531)).toBe(ARCOS_PADRAO);
