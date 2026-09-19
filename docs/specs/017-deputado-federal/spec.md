@@ -5,12 +5,12 @@ status: shipped
 priority: M
 personas: [P1, P2, P3]
 screens: [T-11, T-12]
-requirements: [RF-120, RF-121, RF-122, RF-123, RF-124, RF-125, RF-125.1, RF-126, RF-127, RF-128, RF-129, RF-130]
+requirements: [RF-120, RF-121, RF-122, RF-123, RF-124, RF-125, RF-125.1, RF-126, RF-127, RF-128, RF-129, RF-130, RF-131]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 016-senador]
 apis: [GET /api/ingest/deputado-federal, POST /api/ingest/deputado-federal, GET /api/projection?cargo=deputado-federal]
-components: [CargoTabs, DeputadoMetodologia, VoteBar, Figure, Panel, Footer]
-nfr: [RNF-001, RNF-002, RNF-003, RNF-006, RNF-007a, RNF-022, RNF-023, RNF-024]
-adrs: [0001, 0012, 0020, 0021, 0026, 0027, 0028, 0032, 0034, 0035, 0036, 0037, 0038, 0042]
+components: [CargoTabs, DeputadoMetodologia, VoteBar, Figure, Panel, Footer, CamaraHemiciclo]
+nfr: [RNF-001, RNF-002, RNF-003, RNF-006, RNF-007a, RNF-022, RNF-023, RNF-024, RNF-035]
+adrs: [0001, 0012, 0020, 0021, 0026, 0027, 0028, 0032, 0034, 0035, 0036, 0037, 0038, 0042, 0049]
 ship_blocked_on: []
 opens_after: 2026-09-11
 ---
@@ -22,15 +22,27 @@ opens_after: 2026-09-11
 
 ## Status
 
-`implementing` desde 2026-09-12. Escrita em 2026-09-11; cálculo de cadeiras
-validado em 12/09 (511/513) e a spec implementada ponta a ponta no mesmo dia,
-com os **4 gates aprovados** (`rf-coverage-checker`, `constitution-guard`,
-`a11y-perf-auditor`, `spec-syncer`).
+`shipped` desde 2026-09-13 (`b1fbeca`), com os **4 gates aprovados** —
+`rf-coverage-checker` (12 RFs, nenhum parcial), `constitution-guard` (PASS na
+reexecução; a primeira rodada reprovou `<DeputadoMetodologia>`, corrigida em
+`8cd955f`), `a11y-perf-auditor` e `spec-syncer`. O caminho completo, incluindo a
+reprova, está em [traceability.md](../../_meta/traceability.md).
 
-**Não é `shipped`** porque o RF-127 saiu pela metade: a marcação de cadeira
-indefinida entrou, o **intervalo** não — falta o bootstrap de voto por
-agremiação (design.md D7, custo medido e dentro do teto). Promover quando ele
-entrar, mirando 04/10.
+Escrita em 2026-09-11; cálculo de cadeiras validado em 12/09 (511/513) e a spec
+implementada ponta a ponta no mesmo dia.
+
+> **Histórico**: de 2026-09-12 a 2026-09-19 esta seção dizia `implementing` e
+> justificava o bloqueio assim — "o RF-127 saiu pela metade: a marcação de
+> cadeira indefinida entrou, o **intervalo** não — falta o bootstrap de voto por
+> agremiação (design.md D7)". As duas afirmações venceram em **2026-09-13** e o
+> corpo não acompanhou. O bootstrap entrou em `2bcee57`
+> (`api/model/cadeiras_bootstrap.py`, 23 testes em
+> `tests/unit/model/test_cadeiras_bootstrap.py`), fechando o RF-127 — que
+> `docs/_meta/traceability.md` registra como ✅ citando esse arquivo pelo nome —,
+> e horas depois `b1fbeca` promoveu o frontmatter a `shipped` **sem tocar neste
+> corpo**. O resultado foi um texto que contradizia a linha 4 do próprio arquivo
+> e ainda apontava como pendência algo já entregue. Corrigido em 2026-09-19, na
+> mesma emenda que acrescentou o [RF-131](#telas) ao escopo.
 
 ### O que está pronto
 
@@ -45,9 +57,12 @@ entrar, mirando 04/10.
 | Read path do Blob (`deputado/uf/<SIGLA>.json`) | ✅ `lib/blob/deputado-uf.ts::readDeputadoUfDetail` + testes |
 | Telas `/deputado-federal` e `/uf/[sigla]/deputado-federal` | ✅ rotas implementadas, aba habilitada |
 | Aba no `CargoTabs` | ✅ `href="/deputado-federal"`, `disabled: false` |
+| **Intervalo de cadeiras (RF-127)** | ✅ `2bcee57` — `api/model/cadeiras_bootstrap.py`, 23 testes |
+| **Hemiciclo da Câmara (RF-131)** | ✅ `16d4a26` — [ADR-0049](../../architecture/adrs/0049-hemiciclo-camara-geometria-fixa-anel-na-indefinida.md); `CamaraHemiciclo.tsx`, `lib/utils/hemiciclo.ts`, `lib/utils/bancada.ts` |
 
-**A degradação de 19/09 não será acionada por causa do cálculo** — ele passou. O
-que resta é payload e UI, que é trabalho de engenharia sem incerteza de método.
+**A degradação de 19/09 não foi acionada por causa do cálculo** — ele passou em
+12/09, e o marco venceu sem disparar (desfecho registrado abaixo da tabela de
+degradação).
 
 ## Objetivo
 
@@ -159,8 +174,37 @@ o simulado, e NUNCA de constante embutida no código.
 - Given a tabela de bancadas, when o valor de uma UF diverge do que o TSE publica,
   then o ciclo registra erro e aciona alerta — errar o denominador do QE corrompe
   a projeção inteira daquela UF.
-- Rationale: a Res.-TSE 23.748/2026 art. 7º § 1º remete à LC 78/1993, e a
-  redistribuição pelo Censo 2022 (PLP 177/2023) tem desfecho **não confirmado**.
+- Given as **27** UFs já publicaram `carg[].nv`, when a soma não fecha com as 513
+  cadeiras da Câmara, then o ciclo registra `error` e aciona o alerta, **sem
+  abortar** (constituição § 7) — é o mesmo critério acima, medido no único ponto
+  em que uma UF errada é detectável sem uma segunda fonte por UF.
+  (`api/model/deputado_payload.py::conferir_total_de_cadeiras`,
+  `api/model/project.py`.) ⚠️ Com **menos** de 27 UFs a divergência é o estado
+  normal do começo da noite e **não** pode alarmar.
+- Rationale: a Res.-TSE 23.748/2026 art. 7º § 1º remete à LC 78/1993. ~~e a
+  redistribuição pelo Censo 2022 (PLP 177/2023) tem desfecho **não confirmado**.~~
+
+> ⚠️ **Corrigido em 2026-09-19 — o desfecho existe desde julho/2025.** O PLP
+> 177/2023, que elevaria a Câmara a 531 cadeiras pela redistribuição do Censo
+> 2022, foi aprovado pela Câmara e pelo Senado em junho/2025, **vetado
+> integralmente pela Presidência da República em julho/2025**, e o **STF decidiu
+> manter a distribuição atual de 513** para este pleito, regido pela **Resolução
+> TSE 23.751/2026** ([regulatory.md](../../reference/regulatory.md)). A Câmara de
+> 04/10/2026 tem **513 cadeiras, todas em disputa** — diferente do Senado, que
+> renova 54 de 81.
+>
+> **O RF-124 não muda, e não é ele que estava errado.** Ele rege o
+> `lugares_a_preencher` de **uma UF**, que continua vindo do dado publicado pelo
+> TSE, e ele já autorizava "tabela versionada com verificação contra o simulado".
+> O que a premissa falsa autorizava, em outro lugar, era derivar o **total
+> nacional** da soma das UFs presentes: até 2026-09-19
+> `api/model/deputado_payload.py` publicava essa soma como
+> `bancada.total_cadeiras`, e com três estados pequenos apurando a tela nacional
+> escrevia "26 cadeiras em disputa". Hoje o total é fato fixo
+> (`api/model/cargos.py::TOTAL_CADEIRAS`, `VAGAS_EM_DISPUTA_2026` — os mesmos
+> dicionários que o Senado já usava) e a soma virou a conferência do segundo
+> critério de aceitação acima. Ver a emenda de
+> [ADR-0049](../../architecture/adrs/0049-hemiciclo-camara-geometria-fixa-anel-na-indefinida.md).
 
 **RF-125 — Distribuição em três fases, conforme ADR-0027**
 
@@ -265,6 +309,89 @@ nominais de votos de legenda.
   números são distinguíveis — somá-los sem dizer esconde um fato que decide
   cadeira.
 
+**RF-131 — Hemiciclo da Câmara: um assento por cadeira, três estados, ordem por tamanho de bancada**
+
+WHEN a tela nacional de Deputado Federal dispõe de uma bancada com ao menos uma
+cadeira publicada, the system SHALL desenhar o plenário como um hemiciclo com
+**exatamente `total_cadeiras` assentos**, em que: (1) o total sai do payload e
+NUNCA de constante embutida em **nenhuma camada da tela** — componente, geometria
+ou teste — sendo o **produtor** do payload quem o fixa em 513
+(`api/model/cargos.py`), conferido contra a soma dos `carg[].nv` das 27 UFs
+(RF-124); (2) cada assento está em um de três estados — `definida`, `indefinida`
+(a cadeira que o modelo já atribuiu, decidida em rodada de sobras por margem
+apertada) e `nao_atribuida` (a cadeira cuja UF ainda não apurou o suficiente) —
+cuja soma é `total_cadeiras` **por construção**, não por conferência (RF-125.1);
+(3) a cor que identifica a agremiação é a variante de texto do token de partido,
+nunca a cor-base (RNF-035, [ADR-0047](../../architecture/adrs/0047-serie-cor-legivel-e-ciclo-sem-hora-fora-do-eixo.md) D1);
+e (4) a ordem dos assentos é a **mesma** da lista textual de agremiações da
+página — cadeiras desc, sigla asc —, sem rótulo de espectro nas extremidades do
+arco e sem marcador de maioria, porque o produto não mede posição ideológica de
+partido (constituição § 2).
+
+> **Histórico**: este RF é **novo em 2026-09-19** e não substitui texto anterior —
+> ele fecha uma lacuna. O hemiciclo entrou em produção em 2026-09-18 (`16d4a26`)
+> e passou a ser o elemento de maior destaque visual do produto **sem que nenhum
+> RF publicado descrevesse a peça**: RF-124, RF-125.1 e RF-127 normatizam os
+> *dados* que ele desenha, nenhum deles normatiza que a tela desenhe um
+> hemiciclo, nem os três estados de cadeira, nem a regra de cor, nem a regra de
+> ordem. A lacuna foi nomeada pelo próprio
+> [ADR-0049](../../architecture/adrs/0049-hemiciclo-camara-geometria-fixa-anel-na-indefinida.md)
+> (Consequências, negativa final), que é a fonte normativa deste requisito. O
+> texto acima descreve o comportamento **já implementado e testado** — nada muda
+> na tela por causa desta emenda.
+
+**Aceitação**:
+- Given `total_cadeiras = 531` — ~~a redistribuição pelo Censo 2022, PLP
+  177/2023~~ ⚠️ **corrigido em 2026-09-19**: não há 531 por vir (o PLP 177/2023
+  foi vetado em julho/2025 e o STF manteve as 513); 531 permanece aqui como
+  **caso de robustez**, e é justamente por não ser o número da eleição que ele
+  prova o que precisa provar — when o hemiciclo renderiza, then há **531**
+  assentos, o número de arcos é o mesmo de 513 e nenhum arco muda mais de 2
+  cadeiras. O desenho não pode ter escondido o tamanho da casa em camada nenhuma
+  ([ADR-0049](../../architecture/adrs/0049-hemiciclo-camara-geometria-fixa-anel-na-indefinida.md)
+  Decisão 2; `tests/unit/lib/hemiciclo.test.ts`, `tests/unit/pages/deputado-federal-hemiciclo.test.tsx`).
+- Given o payload real do cargo 6, when a tela nacional renderiza, then o total
+  desenhado e escrito é **513** em qualquer hora da noite — ele vem do payload,
+  onde é fato fixo, e **nunca** da soma das UFs já apuradas, que às 18h daria 26
+  e mudaria a forma do plenário (RF-124, segundo critério de aceitação).
+- Given um payload com qualquer `total_cadeiras`, when o `<title>` do SVG é lido,
+  then ele nomeia **aquele** número e **não** contém a string `513` — a fixture
+  dos testes usa totais deliberadamente diferentes de 513, porque um teste que
+  usasse 513 passaria por coincidência com o número cravado no JSX.
+- Given uma agremiação com `cadeiras_indefinidas > 0`, when o hemiciclo
+  renderiza, then essas cadeiras saem **cinzas com anel na cor da agremiação** —
+  nem cor chapada (afirmaria firmeza que não existe), nem cinza chapado
+  (descartaria de quem a cadeira é hoje, que é exatamente o que RF-127 manda
+  tornar legível). Decisão do dono, ADR-0049 Decisão 3.
+- Given `Σ cadeiras < total_cadeiras`, when o hemiciclo renderiza, then o resto
+  sai em cinza com anel **neutro** e nenhuma agremiação é nomeada nesses
+  assentos — cadeira sem apuração suficiente não tem dono a exibir.
+- Given a mesma bancada renderizada duas vezes, uma com `cadeiras_ci95`
+  preenchido em **todas** as linhas e outra sem valor algum, when os dois `<svg>`
+  são comparados, then o `outerHTML` é **string idêntica**: o intervalo do
+  RF-127 vive na lista textual ao lado, não no desenho — "entre 85 e 93 cadeiras"
+  não tem representação em bolinhas que não invente de quem seriam
+  (ADR-0049 Decisão 4).
+- Given duas agremiações empatadas em cadeiras, when a tela renderiza, then a
+  n-ésima cunha da esquerda e a n-ésima linha da lista são a **mesma**
+  agremiação, porque as duas superfícies chamam a mesma `ordenarBancada`
+  (`lib/utils/bancada.ts`) — com duas implementações da regra, elas divergiriam
+  só na noite em que houvesse empate.
+- Given `total_cadeiras = 0` (nenhuma cadeira publicada ainda), when a tela
+  renderiza, then **nenhum** plenário é desenhado — uma Câmara de tamanho padrão
+  para preencher o espaço seria número escrito à mão.
+- Given o SVG renderizado, when um leitor de tela o alcança, then ele tem
+  `role="img"`, `<title>` nomeando o total lido do payload, e `aria-describedby`
+  apontando para alvos **existentes** no documento, um deles a lista textual de
+  agremiações (constituição § 4).
+- ⚠️ **Rationale de custo**: nenhum dos três orçamentos de RNF-007 enxerga este
+  widget — todos somam `request.resourceType() === "script"`, e o hemiciclo é
+  zero JavaScript. O teto que morde hoje é
+  `tests/unit/components/camara-hemiciclo-peso.test.tsx` (36 KiB sobre o markup
+  determinístico); o caso de documento em `tests/e2e/perf-budget.spec.ts` está
+  marcado **PROVISÓRIO** no próprio código, porque o e2e não roda contra build
+  local. Ver ADR-0049, Consequências negativa 1.
+
 ## Requisitos Não-Funcionais
 
 Herda RNF-001/002/003, RNF-006 (relaxado para a cadência de 30 min — ADR-0036),
@@ -281,6 +408,16 @@ isso), RNF-022/023/024.
 A degradação é sobre a **projeção de cadeiras**, não sobre a ingestão: o cargo 6
 continua sendo ingerido e persistido de todo jeito (append-only, constituição § 10),
 para que 2030 comece com histórico.
+
+> **Desfecho do marco de 19/09 — registro, não re-discussão.** A condição **não**
+> se verificou: o módulo de cadeiras passa nos golden de 2022 desde 2026-09-12 —
+> 511/513 cadeiras, fase 1 exata nas 27 UFs
+> (`tests/unit/model/test_cadeiras_golden_2022.py`, 7 casos verdes, reconferidos
+> em 2026-09-19). **RF-123 a RF-127 permanecem no escopo** e estão implementados;
+> o RF-127 fechou por inteiro em `2bcee57`. O marco venceu sem disparar, e esta
+> nota existe só para que a linha da tabela não seja lida como pendência aberta
+> por quem chegar depois. O marco de **24/09** fica como está — a decisão de
+> 2026-09-07 não é reaberta aqui.
 
 ## Open questions
 
@@ -316,6 +453,7 @@ para que 2030 comece com histórico.
 ## Cross-refs
 
 - [ADR-0027](../../architecture/adrs/0027-conversao-votos-em-cadeiras-deputado-federal.md) — o método de cadeiras, com o texto legal vigente e a jurisprudência
+- [ADR-0049](../../architecture/adrs/0049-hemiciclo-camara-geometria-fixa-anel-na-indefinida.md) — o hemiciclo: `total_cadeiras` em runtime, 12 arcos fixos independentes de N, cadeira indefinida com anel colorido, e o intervalo do RF-127 deliberadamente fora do desenho (fonte normativa do RF-131)
 - [ADR-0026](../../architecture/adrs/0026-cargos-senador-deputado-ingestao-e-read-path.md) — ingestão e read path híbrido (⚠️ cita "Lei 9.504 art. 111"; o correto é **Código Eleitoral** art. 111, e ele está inconstitucional — ver ADR-0027)
 - [ADR-0032](../../architecture/adrs/0032-detalhe-municipal-vercel-blob.md) — o mesmo mecanismo de Blob, já em uso para detalhe municipal
 - [Spec 016](../016-senador/spec.md) — o outro cargo novo, majoritário
