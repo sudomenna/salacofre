@@ -58,6 +58,7 @@ import { FasePreEleicaoBanner } from "@/components/atoms/banners/FasePreEleicaoB
 import { VoteBar, type VoteBarSegment } from "@/components/atoms/bars/VoteBar";
 import { Figure } from "@/components/atoms/data/Figure";
 import { Panel } from "@/components/atoms/surfaces/Panel";
+import { candidateColor as candidateColorDoPartido } from "@/components/blocks/_candidateColor";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { UfLinksGrid } from "@/components/blocks/UfLinksGrid";
 import { Footer } from "@/components/layout/Footer";
@@ -66,7 +67,7 @@ import { cargoInfo } from "@/lib/config/cargos";
 import { isPreEleicao } from "@/lib/config/fase";
 import { resultadoEleitoral, simulacaoNacional } from "@/lib/dev/simulacao";
 import { readProjection } from "@/lib/edge-config/reader";
-import type { EdgeCandidate, EdgePayload, EdgeUfRow } from "@/lib/edge-config/types";
+import type { EdgePayload, EdgeUfRow } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import senFixture from "@/tests/fixtures/edge-config/sen-current.json" with { type: "json" };
@@ -211,12 +212,13 @@ function AguardandoSenado() {
  *
  * `porId` fica só para `cor`, que é função do RANK e não da identidade.
  */
+// ⚠️ `porId: Map<number, EdgeCandidate>` saiu em 2026-09-19: ele existia só para
+// buscar `c.cor`, a paleta por COLOCAÇÃO que o payload deixou de emitir. A cor
+// agora vem da SIGLA, que já chega em `top_candidatos[].partido` (RF-144).
 function topDaUf(
   uf: EdgeUfRow,
-  porId: Map<number, EdgeCandidate>,
 ): Array<{ id: number; pct: number; nome: string; partido: string; cor: string }> {
-  return (uf.top_candidatos ?? []).map((t) => {
-    const c = porId.get(t.id);
+  return (uf.top_candidatos ?? []).map((t, i) => {
     return {
       id: t.id,
       pct: t.pct,
@@ -226,7 +228,11 @@ function topDaUf(
       // estado seria bonito e falso.
       nome: t.nome ? nomeExibicao(t.nome, t.sqcand) : `Candidatura ${t.id}`,
       partido: t.partido ?? "—",
-      cor: c?.cor ?? "var(--color-cand-other)",
+      // 🔴 Cor pela SIGLA (ADR-0024), não por `c.cor` — que era a paleta por
+      // COLOCAÇÃO e saiu do payload em 19/09. O `?? "var(--color-cand-other)"`
+      // antigo mascarava o problema: dava cinza quando o candidato não estava
+      // no índice nacional, e cor de rank quando estava.
+      cor: candidateColorDoPartido(t.partido, i + 1),
     };
   });
 }
@@ -256,7 +262,6 @@ export default async function SenadoPage() {
   // pré: ela leva ao ramo acima, que é o terceiro estado ("não sabemos").
   const pre = isPreEleicao(payload);
 
-  const porId = new Map<number, EdgeCandidate>(payload.national.candidatos.map((c) => [c.id, c]));
   const composicao = payload.composicao_vagas;
 
   // Segmentos da barra de composição: cada partido ocupa a fração das vagas
@@ -470,7 +475,7 @@ export default async function SenadoPage() {
         ) : payload.por_uf.length > 0 ? (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>
             {payload.por_uf.map((uf) => {
-              const top = topDaUf(uf, porId);
+              const top = topDaUf(uf);
               const dentro = top[VAGAS - 1];
               const fora = top[VAGAS];
               const margem = dentro && fora ? dentro.pct - fora.pct : null;

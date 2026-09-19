@@ -102,6 +102,7 @@ import {
   type DetailUnavailableReason,
 } from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
+import { candidateColor as candidateColorDoPartido } from "@/components/blocks/_candidateColor";
 import { CandidaturasAguardando } from "@/components/blocks/CandidaturasAguardando";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { MunicipioExplorer } from "@/components/blocks/MunicipioExplorer";
@@ -283,7 +284,8 @@ function synthesizeGovUfFromFixture(sigla: string, fixture: EdgePayload): EdgePa
         id: c.id,
         nome: daUf?.nome ?? c.nome,
         partido: daUf?.partido ?? c.partido,
-        cor: c.cor,
+        // `cor` não é repassada: o campo saiu do payload em 19/09 (paleta por
+        // COLOCAÇÃO, ADR-0013). Quem desenha resolve pela SIGLA.
         votos_atuais: c.votos_atuais,
         votos_projetados: c.votos_projetados,
         pct_atual: c.pct_atual,
@@ -496,15 +498,23 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
   // compartilha a cadência de 60 s do ADR-0011.
   const frescorDado = avaliarFrescorDado(payload.dado_ts, payload.cargo);
 
+  // 🔴 A cor sai da SIGLA (ADR-0024), não de `c.cor` — a paleta por COLOCAÇÃO
+  // do ADR-0013, que o produtor parou de emitir em 19/09. Este mapa alimenta o
+  // coroplético municipal e a coluna de margem da tabela: com a cor de rank, o
+  // mesmo partido saía de uma cor no mapa e de outra na legenda ao lado.
+  //
+  // 2º argumento é o ÍNDICE + 1: `EdgeUfCandidate` não carrega `rank` (o array
+  // já chega ordenado pela corrida da UF, ADR-0012), e ele só entra no fallback
+  // de sigla fora da paleta editorial.
   const candidateColor: Record<number, string> = {};
   const candidateShortName: Record<number, string> = {};
-  for (const c of payload.candidatos) {
-    candidateColor[c.id] = c.cor;
+  payload.candidatos.forEach((c, i) => {
+    candidateColor[c.id] = candidateColorDoPartido(c.partido, i + 1);
     // Primeiro nome do nome de EXIBIÇÃO. Este mapa alimenta a coluna
     // "margem" da tabela de municípios e o rótulo curto do mapa; cortar o cru
     // poria "RONALDO" na tabela e "CAIADO" no painel da mesma página.
     candidateShortName[c.id] = primeiroNomeExibicao(c.nome, c.sqcand);
-  }
+  });
 
   // Detalhe do Blob. Coalesce para vazio; o estado explícito é decidido abaixo.
   const municipios = municipiosFrom(detalhe);

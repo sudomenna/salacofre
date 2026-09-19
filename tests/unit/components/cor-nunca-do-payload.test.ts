@@ -44,7 +44,21 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const RAIZ = resolve(process.cwd(), "components");
+// 🔴 `app/` entrou em 2026-09-19, e a razão importa.
+//
+// A 1ª versão varria SÓ `components/` — e passou verde enquanto DUAS páginas
+// (`app/(pres)/uf/[sigla]/page.tsx` e `app/(gov)/uf/[sigla]/governador/page.tsx`)
+// seguiam montando `candidateColor[c.id] = c.cor` para alimentar o coroplético
+// municipal. Eram **12** consumidores, não os 10 que eu contei.
+//
+// Quem os achou não foi esta varredura: foi o `tsc`, quando o campo virou
+// opcional no contrato. Uma varredura que escolhe onde olhar herda o ponto cego
+// de quem a escreveu — e o ponto cego foi supor que "tela" mora em
+// `components/`.
+const RAIZES = [
+  { dir: resolve(process.cwd(), "components"), rotulo: "components" },
+  { dir: resolve(process.cwd(), "app"), rotulo: "app" },
+] as const;
 
 /**
  * Onde `.cor` é legítimo: o produtor da própria cor, e os pontos que a recebem
@@ -52,10 +66,10 @@ const RAIZ = resolve(process.cwd(), "components");
  */
 const PERMITIDOS = new Set<string>([
   // Define os helpers; lê `.cor` de ninguém.
-  "blocks/_candidateColor.ts",
+  "components/blocks/_candidateColor.ts",
   // `m.cor` aqui é a cor que o CALLER já resolveu (prop `municipios[]`), não um
   // campo de candidato do payload — ver a docstring de `ChoroplethMunicipio`.
-  "atoms/maps/ChoroplethMapUF.tsx",
+  "components/atoms/maps/ChoroplethMapUF.tsx",
 ]);
 
 function arquivosDe(dir: string, acc: string[] = []): string[] {
@@ -99,13 +113,17 @@ function linhasSuspeitas(fonte: string): Array<{ n: number; texto: string }> {
 }
 
 describe("nenhum componente pinta com a `cor` do payload", () => {
-  it("varre components/ inteiro", () => {
+  it("varre components/ E app/ — os dois lugares onde mora tela", () => {
     const infratores: string[] = [];
-    for (const caminho of arquivosDe(RAIZ)) {
-      const rel = caminho.slice(RAIZ.length + 1);
+    for (const { caminho, rel } of RAIZES.flatMap((r) =>
+      arquivosDe(r.dir).map((caminho) => ({
+        caminho,
+        rel: `${r.rotulo}/${caminho.slice(r.dir.length + 1)}`,
+      })),
+    )) {
       if (PERMITIDOS.has(rel)) continue;
       for (const { n, texto } of linhasSuspeitas(readFileSync(caminho, "utf8"))) {
-        infratores.push(`components/${rel}:${n} → ${texto}`);
+        infratores.push(`${rel}:${n} → ${texto}`);
       }
     }
 

@@ -126,7 +126,7 @@ function sintetizarUf(sigla: string, national: EdgePayload): EdgePayloadUf | nul
       id: c.id,
       nome: c.nome,
       partido: c.partido,
-      cor: c.cor,
+      // `cor` não é repassada: saiu do payload em 19/09 (ADR-0024).
       votos_atuais: c.votos_atuais,
       votos_projetados: c.votos_projetados,
       pct_atual: c.pct_atual,

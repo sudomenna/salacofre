@@ -253,15 +253,30 @@ export interface EdgeCandidate {
   nome: string;
   partido: string;
   /**
-   * Token CSS literal — sempre da forma `var(--color-cand-N)` em payloads
-   * S05+ (ADR-0013, paleta dinâmica por rank). Consumido direto em
-   * `style={{ background: c.cor }}` no front-end (sem resolução
-   * intermediária). Constituição § 2: nunca hex partidário, sempre token
-   * canônico de app/globals.css. Em payloads antigos pode aparecer
-   * `var(--color-pt)` / `var(--color-pl)` (legacy binário) — consumidores
-   * S05+ devem aceitar ambos no decode (forward-compat).
+   * @deprecated **Não leia este campo.** Aposentado em 2026-09-19.
+   *
+   * Ele carrega `var(--color-cand-{rank})` — a paleta por **COLOCAÇÃO** do
+   * ADR-0013, que o [ADR-0024] superou em 2026-09-07. A cor de um candidato vem
+   * da **SIGLA**, via `candidateColor` / `candidateMarkerColor`
+   * (`components/blocks/_candidateColor.ts`).
+   *
+   * Por que ler daqui é defeito, e não só estilo: a constituição § 2 exige que a
+   * cor de um partido seja **estável durante toda a noite** e "não muda por
+   * rank". Este campo **É** o rank — com ele, o 3º que ultrapassa o 2º ao vivo
+   * faz os dois **trocarem de cor** no meio da apuração.
+   *
+   * Em 19/09 o dono viu o sintoma na tela: CAIADO/PSD **laranja na lista e verde
+   * na legenda do mapa**, ao mesmo tempo. Dez superfícies liam o campo. Nenhuma
+   * lê hoje, e `tests/unit/components/cor-nunca-do-payload.test.ts` varre
+   * `components/` para que continue assim.
+   *
+   * **Opcional desde 19/09, e o produtor parou de emiti-lo** — payloads gravados
+   * antes disso ainda o trazem, e por isso o campo continua declarado: removê-lo
+   * do tipo quebraria o decode de um Global Config já publicado. A remoção
+   * definitiva é limpeza pós-2º turno, junto com os tokens `--color-cand-*`
+   * (ADR-0013 § Status).
    */
-  cor: string;
+  cor?: string;
   votos_atuais: number;
   votos_projetados: number;
   /** % do total apurado no momento (0–100). */
@@ -844,7 +859,8 @@ export interface EdgeUfCandidate {
   id: number;
   nome: string;
   partido: string;
-  cor: string;
+  /** @deprecated Ver {@link EdgeCandidate.cor}. Aposentado em 2026-09-19. */
+  cor?: string;
   /** Votos absolutos REPORTADOS no momento (TSE). */
   votos_atuais: number;
   /** Votos absolutos PROJETADOS (modelo) ao final da apuração da UF. */

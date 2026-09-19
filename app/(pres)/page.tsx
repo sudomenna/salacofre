@@ -159,6 +159,7 @@ import { FasePreEleicaoBanner } from "@/components/atoms/banners/FasePreEleicaoB
 import { SerieApuracaoChart } from "@/components/atoms/charts/SerieApuracaoChart";
 import { TrilhaKicker } from "@/components/atoms/nav/TrilhaKicker";
 import { Panel } from "@/components/atoms/surfaces/Panel";
+import { candidateColor as candidateColorDoPartido } from "@/components/blocks/_candidateColor";
 import { ApuracaoMeta } from "@/components/blocks/ApuracaoMeta";
 import { BreakingNewsTicker } from "@/components/blocks/BreakingNewsTicker";
 import { BulletinPanel } from "@/components/blocks/BulletinPanel";
@@ -1049,6 +1050,10 @@ export default async function HomePage() {
           da moldura do mapa, que permanece (RF-157). */}
       {!pre && (
         <Panel kicker="Placar por estado">
+          {/* 🔴 `corA`/`corB` saem da SIGLA (ADR-0024). Até 19/09 vinham de
+              `lider.cor`, a paleta por COLOCAÇÃO — e aqui o efeito era literal:
+              as duas faixas da tabela por estado TROCAVAM de cor numa
+              ultrapassagem, enquanto o mapa ao lado não trocava. */}
           <StateGroupedTable
             rows={por_uf}
             mode={mode}
@@ -1056,8 +1061,8 @@ export default async function HomePage() {
             candidatoAId={national.candidato_a_id}
             candidatoAName={lider ? nomeExibicao(lider.nome, lider.sqcand) : "Líder A"}
             candidatoBName={segundo ? nomeExibicao(segundo.nome, segundo.sqcand) : "Líder B"}
-            corA={lider?.cor ?? "var(--color-cand-1)"}
-            corB={segundo?.cor ?? "var(--color-cand-2)"}
+            corA={candidateColorDoPartido(lider?.partido, 1)}
+            corB={candidateColorDoPartido(segundo?.partido, 2)}
           />
         </Panel>
       )}

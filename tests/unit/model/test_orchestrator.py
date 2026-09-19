@@ -1349,7 +1349,7 @@ def test_s05_payload_has_rank_and_multi_candidate_metrics(
       - candidato.rank populado (1 = líder, 2 = segundo)
       - candidato.p_passa_2t em [0, 1]
       - candidato.p_fecha_1t em [0, 1]
-      - candidato.cor segue token `var(--color-cand-N)` (ADR-0013)
+      - candidato NÃO traz `cor` (saiu em 19/09; ADR-0024 — a cor vem da SIGLA)
       - national.p_segundo_turno_overall em [0, 1] OU None
       - national.cenarios_2t é lista (top-3, vazia se < 2 cands)
     """
@@ -1400,9 +1400,17 @@ def test_s05_payload_has_rank_and_multi_candidate_metrics(
         assert 0.0 <= c["p_passa_2t"] <= 1.0
         assert 0.0 <= c["p_fecha_1t"] <= 1.0
 
-    # cor segue ADR-0013 — paleta dinâmica por rank.
+    # 🔴 O campo `cor` SAIU do payload em 2026-09-19. Este bloco AFIRMAVA O
+    # DEFEITO: exigia `var(--color-cand-N)`, a paleta por COLOCAÇÃO do
+    # ADR-0013, que o ADR-0024 aposentou em 07/09.
+    #
+    # A asserção agora é NEGATIVA, e é ela que discrimina: um produtor que
+    # voltasse a emitir o campo passaria em qualquer teste que só conferisse
+    # os outros campos. Constituição § 2: a cor é estável na noite inteira e
+    # "não muda por rank" — emitir o rank como cor faz dois candidatos
+    # trocarem de cor numa ultrapassagem, ao vivo.
     for c in national["candidatos"]:
-        assert c["cor"].startswith("var(--color-cand-"), f"cor inesperada: {c['cor']}"
+        assert "cor" not in c, f"o payload voltou a emitir `cor`: {c.get('cor')!r}"
 
     # national tem as 2 chaves novas.
     assert "p_segundo_turno_overall" in national

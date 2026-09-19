@@ -4329,11 +4329,10 @@ def build_uf_payloads(
                 "id": cid,
                 "nome": nome_cand,
                 "partido": partido_cand,
-                # CSS var literal — consumida direto em `style={{ background: c.cor }}`
-                # no front-end. Sem `var(...)` o browser ignora silenciosamente.
-                # Tokens canônicos definidos em app/globals.css (constituição § 2).
-                # ADR-0013: paleta dinâmica `--color-cand-{1..11}`.
-                "cor": f"var(--color-cand-{rank_cand})",
+                # 🔴 O campo `cor` SAIU em 2026-09-19, aqui e no bloco nacional.
+                # Ver a nota longa no outro ponto (busque por "paleta por
+                # COLOCAÇÃO" neste arquivo): a cor vem da SIGLA, no consumidor,
+                # e emitir o rank como cor viola a constituição § 2.
                 "votos_atuais": votos_cand,
                 "votos_projetados": votos_proj,
                 "pct_atual": pct_atual,
@@ -4890,11 +4889,16 @@ def build_edge_payload(
             # achatado legado do replay 2022) ou quando o caller não passou o
             # mapa — nunca um chute.
             "partido": (partido_by_cand or {}).get(cid, "—"),
-            # CSS var literal — consumida direto em `style={{ background: c.cor }}`
-            # no front-end (sem resolução intermediária). Constituição § 2:
-            # nunca hex partidário, sempre token canônico de app/globals.css.
-            # ADR-0013: paleta DINÂMICA por rank, --color-cand-{1..11}.
-            "cor": f"var(--color-cand-{rank})",
+            # 🔴 O campo `cor` SAIU em 2026-09-19. Ele carregava
+            # `var(--color-cand-{rank})` — a paleta por COLOCAÇÃO do ADR-0013,
+            # que o ADR-0024 superou em 07/09. A cor vem da SIGLA, no consumidor.
+            #
+            # Não reintroduza: a constituição § 2 exige cor estável na noite
+            # inteira e diz que ela "não muda por rank". Emitir o rank como cor
+            # faz dois candidatos TROCAREM de cor numa ultrapassagem ao vivo —
+            # sintoma que o dono viu em 19/09 (CAIADO/PSD laranja na lista e
+            # verde na legenda, ao mesmo tempo). O campo segue OPCIONAL no
+            # contrato TS só porque payloads antigos ainda o trazem.
             "votos_atuais": votos_por_cand_nat.get(cid, 0),
             "votos_projetados": int(r.get("votos_projetados") or 0),
             "pct_atual": pct_atual_cand,
