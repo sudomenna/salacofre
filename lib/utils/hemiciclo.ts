@@ -9,11 +9,20 @@
  *
  * ## 🔴 `513` não é constante em lugar nenhum
  *
- * RF-124: o tamanho da Câmara é a **soma dos `lugares_a_preencher`
- * publicados**, lida em runtime. A redistribuição pelo Censo 2022
- * (PLP 177/2023) pode elevá-la a 531 e não tem desfecho confirmado. Nada neste
- * arquivo assume 513 — nem como default, nem como limite, nem como divisor.
- * Todo número de cadeira sai do argumento `total`.
+ * Nada neste arquivo assume 513 — nem como default, nem como limite, nem como
+ * divisor. Todo número de cadeira sai do argumento `total`.
+ *
+ * ⚠️ **Corrigido em 2026-09-19.** Este parágrafo dizia que "o tamanho da Câmara
+ * é a soma dos `lugares_a_preencher` publicados, lida em runtime", e que "a
+ * redistribuição pelo Censo 2022 (PLP 177/2023) pode elevá-la a 531 e não tem
+ * desfecho confirmado". As duas metades eram falsas. A soma **não podia** ser o
+ * tamanho da Câmara: ela só conta as UFs que já publicaram, e com três estados
+ * pequenos no ar dava 26 — este desenho chegou a receber esse número. E o PLP
+ * 177/2023 foi vetado integralmente em julho/2025, com o STF mantendo as 513
+ * para este pleito. Hoje o total é fato fixo no produtor do payload
+ * (`api/model/cargos.py`), conferido contra a soma dos `carg[].nv` das 27 UFs.
+ * RF-124 rege o número **por UF**, não o total nacional. A regra deste arquivo
+ * não muda por isso: o desenho não pode assumir o tamanho da casa.
  *
  * ## 🔴 O número de arcos é CONSTANTE, e é por isso que ele é constante
  *

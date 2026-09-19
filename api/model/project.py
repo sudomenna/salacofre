@@ -104,6 +104,7 @@ from api.model.deputado import (
 )
 from api.model.deputado_payload import (
     UfProporcional,
+    conferir_total_de_cadeiras,
     construir_payload_deputado,
     normalizar_divergencia,
 )
@@ -5890,6 +5891,46 @@ def _do_project_proporcional(
             ufs_com_intervalo=n_uf_com_intervalo,
             ufs_sem_intervalo=len(contribuicoes_ci) - n_uf_com_intervalo,
             agremiacoes_com_faixa_nacional=len(cadeiras_ci95_nacional),
+        )
+
+    # RF-124 — a conferência do total nacional de cadeiras (2026-09-19).
+    # `bancada.total_cadeiras` deixou de ser a soma dos `lugares_a_preencher`
+    # das UFs presentes e passou a ser fato fixo (513, `api/model/cargos.py`),
+    # porque a soma crescia durante a noite e a tela escrevia "26 cadeiras em
+    # disputa" com três estados pequenos no ar.
+    #
+    # A soma não foi descartada: virou o sino do RF-124, cujo critério de
+    # aceitação é "quando o valor de uma UF diverge do que o TSE publica, o
+    # ciclo registra erro e aciona alerta". Só toca com as **27** UFs tendo
+    # publicado `carg[].nv` — com menos, divergir é o estado normal do começo
+    # da noite, e um alarme que toca 26 vezes às 18h é um alarme que ninguém
+    # olha às 21h.
+    #
+    # Não aborta o ciclo (constituição § 7): o denominador suspeito é de uma UF,
+    # e apagar a bancada inteira por causa dele seria pior que publicá-la com
+    # ruído no log.
+    divergencia_do_total = conferir_total_de_cadeiras(
+        ufs=ufs, cargo=req.cargo, ufs_conhecidas=max(UFS_DA_ELEICAO, len(ufs))
+    )
+    if divergencia_do_total is not None:
+        _log(
+            "error",
+            "total de cadeiras publicado pelo TSE não fecha com o tamanho da casa",
+            cargo=req.cargo,
+            turno=req.turno,
+            nosso=divergencia_do_total.nosso,
+            tse=divergencia_do_total.tse,
+            detalhe=divergencia_do_total.detalhe,
+        )
+        _alert_slack(
+            "error",
+            "as 27 UFs publicaram `carg[].nv` e a soma não fecha com o tamanho "
+            "da Câmara — o denominador do quociente eleitoral de ao menos uma "
+            "UF está errado (RF-124)",
+            cargo=req.cargo,
+            turno=req.turno,
+            esperado=divergencia_do_total.nosso,
+            soma_publicada=divergencia_do_total.tse,
         )
 
     ts_iso = datetime.now(timezone.utc).isoformat()

@@ -862,12 +862,15 @@ export interface DadosSimulacao {
 /**
  * `lugares_a_preencher` das 27 UFs, lido da fixture do repositório.
  *
- * **Não é digitado aqui de propósito.** O produto inteiro trata esse número
- * como dado publicado pelo TSE (RF-124: "vem da soma dos `lugares_a_preencher`
- * publicados, nunca de constante embutida"), e não existe tabela estática dele
- * em `lib/` — só esta fixture. Uma segunda cópia à mão seria a próxima a
- * divergir do resto, exatamente quando a redistribuição pelo Censo 2022
- * (PLP 177/2023) mexer nos números.
+ * **Não é digitado aqui de propósito.** O `lugares_a_preencher` de cada UF é
+ * dado publicado pelo TSE (RF-124: "NUNCA de constante embutida no código"), e
+ * não existe tabela estática dele em `lib/` — só esta fixture. Uma segunda
+ * cópia à mão seria a próxima a divergir do resto.
+ *
+ * ⚠️ **2026-09-19** — o **total nacional** é outra coisa, e não se deriva daqui:
+ * ele é fato fixo (513, `api/model/cargos.py::TOTAL_CADEIRAS`), porque a soma
+ * das UFs presentes cresce durante a noite. A conferência contra 513 abaixo é a
+ * mesma que `deputado_payload.conferir_total_de_cadeiras` faz no ciclo real.
  *
  * A conferência contra 513 é feita aqui, e não só em teste: um arquivo
  * truncado produziria quocientes eleitorais errados em silêncio.

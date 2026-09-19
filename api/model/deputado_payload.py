@@ -23,6 +23,12 @@ pode ser enganada pelo payload.
 de sobras, com a margem para a próxima agremiação menor que a fatia de votos
 ainda não apurada, sai com `indefinido: true`. Ver `_marcar_indefinidas`.
 
+**4. Derivar o tamanho da Câmara do que já apurou** (2026-09-19). `total_cadeiras`
+é fato fixo — 513, `cargos.TOTAL_CADEIRAS` — e não a soma dos
+`lugares_a_preencher` das UFs presentes, que com três estados no ar diria "26
+cadeiras em disputa". A soma continua medida, como **conferência**:
+`conferir_total_de_cadeiras`.
+
 ## As duas metades de RF-127, e por que são duas
 
 `cadeiras_ci95` (D5/D6) entrou em 2026-09-13, depois que o ADR-0036 moveu o
@@ -54,6 +60,10 @@ from fractions import Fraction
 from typing import Any
 
 from api.model.cadeiras import Agremiacao, ResultadoCadeiras
+from api.model.cargos import (
+    total_cadeiras as cadeiras_da_casa,
+    vagas_em_disputa as cadeiras_em_disputa,
+)
 from api.model.dado_ts import RelogioDoDado
 from api.model.deputado import (
     Divergencia,
@@ -482,10 +492,65 @@ def _linha_uf(detalhe: dict[str, Any], dados: UfProporcional) -> dict[str, Any]:
     }
 
 
+def conferir_total_de_cadeiras(
+    *, ufs: list[UfProporcional], cargo: int, ufs_conhecidas: int
+) -> Divergencia | None:
+    """RF-124 — a soma das vagas publicadas bate com o tamanho da casa?
+
+    `total_cadeiras` do payload **não** é mais esta soma (ver
+    `_bancada_nacional`): é fato fixo, 513 para a Câmara. Mas a soma continua
+    sendo medida, porque ela é a única leitura independente que temos do
+    denominador de cada UF — e o critério de aceitação do RF-124 é literalmente
+    "quando o valor de uma UF diverge do que o TSE publica, o ciclo registra
+    erro e aciona alerta". Errar o `carg[].nv` de uma UF corrompe o quociente
+    eleitoral dela inteiro; a soma nacional é o sino que toca quando isso
+    acontece.
+
+    **Só conclusiva com as 27 UFs publicadas.** Com menos, a divergência é
+    esperada — é o começo da noite, não um defeito —, e alarmar ali seria o
+    alarme que ninguém olha às 21h porque tocou 26 vezes às 18h. `None`
+    significa "nada a reportar", e é o retorno em três situações distintas:
+    cargo sem tamanho de casa declarado, UFs de menos, ou soma que fecha.
+
+    Devolve `Divergencia` — o mesmo tipo de `deputado.conferir_contra_tse` — e
+    **não** loga nem alerta: este módulo é puro (constituição § 9). Quem chama
+    (`api/model/project.py`, ramo proporcional) é que faz o `_log("error")` e o
+    `_alert_slack`, exatamente como já faz com a divergência de quociente.
+    """
+    esperado = cadeiras_em_disputa(cargo)
+    if esperado is None:
+        return None
+
+    publicadas = [
+        int(d.entrada.lugares_a_preencher)
+        for d in ufs
+        if d.entrada.lugares_a_preencher is not None
+    ]
+    if len(publicadas) < ufs_conhecidas:
+        return None
+
+    soma = sum(publicadas)
+    if soma == esperado:
+        return None
+
+    return Divergencia(
+        o_que="total_cadeiras",
+        nosso=esperado,
+        tse=soma,
+        detalhe=(
+            f"as {len(publicadas)} UFs publicaram `carg[].nv` e a soma deu "
+            f"{soma}, não {esperado} — o denominador do quociente eleitoral de "
+            "pelo menos uma UF está errado"
+        ),
+    )
+
+
 def _bancada_nacional(
     detalhes_ordenados: list[tuple[UfProporcional, dict[str, Any]]],
     ufs_conhecidas: int,
     cadeiras_ci95_nacional: dict[str, tuple[int, int]] | None = None,
+    *,
+    cargo: int,
 ) -> dict[str, Any]:
     """`EdgeBancadaNacional` (D5) — soma de 27 corridas, não um modelo nacional.
 
@@ -514,13 +579,13 @@ def _bancada_nacional(
     componentes_br: dict[str, dict[str, int]] = {}
     ordem: list[str] = []
 
-    total_cadeiras = 0
+    soma_publicada = 0
     cadeiras_atribuidas = 0
     ufs_calculadas = 0
 
     for dados, detalhe in detalhes_ordenados:
         if detalhe["lugares_a_preencher"] is not None:
-            total_cadeiras += int(detalhe["lugares_a_preencher"])
+            soma_publicada += int(detalhe["lugares_a_preencher"])
         if dados.resultado is not None:
             ufs_calculadas += 1
         # Votos nominais por componente, SOMADOS país afora — o insumo do
@@ -600,8 +665,34 @@ def _bancada_nacional(
     # ordem não dependa da ordem de leitura das UFs.
     por_agremiacao.sort(key=lambda a: (-a["cadeiras"], a["sigla"], a["cod"]))
 
+    # O tamanho da casa é FATO FIXO, não a soma das UFs que já publicaram
+    # (2026-09-19). Somar produzia um número que **cresce durante a noite**: às
+    # 18h, com três estados pequenos no ar, a soma dava 26 e a tela escrevia
+    # "26 cadeiras em disputa" — falso, e em destaque máximo desde que o
+    # hemiciclo (ADR-0049) passou a usar o mesmo número como denominador, o que
+    # ainda por cima mudava a forma do plenário abaixo de 24 cadeiras
+    # (`lib/utils/hemiciclo.ts::arcosPara`).
+    #
+    # É o mesmo argumento que `cargos.VAGAS_EM_DISPUTA_2026` já fazia para o
+    # Senado desde a spec 016 ("às 18h, com 4 estados apurados, a derivação
+    # diria '8 vagas em disputa'"); o cargo 6 só estava fora dos dois
+    # dicionários.
+    #
+    # **Isto não afrouxa o RF-124**, que rege o `lugares_a_preencher` de **uma
+    # UF** — ele continua vindo do TSE, sem constante embutida, e é ele que
+    # divide os votos no quociente eleitoral. O que passa a ser fato fixo é o
+    # total nacional, que o RF nunca regeu, e a soma vira **conferência**:
+    # `conferir_total_de_cadeiras` acima.
+    #
+    # Cargo fora de `TOTAL_CADEIRAS` cai na soma, que é o único número
+    # disponível. Não é um default silencioso: `construir_payload_deputado` só
+    # é chamada para o cargo 6, e um cargo proporcional novo sem fato declarado
+    # deve entrar no dicionário antes de chegar aqui.
+    fato = cadeiras_da_casa(cargo)
+    total = fato if fato is not None else soma_publicada
+
     return {
-        "total_cadeiras": total_cadeiras,
+        "total_cadeiras": total,
         "cadeiras_atribuidas": cadeiras_atribuidas,
         "ufs_calculadas": ufs_calculadas,
         "ufs_aguardando": max(0, ufs_conhecidas - ufs_calculadas),
@@ -662,7 +753,9 @@ def construir_payload_deputado(
         detalhes[dados.uf] = detalhe
         pares.append((dados, detalhe))
 
-    bancada = _bancada_nacional(pares, ufs_conhecidas, cadeiras_ci95_nacional)
+    bancada = _bancada_nacional(
+        pares, ufs_conhecidas, cadeiras_ci95_nacional, cargo=cargo
+    )
 
     payload = {
         # Os dois relógios, lado a lado (ADR-0038 D1): `ts` é quando o modelo

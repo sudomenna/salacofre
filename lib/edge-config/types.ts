@@ -1507,10 +1507,24 @@ export interface EdgePayloadDeputado {
  */
 export interface EdgeBancadaNacional {
   /**
-   * RF-124 — o tamanho da Câmara. Vem da **soma dos `lugares_a_preencher`
-   * publicados**, nunca de constante embutida: a redistribuição pelo Censo
-   * 2022 (PLP 177/2023) tem desfecho não confirmado, e errar o denominador do
-   * quociente corrompe a projeção inteira de uma UF.
+   * O tamanho da Câmara: **513**, fato fixo desde antes da urna abrir
+   * (`api/model/cargos.py::TOTAL_CADEIRAS`), e todas as 513 em disputa em 2026
+   * — a Câmara renova integralmente, diferente do Senado, que renova 54 de 81.
+   *
+   * ⚠️ **Mudou em 2026-09-19.** Este campo era a **soma dos
+   * `lugares_a_preencher` publicados**, derivada das UFs presentes no ciclo.
+   * A soma crescia durante a noite: com três estados pequenos apurando, ela
+   * dava 26, e a tela escrevia "26 cadeiras em disputa". A justificativa
+   * antiga — "a redistribuição pelo Censo 2022 (PLP 177/2023) tem desfecho não
+   * confirmado" — venceu: o PLP foi **vetado integralmente em julho/2025** e o
+   * **STF manteve as 513** para este pleito (Resolução TSE 23.751/2026).
+   *
+   * **RF-124 continua valendo, e não é isto que ele rege**: o
+   * `lugares_a_preencher` de **cada UF** segue vindo do dado publicado pelo
+   * TSE, nunca de constante — é ele que divide os votos no quociente
+   * eleitoral. A soma nacional virou conferência: quando as 27 UFs tiverem
+   * publicado `carg[].nv` e a soma não fechar em 513, o ciclo loga `error` e
+   * dispara o alarme (`api/model/deputado_payload.py::conferir_total_de_cadeiras`).
    */
   total_cadeiras: number;
   /**

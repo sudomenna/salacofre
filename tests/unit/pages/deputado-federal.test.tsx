@@ -469,8 +469,32 @@ describe("/deputado-federal (T-11)", () => {
 
     expect(nota).toMatch(/soma das 27 corridas/i);
     expect(nota).toMatch(/não publica um arquivo nacional/i);
-    // E que o próprio total é dado publicado, não constante (RF-124).
-    expect(nota).toMatch(/não de uma tabela guardada aqui/i);
+    // ⚠️ 2026-09-19 — esta asserção era `/não de uma tabela guardada aqui/i`,
+    // e a frase que ela media ("o total de N cadeiras também vem do dado
+    // publicado, estado a estado … a redistribuição pelo Censo de 2022 ainda
+    // não tem desfecho") ficou falsa nas duas metades: o total deixou de ser
+    // derivado do dado publicado, e o Censo 2022 tem desfecho (PLP 177/2023
+    // vetado em julho/2025, STF mantendo 513). O que a nota precisa separar
+    // agora são DUAS proveniências diferentes na mesma frase.
+    expect(nota).toMatch(/não é soma nenhuma/i);
+    expect(nota).toMatch(/tamanho da Câmara/i);
+    expect(nota).toMatch(/quantas cada estado elege continua vindo do dado/i);
+    expect(nota).not.toMatch(/tabela guardada aqui/i);
+    expect(nota).not.toMatch(/censo/i);
+  });
+
+  it("(i2) o total exibido é o do payload — 400, não 513 cravado no JSX", async () => {
+    // 🔴 A trava contra o conserto errado. O defeito corrigido em 2026-09-19
+    // era o total derivado da soma das UFs presentes; o conserto **não** é
+    // escrever 513 nesta tela — é o produtor do dado publicar o fato fixo
+    // (`api/model/cargos.py`). A fixture usa 400 de propósito.
+    readDeputadoProjectionMock.mockResolvedValue(nacional());
+    const doc = await render(DeputadoFederalPage());
+
+    expect(doc.querySelector("[data-testid='dep-cadeiras-label']")?.textContent).toContain(
+      "400 cadeiras",
+    );
+    expect(doc.body.textContent).not.toContain("513");
   });
 
   it("(j) as cadeiras que faltam são nomeadas — senão o leitor conclui que sumiram", async () => {

@@ -35,6 +35,7 @@ from api.model.deputado import (
 )
 from api.model.deputado_payload import (
     UfProporcional,
+    conferir_total_de_cadeiras,
     construir_payload_deputado,
 )
 
@@ -487,7 +488,10 @@ def test_bancada_soma_as_ufs_em_vez_de_sobrescrever() -> None:
     assert por_cod["20"]["cadeiras"] == 2
     assert por_cod["10"]["votos_validos"] == 4000
     assert payload["bancada"]["cadeiras_atribuidas"] == 4
-    assert payload["bancada"]["total_cadeiras"] == 4
+    # `total_cadeiras` é 513 (fato fixo) e não 4 (a soma das duas UFs) desde
+    # 2026-09-19. O que este teste mede — a bancada somada em vez de
+    # sobrescrita — vive em `cadeiras_atribuidas`, acima.
+    assert payload["bancada"]["total_cadeiras"] == 513
 
 
 def test_bancada_ordena_por_cadeiras_e_desempata_por_sigla() -> None:
@@ -537,7 +541,14 @@ def test_uf_sem_nv_publicado_nao_inventa_quociente() -> None:
     assert detalhes["AC"]["lugares_a_preencher"] is None
     assert detalhes["AC"]["quociente_eleitoral"] is None
     assert detalhes["AC"]["agremiacoes"][0]["cadeiras"] == 0
-    assert payload["bancada"]["total_cadeiras"] == 0, "somou vaga que o TSE não publicou"
+    # A asserção original aqui era `total_cadeiras == 0` ("somou vaga que o TSE
+    # não publicou"). Ela media a coisa certa pelo lugar errado: o total
+    # nacional é fato fixo desde 2026-09-19 e não reage a `nv` ausente. O que
+    # não pode aparecer é **cadeira** vinda de uma UF sem denominador.
+    assert payload["bancada"]["total_cadeiras"] == 513
+    assert payload["bancada"]["cadeiras_atribuidas"] == 0, (
+        "distribuiu cadeira numa UF em que o TSE não publicou `carg[].nv`"
+    )
     assert payload["bancada"]["ufs_calculadas"] == 0
     assert payload["por_uf"][0]["lider"] is None
 
@@ -1032,7 +1043,9 @@ def test_ciclo_do_cargo_6_publica_bancada_e_detalhe_por_uf(ciclo_deputado) -> No
     # api/model/project.py: o cargo 6 passou a ser ingerido em 6 fatias
     # disparadas a cada 5 min, e a volta completa leva 30 min.
     assert payload["atualizacao_min"] == 30
-    assert payload["bancada"]["total_cadeiras"] == 12
+    # 513 (fato fixo), não 12 (a soma de SP+RJ): com duas UFs no ar, a soma
+    # diria "12 cadeiras em disputa" na tela. Ver `cargos.TOTAL_CADEIRAS`.
+    assert payload["bancada"]["total_cadeiras"] == 513
     assert payload["bancada"]["cadeiras_atribuidas"] == 12
     assert sorted(detalhes) == ["RJ", "SP"]
     assert detalhes["SP"]["uf"] == "SP"
@@ -1170,8 +1183,11 @@ def test_uf_sem_voto_ainda_fica_aguardando_sem_quociente_zero(ciclo_deputado) ->
     )
     assert payload["bancada"]["ufs_calculadas"] == 1
     assert payload["bancada"]["ufs_aguardando"] == 26
-    assert payload["bancada"]["total_cadeiras"] == 18, (
-        "o total de cadeiras soma o `nv` das duas UFs, calculadas ou não (RF-124)"
+    assert payload["bancada"]["total_cadeiras"] == 513, (
+        "o total é o tamanho da Câmara, não a soma do `nv` das UFs presentes"
+    )
+    assert linha_rj["lugares_a_preencher"] == 8, (
+        "o `nv` POR UF continua vindo do TSE — é ele que RF-124 rege"
     )
 
 
@@ -1589,3 +1605,204 @@ def test_ciclo_do_cargo_6_com_envelope_podado_publica_null(ciclo_deputado) -> No
     assert payload["pares_atrasados"] is None
     assert detalhes["SP"]["dado_ts"] is None
     assert isinstance(payload["ts"], str), "a hora do cálculo continua publicada"
+
+
+# ---------------------------------------------------------------------------
+# RF-124 — o total nacional é fato fixo; a soma das UFs vira conferência
+# ---------------------------------------------------------------------------
+#
+# O defeito que esta seção tranca (corrigido em 2026-09-19): `total_cadeiras`
+# era a soma dos `lugares_a_preencher` das UFs **presentes** no ciclo, e com
+# três estados pequenos apurando a tela nacional escrevia "26 cadeiras em
+# disputa". O número também é o denominador do hemiciclo (ADR-0049), que abaixo
+# de 24 cadeiras redesenha o plenário com menos arcos — o erro tinha o maior
+# destaque visual do produto.
+
+
+#: Bancada de cada UF na Câmara segundo a distribuição vigente em 2026 (LC
+#: 78/1993): 27 números que somam **513**. É dado de teste, não tabela de
+#: produção — o `carg[].nv` de cada UF continua vindo do TSE (RF-124). Está
+#: aqui para que a conferência possa ser exercitada nos dois lados: uma soma
+#: que fecha e uma que não fecha.
+BANCADAS_513: dict[str, int] = {
+    "SP": 70, "MG": 53, "RJ": 46, "BA": 39, "RS": 31, "PR": 30, "PE": 25,
+    "CE": 22, "MA": 18, "GO": 17, "PA": 17, "SC": 16, "PB": 12, "ES": 10,
+    "PI": 10, "AL": 9, "AC": 8, "AM": 8, "AP": 8, "DF": 8, "MS": 8, "MT": 8,
+    "RN": 8, "RO": 8, "RR": 8, "SE": 8, "TO": 8,
+}
+
+
+def _ufs_das_27(bancadas: dict[str, int]) -> list[UfProporcional]:
+    return [
+        _uf(sigla, _envelope_simples(3000, 1000, vagas=nv))
+        for sigla, nv in sorted(bancadas.items())
+    ]
+
+
+def test_total_de_cadeiras_e_o_tamanho_da_camara_nao_a_soma_dos_presentes() -> None:
+    """Três estados pequenos no ar ⇒ 513, nunca 24.
+
+    É a frase da tela: `{bancada.total_cadeiras} cadeiras em disputa`
+    (`app/(dep)/deputado-federal/page.tsx`). Somando, ela diria "24".
+    """
+    ufs = [
+        _uf("AC", _envelope_simples(3000, 1000, vagas=8)),
+        _uf("AP", _envelope_simples(3000, 1000, vagas=8)),
+        _uf("RR", _envelope_simples(3000, 1000, vagas=8)),
+    ]
+    payload, _ = _payload(ufs)
+    bancada = payload["bancada"]
+
+    soma_dos_presentes = sum(
+        linha["lugares_a_preencher"] for linha in payload["por_uf"]
+    )
+    assert soma_dos_presentes == 24, "sanidade da fixture"
+    assert bancada["total_cadeiras"] == 513
+    assert bancada["ufs_aguardando"] == 24
+
+
+def test_a_soma_das_27_que_fecha_em_513_nao_produz_divergencia() -> None:
+    assert (
+        conferir_total_de_cadeiras(
+            ufs=_ufs_das_27(BANCADAS_513), cargo=6, ufs_conhecidas=27
+        )
+        is None
+    )
+
+
+def test_a_soma_das_27_fora_de_513_produz_divergencia() -> None:
+    """RF-124, critério de aceitação: o `nv` de alguma UF diverge do TSE."""
+    bancadas = {**BANCADAS_513, "SP": 71}  # 514
+    divergencia = conferir_total_de_cadeiras(
+        ufs=_ufs_das_27(bancadas), cargo=6, ufs_conhecidas=27
+    )
+
+    assert divergencia is not None
+    assert divergencia.o_que == "total_cadeiras"
+    assert divergencia.nosso == 513
+    assert divergencia.tse == 514
+
+
+def test_menos_de_27_ufs_nunca_produz_divergencia() -> None:
+    """🔴 A metade que faz o alarme valer alguma coisa.
+
+    Às 18h a soma é pequena e isso é o estado NORMAL. Um alarme que toca 26
+    vezes no começo da noite é um alarme que ninguém olha às 21h.
+    """
+    for n in (1, 3, 26):
+        parciais = dict(sorted(BANCADAS_513.items())[:n])
+        assert sum(parciais.values()) < 513, "sanidade: a soma parcial é menor"
+        assert (
+            conferir_total_de_cadeiras(
+                ufs=_ufs_das_27(parciais), cargo=6, ufs_conhecidas=27
+            )
+            is None
+        ), f"alarmou com {n} UFs"
+
+
+def test_uf_sem_nv_publicado_nao_conta_como_uf_presente_na_conferencia() -> None:
+    """26 UFs com `nv` + 1 sem ⇒ as 27 linhas existem, a conferência não.
+
+    Sem isto, a UF que ainda não publicou `carg[].nv` completaria a contagem de
+    27 e faria a conferência alarmar por falta de dado, não por dado errado.
+    """
+    com_nv = _ufs_das_27(dict(sorted(BANCADAS_513.items())[:26]))
+    sem_nv = UfProporcional(
+        uf="TO",
+        pct_apurado=0.0,
+        entrada=extrair_entrada_proporcional(
+            _envelope([_agr_partido("10", "PA", 0, [_cand(1, "ANA", 10)])], nv=None)
+        ),
+        resultado=None,
+    )
+
+    assert len(com_nv) + 1 == 27
+    assert (
+        conferir_total_de_cadeiras(
+            ufs=[*com_nv, sem_nv], cargo=6, ufs_conhecidas=27
+        )
+        is None
+    )
+
+
+def test_ciclo_com_as_27_fora_de_513_alarma_e_nao_aborta(
+    ciclo_deputado, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Constituição § 7 — o alarme torna ruidoso, não fatal.
+
+    O denominador suspeito é de UMA UF; apagar a bancada inteira por causa
+    dele seria pior que publicá-la com ruído no log.
+    """
+    bancadas = {**BANCADAS_513, "SP": 71}  # 514
+    snapshots = [
+        _snapshot(sigla, _envelope_simples(3000, 1000, vagas=nv))
+        for sigla, nv in sorted(bancadas.items())
+    ]
+
+    with caplog.at_level("INFO", logger="api.model.project"):
+        status, resposta, publicados = ciclo_deputado(snapshots, {})
+
+    assert status == 200, "o ciclo abortou por causa do alarme"
+    assert resposta["computed"] is True
+    payload, _detalhes = publicados[0]
+    assert payload["bancada"]["total_cadeiras"] == 513
+
+    erros = [
+        m
+        for m in (r.message for r in caplog.records)
+        if '"level": "error"' in m and "fecha com o tamanho da casa" in m
+    ]
+    assert len(erros) == 1, [r.message for r in caplog.records]
+    assert '"tse": 514' in erros[0]
+    assert '"nosso": 513' in erros[0]
+
+    # E o alarme foi ACIONADO, não só logado: sem `SLACK_WEBHOOK_URL` o
+    # `_alert_slack` registra "slack alert skipped", que é a prova de que
+    # passou por ele. Sem esta asserção, remover a chamada do alarme deixaria
+    # o teste verde com o `_log` sozinho.
+    assert [
+        m
+        for m in (r.message for r in caplog.records)
+        if "slack alert skipped" in m and "RF-124" in m
+    ], [r.message for r in caplog.records]
+
+
+def test_ciclo_com_as_27_fechando_em_513_nao_alarma(
+    ciclo_deputado, caplog: pytest.LogCaptureFixture
+) -> None:
+    snapshots = [
+        _snapshot(sigla, _envelope_simples(3000, 1000, vagas=nv))
+        for sigla, nv in sorted(BANCADAS_513.items())
+    ]
+
+    with caplog.at_level("INFO", logger="api.model.project"):
+        status, _resposta, publicados = ciclo_deputado(snapshots, {})
+
+    assert status == 200
+    assert publicados[0][0]["bancada"]["total_cadeiras"] == 513
+    assert not [
+        m
+        for m in (r.message for r in caplog.records)
+        if "fecha com o tamanho da casa" in m
+    ]
+
+
+def test_ciclo_com_poucas_ufs_nao_alarma(
+    ciclo_deputado, caplog: pytest.LogCaptureFixture
+) -> None:
+    """O começo da noite: 2 UFs, soma 12, e nenhum alarme."""
+    with caplog.at_level("INFO", logger="api.model.project"):
+        status, _resposta, publicados = ciclo_deputado(
+            [
+                _snapshot("SP", _envelope_dez_vagas()),
+                _snapshot("RJ", _envelope_simples(3000, 1000)),
+            ]
+        )
+
+    assert status == 200
+    assert publicados[0][0]["bancada"]["total_cadeiras"] == 513
+    assert not [
+        m
+        for m in (r.message for r in caplog.records)
+        if "fecha com o tamanho da casa" in m
+    ]

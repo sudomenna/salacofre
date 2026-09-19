@@ -116,16 +116,40 @@ _POR_CD: dict[int, CargoInfo] = {c["cd"]: c for c in CARGOS}
 # ---------------------------------------------------------------------------
 
 #: Cadeiras da casa legislativa inteira, por cargo. O Senado tem 81 (3 por UF
-#: × 27); em 2026 renova 2/3 delas. Presidente e Governador não têm "casa" —
-#: ficam fora do dicionário.
-TOTAL_CADEIRAS: dict[int, int] = {5: 81}
+#: × 27); em 2026 renova 2/3 delas. A Câmara tem **513**, e em 2026 as 513
+#: estão em disputa (ver `VAGAS_EM_DISPUTA_2026`). Presidente e Governador não
+#: têm "casa" — ficam fora do dicionário.
+#:
+#: **513, e não 531 — desfecho conhecido desde julho/2025.** O PLP 177/2023
+#: elevaria a Câmara a 531 pela redistribuição do Censo 2022; foi aprovado pela
+#: Câmara e pelo Senado em junho/2025, **vetado integralmente pela Presidência
+#: da República em julho/2025**, e o **STF decidiu manter a distribuição atual
+#: de 513** para este pleito, que é regido pela Resolução TSE 23.751/2026
+#: (`docs/reference/regulatory.md`). Até 2026-09-19 vários documentos deste
+#: repositório ainda descreviam o desfecho como "não confirmado" e derivavam
+#: o total do runtime por causa disso; a premissa morreu, a decisão de ler o
+#: número **por UF** do TSE não (RF-124 — ver `VAGAS_EM_DISPUTA_2026`).
+TOTAL_CADEIRAS: dict[int, int] = {5: 81, 6: 513}
 
 #: Cadeiras que a eleição de 2026 renova, por cargo. **54** para o Senado —
-#: 2 por UF × 27. É o denominador que a tela nacional de Senador exibe
-#: (RF-107), e ele não pode ser derivado das UFs que já apuraram: às 18h,
-#: com 4 estados apurados, a derivação diria "8 vagas em disputa", o que é
-#: falso. O número é fixo desde antes da urna abrir.
-VAGAS_EM_DISPUTA_2026: dict[int, int] = {5: 54}
+#: 2 por UF × 27 — e **513** para a Câmara, que renova **integralmente**. Essa
+#: é a diferença entre as duas casas, e é por isso que o cargo 6 repete aqui o
+#: número de `TOTAL_CADEIRAS` e o cargo 5 não: o Senado renova 2/3 de 81, a
+#: Câmara renova 513 de 513.
+#:
+#: É o denominador que a tela nacional de Senador exibe (RF-107), e ele não
+#: pode ser derivado das UFs que já apuraram: às 18h, com 4 estados apurados, a
+#: derivação diria "8 vagas em disputa", o que é falso. O número é fixo desde
+#: antes da urna abrir.
+#:
+#: O mesmo argumento vale, palavra por palavra, para a Câmara — e lá ele não é
+#: hipotético: até 2026-09-19 `deputado_payload._bancada_nacional` somava
+#: `lugares_a_preencher` só das UFs presentes, e com três estados pequenos
+#: apurados a tela escrevia "26 cadeiras em disputa". RF-124 continua regendo o
+#: número **por UF**, que segue saindo do dado publicado pelo TSE; o total
+#: nacional é fato fixo, **conferido** contra a soma quando as 27 UFs tiverem
+#: publicado o seu `carg[].nv` (`deputado_payload.conferir_total_de_cadeiras`).
+VAGAS_EM_DISPUTA_2026: dict[int, int] = {5: 54, 6: 513}
 
 
 # ---------------------------------------------------------------------------

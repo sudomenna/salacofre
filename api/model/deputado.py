@@ -32,8 +32,13 @@ Eles valem ouro por dois motivos:
 
 1. **`nv` é a fonte de `lugares_a_preencher`** (RF-124): o número de cadeiras por
    UF sai do dado, nunca de tabela embutida. A Res.-TSE 23.748/2026 art. 7º § 1º
-   remete à LC 78/1993, e a redistribuição pelo Censo 2022 (PLP 177/2023) tem
-   desfecho não confirmado — errar esse denominador corrompe a projeção inteira.
+   remete à LC 78/1993 — errar esse denominador corrompe a projeção inteira.
+   ⚠️ **2026-09-19**: a frase "a redistribuição pelo Censo 2022 (PLP 177/2023)
+   tem desfecho não confirmado" saiu daqui — o PLP foi vetado em julho/2025 e o
+   STF manteve as 513. Isto não afrouxa nada nesta alínea: o `nv` **por UF**
+   continua vindo do TSE. O que a premissa falsa autorizava, e foi corrigido,
+   era derivar o **total nacional** da soma das UFs presentes
+   (`deputado_payload.py`).
 2. **`qe` e `vag` são um golden AO VIVO.** Depois da totalização final, comparar
    nossa conta com a do TSE responde, com dado real, se o algoritmo do ADR-0027
    está certo — sem depender do dataset histórico de 2022. `conferir_contra_tse`

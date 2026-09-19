@@ -40,9 +40,17 @@
  * que era escolha nossa. Aqui:
  *
  *   - o total de cadeiras sai de `bancada.total_cadeiras`, **nunca** do literal
- *     `513` — o número é a soma dos `lugares_a_preencher` que o TSE publicou, e
- *     a redistribuição pelo Censo 2022 (PLP 177/2023) não está confirmada
- *     (RF-124, open question 2 da spec);
+ *     `513` escrito neste arquivo — o número chega pelo payload;
+ *     ⚠️ **corrigido em 2026-09-19**: até esta data a justificativa era "o
+ *     número é a soma dos `lugares_a_preencher` que o TSE publicou, e a
+ *     redistribuição pelo Censo 2022 (PLP 177/2023) não está confirmada". As
+ *     duas metades morreram. A soma **não podia** ser o total: ela cresce
+ *     durante a noite, e com três estados pequenos apurando esta tela escrevia
+ *     "26 cadeiras em disputa". E o PLP 177/2023 foi vetado integralmente em
+ *     julho/2025, com o STF mantendo as 513 para este pleito. Hoje
+ *     `total_cadeiras` é fato fixo no produtor do dado
+ *     (`api/model/cargos.py`), conferido contra a soma quando as 27 UFs
+ *     publicarem `carg[].nv` (RF-124);
  *   - a cadência sai de `atualizacao_min` (RF-128);
  *   - nome, slug, proporcionalidade e granularidade do cargo saem de
  *     `lib/config/cargos.ts`.
@@ -370,12 +378,17 @@ export default async function DeputadoFederalPage() {
             data-testid="dep-cadeiras-label"
             style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
           >
-            {/* RF-124 + design 017 § D9.1. `total_cadeiras` é a soma dos
-                `lugares_a_preencher` que o TSE JÁ publicou — e o D9.1 retirou
-                do contrato a afirmação de que `carg[].nv` vem desde o primeiro
-                ciclo (os únicos registros com o campo no banco são do nosso
-                próprio mock). Se nenhuma UF o tiver publicado, a soma é 0, e
-                "0 cadeiras em disputa" seria tão falso quanto cravar 513. */}
+            {/* `total_cadeiras` é o tamanho da Câmara, fato fixo no produtor
+                do dado (`api/model/cargos.py`) desde 2026-09-19 — antes disso
+                era a soma dos `lugares_a_preencher` já publicados, que com três
+                estados pequenos no ar fazia esta frase dizer "26 cadeiras em
+                disputa".
+
+                🔴 **O ramo de 0 continua, e não é código morto defensivo**: o
+                payload pode vir de um produtor que este arquivo não controla
+                (fixture, simulação, uma versão anterior ainda no Global
+                Config), e "0 cadeiras em disputa" seria tão falso quanto cravar
+                513 no JSX. Um total ausente vira frase, nunca número. */}
             {bancada.total_cadeiras > 0 ? (
               <>
                 <strong>{bancada.total_cadeiras} cadeiras</strong> em disputa, em turno único e por
@@ -631,12 +644,13 @@ export default async function DeputadoFederalPage() {
           >
             Esta contagem é a <strong>soma das {TOTAL_UFS} corridas estaduais</strong> — o TSE não
             publica um arquivo nacional para este cargo, então não existe um número oficial a
-            reproduzir: o que existe são {TOTAL_UFS} apurações estaduais, e a soma é nossa. O total
-            de {bancada.total_cadeiras} cadeiras também vem do dado publicado, estado a estado, e
-            não de uma tabela guardada aqui — a redistribuição das cadeiras pelo Censo de 2022 ainda
-            não tem desfecho. Cadeira contada é cadeira com candidato eleito: quando a conta de um
-            partido dá direito a uma vaga que nenhum candidato dele pode ocupar, a vaga vai para as
-            sobras e não aparece aqui.
+            reproduzir: o que existe são {TOTAL_UFS} apurações estaduais, e a soma é nossa. Já o
+            total de {bancada.total_cadeiras} cadeiras não é soma nenhuma: é o tamanho da Câmara,
+            fixo desde antes da urna abrir, e todas elas são renovadas nesta eleição. Quantas cada
+            estado elege continua vindo do dado que o TSE publica, e nós conferimos uma coisa contra
+            a outra. Cadeira contada é cadeira com candidato eleito: quando a conta de um partido dá
+            direito a uma vaga que nenhum candidato dele pode ocupar, a vaga vai para as sobras e
+            não aparece aqui.
           </p>
         </div>
       </Panel>
@@ -807,8 +821,7 @@ function AguardandoNacional() {
         >
           Aguardando o primeiro boletim. A bancada — por partido e por federação — aparece aqui
           assim que o TSE divulgar a apuração de algum estado, junto com o número de cadeiras em
-          disputa, que também vem do dado publicado. Turno único, sistema proporcional. Não oficial.
-          Fonte: TSE.
+          disputa. Turno único, sistema proporcional. Não oficial. Fonte: TSE.
         </p>
       </Panel>
 
