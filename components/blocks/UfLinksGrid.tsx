@@ -115,7 +115,18 @@ export function UfLinksGrid({ cargo, atual, className }: UfLinksGridProps) {
                 {/* O nome por extenso é o rótulo; a sigla é a etiqueta que quem
                     já sabe procura. Os dois em texto — um mapa colorido sem
                     lista textual paralela é o defeito que a constituição § 4
-                    proíbe, e aqui não há nem mapa. */}
+                    proíbe, e aqui não há nem mapa.
+
+                    ⚠️ 2026-09-18 — `<UfBandeirasGrid>` nasceu com uma bandeira
+                    ao lado destes mesmos dois rótulos, e isso **não** contradiz
+                    o parágrafo acima. A bandeira entra lá com `aria-hidden` e
+                    `focusable="false"`: ela é reconhecimento, não informação, e
+                    o nome por extenso e a sigla continuam os dois em texto,
+                    exatamente como aqui. A exigência de RF-162/163 é que o
+                    rótulo seja texto — não que não possa haver ícone ao lado.
+                    Este componente segue sem bandeira porque a superfície dele
+                    é outra: a fase SEM payload, onde a regra da spec 019 é
+                    dizer o mínimo. */}
                 <span className="min-w-0 truncate">{uf.nome}</span>
                 <span className="flex-none" style={{ font: "var(--type-figure-sm)" }}>
                   {uf.sigla}

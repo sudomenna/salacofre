@@ -73,7 +73,30 @@ const ARTIFACT_PATH = path.join(process.cwd(), "test-results", "perf-budget.json
 // `tests/unit/components/serie-apuracao-chart.test.tsx`, bloco "a promessa de
 // 0 B": a travessia dos imports locais do gráfico, provando que nenhum módulo
 // da árvore declara `"use client"`. Os dois juntos fecham (b); nenhum sozinho.
-const ROUTES = ["/", "/uf/SP", "/uf/SP/governador", "/uf/SP/senador"] as const;
+// `/deputado-federal` entrou em 2026-09-18 junto com o `<CamaraHemiciclo>`.
+//
+// 🔴 **E entrou porque nenhum dos três orçamentos acima o enxergava.** Os três
+// somam `request.resourceType() === "script"`; o hemiciclo é zero JavaScript —
+// ~513 `<circle>` renderizados no servidor. Ele poderia dobrar de tamanho com
+// os três gates verdes. Daí o bloco "peso do DOCUMENTO" no fim deste arquivo.
+const ROUTES = ["/", "/uf/SP", "/uf/SP/governador", "/uf/SP/senador", "/deputado-federal"] as const;
+
+/**
+ * Teto do corpo do documento HTML, em bytes.
+ *
+ * ⚠️ **PROVISÓRIO — calibrar na primeira execução real deste spec.** O número
+ * abaixo NÃO é uma medição de rede: ele foi derivado do markup de SSR medido em
+ * 2026-09-18 com `renderToStaticMarkup` (`<main>` de `/deputado-federal` =
+ * 91.124 B, dos quais 28.333 B são o hemiciclo com 513 cadeiras), dobrado para
+ * cobrir o *payload* RSC que o Next embute no mesmo documento, mais folga.
+ *
+ * Não foi possível medir de verdade nesta rodada: o gate de e2e não roda contra
+ * build local (o BotID derruba a navegação). O caso abaixo **imprime o número
+ * medido** na anotação do Playwright — na primeira execução em ambiente que
+ * funcione, leia a anotação e troque esta constante pelo valor real + ~25%.
+ * Enquanto isso ele pega a regressão grosseira, não a fina.
+ */
+const BUDGET_DOCUMENT_BYTES = 300 * KIB;
 
 interface ScriptSample {
   url: string;
@@ -259,6 +282,31 @@ test.describe("perf budget (RNF-007a/b/c)", () => {
           `RNF-007b chunk do MapLibre (${route}) deve ficar abaixo de ${BUDGET_RNF_007B_BYTES / KIB} KiB`,
         )
         .toBeLessThan(BUDGET_RNF_007B_BYTES);
+    });
+  }
+
+  // Zero JS não é zero custo. Ver a nota em `BUDGET_DOCUMENT_BYTES`.
+  for (const route of ROUTES) {
+    test(`peso do DOCUMENTO HTML — ${route}`, async ({ page }) => {
+      const response = await page.goto(route, { waitUntil: "load" });
+      expect(response, `sem resposta para ${route}`).not.toBeNull();
+
+      const corpo = await (response as NonNullable<typeof response>).body();
+      const bytes = corpo.length;
+
+      test.info().annotations.push({
+        type: "document-size",
+        description: `${route}: documento=${(bytes / KIB).toFixed(1)}KiB (${bytes} B)`,
+      });
+
+      expect
+        .soft(
+          bytes,
+          `Documento de ${route} = ${bytes} B. Este é o único gate que enxerga ` +
+            "conteúdo renderizado no servidor — hemiciclo, grade de bandeiras, sprites " +
+            "SVG embutidos. Se estourou, o peso veio de markup, não de script.",
+        )
+        .toBeLessThan(BUDGET_DOCUMENT_BYTES);
     });
   }
 });

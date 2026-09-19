@@ -539,9 +539,26 @@ describe("/deputado-federal (T-11)", () => {
       (el) => el.getAttribute("style") ?? "",
     );
 
-    expect(cores.join(" ")).toContain("var(--party-pt)");
-    expect(cores.join(" ")).toContain("var(--party-pl)");
-    expect(cores.join(" ")).not.toContain("var(--party-outros)");
+    // ⚠️ 2026-09-18 — o PONTO passou a usar a variante `-text` (RNF-035: ele é
+    // marcador de identidade, e as cores-base reprovam 3:1 em tema claro). O
+    // que este teste mede continua sendo a DERIVAÇÃO — de onde sai a sigla —,
+    // não qual token dela: `-pt-text` e `-pl-text` provam `sigla_lider` do
+    // mesmo jeito que `-pt` e `-pl` provavam.
+    expect(cores.join(" ")).toContain("var(--party-pt-text)");
+    expect(cores.join(" ")).toContain("var(--party-pl-text)");
+    expect(cores.join(" ")).not.toContain("var(--party-outros");
+
+    // E a distinção dos dois remédios do RNF-035 fica travada aqui: a BARRA é
+    // preenchimento com extensão e continua na cor-base (o remédio dela é o
+    // contorno, `DATA_FILL_STROKE`). Uniformizar os dois consumidores — para
+    // qualquer um dos lados — derruba este teste.
+    const segmentos = [...doc.querySelectorAll("[data-testid='vote-bar-segment']")].map(
+      (el) => el.getAttribute("style") ?? "",
+    );
+    expect(segmentos.join(" ")).toContain("var(--party-pt)");
+    expect(cores.join(" "), "o ponto voltou para a cor-base").not.toMatch(
+      /background:var\(--party-pt\)/,
+    );
   });
 
   it("(m3) trocar `sigla_lider` troca a cor — e a barra segue o mesmo campo", async () => {
@@ -560,8 +577,12 @@ describe("/deputado-federal (T-11)", () => {
     const doc = await render(DeputadoFederalPage());
     const markup = doc.documentElement.innerHTML;
 
+    expect(markup).toContain("var(--party-psol-text)");
     expect(markup).toContain("var(--party-psol)");
+    // Nem a cor-base do PT (na barra) nem a variante dele (no ponto) sobrevivem
+    // à troca de líder: as duas superfícies leem o MESMO campo.
     expect(markup).not.toContain("var(--party-pt)");
+    expect(markup).not.toContain("var(--party-pt-text)");
     // A barra e o ponto da lista leem o MESMO campo: se divergirem, a legenda
     // deixa de explicar a barra.
     const segmentos = [...doc.querySelectorAll("[data-testid='vote-bar-segment']")].map(
@@ -595,7 +616,10 @@ describe("/deputado-federal (T-11)", () => {
     // vazio ou `undefined` no atributo de estilo.
     expect(cores).toHaveLength(2);
     for (const cor of cores) {
-      expect(cor).toContain("var(--party-outros)");
+      // `-outros-text` — o mesmo fallback, na variante que o ponto usa desde
+      // 2026-09-18. O que o teste protege é a AUSÊNCIA de cor vazia, não o
+      // nome do token.
+      expect(cor).toContain("var(--party-outros-text)");
       expect(cor).not.toContain("undefined");
     }
   });

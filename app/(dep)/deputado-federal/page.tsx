@@ -84,7 +84,13 @@ import { FasePreEleicaoBanner } from "@/components/atoms/banners/FasePreEleicaoB
 import { VoteBar, type VoteBarSegment } from "@/components/atoms/bars/VoteBar";
 import { Figure } from "@/components/atoms/data/Figure";
 import { Panel } from "@/components/atoms/surfaces/Panel";
+import { CamaraHemiciclo } from "@/components/blocks/CamaraHemiciclo";
 import { DeputadoMetodologia } from "@/components/blocks/DeputadoMetodologia";
+import {
+  SEM_DADO,
+  UfBandeirasGrid,
+  type UfResumoCorrida,
+} from "@/components/blocks/UfBandeirasGrid";
 import { UfLinksGrid } from "@/components/blocks/UfLinksGrid";
 import { Footer } from "@/components/layout/Footer";
 import { SeloFasePreStyle } from "@/components/layout/SeloFasePreStyle";
@@ -93,8 +99,9 @@ import { avaliarFrescorDado, fraseFrescorDado } from "@/lib/config/dado-freshnes
 import { resultadoEleitoral, simulacaoDeputadoNacional } from "@/lib/dev/simulacao";
 import { readDeputadoProjection } from "@/lib/edge-config/reader";
 import type { EdgeAgremiacaoBancada, EdgePayloadDeputado } from "@/lib/edge-config/types";
+import { ordenarBancada } from "@/lib/utils/bancada";
 import { formatPercent, formatVotes } from "@/lib/utils/format";
-import { colorForParty } from "@/lib/utils/party-color";
+import { colorForParty, textForParty } from "@/lib/utils/party-color";
 import depFixture from "@/tests/fixtures/edge-config/dep-current.json" with { type: "json" };
 
 /** Código TSE deste cargo. Tudo o que descreve o cargo sai da tabela canônica. */
@@ -130,18 +137,47 @@ export const metadata: Metadata = {
 // Derivações puras
 // ---------------------------------------------------------------------------
 
-/**
- * Ordem de exibição da bancada, com desempate explícito (constituição § 6):
- * cadeiras desc → sigla asc. É a mesma regra que o produtor do payload aplica
- * (design 017 § D5), reaplicada aqui de propósito — duas agremiações empatadas
- * em cadeiras trocariam de lugar entre ciclos se a ordem dependesse de uma
- * estabilidade que ninguém garantiu.
+/*
+ * `ordenarBancada` nasceu aqui e vive em `lib/utils/bancada.ts` desde
+ * 2026-09-18 — a regra não mudou uma vírgula. Ela subiu porque o
+ * `<CamaraHemiciclo>` precisa da MESMA ordem: com duas implementações, a quarta
+ * cunha do plenário e a quarta linha desta lista passariam a ser agremiações
+ * diferentes no primeiro empate de cadeiras, cada uma internamente consistente,
+ * e ninguém notaria até a noite da apuração.
  */
-function ordenarBancada(rows: readonly EdgeAgremiacaoBancada[]): EdgeAgremiacaoBancada[] {
-  return [...rows].sort((a, b) => {
-    if (b.cadeiras !== a.cadeiras) return b.cadeiras - a.cadeiras;
-    return a.sigla.localeCompare(b.sigla, "pt-BR");
-  });
+
+/**
+ * Sigla da UF → o resumo em texto da corrida dela, para a grade de bandeiras.
+ *
+ * É **exatamente** a prosa que a lista anterior de "Estado a estado" imprimia,
+ * movida de dentro do JSX para cá quando a lista virou grade. Nada foi
+ * acrescentado e nada foi cortado: a grade acrescenta a bandeira, não troca
+ * dado por ícone (ADR-0017).
+ *
+ * UF ausente do payload não entra no mapa, e a grade cai em `SEM_DADO`:
+ * "aguardando apuração" / "vagas não publicadas". RF-124 — `null` em
+ * `lugares_a_preencher` é "o TSE ainda não publicou", nunca zero, e um
+ * "0 de 0" diria que o estado não elege ninguém.
+ */
+function resumosPorUf(payload: EdgePayloadDeputado): Record<string, UfResumoCorrida> {
+  const saida: Record<string, UfResumoCorrida> = {};
+  for (const uf of payload.por_uf) {
+    saida[uf.sigla] = {
+      detalhe:
+        (uf.lider ? `maior bancada: ${uf.lider.sigla} (${uf.lider.cadeiras})` : SEM_DADO.detalhe) +
+        (uf.empates_indeterminados > 0
+          ? ` · ${uf.empates_indeterminados} em empate sem desempate previsto`
+          : "") +
+        (uf.vagas_nao_preenchidas > 0
+          ? ` · ${uf.vagas_nao_preenchidas} vaga sem candidato elegível`
+          : ""),
+      vagas:
+        uf.lugares_a_preencher == null
+          ? SEM_DADO.vagas
+          : `${uf.cadeiras_definidas} de ${uf.lugares_a_preencher}`,
+    };
+  }
+  return saida;
 }
 
 /**
@@ -174,6 +210,34 @@ function listarComponentes(componentes: readonly string[]): string {
  */
 function corDaAgremiacao(agr: EdgeAgremiacaoBancada): string {
   return colorForParty(agr.sigla_lider);
+}
+
+/**
+ * Cor da agremiação como **marcador de identidade** — o ponto de 10×10 da
+ * lista, a bolinha de cadeira do hemiciclo. A cor aqui diz *quem*, não
+ * *quanto*.
+ *
+ * 🔴 **Não é a mesma função acima, e a diferença é um piso de contraste.** A
+ * tabela de remédios do RNF-035 (`docs/nfr/accessibility.md`) separa os dois
+ * casos:
+ *
+ *   - **marcador de identidade** (ponto, quadradinho, linha de gráfico) →
+ *     `textForParty`. O elemento não tem extensão a perder; o que ele precisa é
+ *     ser distinguível, e o piso de 3:1 do WCAG SC 1.4.11 vale.
+ *   - **preenchimento com extensão** (segmento do `<VoteBar>`) → a cor-base
+ *     mais `DATA_FILL_STROKE`, que é o que a barra já faz. Trocar a cor ali não
+ *     resolveria o problema real, que é *onde o dado acaba*.
+ *
+ * O ponto de 10×10 desta tela **ficou de fora da correção de 18/09** — um
+ * `grep textForParty` não achava este arquivo. As cores-base reprovam o piso
+ * em tema claro (PSOL 2,08, PSB 2,19, `outros` 2,39, NOVO 2,72), e o PSOL é o
+ * líder da federação PSOL-Rede: nesta tela, especificamente, aquele ponto
+ * aparece em toda apuração. A variante `-text` passa 3:1 nas 4 superfícies, nos
+ * 2 temas, nos 31 partidos, e em 17 deles **é** a cor base — para a maioria,
+ * nenhum pixel muda.
+ */
+function corIdentidadeDaAgremiacao(agr: EdgeAgremiacaoBancada): string {
+  return textForParty(agr.sigla_lider);
 }
 
 /**
@@ -350,6 +414,17 @@ export default async function DeputadoFederalPage() {
             />
           </div>
 
+          {/* O plenário. Server Component, SVG inline, zero JavaScript — ver o
+              cabeçalho de `CamaraHemiciclo.tsx`.
+
+              `descritoPorId` aponta para a LISTA de agremiações do painel
+              abaixo: constituição § 4 exige lista textual paralela a gráfico
+              colorido, a lista já existia, e o que faltava era a ligação. O
+              `id` foi acrescentado lá para este `aria-describedby` ter alvo
+              existente — apontar para o nada é pior que não apontar, porque
+              parece resolvido. */}
+          <CamaraHemiciclo bancada={bancada} descritoPorId="bancada-agremiacoes" />
+
           {/* RF-128 — o instante do payload. A frequência fica no bloco de
               metodologia, que é onde a explicação do método mora; aqui só o
               "de quando é este número".
@@ -401,7 +476,11 @@ export default async function DeputadoFederalPage() {
             showLabels={false}
           />
 
+          {/* O `id` é o alvo do `aria-describedby` do hemiciclo, no painel
+              acima — é esta lista que serve de equivalente textual do gráfico
+              (constituição § 4). Não renomear sem mexer lá. */}
           <ul
+            id="bancada-agremiacoes"
             data-testid="bancada-agremiacoes"
             style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}
           >
@@ -437,14 +516,18 @@ export default async function DeputadoFederalPage() {
                   <span className="min-w-0 flex flex-col" style={{ gap: "var(--space-1)" }}>
                     <span className="inline-flex items-center" style={{ gap: "var(--space-2)" }}>
                       {/* O ponto de cor é redundante com o texto, nunca o
-                          portador único da informação (WCAG 1.4.1). */}
+                          portador único da informação (WCAG 1.4.1) — e usa a
+                          variante `-text`, porque é marcador de IDENTIDADE e
+                          não preenchimento com extensão (RNF-035). Ver
+                          `corIdentidadeDaAgremiacao`. */}
                       <span
                         aria-hidden="true"
+                        data-testid="bancada-ponto"
                         style={{
                           width: 10,
                           height: 10,
                           borderRadius: "50%",
-                          background: corDaAgremiacao(agr),
+                          background: corIdentidadeDaAgremiacao(agr),
                           flex: "none",
                         }}
                       />
@@ -586,66 +669,22 @@ export default async function DeputadoFederalPage() {
         </Panel>
       ) : null}
 
-      {/* Seção 3 — as 27 corridas. É lista, não mapa: este cargo não tem dado
-          municipal (ADR-0026 item 1). */}
+      {/* Seção 3 — as 27 corridas, com bandeira. É lista, não mapa: este cargo
+          não tem dado municipal (ADR-0026 item 1).
+
+          🔴 A grade **acrescenta** a bandeira; ela não substitui informação.
+          Todo texto que a lista anterior carregava — maior bancada, empates sem
+          desempate previsto, vagas sem candidato elegível, o placar de cadeiras
+          — continua aqui, vindo de `resumosPorUf`. Trocar dado que EXISTE por
+          um ícone bonito é o defeito que o ADR-0017 nomeia.
+
+          E os 27 estados aparecem sempre, inclusive os sem boletim: o ramo
+          "Nenhum estado apurado ainda" sumiu junto com a lista parcial, porque
+          um estado ausente da grade se lê como estado que não elege ninguém.
+          Sem dado, o item diz "aguardando apuração" e "vagas não publicadas" —
+          nunca um zero (RF-124). */}
       <Panel kicker="Corridas estaduais" title="Estado a estado" titleId="corridas-heading">
-        {payload.por_uf.length > 0 ? (
-          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>
-            {payload.por_uf.map((uf) => (
-              <li key={uf.sigla} style={{ borderBottom: "1px solid var(--border-hairline)" }}>
-                <a
-                  href={`/uf/${uf.sigla}/${DEPUTADO.slug}`}
-                  data-testid="corrida-uf"
-                  data-uf={uf.sigla}
-                  className="grid items-center"
-                  style={{
-                    gridTemplateColumns: "2.5rem minmax(0, 1fr) auto",
-                    columnGap: "var(--space-3)",
-                    minHeight: "var(--tap-min)",
-                    padding: "var(--space-3) 0",
-                    color: "inherit",
-                    textDecoration: "none",
-                  }}
-                >
-                  <span style={{ font: "var(--type-figure-sm)" }}>{uf.sigla}</span>
-                  <span
-                    className="min-w-0 truncate"
-                    style={{ font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
-                  >
-                    {uf.lider
-                      ? `maior bancada: ${uf.lider.sigla} (${uf.lider.cadeiras})`
-                      : "aguardando apuração"}
-                    {uf.empates_indeterminados > 0
-                      ? ` · ${uf.empates_indeterminados} em empate sem desempate previsto`
-                      : ""}
-                    {uf.vagas_nao_preenchidas > 0
-                      ? ` · ${uf.vagas_nao_preenchidas} vaga sem candidato elegível`
-                      : ""}
-                  </span>
-                  <span
-                    className="text-right"
-                    data-testid="corrida-vagas"
-                    style={{ font: "var(--type-data)", color: "var(--text-muted)" }}
-                  >
-                    {/* RF-124 — as vagas do estado saem do dado publicado.
-                        `null` é "o TSE ainda não publicou", e não zero. */}
-                    {uf.lugares_a_preencher == null
-                      ? "vagas não publicadas"
-                      : `${uf.cadeiras_definidas} de ${uf.lugares_a_preencher}`}
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p
-            className="max-w-prose"
-            style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
-          >
-            Nenhum estado apurado ainda. As {TOTAL_UFS} corridas aparecem aqui conforme o TSE
-            divulga os primeiros boletins.
-          </p>
-        )}
+        <UfBandeirasGrid cargo={CARGO_DEPUTADO} resumos={resumosPorUf(payload)} />
       </Panel>
 
       {/* Seção 4 — constituição § 8 + design 017 § D9. */}

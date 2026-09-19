@@ -38,6 +38,7 @@
     "replay-2022": "tsx scripts/replay-2022.ts",
     "replay-2022:sensitivity": "tsx scripts/replay-sensitivity.ts",
     "gen:party-scale": "tsx scripts/gen-party-scale.ts",
+    "gen:uf-flags": "tsx scripts/gen-uf-flags.ts",
     "verify-fatia-premise": "tsx scripts/verify-fatia-premise.ts",
     "vigia:ciclo": "tsx scripts/vigia-ciclo.ts",
     "alerta:teste": "tsx scripts/alerta-teste.ts"
