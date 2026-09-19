@@ -262,7 +262,7 @@ IF o payload não traz `participacao.outros`, the system SHALL degradar para o f
 
 WHEN qualquer uma das quatro páginas de corrida renderiza, the system SHALL declarar `data-trilha="pres" | "gov"` no `<main>` e SHALL exibir, acima do `<h1>`, um `<TrilhaKicker />` com o rótulo da trilha e a profundidade da navegação (ex.: "PRESIDÊNCIA · Brasil › SP", "GOVERNADOR · SP"), colorido por `--trilha-accent`, conforme [ADR-0019](../../architecture/adrs/0019-identidade-visual-por-trilha.md).
 
-WHILE a página está renderizada, the system SHALL usar `--trilha-accent` **apenas** em chrome de navegação (`<TrilhaKicker />`, `<LiveBadge />`, aba ativa de `<Tabs />`, breadcrumb) e SHALL **nunca** usá-lo para colorir dado de apuração, projeção ou candidato — as cores de candidato continuam vindo exclusivamente de `--color-cand-*` ([ADR-0013](../../architecture/adrs/0013-tokens-multi-candidato-por-rank.md), intocado).
+WHILE a página está renderizada, the system SHALL usar `--trilha-accent` **apenas** em chrome de navegação (`<TrilhaKicker />`, `<LiveBadge />`, aba ativa de `<Tabs />`, breadcrumb) e SHALL **nunca** usá-lo para colorir dado de apuração, projeção ou candidato — as cores de candidato continuam vindo exclusivamente dos tokens de identidade de candidatura — ~~`--color-cand-*` ([ADR-0013](../../architecture/adrs/0013-tokens-multi-candidato-por-rank.md), intocado)~~ ⚠️ **corrigido em 2026-09-19**: o ADR-0013 foi **superado** pelo [ADR-0024](../../architecture/adrs/0024-paleta-editorial-por-partido.md) em 07/09 e a cor vem do **partido** (`--party-*`), resolvida por `candidateColor`/`candidateMarkerColor`. Os `--color-cand-*` sobrevivem apenas como **fallback** de sigla sem token próprio. O que este RF normatiza não muda: `--trilha-accent` segue proibido em dado de apuração.
 
 WHERE a trilha é `gov`, the system SHALL exibir o breadcrumb **sem** nó nacional presidencial (`Governadores › SP`), porque a trilha de governador não tem agregação nacional equivalente — apenas o cargo Presidente possui arquivo de abrangência Brasil no EA20.
 
@@ -291,7 +291,7 @@ Extensão da v1 binária (2 candidatos líderes) para suporte total a 2º turno 
 **Mudanças principais** (conforme [ADR-0017](../../architecture/adrs/0017-transparencia-total-3-camadas.md)):
 
 - **Hero headline**: top-2 líderes + indicador de 2º turno obrigatório (ADR-0014).
-- **Camada 2 (ranking)**: candidatos rank 3–6 em bloco colapsível com tokens de rank (ADR-0013).
+- **Camada 2 (ranking)**: candidatos rank 3–6 em bloco colapsível. ⚠️ **2026-09-19**: dizia "com tokens de rank (ADR-0013)" — o rank segue definindo **quem entra** nesta camada, mas **não** a cor, que vem do partido desde o [ADR-0024](../../architecture/adrs/0024-paleta-editorial-por-partido.md). A confusão entre os dois papéis do `rank` é o que manteve o defeito no ar por 12 dias.
 - **Camada 3 (minor)**: candidatos rank 7+ em lista compacta, visível por padrão; não collapsível.
 - **Métrica P(2º turno)**: componente novo `<TwoRoundIndicator />` exibe probabilidade calculada pelo modelo (ADR-0014, RF-030 extendido).
 - **Badges turno**: `<TurnoBadge />` identifica "1º turno" ou "2º turno" em contextos de seleção (RF-030).

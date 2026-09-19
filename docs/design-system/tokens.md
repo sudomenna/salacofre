@@ -112,10 +112,16 @@ Cores base, contrastes medidos em 2026-09-07:
   --color-border: var(--rule);
 
 
-  /* Cores candidato por rank — LEGADO S05/F2, mantidas por backward compat com specs 003/004
-   * e como fallback se a paleta por partido falhar. Mapping é por rank de apuração, não por
+  /* Cores candidato por rank — LEGADO S05/F2. Mapping é por rank de apuração, não por
    * sigla — o rank muda durante a noite conforme candidatos atingem 1% da apuração.
-   * Não usar em specs novas; usar --party-* em vez disso (constituição § 2 v1.3, ADR-0024). */
+   * Não usar em specs novas; usar --party-* em vez disso (constituição § 2 v1.3, ADR-0024).
+   *
+   * ⚠️ 2026-09-19: a justificativa "backward compat com specs 003/004" CAIU — as duas
+   * specs afirmavam cor por posição, o que contradizia a norma desde 07/09, e foram
+   * corrigidas. O único uso vivo destes tokens hoje é FALLBACK de sigla sem token
+   * próprio, dentro de candidateColor/candidateMarkerColor. Nenhum componente os lê
+   * direto: tests/unit/components/cor-nunca-do-payload.test.ts varre components/ e
+   * reprova. Remoção é limpeza pós-2º turno (ADR-0013 § Status). */
   --color-pt: #d33732;  /* rank 1 — alias de --party-pt-3 */
   --color-pl: #2a52be;  /* rank 2 — alias de --party-pl-3 */
   --color-tossup: #d9d9d9;

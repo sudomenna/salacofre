@@ -18,6 +18,26 @@ princípio invariante. A partir daqui, código de cor por partido está liberado
 Este ADR **supersede o ADR-0013** ("Tokens visuais de candidato por rank de apuração, não por partido"). O frontmatter do ADR-0013 foi atualizado para `status: superseded` / `superseded_by: ADR-0024` na
 mesma data.
 
+> **Nota 2026-09-19 — a decisão vigorava havia 12 dias; a IMPLEMENTAÇÃO fechou hoje.** Este ADR foi aceito em 07/09, mas o produtor (`api/model/project.py`) continuou gravando `cor: "var(--color-cand-{rank})"` no payload, e **dez** superfícies liam esse campo direto — pintando por colocação numa base cuja norma já era pintar por partido. O dono achou pela tela: **CAIADO/PSD laranja na lista e verde na legenda do mapa, ao mesmo tempo**.
+>
+> Passou despercebido porque `--color-cand-1` é vermelho e `--color-cand-2` é azul — **exatamente** o que PT e PL receberiam pela paleta de partido. As duas fontes só discordam a partir do **3º colocado**, e nenhum teste olhava além dos dois primeiros. É o caso geral: *quando duas fontes coincidem nos casos mais comuns, o teste precisa ir buscar o caso em que elas discordam.*
+>
+> **Como a garantia é dada hoje** — a cor é função pura da SIGLA, e o rank só entra quando a sigla não tem token próprio (aí `colorForParty` devolveria `--party-outros` para todos e a tela perderia a distinção entre candidatos):
+>
+> | superfície | função | de onde |
+> |---|---|---|
+> | preenchimento **com extensão** (barra, hexágono, polígono, `<rect>`) | `candidateColor(partido, rank)` | `components/blocks/_candidateColor.ts` |
+> | **marcador** sem extensão (bolinha, quadradinho de legenda, ponto de 8×8) | `candidateMarkerColor(partido, rank)` | idem |
+> | fundo grande **com texto em cima** | `partyChipInk(sigla)` — par medido de fundo **e** tinta | `lib/utils/party-color.ts` |
+>
+> A distinção entre as duas primeiras é a de [`docs/nfr/accessibility.md`](../../nfr/accessibility.md) (§ RNF-035): num preenchimento com extensão o remédio de contraste é o contorno; num ponto de 8×8 **não há extensão a contornar**, e o remédio é a variante `-text`. Usar a errada não é detalhe: em 17 dos 31 partidos as duas coincidem, e é justamente por isso que a troca passaria sem ninguém ver.
+>
+> **A trava é uma varredura de FONTE**, `tests/unit/components/cor-nunca-do-payload.test.ts`: lê `components/` inteiro e reprova qualquer leitura de `.cor` de candidato. Testar render componente a componente não impediria o décimo primeiro — e não é hipótese: **três dos dez foram encontrados pela varredura**, depois de a leitura manual do código ter dado o trabalho por terminado. Entre eles, a faixa que declara o eleito e o que alimenta o coroplético municipal.
+>
+> ⚠️ **O que continua aberto**: o produtor **ainda grava** o campo `cor` por rank, citando o ADR-0013 em `api/model/project.py`. Ninguém mais o lê, e a varredura garante que continue assim — mas o campo segue no payload. Removê-lo mexe no que é publicado e ficou para decisão do dono.
+>
+> ⚠️ **Um acoplamento que quase passou batido**: `NationalWinnerBanner` escolhia a cor do TEXTO com `shouldUseDarkText(rank)` — *"ranks 1 e 2 têm fundos escuros (vermelho/azul)"*. Verdade **só** enquanto o fundo vinha da colocação. Trocar o fundo para a cor do partido e deixar essa função de pé daria texto branco sobre fundo claro num rank 1 de partido claro. Sempre que uma decisão de contraste for tomada a partir do `rank`, ela é uma premissa sobre a paleta antiga disfarçada de regra de acessibilidade.
+
 > **Nota 2026-09-08 — Emenda**: Este ADR continua vigente e a decisão central (paleta editorial própria por partido, ΔE76 ≥ 10 contra o hex oficial) permanece intacta. Porém, [ADR-0031](0031-piso-separacao-entre-partidos.md) (2026-09-08) acrescenta um segundo eixo de medição que este ADR não cobria: a distância entre as próprias cores da paleta (não só entre cada cor e a marca do partido que ela representa). Cinco pares de partidos estavam perceptualmente indistinguíveis entre si — e uma sexta colisão, invisível nas bases, tinha sido criada pela correção de contraste de acessibilidade de 07/09. O ADR-0031 fixa `PARTY_SEPARATION_FLOOR = 12` e um gate irmão contra colapso de croma no nível 5, propõe emenda ao § 2 (v1.4 → v1.5), e documenta seis hexes trocados. Ver ADR-0031 para o texto completo.
 
 ## Contexto

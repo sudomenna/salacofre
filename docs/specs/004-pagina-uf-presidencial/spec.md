@@ -185,7 +185,7 @@ Extensão da v1 (2 candidatos em foco) para visualização completa de todos os 
 
 - **Tabela candidatos**: agora exibe todos, com rank visual; top-2 em destaque, 3–6 em bloco expandível, 7+ em lista compacta.
 - **Métricas de 2º turno**: novos campos `p_passa_2t` e `p_fecha_1t` por candidato ([ADR-0015](../../architecture/adrs/0015-k1-fallback-3-tier.md)).
-- **Tokens de rank**: cores/ícones por posição (ADR-0013), não por partido.
+- ~~**Tokens de rank**: cores/ícones por posição (ADR-0013), não por partido.~~ ⚠️ **Invertido em 2026-09-19**: o [ADR-0024](../../architecture/adrs/0024-paleta-editorial-por-partido.md) (07/09) superou o ADR-0013 e a **cor vem do partido**, não da posição — esta linha afirmava exatamente o contrário da norma vigente. O **rank** continua governando ordem, ênfase e qual camada exibe cada candidatura; o `--color-cand-*` só entra como fallback de sigla sem token próprio.
 - **Needle**: variante que exibe margem ou P(2º turno) conforme turno ativo.
 - **Breadcrumb**: superado em S07 por RF-031 reescrito — `Brasil › <SIGLA>` com kicker de trilha acima (ADR-0019). O turno passou a ser comunicado pelo `<TurnoBadge />` do `<RaceHeader />`, não pelo texto do breadcrumb.
 
