@@ -348,6 +348,13 @@ Quando despacha um subagent que vai fazer várias coisas, o subagent tem seu pr�
 
 **Toda invocação que toca o banco exige `set -a; . ./.env.local; set +a` antes.**
 
+🔴 **E só quem toca o banco.** Esse comando carrega o arquivo INTEIRO, e a primeira
+variável dele é o `DATABASE_URL` de **produção**. Script que não precisa do banco não
+deve pedir isso — ele carrega sozinho o que precisa, por **lista branca**. O molde é
+`scripts/_vigia-env.ts` (`pnpm vigia:ciclo`, 19/09): duas chaves, nenhuma toca banco, e
+o ambiente real sempre vence o arquivo. Ver o § do vigia em
+[docs/operations/runbook.md](./docs/operations/runbook.md).
+
 ```bash
 pnpm dev                       # next dev :3000
 pnpm build

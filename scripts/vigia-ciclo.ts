@@ -5,8 +5,11 @@
  * realmente rodou. Item 2 da sprint S08 (`docs/sprints/2026-S08-f7-enxergar.md`).
  *
  * Uso:
- *   set -a; . ./.env.local; set +a
  *   pnpm vigia:ciclo
+ *
+ * 🔴 **NÃO** use `set -a; . ./.env.local; set +a` — era o uso documentado até
+ * 2026-09-19 e põe o `DATABASE_URL` de PRODUÇÃO no ambiente. O script carrega
+ * sozinho as duas variáveis de que precisa; ver `carregarEnvDoVigia` abaixo.
  *
  * ---------------------------------------------------------------------------
  * Por que um vigia de fora, se já existem 9 alarmes dentro
@@ -84,6 +87,16 @@ import {
   isWithinIngestWindow,
   parseIngestWindow,
 } from "../lib/tse/ingest-window";
+import { carregarEnvDoVigia } from "./_vigia-env";
+
+// 🔴 Carga SELETIVA do `.env.local` — só `EDGE_CONFIG` e `INGEST_WINDOW`, que
+// são as duas variáveis do vigia e nenhuma toca banco. O `DATABASE_URL` de
+// PRODUÇÃO não entra no processo nem por acidente.
+//
+// A regra, o porquê e o incidente de 17/09 que a motivou estão em
+// `scripts/_vigia-env.ts`. Módulo separado de propósito: esta chamada roda no
+// topo, então importar ESTE arquivo num teste leria o `.env.local` real.
+carregarEnvDoVigia();
 
 // ---------------------------------------------------------------------------
 // Núcleo puro — sem rede, sem env, sem relógio implícito. É o que os testes

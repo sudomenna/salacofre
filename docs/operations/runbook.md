@@ -837,10 +837,31 @@ discordam — e a discordância é informação.
 ### Uso
 
 ```bash
-set -a; . ./.env.local; set +a
 pnpm vigia:ciclo                      # limite padrão: 15 min
 pnpm vigia:ciclo --limite-min 30      # mais tolerante
 ```
+
+🔴 **Não precisa — e não deve — carregar o `.env.local`.** A instrução aqui era
+`set -a; . ./.env.local; set +a` até 2026-09-19. Funcionava, e punha o
+`DATABASE_URL` de **produção** no ambiente — o banco que vai guardar a apuração
+de 04/10. Em 17/09 foi assim que uma suíte gravou **1.877 linhas** de harness em
+produção (ver a regra do `ALLOW_DB_WRITE_TESTS` acima).
+
+Desde 19/09 o script carrega sozinho, e **só** as duas variáveis de que precisa —
+`EDGE_CONFIG` e `INGEST_WINDOW`, nenhuma das quais toca banco. Lista **branca**,
+nunca negação, no mesmo espírito da trava do modo simulado
+(`scripts/_vigia-env.ts`; teste em `tests/unit/scripts/vigia-env-seletivo.test.ts`).
+
+O motivo de a segurança estar no código e não na instrução: **um vigia roda às
+pressas, de madrugada, quando algo já está errado.** É o pior momento possível
+para depender de alguém lembrar de não carregar o arquivo errado.
+
+⚠️ **`EDGE_CONFIG` é a string de LEITURA** (`https://edge-config.vercel.com/<id>?token=…`),
+diferente de `EDGE_CONFIG_TOKEN`, que é de escrita. Trocar uma pela outra deixa o
+vigia cego **com a mesma mensagem de erro** de quando falta credencial — o que
+manda procurar no lugar errado. A string sai do painel da Vercel: Storage → o
+store → **Tokens**, ou copiando o valor da variável `EDGE_CONFIG` já cadastrada
+em Environment Variables (não exige gerar token novo).
 
 ### Os seis estados e o que fazer com cada um
 
