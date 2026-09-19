@@ -390,8 +390,14 @@ describe("fetchEA20 — User-Agent + Accept headers", () => {
     const headers = init?.headers as Record<string, string>;
     // 2026-09-05 — User-Agent revisado: NÃO declara cadastro (não existe —
     // Res. TSE 23.751/2026 não prevê cadastro prévio de "interessado").
+    //
+    // 🔴 2026-09-19 — a URL virou `salacofre.vercel.app`, PROVISORIAMENTE: o
+    // domínio próprio ainda não foi apontado e não responde, e o ADR-0020 exige
+    // URL **verificável**. Esta asserção é literal de propósito: quando o
+    // domínio entrar no ar, ela cai e obriga quem reverter a olhar o docstring
+    // de `USER_AGENT`, que explica o porquê dos dois lados da troca.
     expect(headers?.["User-Agent"]).toBe(
-      "SalaCofre/1.0 (+https://salacofre.com.br; contato: contato@salacofre.com.br)",
+      "SalaCofre/1.0 (+https://salacofre.vercel.app; contato: contato@salacofre.com.br)",
     );
   });
 

@@ -57,9 +57,30 @@ export type FetchEA20Result =
  * 2026-09-05 — contato definido pelo usuário: `contato@salacofre.com.br`.
  * A caixa precisa estar ativa e ser lida: é por ela que o TSE avisaria de
  * bloqueio de IP ou de mudança de leiaute durante os simulados e no dia D.
+ *
+ * 🔴 **2026-09-19 — a URL passou a ser `salacofre.vercel.app`, por decisão do
+ * dono, e isso é PROVISÓRIO.**
+ *
+ * `salacofre.com.br` ainda não foi apontado: medido em 19/09, o `curl` estoura
+ * 25s e o DNS resolve para `189.125.92.230`, que não é endereço da Vercel. O
+ * ADR-0020 exige "URL pública e contato **verificável**" — e uma URL que não
+ * responde não é verificável. Declarar um endereço morto a uma autoridade
+ * eleitoral é a mesma classe de problema que o `interessado-divulgacao-cadastrado`
+ * de antes: uma afirmação que não se sustenta se alguém for conferir.
+ *
+ * Entre um endereço bonito que não abre e um feio que abre, o ADR pede o
+ * segundo. Reverter é trocar esta string de volta quando o domínio estiver no
+ * ar — e o teste de `client.test.ts` cai junto, de propósito.
+ *
+ * ⚠️ **O CONTATO CONTINUA NÃO VERIFICÁVEL, e isso NÃO foi resolvido aqui.**
+ * `contato@salacofre.com.br` depende do mesmo domínio e exige registro **MX**
+ * separado — que não vem junto com o apontamento do site. Pelo parágrafo acima,
+ * é por esta caixa que o TSE avisaria de bloqueio de IP durante o simulado ou no
+ * dia D. **Hoje esse aviso não chegaria a ninguém.** Decisão pendente do dono;
+ * registrado em `docs/reference/risks.md` (2ª linha de Riscos ativos).
  */
 export const USER_AGENT =
-  "SalaCofre/1.0 (+https://salacofre.com.br; contato: contato@salacofre.com.br)";
+  "SalaCofre/1.0 (+https://salacofre.vercel.app; contato: contato@salacofre.com.br)";
 
 /** Fetch timeout in milliseconds. Documented in design.md § Tratamento de falhas. */
 const FETCH_TIMEOUT_MS = 5_000;
