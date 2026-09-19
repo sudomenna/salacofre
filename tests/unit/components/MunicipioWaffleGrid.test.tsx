@@ -117,11 +117,35 @@ describe("<MunicipioWaffleGrid />", () => {
     expect(table?.textContent ?? "").toContain("Município 1");
   });
 
-  it("(f) cor do rect vem do candidato (var --color-cand-N)", () => {
+  it("(f) cor do rect vem do PARTIDO do líder, não da colocação", () => {
+    // 🔴 Este caso AFIRMAVA O DEFEITO até 2026-09-19: exigia `--color-cand-1` e
+    // `--color-cand-2` — a paleta por COLOCAÇÃO, que o ADR-0024 aposentou em
+    // 07/09. As fixtures seguem trazendo `cor: "var(--color-cand-N)"` de
+    // propósito: o que se prova aqui é que ela é IGNORADA.
+    //
+    // ⚠️ PT e PL não bastariam para provar a correção — `--color-cand-1` é
+    // vermelho e `--color-cand-2` é azul, quase o que eles receberiam de
+    // qualquer jeito. O que discrimina é a ausência do token de rank, por isso
+    // as duas asserções negativas.
     const doc = parse(<MunicipioWaffleGrid municipios={mkMunicipios(2)} candidatos={candidatos} />);
     const rects = doc.querySelectorAll('[data-testid="waffle-svg"] rect');
-    expect(rects[0]?.getAttribute("fill") ?? "").toContain("--color-cand-1");
-    expect(rects[1]?.getAttribute("fill") ?? "").toContain("--color-cand-2");
+    expect(rects[0]?.getAttribute("fill") ?? "").toContain("--party-pt");
+    expect(rects[1]?.getAttribute("fill") ?? "").toContain("--party-pl");
+    expect(rects[0]?.getAttribute("fill") ?? "").not.toContain("--color-cand-");
+    expect(rects[1]?.getAttribute("fill") ?? "").not.toContain("--color-cand-");
+  });
+
+  it("(f2) a legenda usa a variante LEGÍVEL — marcador não se contorna", () => {
+    // O quadradinho de 12×12 da legenda é marcador de identidade: sem extensão
+    // a contornar, o remédio de contraste é `--party-<slug>-text`
+    // (`docs/nfr/accessibility.md:44-52`), não a cor-base do `<rect>` acima.
+    // Duas superfícies, duas variantes, a MESMA matiz — é o que impede a
+    // legenda de discordar do desenho que ela explica.
+    const doc = parse(<MunicipioWaffleGrid municipios={mkMunicipios(2)} candidatos={candidatos} />);
+    const swatch = doc.querySelector('[data-testid="waffle-legend"] li span[aria-hidden]');
+    const style = swatch?.getAttribute("style") ?? "";
+    expect(style).toContain("--party-pt-text");
+    expect(style).not.toContain("--color-cand-");
   });
 
   it("(g) lista vazia → svg ainda renderiza, sem rects, legenda vazia", () => {

@@ -30,6 +30,7 @@ import {
   normalizePartySlug,
   PARTY_FALLBACK_SLUG,
   type PartyIntensity,
+  textForParty,
 } from "@/lib/utils/party-color";
 
 /**
@@ -45,6 +46,29 @@ export function partidoIsMapped(partido: string | null | undefined): partido is 
 /** Identidade do candidato: cor do partido; sem partido mapeado, cor do rank. */
 export function candidateColor(partido: string | null | undefined, rank: number): string {
   return partidoIsMapped(partido) ? colorForParty(partido) : colorForRank(rank);
+}
+
+/**
+ * Mesma identidade, na variante **legível** — para MARCADOR sem extensão:
+ * bolinha, quadradinho de legenda, ponto de 8×8 ao lado de um nome.
+ *
+ * Por que não é a mesma função de {@link candidateColor}: a distinção é a que
+ * `docs/nfr/accessibility.md:44-52` fixou em 18/09 e o hemiciclo adotou em
+ * `16d4a26`. Quatro bases da paleta não alcançam o piso de 3:1 contra o papel
+ * (PSOL 2,08 · PSB 2,20 · Outros 2,39 · NOVO 2,72). Num **preenchimento com
+ * extensão** — barra, hexágono, polígono — o remédio é o contorno
+ * ({@link DATA_FILL_STROKE}), que devolve o limite da forma sem mexer na
+ * matiz. Num **ponto de 8×8 não há extensão a contornar**: o contorno comeria
+ * o ponto. Ali o remédio é a variante `--party-<slug>-text`, escurecida com a
+ * matiz intacta.
+ *
+ * Em 17 dos 31 partidos a variante **É** a cor base — a maioria dos marcadores
+ * não muda um pixel. PSOL vai de 2,08 para 4,51.
+ *
+ * O fallback de rank é o mesmo de {@link candidateColor}, e pelo mesmo motivo.
+ */
+export function candidateMarkerColor(partido: string | null | undefined, rank: number): string {
+  return partidoIsMapped(partido) ? textForParty(partido) : colorForRank(rank);
 }
 
 /**

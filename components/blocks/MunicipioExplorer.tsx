@@ -79,6 +79,7 @@ import { useCallback, useEffect, useMemo } from "react";
 
 import { Figure } from "@/components/atoms/data/Figure";
 import { Sheet } from "@/components/atoms/overlays/Sheet";
+import { candidateColor } from "@/components/blocks/_candidateColor";
 import { type MunicipioRow, MunicipioTable } from "@/components/blocks/MunicipioTable";
 import { MunicipioWaffleGrid } from "@/components/blocks/MunicipioWaffleGrid";
 import { useMunicipioSheetStore } from "@/components/shared/municipio-sheet-store";
@@ -175,7 +176,14 @@ function FolhaLinha({ row, rank }: { row: FolhaRow; rank: number }) {
           style={{
             width: `${Math.max(0, Math.min(100, row.pct))}%`,
             height: "100%",
-            background: row.cor,
+            // Barra da folha do município: preenchimento com extensão ⇒
+            // cor-base do partido. `row.cor` vinha da paleta por COLOCAÇÃO.
+            //
+            // O `rank` é o da PROP (posição nesta folha, `i + 1`), não um campo
+            // de `MunicipioVotoCandidato` — que não tem rank, e nem deveria: a
+            // ordem aqui é a deste município, não a da corrida. Ele só entra no
+            // fallback de sigla fora da paleta editorial.
+            background: candidateColor(row.partido, rank),
           }}
         />
       </div>

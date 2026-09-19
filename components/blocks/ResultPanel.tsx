@@ -272,7 +272,10 @@ function segmentos(
       id: lider.id,
       label: primeiroNomeExibicao(lider.nome, lider.sqcand),
       pct: a,
-      color: lider.cor,
+      // Segmento do `<VoteBar>`: preenchimento com extensão ⇒ cor-base do
+      // partido. `lider.cor` é a paleta por COLOCAÇÃO — e este arquivo já
+      // avisava disso no chip, 140 linhas abaixo, sem aplicar aqui.
+      color: candidateColor(lider.partido, lider.rank ?? 1),
     },
     // Sem `color`: o `<VoteBar>` cai em `--party-outros`, que é exatamente o
     // token que o kit usa aqui (`App.jsx:26`).
@@ -281,7 +284,7 @@ function segmentos(
       id: segundo.id,
       label: primeiroNomeExibicao(segundo.nome, segundo.sqcand),
       pct: b,
-      color: segundo.cor,
+      color: candidateColor(segundo.partido, segundo.rank ?? 2),
     },
   ];
 }

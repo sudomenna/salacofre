@@ -21,8 +21,8 @@
  *   - Barras decorativas com aria-hidden — info textual está nos rótulos.
  */
 
+import { candidateColor } from "@/components/blocks/_candidateColor";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
-import { colorForRank } from "@/lib/utils/cand-color";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 /**
@@ -126,7 +126,8 @@ interface Row {
   nome: string;
   partido: string;
   pct: number;
-  cor: string;
+  /** Já resolvida pela SIGLA — ver o `candidateColor` abaixo. */
+  corResolvida: string;
   rank: number; // só pra "Outros" virar cinza
 }
 
@@ -160,10 +161,12 @@ export function GovernorCard({ uf, candidatos, mode = "expanded" }: GovernorCard
       nome: t.nome ? nomeExibicao(t.nome, t.sqcand) : `Cand ${t.id}`,
       partido: t.partido ?? "—",
       pct: t.pct,
-      // `cor`/`rank` seguem vindo do índice: são função do RANK, não da
-      // identidade, e rank errado pinta a barra de outro tom — não mente sobre
-      // quem é a pessoa.
-      cor: meta?.cor ?? colorForRank(meta?.rank ?? i + 1),
+      // ⚠️ A redação anterior dizia que a cor "é função do RANK, não da
+      // identidade". Isso deixou de valer com o ADR-0024 (07/09): a cor É a
+      // identidade, e o grid de 27 governadores é o exemplo que o próprio ADR
+      // usa — 27 líderes de partidos diferentes saíam todos na cor de rank 1.
+      // Barra = preenchimento com extensão ⇒ cor-base.
+      corResolvida: candidateColor(meta?.partido, meta?.rank ?? i + 1),
       rank: meta?.rank ?? i + 1,
     };
   });
@@ -179,7 +182,7 @@ export function GovernorCard({ uf, candidatos, mode = "expanded" }: GovernorCard
           nome: "Outros",
           partido: "",
           pct: outrosPct,
-          cor: "var(--color-cand-other)",
+          corResolvida: "var(--color-cand-other)",
           rank: 99,
         },
       ]
@@ -296,7 +299,7 @@ export function GovernorCard({ uf, candidatos, mode = "expanded" }: GovernorCard
                 >
                   <span
                     className="absolute left-0 top-0 h-full rounded-sm"
-                    style={{ width: `${pctWidth}%`, backgroundColor: r.cor }}
+                    style={{ width: `${pctWidth}%`, backgroundColor: r.corResolvida }}
                   />
                 </span>
                 <span

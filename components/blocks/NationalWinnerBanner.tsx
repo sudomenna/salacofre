@@ -8,7 +8,8 @@
  * Cobertura
  *   - Inspirado em RF-032 (WinnerBanner UF) — versão nacional para o
  *     placar presidencial. Próximo nível semântico: "chamada final".
- *   - ADR-0013 (cores por rank — banner usa cor do rank 1 / líder).
+ *   - ADR-0024 (cor por PARTIDO). ⚠️ Até 19/09 este banner citava o ADR-0013
+ *     (cor por rank) e pintava por colocação — ver a nota acima de `style`.
  *   - Constituição § 2 (neutralidade — cor via token, nunca partidária).
  *
  * Server Component puro. Caller passa o slice nacional + total apurado.
@@ -31,8 +32,9 @@
  * A11y
  *   - `role="status"` + `aria-live="polite"` — quando o banner aparecer
  *     mid-apuração, screen readers anunciam de forma não-intrusiva.
- *   - Cor de texto adaptativa via `rank` (ranks 1–2 = fundo escuro =
- *     texto branco; rank 3+ = fundo médio = texto escuro). Mesmo padrão
+ *   - Fundo e tinta saem do MESMO par medido, `partyChipInk(sigla)`.
+ *     ⚠️ Até 19/09 a tinta era escolhida pelo `rank` ("1–2 = fundo escuro =
+ *     texto branco"), premissa que só valia na paleta por colocação. Padrão
  *     do `<WinnerBanner />` UF.
  */
 
@@ -41,6 +43,7 @@ import type { CSSProperties } from "react";
 import type { EdgeCandidate, EdgeNational, Turno } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
+import { partyChipInk } from "@/lib/utils/party-color";
 
 /** Threshold mínimo de p_vitoria do líder para "chamada final". */
 export const NATIONAL_WIN_P_THRESHOLD = 0.99;
@@ -71,10 +74,15 @@ export interface NationalWinnerBannerProps {
   className?: string;
 }
 
-/** Ranks 1 e 2 têm fundos escuros (vermelho/azul); demais são médios/claros. */
-function shouldUseDarkText(rank: number | undefined): boolean {
-  return rank != null && rank >= 3;
-}
+// ⚠️ `shouldUseDarkText(rank)` saiu em 2026-09-19. Ela dizia "ranks 1 e 2 têm
+// fundos escuros (vermelho/azul); demais são médios/claros" — verdade apenas
+// enquanto o fundo vinha da paleta por COLOCAÇÃO. Com a cor do PARTIDO
+// (ADR-0024), a claridade do fundo é função da sigla, não da posição: um
+// rank 1 de partido claro receberia texto branco sobre fundo claro.
+//
+// O substituto é `partyChipInk`, que devolve fundo e tinta como PAR MEDIDO
+// pelo gerador da paleta. A docstring dele avisa: os dois andam juntos —
+// usar este fundo com tinta de outro lugar desfaz a garantia.
 
 export function NationalWinnerBanner({
   national,
@@ -102,12 +110,12 @@ export function NationalWinnerBanner({
   const meetsApurado = pctApuradoTotal >= NATIONAL_WIN_PCT_APURADO_THRESHOLD;
   if (!meetsPVitoria && !meetsApurado) return null;
 
-  // Cor + texto adaptativo
-  const rank = lider.rank ?? 1;
-  const useDarkText = shouldUseDarkText(rank);
+  // Cor do PARTIDO, com a tinta que o gerador mediu contra ela. Esta é a
+  // frase mais forte do produto — e era pintada pela colocação do líder.
+  const { background, ink } = partyChipInk(lider.partido);
   const style: CSSProperties = {
-    backgroundColor: lider.cor,
-    color: useDarkText ? "var(--color-text)" : "#ffffff",
+    backgroundColor: background,
+    color: ink,
   };
 
   const pctLabel = formatPercent(lider.pct_projetado, 1);

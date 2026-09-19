@@ -60,13 +60,14 @@ import {
   type ThermometerBase,
 } from "@/components/atoms/bars/ProjectionThermometer";
 import { Figure } from "@/components/atoms/data/Figure";
+import { candidateColor } from "@/components/blocks/_candidateColor";
 import type {
   EdgeCandidate,
   EdgeParticipacao,
   EdgeParticipacaoMetric,
   EdgeUfCandidate,
 } from "@/lib/edge-config/types";
-import { bandForRank, colorForRank } from "@/lib/utils/cand-color";
+import { bandForRank } from "@/lib/utils/cand-color";
 import { formatPercent } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import {
@@ -338,7 +339,11 @@ export function ProjectionThermometers({
               // `strongForRank` (ver o docblock de `<ProjectionThermometer />`).
               // Era daqui que vinha a violação `serious` do axe de 2026-09-07 —
               // `c.cor` do payload chega como `var(--color-cand-3)`, 2,99:1.
-              cor={c.cor ?? colorForRank(rank)}
+              //
+              // ⚠️ 2026-09-19: aquele comentário nomeava o sintoma e deixava a
+              // CAUSA no ar — o payload seguia sendo lido. Agora a cor sai da
+              // SIGLA (ADR-0024), e `c.cor` não é mais consultada aqui.
+              cor={candidateColor(c.partido, rank)}
               corBand={bandForRank(rank)}
               rank={rank}
               pctProjetado={m?.pct ?? 0}

@@ -136,7 +136,12 @@ describe("<NationalWinnerBanner />", () => {
     expect(doc.body.textContent?.trim()).toBe("");
   });
 
-  it("(g) cor do líder vira backgroundColor inline (token CSS)", () => {
+  it("(g) o fundo vem do PARTIDO do líder, não da colocação", () => {
+    // 🔴 Este caso AFIRMAVA O DEFEITO até 2026-09-19: exigia `--color-cand-1`,
+    // a paleta por COLOCAÇÃO que o ADR-0024 aposentou em 07/09. A fixture segue
+    // trazendo essa `cor` de propósito — o que se prova é que ela é ignorada.
+    //
+    // Esta é a faixa mais forte do produto: a que declara o eleito.
     const lider = makeCand({ p_vitoria: 0.99, cor: "var(--color-cand-1)" });
     const doc = parse(
       <NationalWinnerBanner
@@ -147,7 +152,9 @@ describe("<NationalWinnerBanner />", () => {
       />,
     );
     const banner = doc.querySelector('[role="status"]') as HTMLElement | null;
-    expect(banner?.getAttribute("style")).toContain("var(--color-cand-1)");
+    const style = banner?.getAttribute("style") ?? "";
+    expect(style).toContain("var(--party-pt-chip)");
+    expect(style).not.toContain("--color-cand-");
   });
 
   it("(h) aria-live='polite' + role='status' (anúncio acessível)", () => {
@@ -165,38 +172,34 @@ describe("<NationalWinnerBanner />", () => {
     expect(banner?.getAttribute("aria-label")).toContain("Presidente eleito: Lula (PT)");
   });
 
-  it("(i) texto branco quando rank=1 (fundo escuro)", () => {
-    const lider = makeCand({ p_vitoria: 0.99, rank: 1 });
-    const doc = parse(
-      <NationalWinnerBanner
-        national={makeNational(lider)}
-        candidatos={[lider]}
-        pctApuradoTotal={75}
-        turno={2}
-      />,
-    );
-    const banner = doc.querySelector('[role="status"]') as HTMLElement | null;
-    const style = banner?.getAttribute("style") ?? "";
-    expect(style).toContain("color:#ffffff");
-  });
-
-  it("(j) texto escuro (var(--color-text)) quando rank >= 3 (fundo claro)", () => {
-    const lider = makeCand({
-      p_vitoria: 0.99,
-      rank: 3,
-      cor: "var(--color-cand-3)",
-    });
-    const doc = parse(
-      <NationalWinnerBanner
-        national={makeNational(lider)}
-        candidatos={[lider]}
-        pctApuradoTotal={75}
-        turno={2}
-      />,
-    );
-    const banner = doc.querySelector('[role="status"]') as HTMLElement | null;
-    const style = banner?.getAttribute("style") ?? "";
-    expect(style).toContain("var(--color-text)");
+  it("(i) fundo e tinta saem do MESMO par medido — nunca de fontes diferentes", () => {
+    // Substitui os dois casos anteriores, "(i) texto branco quando rank=1" e
+    // "(j) texto escuro quando rank >= 3". Os dois testavam
+    // `shouldUseDarkText(rank)`, que supunha "rank 1 e 2 têm fundo escuro
+    // (vermelho/azul)" — verdade só enquanto o fundo era a cor de COLOCAÇÃO.
+    //
+    // Com a cor do partido, a claridade do fundo é função da SIGLA: um rank 1 de
+    // partido claro receberia texto branco sobre fundo claro. A garantia certa é
+    // outra e é mais forte — `partyChipInk` devolve fundo e tinta como par
+    // MEDIDO pelo gerador da paleta, e a docstring dele avisa que separá-los
+    // desfaz a medição.
+    for (const rank of [1, 2, 3, 7]) {
+      const lider = makeCand({ p_vitoria: 0.99, rank, cor: `var(--color-cand-${rank})` });
+      const doc = parse(
+        <NationalWinnerBanner
+          national={makeNational(lider)}
+          candidatos={[lider]}
+          pctApuradoTotal={75}
+          turno={2}
+        />,
+      );
+      const style = doc.querySelector('[role="status"]')?.getAttribute("style") ?? "";
+      expect(style, `rank ${rank}`).toContain("var(--party-pt-chip)");
+      expect(style, `rank ${rank}`).toContain("var(--party-pt-ink)");
+      // A tinta antiga, escolhida pelo rank, não pode sobreviver em canto nenhum.
+      expect(style, `rank ${rank}`).not.toContain("#ffffff");
+      expect(style, `rank ${rank}`).not.toContain("var(--color-text)");
+    }
   });
 
   it("(k) candidato_a_id null → não renderiza (pré-apuração)", () => {

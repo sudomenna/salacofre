@@ -22,9 +22,9 @@
  */
 
 import Link from "next/link";
+import { candidateColor } from "@/components/blocks/_candidateColor";
 import { gridBounds, hexCenter, hexPoints, UF_HEX_POSITIONS } from "@/lib/data/uf-hex-layout";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
-import { colorForRank } from "@/lib/utils/cand-color";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 export interface HexCartogramBrasilProps {
@@ -39,7 +39,14 @@ function fillFor(uf: EdgeUfRow, candIndex: Map<number, EdgeCandidate>): string {
     return "var(--color-cand-other)";
   }
   const lider = candIndex.get(uf.lider);
-  return lider?.cor ?? colorForRank(lider?.rank ?? 1);
+  // Hexágono = preenchimento com extensão ⇒ cor-base do partido.
+  //
+  // ⚠️ Este componente é o EXEMPLO que o ADR-0024 usa para aposentar a cor
+  // por rank: 27 hexágonos liderados por partidos diferentes saíam todos na
+  // cor de rank 1. Ele segue sem uso em `/governador` desde o ADR-0048 (o
+  // coroplético o substituiu), preservado por decisão do dono — e por isso
+  // mesmo é onde o defeito sobreviveria mais tempo sem ninguém ver.
+  return candidateColor(lider?.partido, lider?.rank ?? 1);
 }
 
 export function HexCartogramBrasil({ rows, candidatos, hexRadius = 26 }: HexCartogramBrasilProps) {

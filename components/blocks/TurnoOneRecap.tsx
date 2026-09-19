@@ -26,8 +26,10 @@
  *   - Label dos dois que avançaram: "<A> e <B> avançaram ao 2º turno".
  *
  * Cores
- *   - Cada candidato com `c.cor` direto do payload (já vem como token
- *     CSS literal em S05+, ADR-0013). Sem recalcular rank.
+ *   - Cada candidato pela SIGLA, via `candidateMarkerColor` — o ponto de
+ *     8×8 é marcador de identidade, sem extensão a contornar.
+ *     ⚠️ Até 2026-09-19 lia `c.cor` do payload, que é a paleta por
+ *     COLOCAÇÃO (ADR-0013, aposentada pelo ADR-0024 em 07/09).
  *
  * A11y
  *   - `<header role="banner">` é redundante quando direto em `<body>`,
@@ -39,6 +41,7 @@
  *     hero do 2T. Tipografia ½ escala.
  */
 
+import { candidateMarkerColor } from "@/components/blocks/_candidateColor";
 import type { EdgePayload } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
@@ -121,7 +124,7 @@ export function TurnoOneRecap({ recap, className }: TurnoOneRecapProps) {
               <span
                 aria-hidden="true"
                 className="inline-block h-2 w-2 rounded-full"
-                style={{ background: c.cor }}
+                style={{ background: candidateMarkerColor(c.partido, c.rank) }}
               />
               <span className="text-sm font-medium" style={{ color: "var(--color-text)" }}>
                 {nomeExibicao(c.nome, c.sqcand)}

@@ -124,6 +124,7 @@ import {
   DetailUnavailable,
   type DetailUnavailableReason,
 } from "@/components/atoms/surfaces/DetailUnavailable";
+import { candidateColor } from "@/components/blocks/_candidateColor";
 import { CHIP_STYLE, NationalMapBlock } from "@/components/blocks/NationalMapBlock";
 import { UfLeaderMapLazy } from "@/components/blocks/UfMapsLazy";
 import { UfPicker, type UfPickerCargo } from "@/components/layout/UfPicker";
@@ -348,14 +349,25 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
   // detalhe municipal. Enquanto `ufResumo` ainda não chegou, o coroplético
   // pinta tudo em `--color-tossup` (mesmo fallback que as páginas de UF já
   // usavam antes desta mudança).
-  const candidateColor: Record<number, string> = {};
-  for (const c of ufResumo?.candidatos ?? []) candidateColor[c.id] = c.cor;
+  // 🔴 A cor sai da SIGLA (ADR-0024), não de `c.cor` — que é a paleta por
+  // COLOCAÇÃO do ADR-0013. Este mapa é o coroplético MUNICIPAL da moldura:
+  // com a cor de rank, o mesmo partido saía de uma cor no mapa e de outra na
+  // legenda ao lado, e uma ultrapassagem repintava municípios que não
+  // mudaram de líder.
+  //
+  // O 2º argumento é o ÍNDICE + 1, não um `c.rank`: `EdgeUfCandidate` não
+  // carrega rank (o array já chega ordenado pela corrida da UF — ADR-0012). Ele
+  // só é consultado no fallback de sigla fora da paleta editorial.
+  const corPorCandidato: Record<number, string> = {};
+  (ufResumo?.candidatos ?? []).forEach((c, i) => {
+    corPorCandidato[c.id] = candidateColor(c.partido, i + 1);
+  });
 
   const municipiosDaUf =
     municipioDetalhe?.status === "ok" ? municipioDetalhe.municipios : ([] as EdgeUfMunicipio[]);
   const choropleth = municipiosDaUf.map((m) => ({
     cod_ibge: m.cod_ibge,
-    cor: candidateColor[m.lider.candidato_id] ?? "var(--color-tossup)",
+    cor: corPorCandidato[m.lider.candidato_id] ?? "var(--color-tossup)",
     pctApurado: m.pct_apurado,
   }));
 

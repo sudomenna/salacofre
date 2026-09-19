@@ -29,9 +29,8 @@
  */
 
 import { useMemo } from "react";
-
+import { candidateColor, candidateMarkerColor } from "@/components/blocks/_candidateColor";
 import type { EdgeCandidate, EdgeUfMunicipio } from "@/lib/edge-config/types";
-import { colorForRank } from "@/lib/utils/cand-color";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 export interface MunicipioWaffleGridProps {
@@ -92,7 +91,11 @@ export function MunicipioWaffleGrid({
     for (const m of municipios) {
       counts.set(m.lider.candidato_id, (counts.get(m.lider.candidato_id) ?? 0) + 1);
     }
-    const out: Array<{ id: number; nome: string; cor: string; count: number }> = [];
+    // `corResolvida`, e não `cor`: o nome deixa explícito que já passou por
+    // `candidateMarkerColor` e não é o campo do payload. Também é o que
+    // mantém a varredura de `cor-nunca-do-payload.test.ts` estrita — abrir
+    // exceção para este arquivo a enfraqueceria para todos os outros.
+    const out: Array<{ id: number; nome: string; corResolvida: string; count: number }> = [];
     for (const [id, count] of counts) {
       const c = candIndex.get(id);
       out.push({
@@ -100,7 +103,11 @@ export function MunicipioWaffleGrid({
         // Nome de exibição já na legenda: é a mesma pessoa do `<title>` de
         // cada quadrado e da tabela sr-only logo abaixo.
         nome: c ? nomeExibicao(c.nome, c.sqcand) : `Cand ${id}`,
-        cor: c?.cor ?? colorForRank(c?.rank ?? 1),
+        // Quadradinho de 12×12 na legenda: MARCADOR de identidade, sem
+        // extensão a contornar ⇒ variante legível. A `cor` do payload é a
+        // paleta por COLOCAÇÃO (ADR-0013, aposentada pelo ADR-0024) e não é
+        // mais lida — ela fazia a legenda discordar do mapa ao lado.
+        corResolvida: candidateMarkerColor(c?.partido, c?.rank ?? 1),
         count,
       });
     }
@@ -144,7 +151,9 @@ export function MunicipioWaffleGrid({
             const x = col * step;
             const y = row * step;
             const lider = candIndex.get(m.lider.candidato_id);
-            const cor = lider?.cor ?? colorForRank(lider?.rank ?? 1);
+            // Quadrado do waffle: preenchimento COM extensão ⇒ cor-base.
+            // Ver a nota da legenda acima sobre a `cor` do payload.
+            const cor = candidateColor(lider?.partido, lider?.rank ?? 1);
             return (
               <rect
                 key={m.cod_ibge}
@@ -176,7 +185,7 @@ export function MunicipioWaffleGrid({
             <span
               aria-hidden
               className="inline-block h-3 w-3 rounded-sm"
-              style={{ backgroundColor: l.cor }}
+              style={{ backgroundColor: l.corResolvida }}
             />
             <span>
               {l.nome} · {l.count} mun.

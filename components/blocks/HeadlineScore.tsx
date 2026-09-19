@@ -49,8 +49,8 @@
  */
 
 import type { ReactNode } from "react";
-
 import { CandidateBar } from "@/components/atoms/bars/CandidateBar";
+import { candidateColor } from "@/components/blocks/_candidateColor";
 import type { EdgeCandidate, Turno } from "@/lib/edge-config/types";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
@@ -198,7 +198,11 @@ export function HeadlineScore({
         <CandidateBar
           nome={nomeA}
           partido={a.partido}
-          cor={a.cor}
+          // Barra do placar: preenchimento COM extensão ⇒ cor-base do
+          // partido. A `cor` do payload é a paleta por COLOCAÇÃO
+          // (ADR-0013, aposentada pelo ADR-0024) — com ela, uma
+          // ultrapassagem ao vivo trocava a cor dos dois lados do placar.
+          cor={candidateColor(a.partido, a.rank)}
           rank={a.rank}
           pctProjetado={a.pct_projetado}
           pctLower={a.pct_projetado_lower}
@@ -209,7 +213,7 @@ export function HeadlineScore({
           <CandidateBar
             nome={nomeB}
             partido={b.partido}
-            cor={b.cor}
+            cor={candidateColor(b.partido, b.rank)}
             rank={b.rank}
             pctProjetado={b.pct_projetado}
             pctLower={b.pct_projetado_lower}
@@ -252,14 +256,14 @@ function ThresholdMarker50({ a, b }: { a: EdgeCandidate; b: EdgeCandidate }) {
           className="absolute inset-y-0 left-0"
           style={{
             width: `${aPct}%`,
-            backgroundColor: a.cor,
+            backgroundColor: candidateColor(a.partido, a.rank),
           }}
         />
         <div
           className="absolute inset-y-0 right-0"
           style={{
             width: `${100 - aPct}%`,
-            backgroundColor: b.cor,
+            backgroundColor: candidateColor(b.partido, b.rank),
           }}
         />
         {/* tick 50% */}
