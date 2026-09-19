@@ -161,7 +161,25 @@ jobs:
             exit 1
           fi
 
+      # `CRON_SECRET` é de fachada DE PROPÓSITO, e não é um segredo do repositório.
+      #
+      # `tests/integration/ingest-routes-auth-cargo.test.ts:52-68` monta os headers
+      # (`Authorization: Bearer …` e `x-cron-secret`) lendo `process.env.CRON_SECRET`,
+      # e `lib/tse/ingest-handler.ts:382` compara contra a MESMA variável. O circuito é
+      # fechado: o teste prova que o handler aceita quem traz o segredo certo e recusa
+      # quem não traz — uma afirmação sobre a lógica de auth, não sobre o valor.
+      # Qualquer string não vazia exercita os dois lados.
+      #
+      # 🔴 Não troque por `${{ secrets.CRON_SECRET }}` com o valor de produção. O
+      # `CRON_SECRET` real publica ingestão no banco de 04/10; colocá-lo aqui exporia o
+      # segredo a todo log e fork do CI sem cobrir NENHUM caso de teste a mais.
+      #
+      # Sem a variável, o handler aborta em `:385` (`CRON_SECRET não configurada`) e os
+      # 22 casos do arquivo devolvem 500 onde esperavam 200/400/401 — foi o que derrubou
+      # o CI em 19/09, o único arquivo vermelho entre 196 depois que `DATABASE_URL_CI`
+      # entrou.
       - name: Unit tests
         run: pnpm test
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_CI }}
+          CRON_SECRET: ci-fachada-nao-e-o-segredo-de-producao
