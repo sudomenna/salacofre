@@ -5,7 +5,7 @@ status: draft
 priority: M
 personas: [P1, P2, P3, P4]
 screens: [T-15, T-16]
-requirements: [RF-153, RF-154, RF-155, RF-156, RF-157, RF-158, RF-159, RF-160, RF-161, RF-162, RF-163, RF-164, RF-165, RF-166]
+requirements: [RF-133, RF-153, RF-154, RF-155, RF-156, RF-157, RF-158, RF-159, RF-160, RF-161, RF-162, RF-163, RF-164, RF-165, RF-166]
 depends_on: [002-modelo-estatistico, 003-home-nacional, 006-grid-governadores, 016-senador, 017-deputado-federal, 018-identidade-candidatura]
 apis: []
 components: [FasePreEleicaoBanner, UfLinksGrid, CandidaturasAguardando, CandidatosGrid, ResultPanel, RaceTypeIndicator, ForecastTransparency, ShellLiveBadge, NationalChoroplethMap, MapViewToggle, MapLegend, RemainingPanel, ChancesPanel, BulletinPanel, StateGroupedTable]
@@ -609,6 +609,54 @@ deixe de existir para aquele cargo.
 - Given a transição, when o operador quer conferir, then `/status`
   ([spec 012](../012-dashboard-status/spec.md)) mostra quais chaves ainda
   carregam `fase` — o operador não deve precisar abrir quatro abas para saber.
+
+**RF-133 — Sem dado, a tela DIZ que não há dado, e não inventa número**
+
+> **Formalizado em 2026-09-19, e por isso fora da faixa desta spec (RF-153-166).**
+> O ID **já era citado** em `docs/reference/risks.md` desde 13/09, ao registrar a
+> correção do incidente em que `app/(pres)/page.tsx` renderizava a fixture do
+> modelo **incondicionalmente**, ignorando `NODE_ENV` — o site publicou resultado
+> eleitoral inventado. A citação nomeava um RF que **nunca existiu**: varredura
+> de 19/09 não o achou em spec, matriz, índice nem código.
+>
+> Preservar o número em vez de renumerar foi decisão de 19/09 porque 133 já
+> estava **queimado** (ninguém poderia reusá-lo sem colidir com a citação), e
+> porque não há número livre no fim da faixa da 019 — RF-167 já é da spec 020.
+> Qualquer escolha seria ilha; esta ao menos torna verdadeira uma referência que
+> já circulava. A lacuna RF-132/134-139 continua livre.
+
+WHEN uma tela de qualquer cargo não tem payload, ou tem payload sem apuração,
+the system SHALL exibir uma frase que **declara a ausência de dado** — hoje
+"Aguardando o primeiro boletim" —, e SHALL **nunca** exibir número de voto,
+percentual de apuração ou projeção que não tenha vindo de boletim do TSE; AND the
+system NÃO SHALL recorrer a fixture, a semente ou a qualquer valor de
+conveniência para preencher esses campos fora de `NODE_ENV === "development"`.
+
+**Aceitação**:
+- Given produção sem payload, when a home renderiza, then o texto de espera
+  aparece **e** nenhum número de voto ou percentual de apuração está no DOM — a
+  asserção negativa é o que discrimina: uma tela que mostrasse "0%" passaria num
+  teste que só procurasse a frase.
+- Given `NEXT_PUBLIC_MODEL_FALLBACK_TIER=remote` e o modelo indisponível, when a
+  home renderiza, then exibe a espera, **não** a fixture do modelo. É o caso
+  exato do incidente de 13/09, e a razão de este RF existir.
+- Given `total_cadeiras: 0` no payload de Deputado, when a tela renderiza, then
+  ela **não** escreve "0 cadeiras em disputa" — ausência de contagem não é
+  contagem zero (`app/(dep)/deputado-federal/page.tsx`, ramo de espera).
+- Given a tela de espera, when o leitor a lê, then ela diz **o que vai acontecer**
+  ("a contagem aparece quando o primeiro boletim chegar"), não só que algo falta:
+  é a mesma exigência de transparência da constituição § 8 aplicada ao estado
+  vazio.
+
+**Cobertura hoje** (a comportamento já está no ar; o que faltava era a norma):
+`tests/integration/home-page.test.tsx:626` e
+`tests/unit/pages/fase-pre-eleicao.test.tsx:472`.
+
+⚠️ **Este RF é o irmão de RF-153/RF-166 pelo outro lado.** Aqueles governam a
+fase pré-eleição, que é um estado **declarado** no payload; este governa a
+ausência de dado, que é a **falta** de payload. A distinção importa porque os dois
+produzem telas parecidas por motivos opostos, e confundi-los é o que faz alguém
+"consertar" um exibindo a fixture do outro. Ver [ADR-0043](../../architecture/adrs/0043-fase-pre-eleicao-campo-proprio-nao-derivada.md).
 
 ## Requisitos Não-Funcionais
 

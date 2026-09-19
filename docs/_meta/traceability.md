@@ -141,6 +141,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-129 | Drill-down por UF vem do Blob | M | [017](../specs/017-deputado-federal/) | — | ✅ Implementado: `lib/blob/deputado-uf.ts::readDeputadoUfDetail()` + testes (`tests/unit/blob/deputado-uf.test.ts`). Payload `DeputadoUfDetail` em `deputado/uf/<SIGLA>.json` |
 | RF-130 | Voto de legenda visível | M | [017](../specs/017-deputado-federal/) | `<VoteBar>`, `<Figure>` | ✅ Telas `/deputado-federal` (nacional) e `/uf/[sigla]/deputado-federal` (UF) implementadas. Separa nominais e legenda (design.md D4, D6) |
 | RF-131 | Hemiciclo da Câmara: um assento por cadeira, três estados, ordem por tamanho de bancada | M | [017](../specs/017-deputado-federal/) | `<CamaraHemiciclo />` | ✅ Implementado em `16d4a26`: componente `components/blocks/CamaraHemiciclo.tsx` + helpers `lib/utils/hemiciclo.ts`, `lib/utils/bancada.ts` (ADR-0049). Testes nos **quatro** arquivos: `tests/unit/lib/hemiciclo.test.ts` (geometria), `tests/unit/components/CamaraHemiciclo.test.tsx`, `tests/unit/components/camara-hemiciclo-peso.test.tsx` (teto de 36 KiB de markup), `tests/unit/pages/deputado-federal-hemiciclo.test.tsx`. Renderizado em `app/(dep)/deputado-federal/page.tsx` pelo símbolo `<CamaraHemiciclo>` — citado por símbolo e não por linha **de propósito**: uma coordenada morta impede de conferir o fato e a afirmação vira folclore (handoff de 19/09 § 4.6) |
+| RF-133 | Sem dado, a tela DIZ que não há dado, e não inventa número | M | [019](../specs/019-fase-pre-eleicao/) | `<ResultPanel>`, `<AguardandoNacional>` | ✅ `tests/integration/home-page.test.tsx:626` e `tests/unit/pages/fase-pre-eleicao.test.tsx:472` — o comportamento já estava no ar desde 13/09 (`app/(pres)/page.tsx`); o que faltava era a **norma**. ⚠️ Fora da faixa da spec (RF-153-166) de propósito: o ID já era citado em `risks.md` e estava queimado — ver o bloco de histórico no próprio RF |
 | RF-140 | Ingestão do cadastro de candidaturas, dois pacotes unidos por `SQ_CANDIDATO` | M | [018](../specs/018-identidade-candidatura/) | — | unit (`data-pipeline/tests/unit/data-pipeline/candidatos-parse.test.ts`), integration (ingestão real contra TSE em 12/09) |
 | RF-141 | Publicabilidade fail-closed; situação de julgamento é texto, nunca filtro | M | [018](../specs/018-identidade-candidatura/) | — | unit (`candidatos-parse.test.ts::test_publicavel_fail_closed*`, asserts de 7.698 publicáveis), integration |
 | RF-142 | Foto de candidato no Blob, binária, cache de um ano | M | [018](../specs/018-identidade-candidatura/) | — | unit (`tests/unit/blob/write.test.ts::test_putBinary_cacheControlMaxAge_imutavel`), integration (387 fotos Acre) |
@@ -273,19 +274,21 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 
 ## Cobertura
 
-**153 RFs distintos**, todos na matriz principal.
+**154 RFs distintos**, todos na matriz principal.
 
 > **Critério da contagem** (escrito aqui porque a ausência dele foi o que deixou
 > este número divergir do `README.md` até 2026-09-18): conta-se **identificador
 > distinto**, e um RF com sufixo decimal conta como **um** identificador próprio —
 > `RF-030` e `RF-030.1` são dois, não um. Sob esse critério: **66 vêm do PRD**
-> (RF-001..RF-060 mais RF-030.1..RF-030.6) e **87 foram acrescentados pelas specs**
+> (RF-001..RF-060 mais RF-030.1..RF-030.6) e **88 foram acrescentados pelas specs**
 > (RF-005.1-4, RF-006.1-5, RF-010.1-6, RF-012.1-2, RF-020.1-3, RF-030.7-9,
-> RF-058.1-2, RF-061-063, RF-100-108, RF-120-**131** + RF-125.1, RF-140-176).
+> RF-058.1-2, RF-061-063, RF-100-108, RF-120-**131** + RF-125.1, **RF-133**, RF-140-176).
 > Medido em 2026-09-19 contando IDs únicos na primeira coluna da matriz principal
 > (era 152/86 até RF-131 entrar em `ff7edab`).
 >
-> 🔴 **RF-133 é um ID ÓRFÃO — não o reutilize e não o trate como existente.**
+> ✅ **RF-133 deixou de ser órfão em 2026-09-19** — foi formalizado na spec 019 e tem linha na matriz acima. O parágrafo abaixo fica como histórico do que ele era.
+>
+> ~~🔴 **RF-133 é um ID ÓRFÃO — não o reutilize e não o trate como existente.**~~
 > `docs/reference/risks.md:105` cita "RF-133" ao descrever o estado de espera
 > ("Aguardando o primeiro boletim…") implementado em 13/09. Verificado em 19/09: o
 > ID **não existe** em nenhuma spec, nem nesta matriz, nem em `index.json`, nem em
