@@ -749,6 +749,121 @@ describe("simulacao-gerar — a votação presidencial por estado", () => {
   });
 });
 
+describe("simulacao-gerar — top_candidatos: votos e parcial por candidato (balão do mapa)", () => {
+  // 2026-09-18 — o balão do mapa nacional (estilo NYT) ganhou as colunas
+  // "Votos" e "Parcial", alimentadas por `top_candidatos[].votos_atuais`/
+  // `.pct_atual`. Os dois são NOVOS aqui — `linhaUf()` passou a copiá-los do
+  // MESMO `ResultadoCandUf` que já alimentava outro bloco do payload.
+  //
+  // 🔴 **Esse "outro bloco" NÃO é o mesmo nos 3 cargos**, e confundir os dois
+  // foi o primeiro defeito que este arquivo pegou de si mesmo: para
+  // Presidente, `national.candidatos[].votos_atuais` é a SOMA das 27 UFs
+  // (`montarPresidente`, "o agregado nacional é a SOMA das UFs") — comparar
+  // `top_candidatos` (uma UF) contra ele reprova sempre (23.391.066 no
+  // nacional contra 332.372 numa UF só). O ground truth por UF de Presidente
+  // é `presidenteUf[sigla].candidatos` (`montarPresidenteUf`, EdgeUfCandidate).
+  // Para Governador/Senador, `idBase` torna cada `id` ÚNICO por (UF,
+  // candidato) — ali `national.candidatos` NÃO agrega nada, é literalmente
+  // uma linha por (UF, candidato), e o `id` de `top_candidatos` só existe
+  // naquele UF. Os dois testes abaixo usam a fonte certa para cada caso.
+  const s = gerar();
+
+  it("Presidente: top_candidatos carrega votos_atuais/pct_atual IDÊNTICOS aos de presidenteUf[sigla].candidatos, POR UF [mutação: comparar/copiar de national.candidatos, que é o agregado das 27 UFs]", () => {
+    let conferidos = 0;
+    for (const linha of s.presidente.por_uf) {
+      const p = s.presidenteUf[linha.sigla] as EdgePayloadUf;
+      for (const tc of linha.top_candidatos) {
+        const cand = p.candidatos.find((c) => c.id === tc.id);
+        expect(cand, `${linha.sigla} / id ${tc.id} sem par em presidenteUf`).toBeDefined();
+        expect(tc.votos_atuais, `${linha.sigla} / ${tc.nome}`).toBe(cand?.votos_atuais);
+        expect(tc.pct_atual, `${linha.sigla} / ${tc.nome}`).toBe(cand?.pct_atual);
+        conferidos++;
+      }
+    }
+    expect(conferidos).toBeGreaterThan(0);
+  });
+
+  it("Governador/Senador: top_candidatos carrega votos_atuais/pct_atual IDÊNTICOS aos de national.candidatos (id único por UF nestes 2 cargos) [mutação: não copiar os dois campos em linhaUf / copiar de uma fonte paralela]", () => {
+    for (const payload of [s.governador, s.senador]) {
+      const natPorId = new Map(payload.national.candidatos.map((c) => [c.id, c] as const));
+      let conferidos = 0;
+      for (const linha of payload.por_uf) {
+        for (const tc of linha.top_candidatos) {
+          const nat = natPorId.get(tc.id);
+          expect(nat, `${linha.sigla} / id ${tc.id} sem par em national.candidatos`).toBeDefined();
+          expect(tc.votos_atuais, `${linha.sigla} / ${tc.nome}`).toBe(nat?.votos_atuais);
+          expect(tc.pct_atual, `${linha.sigla} / ${tc.nome}`).toBe(nat?.pct_atual);
+          conferidos++;
+        }
+      }
+      // Meta-asserção: sem isto um payload com `por_uf` vazio passaria pelo
+      // teste inteiro sem nunca ter comparado nada.
+      expect(conferidos).toBeGreaterThan(0);
+    }
+  });
+
+  it("os dois campos são SEMPRE emitidos (nunca opcionais nesta simulação) — 0 é o fato de UF sem apuração, não ausência [mutação: `if (pctApurado > 0)` guardando a emissão]", () => {
+    // Ao contrário do modelo real (`api/model/project.py`, onde a imputação
+    // nacional deixa `pct_atual` ausente), este gerador NUNCA imputa: toda UF
+    // tem `shareAtual`/`votosAtuais` calculados, `0` incluso quando
+    // `pctApurado <= 0` (`sharesApurados`). Os dois campos têm de existir em
+    // TODA linha de TODO candidato do top-3, nos 3 cargos.
+    for (const payload of [s.presidente, s.governador, s.senador]) {
+      for (const linha of payload.por_uf) {
+        for (const tc of linha.top_candidatos) {
+          expect(Object.hasOwn(tc, "votos_atuais"), `${linha.sigla} / id ${tc.id}`).toBe(true);
+          expect(Object.hasOwn(tc, "pct_atual"), `${linha.sigla} / id ${tc.id}`).toBe(true);
+          expect(typeof tc.votos_atuais).toBe("number");
+          expect(typeof tc.pct_atual).toBe("number");
+        }
+      }
+    }
+  });
+
+  it("UF sem NENHUMA apuração: todo candidato do top-3 sai com votos_atuais=0 e pct_atual=0, não travesso [mutação: `sharesApurados` devolver o projetado quando pctApurado<=0]", () => {
+    // Mesmo cenário de baixa apuração já usado alhures neste arquivo
+    // ("ufs_apuradas conta só as UFs que REALMENTE apuraram") — a 0,08%
+    // nacional várias UFs arredondam pct_apurado para 0 nos 3 cargos.
+    const baixo = gerar({ pct: 0.08 });
+    let ufsZeradasConferidas = 0;
+    for (const payload of [baixo.presidente, baixo.governador, baixo.senador]) {
+      for (const linha of payload.por_uf.filter((l) => l.pct_apurado === 0)) {
+        ufsZeradasConferidas++;
+        for (const tc of linha.top_candidatos) {
+          expect(tc.votos_atuais, `${linha.sigla} / id ${tc.id}`).toBe(0);
+          expect(tc.pct_atual, `${linha.sigla} / id ${tc.id}`).toBe(0);
+        }
+      }
+    }
+    expect(
+      ufsZeradasConferidas,
+      "nenhuma UF com pct_apurado 0 nos 3 cargos — este cenário parou de produzir " +
+        "o caso que o teste precisa para discriminar",
+    ).toBeGreaterThan(0);
+  });
+
+  it("pct_atual é coerente com pct (projetado) da mesma linha — nunca fora de [0,100] e nunca a mesma distância nula de todo mundo [mutação: pct_atual = pct_projetado]", () => {
+    // "Coerente" não é "igual": a fixture teria de exercitar QUE os dois
+    // divergem (apuração parcial normalmente diverge da projeção final), ou
+    // uma implementação que colasse `pct_atual = pct` passaria disfarçada.
+    let divergencias = 0;
+    for (const payload of [s.presidente, s.governador, s.senador]) {
+      for (const linha of payload.por_uf) {
+        for (const tc of linha.top_candidatos) {
+          expect(tc.pct_atual, `${linha.sigla} / id ${tc.id}`).toBeGreaterThanOrEqual(0);
+          expect(tc.pct_atual, `${linha.sigla} / id ${tc.id}`).toBeLessThanOrEqual(100);
+          if (Math.abs((tc.pct_atual as number) - tc.pct) > 0.01) divergencias++;
+        }
+      }
+    }
+    expect(
+      divergencias,
+      "pct_atual nunca diverge de pct em nenhuma linha — `pct_atual = pct` passaria " +
+        "por este teste sem ser pego",
+    ).toBeGreaterThan(0);
+  });
+});
+
 describe("simulacao-gerar — cenários", () => {
   it("apertado deixa os dois primeiros com IC sobreposto e ninguém chamado [mutação: usar o perfil de `folgado`]", () => {
     const s = gerar({ cenario: "apertado" });

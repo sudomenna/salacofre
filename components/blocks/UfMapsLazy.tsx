@@ -26,6 +26,7 @@ import type { BubbleMapMunicipio } from "@/components/atoms/maps/BubbleMap";
 import type { ChoroplethMunicipio } from "@/components/atoms/maps/ChoroplethMapUF";
 import { MapPlaceholder } from "@/components/atoms/maps/MapPlaceholder";
 import type { SwingArrow } from "@/components/atoms/maps/SwingArrowMap";
+import type { EdgeUfCandidate, EdgeUfMunicipio } from "@/lib/edge-config/types";
 
 const UFMapDuo = dynamic(() => import("@/components/blocks/UFMapDuo").then((m) => m.UFMapDuo), {
   ssr: false,
@@ -66,18 +67,36 @@ export interface UfMapsLazyProps {
  * RF-034 — choropleth simples por município (líder). `height` aceita
  * `"100%"` desde ADR-0033 § 1 (moldura persistente do mapa) — ver
  * `ChoroplethMapUFProps.height`.
+ *
+ * `detalhe`/`candidatos` (2026-09-18) — repassados sem transformação para
+ * `ChoroplethMapUF`, que os usa para o `<HoverCard>` do hover. Este wrapper
+ * existe só pelo `next/dynamic({ ssr: false })` (ADR-0010); ele não é dono de
+ * nenhum dado, só encaminha o que o chamador (`PersistentMapFrame`) já tem.
+ * Opcionais e SEM default aqui — a degradação ("sem eles, hover não mostra
+ * balão") é decidida dentro de `ChoroplethMapUF`, não duplicada neste wrapper.
  */
 export function UfLeaderMapLazy({
   ufSigla,
   choropleth,
   height = 320,
+  detalhe,
+  candidatos,
 }: {
   ufSigla: string;
   choropleth: ChoroplethMunicipio[];
   height?: number | string;
+  detalhe?: EdgeUfMunicipio[];
+  candidatos?: EdgeUfCandidate[];
 }) {
   return (
-    <ChoroplethMapUF ufSigla={ufSigla} municipios={choropleth} mode="leader" height={height} />
+    <ChoroplethMapUF
+      ufSigla={ufSigla}
+      municipios={choropleth}
+      mode="leader"
+      height={height}
+      detalhe={detalhe}
+      candidatos={candidatos}
+    />
   );
 }
 

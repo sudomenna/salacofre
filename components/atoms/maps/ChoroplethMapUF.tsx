@@ -15,19 +15,45 @@
  * ADR-0004: MapLibre GL, não Mapbox.
  * ADR-0010: Carregado via next/dynamic({ ssr: false }) por UfMapsLazy.
  * Constituição § 2: cores via CSS token (getComputedStyle), nunca hex oficial.
+ *
+ * 2026-09-18 (pedido do dono) — `<HoverCard>` no hover, mesmo átomo do mapa
+ * NACIONAL (`components/atoms/overlays/HoverCard.tsx`), com uma diferença
+ * deliberada: **sem coluna "Proj."**. Não é o município ser "mais fino" que a
+ * zona — os dois são recortes que se CRUZAM, não um mais granular que o
+ * outro (uma zona pode atravessar vários municípios). O motivo real:
+ *   1. A projeção é extrapolação do APURADO POR ZONA eleitoral, nunca por
+ *      município (ADR-0021 — `V_c(z) = vap_c·k`, `k = te/esi` calculado por
+ *      zona; ADR-0007 fixa zona como granularidade do modelo).
+ *   2. "Regra de três por município" foi avaliada e REJEITADA para esta
+ *      janela (ADR-0021 § Alternativas rejeitadas): ~11.140 GETs por ciclo
+ *      não cabem em `maxDuration=180`, e `snapshots` não tem coluna de
+ *      granularidade municipal. Adiada para depois da eleição.
+ *   3. A unidade mais fina que a ingestão publica é o PAR (município, zona)
+ *      — `api/model/zona_merge.py` soma os pares de volta em zona ANTES do
+ *      estimador (ADR-0035 D1/D2). Não existe, em nenhum ponto do pipeline,
+ *      um `V_c` calculado por município.
+ * Mostrar uma coluna "Proj." aqui seria inventar um número que o produto não
+ * tem (constituição § 1) — por isso `HoverCardRow.proj` fica sempre
+ * `undefined` em `buildMunicipioHoverRows`, e a coluna some sozinha (mesma
+ * degradação de "Partido"/"Votos"/"Parcial", ver `hasColumn` em
+ * `HoverCard.tsx`).
  */
 
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   registerPmtilesProtocolOnce,
   resetPmtilesProtocol,
 } from "@/components/atoms/maps/_pmtiles-protocol";
 import { resolveCssColor, UF_BBOX, ufCodigoIbge } from "@/components/atoms/maps/_shared";
+import { HoverCard, type HoverCardRow } from "@/components/atoms/overlays/HoverCard";
 import { useMunicipioSheetStore } from "@/components/shared/municipio-sheet-store";
+import type { EdgeUfCandidate, EdgeUfMunicipio } from "@/lib/edge-config/types";
 import { useHoverStore } from "@/lib/state/hover-store";
+import { votosPorCandidatoMunicipio } from "@/lib/utils/municipio-votos";
+import { normalizePartySlug, PARTY_FALLBACK_SLUG, textForParty } from "@/lib/utils/party-color";
 
 const PMTILES_BASE = "https://jbtu251tioj3y57z.public.blob.vercel-storage.com";
 
@@ -50,6 +76,115 @@ export interface ChoroplethMapUFProps {
    * já aceita para o variant `frame`.
    */
   height?: number | string;
+  /**
+   * Dado completo por município (2026-09-18) — alimenta o `<HoverCard>`.
+   * `municipios` acima só carrega o que a PINTURA do polígono precisa
+   * (cor + % apurado); o balão precisa também de `nome`, `lider` e
+   * `votos_reportados`, que só existem em `EdgeUfMunicipio`. Casa com
+   * `municipios` por `cod_ibge`.
+   *
+   * Opcional e independente da pintura: ausente ⇒ hover continua colorindo,
+   * filtrando o traço e escrevendo no `hover-store` normalmente — só o
+   * balão fica de fora. Preferível a um balão pela metade (constituição § 1).
+   */
+  detalhe?: EdgeUfMunicipio[];
+  /**
+   * Candidatos da corrida NESTA UF — resolve nome/partido/cor de cada
+   * entrada de `votos_reportados` para o balão.
+   *
+   * Por que resolver contra ESTA lista (a da UF) e não contra
+   * `national.candidatos` (o bloco nacional): `EdgeUfCandidate.sqcand` vem em
+   * **todo cargo**, porque este payload já é de uma UF só — o par
+   * `(uf, numero)` que o resolve não é ambíguo (ADR-0042 item 2, RF-144). O
+   * bloco nacional NÃO tem essa garantia fora do cargo 1: em Governador e
+   * Senador ele é a união de 27 corridas sob o mesmo espaço de `id`
+   * (RF-145) — foi exatamente essa ambiguidade que produziu o defeito
+   * corrigido em `_NationalChoroplethMapImpl.buildHoverRows` hoje mais
+   * cedo. Mesmo padrão que `votosPorCandidatoMunicipio`
+   * (`lib/utils/municipio-votos.ts`) já usa para a folha do município.
+   */
+  candidatos?: EdgeUfCandidate[];
+}
+
+/**
+ * `partido` tem token próprio (ADR-0024)? Mesma checagem de
+ * `_NationalChoroplethMapImpl.partidoIsMapped` — duplicada aqui (não
+ * exportada de lá) de propósito: aquele arquivo é o chunk lazy do mapa
+ * NACIONAL (RNF-007b, orçamento de bundle medido pelo `a11y-perf-auditor`) e
+ * importar dele juntaria os dois mapas municipal/nacional num único chunk.
+ */
+function partidoIsMapped(partido: string | null | undefined): partido is string {
+  if (!partido) return false;
+  return normalizePartySlug(partido) !== PARTY_FALLBACK_SLUG;
+}
+
+/**
+ * Linhas do `<HoverCard>` do mapa municipal.
+ *
+ * 2026-09-18 (correção de rota do orquestrador) — o percentual e a
+ * identidade de cada candidato NÃO são recalculados aqui: vêm de
+ * `votosPorCandidatoMunicipio` (`lib/utils/municipio-votos.ts`), a MESMA
+ * função que `MunicipioExplorer` (a folha, aberta no CLIQUE) usa para exibir
+ * exatamente este município. Uma conta, dois consumidores — duas
+ * implementações da mesma soma divergem cedo ou tarde, e o defeito que essa
+ * decisão evita é "o mouse diz 28,7% e o clique diz 28,6% no mesmo
+ * município". Ver a docstring daquela função para a prova de que o
+ * denominador (`Σ votos_reportados`) é a mesma base "votáveis" que
+ * `pct_atual` usa no resto do produto.
+ *
+ * O que ESTA função decide, que é específico do balão (não da conta):
+ *   - corta em top-3 (mesma densidade visual do balão nacional, cujo
+ *     `top_candidatos` já chega truncado do payload) — a folha mostra TODOS,
+ *     o balão não tem esse espaço nem essa vocação;
+ *   - resolve a COR pelo padrão de acessibilidade do `<HoverCard>`
+ *     (RNF-035/SC 1.4.11: `textForParty` quando o partido tem token próprio,
+ *     mesma variante legível que o balão NACIONAL usa para o mesmo ponto de
+ *     8×8) — a folha usa `MunicipioVotoCandidato.cor` direto porque ali é
+ *     uma barra decorativa, não um ponto de 8×8 isolado sobre fundo claro;
+ *   - nunca preenche `proj` (sem projeção municipal, ver docstring do topo
+ *     do arquivo) nem `winnerBackground`/`winnerInk`: município não tem o
+ *     conceito de "chamada" (`EdgeUfRow.chamada` é campo de corrida
+ *     MAJORITÁRIA nacional/estadual; `EdgeUfMunicipio` não o carrega) —
+ *     inventar um limiar aqui declararia vencedor sem o fato que sustenta a
+ *     faixa colorida no mapa nacional (constituição § 1).
+ */
+function buildMunicipioHoverRows(
+  municipio: EdgeUfMunicipio,
+  candidatos: EdgeUfCandidate[],
+): HoverCardRow[] {
+  return votosPorCandidatoMunicipio(municipio, candidatos)
+    .slice(0, 3)
+    .map((v) => {
+      const useParty = partidoIsMapped(v.partido);
+      return {
+        name: v.nome,
+        color: useParty ? textForParty(v.partido) : v.cor,
+        partido: v.partido,
+        votos: v.votos,
+        pct: v.pct,
+      };
+    });
+}
+
+interface MunicipioTooltipState {
+  x: number;
+  y: number;
+  /** Vira o cartão pra esquerda perto da borda direita do mapa. */
+  flip: boolean;
+  /**
+   * SÓ o código — não o `EdgeUfMunicipio` inteiro (2026-09-18, 2ª correção de
+   * rota do dia). `detalhe` (o prop com `votos_reportados`) chega por busca
+   * assíncrona no componente pai (`PersistentMapFrame`, client-side,
+   * `ufResumo`/`municipioDetalhe` começam `null`) — pode chegar DEPOIS do
+   * primeiro hover. Guardar o objeto resolvido no momento do hover congelaria
+   * esse "ainda não chegou" para sempre: o card só reapareceria no PRÓXIMO
+   * `mousemove`, e alguém que hovera e para o mouse (o caso comum) nunca veria
+   * o balão aparecer sozinho quando o dado enfim chegasse. Guardando só o
+   * `codIbge`, a resolução para `EdgeUfMunicipio` acontece no RENDER (`detalheMap`
+   * abaixo, `useMemo` sobre a prop `detalhe` atual) — a cada render em que
+   * `detalhe` mudou, o card resolve de novo, sem precisar de um novo hover.
+   */
+  codIbge: string;
 }
 
 /** Throttle helper — evita flood de eventos mousemove */
@@ -87,7 +222,14 @@ function ufFloorFilter(sigla: string): maplibregl.ExpressionSpecification {
   return ["==", ["floor", ["/", ["to-number", ["get", "CD_MUN"]], 100000]], ufCodigo];
 }
 
-export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: ChoroplethMapUFProps) {
+export function ChoroplethMapUF({
+  ufSigla,
+  municipios,
+  mode,
+  height = 360,
+  detalhe,
+  candidatos,
+}: ChoroplethMapUFProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const municipiosRef = useRef(municipios);
@@ -95,6 +237,30 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
   useEffect(() => {
     municipiosRef.current = municipios;
   }, [municipios]);
+
+  // `<HoverCard>` (2026-09-18, 2ª correção de rota) — `detalhe`/`candidatos`
+  // só são lidos no RENDER, nunca de dentro do handler de `mousemove`: o
+  // handler (nascido em `mount()`, efeito de deps `[ufSigla, mode]`) só
+  // guarda `codIbge` no estado (ver docstring de `MunicipioTooltipState`).
+  // Isso é o que faz o card aparecer sozinho quando `detalhe`/`candidatos`
+  // chegam DEPOIS do hover (busca assíncrona no pai) — sem exigir um novo
+  // `mousemove`: a prop muda, o componente re-renderiza, `detalheMap` e
+  // `candidatosAtuais` resolvem de novo com o `codIbge` que já estava salvo.
+  const detalheMap = useMemo(
+    () => new Map((detalhe ?? []).map((m) => [m.cod_ibge, m] as const)),
+    [detalhe],
+  );
+  const candidatosAtuais = candidatos ?? [];
+
+  const [tooltip, setTooltip] = useState<MunicipioTooltipState | null>(null);
+  // `null` sempre que `tooltip` é `null` OU `detalheMap` ainda não resolve o
+  // `codIbge` guardado nele — junta as duas condições num só valor pra não
+  // espalhar `tooltip?.x ?? 0` pelo JSX abaixo (TS não sabe correlacionar
+  // "`municipioTooltip` truthy" com "`tooltip` não é null" sozinho).
+  const municipioTooltip =
+    tooltip && detalheMap.has(tooltip.codIbge)
+      ? { pos: tooltip, municipio: detalheMap.get(tooltip.codIbge) as EdgeUfMunicipio }
+      : null;
 
   // Hover consumer: reage ao hover externo (tabela → mapa)
   const hoveredIbge = useHoverStore((s) =>
@@ -295,7 +461,12 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
         }
       });
 
-      // Hover producer
+      // Hover producer + `<HoverCard>` (2026-09-18). Guarda só `codIbge` — a
+      // resolução para `EdgeUfMunicipio` (via `detalheMap`, prop `detalhe`)
+      // acontece no RENDER, não aqui (ver docstring de `MunicipioTooltipState`).
+      // Sem `detalhe`/`candidatos`, o balão simplesmente não aparece (`
+      // municipioTooltip` fica `undefined` no render) — hover-store e traço
+      // continuam funcionando normalmente de qualquer jeito.
       const onMouseMove = throttle(
         (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
           const feature = e.features?.[0];
@@ -310,6 +481,18 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
             ["==", ["get", "CD_MUN"], codIbge],
           ]);
           map.getCanvas().style.cursor = "pointer";
+
+          const rect = container.getBoundingClientRect();
+          const x = e.originalEvent.clientX - rect.left;
+          const y = e.originalEvent.clientY - rect.top;
+          setTooltip({
+            x,
+            y,
+            // Vira o cartão pra esquerda perto da borda direita do mapa
+            // (mesma regra de `_NationalChoroplethMapImpl.tsx`).
+            flip: x > rect.width / 2,
+            codIbge,
+          });
         },
         16,
       );
@@ -320,6 +503,7 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
         useHoverStore.getState().clear();
         map.setFilter("municipios-stroke-hover", ["all", ufFilter, ["==", ["get", "CD_MUN"], ""]]);
         map.getCanvas().style.cursor = "";
+        setTooltip(null);
       });
 
       // Clique no município: realça (era o único efeito até 2026-09-10, e é o
@@ -392,5 +576,41 @@ export function ChoroplethMapUF({ ufSigla, municipios, mode, height = 360 }: Cho
       ? `Mapa de estimativa por município — ${ufSigla}`
       : `Mapa de líder por município — ${ufSigla}`;
 
-  return <div ref={containerRef} role="img" aria-label={label} style={{ width: "100%", height }} />;
+  return (
+    <div style={{ position: "relative", height }}>
+      <div ref={containerRef} role="img" aria-label={label} style={{ width: "100%", height }} />
+      {/* `<HoverCard>` (2026-09-18) — mesmo átomo do mapa nacional, sem a
+          coluna "Proj." (ver docstring do topo do arquivo).
+          `municipioTooltip` (não `tooltip` sozinho) é a condição: sem
+          `detalhe` resolvendo este `codIbge` (ainda não chegou, ou o
+          município não está no payload), NENHUM cartão aparece — degradação
+          honesta em vez de um balão pela metade. */}
+      {municipioTooltip ? (
+        <HoverCard
+          x={municipioTooltip.pos.x}
+          y={municipioTooltip.pos.y}
+          flip={municipioTooltip.pos.flip}
+          // Sem sufixo de UF (ao contrário do balão nacional, que escreve
+          // "Minas Gerais (MG)"): ali a ambiguidade é real — o mapa cobre as
+          // 27 UFs ao mesmo tempo. Aqui o mapa já está dentro de UMA UF
+          // (`/uf/[sigla]`), o mesmo escopo em que a folha do clique
+          // (`MunicipioExplorer`) também titula só pelo nome do município e
+          // deixa a UF no kicker ("Município · SP") — repetir a UF no título
+          // do balão seria ruído que a tela já resolveu de outro jeito.
+          title={municipioTooltip.municipio.nome}
+          // "Capital" no lugar de um "% apurado" redundante com o cabeçalho
+          // abaixo — mesmo dado que o kicker da folha já mostra
+          // (`MunicipioExplorer`, `Município · UF · capital`).
+          kicker={municipioTooltip.municipio.capital ? "Capital" : undefined}
+          // `pct_apurado` do MUNICÍPIO é a média ponderada pelo eleitorado
+          // dos pares (município, zona) que caem nele — não um percentual
+          // que o TSE publique pronto por município (ver
+          // `fetch_municipio_aggregates`, `api/model/project.py`, e a nota
+          // idêntica na folha, `MunicipioExplorer.tsx`).
+          apurado={municipioTooltip.municipio.pct_apurado}
+          rows={buildMunicipioHoverRows(municipioTooltip.municipio, candidatosAtuais)}
+        />
+      ) : null}
+    </div>
+  );
 }

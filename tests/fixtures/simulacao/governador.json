@@ -2954,21 +2954,27 @@
           "pct": 31.2,
           "nome": "TIÃO BOCALOM",
           "partido": "PSDB",
-          "sqcand": "10002544015"
+          "sqcand": "10002544015",
+          "votos_atuais": 15185,
+          "pct_atual": 29.69
         },
         {
           "id": 1001,
           "pct": 29,
           "nome": "ALAN RICK",
           "partido": "REPUBLICANOS",
-          "sqcand": "10002532492"
+          "sqcand": "10002532492",
+          "votos_atuais": 16470,
+          "pct_atual": 32.2
         },
         {
           "id": 1002,
           "pct": 26.4,
           "nome": "THOR DANTAS",
           "partido": "PSB",
-          "sqcand": "10002550719"
+          "sqcand": "10002550719",
+          "votos_atuais": 12165,
+          "pct_atual": 23.78
         }
       ],
       "vai_a_2t": true,
@@ -2989,14 +2995,18 @@
           "pct": 51.83,
           "nome": "MÁRCIO JAMBO",
           "partido": "DEMOCRATA",
-          "sqcand": "20002552502"
+          "sqcand": "20002552502",
+          "votos_atuais": 95916,
+          "pct_atual": 47.96
         },
         {
           "id": 2001,
           "pct": 48.17,
           "nome": "LENILDA LUNA",
           "partido": "UP",
-          "sqcand": "20002539642"
+          "sqcand": "20002539642",
+          "votos_atuais": 104093,
+          "pct_atual": 52.04
         }
       ],
       "vai_a_2t": false,
@@ -3017,21 +3027,27 @@
           "pct": 31.2,
           "nome": "PROFESSORA MARIA DO CARMO",
           "partido": "PL",
-          "sqcand": "40002541626"
+          "sqcand": "40002541626",
+          "votos_atuais": 77664,
+          "pct_atual": 32.55
         },
         {
           "id": 3001,
           "pct": 29,
           "nome": "ROBERTO CIDADE",
           "partido": "UNIÃO",
-          "sqcand": "40002541741"
+          "sqcand": "40002541741",
+          "votos_atuais": 66560,
+          "pct_atual": 27.9
         },
         {
           "id": 3002,
           "pct": 26.4,
           "nome": "OMAR AZIZ",
           "partido": "PSD",
-          "sqcand": "40002532272"
+          "sqcand": "40002532272",
+          "votos_atuais": 64287,
+          "pct_atual": 26.95
         }
       ],
       "vai_a_2t": true,
@@ -3052,21 +3068,27 @@
           "pct": 31.2,
           "nome": "CLÉCIO",
           "partido": "UNIÃO",
-          "sqcand": "30002536311"
+          "sqcand": "30002536311",
+          "votos_atuais": 17925,
+          "pct_atual": 35.76
         },
         {
           "id": 4001,
           "pct": 29,
           "nome": "DR. FURLAN",
           "partido": "PSD",
-          "sqcand": "30002530014"
+          "sqcand": "30002530014",
+          "votos_atuais": 14428,
+          "pct_atual": 28.78
         },
         {
           "id": 4002,
           "pct": 26.4,
           "nome": "CARLOS CLEY",
           "partido": "PSTU",
-          "sqcand": "30002536313"
+          "sqcand": "30002536313",
+          "votos_atuais": 11128,
+          "pct_atual": 22.2
         }
       ],
       "vai_a_2t": true,
@@ -3087,21 +3109,27 @@
           "pct": 57.5,
           "nome": "ACM NETO",
           "partido": "UNIÃO",
-          "sqcand": "50002533190"
+          "sqcand": "50002533190",
+          "votos_atuais": 572505,
+          "pct_atual": 58.59
         },
         {
           "id": 5001,
           "pct": 24,
           "nome": "JERÔNIMO RODRIGUES",
           "partido": "PT",
-          "sqcand": "50002536314"
+          "sqcand": "50002536314",
+          "votos_atuais": 225377,
+          "pct_atual": 23.07
         },
         {
           "id": 5002,
           "pct": 11,
           "nome": "RONALDO MANSUR",
           "partido": "PSOL",
-          "sqcand": "50002532269"
+          "sqcand": "50002532269",
+          "votos_atuais": 113102,
+          "pct_atual": 11.58
         }
       ],
       "vai_a_2t": false,
@@ -3122,21 +3150,27 @@
           "pct": 38.5,
           "nome": "CIRO GOMES",
           "partido": "PSDB",
-          "sqcand": "60002531351"
+          "sqcand": "60002531351",
+          "votos_atuais": 237167,
+          "pct_atual": 37.66
         },
         {
           "id": 6001,
           "pct": 35.4,
           "nome": "ELMANO DE FREITAS",
           "partido": "PT",
-          "sqcand": "60002543969"
+          "sqcand": "60002543969",
+          "votos_atuais": 242705,
+          "pct_atual": 38.54
         },
         {
           "id": 6002,
           "pct": 15.6,
           "nome": "VERA LÚCIA",
           "partido": "NOVO",
-          "sqcand": "60002553922"
+          "sqcand": "60002553922",
+          "votos_atuais": 92305,
+          "pct_atual": 14.66
         }
       ],
       "vai_a_2t": true,
@@ -3157,21 +3191,27 @@
           "pct": 57.5,
           "nome": "LEANDRO GRASS",
           "partido": "PT",
-          "sqcand": "70002552496"
+          "sqcand": "70002552496",
+          "votos_atuais": 389822,
+          "pct_atual": 59.77
         },
         {
           "id": 7001,
           "pct": 24,
           "nome": "ARRUDA",
           "partido": "PSD",
-          "sqcand": "70002552586"
+          "sqcand": "70002552586",
+          "votos_atuais": 142371,
+          "pct_atual": 21.83
         },
         {
           "id": 7002,
           "pct": 11,
           "nome": "PAULA BELMONTE",
           "partido": "PSDB",
-          "sqcand": "70002552965"
+          "sqcand": "70002552965",
+          "votos_atuais": 73475,
+          "pct_atual": 11.27
         }
       ],
       "vai_a_2t": false,
@@ -3192,21 +3232,27 @@
           "pct": 38.5,
           "nome": "LORENZO PAZOLINI",
           "partido": "REPUBLICANOS",
-          "sqcand": "80002552682"
+          "sqcand": "80002552682",
+          "votos_atuais": 273902,
+          "pct_atual": 38.42
         },
         {
           "id": 8001,
           "pct": 35.4,
           "nome": "HELDER SALOMÃO",
           "partido": "PT",
-          "sqcand": "80002551833"
+          "sqcand": "80002551833",
+          "votos_atuais": 246818,
+          "pct_atual": 34.62
         },
         {
           "id": 8002,
           "pct": 15.6,
           "nome": "RICARDO FERRAÇO",
           "partido": "MDB",
-          "sqcand": "80002552172"
+          "sqcand": "80002552172",
+          "votos_atuais": 119813,
+          "pct_atual": 16.8
         }
       ],
       "vai_a_2t": true,
@@ -3227,21 +3273,27 @@
           "pct": 38.5,
           "nome": "WILDER MORAIS",
           "partido": "PL",
-          "sqcand": "90002551791"
+          "sqcand": "90002551791",
+          "votos_atuais": 457562,
+          "pct_atual": 40.22
         },
         {
           "id": 9001,
           "pct": 35.4,
           "nome": "LUIS CESAR BUENO",
           "partido": "PT",
-          "sqcand": "90002545476"
+          "sqcand": "90002545476",
+          "votos_atuais": 390531,
+          "pct_atual": 34.33
         },
         {
           "id": 9002,
           "pct": 15.6,
           "nome": "DANIEL VILELA",
           "partido": "MDB",
-          "sqcand": "90002540993"
+          "sqcand": "90002540993",
+          "votos_atuais": 166627,
+          "pct_atual": 14.65
         }
       ],
       "vai_a_2t": true,
@@ -3262,21 +3314,27 @@
           "pct": 38.5,
           "nome": "ORLEANS BRANDÃO",
           "partido": "MDB",
-          "sqcand": "100002543869"
+          "sqcand": "100002543869",
+          "votos_atuais": 140401,
+          "pct_atual": 32.01
         },
         {
           "id": 10001,
           "pct": 35.4,
           "nome": "FELIPE CAMARÃO",
           "partido": "PT",
-          "sqcand": "100002542556"
+          "sqcand": "100002542556",
+          "votos_atuais": 174898,
+          "pct_atual": 39.87
         },
         {
           "id": 10002,
           "pct": 15.6,
           "nome": "EDUARDO BRAIDE",
           "partido": "PSD",
-          "sqcand": "100002545679"
+          "sqcand": "100002545679",
+          "votos_atuais": 74428,
+          "pct_atual": 16.97
         }
       ],
       "vai_a_2t": true,
@@ -3297,21 +3355,27 @@
           "pct": 38.5,
           "nome": "FLÁVIO ROSCOE",
           "partido": "PL",
-          "sqcand": "130002550834"
+          "sqcand": "130002550834",
+          "votos_atuais": 1491974,
+          "pct_atual": 38.32
         },
         {
           "id": 11001,
           "pct": 35.4,
           "nome": "PATRUS ANANIAS",
           "partido": "PT",
-          "sqcand": "130002550464"
+          "sqcand": "130002550464",
+          "votos_atuais": 1303008,
+          "pct_atual": 33.47
         },
         {
           "id": 11002,
           "pct": 15.6,
           "nome": "CLEITINHO AZEVEDO",
           "partido": "REPUBLICANOS",
-          "sqcand": "130002552296"
+          "sqcand": "130002552296",
+          "votos_atuais": 678675,
+          "pct_atual": 17.43
         }
       ],
       "vai_a_2t": true,
@@ -3332,21 +3396,27 @@
           "pct": 31.2,
           "nome": "JOÃO HENRIQUE CATAN",
           "partido": "NOVO",
-          "sqcand": "120002552191"
+          "sqcand": "120002552191",
+          "votos_atuais": 187857,
+          "pct_atual": 31.72
         },
         {
           "id": 12001,
           "pct": 29,
           "nome": "FÁBIO TRAD",
           "partido": "PT",
-          "sqcand": "120002539834"
+          "sqcand": "120002539834",
+          "votos_atuais": 176573,
+          "pct_atual": 29.81
         },
         {
           "id": 12002,
           "pct": 26.4,
           "nome": "EDUARDO RIEDEL",
           "partido": "PP",
-          "sqcand": "120002536582"
+          "sqcand": "120002536582",
+          "votos_atuais": 154361,
+          "pct_atual": 26.06
         }
       ],
       "vai_a_2t": true,
@@ -3367,21 +3437,27 @@
           "pct": 38.5,
           "nome": "WELLINGTON FAGUNDES",
           "partido": "PL",
-          "sqcand": "110002551737"
+          "sqcand": "110002551737",
+          "votos_atuais": 200162,
+          "pct_atual": 39.5
         },
         {
           "id": 13001,
           "pct": 35.4,
           "nome": "OTAVIANO PIVETTA",
           "partido": "REPUBLICANOS",
-          "sqcand": "110002551480"
+          "sqcand": "110002551480",
+          "votos_atuais": 182566,
+          "pct_atual": 36.02
         },
         {
           "id": 13002,
           "pct": 15.6,
           "nome": "DOUTORA NATASHA",
           "partido": "PSD",
-          "sqcand": "110002544985"
+          "sqcand": "110002544985",
+          "votos_atuais": 73419,
+          "pct_atual": 14.49
         }
       ],
       "vai_a_2t": true,
@@ -3402,21 +3478,27 @@
           "pct": 38.5,
           "nome": "DR. DANIEL",
           "partido": "PODE",
-          "sqcand": "140002549930"
+          "sqcand": "140002549930",
+          "votos_atuais": 217215,
+          "pct_atual": 40.01
         },
         {
           "id": 14001,
           "pct": 35.4,
           "nome": "HANA GHASSAN",
           "partido": "MDB",
-          "sqcand": "140002551598"
+          "sqcand": "140002551598",
+          "votos_atuais": 182347,
+          "pct_atual": 33.59
         },
         {
           "id": 14002,
           "pct": 15.6,
           "nome": "ARACELI",
           "partido": "PSOL",
-          "sqcand": "140002542386"
+          "sqcand": "140002542386",
+          "votos_atuais": 89232,
+          "pct_atual": 16.44
         }
       ],
       "vai_a_2t": true,
@@ -3437,21 +3519,27 @@
           "pct": 31.2,
           "nome": "CÍCERO LUCENA",
           "partido": "MDB",
-          "sqcand": "150002544133"
+          "sqcand": "150002544133",
+          "votos_atuais": 96292,
+          "pct_atual": 34.28
         },
         {
           "id": 15001,
           "pct": 29,
           "nome": "EFRAIM FILHO",
           "partido": "PL",
-          "sqcand": "150002538692"
+          "sqcand": "150002538692",
+          "votos_atuais": 68463,
+          "pct_atual": 24.37
         },
         {
           "id": 15002,
           "pct": 26.4,
           "nome": "LUCAS RIBEIRO",
           "partido": "PP",
-          "sqcand": "150002551789"
+          "sqcand": "150002551789",
+          "votos_atuais": 79689,
+          "pct_atual": 28.37
         }
       ],
       "vai_a_2t": true,
@@ -3472,21 +3560,27 @@
           "pct": 57.5,
           "nome": "JOÃO CAMPOS",
           "partido": "PSB",
-          "sqcand": "170002537230"
+          "sqcand": "170002537230",
+          "votos_atuais": 393539,
+          "pct_atual": 62.23
         },
         {
           "id": 16001,
           "pct": 24,
           "nome": "RAQUEL LYRA",
           "partido": "PSD",
-          "sqcand": "170002537227"
+          "sqcand": "170002537227",
+          "votos_atuais": 134790,
+          "pct_atual": 21.31
         },
         {
           "id": 16002,
           "pct": 11,
           "nome": "IVAN MORAES",
           "partido": "PSOL",
-          "sqcand": "170002538097"
+          "sqcand": "170002538097",
+          "votos_atuais": 58871,
+          "pct_atual": 9.31
         }
       ],
       "vai_a_2t": false,
@@ -3507,21 +3601,27 @@
           "pct": 38.5,
           "nome": "RAFAEL FONTELES",
           "partido": "PT",
-          "sqcand": "180002532987"
+          "sqcand": "180002532987",
+          "votos_atuais": 91841,
+          "pct_atual": 38.73
         },
         {
           "id": 17001,
           "pct": 35.4,
           "nome": "DRA. LÚCIA SANTOS",
           "partido": "PSDB",
-          "sqcand": "180002544216"
+          "sqcand": "180002544216",
+          "votos_atuais": 83859,
+          "pct_atual": 35.36
         },
         {
           "id": 17002,
           "pct": 15.6,
           "nome": "JOEL RODRIGUES",
           "partido": "PP",
-          "sqcand": "180002538530"
+          "sqcand": "180002538530",
+          "votos_atuais": 36592,
+          "pct_atual": 15.43
         }
       ],
       "vai_a_2t": true,
@@ -3542,21 +3642,27 @@
           "pct": 57.5,
           "nome": "SANDRO ALEX",
           "partido": "PSD",
-          "sqcand": "160002549553"
+          "sqcand": "160002549553",
+          "votos_atuais": 1270141,
+          "pct_atual": 55.74
         },
         {
           "id": 18001,
           "pct": 24,
           "nome": "SERGIO MORO",
           "partido": "PL",
-          "sqcand": "160002540833"
+          "sqcand": "160002540833",
+          "votos_atuais": 561548,
+          "pct_atual": 24.64
         },
         {
           "id": 18002,
           "pct": 11,
           "nome": "REQUIÃO FILHO",
           "partido": "PDT",
-          "sqcand": "160002547666"
+          "sqcand": "160002547666",
+          "votos_atuais": 267527,
+          "pct_atual": 11.74
         }
       ],
       "vai_a_2t": false,
@@ -3577,21 +3683,27 @@
           "pct": 31.2,
           "nome": "DOUGLAS RUAS",
           "partido": "PL",
-          "sqcand": "190002542887"
+          "sqcand": "190002542887",
+          "votos_atuais": 875491,
+          "pct_atual": 30.25
         },
         {
           "id": 19001,
           "pct": 29,
           "nome": "ANDRÉ MARINHO",
           "partido": "NOVO",
-          "sqcand": "190002537524"
+          "sqcand": "190002537524",
+          "votos_atuais": 806358,
+          "pct_atual": 27.87
         },
         {
           "id": 19002,
           "pct": 26.4,
           "nome": "WILLIAM SIRI",
           "partido": "PSOL",
-          "sqcand": "190002536162"
+          "sqcand": "190002536162",
+          "votos_atuais": 810491,
+          "pct_atual": 28.01
         }
       ],
       "vai_a_2t": true,
@@ -3612,21 +3724,27 @@
           "pct": 31.2,
           "nome": "ÁLVARO DIAS",
           "partido": "PL",
-          "sqcand": "200002534442"
+          "sqcand": "200002534442",
+          "votos_atuais": 74418,
+          "pct_atual": 31.96
         },
         {
           "id": 20001,
           "pct": 29,
           "nome": "CADU DE LULA",
           "partido": "PT",
-          "sqcand": "200002534001"
+          "sqcand": "200002534001",
+          "votos_atuais": 65736,
+          "pct_atual": 28.23
         },
         {
           "id": 20002,
           "pct": 26.4,
           "nome": "ALLYSON",
           "partido": "UNIÃO",
-          "sqcand": "200002535255"
+          "sqcand": "200002535255",
+          "votos_atuais": 62569,
+          "pct_atual": 26.87
         }
       ],
       "vai_a_2t": true,
@@ -3647,21 +3765,27 @@
           "pct": 57.5,
           "nome": "EXPEDITO NETTO",
           "partido": "PT",
-          "sqcand": "220002542185"
+          "sqcand": "220002542185",
+          "votos_atuais": 56095,
+          "pct_atual": 53.54
         },
         {
           "id": 21001,
           "pct": 24,
           "nome": "MARCOS ROGÉRIO",
           "partido": "PL",
-          "sqcand": "220002541939"
+          "sqcand": "220002541939",
+          "votos_atuais": 27789,
+          "pct_atual": 26.52
         },
         {
           "id": 21002,
           "pct": 11,
           "nome": "HILDON CHAVES",
           "partido": "UNIÃO",
-          "sqcand": "220002542916"
+          "sqcand": "220002542916",
+          "votos_atuais": 12296,
+          "pct_atual": 11.74
         }
       ],
       "vai_a_2t": false,
@@ -3682,21 +3806,27 @@
           "pct": 57.5,
           "nome": "ARTHUR HENRIQUE",
           "partido": "PL",
-          "sqcand": "230002549223"
+          "sqcand": "230002549223",
+          "votos_atuais": 19840,
+          "pct_atual": 57.32
         },
         {
           "id": 22001,
           "pct": 24,
           "nome": "SOLDADO SAMPAIO",
           "partido": "REPUBLICANOS",
-          "sqcand": "230002551571"
+          "sqcand": "230002551571",
+          "votos_atuais": 8097,
+          "pct_atual": 23.4
         },
         {
           "id": 22002,
           "pct": 11,
           "nome": "FARAH MESQUITA",
           "partido": "SOLIDARIEDADE",
-          "sqcand": "230002549294"
+          "sqcand": "230002549294",
+          "votos_atuais": 4100,
+          "pct_atual": 11.85
         }
       ],
       "vai_a_2t": false,
@@ -3717,21 +3847,27 @@
           "pct": 57.5,
           "nome": "GABRIEL SOUZA",
           "partido": "MDB",
-          "sqcand": "210002542892"
+          "sqcand": "210002542892",
+          "votos_atuais": 937305,
+          "pct_atual": 51.35
         },
         {
           "id": 23001,
           "pct": 24,
           "nome": "ZUCCO",
           "partido": "PL",
-          "sqcand": "210002547857"
+          "sqcand": "210002547857",
+          "votos_atuais": 502266,
+          "pct_atual": 27.52
         },
         {
           "id": 23002,
           "pct": 11,
           "nome": "MARCELO MARANATA",
           "partido": "PSDB",
-          "sqcand": "210002535802"
+          "sqcand": "210002535802",
+          "votos_atuais": 228644,
+          "pct_atual": 12.53
         }
       ],
       "vai_a_2t": false,
@@ -3752,21 +3888,27 @@
           "pct": 57.5,
           "nome": "JORGINHO MELLO",
           "partido": "PL",
-          "sqcand": "240002537073"
+          "sqcand": "240002537073",
+          "votos_atuais": 602324,
+          "pct_atual": 57.95
         },
         {
           "id": 24001,
           "pct": 24,
           "nome": "JOÃO RODRIGUES",
           "partido": "PSD",
-          "sqcand": "240002551001"
+          "sqcand": "240002551001",
+          "votos_atuais": 233219,
+          "pct_atual": 22.44
         },
         {
           "id": 24002,
           "pct": 11,
           "nome": "GELSON MERÍSIO",
           "partido": "PSB",
-          "sqcand": "240002548628"
+          "sqcand": "240002548628",
+          "votos_atuais": 119922,
+          "pct_atual": 11.54
         }
       ],
       "vai_a_2t": false,
@@ -3787,21 +3929,27 @@
           "pct": 38.5,
           "nome": "RICARDO MARQUES",
           "partido": "PL",
-          "sqcand": "260002549466"
+          "sqcand": "260002549466",
+          "votos_atuais": 52529,
+          "pct_atual": 34.88
         },
         {
           "id": 25001,
           "pct": 35.4,
           "nome": "VALMIR DE FRANCISQUINHO",
           "partido": "REPUBLICANOS",
-          "sqcand": "260002532010"
+          "sqcand": "260002532010",
+          "votos_atuais": 56226,
+          "pct_atual": 37.33
         },
         {
           "id": 25002,
           "pct": 15.6,
           "nome": "FÁBIO",
           "partido": "PSD",
-          "sqcand": "260002542491"
+          "sqcand": "260002542491",
+          "votos_atuais": 25141,
+          "pct_atual": 16.69
         }
       ],
       "vai_a_2t": true,
@@ -3822,21 +3970,27 @@
           "pct": 31.2,
           "nome": "FERNANDO HADDAD",
           "partido": "PT",
-          "sqcand": "250002549705"
+          "sqcand": "250002549705",
+          "votos_atuais": 2726326,
+          "pct_atual": 30.36
         },
         {
           "id": 26001,
           "pct": 29,
           "nome": "TARCÍSIO",
           "partido": "REPUBLICANOS",
-          "sqcand": "250002541303"
+          "sqcand": "250002541303",
+          "votos_atuais": 2686234,
+          "pct_atual": 29.91
         },
         {
           "id": 26002,
           "pct": 26.4,
           "nome": "VIVIAN MENDES",
           "partido": "UP",
-          "sqcand": "250002544912"
+          "sqcand": "250002544912",
+          "votos_atuais": 2370086,
+          "pct_atual": 26.39
         }
       ],
       "vai_a_2t": true,
@@ -3857,21 +4011,27 @@
           "pct": 57.5,
           "nome": "LAUREZ MOREIRA",
           "partido": "PSD",
-          "sqcand": "270002544494"
+          "sqcand": "270002544494",
+          "votos_atuais": 58599,
+          "pct_atual": 58.62
         },
         {
           "id": 27001,
           "pct": 24,
           "nome": "PROFESSORA DORINHA",
           "partido": "UNIÃO",
-          "sqcand": "270002544599"
+          "sqcand": "270002544599",
+          "votos_atuais": 24592,
+          "pct_atual": 24.6
         },
         {
           "id": 27002,
           "pct": 11,
           "nome": "VICENTINHO JÚNIOR",
           "partido": "PSDB",
-          "sqcand": "270002544544"
+          "sqcand": "270002544544",
+          "votos_atuais": 9391,
+          "pct_atual": 9.39
         }
       ],
       "vai_a_2t": false,

@@ -84,7 +84,10 @@ import { MunicipioWaffleGrid } from "@/components/blocks/MunicipioWaffleGrid";
 import { useMunicipioSheetStore } from "@/components/shared/municipio-sheet-store";
 import type { EdgeCandidate, EdgeUfCandidate, EdgeUfMunicipio } from "@/lib/edge-config/types";
 import { formatPercent, formatVotes } from "@/lib/utils/format";
-import { nomeExibicao } from "@/lib/utils/nome-candidato";
+import {
+  type MunicipioVotoCandidato as FolhaRow,
+  votosPorCandidatoMunicipio,
+} from "@/lib/utils/municipio-votos";
 
 export interface MunicipioExplorerProps {
   ufSigla: string;
@@ -105,42 +108,13 @@ export interface MunicipioExplorerProps {
   waffleCandidatos?: EdgeCandidate[];
 }
 
-interface FolhaRow {
-  id: number;
-  nome: string;
-  partido: string;
-  cor: string;
-  votos: number;
-  pct: number;
-}
-
-/**
- * Compõe as linhas da folha a partir de `votos_reportados`. O percentual é
- * sobre o total apurado NO MUNICÍPIO — é a única base que o payload permite
- * fechar ali, e é a que o leitor consegue conferir contra o boletim.
- */
-function folhaRows(m: EdgeUfMunicipio, candidatos: EdgeUfCandidate[]): FolhaRow[] {
-  const porId = new Map(candidatos.map((c) => [c.id, c] as const));
-  const entradas = Object.entries(m.votos_reportados ?? {});
-  const total = entradas.reduce((acc, [, v]) => acc + (Number.isFinite(v) ? v : 0), 0);
-
-  return entradas
-    .map(([rawId, votos]) => {
-      const id = Number(rawId);
-      const c = porId.get(id);
-      return {
-        id,
-        // `FolhaRow.nome` é string: converto na origem, que é o último ponto
-        // com acesso ao `sqcand` (`EdgeUfCandidate` o carrega em todo cargo).
-        nome: c ? nomeExibicao(c.nome, c.sqcand) : `Candidato ${id}`,
-        partido: c?.partido ?? "—",
-        cor: c?.cor ?? "var(--color-cand-other)",
-        votos: Number.isFinite(votos) ? votos : 0,
-        pct: total > 0 ? ((Number.isFinite(votos) ? votos : 0) / total) * 100 : 0,
-      };
-    })
-    .sort((a, b) => b.votos - a.votos || a.id - b.id);
-}
+// `FolhaRow` (o percentual sobre o total apurado NO MUNICÍPIO) e a função que
+// o calcula saíram daqui em 2026-09-18 — ver `lib/utils/municipio-votos.ts`.
+// O balão do mapa municipal (`ChoroplethMapUF`, hover) passou a precisar do
+// MESMO número que esta folha (clique) já mostrava, e duas contas para o
+// mesmo dado divergem cedo ou tarde. `FolhaRow` é um alias de
+// `MunicipioVotoCandidato` — só o nome mudou de lugar, o cálculo é
+// byte-a-byte o mesmo.
 
 /** Uma linha da folha — parcial apenas, rotulada como parcial. */
 function FolhaLinha({ row, rank }: { row: FolhaRow; rank: number }) {
@@ -172,7 +146,10 @@ function FolhaLinha({ row, rank }: { row: FolhaRow; rank: number }) {
             color: "var(--text-secondary)",
           }}
         >
-          {row.partido}
+          {/* 2026-09-18: o "—" agora é do RENDER, não do dado (ver docstring
+              de `MunicipioVotoCandidato.partido` em `lib/utils/municipio-votos.ts`)
+              — o texto na tela é idêntico a antes. */}
+          {row.partido ?? "—"}
         </span>
       </div>
       <div className="text-right">
@@ -253,7 +230,7 @@ export function MunicipioExplorer({
 
   const municipio = selecionado ? (porCod.get(selecionado) ?? null) : null;
   const linhas = useMemo(
-    () => (municipio ? folhaRows(municipio, candidatos) : []),
+    () => (municipio ? votosPorCandidatoMunicipio(municipio, candidatos) : []),
     [municipio, candidatos],
   );
   const totalVotos = linhas.reduce((acc, l) => acc + l.votos, 0);

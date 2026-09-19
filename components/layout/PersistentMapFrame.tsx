@@ -390,7 +390,21 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
             <UfPicker cargo="gov" atual={sigla} />
           </div>
           <div className="relative min-h-0 flex-1">
-            <UfLeaderMapLazy ufSigla={sigla} choropleth={choropleth} height="100%" />
+            {/* `detalhe`/`candidatos` (2026-09-18) — sem eles, o
+                `<ChoroplethMapUF>` colore normalmente mas o `<HoverCard>`
+                nunca aparece (as duas props são opcionais e checadas lá
+                dentro); `candidatos` chega `undefined` enquanto `ufResumo`
+                (busca client-side acima) ainda não resolveu — o balão
+                aparece sozinho assim que resolver, sem exigir novo hover
+                (ver docstring de `MunicipioTooltipState` em
+                `ChoroplethMapUF.tsx`). */}
+            <UfLeaderMapLazy
+              ufSigla={sigla}
+              choropleth={choropleth}
+              height="100%"
+              detalhe={municipiosDaUf}
+              candidatos={ufResumo?.candidatos}
+            />
             {municipioDetalhe?.status === "unavailable" && (
               <div
                 style={{
@@ -634,7 +648,14 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
         aria-label={`Mapa coroplético de ${sigla} por município`}
         className="absolute inset-0"
       >
-        <UfLeaderMapLazy ufSigla={sigla} choropleth={choropleth} height="100%" />
+        {/* `detalhe`/`candidatos`: mesma nota da instância de "gov" acima. */}
+        <UfLeaderMapLazy
+          ufSigla={sigla}
+          choropleth={choropleth}
+          height="100%"
+          detalhe={municipiosDaUf}
+          candidatos={ufResumo?.candidatos}
+        />
         {/* Chip "← Brasil" + "<SIGLA> · <N> mun." sobreposto ao coroplético
             municipal — mesma composição visual do chip do nível Brasil
             (`NationalMapBlock`, `variant="frame"`), texto conforme o

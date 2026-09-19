@@ -46,6 +46,7 @@ import {
   registerPmtilesProtocolOnce,
   resetPmtilesProtocol,
 } from "@/components/atoms/maps/_pmtiles-protocol";
+import { UF_NOMES } from "@/components/atoms/maps/_shared";
 import { HoverCard, type HoverCardRow } from "@/components/atoms/overlays/HoverCard";
 import { FILL_OPACITY, fillOpacityExpression, swingToColor } from "@/components/blocks/_swingRamp";
 // 🔴 `ariaRessalvaVagas`/`margemSegundaVaga` vêm de `lib/utils/margem-senado`,
@@ -62,13 +63,19 @@ import type { UfPickerCargo } from "@/components/layout/UfPicker";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { useHoverStore } from "@/lib/state/hover-store";
 import type { ViewMode } from "@/lib/state/view-mode";
-import { colorForRank, resolveBandHex, resolveCandHex } from "@/lib/utils/cand-color";
+import {
+  colorForRank,
+  resolveBandHex,
+  resolveCandHex,
+  strongForRank,
+} from "@/lib/utils/cand-color";
 import { ariaRessalvaVagas, margemSegundaVaga } from "@/lib/utils/margem-senado";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import {
   intensityLevelForMargin,
   normalizePartySlug,
   PARTY_FALLBACK_SLUG,
+  partyChipInk,
   resolvePartyHex,
   textForParty,
 } from "@/lib/utils/party-color";
@@ -213,6 +220,21 @@ function turnoutToRankColor(pct: number, rank: number): string {
   return resolveBandHex(rank);
 }
 
+/**
+ * "Nome por extenso (SIGLA)" para o título do `<HoverCard>` (2026-09-18,
+ * pedido do dono — coluna 1 das sete: "Nome do Estado (Sigla)"). `UF_NOMES`
+ * vem de `components/atoms/maps/_shared.ts` — a MESMA tabela que
+ * `<UfPicker>` usa; não é uma quarta cópia (ver o comentário de
+ * `UF_NOMES` sobre as outras duas em `StateResultSheet.tsx`/
+ * `GovernorCard.tsx`, nenhuma das quais este arquivo importa). Sigla
+ * desconhecida (não deveria acontecer — vem de `SIGLA_UF` do próprio
+ * PMTiles) cai na sigla nua, nunca quebra o balão por um nome ausente.
+ */
+function ufTitleFor(sigla: string): string {
+  const nome = UF_NOMES[sigla];
+  return nome ? `${nome} (${sigla})` : sigla;
+}
+
 function rankFor(id: number, rankByLider: Record<number, number> | undefined): number {
   // Fallback: sem rankByLider → rank 99 (→ cor "other" cinza). Pré-S05 e
   // testes legados usam isso.
@@ -355,15 +377,19 @@ function applyColors(
  * Linhas do `<HoverCard>` — um candidato do top-3 por UF (`EdgeUfRow.top_candidatos`).
  *
  * `proj` é real: `top_candidatos[].pct` é literalmente `pct_projetado` por
- * candidato (ver docstring do campo em `lib/edge-config/types.ts`). `pct`
- * (Parcial) **não existe** por candidato neste payload — só agregado em
- * `row.pct_apurado`, que é da UF inteira, não de um candidato específico, e
- * `row.margem_atual` só dá a distância líder↔2º (não o share de cada um,
- * que em corrida N-way não soma 100 entre os dois primeiros). Preencher
- * `pct` com o valor projetado ou com uma fração inventada de `margem_atual`
- * mostraria número errado sob o cabeçalho "Parcial" — pior que não mostrar
- * nada. `Number.NaN` é honesto: `formatPercent` (usado por `HoverCard.fmt`)
- * trata `NaN` como "—", igual ao resto do produto pra dado ausente.
+ * candidato (ver docstring do campo em `lib/edge-config/types.ts`).
+ *
+ * 🔴 2026-09-18 (pedido do dono — balão estilo NYT): `pct`/`votos` também
+ * passam a ser reais, de `top_candidatos[].pct_atual`/`.votos_atuais`
+ * (`api/model/project.py`, mesmo dia). Até aqui `pct` era SEMPRE
+ * `Number.NaN` — o payload só tinha parcial agregada por UF
+ * (`row.pct_apurado`), nunca por candidato; `row.margem_atual` dava só a
+ * distância líder↔2º, não o share de cada um (que em corrida N-way não soma
+ * 100 entre os dois primeiros), então inventar uma fração dali mostraria
+ * número errado. Os dois campos novos são OPCIONAIS (payload pré-migração,
+ * ou UF imputada do nacional sem `pct_atual` por candidato — ver docstring
+ * do campo): `undefined` passa direto para `HoverCardRow`, que já trata
+ * ausência como "—", nunca `0`.
  *
  * 🔴 **A identidade vem PRIMEIRO da própria linha (`tc`), nunca de
  * `candidatosById` como fonte primária.** `EdgeUfRow.top_candidatos[]` sabe de
@@ -383,18 +409,37 @@ function applyColors(
  * pré-ADR-0042 (ex. `tests/fixtures/edge-config/gov-current.json`, onde
  * `top_candidatos` só tem `id`+`pct`) e para Presidente antes desta safra de
  * payloads, onde o nome só existia no bloco nacional.
+ *
+ * 🔴 **Tratamento de "vencedor" (fundo cheio + ✓) só na linha 0 e só quando
+ * `row.chamada === true`.** `row.chamada` é um fato sobre a UF inteira
+ * (`EdgeUfRow.chamada`), não sobre um candidato — mas a UI só faz sentido
+ * aplicado à linha do LÍDER, e `top_candidatos[0]` (ordenado por projeção
+ * desc, tie-break por id ASC — ver o campo em `lib/edge-config/types.ts`) é
+ * quem essa linha representa. Sem esta guarda de índice, uma UF chamada
+ * pintaria as TRÊS linhas com fundo cheio — a constituição § 1 proíbe
+ * publicar como decidido o que não foi (aqui, os 2º e 3º colocados). O par
+ * (fundo, tinta) é resolvido AQUI, não em `<HoverCard>`: o átomo não conhece
+ * partido (teste (h) de `HoverCard.test.tsx`) — `partyChipInk`/`strongForRank`
+ * já vêm com o contraste medido (≥4,5:1, docstring de cada um).
  */
 function buildHoverRows(
   row: EdgeUfRow,
   candidatosById: Map<number, EdgeCandidate>,
   rankByLider: Record<number, number> | undefined,
 ): HoverCardRow[] {
-  return row.top_candidatos.map((tc) => {
+  return row.top_candidatos.map((tc, index) => {
     const cand = candidatosById.get(tc.id);
     const nomeBruto = tc.nome ?? cand?.nome;
     const partido = tc.partido ?? cand?.partido;
     const sqcand = tc.sqcand ?? cand?.sqcand;
     const rank = rankFor(tc.id, rankByLider);
+    const useParty = partidoIsMapped(partido);
+    const isCalledWinner = index === 0 && row.chamada === true;
+    const winnerPair = isCalledWinner
+      ? useParty
+        ? partyChipInk(partido)
+        : { background: strongForRank(rank), ink: "var(--text-inverse)" as const }
+      : undefined;
     return {
       // `HoverCardRow.name` é string e o tooltip não tem como voltar ao
       // candidato: o nome de exibição sai daqui, senão o balão do mapa diria
@@ -402,7 +447,7 @@ function buildHoverRows(
       name: nomeBruto ? nomeExibicao(nomeBruto, sqcand) : `#${tc.id}`,
       // RNF-035 / WCAG SC 1.4.11 — `textForParty`, não `colorForParty`.
       // Este `color` vira um quadradinho de 8×8 no `<HoverCard>`
-      // (`components/atoms/overlays/HoverCard.tsx:163-171`): marcador de
+      // (`components/atoms/overlays/HoverCard.tsx`): marcador de
       // IDENTIDADE, sem extensão a perder, então o remédio é a variante
       // legível e não o contorno. Mesma decisão do ADR-0047 D1 para a linha do
       // gráfico — e é o que mantém a MESMA cor para o mesmo partido nos dois
@@ -412,9 +457,15 @@ function buildHoverRows(
       // NOVO 2,72 contra o piso de 3:1. A variante `-text` passa nas 4
       // superfícies e nos 2 temas para os 31 partidos, e em 17 deles ELA É a
       // cor base — a maioria dos estados não muda um pixel.
-      color: partidoIsMapped(partido) ? textForParty(partido) : colorForRank(rank),
-      pct: Number.NaN,
+      color: useParty ? textForParty(partido) : colorForRank(rank),
+      // % de votos válidos APURADOS deste candidato — real desde 2026-09-18
+      // (ver docstring acima). Ausente ⇒ `<HoverCard>` mostra "—", nunca 0.
+      pct: tc.pct_atual,
       proj: tc.pct,
+      partido,
+      votos: tc.votos_atuais,
+      winnerBackground: winnerPair?.background,
+      winnerInk: winnerPair?.ink,
     };
   });
 }
@@ -958,7 +1009,7 @@ export function NationalChoroplethMapImpl({
           x={tooltip.x}
           y={tooltip.y}
           flip={tooltip.flip}
-          title={tooltip.sigla}
+          title={ufTitleFor(tooltip.sigla)}
           kicker={tooltip.row.chamada ? "Chamada" : undefined}
           apurado={tooltip.row.pct_apurado}
           rows={buildHoverRows(tooltip.row, candidatosById, effectiveRankByLider)}

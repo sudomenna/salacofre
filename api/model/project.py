@@ -5033,6 +5033,20 @@ def build_edge_payload(
         # Os três campos são OPCIONAIS e só entram quando resolvidos: um
         # payload sem eles (pré-018, ou sob `model_fallback_tier`) continua
         # renderizando o placeholder na tela, que é o contrato de degradação.
+        #
+        # 2026-09-18 (pedido do dono — balão do mapa nacional estilo NYT):
+        # `votos_atuais`/`pct_atual` por candidato, mesmos nomes de
+        # `EdgeUfCandidate` (o payload de drill-down de UF já os carrega —
+        # ver `lib/edge-config/types.ts`). `r` aqui é a MESMA linha
+        # `(uf, candidato)` de `_uf_projection_row`/`CandidatoEstimate`:
+        # `votos_atuais` é sempre um `int` de verdade (0 é um FATO — zero
+        # boletim chegado para este candidato nesta UF —, nunca "não
+        # medimos"), mas `pct_atual` é `float | None` (`None` na imputação
+        # nacional de `impute_uf_from_national`, cargo 1 apenas — RF-013/017
+        # 2º nível). Ambos entram como os três de cima: SÓ quando não-`None`,
+        # nunca coeridos para `0`/`0.0` — "não sabemos" e "medimos zero" são
+        # estados diferentes (decisão do dono, 14/09; ver `swing_vs_2022`
+        # alguns campos acima pela mesma regra).
         top_candidatos: list[dict[str, Any]] = []
         for r in ordered[:3]:
             cid_top = int(r["candidato_id"])
@@ -5050,6 +5064,12 @@ def build_edge_payload(
             partido_top = (partido_by_cand or {}).get(cid_top)
             if partido_top:
                 item_top["partido"] = partido_top
+            votos_atuais_top = r.get("votos_atuais")
+            if votos_atuais_top is not None:
+                item_top["votos_atuais"] = int(votos_atuais_top)
+            pct_atual_top = r.get("pct_atual")
+            if pct_atual_top is not None:
+                item_top["pct_atual"] = float(pct_atual_top)
             top_candidatos.append(item_top)
 
         # vai_a_2t: aplicável apenas a governador 1T (cargo=3, turno=1).

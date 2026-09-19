@@ -1684,6 +1684,18 @@ function linhaUf(
       // endereça a foto (ADR-0041/0042). É o oposto do bloco nacional de
       // cargo 3/5, onde a mesma chave apontaria para o estado errado.
       sqcand: r.cand.sqcand,
+      // 2026-09-18 (pedido do dono — balão do mapa nacional estilo NYT):
+      // MESMOS campos/MESMOS valores que `edgeCandidate()` grava em
+      // `EdgeUfCandidate` logo acima — `r` é o MESMO `ResultadoCandUf` desta
+      // UF, então isto não é uma segunda conta, é o valor que esta função já
+      // tinha na mão. `votosAtuais`/`shareAtual` nunca são `null` neste
+      // gerador (ao contrário do modelo real — `impute_uf_from_national` não
+      // existe aqui): `sharesApurados` devolve `0` explícito quando
+      // `pctApurado <= 0`, e `0` É o fato correto (nenhuma zona simulada como
+      // apurada ainda) — por isso os dois campos vão SEMPRE, nunca opcionais
+      // aqui, ao contrário de `api/model/project.py`.
+      votos_atuais: r.votosAtuais,
+      pct_atual: r2(r.shareAtual),
     })),
     vai_a_2t: vaiA2t,
     bucket,

@@ -529,6 +529,29 @@ export interface EdgeUfRow {
      * `"100…"` (12). Se algum dia for preciso ordenar por ele, `BigInt`.
      */
     sqcand?: string;
+    /**
+     * Votos absolutos apurados deste candidato NESTA UF (2026-09-18, pedido
+     * do dono — balão do mapa nacional estilo NYT). Mesmo nome/semântica de
+     * {@link EdgeUfCandidate.votos_atuais}: `api/model/project.py` grava a
+     * MESMA linha `(uf, candidato)` nos dois payloads. `0` é um FATO — zero
+     * boletim chegado para este candidato nesta UF — não "não medimos"; por
+     * isso este campo é sempre um número quando presente, nunca "0 disfarça
+     * ausência". **Ausente** (não `0`) em payload pré-2026-09-18 e sob
+     * `model_fallback_tier` — consumidor mostra "—", nunca "0".
+     */
+    votos_atuais?: number;
+    /**
+     * % de votos válidos APURADOS deste candidato nesta UF, 0–100
+     * (2026-09-18, mesmo pedido acima). Mesmo nome/semântica de
+     * {@link EdgeUfCandidate.pct_atual} — mas ao contrário de `votos_atuais`,
+     * este campo pode faltar mesmo em payload novo: `api/model/project.py`
+     * omite-o quando a UF não tem NENHUMA zona apurada e o número vem por
+     * imputação nacional (cargo 1 apenas — `impute_uf_from_national`), caso
+     * em que "qual fração é deste candidato" não foi medido, só o total
+     * nacional foi. **Ausente ⇒ "—", nunca `0`** — decisão do dono de 14/09
+     * (não começou / não sabemos / apurando são três estados distintos).
+     */
+    pct_atual?: number;
   }>;
   /**
    * Para corridas de GOVERNADOR no 1T (cargo=3): `true` se o líder

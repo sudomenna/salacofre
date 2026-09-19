@@ -274,21 +274,27 @@
           "pct": 55.93,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 32235,
+          "pct_atual": 63.02
         },
         {
           "id": 13,
           "pct": 21.33,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 8616,
+          "pct_atual": 16.85
         },
         {
           "id": 55,
           "pct": 16.2,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 7323,
+          "pct_atual": 14.32
         }
       ],
       "vai_a_2t": null,
@@ -309,21 +315,27 @@
           "pct": 43.54,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 79351,
+          "pct_atual": 39.67
         },
         {
           "id": 22,
           "pct": 31.88,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 68887,
+          "pct_atual": 34.44
         },
         {
           "id": 55,
           "pct": 17.35,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 37662,
+          "pct_atual": 18.83
         }
       ],
       "vai_a_2t": null,
@@ -344,21 +356,27 @@
           "pct": 38.74,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 95252,
+          "pct_atual": 39.93
         },
         {
           "id": 13,
           "pct": 33.49,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 79646,
+          "pct_atual": 33.38
         },
         {
           "id": 55,
           "pct": 18.69,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 41849,
+          "pct_atual": 17.54
         }
       ],
       "vai_a_2t": null,
@@ -379,21 +397,27 @@
           "pct": 40.76,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 18576,
+          "pct_atual": 37.05
         },
         {
           "id": 13,
           "pct": 31.04,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 15188,
+          "pct_atual": 30.3
         },
         {
           "id": 55,
           "pct": 18.58,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 11058,
+          "pct_atual": 22.06
         }
       ],
       "vai_a_2t": null,
@@ -414,21 +438,27 @@
           "pct": 57.4,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 552854,
+          "pct_atual": 56.58
         },
         {
           "id": 22,
           "pct": 20.24,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 193458,
+          "pct_atual": 19.8
         },
         {
           "id": 55,
           "pct": 16.2,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 175042,
+          "pct_atual": 17.91
         }
       ],
       "vai_a_2t": null,
@@ -449,21 +479,27 @@
           "pct": 54.69,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 352158,
+          "pct_atual": 55.92
         },
         {
           "id": 22,
           "pct": 21.71,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 135015,
+          "pct_atual": 21.44
         },
         {
           "id": 55,
           "pct": 17.45,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 105610,
+          "pct_atual": 16.77
         }
       ],
       "vai_a_2t": null,
@@ -484,21 +520,27 @@
           "pct": 41.87,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 293889,
+          "pct_atual": 45.06
         },
         {
           "id": 13,
           "pct": 25.06,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 146913,
+          "pct_atual": 22.53
         },
         {
           "id": 55,
           "pct": 15.81,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 101231,
+          "pct_atual": 15.52
         }
       ],
       "vai_a_2t": null,
@@ -519,21 +561,27 @@
           "pct": 42.83,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 302067,
+          "pct_atual": 42.37
         },
         {
           "id": 13,
           "pct": 28.58,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 200202,
+          "pct_atual": 28.08
         },
         {
           "id": 55,
           "pct": 18.93,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 137871,
+          "pct_atual": 19.34
         }
       ],
       "vai_a_2t": null,
@@ -554,21 +602,27 @@
           "pct": 45.93,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 527844,
+          "pct_atual": 46.4
         },
         {
           "id": 13,
           "pct": 28.3,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 326682,
+          "pct_atual": 28.72
         },
         {
           "id": 55,
           "pct": 15.87,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 167379,
+          "pct_atual": 14.71
         }
       ],
       "vai_a_2t": null,
@@ -589,21 +643,27 @@
           "pct": 54.61,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 246804,
+          "pct_atual": 56.26
         },
         {
           "id": 22,
           "pct": 21.82,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 93968,
+          "pct_atual": 21.42
         },
         {
           "id": 55,
           "pct": 18.05,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 72522,
+          "pct_atual": 16.53
         }
       ],
       "vai_a_2t": null,
@@ -624,21 +684,27 @@
           "pct": 33.31,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 1116005,
+          "pct_atual": 28.66
         },
         {
           "id": 22,
           "pct": 33.1,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 1450851,
+          "pct_atual": 37.26
         },
         {
           "id": 55,
           "pct": 14.68,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 606284,
+          "pct_atual": 15.57
         }
       ],
       "vai_a_2t": null,
@@ -659,21 +725,27 @@
           "pct": 44.82,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 271639,
+          "pct_atual": 45.87
         },
         {
           "id": 13,
           "pct": 29.49,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 166178,
+          "pct_atual": 28.06
         },
         {
           "id": 55,
           "pct": 16.6,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 98366,
+          "pct_atual": 16.61
         }
       ],
       "vai_a_2t": null,
@@ -694,21 +766,27 @@
           "pct": 48.22,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 232299,
+          "pct_atual": 45.84
         },
         {
           "id": 13,
           "pct": 27.41,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 148460,
+          "pct_atual": 29.29
         },
         {
           "id": 55,
           "pct": 16.53,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 86355,
+          "pct_atual": 17.04
         }
       ],
       "vai_a_2t": null,
@@ -729,21 +807,27 @@
           "pct": 39.14,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 192618,
+          "pct_atual": 35.48
         },
         {
           "id": 13,
           "pct": 38.4,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 226188,
+          "pct_atual": 41.66
         },
         {
           "id": 55,
           "pct": 16.81,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 94156,
+          "pct_atual": 17.34
         }
       ],
       "vai_a_2t": null,
@@ -764,21 +848,27 @@
           "pct": 48.26,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 132357,
+          "pct_atual": 47.12
         },
         {
           "id": 22,
           "pct": 26.85,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 72165,
+          "pct_atual": 25.69
         },
         {
           "id": 55,
           "pct": 18.16,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 57228,
+          "pct_atual": 20.37
         }
       ],
       "vai_a_2t": null,
@@ -799,21 +889,27 @@
           "pct": 51.86,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 328958,
+          "pct_atual": 52.01
         },
         {
           "id": 22,
           "pct": 25.61,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 167929,
+          "pct_atual": 26.55
         },
         {
           "id": 55,
           "pct": 15.62,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 92616,
+          "pct_atual": 14.64
         }
       ],
       "vai_a_2t": null,
@@ -834,21 +930,27 @@
           "pct": 59.83,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 136014,
+          "pct_atual": 57.35
         },
         {
           "id": 22,
           "pct": 18.3,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 42936,
+          "pct_atual": 18.11
         },
         {
           "id": 55,
           "pct": 16.13,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 44617,
+          "pct_atual": 18.81
         }
       ],
       "vai_a_2t": null,
@@ -869,21 +971,27 @@
           "pct": 44.47,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 1051295,
+          "pct_atual": 46.14
         },
         {
           "id": 13,
           "pct": 26.87,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 616830,
+          "pct_atual": 27.07
         },
         {
           "id": 55,
           "pct": 16.07,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 317435,
+          "pct_atual": 13.93
         }
       ],
       "vai_a_2t": null,
@@ -904,21 +1012,27 @@
           "pct": 40.05,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 1233796,
+          "pct_atual": 42.64
         },
         {
           "id": 13,
           "pct": 27.88,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 769194,
+          "pct_atual": 26.58
         },
         {
           "id": 55,
           "pct": 16.31,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 446691,
+          "pct_atual": 15.44
         }
       ],
       "vai_a_2t": null,
@@ -939,21 +1053,27 @@
           "pct": 49.06,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 121832,
+          "pct_atual": 52.32
         },
         {
           "id": 22,
           "pct": 27.6,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 60850,
+          "pct_atual": 26.13
         },
         {
           "id": 55,
           "pct": 16.42,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 33905,
+          "pct_atual": 14.56
         }
       ],
       "vai_a_2t": null,
@@ -974,21 +1094,27 @@
           "pct": 53.5,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 58149,
+          "pct_atual": 55.5
         },
         {
           "id": 13,
           "pct": 21.54,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 20236,
+          "pct_atual": 19.31
         },
         {
           "id": 55,
           "pct": 16.54,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 17828,
+          "pct_atual": 17.02
         }
       ],
       "vai_a_2t": null,
@@ -1009,21 +1135,27 @@
           "pct": 57.29,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 20241,
+          "pct_atual": 58.48
         },
         {
           "id": 13,
           "pct": 18.05,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 5826,
+          "pct_atual": 16.83
         },
         {
           "id": 55,
           "pct": 16.21,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 5653,
+          "pct_atual": 16.33
         }
       ],
       "vai_a_2t": null,
@@ -1044,21 +1176,27 @@
           "pct": 42.29,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 726544,
+          "pct_atual": 39.8
         },
         {
           "id": 13,
           "pct": 27.09,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 508654,
+          "pct_atual": 27.87
         },
         {
           "id": 55,
           "pct": 16.69,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 318587,
+          "pct_atual": 17.45
         }
       ],
       "vai_a_2t": null,
@@ -1079,21 +1217,27 @@
           "pct": 44.15,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 470755,
+          "pct_atual": 45.29
         },
         {
           "id": 13,
           "pct": 19.03,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 187023,
+          "pct_atual": 17.99
         },
         {
           "id": 30,
           "pct": 16.87,
           "nome": "ZEMA",
           "partido": "NOVO",
-          "sqcand": "280002539826"
+          "sqcand": "280002539826",
+          "votos_atuais": 187251,
+          "pct_atual": 18.01
         }
       ],
       "vai_a_2t": null,
@@ -1114,21 +1258,27 @@
           "pct": 49.28,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 71231,
+          "pct_atual": 47.29
         },
         {
           "id": 22,
           "pct": 25.54,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 38265,
+          "pct_atual": 25.41
         },
         {
           "id": 55,
           "pct": 16.47,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 27939,
+          "pct_atual": 18.55
         }
       ],
       "vai_a_2t": null,
@@ -1149,21 +1299,27 @@
           "pct": 34.57,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 2657127,
+          "pct_atual": 29.59
         },
         {
           "id": 13,
           "pct": 28.71,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 2756488,
+          "pct_atual": 30.7
         },
         {
           "id": 55,
           "pct": 15.18,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 1562732,
+          "pct_atual": 17.4
         }
       ],
       "vai_a_2t": null,
@@ -1184,21 +1340,27 @@
           "pct": 39.06,
           "nome": "LULA",
           "partido": "PT",
-          "sqcand": "280002542548"
+          "sqcand": "280002542548",
+          "votos_atuais": 39561,
+          "pct_atual": 39.57
         },
         {
           "id": 22,
           "pct": 37.06,
           "nome": "FLAVIO BOLSONARO",
           "partido": "PL",
-          "sqcand": "280002551544"
+          "sqcand": "280002551544",
+          "votos_atuais": 37214,
+          "pct_atual": 37.23
         },
         {
           "id": 55,
           "pct": 18.35,
           "nome": "RONALDO CAIADO",
           "partido": "PSD",
-          "sqcand": "280002551932"
+          "sqcand": "280002551932",
+          "votos_atuais": 18052,
+          "pct_atual": 18.06
         }
       ],
       "vai_a_2t": null,
