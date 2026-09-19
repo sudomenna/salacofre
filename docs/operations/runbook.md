@@ -108,6 +108,65 @@ abra outro terminal.
 `.githooks/pre-commit` roda `biome check` na árvore inteira e **aborta o commit** se
 reprovar. `--no-verify` exige ordem explícita do dono (CLAUDE.md § 11).
 
+## `DATABASE_URL_CI` — o banco que o CI usa (19/09/2026)
+
+O job `test` de `.github/workflows/ci.yml` aborta de propósito, em ~37 s, quando o segredo
+`DATABASE_URL_CI` não existe (`ci.yml:152-162`). O comentário daquele passo remetia a este
+runbook, que **não documentava o procedimento** — lacuna fechada aqui.
+
+**Por que o CI precisa de banco**: 10 arquivos de teste tocam o Postgres e esperam dado
+real (eleitorado por zona, ≥ 20.000 linhas históricas de 2018 e 2022). Um Postgres vazio com
+as migrations aplicadas reprova todos, e a causa fica escondida atrás de falhas genéricas —
+por isso o guarda falha antes, com o nome certo.
+
+### Como recriar o banco do CI
+
+1. **Neon → Branches → New Branch**, no projeto do SalaCofre.
+   - **Name**: `ci`
+   - 🔴 **Auto-delete: Never.** O default da caixa de diálogo é *After 1 day*. Com o default,
+     o CI volta a quebrar no dia seguinte — e **pior do que hoje**: em vez da mensagem
+     nomeada do guarda, o sintoma vira erro de conexão, que não diz o que houve.
+   - **Parent branch**: `main`
+   - **Branch data and schema** (não *schema only*, que reprova os 10 arquivos; não
+     *anonymize*, que embaralharia justamente os números conferidos pelos testes — e não há
+     PII aqui, é resultado eleitoral público, constituição § 5).
+2. Copiar a string **com `Connection pooling` LIGADO** (host com sufixo `-pooler`).
+3. Cadastrar como segredo do repositório:
+
+```bash
+gh auth switch --user sudomenna
+gh secret set DATABASE_URL_CI --repo sudomenna/salacofre
+```
+
+### Por que a string COM pooling
+
+Medido em 19/09, não inferido:
+
+- O CI consome `DATABASE_URL` num lugar só — o passo `Unit tests` (`ci.yml:164-167`), que
+  chega em `lib/db/index.ts:5-19` pelo driver HTTP `@neondatabase/serverless` + `neon-http`.
+  É o caso de uso do endpoint com pooler.
+- `DATABASE_URL_UNPOOLED` é lido **apenas** por `data-pipeline/_tse-common.ts:35` e
+  `data-pipeline/ibge-import.ts:49` — importadores que o CI não executa.
+- Nada no código depende de sessão longa: zero ocorrências de `pg_advisory`, `LISTEN`,
+  `NOTIFY` ou `prepare(` em `lib/`, `api/` e `tests/`. São essas as construções que o
+  pgbouncer em modo transação quebra.
+- Produção usa o endereço com pooler. CI numa configuração diferente da real testaria
+  outra coisa.
+
+### Duas garantias que valem reconferir se alguém mexer no workflow
+
+- **O CI não declara `ALLOW_DB_WRITE_TESTS`** — conferido em 19/09, zero ocorrências em
+  `ci.yml`. Os cinco testes de escrita seguem desligados lá, e o branch `ci` não vira lixo.
+  Ver a regra completa em
+  [`ALLOW_DB_WRITE_TESTS`](#-regra-operacional-crítica--allow_db_write_tests-17092026).
+- **O passo do pytest NÃO recebe `DATABASE_URL`, e a ausência é deliberada** (`ci.yml:130-138`):
+  os testes do modelo não tocam banco. Não "conserte" isso passando a variável.
+
+⚠️ **`gh secret list` não serve para conferir se o segredo existe**: com token sem a permissão
+de segredos ele responde **HTTP 403**, indistinguível de lista vazia para quem não olha o
+código de saída. A evidência boa é o log do passo "Conferir o segredo do banco": se o segredo
+faltar, `DATABASE_URL:` aparece **vazio** no ambiente do passo.
+
 ## Cenários cobertos
 
 - **TSE indisponível** (>60s, >5min, >15min) — diagnóstico, banner, escalada.
