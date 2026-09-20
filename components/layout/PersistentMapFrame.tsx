@@ -90,23 +90,36 @@
  * `cargo === "sen"` reaproveita o MESMO `<NationalMapBlock variant="frame">`
  * do nível Brasil de Presidente/Governador — mesma razão da entrada de
  * Governador acima (`EdgeUfRow`/`EdgeCandidate` são os mesmos tipos nos três
- * cargos). Duas diferenças, e as duas são AUSÊNCIA de recurso, não escolha de
+ * cargos). Uma diferença restante, e ela é AUSÊNCIA de recurso, não escolha de
  * design:
  *
- *   1. **Sem nível UF.** O cargo 5 não tem dado municipal — `spec 016 §
- *      Escopo/Fora` tira "mapa municipal e maiores colégios" de escopo, e
- *      `municipios-sen-t1.json` (o irmão de simulação) grava `municipios: []`
- *      de propósito. `/api/projection/municipios` também não tem ramo para
- *      `cargo=sen` (`resolveCargoETurno`, `app/api/projection/municipios/
- *      route.ts`, cai no default PRESIDENCIAL para qualquer valor que não seja
- *      `"gov"`) — chamá-lo aqui pintaria o município errado sob o rótulo
+ *   1. ✅ **Nível UF — EXISTE desde 2026-09-19** (pedido do dono). Este item
+ *      afirmava o contrário até então, e a afirmação era verdadeira por três
+ *      razões somadas: `spec 016 § Escopo/Fora` tirava "mapa municipal e
+ *      maiores colégios" de escopo; `municipios-sen-t1.json` gravava
+ *      `municipios: []` de propósito; e `/api/projection/municipios` não tinha
+ *      ramo para `cargo=sen` — `resolveCargoETurno` caía no default
+ *      PRESIDENCIAL para qualquer valor que não fosse `"gov"`, de modo que
+ *      pedir o mapa do Senado pintaria o município errado sob o rótulo
  *      "Senado" em silêncio, a mesma classe de bug que já mordeu este
- *      repositório três vezes com conversor de cargo. Por isso os dois efeitos
- *      de busca do nível UF (`ufResumo`, `municipioDetalhe`) NÃO disparam
- *      quando `cargo === "sen"` — nem a leitura acontece, e não só o
- *      resultado é ignorado. Em `/uf/[sigla]/senador` a moldura mostra um
- *      painel textual explicando a ausência (ver o ramo `sigla` abaixo), não
- *      um mapa mudo nem um mapa mentindo.
+ *      repositório três vezes com conversor de cargo. Enquanto isso valia, os
+ *      dois efeitos de busca do nível UF (`ufResumo`, `municipioDetalhe`) nem
+ *      disparavam para `sen`: não bastava ignorar o resultado, a leitura não
+ *      podia acontecer.
+ *
+ *      As três razões caíram na mesma rodada. O gerador do simulado passou a
+ *      emitir municípios para os três cargos; `/api/projection/municipios` e
+ *      `/api/projection?uf=` passaram a resolver cargo por TABELA, com **400
+ *      `invalid_cargo`** para o que não conhecem — nunca mais o presidencial
+ *      calado. A defesa deixou de ser "não pergunte" e passou a ser "a
+ *      resposta é do cargo certo ou não é resposta", que é a forma forte: se
+ *      um dia a tabela perder `sen`, o sintoma é 400 na tela, visível, e não
+ *      um mapa bonito e errado.
+ *
+ *      ⚠️ O que NÃO mudou: a cobertura municipal é estruturalmente parcial em
+ *      todos os cargos (`docs/reference/risks.md:78`), e `spec 016 §
+ *      Escopo/Fora` ainda não foi emendada — pendência desta rodada, e
+ *      enquanto durar o código contradiz a spec.
  *   2. **Sem `rankByLider`**, pela MESMA razão já documentada para `"gov"`
  *      logo abaixo: em corrida majoritária o número de urna é o número do
  *      partido, e o mesmo partido concorre em várias UFs com o mesmo número.
@@ -249,24 +262,33 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
   // Resumo da UF corrente — é o que dá o "% apurado" da etiqueta quando a rota
   // é de UF. Refaz a cada troca de `sigla`, sem tocar no mapa.
   //
-  // 🔴 `cargo === "sen"` NÃO dispara esta busca. O endpoint (`GET
-  // /api/projection?uf=`) não aceita `cargo` — devolve sempre o resumo
-  // PRESIDENCIAL da UF, qualquer que seja o cargo desta moldura (mesmo hoje
-  // para `"gov"`, pré-existente a esta mudança e fora do escopo desta
-  // rodada). Senador não tem nível UF nesta moldura (ver o docstring do topo
-  // do arquivo) — chamar este endpoint aqui só gastaria rede para um valor
-  // que nunca seria lido, e manter a chamada viva seria a porta por onde um
-  // uso futuro do resultado herdaria dado presidencial sob o rótulo "Senado"
-  // em silêncio.
+  // 🔴 **2026-09-19 — o `&cargo=` desta URL é o conserto de um defeito, não um
+  // parâmetro novo.** Até hoje a chamada era `?uf=${sigla}` seca, e o endpoint
+  // cravava `cargo: "pres"`: a moldura de GOVERNADOR recebia a lista de
+  // candidatos do PRESIDENTE. Os `id` não casavam com os `votos_reportados` de
+  // governador, toda linha do balão caía no fallback `"Candidato {id}"` com
+  // `partido: undefined` (`lib/utils/municipio-votos.ts:107-108`), a coluna
+  // "Part." sumia inteira por `hasPartido`, e o coroplético ficava
+  // `var(--color-tossup)`. Era invisível porque o payload respondia 200 com
+  // forma válida — só o CONTEÚDO era de outra corrida.
+  //
+  // O bloqueio de `cargo === "sen"` que vivia aqui saiu junto. Ele existia
+  // porque, sem `cargo` na URL, chamar este endpoint para Senador herdaria
+  // dado presidencial sob o rótulo "Senado" em silêncio — o bloqueio era a
+  // única defesa possível enquanto a rota mentia. Agora a rota responde pelo
+  // cargo pedido, e um cargo fora da tabela responde **400 `invalid_cargo`**
+  // em vez do presidencial calado, então a defesa mudou de lugar: deixou de
+  // ser "não pergunte" e passou a ser "a resposta é do cargo certo ou não é
+  // resposta".
   useEffect(() => {
-    if (!sigla || cargo === "sen") {
+    if (!sigla) {
       setUfResumo(null);
       return;
     }
     let vivo = true;
     (async () => {
       try {
-        const res = await fetch(`/api/projection?uf=${sigla}`);
+        const res = await fetch(`/api/projection?uf=${sigla}&cargo=${cargo}`);
         if (!res.ok) return;
         const json = (await res.json()) as EdgePayloadUf;
         if (vivo) setUfResumo(json);
@@ -284,16 +306,22 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
   // município. Refaz a cada troca de `sigla` ou de `cargo` (Presidente e
   // Governador têm candidatos e cobertura diferentes na mesma UF).
   //
-  // 🔴 `cargo === "sen"` NÃO dispara esta busca, pelo MESMO motivo do efeito
-  // acima e um adicional: `resolveCargoETurno` (`app/api/projection/
-  // municipios/route.ts`) só reconhece `"gov"` — qualquer outro valor,
-  // incluindo `"sen"`, cai no default PRESIDENCIAL. Chamar este endpoint com
-  // `cargo=sen` pintaria o coroplético municipal de PRESIDENTE sob o rótulo
-  // "Senado", em silêncio — a mesma classe de bug que os conversores de cargo
-  // desta base já pagaram três vezes. Senador não tem dado municipal (spec
-  // 016 § Escopo/Fora); a ausência é honesta só se a leitura nem acontecer.
+  // 🔴 **2026-09-19 — `sen` passou a disparar esta busca.** O bloqueio que
+  // vivia aqui está preservado como memória, porque a armadilha que ele
+  // descrevia continua real: `resolveCargoETurno` (`app/api/projection/
+  // municipios/route.ts`) reconhecia SÓ `"gov"`, e qualquer outro valor —
+  // inclusive `"sen"` — caía no default PRESIDENCIAL. Pedir `cargo=sen`
+  // naquele mundo pintaria o coroplético municipal de Presidente sob o rótulo
+  // "Senado", em silêncio: a mesma classe de bug que os conversores de cargo
+  // desta base já pagaram três vezes.
+  //
+  // O que mudou não foi a avaliação do risco, foi a rota: ela agora resolve
+  // por tabela (`Object.hasOwn`) e responde **400 `invalid_cargo`** para o que
+  // não conhece, em vez do presidencial calado. Com isso a ausência deixou de
+  // precisar ser protegida por omissão. Se algum dia a tabela perder `sen`, o
+  // sintoma será 400 na tela — visível —, não um mapa bonito e errado.
   useEffect(() => {
-    if (!sigla || cargo === "sen") {
+    if (!sigla) {
       setMunicipioDetalhe(null);
       return;
     }
@@ -323,9 +351,22 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
   // mapa pinta o líder local (como Presidente/Governador), e uma corrida de 2
   // vagas ao lado de um mapa de 1 cor por UF sugeriria vencedor único sem
   // este aviso.
+  // 🔴 `typeof … === "number"`, não `ufResumo ?`. O valor vem de `fetch` e é
+  // apenas CASTADO para `EdgePayloadUf` — ninguém valida a forma no caminho.
+  // Um 200 com corpo inesperado (rota devolvendo o payload nacional, deploy a
+  // meio caminho, proxy que reescreve) fazia `.toFixed` estourar DENTRO do
+  // render, e o erro não fica contido: derruba a moldura inteira, que é o
+  // mapa da noite da apuração. Trocar um rótulo por uma tela branca é o pior
+  // câmbio possível — constituição § 7. Com a guarda, a etiqueta perde o
+  // percentual e o mapa continua de pé.
+  //
+  // Passou a importar em 2026-09-19: até então `sen` nem disparava a busca,
+  // então este caminho não existia para um dos três cargos.
   const escopo = sigla
     ? `${CARGO_LABEL[cargo]} · ${sigla}${
-        ufResumo ? ` · ${ufResumo.pct_apurado.toFixed(1).replace(".", ",")}% apurado` : ""
+        typeof ufResumo?.pct_apurado === "number"
+          ? ` · ${ufResumo.pct_apurado.toFixed(1).replace(".", ",")}% apurado`
+          : ""
       }${cargo === "sen" ? " · 2 vagas" : ""}`
     : `${CARGO_LABEL[cargo]} · Brasil${cargo === "sen" ? " · 2 vagas" : ""}`;
   // Sempre string (o "Brasil" do cargo corrente) — usado tal qual pelos dois
@@ -543,17 +584,25 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
 
   if (cargo === "sen") {
     if (sigla) {
-      // Nível UF de Senador — SEM coroplético municipal, de propósito (ver o
-      // item 1 do docstring "2026-09-18 (2ª rodada)" no topo do arquivo):
-      // cargo 5 não tem dado municipal (spec 016 § Escopo/Fora,
-      // `municipios-sen-t1.json` grava `municipios: []`), e
-      // `/api/projection/municipios` não tem ramo para `cargo=sen` — os dois
-      // efeitos de busca acima já não disparam para este cargo. Em vez de um
-      // mapa mudo (`UfLeaderMapLazy` sem cor nenhuma) ou um mapa mentindo
-      // (herdando o município de Presidente em silêncio), este painel diz a
-      // ausência em texto — a mesma filosofia de degradação honesta que
-      // `AguardandoSenado` (`app/(sen)/senador/page.tsx`) já aplica ao payload
-      // ausente, aqui aplicada à AUSÊNCIA DE RECURSO (não de dado).
+      // 🔴 **Nível UF de Senador — 2026-09-19, pedido do dono.** Até hoje este
+      // ramo devolvia um PAINEL DE TEXTO dizendo "o Senado ainda não tem mapa
+      // por município", e a frase era verdadeira por três razões somadas:
+      // `municipios-sen-t1.json` gravava `municipios: []`,
+      // `/api/projection/municipios` não tinha ramo para `cargo=sen`, e
+      // `/api/projection?uf=` ignorava `cargo`. As três caíram nesta rodada —
+      // o gerador do simulado passou a emitir municípios para os três cargos,
+      // e as duas rotas passaram a resolver cargo por tabela, com 400 para o
+      // que não conhecem.
+      //
+      // O que NÃO mudou, e o mapa não pode fingir que mudou: a cobertura
+      // municipal é estruturalmente parcial em todos os cargos — município sem
+      // par (município × zona) apurado não recebe linha
+      // (`docs/reference/risks.md:78`). O mapa mostra o que foi apurado, e o
+      // `<DetailUnavailable>` abaixo é quem diz a ausência quando o detalhe
+      // inteiro não veio.
+      //
+      // ⚠️ `spec 016 § Escopo/Fora` ainda diz por escrito que Senador não tem
+      // dado municipal. A spec precisa de emenda — está na lista desta rodada.
       return (
         <section
           aria-labelledby="persistent-map-heading"
@@ -574,22 +623,57 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
                 color: "var(--text-secondary)",
               }}
             >
-              {escopo}
+              {/* 🔴 O sufixo "· 2 vagas" NÃO é decoração e não pode sair daqui.
+                  A decisão D1 do dono autoriza pintar o Senado pelo LÍDER
+                  LOCAL — como Presidente e Governador — **desde que** o rótulo
+                  de duas vagas fique explícito na própria superfície do mapa.
+                  O nível Brasil cumpre isso via `escopo` (ver o topo do
+                  arquivo); o nível UF tem cabeçalho próprio e, sem esta linha,
+                  cumpriria a metade conveniente da decisão: a cor de vencedor
+                  único numa corrida que elege dois, sem a ressalva. */}
+              {`${sigla} · quem lidera cada município · 2 vagas`}
             </h2>
             <UfPicker cargo="sen" atual={sigla} />
           </div>
-          <div
-            className="flex min-h-0 flex-1 flex-col items-start justify-center"
-            style={{ gap: "var(--space-3)" }}
-          >
-            <p
-              className="max-w-prose"
-              style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
+          <div className="relative min-h-0 flex-1">
+            {/* `detalhe`/`candidatos` (2026-09-18) — sem eles, o
+                `<ChoroplethMapUF>` colore normalmente mas o `<HoverCard>`
+                nunca aparece (as duas props são opcionais e checadas lá
+                dentro); `candidatos` chega `undefined` enquanto `ufResumo`
+                (busca client-side acima) ainda não resolveu — o balão
+                aparece sozinho assim que resolver, sem exigir novo hover
+                (ver docstring de `MunicipioTooltipState` em
+                `ChoroplethMapUF.tsx`). */}
+            <UfLeaderMapLazy
+              ufSigla={sigla}
+              choropleth={choropleth}
+              height="100%"
+              detalhe={municipiosDaUf}
+              candidatos={ufResumo?.candidatos}
+            />
+            {municipioDetalhe?.status === "unavailable" && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: "var(--surface-card)",
+                  borderTop: "1px solid var(--border-hairline)",
+                }}
+              >
+                <DetailUnavailable
+                  label="A cor por município deste mapa"
+                  reason={municipioDetalhe.reason}
+                  style={{ borderTop: "none", padding: "var(--space-2) var(--space-3)" }}
+                />
+              </div>
+            )}
+            <Link
+              href={homeHref}
+              className="pointer-events-auto absolute"
+              style={{ ...CHIP_STYLE, top: "var(--space-2)", left: "var(--space-2)" }}
             >
-              O Senado ainda não tem mapa por município. Os dois primeiros colocados de {sigla}{" "}
-              estão na página ao lado.
-            </p>
-            <Link href={homeHref} style={CHIP_STYLE}>
               ← Brasil
             </Link>
           </div>

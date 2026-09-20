@@ -27,7 +27,9 @@
       "!tse_docs",
       "!.claude/worktrees",
       "!tests/fixtures/replay-2022/snapshots.json",
-      "!tests/fixtures/simulacao/municipios-pres-t1.json"
+      "!tests/fixtures/simulacao/municipios-pres-t1.json",
+      "!tests/fixtures/simulacao/municipios-gov-t1.json",
+      "!tests/fixtures/simulacao/municipios-sen-t1.json"
     ]
   },
   "formatter": {

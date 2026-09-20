@@ -24,7 +24,14 @@ const simulacaoNacionalMock = vi.fn();
 vi.mock("@/lib/dev/simulacao", () => ({
   simulacaoLigada: () => simulacaoLigadaMock(),
   simulacaoNacional: (cargo: string) => simulacaoNacionalMock(cargo),
+  // Os TRÊS getters por UF entram no mock desde 2026-09-19 porque a tabela
+  // `CARGOS_UF` da rota os referencia no CARREGAMENTO do módulo (não na
+  // chamada): um mock sem eles derruba o `import` inteiro, mesmo num teste que
+  // só exercita o ramo nacional. `simulacaoGovernadorUf` virou o terceiro na
+  // segunda rodada do mesmo dia — cargo 3 deixou de apontar para `() => null`.
+  simulacaoSenadorUf: vi.fn(),
   simulacaoUfPresidente: vi.fn(),
+  simulacaoGovernadorUf: vi.fn(),
 }));
 
 const { GET } = await import("@/app/api/projection/route");

@@ -44,20 +44,28 @@ As regras que o gerador respeita — todas do contrato do produtor
    no CI sem produzir diff espúrio.
 
 ---------------------------------------------------------------------------
-Governador e Senador: série sim, municípios não
+Governador e Senador: este script escreve a SÉRIE, nunca os municípios
 ---------------------------------------------------------------------------
-As quatro rotas são cobertas. Gov e Sen ganharam `municipios-gov-t1.json` e
-`municipios-sen-t1.json` **só com as séries**, `municipios: []` — que é a
-proposta escrita na própria spec 020 (§ Questões em aberto, item 1). Incluir
-resultado municipal fabricado para as duas corridas levaria o diretório a
-~10 MB, e a spec já dizia que não vale.
+🔴 **Mudou em 2026-09-19, e a mudança é o ponto mais perigoso deste arquivo.**
 
-⚠️ **Consequência visível, e é aceitável de propósito**: a seção de municípios
-dessas telas mostra o estado `"empty"` em `pnpm dev:sim`. Não é um mapa falso
-— `municipioDetailReason` distingue lista vazia de falha de leitura, e
-`"empty"` quer dizer "o detalhe chegou e nenhum município tem dado apurado",
-que é um **caso real** (UF com cobertura municipal em 0%) e que vale ser
-revisado de qualquer forma.
+Até esta data os dois arquivos eram RECONSTRUÍDOS do zero aqui, com
+`municipios: []` — a proposta escrita na spec 020 (§ Questões em aberto,
+item 1), que julgava não valer os ~10 MB de fixture. O dono decidiu o
+contrário: `data-pipeline/simulacao-gerar.ts` passou a produzir detalhe
+municipal para os três cargos majoritários, porque sem ele
+`/uf/<sigla>/governador` e `/uf/<sigla>/senador` não têm mapa em
+`pnpm dev:sim` e não há como conferir o conserto do endpoint.
+
+Consequência direta: **reconstruir estes arquivos aqui apagaria ~6 MB de
+dado do gerador em silêncio**, e o único sintoma seria o mapa dessas duas
+telas voltando a ficar vazio depois de alguém rodar este script. Por isso os
+passos 3 e 4 agora fazem o MESMO que o passo 2 sempre fez para o
+presidencial: leem o arquivo existente e **acrescentam**
+`series_temporais.por_candidato` dentro dele, sem tocar em `municipios`.
+
+O arquivo ausente continua sendo tratado — nasce com `municipios: []`, que
+segue sendo um estado legítimo (`municipioDetailReason` o distingue de falha
+de leitura). O que não pode acontecer é um arquivo POVOADO virar vazio.
 
 De onde vêm os números de cada corrida, e por que não é a mesma fonte:
 
@@ -190,23 +198,53 @@ def serie_de(candidatos: list[dict[str, Any]], ts_iso: str) -> dict[str, Any] | 
     return {"eixo": eixo, "cadencia_min": CADENCIA_MIN, "candidatos": saida}
 
 
-def _detalhe_so_serie(
-    sigla: str, cargo: str, ts: str, serie: dict[str, Any]
-) -> dict[str, Any]:
-    """Detalhe de UF com série e **sem** municípios.
+def _carregar_detalhes(nome: str) -> dict[str, Any]:
+    """Detalhe municipal já existente, ou `{}` se o arquivo ainda não nasceu.
 
-    `municipios: []` não é descuido: `UfDetailBlob.municipios` é obrigatório no
-    tipo, e `municipioDetailReason` trata lista vazia como `"empty"` — um
-    estado legítimo e distinto de falha de leitura. Ver o cabeçalho.
+    Ler antes de escrever é o que impede este script de apagar os municípios
+    que `data-pipeline/simulacao-gerar.ts` produz desde 19/09 — ver o cabeçalho.
     """
-    return {
-        "ts": ts,
-        "uf": sigla,
-        "cargo": cargo,
-        "turno": 1,
-        "municipios": [],
-        "series_temporais": {"por_candidato": serie},
-    }
+    p = FIXTURES / nome
+    if not p.exists():
+        return {}
+    return json.loads(p.read_text())
+
+
+def _com_serie(
+    existente: dict[str, Any] | None,
+    sigla: str,
+    cargo: str,
+    ts: str,
+    serie: dict[str, Any],
+) -> dict[str, Any]:
+    """Acrescenta `series_temporais.por_candidato` ao detalhe de uma UF.
+
+    🔴 **`municipios` é PRESERVADO como veio.** Reconstruir o objeto do zero —
+    que é o que este arquivo fazia até 19/09 — apagaria as 5.570 linhas que o
+    gerador escreve para gov e sen, e o sintoma seria só o mapa dessas telas
+    voltando a ficar vazio.
+
+    `municipios: []` continua sendo o valor de nascimento quando o arquivo não
+    existe: `UfDetailBlob.municipios` é obrigatório no tipo, e
+    `municipioDetailReason` trata lista vazia como `"empty"` — estado legítimo
+    e distinto de falha de leitura.
+
+    O resto do envelope (`ts`, `uf`, `cargo`, `turno`) também vem do arquivo
+    quando ele existe: o `ts` gravado pelo gerador é o eixo de tempo das OUTRAS
+    séries do mesmo objeto (`turnout`, `margem`, `p_vitoria`), e sobrescrevê-lo
+    com o `ts` do payload nacional desalinharia os dois relógios dentro do
+    mesmo arquivo.
+    """
+    base = dict(existente or {})
+    base.setdefault("ts", ts)
+    base["uf"] = sigla
+    base["cargo"] = cargo
+    base["turno"] = base.get("turno", 1)
+    base.setdefault("municipios", [])
+    series = dict(base.get("series_temporais") or {})
+    series["por_candidato"] = serie
+    base["series_temporais"] = series
+    return base
 
 
 def main() -> int:
@@ -259,7 +297,10 @@ def main() -> int:
     # ---- 3. Governador → `/uf/<sigla>/governador`
     gov = json.loads((FIXTURES / "governador.json").read_text())
     numeros = {c["id"]: c for c in gov["national"]["candidatos"]}
-    det_gov: dict[str, Any] = {}
+    # 🔴 Parte do que JÁ ESTÁ no disco — os municípios do gerador. Ver o
+    # cabeçalho: até 19/09 este dicionário nascia vazio e o arquivo era
+    # reescrito do zero.
+    det_gov: dict[str, Any] = _carregar_detalhes("municipios-gov-t1.json")
     for row in gov["por_uf"]:
         sigla = row["sigla"]
         # Mesma junção de `synthesizeGovUfFromFixture`: identidade da UF,
@@ -280,8 +321,12 @@ def main() -> int:
         s_ = serie_de(cands, gov["ts"])
         if s_ is None:
             continue
-        det_gov[sigla] = _detalhe_so_serie(sigla, "gov", gov["ts"], s_)
-    mudancas.append(f"municipios-gov-t1.json → {len(det_gov)} UFs (série, municipios: [])")
+        det_gov[sigla] = _com_serie(det_gov.get(sigla), sigla, "gov", gov["ts"], s_)
+    n_muns_gov = sum(len(v.get("municipios") or []) for v in det_gov.values())
+    mudancas.append(
+        f"municipios-gov-t1.json → {len(det_gov)} UFs (série; "
+        f"{n_muns_gov} municípios preservados do gerador)"
+    )
     if not args.check:
         (FIXTURES / "municipios-gov-t1.json").write_text(
             json.dumps(det_gov, ensure_ascii=False, indent=2) + "\n"
@@ -289,13 +334,19 @@ def main() -> int:
 
     # ---- 4. Senador → `/uf/<sigla>/senador`
     sen = json.loads((FIXTURES / "senador-uf.json").read_text())
-    det_sen: dict[str, Any] = {}
+    det_sen: dict[str, Any] = _carregar_detalhes("municipios-sen-t1.json")
     for sigla, resumo in sen.items():
         s_ = serie_de(resumo.get("candidatos") or [], resumo.get("ts") or gov["ts"])
         if s_ is None:
             continue
-        det_sen[sigla] = _detalhe_so_serie(sigla, "sen", resumo.get("ts") or gov["ts"], s_)
-    mudancas.append(f"municipios-sen-t1.json → {len(det_sen)} UFs (série, municipios: [])")
+        det_sen[sigla] = _com_serie(
+            det_sen.get(sigla), sigla, "sen", resumo.get("ts") or gov["ts"], s_
+        )
+    n_muns_sen = sum(len(v.get("municipios") or []) for v in det_sen.values())
+    mudancas.append(
+        f"municipios-sen-t1.json → {len(det_sen)} UFs (série; "
+        f"{n_muns_sen} municípios preservados do gerador)"
+    )
     if not args.check:
         (FIXTURES / "municipios-sen-t1.json").write_text(
             json.dumps(det_sen, ensure_ascii=False, indent=2) + "\n"
@@ -303,9 +354,10 @@ def main() -> int:
 
     print(("[check] " if args.check else "[escrito] ") + "\n          ".join(mudancas))
     print()
-    print("Gov e Sen saem SEM municípios (municipios: []), como a spec 020 propõe.")
-    print("A seção municipal dessas telas mostra o estado 'empty' em dev:sim — que")
-    print("é um caso real (UF com cobertura municipal 0%), não um mapa falso.")
+    print("Este script escreve SÉRIE. Os municípios são do gerador")
+    print("(data-pipeline/simulacao-gerar.ts) e passam por aqui intactos — desde")
+    print("19/09 gov e sen também têm os 5.570. Se um destes números vier zerado,")
+    print("o gerador é que não rodou; não reconstrua os arquivos aqui.")
     return 0
 
 

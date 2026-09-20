@@ -388,6 +388,38 @@ export function simulacaoSenadorUf(sigla: string): EdgePayloadUf | null {
 }
 
 /**
+ * Resumo de UF de Governador (`/uf/[sigla]/governador` e
+ * `GET /api/projection?uf=&cargo=gov`).
+ *
+ * ## Por que este getter passou a existir em 2026-09-19
+ *
+ * Havia uma decisão escrita, em três arquivos, de que cargo 3 **não** precisava
+ * de arquivo por UF: a síntese a partir do payload nacional, filtrada por
+ * `por_uf[].top_candidatos`, recorta a corrida daquela UF com a votação dela,
+ * porque candidatura a governador só existe num estado. O argumento está certo
+ * e responde à pergunta errada — ele prova que os números do recorte são da UF,
+ * não que o recorte tem a corrida inteira.
+ *
+ * E não tem: `top_candidatos` é `slice(0, 4)`. São Paulo tem 7 candidaturas a
+ * governador. Como o detalhe municipal (`municipios-gov-t1.json`) reparte votos
+ * entre TODAS elas, o balão do hover do coroplético encontrava `26004` em
+ * `votos_reportados`, não achava ninguém com esse `id` na lista que a moldura
+ * do mapa recebeu, e escrevia **"Candidato 26004"** sem partido.
+ *
+ * 🔴 Produção nunca teve esse defeito — lá o `EdgePayloadUf` real de governador
+ * chega do orchestrator com `candidatos[]` completo, e a rota lê o payload em
+ * vez de sintetizar. Era lacuna só do modo simulado; como é no simulado que o
+ * dono confere, a lacuna estava na tela dele.
+ *
+ * Como `simulacaoUfPresidente`, este getter tem PRIORIDADE sobre a síntese, e
+ * enquanto o arquivo não existir devolve `null` — a tela segue exatamente como
+ * antes, com as 4 do pódio.
+ */
+export function simulacaoGovernadorUf(sigla: string): EdgePayloadUf | null {
+  return servirDoMapa<EdgePayloadUf>("governador-uf.json", sigla);
+}
+
+/**
  * Resumo de UF presidencial (`/uf/[sigla]` e `GET /api/projection?uf=`).
  *
  * ## Por que este arquivo é necessário, e a síntese não basta

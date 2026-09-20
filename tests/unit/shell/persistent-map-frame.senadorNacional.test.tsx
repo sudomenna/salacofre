@@ -160,11 +160,19 @@ describe("PersistentMapFrame — nível Brasil de Senador usa o coroplético (me
     expect(fetchMock).toHaveBeenCalledWith("/api/projection?cargo=sen");
   });
 
-  it("(d) nível UF — NENHUM <NationalMapBlock> monta, e NENHUM fetch a /api/projection/municipios acontece", async () => {
-    // Senador não tem dado municipal (spec 016 § Escopo/Fora) — mutação:
-    // remover a guarda `cargo === "sen"` dos dois efeitos de nível UF em
-    // `PersistentMapFrame.tsx` faz este teste falhar na 2ª asserção (o mock
-    // de fetch veria uma chamada a `/api/projection/municipios?...`).
+  it("(d) nível UF — o mapa municipal MONTA e as duas buscas acontecem, com cargo=sen", async () => {
+    // 🔴 **Este caso foi INVERTIDO em 2026-09-19** (pedido do dono). Até então
+    // ele travava o oposto: nenhum mapa, nenhum fetch. A trava era correta
+    // enquanto `/api/projection/municipios` resolvia `sen` para o default
+    // PRESIDENCIAL — pedir o mapa do Senado pintava o município errado sob o
+    // rótulo "Senado", em silêncio. As duas rotas passaram a resolver cargo
+    // por tabela, com 400 para o que não conhecem, e a trava perdeu o objeto.
+    //
+    // As asserções de URL abaixo são o que sobrou dela, e são o essencial: não
+    // basta que as buscas ACONTEÇAM, elas têm de carregar `cargo=sen`.
+    // Mutação: tirar o `&cargo=${cargo}` da URL do resumo (era exatamente
+    // assim até hoje, e é o defeito que fazia a moldura de GOVERNADOR receber
+    // a lista de candidatos do Presidente) faz a 2ª asserção falhar.
     paramsState.sigla = "SP";
     responderCom(payloadSen([UF_ROW], "normal"));
     await act(async () => {
@@ -177,17 +185,57 @@ describe("PersistentMapFrame — nível Brasil de Senador usa o coroplético (me
       await Promise.resolve();
     });
 
-    expect(container.querySelector('[data-testid="national-map-block-falso"]')).toBeNull();
-    expect(espiao.chamadas).toHaveLength(0);
-    const chamadasMunicipios = fetchMock.mock.calls
-      .map((args) => String(args[0]))
-      .filter((url) => url.includes("/api/projection/municipios"));
-    expect(chamadasMunicipios).toHaveLength(0);
-    const chamadasUfResumo = fetchMock.mock.calls
-      .map((args) => String(args[0]))
-      .filter((url) => url.startsWith("/api/projection?uf="));
-    expect(chamadasUfResumo).toHaveLength(0);
-    // O painel textual de ausência aparece, não um mapa mudo.
+    const urls = fetchMock.mock.calls.map((args) => String(args[0]));
+
+    const municipios = urls.filter((url) => url.includes("/api/projection/municipios"));
+    expect(municipios).toHaveLength(1);
+    expect(municipios[0]).toBe("/api/projection/municipios?uf=SP&cargo=sen");
+
+    const resumo = urls.filter((url) => url.startsWith("/api/projection?uf="));
+    expect(resumo).toHaveLength(1);
+    // 🔴 O `cargo=sen` aqui não é decoração: sem ele o endpoint devolve o
+    // resumo PRESIDENCIAL, e o balão do mapa mostra os candidatos da corrida
+    // errada com a coluna de partido vazia.
+    expect(resumo[0]).toBe("/api/projection?uf=SP&cargo=sen");
+
+    // O painel textual de ausência ("ainda não tem mapa por município") não
+    // pode sobreviver à mudança — ele afirmaria uma ausência que acabou.
+    expect(container.textContent).not.toContain("ainda não tem mapa");
     expect(container.textContent).toContain("SP");
+  });
+
+  it("(e) nível UF — um resumo sem `pct_apurado` NÃO derruba a moldura", async () => {
+    // O valor vem de `fetch` e é só CASTADO para `EdgePayloadUf`; ninguém
+    // valida a forma. Um 200 com corpo inesperado fazia `.toFixed` estourar
+    // dentro do render e derrubar a moldura INTEIRA — o mapa da noite da
+    // apuração viraria tela branca por causa de um rótulo (constituição § 7).
+    // Mutação: trocar a guarda `typeof ufResumo?.pct_apurado === "number"` de
+    // volta por `ufResumo ?` faz este teste estourar em vez de passar.
+    paramsState.sigla = "SP";
+    responderCom(payloadSen([UF_ROW], "normal"));
+    fetchMock.mockImplementation(async (url: unknown) =>
+      String(url).startsWith("/api/projection?uf=")
+        ? { ok: true, json: async () => ({ uf: "SP" }) }
+        : { ok: true, json: async () => payloadSen([UF_ROW], "normal") },
+    );
+
+    await act(async () => {
+      root.render(<PersistentMapFrame cargo="sen" />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // A moldura continua de pé — é o ponto do teste.
+    expect(container.textContent).toContain("SP");
+    // E a ressalva das 2 vagas (decisão D1 do dono) sobrevive ao corpo
+    // inesperado: ela vem do cabeçalho, não do resumo que falhou. Mutação:
+    // tirar o sufixo "· 2 vagas" do cabeçalho do nível UF faz este teste
+    // falhar — a cor de vencedor único numa corrida de dois só é autorizada
+    // COM o rótulo na superfície do mapa.
+    expect(container.textContent).toContain("2 vagas");
   });
 });

@@ -31,6 +31,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   alocarInteiros,
+  alocarMatriz,
   type CandidatoBruto,
   CLI_DEFAULT,
   type DadosSimulacao,
@@ -272,6 +273,71 @@ describe("simulacao-gerar — aritmética de base", () => {
     const pesos = [37.4, 21.9, 15.05, 9.3, 8.15, 5.2, 3.0];
     expect(alocarInteiros(1_234_567, pesos).reduce((a, b) => a + b, 0)).toBe(1_234_567);
     expect(alocarInteiros(0, pesos).every((v) => v === 0)).toBe(true);
+  });
+
+  it("alocarMatriz fecha as duas margens e NÃO envenena a matriz com NaN quando uma linha tem margem 0 [mutação: fator de linha `linhas[m] / soma` sem guarda]", () => {
+    // 🔴 O caso de regressão de 2026-09-19. Uma linha de margem `0` — um
+    // município que ainda não apurou nada, o estado NORMAL no começo da noite
+    // — era zerada na 1ª iteração e, na 2ª, o fator virava `0 / 0 = NaN`. A
+    // normalização de coluna seguinte espalhava esse `NaN` por TODAS as
+    // linhas, e o gerador escrevia `votos_reportados: {}` em todos os
+    // municípios do estado com forma perfeitamente válida (`JSON.stringify`
+    // serializa `NaN` como `null`, e `NaN > 0` é `false`).
+    //
+    // A linha do meio é a que reproduz. Sem ela o caso passa com o defeito.
+    const linhas = [1586, 6343, 0, 6342];
+    const colunas = [5939, 2815, 3032, 1386, 659, 440];
+    const pesos = linhas.map((_, m) => colunas.map((_v, c) => 1 + ((m * 7 + c * 3) % 5)));
+    const y = alocarMatriz(linhas, colunas, pesos);
+
+    for (const linha of y) {
+      for (const v of linha) {
+        expect(Number.isFinite(v), `célula não-finita: ${v}`).toBe(true);
+        expect(v).toBeGreaterThanOrEqual(0);
+      }
+    }
+    // As duas margens, exatas — é para isso que a função existe.
+    expect(y.map((l) => l.reduce((a, b) => a + b, 0))).toEqual(linhas);
+    expect(colunas.map((_, c) => y.reduce((a, l) => a + (l[c] as number), 0))).toEqual(colunas);
+    // E a linha de margem zero continua zerada: ela não apurou nada.
+    expect(y[2]).toEqual([0, 0, 0, 0, 0, 0]);
+  });
+
+  it("alocarMatriz sai finita em toda a família de margens zeradas [mutação: remover a guarda e confiar num caso só]", () => {
+    // Um caso não basta: o defeito depende de QUANTAS linhas zeram, de onde
+    // elas estão e de a preferência ser ou não degenerada. Varre a família.
+    const colunas = [7, 5, 3, 1];
+    const total = colunas.reduce((a, b) => a + b, 0);
+    for (const linhas of [
+      [total, 0, 0],
+      [0, total, 0],
+      [0, 0, total],
+      [8, 0, 8],
+      [0, 16, 0],
+      [4, 0, 4, 0, 8],
+    ]) {
+      for (const degenerada of [false, true]) {
+        // `degenerada`: preferência toda zero — o piso de 1e-12 é o único
+        // sinal que sobra, e é onde o `0/0` nascia.
+        const pesos = linhas.map((_, m) =>
+          colunas.map((_v, c) => (degenerada ? 0 : 1 + ((m + c) % 3))),
+        );
+        const y = alocarMatriz(linhas, colunas, pesos);
+        const onde = `linhas=${JSON.stringify(linhas)} degenerada=${degenerada}`;
+        expect(
+          y.every((l) => l.every((v) => Number.isFinite(v) && v >= 0)),
+          `${onde}: célula não-finita ou negativa`,
+        ).toBe(true);
+        expect(
+          y.map((l) => l.reduce((a, b) => a + b, 0)),
+          `${onde}: margem de linha`,
+        ).toEqual(linhas);
+        expect(
+          colunas.map((_v, c) => y.reduce((a, l) => a + (l[c] as number), 0)),
+          `${onde}: margem de coluna`,
+        ).toEqual(colunas);
+      }
+    }
   });
 
   it("quocienteEleitoral desce no 0,5 EXATO [mutação: Math.round]", () => {
@@ -749,6 +815,119 @@ describe("simulacao-gerar — a votação presidencial por estado", () => {
   });
 });
 
+describe("simulacao-gerar — a corrida a governador por estado (`governador-uf.json`)", () => {
+  // 2026-09-19. Este arquivo nasceu porque cargo 3 era o único majoritário sem
+  // resumo por UF no modo simulado, e a rota caía na síntese a partir de
+  // `por_uf[].top_candidatos` — que é `slice(0, TOP_CANDIDATOS_POR_UF)`.
+  // Medido em `pnpm dev:sim` antes: `?uf=SP&cargo=gov` devolvia 4 ids e
+  // `/municipios?uf=SP&cargo=gov` devolvia 7; os 3 que sobravam viravam
+  // "Candidato 26004" no balão do hover (`lib/utils/municipio-votos.ts`).
+  const s = gerar();
+
+  it("🔴 traz a corrida INTEIRA de cada UF, não o pódio [mutação: cortar em TOP_CANDIDATOS_POR_UF]", () => {
+    // A asserção que mata a mutação é a comparação contra `corridasGov`, que é
+    // a MESMA fonte de `montarMunicipios` — é isso que garante que todo `id`
+    // que aparece em `votos_reportados` tenha nome e partido no balão. Contar
+    // "> 4" não bastaria: numa UF com 4 candidaturas o corte é invisível.
+    let comCauda = 0;
+    for (const c of s.corridasGov) {
+      const p = s.governadorUf[c.ctx.uf] as EdgePayloadUf;
+      expect(p, `governador-uf não tem ${c.ctx.uf}`).toBeDefined();
+      expect(
+        p.candidatos.map((x) => x.id),
+        `ids de ${c.ctx.uf}`,
+      ).toEqual(c.resultados.map((r) => r.cand.id));
+      if (c.resultados.length > 4) comCauda++;
+    }
+    // E o teste precisa provar que tem o que discriminar: sem nenhuma UF com
+    // mais de 4 candidaturas, o corte que ele persegue não existiria no dado
+    // de teste e o `it` viraria decoração.
+    expect(comCauda, "nenhuma UF com cauda — o teste não discrimina").toBeGreaterThan(0);
+  });
+
+  it("🔴 nenhum id do detalhe municipal fica órfão do resumo [mutação: montar o resumo de outra fonte]", () => {
+    // A tradução literal do critério de aceite medido no navegador. É a forma
+    // mais próxima do sintoma: o balão só sabe o nome de quem está no resumo.
+    for (const uf of UFS) {
+      const resumo = new Set(
+        ((s.governadorUf[uf] as EdgePayloadUf).candidatos ?? []).map((c) => c.id),
+      );
+      const noMapa = new Set<number>();
+      for (const m of (s.municipiosGovT1[uf]?.municipios ?? []) as Array<{
+        votos_reportados?: Record<string, number>;
+      }>) {
+        for (const id of Object.keys(m.votos_reportados ?? {})) noMapa.add(Number(id));
+      }
+      expect(noMapa.size, `${uf} sem votos no mapa municipal`).toBeGreaterThan(0);
+      expect(
+        [...noMapa].filter((id) => !resumo.has(id)),
+        `ids órfãos em ${uf}`,
+      ).toEqual([]);
+    }
+  });
+
+  it("não copia o que é do Senado: sem `vagas`, sem `p_eleito` [mutação: clonar montarSenadorUf]", () => {
+    // Governador elege 1 (`vagasPorUf: 1`). Um `vagas: 2` herdado faria a tela
+    // desenhar duas faixas de eleito numa corrida de um cargo só, e `p_eleito`
+    // responderia a uma pergunta que não existe com uma vaga. As duas são
+    // OMISSÕES, e por isso `Object.hasOwn` — `toBeUndefined()` passaria com a
+    // chave presente valendo `undefined`, que é o estado que o contrato proíbe.
+    for (const uf of UFS) {
+      const p = s.governadorUf[uf] as EdgePayloadUf;
+      expect(p.cargo, uf).toBe(3);
+      expect(p.turno, uf).toBe(1);
+      expect(p.granularidade, uf).toBe("zona");
+      expect(Object.hasOwn(p, "vagas"), `vagas em ${uf}`).toBe(false);
+      for (const c of p.candidatos) {
+        expect(Object.hasOwn(c, "p_eleito"), `p_eleito em ${uf}/${c.id}`).toBe(false);
+        // `cor` foi aposentada em 19/09 (ADR-0024): quem desenha resolve pela
+        // SIGLA. Um arquivo que nasce hoje não a reintroduz.
+        expect(Object.hasOwn(c, "cor"), `cor em ${uf}/${c.id}`).toBe(false);
+        expect(typeof c.sqcand, `sqcand em ${uf}/${c.id}`).toBe("string");
+        expect(c.ci95.lower).toBeLessThanOrEqual(c.pct_projetado);
+        expect(c.pct_projetado).toBeLessThanOrEqual(c.ci95.upper);
+      }
+    }
+  });
+
+  it("o líder do resumo é o líder do mapa, e os números são os da UF [mutação: servir o bloco nacional]", () => {
+    for (const l of s.governador.por_uf) {
+      const p = s.governadorUf[l.sigla] as EdgePayloadUf;
+      expect(p.candidatos[0]?.id, `líder de ${l.sigla}`).toBe(l.lider);
+      expect(p.candidatos[0]?.pct_projetado).toBe(l.top_candidatos[0]?.pct);
+      expect(p.pct_apurado).toBe(l.pct_apurado);
+      // Σ votos apurados do resumo == votos apurados da UF: se o payload
+      // servisse o bloco nacional (a união das 27), isto estouraria 27×.
+      const soma = p.candidatos.reduce((a, c) => a + c.votos_atuais, 0);
+      const ctx = s.ctxs.find((c) => c.uf === l.sigla);
+      expect(soma, `Σ votos apurados de ${l.sigla}`).toBe(ctx?.votosApurados);
+    }
+  });
+
+  it("`validarSaida` reprova um resumo cortado no pódio [mutação: a invariante não existir]", () => {
+    // Prova que a rede de segurança do gerador discrimina — sem isto, as
+    // invariantes acima só valeriam para o caminho feliz deste teste.
+    const podado = {
+      ...s,
+      governadorUf: Object.fromEntries(
+        Object.entries(s.governadorUf).map(([uf, p]) => [
+          uf,
+          { ...p, candidatos: p.candidatos.slice(0, 4) },
+        ]),
+      ),
+    };
+    expect(() => validarSaida(podado)).toThrow(/corrida inteira, não o pódio/);
+
+    const comVagas = {
+      ...s,
+      governadorUf: Object.fromEntries(
+        Object.entries(s.governadorUf).map(([uf, p]) => [uf, { ...p, vagas: 2 }]),
+      ),
+    };
+    expect(() => validarSaida(comVagas)).toThrow(/'vagas' presente/);
+  });
+});
+
 describe("simulacao-gerar — top_candidatos: votos e parcial por candidato (balão do mapa)", () => {
   // 2026-09-18 — o balão do mapa nacional (estilo NYT) ganhou as colunas
   // "Votos" e "Parcial", alimentadas por `top_candidatos[].votos_atuais`/
@@ -1015,11 +1194,40 @@ describe("simulacao-gerar — os arquivos gravados", () => {
   const deputado = lerArquivo<EdgePayloadDeputado>("deputado.json");
   const presidenteUf = lerArquivo<Record<string, EdgePayloadUf>>("presidente-uf.json");
   const senadorUf = lerArquivo<Record<string, EdgePayloadUf>>("senador-uf.json");
+  const governadorUf = lerArquivo<Record<string, EdgePayloadUf>>("governador-uf.json");
   const deputadoUf = lerArquivo<Record<string, DeputadoUfDetail>>("deputado-uf.json");
   const municipios = lerArquivo<Record<string, UfDetailBlob>>("municipios-pres-t1.json");
+  const municipiosGov = lerArquivo<Record<string, UfDetailBlob>>("municipios-gov-t1.json");
   const manifest = lerArquivo<Manifest>("manifest.json");
 
-  it("🔴 o percentual apurado de cada UF é o MESMO nos seis arquivos [mutação: deslocar o pct do Deputado pela cadência]", () => {
+  it("🔴 nenhum candidato do mapa municipal de Governador fica sem nome no balão [mutação: apagar governador-uf.json]", () => {
+    // 🔴 A tradução, sobre os BYTES, do critério que o dono conferiu no
+    // navegador em 19/09:
+    //
+    //   GET /api/projection?uf=SP&cargo=gov        → 4 ids   (antes)
+    //   GET /api/projection/municipios?uf=SP&…=gov → 7 ids
+    //
+    // Os 3 que sobravam viravam "Candidato 26004" no hover do coroplético,
+    // porque `lib/utils/municipio-votos.ts` só sabe o nome de quem está na
+    // lista que a moldura do mapa recebeu. A camada hermética já prova isso
+    // sobre o objeto em memória; aqui é sobre o arquivo que a tela lê — que é
+    // onde a regressão apareceria se alguém regenerasse sem este arquivo.
+    for (const uf of UFS) {
+      const resumo = new Set((governadorUf[uf]?.candidatos ?? []).map((c) => c.id));
+      expect(resumo.size, `governador-uf.json não tem ${uf}`).toBeGreaterThan(0);
+      const noMapa = new Set<number>();
+      for (const m of municipiosGov[uf]?.municipios ?? []) {
+        for (const id of Object.keys(m.votos_reportados ?? {})) noMapa.add(Number(id));
+      }
+      expect(noMapa.size, `municipios-gov-t1.json sem votos em ${uf}`).toBeGreaterThan(0);
+      expect(
+        [...noMapa].filter((id) => !resumo.has(id)),
+        `ids órfãos em ${uf}`,
+      ).toEqual([]);
+    }
+  });
+
+  it("🔴 o percentual apurado de cada UF é o MESMO nos sete arquivos [mutação: deslocar o pct do Deputado pela cadência]", () => {
     // As urnas são as mesmas. Esta é a checagem que o dono usaria para
     // descobrir que a simulação é falsa — e a que um deslocamento por cargo,
     // ainda que bem-intencionado, quebraria.
@@ -1032,6 +1240,7 @@ describe("simulacao-gerar — os arquivos gravados", () => {
         ["deputado.json", deputado.por_uf.find((l) => l.sigla === uf)?.pct_apurado],
         ["presidente-uf.json", presidenteUf[uf]?.pct_apurado],
         ["senador-uf.json", senadorUf[uf]?.pct_apurado],
+        ["governador-uf.json", governadorUf[uf]?.pct_apurado],
         ["deputado-uf.json", deputadoUf[uf]?.pct_apurado],
       ];
       for (const [arquivo, v] of vistos) {

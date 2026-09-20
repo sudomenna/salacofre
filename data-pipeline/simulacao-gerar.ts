@@ -147,7 +147,8 @@
 //     (`types.ts:324`): em cargo 3 e 5 um `sqcand` no bloco nacional
 //     endereçaria a foto de um candidato de UF arbitrária. A identidade desses
 //     cargos vai onde ela sabe de que UF é — `por_uf[].top_candidatos[].sqcand`
-//     e `senador-uf.json`, que é de onde as telas estaduais leem o rosto.
+//     e os arquivos por UF (`governador-uf.json` desde 19/09, `senador-uf.json`),
+//     que é de onde as telas estaduais leem o rosto.
 //
 // (c) **Quem lidera é função da `--seed`.** Não há favorito codificado. A
 //     alternativa — escrever à mão quem fica com 35% e quem fica com 2% —
@@ -400,6 +401,29 @@ export function alocarInteiros(total: number, pesos: readonly number[]): number[
  *      falta em cada linha E em cada coluna. O passo de reparo no fim existe
  *      porque a fase gulosa pode empacar; como Σ faltas de linha == Σ faltas de
  *      coluna, sempre há para onde mandar.
+ *
+ * ## 🔴 2026-09-19 — a margem ZERO envenenava a matriz inteira com `NaN`
+ *
+ * Achado ao acrescentar a invariante (10b) de `validarSaida` (Σ votos do
+ * município = votos do candidato na UF). Uma linha com margem `0` — um
+ * município que ainda não apurou nada, que é o estado NORMAL no começo da
+ * noite — era zerada na 1ª iteração; na 2ª, o fator de escala da linha virava
+ * `0 / 0 = NaN`, e a normalização de coluna seguinte espalhava esse `NaN` por
+ * **todas** as linhas. O resultado não era um número errado: era
+ * `votos_reportados: {}` em todos os municípios do estado, `lider.votos: 0` e
+ * `margem_pp: 0`, com forma perfeitamente válida.
+ *
+ * Silencioso nos dois sentidos: o JSON serializa `NaN` como `null`, e nenhuma
+ * checagem olhava o conteúdo das células — só a média de `pct_apurado`, que não
+ * depende desta matriz. Reproduz com qualquer `--pct` baixo o bastante para um
+ * município arredondar para `0,0` (o caso de MG em
+ * `tests/unit/data-pipeline/simulacao-gerar.test.ts` com `pct: 0.08`).
+ *
+ * Conserto: fator `0` quando a linha somou `0`. É o valor CERTO, não um
+ * remendo — `soma === 0` só acontece depois de a própria linha ter sido zerada
+ * por `linhas[m] === 0`, e uma linha de margem zero tem de continuar zerada. O
+ * caso impossível (`soma === 0` com margem positiva, que seria margem
+ * insatisfazível) sai como erro alto, nunca como `NaN` calado.
  */
 export function alocarMatriz(
   linhas: readonly number[],
@@ -421,12 +445,24 @@ export function alocarMatriz(
   for (let it = 0; it < 12; it++) {
     for (let m = 0; m < nL; m++) {
       const soma = (x[m] as number[]).reduce((a, b) => a + b, 0);
-      const f = (linhas[m] as number) / soma;
+      // Ver a nota "a margem ZERO envenenava a matriz" no docblock. Linha
+      // zerada ⇒ fator 0; linha zerada com margem POSITIVA é margem
+      // insatisfazível e sai alto, nunca como `NaN` que se espalha.
+      if (soma === 0 && (linhas[m] as number) > 0) {
+        throw new Error(
+          `alocarMatriz: linha ${m} zerou com margem ${linhas[m]} — margem insatisfazível`,
+        );
+      }
+      const f = soma === 0 ? 0 : (linhas[m] as number) / soma;
       for (let c = 0; c < nC; c++) (x[m] as number[])[c] = ((x[m] as number[])[c] as number) * f;
     }
     for (let c = 0; c < nC; c++) {
       let soma = 0;
       for (let m = 0; m < nL; m++) soma += (x[m] as number[])[c] as number;
+      // A passagem de COLUNA nunca produziu `NaN` e fica como estava: o
+      // `1e-12` no denominador torna `0 / 0` em `0`, e não em `NaN`. Mudá-la
+      // junto seria alterar números que ninguém pediu para mudar — o defeito
+      // era só do lado da linha, onde não havia denominador protegido.
       const f = (colunas[c] as number) / Math.max(1e-12, soma);
       for (let m = 0; m < nL; m++) (x[m] as number[])[c] = ((x[m] as number[])[c] as number) * f;
     }
@@ -675,6 +711,23 @@ export function meiaLarguraIc(share: number, pctApurado: number): number {
 }
 
 const N_RESAMPLES = 2000;
+
+/**
+ * Quantas candidaturas entram em `EdgeUfRow.top_candidatos[]`.
+ *
+ * Espelha `TOP_CANDIDATOS_POR_UF` de `api/model/project.py` (era 3 até
+ * 2026-09-19; virou 4 a pedido do dono, junto com a linha "Outros"). Os dois
+ * arquivos precisam concordar porque a fixture de simulação é lida pela MESMA
+ * UI que consome o payload real — um gerador que cortasse em 3 faria
+ * `pnpm dev:sim` mostrar uma tela que produção não mostra, que é exatamente o
+ * modo de erro registrado na memória durável "a fixture do simulado é mais
+ * rica que produção" (18/09), só que na direção contrária.
+ *
+ * Como no Python, é UM nome para DOIS usos — o `slice(0, N)` do topo e o
+ * `slice(N)` da cauda que vira `outros`. Dois literais divergem em silêncio e
+ * republicariam a 5ª candidatura nos dois lugares.
+ */
+const TOP_CANDIDATOS_POR_UF = 4;
 
 export interface ResultadoProbabilidades {
   pVitoria: number[];
@@ -1707,7 +1760,7 @@ function linhaUf(
     // `null`, nunca `0`: um zero aqui leria como "não mudou nada desde 2022",
     // que é uma afirmação. Não há dado de swing numa simulação.
     swing_vs_2022: null,
-    top_candidatos: resultados.slice(0, 3).map((r) => ({
+    top_candidatos: resultados.slice(0, TOP_CANDIDATOS_POR_UF).map((r) => ({
       id: r.cand.id,
       pct: r2(r.shareFinal),
       nome: r.cand.nome,
@@ -1729,8 +1782,47 @@ function linhaUf(
       votos_atuais: r.votosAtuais,
       pct_atual: r2(r.shareAtual),
     })),
+    // 2026-09-19 (mesmo pedido do dono): a linha "Outros" do balão. Cauda =
+    // o complemento EXATO do `slice` acima sobre a MESMA lista já ordenada,
+    // pelo mesmo `TOP_CANDIDATOS_POR_UF` — top e cauda particionam
+    // `resultados`, sem sobra nem sobreposição.
+    //
+    // 🔴 Soma candidato a candidato, NUNCA `100 − Σ(top 4)`. Aqui a diferença
+    // é ainda mais visível que no modelo real: `validarSaida` exige
+    // `Σ r2(shareFinal) === 100 ± TOLERANCIA.pctSoma` — ou seja, a soma dos
+    // pontos arredondados fecha PERTO de 100, não EM 100. Subtrair jogaria
+    // esse resíduo de arredondamento dentro de "Outros" e o publicaria como
+    // voto de alguém. Mesma regra e mesma razão de `api/model/project.py`
+    // (ver o bloco `cauda`/`outros_top` em `build_edge_payload`).
+    //
+    // `votos_atuais`/`pct_atual` vão SEMPRE aqui, ao contrário do modelo
+    // real: `sharesApurados` devolve `0` explícito quando `pctApurado <= 0` e
+    // não existe imputação nacional neste gerador — então `0` é sempre o fato
+    // "nenhuma zona simulada como apurada", nunca "não medimos" (mesmo
+    // argumento já escrito para as linhas de `top_candidatos` acima).
+    //
+    // `undefined` quando a corrida tem ≤ 4 candidaturas: chave AUSENTE do
+    // JSON emitido (`JSON.stringify` omite `undefined`), nunca `{ pct: 0 }` —
+    // "não há mais ninguém" e "os demais somam 0%" são estados diferentes.
+    outros: outrosDaCauda(resultados.slice(TOP_CANDIDATOS_POR_UF)),
     vai_a_2t: vaiA2t,
     bucket,
+  };
+}
+
+/**
+ * Agregado "Outros" de uma cauda já ordenada — `undefined` se ela for vazia.
+ *
+ * Soma direta sobre os membros; jamais `100 − Σ(topo)`. Ver o comentário em
+ * `linhaUf` e o bloco irmão em `api/model/project.py`.
+ */
+function outrosDaCauda(cauda: readonly ResultadoCandUf[]): EdgeUfRow["outros"] {
+  if (cauda.length === 0) return undefined;
+  return {
+    pct: r2(cauda.reduce((a, r) => a + r.shareFinal, 0)),
+    pct_atual: r2(cauda.reduce((a, r) => a + r.shareAtual, 0)),
+    votos_atuais: cauda.reduce((a, r) => a + r.votosAtuais, 0),
+    n_candidatos: cauda.length,
   };
 }
 
@@ -2204,6 +2296,114 @@ export function montarSenadorUf(
       needle_band: lider === undefined ? "tossup" : band,
       vagas,
       granularidade: cargoInfo(5).granularidade,
+    };
+  }
+  return out;
+}
+
+/**
+ * O mapa `sigla → EdgePayloadUf` que as telas estaduais de Governador leem.
+ *
+ * ## Por que este arquivo passou a existir em 2026-09-19
+ *
+ * Até esta data, cargo 3 era o único majoritário sem arquivo por UF, e havia
+ * uma justificativa escrita para isso em três lugares (`app/(gov)/uf/[sigla]/
+ * governador/page.tsx`, `app/api/projection/route.ts` e o § de `sqcand` de
+ * `scripts/gerar-outros-fixtures.py`): a síntese a partir do payload nacional
+ * **filtrada por `por_uf[].top_candidatos`** recorta a corrida daquela UF com a
+ * votação dela, porque candidatura a governador só existe num estado. Isso é
+ * verdade e continua sendo — mas responde à pergunta errada.
+ *
+ * A pergunta certa não é "os números do recorte estão certos?", e sim "o
+ * recorte tem a corrida INTEIRA?". E não tem: `top_candidatos` é, por
+ * definição, `slice(0, TOP_CANDIDATOS_POR_UF)` — hoje **4**. São Paulo tem
+ * **7** candidaturas a governador; as 3 da cauda ficam de fora da síntese.
+ *
+ * Medido em `pnpm dev:sim` antes desta mudança:
+ *
+ *     GET /api/projection?uf=SP&cargo=gov        → 4 ids (26000..26003)
+ *     GET /api/projection/municipios?uf=SP&…=gov → 7 ids (26000..26006)
+ *
+ * O detalhe municipal reparte os votos entre **todas** as candidaturas, então
+ * o balão do hover do coroplético encontra `26004` em `votos_reportados` e não
+ * acha ninguém com esse `id` na lista de candidatos que a moldura do mapa
+ * recebeu. `lib/utils/municipio-votos.ts` então cai no fallback honesto e
+ * escreve **"Candidato 26004"**, sem partido — que é exatamente a queixa que o
+ * dono levantou ("o balão mostra Candidato 13 em vez do nome").
+ *
+ * 🔴 **Em produção o defeito não existe**: lá o `EdgePayloadUf` real de
+ * governador é publicado pelo orchestrator com `candidatos[]` completo, e o
+ * ramo `?uf=&cargo=gov` da rota lê esse payload em vez de sintetizar. A lacuna
+ * era só do modo simulado — mas o simulado é onde o dono confere, então a
+ * lacuna estava na tela dele.
+ *
+ * ## Espelha `montarSenadorUf`, menos nos dois pontos em que os cargos diferem
+ *
+ * 1. **`vagas` é OMITIDO.** Governador elege 1 (`vagasPorUf: 1`,
+ *    `lib/config/cargos.ts`) e o contrato manda não emitir o campo —
+ *    `EdgePayloadUf.vagas` diz "consumidor ausente ⇒ 1". Copiar o `vagas: 2`
+ *    do Senado faria `<StateResultSheet>` desenhar duas faixas de eleito numa
+ *    corrida de um cargo só.
+ * 2. **`p_eleito` é OMITIDO.** Ali a pergunta certa é `p_vitoria`: com uma
+ *    vaga, liderar decide. O campo ausente diz "não foi calculado"; um `0`
+ *    afirmaria "não se elege em cenário nenhum", que é um dado — e falso para
+ *    quem tem 26% dos votos. É a mesma regra que `montarPresidenteUf` já segue.
+ *
+ * A **agulha** segue daí: distância de `p_vitoria` entre 1º e 2º, como no
+ * presidencial, e não a distância de `p_eleito` entre 2º e 3º que o Senado usa
+ * (lá a fronteira é a 2ª vaga). Governador tem 2º turno (`temSegundoTurno:
+ * true`), e o payload sai sempre com `turno: 1` como os demais desta fixture —
+ * a simulação é de 1º turno inteira; um `turno: 2` aqui contradiria as outras
+ * oito telas sem que nada mais mudasse.
+ *
+ * `sqcand` vai para TODA candidatura, como em `montarSenadorUf` — este payload
+ * é de UMA UF, e o par `(uf, numero)` que o resolve não é ambíguo (spec 018,
+ * RF-144). É o que endereça a foto (ADR-0041), e é a razão de o bloco nacional
+ * de cargo 3 **não** carregar a chave: lá ela apontaria para o rosto de um
+ * candidato de UF arbitrária (bloco 7(b) do cabeçalho deste arquivo).
+ */
+export function montarGovernadorUf(
+  estadual: CorridaEstadual,
+  ts: string,
+): Record<string, EdgePayloadUf> {
+  const out: Record<string, EdgePayloadUf> = {};
+  for (const c of estadual.corridas) {
+    const lider = c.resultados[0];
+    const candidatos: EdgeUfCandidate[] = c.resultados.map((r) => ({
+      id: r.cand.id,
+      nome: r.cand.nome,
+      partido: r.cand.partido,
+      // 🔴 **Sem `cor`**, ao contrário dos dois irmãos acima — e é deliberado,
+      // não esquecimento. `EdgeUfCandidate.cor` foi marcado `@deprecated` em
+      // 19/09 (`a631a14`: "o produtor para de emitir a cor por colocação"), e
+      // no MESMO dia `sintetizarUf` (`app/api/projection/route.ts`) parou de
+      // repassá-lo. Quem desenha resolve pela SIGLA (`colorForParty`,
+      // ADR-0024/ADR-0031). Emitir o campo num arquivo que nasce hoje
+      // reintroduziria a cor por colocação pela porta dos fundos, e o corpo de
+      // resposta de `?uf=&cargo=gov` mudaria de forma sem necessidade — hoje
+      // ele já sai sem `cor`, pela síntese. `montarSenadorUf` e
+      // `montarPresidenteUf` seguem emitindo por herança; podá-los é outra
+      // frente.
+      votos_atuais: r.votosAtuais,
+      votos_projetados: r.votosProjetados,
+      pct_atual: r2(r.shareAtual),
+      pct_projetado: r2(r.shareFinal),
+      ci95: { lower: r2(r.lower), upper: r2(r.upper) },
+      // Sem `p_eleito` — ver o ponto 2 da docstring.
+      sqcand: r.cand.sqcand,
+    }));
+    const { pos, band } = agulha(lider?.pVitoria ?? 0, c.resultados[1]?.pVitoria ?? 0);
+    out[c.ctx.uf] = {
+      uf: c.ctx.uf,
+      ts,
+      cargo: 3,
+      turno: 1,
+      pct_apurado: c.ctx.pctApurado,
+      candidatos,
+      needle_position: lider === undefined ? 0 : pos,
+      needle_band: lider === undefined ? "tossup" : band,
+      // Sem `vagas` — ver o ponto 1 da docstring.
+      granularidade: cargoInfo(3).granularidade,
     };
   }
   return out;
@@ -2902,32 +3102,64 @@ function serieDaUf(rng: Rng, corrida: CorridaUf, tsFinal: string): EdgeUfSeriesT
 }
 
 /**
- * O mapa `sigla → UfDetailBlob` com os 5.570 municípios reais.
+ * Cargos que ganham detalhe municipal no simulado.
  *
- * ⚠️ `cargo` aqui é a string `"pres"`, **não** o `1` numérico dos payloads de
- * Global Config: `UfDetailBlob.cargo` é o `Cargo` de `lib/config/calendar`
- * (`"pres" | "gov" | "sen" | "dep"`), e existem dois tipos com esse nome no
- * repositório. Conferido contra `tests/fixtures/blob/uf-municipios-pres-t1.json`.
+ * Tabela de união literal, não `string`: é ela que dá nome ao arquivo
+ * (`municipios-<cargo>-t1.json`) e preenche `UfDetailBlob.cargo`. Um cargo novo
+ * sem entrada aqui é erro de compilação — que é o oposto do conversor com ramo
+ * `default`, o defeito que esta base já pagou três vezes.
+ *
+ * `dep` está fora: Deputado Federal não tem detalhe municipal (o drill-down do
+ * cargo 6 é `deputado-uf.json`, por agremiação, ADR-0026).
+ */
+export type CargoMunicipal = "pres" | "gov" | "sen";
+
+/**
+ * O mapa `sigla → UfDetailBlob` com os 5.570 municípios reais, para UM cargo.
+ *
+ * ⚠️ `cargo` aqui é a string `"pres" | "gov" | "sen"`, **não** o `1 | 3 | 5`
+ * numérico dos payloads de Global Config: `UfDetailBlob.cargo` é o `Cargo` de
+ * `lib/config/calendar`, e existem dois tipos com esse nome no repositório.
+ * Conferido contra `tests/fixtures/blob/uf-municipios-pres-t1.json`.
  *
  * A textura interna do estado importa: municípios grandes e a capital apuram
  * mais devagar que as cidades pequenas — é essa diferença que o mapa municipal
  * existe para mostrar, e um estado pintado de um tom só não mostra nada. A
  * média ponderada pelo eleitorado volta a bater o `pct_apurado` da UF, o que
- * mantém a coerência com os outros seis arquivos.
+ * mantém a coerência com os outros arquivos.
+ *
+ * ===== 2026-09-19 — a função deixa de ser presidencial =====
+ *
+ * Ela recebia `corridasPres` e cravava `cargo: "pres"`. O resultado era que
+ * `/uf/<sigla>/governador` e `/uf/<sigla>/senador` nunca tiveram mapa municipal
+ * em `pnpm dev:sim` — as fixtures dos dois cargos existiam com `municipios: []`
+ * e a tela mostrava o estado `"empty"`.
+ *
+ * 🔴 **O `rng` NÃO é derivado por cargo, e isso é decisão.** `r =
+ * rng.derive("municipios")` é o mesmo nos três, então eleitorado, velocidade de
+ * apuração e `pct_apurado` de cada município saem IDÊNTICOS nas três corridas —
+ * que é o que o mundo faz: a mesma urna publica os quatro cargos de uma vez, e
+ * um município 40% apurado no Presidente e 12% no Governador seria um estado
+ * impossível pintado lado a lado nas duas telas. O que muda entre cargos é a
+ * repartição dos votos, porque `corrida.resultados` é outro.
+ *
+ * Efeito colateral aproveitado: como a derivação não mudou, o
+ * `municipios-pres-t1.json` sai byte a byte igual ao de antes desta mudança.
  */
 export function montarMunicipios(
   dados: DadosSimulacao,
   ctxs: readonly ContextoUf[],
-  corridasPres: readonly CorridaUf[],
+  corridas: readonly CorridaUf[],
   rng: Rng,
   ts: string,
+  cargo: CargoMunicipal,
 ): Record<string, UfDetailBlob> {
   const r = rng.derive("municipios");
   const out: Record<string, UfDetailBlob> = {};
 
   for (const ctx of ctxs) {
-    const corrida = corridasPres.find((c) => c.ctx.uf === ctx.uf);
-    if (corrida === undefined) throw new Error(`Sem corrida presidencial para ${ctx.uf}`);
+    const corrida = corridas.find((c) => c.ctx.uf === ctx.uf);
+    if (corrida === undefined) throw new Error(`Sem corrida de ${cargo} para ${ctx.uf}`);
     const muns = dados.municipios.filter((m) => m.uf === ctx.uf);
     if (muns.length === 0) throw new Error(`Sem municípios para ${ctx.uf}`);
 
@@ -3021,7 +3253,10 @@ export function montarMunicipios(
     out[ctx.uf] = {
       ts,
       uf: ctx.uf,
-      cargo: "pres",
+      cargo,
+      // Turno 1 nos três: Senador não tem 2º turno, e Presidente/Governador em
+      // 2T seriam `municipios-<cargo>-t2.json`, arquivo à parte que este
+      // gerador ainda não produz.
       turno: 1,
       municipios,
       series_temporais: serieDaUf(r.derive(`serie|${ctx.uf}`), corrida, ts),
@@ -3084,8 +3319,25 @@ export interface SaidaSimulacao {
   deputadoUf: Record<string, DeputadoUfDetail>;
   /** A votação presidencial DENTRO de cada estado — 27 UFs. */
   presidenteUf: Record<string, EdgePayloadUf>;
-  /** Detalhe municipal da corrida presidencial — o mapa por dentro do estado. */
+  /**
+   * A corrida a governador DENTRO de cada estado — 27 UFs, **inteira**.
+   *
+   * Acréscimo de 19/09. O que faltava não eram os números (a síntese por
+   * `top_candidatos` acertava os dela); era a CAUDA — ver a docstring de
+   * `montarGovernadorUf`.
+   */
+  governadorUf: Record<string, EdgePayloadUf>;
+  /**
+   * Detalhe municipal — o mapa por dentro do estado, um arquivo POR CARGO.
+   *
+   * Os três são a MESMA geografia com a MESMA velocidade de apuração (ver a
+   * docstring de `montarMunicipios`); o que muda é a repartição dos votos.
+   * Sem `gov` e `sen` aqui, `/uf/<sigla>/governador` e `/uf/<sigla>/senador`
+   * ficam sem mapa municipal em `pnpm dev:sim` — que era o estado até 19/09.
+   */
   municipiosPresT1: Record<string, UfDetailBlob>;
+  municipiosGovT1: Record<string, UfDetailBlob>;
+  municipiosSenT1: Record<string, UfDetailBlob>;
   manifest: Manifest;
   /** Intermediários — o que permite conferir a soma de votos por UF. */
   ctxs: ContextoUf[];
@@ -3101,9 +3353,15 @@ export const ARQUIVOS: Readonly<Record<string, keyof SaidaSimulacao>> = {
   "senador.json": "senador",
   "deputado.json": "deputado",
   "presidente-uf.json": "presidenteUf",
+  "governador-uf.json": "governadorUf",
   "senador-uf.json": "senadorUf",
   "deputado-uf.json": "deputadoUf",
   "municipios-pres-t1.json": "municipiosPresT1",
+  // 🔴 Os nomes têm de casar EXATAMENTE com o que `simulacaoMunicipiosUf`
+  // monta (`lib/dev/simulacao.ts`: `municipios-${cargo}-t${turno}.json`) — é o
+  // nome do arquivo, e não uma tabela de código, que liga a rota ao dado.
+  "municipios-gov-t1.json": "municipiosGovT1",
+  "municipios-sen-t1.json": "municipiosSenT1",
   "manifest.json": "manifest",
 };
 
@@ -3130,9 +3388,15 @@ export function gerarSimulacao(
   const governador = montarPayloadEstadual(gov, ctxs, ts);
   const senador = montarPayloadEstadual(sen, ctxs, ts);
   const senadorUf = montarSenadorUf(sen, ts);
+  const governadorUf = montarGovernadorUf(gov, ts);
   const presidenteUf = montarPresidenteUf(pres.corridas, presidente.national.candidatos, ts);
   const dep = montarDeputado(dados, ctxs, raiz, ts);
-  const municipiosPresT1 = montarMunicipios(dados, ctxs, pres.corridas, raiz, ts);
+  // Um detalhe municipal por cargo majoritário. As três chamadas passam o
+  // MESMO `raiz`: é isso que faz o eleitorado e o `pct_apurado` de cada
+  // município saírem idênticos nos três arquivos (ver `montarMunicipios`).
+  const municipiosPresT1 = montarMunicipios(dados, ctxs, pres.corridas, raiz, ts, "pres");
+  const municipiosGovT1 = montarMunicipios(dados, ctxs, gov.corridas, raiz, ts, "gov");
+  const municipiosSenT1 = montarMunicipios(dados, ctxs, sen.corridas, raiz, ts, "sen");
 
   const pctEfetivo = pctNacional(ctxs);
   const manifest: Manifest = {
@@ -3182,9 +3446,12 @@ export function gerarSimulacao(
     senador,
     deputado: dep.payload,
     senadorUf,
+    governadorUf,
     presidenteUf,
     deputadoUf: dep.porUf,
     municipiosPresT1,
+    municipiosGovT1,
+    municipiosSenT1,
     manifest,
     ctxs,
     corridasPres: pres.corridas,
@@ -3227,8 +3494,11 @@ function erro(msg: string): never {
  */
 export function validarSaida(s: SaidaSimulacao): void {
   const { presidente, governador, senador, deputado, senadorUf, deputadoUf, ctxs, manifest } = s;
+  const governadorUf = s.governadorUf;
 
-  // (1) Um percentual de apuração por UF, igual nos seis arquivos.
+  // (1) Um percentual de apuração por UF, igual nos SETE arquivos que o
+  // publicam (`governador-uf.json` entrou em 19/09). Uma checagem que cobre
+  // seis de sete é uma checagem que autoriza o sétimo a divergir.
   for (const c of ctxs) {
     const vistos: Array<[string, number | undefined]> = [
       ["presidente.json", presidente.por_uf.find((l) => l.sigla === c.uf)?.pct_apurado],
@@ -3236,6 +3506,7 @@ export function validarSaida(s: SaidaSimulacao): void {
       ["senador.json", senador.por_uf.find((l) => l.sigla === c.uf)?.pct_apurado],
       ["deputado.json", deputado.por_uf.find((l) => l.sigla === c.uf)?.pct_apurado],
       ["senador-uf.json", senadorUf[c.uf]?.pct_apurado],
+      ["governador-uf.json", governadorUf[c.uf]?.pct_apurado],
       ["deputado-uf.json", deputadoUf[c.uf]?.pct_apurado],
     ];
     for (const [arquivo, v] of vistos) {
@@ -3348,6 +3619,60 @@ export function validarSaida(s: SaidaSimulacao): void {
     }
   }
 
+  // 🔴 Governador: o resumo da UF traz a corrida INTEIRA, e não o pódio.
+  //
+  // Esta é a invariante que existe por causa do defeito de 19/09, e a ordem das
+  // checagens é a ordem de importância. A primeira é a que o defeito quebrava:
+  // a síntese que a rota usava até aqui montava a lista a partir de
+  // `por_uf[].top_candidatos`, que é `slice(0, 4)` por definição — em SP saíam
+  // 4 dos 7, e o balão do mapa municipal escrevia "Candidato 26004" para os 3
+  // que sobravam, porque `votos_reportados` do detalhe municipal reparte entre
+  // TODAS as candidaturas. Comparar contra `corridasGov` (a mesma fonte de
+  // `montarMunicipios`) é o que faz a checagem discriminar: um `slice` que
+  // reaparecesse aqui — por corte de tamanho, por reaproveitamento de
+  // `linhaUf`, por qualquer motivo — mata a geração em vez de chegar à tela.
+  //
+  // As duas últimas são o contrário: campos que NÃO podem aparecer. Copiar
+  // `montarSenadorUf` sem podar é o erro provável, e ele é silencioso — um
+  // `vagas: 2` faria a tela desenhar duas faixas de eleito numa corrida de um
+  // cargo só, e `p_eleito` responderia a uma pergunta que não existe com uma
+  // vaga.
+  const idsDaCorridaGov = new Map(
+    s.corridasGov.map((c) => [c.ctx.uf, c.resultados.map((r) => r.cand.id)] as const),
+  );
+  for (const uf of UFS) {
+    const p = governadorUf[uf];
+    if (p === undefined) erro(`governador-uf.json não tem ${uf} — são 27, sem exceção`);
+    if (p.cargo !== 3) erro(`governador-uf/${uf}: cargo ${p.cargo} — esperado 3`);
+    const esperados = idsDaCorridaGov.get(uf) ?? [];
+    const obtidos = p.candidatos.map((c) => c.id);
+    if (obtidos.length !== esperados.length || obtidos.some((id, i) => id !== esperados[i])) {
+      erro(
+        `governador-uf/${uf}: ${obtidos.length} candidaturas [${obtidos.join(",")}], ` +
+          `esperadas ${esperados.length} na mesma ordem [${esperados.join(",")}] — ` +
+          "o resumo da UF é a corrida inteira, não o pódio",
+      );
+    }
+    if (p.vagas !== undefined) {
+      erro(
+        `governador-uf/${uf}: 'vagas' presente (${p.vagas}) — governador elege 1 e omite o campo`,
+      );
+    }
+    for (const c of p.candidatos) {
+      if (!(c.ci95.lower <= c.pct_projetado && c.pct_projetado <= c.ci95.upper)) {
+        erro(`governador-uf/${uf}/${c.id}: ci95 não contém pct_projetado`);
+      }
+      if (c.sqcand === undefined) {
+        erro(`governador-uf/${uf}/${c.id}: sem sqcand — a foto não resolve`);
+      }
+      if (c.p_eleito !== undefined) {
+        erro(
+          `governador-uf/${uf}/${c.id}: 'p_eleito' presente — com 1 vaga a pergunta é p_vitoria`,
+        );
+      }
+    }
+  }
+
   // (9) Deputado: as cadeiras fecham com os lugares de cada UF.
   for (const uf of UFS) {
     const d = deputadoUf[uf];
@@ -3374,33 +3699,85 @@ export function validarSaida(s: SaidaSimulacao): void {
   //
   // É a checagem que denuncia uma simulação falsa por dentro: o mapa municipal
   // pode (e deve) variar bastante, mas somado de volta tem de dar o mesmo
-  // número que os outros seis arquivos publicam para aquele estado.
-  for (const c of ctxs) {
-    const blob = s.municipiosPresT1[c.uf];
-    if (blob === undefined) erro(`municipios-pres-t1.json não tem ${c.uf} — são 27, sem exceção`);
-    if (blob.cargo !== "pres")
-      erro(`municipios-pres-t1/${c.uf}: cargo "${blob.cargo}" — esperado "pres"`);
-    const peso = blob.municipios.reduce((a, m) => a + (m.eleitores ?? 0), 0);
-    if (peso !== c.eleitores) {
-      erro(`municipios-pres-t1/${c.uf}: Σ eleitores ${peso} ≠ eleitorado da UF ${c.eleitores}`);
-    }
-    const media =
-      blob.municipios.reduce((a, m) => a + m.pct_apurado * (m.eleitores ?? 0), 0) / peso;
-    if (Math.abs(media - c.pctApurado) > 0.05) {
-      erro(
-        `municipios-pres-t1/${c.uf}: média ponderada ${media.toFixed(3)}% ≠ pct_apurado da UF ${c.pctApurado}%`,
-      );
-    }
-    const t = blob.series_temporais?.turnout ?? [];
-    for (let k = 1; k < t.length; k++) {
-      if ((t[k]?.pct_apurado ?? 0) < (t[k - 1]?.pct_apurado ?? 0)) {
+  // número que os outros arquivos publicam para aquele estado.
+  //
+  // 🔴 Roda nos TRÊS cargos desde 19/09, e não só no presidencial. Enquanto
+  // `municipios-gov-t1.json` e `municipios-sen-t1.json` saíam com
+  // `municipios: []`, não havia o que conferir; agora que eles têm 5.570 linhas
+  // cada, são estas invariantes — e só elas — que impedem as duas novas
+  // fixtures de mentir em silêncio. Uma checagem que cobre um cargo de três é
+  // uma checagem que autoriza os outros dois a divergirem.
+  const detalhesMunicipais: Array<[string, Record<string, UfDetailBlob>, CargoMunicipal]> = [
+    ["municipios-pres-t1", s.municipiosPresT1, "pres"],
+    ["municipios-gov-t1", s.municipiosGovT1, "gov"],
+    ["municipios-sen-t1", s.municipiosSenT1, "sen"],
+  ];
+  for (const [arquivo, mapa, cargoEsperado] of detalhesMunicipais) {
+    for (const c of ctxs) {
+      const blob = mapa[c.uf];
+      if (blob === undefined) erro(`${arquivo}.json não tem ${c.uf} — são 27, sem exceção`);
+      // A checagem de cargo é a que pega o erro mais barato e mais caro ao
+      // mesmo tempo: um `montarMunicipios` chamado com a corrida de um cargo e
+      // o rótulo de outro produziria um arquivo com forma perfeita e conteúdo
+      // da corrida errada — exatamente o defeito que esta rodada conserta na
+      // outra ponta, no endpoint.
+      if (blob.cargo !== cargoEsperado)
+        erro(`${arquivo}/${c.uf}: cargo "${blob.cargo}" — esperado "${cargoEsperado}"`);
+      if (blob.municipios.length === 0)
+        erro(`${arquivo}/${c.uf}: nenhum município — a fixture existiria mas o mapa ficaria mudo`);
+      const peso = blob.municipios.reduce((a, m) => a + (m.eleitores ?? 0), 0);
+      if (peso !== c.eleitores) {
+        erro(`${arquivo}/${c.uf}: Σ eleitores ${peso} ≠ eleitorado da UF ${c.eleitores}`);
+      }
+      const media =
+        blob.municipios.reduce((a, m) => a + m.pct_apurado * (m.eleitores ?? 0), 0) / peso;
+      if (Math.abs(media - c.pctApurado) > 0.05) {
         erro(
-          `municipios-pres-t1/${c.uf}: turnout da série regride no ponto ${k} — apuração não volta atrás`,
+          `${arquivo}/${c.uf}: média ponderada ${media.toFixed(3)}% ≠ pct_apurado da UF ${c.pctApurado}%`,
         );
       }
+      const t = blob.series_temporais?.turnout ?? [];
+      for (let k = 1; k < t.length; k++) {
+        if ((t[k]?.pct_apurado ?? 0) < (t[k - 1]?.pct_apurado ?? 0)) {
+          erro(
+            `${arquivo}/${c.uf}: turnout da série regride no ponto ${k} — apuração não volta atrás`,
+          );
+        }
+      }
+      if (t.length > 0 && t[t.length - 1]?.pct_apurado !== c.pctApurado) {
+        erro(`${arquivo}/${c.uf}: último ponto da série ≠ pct_apurado da UF`);
+      }
     }
-    if (t.length > 0 && t[t.length - 1]?.pct_apurado !== c.pctApurado) {
-      erro(`municipios-pres-t1/${c.uf}: último ponto da série ≠ pct_apurado da UF`);
+  }
+
+  // (10b) 🔴 Σ votos do município = votos apurados do CANDIDATO na UF, cargo a
+  // cargo. Sem isto, a tela do município e a do estado podem contar histórias
+  // diferentes sobre a mesma pessoa — e foi justamente por não existir arquivo
+  // municipal de gov/sen que ninguém precisou conferir isso até hoje.
+  const corridasPorCargo: Array<[string, Record<string, UfDetailBlob>, readonly CorridaUf[]]> = [
+    ["municipios-pres-t1", s.municipiosPresT1, s.corridasPres],
+    ["municipios-gov-t1", s.municipiosGovT1, s.corridasGov],
+    ["municipios-sen-t1", s.municipiosSenT1, s.corridasSen],
+  ];
+  for (const [arquivo, mapa, corridas] of corridasPorCargo) {
+    for (const corrida of corridas) {
+      const blob = mapa[corrida.ctx.uf];
+      if (blob === undefined) continue; // já reportado em (10)
+      const somaPorCand = new Map<number, number>();
+      for (const m of blob.municipios) {
+        for (const [id, v] of Object.entries(m.votos_reportados ?? {})) {
+          somaPorCand.set(Number(id), (somaPorCand.get(Number(id)) ?? 0) + v);
+        }
+      }
+      for (const res of corrida.resultados) {
+        const somado = somaPorCand.get(res.cand.id) ?? 0;
+        if (somado !== res.votosAtuais) {
+          erro(
+            `${arquivo}/${corrida.ctx.uf}/${res.cand.id} (${res.cand.nome}): ` +
+              `Σ votos dos municípios ${somado} ≠ votos apurados na UF ${res.votosAtuais}`,
+          );
+        }
+      }
     }
   }
 

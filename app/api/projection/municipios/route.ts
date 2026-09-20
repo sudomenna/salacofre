@@ -1,7 +1,7 @@
 /**
  * app/api/projection/municipios/route.ts
  *
- * GET /api/projection/municipios?uf=<sigla>&cargo=<pres|gov>
+ * GET /api/projection/municipios?uf=<sigla>&cargo=<pres|gov|sen>
  *
  * Read path CLIENTE do detalhe municipal (ADR-0032) — existe porque
  * `readUfDetail` (`lib/blob/uf-detail.ts`) só pode rodar no servidor (o Blob
@@ -12,13 +12,26 @@
  * seu próprio dado — então precisa de um endpoint, exatamente como já faz
  * para o resumo via `GET /api/projection?uf=`.
  *
- * `turno` não é parâmetro: as duas páginas de UF que hoje leem
+ * `turno` não é parâmetro: as três páginas de UF que hoje leem
  * `readUfDetail` resolvem turno da mesma forma que este endpoint replica —
  * Presidente via `currentPresidentialRace()` (turno corrente), Governador fixo em 1
  * (`app/(gov)/uf/[sigla]/governador/page.tsx`, ainda sem alternância 2T
- * nesta rota). Se um turno 2 de Governador existir antes deste endpoint
- * ganhar o parâmetro, ele devolverá o turno errado — mesmo risco que as
- * páginas já assumem hoje.
+ * nesta rota), Senador fixo em 1 porque cargo 5 **não tem** 2º turno
+ * (`temSegundoTurno: false`, `lib/config/cargos.ts`). Se um turno 2 de
+ * Governador existir antes deste endpoint ganhar o parâmetro, ele devolverá o
+ * turno errado — mesmo risco que as páginas já assumem hoje.
+ *
+ * ===== 2026-09-19 — `cargo=sen` passa a ser atendido =====
+ *
+ * 🔴 Até esta data `resolveCargoETurno` reconhecia só `"gov"`, e **qualquer
+ * outro valor caía no presidencial em silêncio** — inclusive `"sen"` e
+ * `"dep"`. Um coroplético municipal de Presidente pintado sob o rótulo
+ * "Senado" é a terceira reincidência do mesmo defeito nesta base (conversor de
+ * cargo com ramo `default`), e por isso a resolução virou tabela indexada pela
+ * união literal: cargo novo sem entrada é erro de compilação, e cargo
+ * explícito fora da tabela (`dep`, typo) responde **400 `invalid_cargo`**, não
+ * o presidencial calado. Ausência de `cargo` continua valendo presidencial —
+ * é o contrato de todo consumidor anterior a esta data.
  *
  * Dev fallback (carry-over do map-builder, 2026-09-09): quando
  * `readUfDetail` devolve "unavailable" E o ambiente não é produção, tenta
@@ -39,12 +52,39 @@ const CACHE_HEADERS = {
   "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
 } as const;
 
-function resolveCargoETurno(cargoParam: string | null): { cargo: Cargo; turno: 1 | 2 } {
-  if (cargoParam === "gov") return { cargo: "gov", turno: 1 };
-  // Default e único outro valor aceito: presidencial, mesma resolução de
-  // turno que `app/(pres)/uf/[sigla]/page.tsx` usa.
-  const race = currentPresidentialRace();
-  return { cargo: "pres", turno: race.turno };
+/** Os cargos com detalhe municipal publicado no Blob (ADR-0032). */
+type CargoMunicipal = "pres" | "gov" | "sen";
+
+/**
+ * Tabela, e não ternário encadeado nem `??`.
+ *
+ * `turno` é função, e não literal, porque o presidencial depende do calendário
+ * — resolvê-lo na montagem da tabela congelaria o turno no módulo.
+ *
+ * `dep` está fora de propósito: Deputado Federal se decide em turno único e
+ * tem drill-down próprio (`deputado/uf/<SIGLA>.json`, ADR-0026), sem cargo nem
+ * turno no caminho. Pedir `cargo=dep` aqui é erro do chamador, e o 400 abaixo
+ * diz isso — servir os municípios do Presidente seria a mentira silenciosa.
+ */
+const TURNO_POR_CARGO: Readonly<Record<CargoMunicipal, () => 1 | 2>> = {
+  // Mesma resolução de turno que `app/(pres)/uf/[sigla]/page.tsx` usa.
+  pres: () => currentPresidentialRace().turno,
+  gov: () => 1,
+  sen: () => 1,
+};
+
+/**
+ * `?cargo=` → cargo + turno, ou `null` quando o valor não é atendido.
+ *
+ * Ausência ⇒ presidencial: é o contrato de todo consumidor anterior a
+ * 2026-09-19 e o único default que este arquivo admite. Presença de valor
+ * desconhecido ⇒ `null` ⇒ 400, nunca o presidencial em silêncio.
+ */
+function resolveCargoETurno(cargoParam: string | null): { cargo: Cargo; turno: 1 | 2 } | null {
+  const token = cargoParam ?? "pres";
+  if (!Object.hasOwn(TURNO_POR_CARGO, token)) return null;
+  const cargo = token as CargoMunicipal;
+  return { cargo, turno: TURNO_POR_CARGO[cargo]() };
 }
 
 export async function GET(req: Request): Promise<Response> {
@@ -58,7 +98,12 @@ export async function GET(req: Request): Promise<Response> {
     return NextResponse.json({ error: "invalid_uf" }, { status: 400 });
   }
 
-  const { cargo, turno } = resolveCargoETurno(url.searchParams.get("cargo"));
+  const cargoParam = url.searchParams.get("cargo");
+  const resolvido = resolveCargoETurno(cargoParam);
+  if (resolvido === null) {
+    return NextResponse.json({ error: "invalid_cargo", cargo: cargoParam }, { status: 400 });
+  }
+  const { cargo, turno } = resolvido;
 
   // 🔴 **Simulação ligada ⇒ a simulação é a fonte de verdade, e a leitura
   // remota NÃO RODA.** Este bloco vem antes de `readUfDetail` de propósito, e a

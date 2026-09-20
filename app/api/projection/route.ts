@@ -4,10 +4,12 @@
  * Endpoint público de leitura da projeção. Cumpre RF-019/RF-020 e o contrato
  * declarado pelas specs 003 (home) e 004 (UF):
  *
- *   GET /api/projection                → EdgePayload (nacional, Presidente)
- *   GET /api/projection?cargo=gov      → EdgePayload (nacional, Governador)
- *   GET /api/projection?cargo=sen      → EdgePayload (nacional, Senador)
- *   GET /api/projection?uf=<sigla>     → EdgePayloadUf (RESUMO da UF, sempre Presidente)
+ *   GET /api/projection                     → EdgePayload (nacional, Presidente)
+ *   GET /api/projection?cargo=gov           → EdgePayload (nacional, Governador)
+ *   GET /api/projection?cargo=sen           → EdgePayload (nacional, Senador)
+ *   GET /api/projection?uf=<sigla>          → EdgePayloadUf (RESUMO presidencial da UF)
+ *   GET /api/projection?uf=<sigla>&cargo=gov → EdgePayloadUf (RESUMO de Governador da UF)
+ *   GET /api/projection?uf=<sigla>&cargo=sen → EdgePayloadUf (RESUMO de Senador da UF)
  *
  * **ADR-0033 § 1 (2026-09-08)**: `?cargo=gov` é acréscimo desta data. A moldura
  * persistente do mapa (`components/layout/PersistentMapFrame.tsx`) busca o
@@ -24,10 +26,32 @@
  * turno (`temSegundoTurno: false`, `lib/config/cargos.ts`), então este ramo
  * só tenta `turno: 1` — ao contrário de `?cargo=gov`, que tenta 1 e depois 2.
  *
- * 🔴 `?uf=<sigla>` **ignora** `cargo`: sempre devolve o resumo PRESIDENCIAL da
- * UF (comportamento pré-existente, documentado aqui e não alterado por esta
- * mudança). `PersistentMapFrame` sabe disso e não chama este ramo quando
- * `cargo === "sen"` (Senador não tem nível UF nesta moldura).
+ * ===== 2026-09-19 — `?uf=` PASSA A ACEITAR `cargo` (mudança de contrato) =====
+ *
+ * 🔴 Até esta data o ramo `?uf=` **ignorava** `cargo` e devolvia sempre o
+ * resumo PRESIDENCIAL — a versão anterior desta docstring dizia isso em letras
+ * grandes, e o `cargo: "pres"` estava cravado na chamada ao reader. A
+ * consequência não era teórica: em `/uf/<sigla>/governador` a moldura do mapa
+ * recebia a lista de candidatos do PRESIDENTE, e como os `id` presidenciais não
+ * casam com os `votos_reportados` de governador, toda linha do balão caía no
+ * fallback `nome: "Candidato {id}"` / `partido: undefined`
+ * (`lib/utils/municipio-votos.ts`), a coluna "Part." sumia e o coroplético
+ * ficava inteiro em `var(--color-tossup)`.
+ *
+ * O que muda e o que NÃO muda:
+ *   - **Sem `cargo`, nada muda**: continua presidencial, mesma chave, mesmo
+ *     corpo de resposta. Nenhum consumidor existente quebra.
+ *   - `cargo=gov` tenta turno 1 e depois 2 (mesma ordem de
+ *     `app/(gov)/governador/page.tsx`); `cargo=sen` só turno 1.
+ *   - `cargo` presente com valor não reconhecido (`dep`, `presidente`, typo)
+ *     responde **400 `invalid_cargo`**, e nunca o presidencial em silêncio. É a
+ *     regra da casa para conversor de cargo: default permissivo já mandou
+ *     payload de Senador para a chave do Presidente neste repositório.
+ *
+ * `readUfProjection` (`lib/edge-config/reader.ts`) **já exigia** `cargo` sem
+ * default (ADR-0028) e a chave já era namespaced por cargo/turno (ADR-0012) —
+ * quem resolve a chave continua sendo o reader, não este arquivo. O que faltava
+ * era este ramo parar de cravar o literal.
  *
  * **ADR-0032 (2026-09-08)**: o `?uf=` devolve só o resumo. O detalhe municipal
  * e as séries temporais deixaram de fazer parte de `EdgePayloadUf` — vivem no
@@ -49,11 +73,19 @@
  */
 
 import { NextResponse } from "next/server";
+import type { Turno } from "@/lib/config/calendar";
 import { currentPresidentialTurno } from "@/lib/config/calendar";
 
-import { simulacaoLigada, simulacaoNacional, simulacaoUfPresidente } from "@/lib/dev/simulacao";
+import {
+  simulacaoGovernadorUf,
+  simulacaoLigada,
+  simulacaoNacional,
+  simulacaoSenadorUf,
+  simulacaoUfPresidente,
+} from "@/lib/dev/simulacao";
+import type { CargoMajoritario } from "@/lib/edge-config/reader";
 import { readNationalProjection, readProjection, readUfProjection } from "@/lib/edge-config/reader";
-import type { EdgePayload, EdgePayloadUf } from "@/lib/edge-config/types";
+import type { EdgePayload, EdgePayloadUf, EdgeUfCandidate } from "@/lib/edge-config/types";
 import govFixture from "@/tests/fixtures/edge-config/gov-current.json" with { type: "json" };
 import nationalFixture from "@/tests/fixtures/edge-config/projection-current.json" with {
   type: "json",
@@ -64,6 +96,96 @@ const UF_REGEX = /^[A-Z]{2}$/;
 const CACHE_HEADERS = {
   "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
 } as const;
+
+/**
+ * De onde sai a IDENTIDADE (nome, partido, foto) de cada candidatura quando o
+ * resumo da UF precisa ser sintetizado do payload nacional.
+ *
+ *   - `"nacional"` — a cédula é a mesma nos 27 estados (Presidente). Não há por
+ *     quem filtrar, e `national.candidatos` é a lista certa.
+ *   - `"da-uf"` — `national.candidatos` é a **união de 27 corridas** sob o mesmo
+ *     espaço de `id` (Governador e Senador). Quem recorta a corrida daquele
+ *     estado é `por_uf[].top_candidatos`, que foi resolvido pelo par
+ *     `(uf, numero)` lá no orchestrator e por isso traz `nome`, `partido` e
+ *     `sqcand` do MESMO registro. Casar `sqcand` de uma fonte com nome de outra
+ *     é o que poria o rosto de uma pessoa ao lado do nome de outra no dia em
+ *     que dois estados colidissem num `id` (RF-145).
+ */
+type FonteDaIdentidade = "nacional" | "da-uf";
+
+interface CargoUfSpec {
+  /** Turnos a tentar no Global Config, NESTA ordem. */
+  turnos: () => readonly Turno[];
+  /**
+   * Arquivo por UF da simulação, quando ele existe. Tem precedência sobre a
+   * síntese — ver a docstring de `simulacaoUfPresidente`.
+   */
+  simulacaoUf: (sigla: string) => EdgePayloadUf | null;
+  /** Fixture nacional de dev, a partir da qual a síntese é feita. */
+  fixtureNacional: () => EdgePayload;
+  identidade: FonteDaIdentidade;
+}
+
+/**
+ * Tabela, e não ternário encadeado nem `??`.
+ *
+ * O default silencioso em conversor de cargo já mordeu este repositório três
+ * vezes — a última mandava todo payload de Senador para a chave do Presidente,
+ * e a que esta mudança conserta punha a lista presidencial dentro da tela de
+ * Governador. Uma tabela indexada pela união literal `CargoMajoritario` não tem
+ * ramo de fallback onde o erro possa se esconder: cargo novo sem entrada é erro
+ * de compilação, não uma tela calada mostrando a corrida errada.
+ *
+ * `dep` está fora de propósito (`CargoMajoritario = Exclude<Cargo, "dep">`):
+ * Deputado Federal não tem resumo em forma de `EdgePayloadUf` — tem
+ * `DeputadoUfDetail`, tipo próprio, read path próprio (ADR-0026).
+ */
+const CARGOS_UF: Readonly<Record<CargoMajoritario, CargoUfSpec>> = {
+  pres: {
+    // Só o turno corrente, como sempre foi: a chave presidencial do turno
+    // encerrado tem leitor próprio (`readArchivedProjection`).
+    turnos: () => [currentPresidentialTurno()],
+    simulacaoUf: simulacaoUfPresidente,
+    fixtureNacional: () => nationalFixture as unknown as EdgePayload,
+    identidade: "nacional",
+  },
+  gov: {
+    // 1 → 2, a mesma ordem que `app/(gov)/governador/page.tsx` já usava no
+    // servidor e que o ramo nacional `?cargo=gov` repete logo abaixo.
+    turnos: () => [1, 2],
+    // 🔴 2026-09-19, segunda rodada: `governador-uf.json` PASSOU a existir, e
+    // a decisão anterior — "cargo 3 não precisa de arquivo por UF porque a
+    // síntese filtrada por `top_candidatos` é exata" — estava respondendo à
+    // pergunta errada. Ela prova que os números do recorte são da UF; não prova
+    // que o recorte tem a corrida inteira. `top_candidatos` é `slice(0, 4)`, SP
+    // tem 7 candidaturas a governador, e as 3 da cauda existem em
+    // `votos_reportados` do detalhe municipal — daí "Candidato 26004" no balão
+    // do hover. Ver a docstring de `simulacaoGovernadorUf`.
+    simulacaoUf: simulacaoGovernadorUf,
+    fixtureNacional: () => govFixture as unknown as EdgePayload,
+    identidade: "da-uf",
+  },
+  sen: {
+    // Senador não tem 2º turno (`temSegundoTurno: false`, `lib/config/cargos.ts`).
+    turnos: () => [1],
+    simulacaoUf: simulacaoSenadorUf,
+    fixtureNacional: () => senFixture as unknown as EdgePayload,
+    identidade: "da-uf",
+  },
+};
+
+/**
+ * `?cargo=` do ramo `?uf=` → cargo, ou `null` quando o valor não é atendido.
+ *
+ * Ausência é o contrato antigo (presidencial) e continua valendo — é o que
+ * mantém intacto todo consumidor anterior a 2026-09-19. Presença de valor
+ * desconhecido é **erro**, nunca o presidencial em silêncio: é justamente o
+ * ramo `default` que esta base já pagou três vezes.
+ */
+function resolverCargoUf(param: string | null): CargoMajoritario | null {
+  if (param === null) return "pres";
+  return Object.hasOwn(CARGOS_UF, param) ? (param as CargoMajoritario) : null;
+}
 
 /**
  * Em dev (sem `EDGE_CONFIG`), retornamos o fixture para que a home renderize.
@@ -106,33 +228,67 @@ function fonteDev<T>(daSimulacao: () => T | null, daFixture: () => T): T | null 
 
 /**
  * Recorta um `EdgePayloadUf` de um payload nacional — a mesma lógica que
- * `synthesizeUfFromNational` aplica em `app/(pres)/uf/[sigla]/page.tsx`.
+ * `synthesizeUfFromNational` aplica em `app/(pres)/uf/[sigla]/page.tsx` e que
+ * `synthesizeGovUfFromFixture` aplica na rota de governador.
  *
- * ⚠️ Para PRESIDENTE isto serve a votação NACIONAL como se fosse a do estado:
- * a cédula é a mesma nos 27, e não há por quem filtrar. É aproximação de
- * desenvolvimento, e por isso `simulacaoUfPresidente` tem precedência sobre ela
- * no ramo abaixo.
+ * ⚠️ Com `identidade: "nacional"` (Presidente) isto serve a votação NACIONAL
+ * como se fosse a do estado: a cédula é a mesma nos 27, e não há por quem
+ * filtrar. É aproximação de desenvolvimento, e por isso `simulacaoUfPresidente`
+ * tem precedência sobre ela no ramo abaixo.
+ *
+ * Com `identidade: "da-uf"` (Governador, Senador) o recorte é CORRETO e não uma
+ * aproximação: cada candidatura estadual só existe num estado, e `id` é
+ * namespaced por UF no produtor — o filtro por `top_candidatos` devolve a
+ * corrida daquele estado com a votação dela.
  */
-function sintetizarUf(sigla: string, national: EdgePayload): EdgePayloadUf | null {
+function sintetizarUf(
+  sigla: string,
+  national: EdgePayload,
+  identidade: FonteDaIdentidade,
+): EdgePayloadUf | null {
   const row = national.por_uf.find((u) => u.sigla === sigla);
   if (!row) return null;
-  return {
-    uf: sigla,
-    ts: national.ts,
-    cargo: national.cargo,
-    turno: national.turno,
-    pct_apurado: row.pct_apurado,
-    candidatos: national.national.candidatos.map((c) => ({
+
+  const daUf = new Map((row.top_candidatos ?? []).map((t) => [t.id, t] as const));
+  const elenco =
+    identidade === "nacional"
+      ? national.national.candidatos
+      : national.national.candidatos.filter((c) => daUf.has(c.id));
+
+  // Só no recorte por UF: elenco vazio significa que a linha da UF não trouxe
+  // candidatura nenhuma, e devolver um payload sem candidatos pintaria a tela
+  // de "corrida sem ninguém". No presidencial a lista nacional é a corrida
+  // inteira, e o cheque mudaria o comportamento anterior sem motivo.
+  if (identidade === "da-uf" && elenco.length === 0) return null;
+
+  const candidatos: EdgeUfCandidate[] = elenco.map((c) => {
+    const t = identidade === "da-uf" ? daUf.get(c.id) : undefined;
+    return {
       id: c.id,
-      nome: c.nome,
-      partido: c.partido,
+      // Identidade da UF quando ela existe; o nacional é o fallback honesto de
+      // payload pré-018, que não tinha `top_candidatos` enriquecido.
+      nome: t?.nome ?? c.nome,
+      partido: t?.partido ?? c.partido,
       // `cor` não é repassada: saiu do payload em 19/09 (ADR-0024).
       votos_atuais: c.votos_atuais,
       votos_projetados: c.votos_projetados,
       pct_atual: c.pct_atual,
       pct_projetado: c.pct_projetado,
       ci95: { lower: c.pct_projetado_lower, upper: c.pct_projetado_upper },
-    })),
+      // Só quando existe. `sqcand: undefined` explícito é uma chave presente
+      // valendo "não sei", e um consumidor que teste `"sqcand" in c` leria isso
+      // como "tem".
+      ...(t?.sqcand ? { sqcand: t.sqcand } : {}),
+    };
+  });
+
+  return {
+    uf: sigla,
+    ts: national.ts,
+    cargo: national.cargo,
+    turno: national.turno,
+    pct_apurado: row.pct_apurado,
+    candidatos,
     needle_position: row.lider === national.national.candidato_a_id ? 0.4 : -0.4,
     needle_band: "lean_a",
   };
@@ -148,38 +304,46 @@ export async function GET(req: Request): Promise<Response> {
       return NextResponse.json({ error: "invalid_uf" }, { status: 400 });
     }
 
+    // 🔴 Cargo explícito desde 2026-09-19 (ver a docstring do topo). Valor
+    // desconhecido é 400, nunca o presidencial calado.
+    const cargo = resolverCargoUf(url.searchParams.get("cargo"));
+    if (cargo === null) {
+      return NextResponse.json(
+        { error: "invalid_cargo", cargo: url.searchParams.get("cargo") },
+        { status: 400 },
+      );
+    }
+    const spec = CARGOS_UF[cargo];
+
     // 🔴 Simulação ligada ⇒ ela é a fonte de verdade, e o Global Config nem é
     // lido. Ordem deliberada: é este endpoint que pinta o mapa da moldura
     // persistente, e ele precisa contar exatamente a mesma história que
     // `/uf/[sigla]` renderiza ao lado. O payload por UF vem primeiro; a síntese
-    // é o fallback enquanto `presidente-uf.json` não existir.
+    // é o fallback para os três cargos — ela só roda enquanto o arquivo por UF
+    // daquele cargo não existir no diretório de fixtures, e entrega o pódio em
+    // vez da corrida inteira (o motivo está em `simulacaoGovernadorUf`).
     if (simulacaoLigada()) {
-      const daUf = simulacaoUfPresidente(sigla);
+      const daUf = spec.simulacaoUf(sigla);
       if (daUf) return NextResponse.json(daUf, { headers: CACHE_HEADERS });
-      const nacional = simulacaoNacional("pres");
-      const sintetizado = nacional ? sintetizarUf(sigla, nacional) : null;
+      const nacional = simulacaoNacional(cargo);
+      const sintetizado = nacional ? sintetizarUf(sigla, nacional, spec.identidade) : null;
       if (sintetizado) return NextResponse.json(sintetizado, { headers: CACHE_HEADERS });
-      return NextResponse.json({ error: "no_payload", uf: sigla }, { status: 503 });
+      return NextResponse.json({ error: "no_payload", uf: sigla, cargo }, { status: 503 });
     }
 
-    // Cargo explícito (ADR-0028): este ramo do endpoint é o presidencial —
-    // o de governador está mais abaixo, com `cargo: "gov"`.
-    const payload = await readUfProjection(sigla, {
-      cargo: "pres",
-      turno: currentPresidentialTurno(),
-    });
-    if (!payload) {
-      // Em dev, sintetiza UF a partir do fixture nacional para o /api/projection?uf=
-      // funcionar sem precisar de fixtures per-UF separadas.
-      const national = fonteDev(
-        () => null,
-        () => nationalFixture as unknown as EdgePayload,
-      );
-      const synthesized = national ? sintetizarUf(sigla, national) : null;
-      if (synthesized) return NextResponse.json(synthesized, { headers: CACHE_HEADERS });
-      return NextResponse.json({ error: "no_payload", uf: sigla }, { status: 503 });
+    // Cargo explícito (ADR-0028) — e agora o do pedido, não mais o literal
+    // `"pres"`. Quem resolve a chave é `readUfProjection`.
+    for (const turno of spec.turnos()) {
+      const payload = await readUfProjection(sigla, { cargo, turno });
+      if (payload) return NextResponse.json(payload, { headers: CACHE_HEADERS });
     }
-    return NextResponse.json(payload, { headers: CACHE_HEADERS });
+
+    // Em dev, sintetiza a UF a partir do fixture nacional DAQUELE cargo, para o
+    // `/api/projection?uf=` funcionar sem precisar de fixtures per-UF separadas.
+    const national = fonteDev(() => null, spec.fixtureNacional);
+    const synthesized = national ? sintetizarUf(sigla, national, spec.identidade) : null;
+    if (synthesized) return NextResponse.json(synthesized, { headers: CACHE_HEADERS });
+    return NextResponse.json({ error: "no_payload", uf: sigla, cargo }, { status: 503 });
   }
 
   // ADR-0033 § 1 — `?cargo=gov`. A ordem 1T → 2T é a mesma que

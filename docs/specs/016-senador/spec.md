@@ -51,12 +51,13 @@ os dois primeiros**, e a margem que interessa é a do **2º para o 3º**, não a
 - Duas rotas, com o `<ResultPanel>` do [ADR-0034](../../architecture/adrs/0034-resultpanel-colapso-visual-corte-fora-do-kit.md)
   adaptado a duas vagas.
 - Agregado nacional por composição partidária das 54 vagas em disputa.
+- **Mapa municipal (desde 2026-09-19).** Coroplético de municípios por UF,
+  reaproveitado de Governador (spec 005 RF-005.2/RF-005.4). Acessível em `/uf/[sigla]/senador`
+  via a moldura persistente (`PersistentMapFrame`, ADR-0033). ⚠️ Cobertura municipal é
+  estruturalmente parcial em todos os cargos: município sem par (município × zona) apurado não
+  recebe linha (`docs/reference/risks.md:78`).
 
 ### Fora
-
-- **Mapa municipal e "maiores colégios".** Com granularidade de zona o dado
-  existe, mas as duas telas ficam para depois do simulado — não há tempo hábil
-  antes de 15/09 e não são pré-requisito da projeção.
 - **As 27 vagas que não estão em disputa.** 2026 renova 2/3 do Senado; os
   senadores eleitos em 2022 com mandato até 2031 não aparecem na apuração e não
   devem aparecer como "eleitos" na tela.

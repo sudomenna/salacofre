@@ -1,0 +1,2746 @@
+{
+  "AC": {
+    "uf": "AC",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 1000,
+        "nome": "TIÃO BOCALOM",
+        "partido": "PSDB",
+        "votos_atuais": 15185,
+        "votos_projetados": 137566,
+        "pct_atual": 29.69,
+        "pct_projetado": 31.2,
+        "ci95": {
+          "lower": 28.26,
+          "upper": 34.14
+        },
+        "sqcand": "10002544015"
+      },
+      {
+        "id": 1001,
+        "nome": "ALAN RICK",
+        "partido": "REPUBLICANOS",
+        "votos_atuais": 16470,
+        "votos_projetados": 127866,
+        "pct_atual": 32.2,
+        "pct_projetado": 29,
+        "ci95": {
+          "lower": 26.12,
+          "upper": 31.88
+        },
+        "sqcand": "10002532492"
+      },
+      {
+        "id": 1002,
+        "nome": "THOR DANTAS",
+        "partido": "PSB",
+        "votos_atuais": 12165,
+        "votos_projetados": 116402,
+        "pct_atual": 23.78,
+        "pct_projetado": 26.4,
+        "ci95": {
+          "lower": 23.6,
+          "upper": 29.2
+        },
+        "sqcand": "10002550719"
+      },
+      {
+        "id": 1003,
+        "nome": "MAILZA ASSIS",
+        "partido": "PP",
+        "votos_atuais": 3350,
+        "votos_projetados": 27337,
+        "pct_atual": 6.55,
+        "pct_projetado": 6.2,
+        "ci95": {
+          "lower": 4.67,
+          "upper": 7.73
+        }
+      },
+      {
+        "id": 1004,
+        "nome": "EUDO RAFFAEL",
+        "partido": "PCB",
+        "votos_atuais": 2606,
+        "votos_projetados": 19841,
+        "pct_atual": 5.1,
+        "pct_projetado": 4.5,
+        "ci95": {
+          "lower": 3.18,
+          "upper": 5.82
+        }
+      },
+      {
+        "id": 1005,
+        "nome": "DR.LUISINHO",
+        "partido": "AGIR",
+        "votos_atuais": 1370,
+        "votos_projetados": 11905,
+        "pct_atual": 2.68,
+        "pct_projetado": 2.7,
+        "ci95": {
+          "lower": 1.67,
+          "upper": 3.73
+        }
+      }
+    ],
+    "needle_position": 0.6955,
+    "needle_band": "likely_a",
+    "granularidade": "zona"
+  },
+  "AL": {
+    "uf": "AL",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 2000,
+        "nome": "MÁRCIO JAMBO",
+        "partido": "DEMOCRATA",
+        "votos_atuais": 95916,
+        "votos_projetados": 893614,
+        "pct_atual": 47.96,
+        "pct_projetado": 51.83,
+        "ci95": {
+          "lower": 48.65,
+          "upper": 55
+        },
+        "sqcand": "20002552502"
+      },
+      {
+        "id": 2001,
+        "nome": "LENILDA LUNA",
+        "partido": "UP",
+        "votos_atuais": 104093,
+        "votos_projetados": 830603,
+        "pct_atual": 52.04,
+        "pct_projetado": 48.17,
+        "ci95": {
+          "lower": 45,
+          "upper": 51.35
+        },
+        "sqcand": "20002539642"
+      }
+    ],
+    "needle_position": 0.886,
+    "needle_band": "likely_a",
+    "granularidade": "zona"
+  },
+  "AM": {
+    "uf": "AM",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 3000,
+        "nome": "PROFESSORA MARIA DO CARMO",
+        "partido": "PL",
+        "votos_atuais": 77664,
+        "votos_projetados": 641683,
+        "pct_atual": 32.55,
+        "pct_projetado": 31.2,
+        "ci95": {
+          "lower": 28.26,
+          "upper": 34.14
+        },
+        "sqcand": "40002541626"
+      },
+      {
+        "id": 3001,
+        "nome": "ROBERTO CIDADE",
+        "partido": "UNIÃO",
+        "votos_atuais": 66560,
+        "votos_projetados": 596436,
+        "pct_atual": 27.9,
+        "pct_projetado": 29,
+        "ci95": {
+          "lower": 26.12,
+          "upper": 31.88
+        },
+        "sqcand": "40002541741"
+      },
+      {
+        "id": 3002,
+        "nome": "OMAR AZIZ",
+        "partido": "PSD",
+        "votos_atuais": 64287,
+        "votos_projetados": 542962,
+        "pct_atual": 26.95,
+        "pct_projetado": 26.4,
+        "ci95": {
+          "lower": 23.6,
+          "upper": 29.2
+        },
+        "sqcand": "40002532272"
+      },
+      {
+        "id": 3003,
+        "nome": "ISAEL MUNDURUKU",
+        "partido": "REDE",
+        "votos_atuais": 14423,
+        "votos_projetados": 127514,
+        "pct_atual": 6.05,
+        "pct_projetado": 6.2,
+        "ci95": {
+          "lower": 4.67,
+          "upper": 7.73
+        }
+      },
+      {
+        "id": 3004,
+        "nome": "GILBERTO VASCONCELOS",
+        "partido": "PSTU",
+        "votos_atuais": 7482,
+        "votos_projetados": 75551,
+        "pct_atual": 3.14,
+        "pct_projetado": 3.67,
+        "ci95": {
+          "lower": 2.48,
+          "upper": 4.87
+        }
+      },
+      {
+        "id": 3005,
+        "nome": "CABO DACIOLO",
+        "partido": "MOBILIZA",
+        "votos_atuais": 5431,
+        "votos_projetados": 45331,
+        "pct_atual": 2.28,
+        "pct_projetado": 2.2,
+        "ci95": {
+          "lower": 1.27,
+          "upper": 3.14
+        }
+      },
+      {
+        "id": 3006,
+        "nome": "DAVID ALMEIDA",
+        "partido": "AVANTE",
+        "votos_atuais": 2727,
+        "votos_projetados": 27199,
+        "pct_atual": 1.14,
+        "pct_projetado": 1.32,
+        "ci95": {
+          "lower": 0.6,
+          "upper": 2.05
+        }
+      }
+    ],
+    "needle_position": 0.6785,
+    "needle_band": "likely_a",
+    "granularidade": "zona"
+  },
+  "AP": {
+    "uf": "AP",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 4000,
+        "nome": "CLÉCIO",
+        "partido": "UNIÃO",
+        "votos_atuais": 17925,
+        "votos_projetados": 134834,
+        "pct_atual": 35.76,
+        "pct_projetado": 31.2,
+        "ci95": {
+          "lower": 28.26,
+          "upper": 34.14
+        },
+        "sqcand": "30002536311"
+      },
+      {
+        "id": 4001,
+        "nome": "DR. FURLAN",
+        "partido": "PSD",
+        "votos_atuais": 14428,
+        "votos_projetados": 125327,
+        "pct_atual": 28.78,
+        "pct_projetado": 29,
+        "ci95": {
+          "lower": 26.12,
+          "upper": 31.88
+        },
+        "sqcand": "30002530014"
+      },
+      {
+        "id": 4002,
+        "nome": "CARLOS CLEY",
+        "partido": "PSTU",
+        "votos_atuais": 11128,
+        "votos_projetados": 114090,
+        "pct_atual": 22.2,
+        "pct_projetado": 26.4,
+        "ci95": {
+          "lower": 23.6,
+          "upper": 29.2
+        },
+        "sqcand": "30002536313"
+      },
+      {
+        "id": 4004,
+        "nome": "JAIRO PALHETA",
+        "partido": "PCO",
+        "votos_atuais": 3562,
+        "votos_projetados": 31116,
+        "pct_atual": 7.11,
+        "pct_projetado": 7.2,
+        "ci95": {
+          "lower": 5.56,
+          "upper": 8.84
+        }
+      },
+      {
+        "id": 4003,
+        "nome": "DELEGADO MARCOS",
+        "partido": "DC",
+        "votos_atuais": 3088,
+        "votos_projetados": 26794,
+        "pct_atual": 6.16,
+        "pct_projetado": 6.2,
+        "ci95": {
+          "lower": 4.67,
+          "upper": 7.73
+        }
+      }
+    ],
+    "needle_position": 0.7115,
+    "needle_band": "likely_a",
+    "granularidade": "zona"
+  },
+  "BA": {
+    "uf": "BA",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 5000,
+        "nome": "ACM NETO",
+        "partido": "UNIÃO",
+        "votos_atuais": 572505,
+        "votos_projetados": 4843230,
+        "pct_atual": 58.59,
+        "pct_projetado": 57.5,
+        "ci95": {
+          "lower": 54.36,
+          "upper": 60.64
+        },
+        "sqcand": "50002533190"
+      },
+      {
+        "id": 5001,
+        "nome": "JERÔNIMO RODRIGUES",
+        "partido": "PT",
+        "votos_atuais": 225377,
+        "votos_projetados": 2021522,
+        "pct_atual": 23.07,
+        "pct_projetado": 24,
+        "ci95": {
+          "lower": 21.29,
+          "upper": 26.71
+        },
+        "sqcand": "50002536314"
+      },
+      {
+        "id": 5002,
+        "nome": "RONALDO MANSUR",
+        "partido": "PSOL",
+        "votos_atuais": 113102,
+        "votos_projetados": 926531,
+        "pct_atual": 11.58,
+        "pct_projetado": 11,
+        "ci95": {
+          "lower": 9.01,
+          "upper": 12.99
+        },
+        "sqcand": "50002532269"
+      },
+      {
+        "id": 5003,
+        "nome": "AROLDO FELIX",
+        "partido": "UP",
+        "votos_atuais": 33868,
+        "votos_projetados": 336920,
+        "pct_atual": 3.47,
+        "pct_projetado": 4,
+        "ci95": {
+          "lower": 2.76,
+          "upper": 5.24
+        }
+      },
+      {
+        "id": 5004,
+        "nome": "ARIEL CAPISTRANO",
+        "partido": "DC",
+        "votos_atuais": 16905,
+        "votos_projetados": 150411,
+        "pct_atual": 1.73,
+        "pct_projetado": 1.79,
+        "ci95": {
+          "lower": 0.94,
+          "upper": 2.63
+        }
+      },
+      {
+        "id": 5005,
+        "nome": "ESTÊVÃO",
+        "partido": "DC",
+        "votos_atuais": 9138,
+        "votos_projetados": 90246,
+        "pct_atual": 0.94,
+        "pct_projetado": 1.07,
+        "ci95": {
+          "lower": 0.42,
+          "upper": 1.73
+        }
+      },
+      {
+        "id": 5006,
+        "nome": "MARIA BONA",
+        "partido": "PCO",
+        "votos_atuais": 6174,
+        "votos_projetados": 54148,
+        "pct_atual": 0.63,
+        "pct_projetado": 0.64,
+        "ci95": {
+          "lower": 0.14,
+          "upper": 1.15
+        }
+      }
+    ],
+    "needle_position": 1.0,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "CE": {
+    "uf": "CE",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 6000,
+        "nome": "CIRO GOMES",
+        "partido": "PSDB",
+        "votos_atuais": 237167,
+        "votos_projetados": 2090267,
+        "pct_atual": 37.66,
+        "pct_projetado": 38.5,
+        "ci95": {
+          "lower": 35.41,
+          "upper": 41.59
+        },
+        "sqcand": "60002531351"
+      },
+      {
+        "id": 6001,
+        "nome": "ELMANO DE FREITAS",
+        "partido": "PT",
+        "votos_atuais": 242705,
+        "votos_projetados": 1921960,
+        "pct_atual": 38.54,
+        "pct_projetado": 35.4,
+        "ci95": {
+          "lower": 32.36,
+          "upper": 38.44
+        },
+        "sqcand": "60002543969"
+      },
+      {
+        "id": 6002,
+        "nome": "VERA LÚCIA",
+        "partido": "NOVO",
+        "votos_atuais": 92305,
+        "votos_projetados": 846965,
+        "pct_atual": 14.66,
+        "pct_projetado": 15.6,
+        "ci95": {
+          "lower": 13.3,
+          "upper": 17.9
+        },
+        "sqcand": "60002553922"
+      },
+      {
+        "id": 6003,
+        "nome": "SERLEY LEAL",
+        "partido": "UP",
+        "votos_atuais": 24177,
+        "votos_projetados": 244317,
+        "pct_atual": 3.84,
+        "pct_projetado": 4.5,
+        "ci95": {
+          "lower": 3.18,
+          "upper": 5.82
+        }
+      },
+      {
+        "id": 6004,
+        "nome": "ZÉ BATISTA",
+        "partido": "PSTU",
+        "votos_atuais": 14364,
+        "votos_projetados": 149704,
+        "pct_atual": 2.28,
+        "pct_projetado": 2.76,
+        "ci95": {
+          "lower": 1.72,
+          "upper": 3.8
+        }
+      },
+      {
+        "id": 6005,
+        "nome": "IERI BRAGA",
+        "partido": "PCO",
+        "votos_atuais": 9382,
+        "votos_projetados": 89822,
+        "pct_atual": 1.49,
+        "pct_projetado": 1.65,
+        "ci95": {
+          "lower": 0.84,
+          "upper": 2.46
+        }
+      },
+      {
+        "id": 6006,
+        "nome": "DELEGADO HUGGO",
+        "partido": "MISSÃO",
+        "votos_atuais": 6152,
+        "votos_projetados": 53893,
+        "pct_atual": 0.98,
+        "pct_projetado": 0.99,
+        "ci95": {
+          "lower": 0.36,
+          "upper": 1.62
+        }
+      },
+      {
+        "id": 6007,
+        "nome": "DANILO SOARES",
+        "partido": "DEMOCRATA",
+        "votos_atuais": 3543,
+        "votos_projetados": 32336,
+        "pct_atual": 0.56,
+        "pct_projetado": 0.6,
+        "ci95": {
+          "lower": 0.11,
+          "upper": 1.08
+        }
+      }
+    ],
+    "needle_position": 0.819,
+    "needle_band": "likely_a",
+    "granularidade": "zona"
+  },
+  "DF": {
+    "uf": "DF",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 37,
+    "candidatos": [
+      {
+        "id": 7000,
+        "nome": "LEANDRO GRASS",
+        "partido": "PT",
+        "votos_atuais": 389822,
+        "votos_projetados": 1013481,
+        "pct_atual": 59.77,
+        "pct_projetado": 57.5,
+        "ci95": {
+          "lower": 56.02,
+          "upper": 58.98
+        },
+        "sqcand": "70002552496"
+      },
+      {
+        "id": 7001,
+        "nome": "ARRUDA",
+        "partido": "PSD",
+        "votos_atuais": 142371,
+        "votos_projetados": 423018,
+        "pct_atual": 21.83,
+        "pct_projetado": 24,
+        "ci95": {
+          "lower": 22.72,
+          "upper": 25.28
+        },
+        "sqcand": "70002552586"
+      },
+      {
+        "id": 7002,
+        "nome": "PAULA BELMONTE",
+        "partido": "PSDB",
+        "votos_atuais": 73475,
+        "votos_projetados": 193883,
+        "pct_atual": 11.27,
+        "pct_projetado": 11,
+        "ci95": {
+          "lower": 10.06,
+          "upper": 11.94
+        },
+        "sqcand": "70002552965"
+      },
+      {
+        "id": 7003,
+        "nome": "KIKO CAPUTO",
+        "partido": "NOVO",
+        "votos_atuais": 25612,
+        "votos_projetados": 70503,
+        "pct_atual": 3.93,
+        "pct_projetado": 4,
+        "ci95": {
+          "lower": 3.41,
+          "upper": 4.59
+        }
+      },
+      {
+        "id": 7004,
+        "nome": "CAPPELLI",
+        "partido": "PSB",
+        "votos_atuais": 8003,
+        "votos_projetados": 25387,
+        "pct_atual": 1.23,
+        "pct_projetado": 1.44,
+        "ci95": {
+          "lower": 1.08,
+          "upper": 1.8
+        }
+      },
+      {
+        "id": 7005,
+        "nome": "CELINA LEÃO",
+        "partido": "PP",
+        "votos_atuais": 5624,
+        "votos_projetados": 15232,
+        "pct_atual": 0.86,
+        "pct_projetado": 0.86,
+        "ci95": {
+          "lower": 0.59,
+          "upper": 1.14
+        }
+      },
+      {
+        "id": 7006,
+        "nome": "RICO PINHEIRO",
+        "partido": "PRTB",
+        "votos_atuais": 3172,
+        "votos_projetados": 9139,
+        "pct_atual": 0.49,
+        "pct_projetado": 0.52,
+        "ci95": {
+          "lower": 0.3,
+          "upper": 0.73
+        }
+      },
+      {
+        "id": 7007,
+        "nome": "PROFESSORA SAMARA MINEIRO",
+        "partido": "UP",
+        "votos_atuais": 1994,
+        "votos_projetados": 5484,
+        "pct_atual": 0.31,
+        "pct_projetado": 0.31,
+        "ci95": {
+          "lower": 0.14,
+          "upper": 0.48
+        }
+      },
+      {
+        "id": 7008,
+        "nome": "PROFESSOR ROBSON",
+        "partido": "PSTU",
+        "votos_atuais": 1092,
+        "votos_projetados": 3290,
+        "pct_atual": 0.17,
+        "pct_projetado": 0.19,
+        "ci95": {
+          "lower": 0.04,
+          "upper": 0.34
+        }
+      },
+      {
+        "id": 7009,
+        "nome": "EXPEDITO MENDONÇA",
+        "partido": "PCO",
+        "votos_atuais": 580,
+        "votos_projetados": 1974,
+        "pct_atual": 0.09,
+        "pct_projetado": 0.11,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.26
+        }
+      },
+      {
+        "id": 7010,
+        "nome": "ELISSON",
+        "partido": "AGIR",
+        "votos_atuais": 408,
+        "votos_projetados": 1184,
+        "pct_atual": 0.06,
+        "pct_projetado": 0.07,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.22
+        }
+      }
+    ],
+    "needle_position": 1.0,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "ES": {
+    "uf": "ES",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 32.1,
+    "candidatos": [
+      {
+        "id": 8000,
+        "nome": "LORENZO PAZOLINI",
+        "partido": "REPUBLICANOS",
+        "votos_atuais": 273902,
+        "votos_projetados": 855135,
+        "pct_atual": 38.42,
+        "pct_projetado": 38.5,
+        "ci95": {
+          "lower": 36.87,
+          "upper": 40.13
+        },
+        "sqcand": "80002552682"
+      },
+      {
+        "id": 8001,
+        "nome": "HELDER SALOMÃO",
+        "partido": "PT",
+        "votos_atuais": 246818,
+        "votos_projetados": 786280,
+        "pct_atual": 34.62,
+        "pct_projetado": 35.4,
+        "ci95": {
+          "lower": 33.8,
+          "upper": 37
+        },
+        "sqcand": "80002551833"
+      },
+      {
+        "id": 8002,
+        "nome": "RICARDO FERRAÇO",
+        "partido": "MDB",
+        "votos_atuais": 119813,
+        "votos_projetados": 346496,
+        "pct_atual": 16.8,
+        "pct_projetado": 15.6,
+        "ci95": {
+          "lower": 14.39,
+          "upper": 16.81
+        },
+        "sqcand": "80002552172"
+      },
+      {
+        "id": 8004,
+        "nome": "BRENO BARCELOS",
+        "partido": "MISSÃO",
+        "votos_atuais": 43062,
+        "votos_projetados": 133268,
+        "pct_atual": 6.04,
+        "pct_projetado": 6,
+        "ci95": {
+          "lower": 5.21,
+          "upper": 6.79
+        }
+      },
+      {
+        "id": 8003,
+        "nome": "RAFAEL DEMUNER",
+        "partido": "UP",
+        "votos_atuais": 29388,
+        "votos_projetados": 99951,
+        "pct_atual": 4.12,
+        "pct_projetado": 4.5,
+        "ci95": {
+          "lower": 3.81,
+          "upper": 5.19
+        }
+      }
+    ],
+    "needle_position": 0.99,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "GO": {
+    "uf": "GO",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 30.9,
+    "candidatos": [
+      {
+        "id": 9000,
+        "nome": "WILDER MORAIS",
+        "partido": "PL",
+        "votos_atuais": 457562,
+        "votos_projetados": 1417366,
+        "pct_atual": 40.22,
+        "pct_projetado": 38.5,
+        "ci95": {
+          "lower": 36.83,
+          "upper": 40.17
+        },
+        "sqcand": "90002551791"
+      },
+      {
+        "id": 9001,
+        "nome": "LUIS CESAR BUENO",
+        "partido": "PT",
+        "votos_atuais": 390531,
+        "votos_projetados": 1303240,
+        "pct_atual": 34.33,
+        "pct_projetado": 35.4,
+        "ci95": {
+          "lower": 33.76,
+          "upper": 37.04
+        },
+        "sqcand": "90002545476"
+      },
+      {
+        "id": 9002,
+        "nome": "DANIEL VILELA",
+        "partido": "MDB",
+        "votos_atuais": 166627,
+        "votos_projetados": 574309,
+        "pct_atual": 14.65,
+        "pct_projetado": 15.6,
+        "ci95": {
+          "lower": 14.35,
+          "upper": 16.85
+        },
+        "sqcand": "90002540993"
+      },
+      {
+        "id": 9003,
+        "nome": "MARCONI PERILLO",
+        "partido": "PSDB",
+        "votos_atuais": 54173,
+        "votos_projetados": 165666,
+        "pct_atual": 4.76,
+        "pct_projetado": 4.5,
+        "ci95": {
+          "lower": 3.79,
+          "upper": 5.21
+        }
+      },
+      {
+        "id": 9004,
+        "nome": "LUCIANA AMORIM",
+        "partido": "UP",
+        "votos_atuais": 42373,
+        "votos_projetados": 138055,
+        "pct_atual": 3.72,
+        "pct_projetado": 3.75,
+        "ci95": {
+          "lower": 3.1,
+          "upper": 4.4
+        }
+      },
+      {
+        "id": 9005,
+        "nome": "DANILO DA SILVA",
+        "partido": "PCO",
+        "votos_atuais": 26308,
+        "votos_projetados": 82833,
+        "pct_atual": 2.31,
+        "pct_projetado": 2.25,
+        "ci95": {
+          "lower": 1.74,
+          "upper": 2.76
+        }
+      }
+    ],
+    "needle_position": 0.99,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "MA": {
+    "uf": "MA",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 10000,
+        "nome": "ORLEANS BRANDÃO",
+        "partido": "MDB",
+        "votos_atuais": 140401,
+        "votos_projetados": 1455933,
+        "pct_atual": 32.01,
+        "pct_projetado": 38.5,
+        "ci95": {
+          "lower": 35.41,
+          "upper": 41.59
+        },
+        "sqcand": "100002543869"
+      },
+      {
+        "id": 10001,
+        "nome": "FELIPE CAMARÃO",
+        "partido": "PT",
+        "votos_atuais": 174898,
+        "votos_projetados": 1338702,
+        "pct_atual": 39.87,
+        "pct_projetado": 35.4,
+        "ci95": {
+          "lower": 32.36,
+          "upper": 38.44
+        },
+        "sqcand": "100002542556"
+      },
+      {
+        "id": 10002,
+        "nome": "EDUARDO BRAIDE",
+        "partido": "PSD",
+        "votos_atuais": 74428,
+        "votos_projetados": 589937,
+        "pct_atual": 16.97,
+        "pct_projetado": 15.6,
+        "ci95": {
+          "lower": 13.3,
+          "upper": 17.9
+        },
+        "sqcand": "100002545679"
+      },
+      {
+        "id": 10003,
+        "nome": "REGINALDO LIMA",
+        "partido": "PCB",
+        "votos_atuais": 23175,
+        "votos_projetados": 170174,
+        "pct_atual": 5.28,
+        "pct_projetado": 4.5,
+        "ci95": {
+          "lower": 3.18,
+          "upper": 5.82
+        }
+      },
+      {
+        "id": 10004,
+        "nome": "SAULO ARCANGELI",
+        "partido": "PSTU",
+        "votos_atuais": 15604,
+        "votos_projetados": 141812,
+        "pct_atual": 3.56,
+        "pct_projetado": 3.75,
+        "ci95": {
+          "lower": 2.54,
+          "upper": 4.96
+        }
+      },
+      {
+        "id": 10005,
+        "nome": "ANDRÉ LUIS",
+        "partido": "MISSÃO",
+        "votos_atuais": 10165,
+        "votos_projetados": 85087,
+        "pct_atual": 2.32,
+        "pct_projetado": 2.25,
+        "ci95": {
+          "lower": 1.31,
+          "upper": 3.19
+        }
+      }
+    ],
+    "needle_position": 0.833,
+    "needle_band": "likely_a",
+    "granularidade": "zona"
+  },
+  "MG": {
+    "uf": "MG",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 32.4,
+    "candidatos": [
+      {
+        "id": 11000,
+        "nome": "FLÁVIO ROSCOE",
+        "partido": "PL",
+        "votos_atuais": 1491974,
+        "votos_projetados": 4626404,
+        "pct_atual": 38.32,
+        "pct_projetado": 38.5,
+        "ci95": {
+          "lower": 36.88,
+          "upper": 40.12
+        },
+        "sqcand": "130002550834"
+      },
+      {
+        "id": 11001,
+        "nome": "PATRUS ANANIAS",
+        "partido": "PT",
+        "votos_atuais": 1303008,
+        "votos_projetados": 4253888,
+        "pct_atual": 33.47,
+        "pct_projetado": 35.4,
+        "ci95": {
+          "lower": 33.81,
+          "upper": 36.99
+        },
+        "sqcand": "130002550464"
+      },
+      {
+        "id": 11002,
+        "nome": "CLEITINHO AZEVEDO",
+        "partido": "REPUBLICANOS",
+        "votos_atuais": 678675,
+        "votos_projetados": 1874595,
+        "pct_atual": 17.43,
+        "pct_projetado": 15.6,
+        "ci95": {
+          "lower": 14.39,
+          "upper": 16.81
+        },
+        "sqcand": "130002552296"
+      },
+      {
+        "id": 11003,
+        "nome": "GABRIEL",
+        "partido": "MDB",
+        "votos_atuais": 171579,
+        "votos_projetados": 540748,
+        "pct_atual": 4.41,
+        "pct_projetado": 4.5,
+        "ci95": {
+          "lower": 3.81,
+          "upper": 5.19
+        }
+      },
+      {
+        "id": 11004,
+        "nome": "MATEUS SIMÕES",
+        "partido": "PSD",
+        "votos_atuais": 104105,
+        "votos_projetados": 296705,
+        "pct_atual": 2.67,
+        "pct_projetado": 2.47,
+        "ci95": {
+          "lower": 1.95,
+          "upper": 2.98
+        }
+      },
+      {
+        "id": 11005,
+        "nome": "ALEXANDRE KALIL",
+        "partido": "PDT",
+        "votos_atuais": 58867,
+        "votos_projetados": 178023,
+        "pct_atual": 1.51,
+        "pct_projetado": 1.48,
+        "ci95": {
+          "lower": 1.08,
+          "upper": 1.88
+        }
+      },
+      {
+        "id": 11006,
+        "nome": "INDIRA XAVIER",
+        "partido": "UP",
+        "votos_atuais": 37699,
+        "votos_projetados": 106814,
+        "pct_atual": 0.97,
+        "pct_projetado": 0.89,
+        "ci95": {
+          "lower": 0.58,
+          "upper": 1.2
+        }
+      },
+      {
+        "id": 11007,
+        "nome": "PROFESSOR TÚLIO LOPES",
+        "partido": "PCB",
+        "votos_atuais": 20570,
+        "votos_projetados": 64088,
+        "pct_atual": 0.53,
+        "pct_projetado": 0.53,
+        "ci95": {
+          "lower": 0.29,
+          "upper": 0.78
+        }
+      },
+      {
+        "id": 11008,
+        "nome": "RAFAEL DUDA",
+        "partido": "PSTU",
+        "votos_atuais": 12883,
+        "votos_projetados": 38453,
+        "pct_atual": 0.33,
+        "pct_projetado": 0.32,
+        "ci95": {
+          "lower": 0.13,
+          "upper": 0.51
+        }
+      },
+      {
+        "id": 11009,
+        "nome": "HENRIQUE ÁREAS",
+        "partido": "PCO",
+        "votos_atuais": 8869,
+        "votos_projetados": 23072,
+        "pct_atual": 0.23,
+        "pct_projetado": 0.19,
+        "ci95": {
+          "lower": 0.04,
+          "upper": 0.34
+        }
+      },
+      {
+        "id": 11010,
+        "nome": "BEN MENDES",
+        "partido": "MISSÃO",
+        "votos_atuais": 5160,
+        "votos_projetados": 13843,
+        "pct_atual": 0.13,
+        "pct_projetado": 0.12,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.27
+        }
+      }
+    ],
+    "needle_position": 0.992,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "MS": {
+    "uf": "MS",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 39.3,
+    "candidatos": [
+      {
+        "id": 12000,
+        "nome": "JOÃO HENRIQUE CATAN",
+        "partido": "NOVO",
+        "votos_atuais": 187857,
+        "votos_projetados": 470181,
+        "pct_atual": 31.72,
+        "pct_projetado": 31.2,
+        "ci95": {
+          "lower": 29.88,
+          "upper": 32.52
+        },
+        "sqcand": "120002552191"
+      },
+      {
+        "id": 12001,
+        "nome": "FÁBIO TRAD",
+        "partido": "PT",
+        "votos_atuais": 176573,
+        "votos_projetados": 437027,
+        "pct_atual": 29.81,
+        "pct_projetado": 29,
+        "ci95": {
+          "lower": 27.7,
+          "upper": 30.3
+        },
+        "sqcand": "120002539834"
+      },
+      {
+        "id": 12002,
+        "nome": "EDUARDO RIEDEL",
+        "partido": "PP",
+        "votos_atuais": 154361,
+        "votos_projetados": 397845,
+        "pct_atual": 26.06,
+        "pct_projetado": 26.4,
+        "ci95": {
+          "lower": 25.14,
+          "upper": 27.66
+        },
+        "sqcand": "120002536582"
+      },
+      {
+        "id": 12003,
+        "nome": "LUCIEN REZENDE",
+        "partido": "PSOL",
+        "votos_atuais": 33236,
+        "votos_projetados": 93433,
+        "pct_atual": 5.61,
+        "pct_projetado": 6.2,
+        "ci95": {
+          "lower": 5.51,
+          "upper": 6.89
+        }
+      },
+      {
+        "id": 12004,
+        "nome": "ECONOMISTA RENATO GOMES",
+        "partido": "DC",
+        "votos_atuais": 18158,
+        "votos_projetados": 49864,
+        "pct_atual": 3.07,
+        "pct_projetado": 3.31,
+        "ci95": {
+          "lower": 2.8,
+          "upper": 3.82
+        }
+      },
+      {
+        "id": 12005,
+        "nome": "DANIEL LEMES",
+        "partido": "PCO",
+        "votos_atuais": 11742,
+        "votos_projetados": 29918,
+        "pct_atual": 1.98,
+        "pct_projetado": 1.99,
+        "ci95": {
+          "lower": 1.59,
+          "upper": 2.38
+        }
+      },
+      {
+        "id": 12006,
+        "nome": "JEFERSON BEZERRA",
+        "partido": "AGIR",
+        "votos_atuais": 6195,
+        "votos_projetados": 17951,
+        "pct_atual": 1.05,
+        "pct_projetado": 1.19,
+        "ci95": {
+          "lower": 0.88,
+          "upper": 1.5
+        }
+      },
+      {
+        "id": 12007,
+        "nome": "DELCIDIO AMARAL",
+        "partido": "PRD",
+        "votos_atuais": 4125,
+        "votos_projetados": 10770,
+        "pct_atual": 0.7,
+        "pct_projetado": 0.71,
+        "ci95": {
+          "lower": 0.47,
+          "upper": 0.96
+        }
+      }
+    ],
+    "needle_position": 0.98,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "MT": {
+    "uf": "MT",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 27.5,
+    "candidatos": [
+      {
+        "id": 13000,
+        "nome": "WELLINGTON FAGUNDES",
+        "partido": "PL",
+        "votos_atuais": 200162,
+        "votos_projetados": 709512,
+        "pct_atual": 39.5,
+        "pct_projetado": 38.5,
+        "ci95": {
+          "lower": 36.68,
+          "upper": 40.32
+        },
+        "sqcand": "110002551737"
+      },
+      {
+        "id": 13001,
+        "nome": "OTAVIANO PIVETTA",
+        "partido": "REPUBLICANOS",
+        "votos_atuais": 182566,
+        "votos_projetados": 652382,
+        "pct_atual": 36.02,
+        "pct_projetado": 35.4,
+        "ci95": {
+          "lower": 33.61,
+          "upper": 37.19
+        },
+        "sqcand": "110002551480"
+      },
+      {
+        "id": 13002,
+        "nome": "DOUTORA NATASHA",
+        "partido": "PSD",
+        "votos_atuais": 73419,
+        "votos_projetados": 287491,
+        "pct_atual": 14.49,
+        "pct_projetado": 15.6,
+        "ci95": {
+          "lower": 14.24,
+          "upper": 16.96
+        },
+        "sqcand": "110002544985"
+      },
+      {
+        "id": 13004,
+        "nome": "MAURICIO COELHO",
+        "partido": "MOBILIZA",
+        "votos_atuais": 30763,
+        "votos_projetados": 110573,
+        "pct_atual": 6.07,
+        "pct_projetado": 6,
+        "ci95": {
+          "lower": 5.11,
+          "upper": 6.89
+        }
+      },
+      {
+        "id": 13003,
+        "nome": "RAFAELL MILAS",
+        "partido": "MISSÃO",
+        "votos_atuais": 19884,
+        "votos_projetados": 82930,
+        "pct_atual": 3.92,
+        "pct_projetado": 4.5,
+        "ci95": {
+          "lower": 3.73,
+          "upper": 5.27
+        }
+      }
+    ],
+    "needle_position": 0.979,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "PA": {
+    "uf": "PA",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 14000,
+        "nome": "DR. DANIEL",
+        "partido": "PODE",
+        "votos_atuais": 217215,
+        "votos_projetados": 1801776,
+        "pct_atual": 40.01,
+        "pct_projetado": 38.5,
+        "ci95": {
+          "lower": 35.41,
+          "upper": 41.59
+        },
+        "sqcand": "140002549930"
+      },
+      {
+        "id": 14001,
+        "nome": "HANA GHASSAN",
+        "partido": "MDB",
+        "votos_atuais": 182347,
+        "votos_projetados": 1656697,
+        "pct_atual": 33.59,
+        "pct_projetado": 35.4,
+        "ci95": {
+          "lower": 32.36,
+          "upper": 38.44
+        },
+        "sqcand": "140002551598"
+      },
+      {
+        "id": 14002,
+        "nome": "ARACELI",
+        "partido": "PSOL",
+        "votos_atuais": 89232,
+        "votos_projetados": 730070,
+        "pct_atual": 16.44,
+        "pct_projetado": 15.6,
+        "ci95": {
+          "lower": 13.3,
+          "upper": 17.9
+        },
+        "sqcand": "140002542386"
+      },
+      {
+        "id": 14004,
+        "nome": "WELL MACEDO",
+        "partido": "PSTU",
+        "votos_atuais": 29654,
+        "votos_projetados": 280796,
+        "pct_atual": 5.46,
+        "pct_projetado": 6,
+        "ci95": {
+          "lower": 4.49,
+          "upper": 7.51
+        }
+      },
+      {
+        "id": 14003,
+        "nome": "GAL LEITE",
+        "partido": "UP",
+        "votos_atuais": 24425,
+        "votos_projetados": 210597,
+        "pct_atual": 4.5,
+        "pct_projetado": 4.5,
+        "ci95": {
+          "lower": 3.18,
+          "upper": 5.82
+        }
+      }
+    ],
+    "needle_position": 0.842,
+    "needle_band": "likely_a",
+    "granularidade": "zona"
+  },
+  "PB": {
+    "uf": "PB",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 15000,
+        "nome": "CÍCERO LUCENA",
+        "partido": "MDB",
+        "votos_atuais": 96292,
+        "votos_projetados": 755567,
+        "pct_atual": 34.28,
+        "pct_projetado": 31.2,
+        "ci95": {
+          "lower": 28.26,
+          "upper": 34.14
+        },
+        "sqcand": "150002544133"
+      },
+      {
+        "id": 15001,
+        "nome": "EFRAIM FILHO",
+        "partido": "PL",
+        "votos_atuais": 68463,
+        "votos_projetados": 702289,
+        "pct_atual": 24.37,
+        "pct_projetado": 29,
+        "ci95": {
+          "lower": 26.12,
+          "upper": 31.88
+        },
+        "sqcand": "150002538692"
+      },
+      {
+        "id": 15002,
+        "nome": "LUCAS RIBEIRO",
+        "partido": "PP",
+        "votos_atuais": 79689,
+        "votos_projetados": 639326,
+        "pct_atual": 28.37,
+        "pct_projetado": 26.4,
+        "ci95": {
+          "lower": 23.6,
+          "upper": 29.2
+        },
+        "sqcand": "150002551789"
+      },
+      {
+        "id": 15003,
+        "nome": "YURI EZEQUIEL",
+        "partido": "UP",
+        "votos_atuais": 17472,
+        "votos_projetados": 150145,
+        "pct_atual": 6.22,
+        "pct_projetado": 6.2,
+        "ci95": {
+          "lower": 4.67,
+          "upper": 7.73
+        }
+      },
+      {
+        "id": 15004,
+        "nome": "PEDRO COUTINHO",
+        "partido": "DC",
+        "votos_atuais": 11555,
+        "votos_projetados": 108976,
+        "pct_atual": 4.11,
+        "pct_projetado": 4.5,
+        "ci95": {
+          "lower": 3.18,
+          "upper": 5.82
+        }
+      },
+      {
+        "id": 15005,
+        "nome": "CAMILO DUARTE",
+        "partido": "PCO",
+        "votos_atuais": 7445,
+        "votos_projetados": 65385,
+        "pct_atual": 2.65,
+        "pct_projetado": 2.7,
+        "ci95": {
+          "lower": 1.67,
+          "upper": 3.73
+        }
+      }
+    ],
+    "needle_position": 0.6815,
+    "needle_band": "likely_a",
+    "granularidade": "zona"
+  },
+  "PE": {
+    "uf": "PE",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 16000,
+        "nome": "JOÃO CAMPOS",
+        "partido": "PSB",
+        "votos_atuais": 393539,
+        "votos_projetados": 3134905,
+        "pct_atual": 62.23,
+        "pct_projetado": 57.5,
+        "ci95": {
+          "lower": 54.36,
+          "upper": 60.64
+        },
+        "sqcand": "170002537230"
+      },
+      {
+        "id": 16001,
+        "nome": "RAQUEL LYRA",
+        "partido": "PSD",
+        "votos_atuais": 134790,
+        "votos_projetados": 1308482,
+        "pct_atual": 21.31,
+        "pct_projetado": 24,
+        "ci95": {
+          "lower": 21.29,
+          "upper": 26.71
+        },
+        "sqcand": "170002537227"
+      },
+      {
+        "id": 16002,
+        "nome": "IVAN MORAES",
+        "partido": "PSOL",
+        "votos_atuais": 58871,
+        "votos_projetados": 599721,
+        "pct_atual": 9.31,
+        "pct_projetado": 11,
+        "ci95": {
+          "lower": 9.01,
+          "upper": 12.99
+        },
+        "sqcand": "170002538097"
+      },
+      {
+        "id": 16003,
+        "nome": "PROFESSORA CAMILA",
+        "partido": "UP",
+        "votos_atuais": 25515,
+        "votos_projetados": 218080,
+        "pct_atual": 4.03,
+        "pct_projetado": 4,
+        "ci95": {
+          "lower": 2.76,
+          "upper": 5.24
+        }
+      },
+      {
+        "id": 16004,
+        "nome": "GUILHERME FONSECA",
+        "partido": "PSTU",
+        "votos_atuais": 8582,
+        "votos_projetados": 87693,
+        "pct_atual": 1.36,
+        "pct_projetado": 1.61,
+        "ci95": {
+          "lower": 0.81,
+          "upper": 2.41
+        }
+      },
+      {
+        "id": 16005,
+        "nome": "VICTOR ASSIS",
+        "partido": "PCO",
+        "votos_atuais": 5586,
+        "votos_projetados": 52616,
+        "pct_atual": 0.88,
+        "pct_projetado": 0.97,
+        "ci95": {
+          "lower": 0.34,
+          "upper": 1.59
+        }
+      },
+      {
+        "id": 16006,
+        "nome": "RENAN",
+        "partido": "MISSÃO",
+        "votos_atuais": 3709,
+        "votos_projetados": 31570,
+        "pct_atual": 0.59,
+        "pct_projetado": 0.58,
+        "ci95": {
+          "lower": 0.1,
+          "upper": 1.06
+        }
+      },
+      {
+        "id": 16007,
+        "nome": "PROFESSOR JEREMIAS DO BANCO",
+        "partido": "DEMOCRATA",
+        "votos_atuais": 1841,
+        "votos_projetados": 18942,
+        "pct_atual": 0.29,
+        "pct_projetado": 0.35,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.72
+        }
+      }
+    ],
+    "needle_position": 1.0,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "PI": {
+    "uf": "PI",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 17000,
+        "nome": "RAFAEL FONTELES",
+        "partido": "PT",
+        "votos_atuais": 91841,
+        "votos_projetados": 787089,
+        "pct_atual": 38.73,
+        "pct_projetado": 38.5,
+        "ci95": {
+          "lower": 35.41,
+          "upper": 41.59
+        },
+        "sqcand": "180002532987"
+      },
+      {
+        "id": 17001,
+        "nome": "DRA. LÚCIA SANTOS",
+        "partido": "PSDB",
+        "votos_atuais": 83859,
+        "votos_projetados": 723713,
+        "pct_atual": 35.36,
+        "pct_projetado": 35.4,
+        "ci95": {
+          "lower": 32.36,
+          "upper": 38.44
+        },
+        "sqcand": "180002544216"
+      },
+      {
+        "id": 17002,
+        "nome": "JOEL RODRIGUES",
+        "partido": "PP",
+        "votos_atuais": 36592,
+        "votos_projetados": 318924,
+        "pct_atual": 15.43,
+        "pct_projetado": 15.6,
+        "ci95": {
+          "lower": 13.3,
+          "upper": 17.9
+        },
+        "sqcand": "180002538530"
+      },
+      {
+        "id": 17003,
+        "nome": "PROFESSOR GISVALDO",
+        "partido": "PSOL",
+        "votos_atuais": 11016,
+        "votos_projetados": 91997,
+        "pct_atual": 4.65,
+        "pct_projetado": 4.5,
+        "ci95": {
+          "lower": 3.18,
+          "upper": 5.82
+        }
+      },
+      {
+        "id": 17004,
+        "nome": "SANTIAGO BELIZÁRIO",
+        "partido": "UP",
+        "votos_atuais": 5944,
+        "votos_projetados": 53202,
+        "pct_atual": 2.51,
+        "pct_projetado": 2.6,
+        "ci95": {
+          "lower": 1.59,
+          "upper": 3.61
+        }
+      },
+      {
+        "id": 17005,
+        "nome": "GERALDO CARVALHO",
+        "partido": "PSTU",
+        "votos_atuais": 3563,
+        "votos_projetados": 31921,
+        "pct_atual": 1.5,
+        "pct_projetado": 1.56,
+        "ci95": {
+          "lower": 0.77,
+          "upper": 2.35
+        }
+      },
+      {
+        "id": 17006,
+        "nome": "PROFESSOR JURITY",
+        "partido": "DC",
+        "votos_atuais": 2091,
+        "votos_projetados": 19153,
+        "pct_atual": 0.88,
+        "pct_projetado": 0.94,
+        "ci95": {
+          "lower": 0.33,
+          "upper": 1.55
+        }
+      },
+      {
+        "id": 17007,
+        "nome": "LOURDES MELO",
+        "partido": "PCO",
+        "votos_atuais": 1429,
+        "votos_projetados": 11492,
+        "pct_atual": 0.6,
+        "pct_projetado": 0.56,
+        "ci95": {
+          "lower": 0.09,
+          "upper": 1.04
+        }
+      },
+      {
+        "id": 17008,
+        "nome": "RAVENNA DA INCLUSÃO",
+        "partido": "DEMOCRATA",
+        "votos_atuais": 814,
+        "votos_projetados": 6895,
+        "pct_atual": 0.34,
+        "pct_projetado": 0.34,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.71
+        }
+      }
+    ],
+    "needle_position": 0.829,
+    "needle_band": "likely_a",
+    "granularidade": "zona"
+  },
+  "PR": {
+    "uf": "PR",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 34.7,
+    "candidatos": [
+      {
+        "id": 18000,
+        "nome": "SANDRO ALEX",
+        "partido": "PSD",
+        "votos_atuais": 1270141,
+        "votos_projetados": 3775889,
+        "pct_atual": 55.74,
+        "pct_projetado": 57.5,
+        "ci95": {
+          "lower": 55.94,
+          "upper": 59.06
+        },
+        "sqcand": "160002549553"
+      },
+      {
+        "id": 18001,
+        "nome": "SERGIO MORO",
+        "partido": "PL",
+        "votos_atuais": 561548,
+        "votos_projetados": 1576023,
+        "pct_atual": 24.64,
+        "pct_projetado": 24,
+        "ci95": {
+          "lower": 22.65,
+          "upper": 25.35
+        },
+        "sqcand": "160002540833"
+      },
+      {
+        "id": 18002,
+        "nome": "REQUIÃO FILHO",
+        "partido": "PDT",
+        "votos_atuais": 267527,
+        "votos_projetados": 722344,
+        "pct_atual": 11.74,
+        "pct_projetado": 11,
+        "ci95": {
+          "lower": 10.01,
+          "upper": 11.99
+        },
+        "sqcand": "160002547666"
+      },
+      {
+        "id": 18003,
+        "nome": "TAYNÁ MIESSA",
+        "partido": "UP",
+        "votos_atuais": 93523,
+        "votos_projetados": 262671,
+        "pct_atual": 4.1,
+        "pct_projetado": 4,
+        "ci95": {
+          "lower": 3.38,
+          "upper": 4.62
+        }
+      },
+      {
+        "id": 18004,
+        "nome": "SAMUEL DE MATTOS",
+        "partido": "PSTU",
+        "votos_atuais": 45605,
+        "votos_projetados": 117264,
+        "pct_atual": 2,
+        "pct_projetado": 1.79,
+        "ci95": {
+          "lower": 1.37,
+          "upper": 2.2
+        }
+      },
+      {
+        "id": 18005,
+        "nome": "LUIZ FRANÇA",
+        "partido": "MISSÃO",
+        "votos_atuais": 24089,
+        "votos_projetados": 70358,
+        "pct_atual": 1.06,
+        "pct_projetado": 1.07,
+        "ci95": {
+          "lower": 0.75,
+          "upper": 1.4
+        }
+      },
+      {
+        "id": 18006,
+        "nome": "DOUTOR ALEXANDRE SALOMÃO",
+        "partido": "MOBILIZA",
+        "votos_atuais": 16234,
+        "votos_projetados": 42215,
+        "pct_atual": 0.71,
+        "pct_projetado": 0.64,
+        "ci95": {
+          "lower": 0.39,
+          "upper": 0.9
+        }
+      }
+    ],
+    "needle_position": 1.0,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "RJ": {
+    "uf": "RJ",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 30.6,
+    "candidatos": [
+      {
+        "id": 19000,
+        "nome": "DOUGLAS RUAS",
+        "partido": "PL",
+        "votos_atuais": 875491,
+        "votos_projetados": 2950483,
+        "pct_atual": 30.25,
+        "pct_projetado": 31.2,
+        "ci95": {
+          "lower": 29.6,
+          "upper": 32.8
+        },
+        "sqcand": "190002542887"
+      },
+      {
+        "id": 19001,
+        "nome": "ANDRÉ MARINHO",
+        "partido": "NOVO",
+        "votos_atuais": 806358,
+        "votos_projetados": 2742436,
+        "pct_atual": 27.87,
+        "pct_projetado": 29,
+        "ci95": {
+          "lower": 27.43,
+          "upper": 30.57
+        },
+        "sqcand": "190002537524"
+      },
+      {
+        "id": 19002,
+        "nome": "WILLIAM SIRI",
+        "partido": "PSOL",
+        "votos_atuais": 810491,
+        "votos_projetados": 2496563,
+        "pct_atual": 28.01,
+        "pct_projetado": 26.4,
+        "ci95": {
+          "lower": 24.87,
+          "upper": 27.93
+        },
+        "sqcand": "190002536162"
+      },
+      {
+        "id": 19003,
+        "nome": "JULIETE",
+        "partido": "UP",
+        "votos_atuais": 191642,
+        "votos_projetados": 586314,
+        "pct_atual": 6.62,
+        "pct_projetado": 6.2,
+        "ci95": {
+          "lower": 5.36,
+          "upper": 7.04
+        }
+      },
+      {
+        "id": 19004,
+        "nome": "CYRO GARCIA",
+        "partido": "PSTU",
+        "votos_atuais": 106831,
+        "votos_projetados": 347388,
+        "pct_atual": 3.69,
+        "pct_projetado": 3.67,
+        "ci95": {
+          "lower": 3.02,
+          "upper": 4.33
+        }
+      },
+      {
+        "id": 19005,
+        "nome": "LUAN MONTEIRO",
+        "partido": "PCO",
+        "votos_atuais": 66453,
+        "votos_projetados": 208433,
+        "pct_atual": 2.3,
+        "pct_projetado": 2.2,
+        "ci95": {
+          "lower": 1.7,
+          "upper": 2.71
+        }
+      },
+      {
+        "id": 19006,
+        "nome": "CORONEL BUSNELLO",
+        "partido": "MISSÃO",
+        "votos_atuais": 36477,
+        "votos_projetados": 125060,
+        "pct_atual": 1.26,
+        "pct_projetado": 1.32,
+        "ci95": {
+          "lower": 0.93,
+          "upper": 1.72
+        }
+      }
+    ],
+    "needle_position": 0.95,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "RN": {
+    "uf": "RN",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 20000,
+        "nome": "ÁLVARO DIAS",
+        "partido": "PL",
+        "votos_atuais": 74418,
+        "votos_projetados": 626266,
+        "pct_atual": 31.96,
+        "pct_projetado": 31.2,
+        "ci95": {
+          "lower": 28.26,
+          "upper": 34.14
+        },
+        "sqcand": "200002534442"
+      },
+      {
+        "id": 20001,
+        "nome": "CADU DE LULA",
+        "partido": "PT",
+        "votos_atuais": 65736,
+        "votos_projetados": 582107,
+        "pct_atual": 28.23,
+        "pct_projetado": 29,
+        "ci95": {
+          "lower": 26.12,
+          "upper": 31.88
+        },
+        "sqcand": "200002534001"
+      },
+      {
+        "id": 20002,
+        "nome": "ALLYSON",
+        "partido": "UNIÃO",
+        "votos_atuais": 62569,
+        "votos_projetados": 529918,
+        "pct_atual": 26.87,
+        "pct_projetado": 26.4,
+        "ci95": {
+          "lower": 23.6,
+          "upper": 29.2
+        },
+        "sqcand": "200002535255"
+      },
+      {
+        "id": 20003,
+        "nome": "PROFESSOR ROBERIO PAULINO",
+        "partido": "PSOL",
+        "votos_atuais": 15071,
+        "votos_projetados": 124450,
+        "pct_atual": 6.47,
+        "pct_projetado": 6.2,
+        "ci95": {
+          "lower": 4.67,
+          "upper": 7.73
+        }
+      },
+      {
+        "id": 20004,
+        "nome": "ARINALDA DO MLB",
+        "partido": "UP",
+        "votos_atuais": 6195,
+        "votos_projetados": 62683,
+        "pct_atual": 2.66,
+        "pct_projetado": 3.12,
+        "ci95": {
+          "lower": 2.02,
+          "upper": 4.23
+        }
+      },
+      {
+        "id": 20005,
+        "nome": "DÁRIO BARBOSA",
+        "partido": "PSTU",
+        "votos_atuais": 4248,
+        "votos_projetados": 37610,
+        "pct_atual": 1.82,
+        "pct_projetado": 1.87,
+        "ci95": {
+          "lower": 1.01,
+          "upper": 2.73
+        }
+      },
+      {
+        "id": 20006,
+        "nome": "CARLOS JARARACA",
+        "partido": "DC",
+        "votos_atuais": 2546,
+        "votos_projetados": 22566,
+        "pct_atual": 1.09,
+        "pct_projetado": 1.12,
+        "ci95": {
+          "lower": 0.45,
+          "upper": 1.79
+        }
+      },
+      {
+        "id": 20007,
+        "nome": "HENRIQUE LYRA",
+        "partido": "PCO",
+        "votos_atuais": 1151,
+        "votos_projetados": 13540,
+        "pct_atual": 0.49,
+        "pct_projetado": 0.67,
+        "ci95": {
+          "lower": 0.15,
+          "upper": 1.19
+        }
+      },
+      {
+        "id": 20008,
+        "nome": "RODRIGO DE BOLSONARO",
+        "partido": "AGIR",
+        "votos_atuais": 909,
+        "votos_projetados": 8124,
+        "pct_atual": 0.39,
+        "pct_projetado": 0.4,
+        "ci95": {
+          "lower": 0,
+          "upper": 0.81
+        }
+      }
+    ],
+    "needle_position": 0.6895,
+    "needle_band": "likely_a",
+    "granularidade": "zona"
+  },
+  "RO": {
+    "uf": "RO",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 21000,
+        "nome": "EXPEDITO NETTO",
+        "partido": "PT",
+        "votos_atuais": 56095,
+        "votos_projetados": 519360,
+        "pct_atual": 53.54,
+        "pct_projetado": 57.5,
+        "ci95": {
+          "lower": 54.36,
+          "upper": 60.64
+        },
+        "sqcand": "220002542185"
+      },
+      {
+        "id": 21001,
+        "nome": "MARCOS ROGÉRIO",
+        "partido": "PL",
+        "votos_atuais": 27789,
+        "votos_projetados": 216776,
+        "pct_atual": 26.52,
+        "pct_projetado": 24,
+        "ci95": {
+          "lower": 21.29,
+          "upper": 26.71
+        },
+        "sqcand": "220002541939"
+      },
+      {
+        "id": 21002,
+        "nome": "HILDON CHAVES",
+        "partido": "UNIÃO",
+        "votos_atuais": 12296,
+        "votos_projetados": 99356,
+        "pct_atual": 11.74,
+        "pct_projetado": 11,
+        "ci95": {
+          "lower": 9.01,
+          "upper": 12.99
+        },
+        "sqcand": "220002542916"
+      },
+      {
+        "id": 21003,
+        "nome": "PEDRO ABIB",
+        "partido": "MDB",
+        "votos_atuais": 4924,
+        "votos_projetados": 36130,
+        "pct_atual": 4.7,
+        "pct_projetado": 4,
+        "ci95": {
+          "lower": 2.76,
+          "upper": 5.24
+        }
+      },
+      {
+        "id": 21004,
+        "nome": "ADAILTON FURIA",
+        "partido": "PSD",
+        "votos_atuais": 2234,
+        "votos_projetados": 19758,
+        "pct_atual": 2.13,
+        "pct_projetado": 2.19,
+        "ci95": {
+          "lower": 1.26,
+          "upper": 3.12
+        }
+      },
+      {
+        "id": 21005,
+        "nome": "SAMUEL COSTA",
+        "partido": "PSB",
+        "votos_atuais": 1437,
+        "votos_projetados": 11855,
+        "pct_atual": 1.37,
+        "pct_projetado": 1.31,
+        "ci95": {
+          "lower": 0.59,
+          "upper": 2.04
+        }
+      }
+    ],
+    "needle_position": 1.0,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "RR": {
+    "uf": "RR",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 22000,
+        "nome": "ARTHUR HENRIQUE",
+        "partido": "PL",
+        "votos_atuais": 19840,
+        "votos_projetados": 171562,
+        "pct_atual": 57.32,
+        "pct_projetado": 57.5,
+        "ci95": {
+          "lower": 54.36,
+          "upper": 60.64
+        },
+        "sqcand": "230002549223"
+      },
+      {
+        "id": 22001,
+        "nome": "SOLDADO SAMPAIO",
+        "partido": "REPUBLICANOS",
+        "votos_atuais": 8097,
+        "votos_projetados": 71608,
+        "pct_atual": 23.4,
+        "pct_projetado": 24,
+        "ci95": {
+          "lower": 21.29,
+          "upper": 26.71
+        },
+        "sqcand": "230002551571"
+      },
+      {
+        "id": 22002,
+        "nome": "FARAH MESQUITA",
+        "partido": "SOLIDARIEDADE",
+        "votos_atuais": 4100,
+        "votos_projetados": 32821,
+        "pct_atual": 11.85,
+        "pct_projetado": 11,
+        "ci95": {
+          "lower": 9.01,
+          "upper": 12.99
+        },
+        "sqcand": "230002549294"
+      },
+      {
+        "id": 22003,
+        "nome": "ROSI AIRES",
+        "partido": "PSOL",
+        "votos_atuais": 1395,
+        "votos_projetados": 11935,
+        "pct_atual": 4.03,
+        "pct_projetado": 4,
+        "ci95": {
+          "lower": 2.76,
+          "upper": 5.24
+        }
+      },
+      {
+        "id": 22004,
+        "nome": "CLÉBIO GENUÍNO",
+        "partido": "PCO",
+        "votos_atuais": 1179,
+        "votos_projetados": 10443,
+        "pct_atual": 3.41,
+        "pct_projetado": 3.5,
+        "ci95": {
+          "lower": 2.33,
+          "upper": 4.67
+        }
+      }
+    ],
+    "needle_position": 1.0,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "RS": {
+    "uf": "RS",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 27.5,
+    "candidatos": [
+      {
+        "id": 23000,
+        "nome": "GABRIEL SOUZA",
+        "partido": "MDB",
+        "votos_atuais": 937305,
+        "votos_projetados": 3816707,
+        "pct_atual": 51.35,
+        "pct_projetado": 57.5,
+        "ci95": {
+          "lower": 55.65,
+          "upper": 59.35
+        },
+        "sqcand": "210002542892"
+      },
+      {
+        "id": 23001,
+        "nome": "ZUCCO",
+        "partido": "PL",
+        "votos_atuais": 502266,
+        "votos_projetados": 1593060,
+        "pct_atual": 27.52,
+        "pct_projetado": 24,
+        "ci95": {
+          "lower": 22.41,
+          "upper": 25.59
+        },
+        "sqcand": "210002547857"
+      },
+      {
+        "id": 23002,
+        "nome": "MARCELO MARANATA",
+        "partido": "PSDB",
+        "votos_atuais": 228644,
+        "votos_projetados": 730153,
+        "pct_atual": 12.53,
+        "pct_projetado": 11,
+        "ci95": {
+          "lower": 9.83,
+          "upper": 12.17
+        },
+        "sqcand": "210002535802"
+      },
+      {
+        "id": 23003,
+        "nome": "JULIANA BRIZOLA",
+        "partido": "PDT",
+        "votos_atuais": 84448,
+        "votos_projetados": 265510,
+        "pct_atual": 4.63,
+        "pct_projetado": 4,
+        "ci95": {
+          "lower": 3.27,
+          "upper": 4.73
+        }
+      },
+      {
+        "id": 23004,
+        "nome": "PRISCILA VOIGT",
+        "partido": "UP",
+        "votos_atuais": 42632,
+        "votos_projetados": 145201,
+        "pct_atual": 2.34,
+        "pct_projetado": 2.19,
+        "ci95": {
+          "lower": 1.64,
+          "upper": 2.73
+        }
+      },
+      {
+        "id": 23005,
+        "nome": "REJANE DE OLIVEIRA",
+        "partido": "PSTU",
+        "votos_atuais": 30087,
+        "votos_projetados": 87121,
+        "pct_atual": 1.65,
+        "pct_projetado": 1.31,
+        "ci95": {
+          "lower": 0.89,
+          "upper": 1.74
+        }
+      }
+    ],
+    "needle_position": 1.0,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "SC": {
+    "uf": "SC",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 24,
+    "candidatos": [
+      {
+        "id": 24000,
+        "nome": "JORGINHO MELLO",
+        "partido": "PL",
+        "votos_atuais": 602324,
+        "votos_projetados": 2490316,
+        "pct_atual": 57.95,
+        "pct_projetado": 57.5,
+        "ci95": {
+          "lower": 55.48,
+          "upper": 59.52
+        },
+        "sqcand": "240002537073"
+      },
+      {
+        "id": 24001,
+        "nome": "JOÃO RODRIGUES",
+        "partido": "PSD",
+        "votos_atuais": 233219,
+        "votos_projetados": 1039436,
+        "pct_atual": 22.44,
+        "pct_projetado": 24,
+        "ci95": {
+          "lower": 22.25,
+          "upper": 25.75
+        },
+        "sqcand": "240002551001"
+      },
+      {
+        "id": 24002,
+        "nome": "GELSON MERÍSIO",
+        "partido": "PSB",
+        "votos_atuais": 119922,
+        "votos_projetados": 476408,
+        "pct_atual": 11.54,
+        "pct_projetado": 11,
+        "ci95": {
+          "lower": 9.72,
+          "upper": 12.28
+        },
+        "sqcand": "240002548628"
+      },
+      {
+        "id": 24003,
+        "nome": "PROFESSOR MARCUS SODRÉ",
+        "partido": "PSTU",
+        "votos_atuais": 44639,
+        "votos_projetados": 173240,
+        "pct_atual": 4.29,
+        "pct_projetado": 4,
+        "ci95": {
+          "lower": 3.2,
+          "upper": 4.8
+        }
+      },
+      {
+        "id": 24004,
+        "nome": "BRUNO PEDREIRO DO PCO",
+        "partido": "PCO",
+        "votos_atuais": 25957,
+        "votos_projetados": 94740,
+        "pct_atual": 2.5,
+        "pct_projetado": 2.19,
+        "ci95": {
+          "lower": 1.59,
+          "upper": 2.79
+        }
+      },
+      {
+        "id": 24005,
+        "nome": "RALF ZIMMER",
+        "partido": "PRD",
+        "votos_atuais": 13375,
+        "votos_projetados": 56844,
+        "pct_atual": 1.29,
+        "pct_projetado": 1.31,
+        "ci95": {
+          "lower": 0.85,
+          "upper": 1.78
+        }
+      }
+    ],
+    "needle_position": 1.0,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "SE": {
+    "uf": "SE",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 25000,
+        "nome": "RICARDO MARQUES",
+        "partido": "PL",
+        "votos_atuais": 52529,
+        "votos_projetados": 499896,
+        "pct_atual": 34.88,
+        "pct_projetado": 38.5,
+        "ci95": {
+          "lower": 35.41,
+          "upper": 41.59
+        },
+        "sqcand": "260002549466"
+      },
+      {
+        "id": 25001,
+        "nome": "VALMIR DE FRANCISQUINHO",
+        "partido": "REPUBLICANOS",
+        "votos_atuais": 56226,
+        "votos_projetados": 459645,
+        "pct_atual": 37.33,
+        "pct_projetado": 35.4,
+        "ci95": {
+          "lower": 32.36,
+          "upper": 38.44
+        },
+        "sqcand": "260002532010"
+      },
+      {
+        "id": 25002,
+        "nome": "FÁBIO",
+        "partido": "PSD",
+        "votos_atuais": 25141,
+        "votos_projetados": 202555,
+        "pct_atual": 16.69,
+        "pct_projetado": 15.6,
+        "ci95": {
+          "lower": 13.3,
+          "upper": 17.9
+        },
+        "sqcand": "260002542491"
+      },
+      {
+        "id": 25003,
+        "nome": "EMANUEL CACHO",
+        "partido": "PSDB",
+        "votos_atuais": 7306,
+        "votos_projetados": 58430,
+        "pct_atual": 4.85,
+        "pct_projetado": 4.5,
+        "ci95": {
+          "lower": 3.18,
+          "upper": 5.82
+        }
+      },
+      {
+        "id": 25004,
+        "nome": "DR. HELTON",
+        "partido": "PSOL",
+        "votos_atuais": 5821,
+        "votos_projetados": 48691,
+        "pct_atual": 3.86,
+        "pct_projetado": 3.75,
+        "ci95": {
+          "lower": 2.54,
+          "upper": 4.96
+        }
+      },
+      {
+        "id": 25005,
+        "nome": "TATY  CRISTINA DE JESUS",
+        "partido": "DC",
+        "votos_atuais": 3595,
+        "votos_projetados": 29215,
+        "pct_atual": 2.39,
+        "pct_projetado": 2.25,
+        "ci95": {
+          "lower": 1.31,
+          "upper": 3.19
+        }
+      }
+    ],
+    "needle_position": 0.846,
+    "needle_band": "likely_a",
+    "granularidade": "zona"
+  },
+  "SP": {
+    "uf": "SP",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 35,
+    "candidatos": [
+      {
+        "id": 26000,
+        "nome": "FERNANDO HADDAD",
+        "partido": "PT",
+        "votos_atuais": 2726326,
+        "votos_projetados": 8004776,
+        "pct_atual": 30.36,
+        "pct_projetado": 31.2,
+        "ci95": {
+          "lower": 29.75,
+          "upper": 32.65
+        },
+        "sqcand": "250002549705"
+      },
+      {
+        "id": 26001,
+        "nome": "TARCÍSIO",
+        "partido": "REPUBLICANOS",
+        "votos_atuais": 2686234,
+        "votos_projetados": 7440337,
+        "pct_atual": 29.91,
+        "pct_projetado": 29,
+        "ci95": {
+          "lower": 27.58,
+          "upper": 30.42
+        },
+        "sqcand": "250002541303"
+      },
+      {
+        "id": 26002,
+        "nome": "VIVIAN MENDES",
+        "partido": "UP",
+        "votos_atuais": 2370086,
+        "votos_projetados": 6773272,
+        "pct_atual": 26.39,
+        "pct_projetado": 26.4,
+        "ci95": {
+          "lower": 25.02,
+          "upper": 27.78
+        },
+        "sqcand": "250002544912"
+      },
+      {
+        "id": 26003,
+        "nome": "CARLOS MACHADO",
+        "partido": "PCB",
+        "votos_atuais": 527231,
+        "votos_projetados": 1590693,
+        "pct_atual": 5.87,
+        "pct_projetado": 6.2,
+        "ci95": {
+          "lower": 5.44,
+          "upper": 6.96
+        }
+      },
+      {
+        "id": 26004,
+        "nome": "VERA LÚCIA",
+        "partido": "PSTU",
+        "votos_atuais": 350320,
+        "votos_projetados": 942478,
+        "pct_atual": 3.9,
+        "pct_projetado": 3.67,
+        "ci95": {
+          "lower": 3.08,
+          "upper": 4.26
+        }
+      },
+      {
+        "id": 26005,
+        "nome": "IZADORA DIAS",
+        "partido": "PCO",
+        "votos_atuais": 199581,
+        "votos_projetados": 565486,
+        "pct_atual": 2.22,
+        "pct_projetado": 2.2,
+        "ci95": {
+          "lower": 1.74,
+          "upper": 2.66
+        }
+      },
+      {
+        "id": 26006,
+        "nome": "POLICIAL EDJANE",
+        "partido": "AGIR",
+        "votos_atuais": 119939,
+        "votos_projetados": 339292,
+        "pct_atual": 1.34,
+        "pct_projetado": 1.32,
+        "ci95": {
+          "lower": 0.96,
+          "upper": 1.68
+        }
+      }
+    ],
+    "needle_position": 0.959,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  },
+  "TO": {
+    "uf": "TO",
+    "ts": "2026-09-14T06:16:29.167Z",
+    "cargo": 3,
+    "turno": 1,
+    "pct_apurado": 11.6,
+    "candidatos": [
+      {
+        "id": 27000,
+        "nome": "LAUREZ MOREIRA",
+        "partido": "PSD",
+        "votos_atuais": 58599,
+        "votos_projetados": 495530,
+        "pct_atual": 58.62,
+        "pct_projetado": 57.5,
+        "ci95": {
+          "lower": 54.36,
+          "upper": 60.64
+        },
+        "sqcand": "270002544494"
+      },
+      {
+        "id": 27001,
+        "nome": "PROFESSORA DORINHA",
+        "partido": "UNIÃO",
+        "votos_atuais": 24592,
+        "votos_projetados": 206830,
+        "pct_atual": 24.6,
+        "pct_projetado": 24,
+        "ci95": {
+          "lower": 21.29,
+          "upper": 26.71
+        },
+        "sqcand": "270002544599"
+      },
+      {
+        "id": 27002,
+        "nome": "VICENTINHO JÚNIOR",
+        "partido": "PSDB",
+        "votos_atuais": 9391,
+        "votos_projetados": 94797,
+        "pct_atual": 9.39,
+        "pct_projetado": 11,
+        "ci95": {
+          "lower": 9.01,
+          "upper": 12.99
+        },
+        "sqcand": "270002544544"
+      },
+      {
+        "id": 27003,
+        "nome": "ATAIDES DE OLIVEIRA",
+        "partido": "NOVO",
+        "votos_atuais": 3829,
+        "votos_projetados": 34472,
+        "pct_atual": 3.83,
+        "pct_projetado": 4,
+        "ci95": {
+          "lower": 2.76,
+          "upper": 5.24
+        }
+      },
+      {
+        "id": 27004,
+        "nome": "PROF WITER NAVES",
+        "partido": "PSOL",
+        "votos_atuais": 2225,
+        "votos_projetados": 18852,
+        "pct_atual": 2.23,
+        "pct_projetado": 2.19,
+        "ci95": {
+          "lower": 1.26,
+          "upper": 3.12
+        }
+      },
+      {
+        "id": 27005,
+        "nome": "DU PEREIRA",
+        "partido": "DC",
+        "votos_atuais": 1332,
+        "votos_projetados": 11311,
+        "pct_atual": 1.33,
+        "pct_projetado": 1.31,
+        "ci95": {
+          "lower": 0.59,
+          "upper": 2.04
+        }
+      }
+    ],
+    "needle_position": 1.0,
+    "needle_band": "very_likely_a",
+    "granularidade": "zona"
+  }
+}

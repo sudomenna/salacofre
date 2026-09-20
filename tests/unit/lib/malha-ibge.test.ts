@@ -172,23 +172,20 @@ describe("malha-ibge — a contagem por UF (exigência 3, com limite declarado)"
     expect(Object.keys(MUNICIPIOS_POR_UF)).toHaveLength(27);
   });
 
-  // Só a fixture presidencial carrega município. As de governador e senador
-  // trazem `municipios: []` em todas as 27 UFs — estado medido em 2026-09-19,
-  // travado logo abaixo para que deixar de ser verdade seja ruidoso.
-  it("gov e sen não carregam município — e o dia em que carregarem, este teste avisa", () => {
-    for (const arquivo of ["municipios-gov-t1.json", "municipios-sen-t1.json"]) {
-      const n = entradasDe(carregarFixture(arquivo)).length;
-      expect(
-        n,
-        `${arquivo} passou a carregar ${n} município(s). Isso não é defeito — mas ` +
-          `a conferência de contagem por UF abaixo só roda sobre a fixture ` +
-          `presidencial. Mova este arquivo para o grupo conferido, senão ele vira ` +
-          `uma porta sem tranca: um corpo d'água novo entraria por ela em silêncio.`,
-      ).toBe(0);
-    }
-  });
-
-  for (const arquivo of ["municipios-pres-t1.json"]) {
+  /*
+   * ===== 2026-09-19 — os três cargos entram no grupo conferido =====
+   *
+   * Aqui havia uma tranca: um caso que media `municipios: []` em gov e sen e
+   * avisava, no dia em que isso deixasse de ser verdade, para MOVER os dois
+   * arquivos para o grupo abaixo — senão eles seriam "uma porta sem tranca:
+   * um corpo d'água novo entraria por ela em silêncio".
+   *
+   * O dia chegou: `data-pipeline/simulacao-gerar.ts` passou a produzir detalhe
+   * municipal para Presidente, Governador e Senador, e a tranca foi obedecida
+   * — os dois arquivos estão na lista da conferência por UF, e não num caso à
+   * parte. O aviso cumpriu exatamente o papel para que foi escrito.
+   */
+  for (const arquivo of FIXTURES) {
     it(`${arquivo} tem exatamente os municípios de cada UF`, () => {
       const porUf = new Map<string, Set<string>>();
       const raiz = carregarFixture(arquivo);

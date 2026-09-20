@@ -199,26 +199,80 @@ describe("fixtures de simulação — a série existe e bate com o placar", () =
     }
   });
 
-  it("Gov e Sen saem sem municípios, e isso é decisão — não descuido", () => {
-    // `municipios: []` é a proposta da própria spec 020 (§ Questões em aberto,
-    // item 1): resultado municipal fabricado para as duas corridas levaria as
-    // fixtures a ~10 MB. `municipioDetailReason` trata lista vazia como
-    // `"empty"` — estado LEGÍTIMO e distinto de falha de leitura ("o detalhe
-    // chegou e nenhum município tem dado apurado", caso real de UF com
-    // cobertura municipal em 0%).
+  it("Gov e Sen TÊM municípios desde 19/09 — a série não pode apagá-los", () => {
+    // ===== Este caso foi INVERTIDO em 2026-09-19 =====
     //
-    // O teste existe para que reintroduzir municípios seja decisão consciente
-    // — este caso quebra — e não efeito colateral de uma regeneração.
+    // Ele exigia `municipios: []` em gov e sen, citando a spec 020 (§ Questões
+    // em aberto, item 1): municípios para as três corridas levariam o
+    // diretório a ~10 MB, e a spec julgava que não valia. O dono decidiu o
+    // contrário — sem detalhe municipal, `/uf/<sigla>/governador` e
+    // `/uf/<sigla>/senador` não têm mapa em `pnpm dev:sim`, e não há como
+    // conferir o conserto do endpoint por cargo. Custo medido: 9,9 MB nos três
+    // arquivos juntos.
+    //
+    // A razão de o caso continuar existindo é a MESMA de antes, virada do
+    // avesso: o perigo agora é a regeneração que APAGA os municípios em
+    // silêncio. `scripts/gerar-serie-fixtures.py` reconstruía estes dois
+    // arquivos do zero com `municipios: []`; ele passou a mesclar a série no
+    // arquivo existente, e é este caso que trava o comportamento antigo se ele
+    // voltar. O sintoma, sem o teste, seria só o mapa dessas duas telas ficando
+    // vazio — e ninguém procuraria num script de série.
+    //
+    // 5.571 é o total nacional: 5.570 municípios + o Distrito Federal, e é o
+    // mesmo número que `municipios-pres-t1.json` carrega (a geografia é a
+    // mesma nos três cargos; o que muda é a repartição dos votos).
+    for (const [nome, arq] of [
+      ["pres", detalhesUf],
+      ["gov", detalhesGov],
+      ["sen", detalhesSen],
+    ] as const) {
+      const d = arq as unknown as Record<string, { municipios?: unknown[]; cargo?: string }>;
+      expect(Object.keys(d).length, `${nome}: esperado 27 UFs`).toBe(27);
+      let total = 0;
+      for (const sigla of Object.keys(d)) {
+        const muns = d[sigla]?.municipios;
+        expect(
+          Array.isArray(muns) && muns.length > 0,
+          `${nome}/${sigla}: sem municípios — o mapa desta UF ficaria mudo em dev:sim`,
+        ).toBe(true);
+        // O cargo do envelope é o que a rota usa para escolher o arquivo
+        // (`municipios-${cargo}-t${turno}.json`); um rótulo trocado serviria a
+        // corrida errada com forma perfeita.
+        expect(d[sigla]?.cargo, `${nome}/${sigla}: cargo do envelope`).toBe(nome);
+        total += muns?.length ?? 0;
+      }
+      expect(total, `${nome}: total de municípios`).toBe(5571);
+    }
+  });
+
+  it("os três cargos cobrem a MESMA geografia com a MESMA apuração", () => {
+    // A urna é uma só: ela publica Presidente, Governador e Senador no mesmo
+    // boletim. Um município 40% apurado no Presidente e 12% no Governador
+    // seria um estado impossível pintado lado a lado em duas telas da mesma
+    // sessão — e é o que aconteceria se as três chamadas de `montarMunicipios`
+    // derivassem `rng` por cargo.
+    const pres = detalhesUf as unknown as Record<
+      string,
+      { municipios: Array<{ cod_ibge: string; pct_apurado: number; eleitores?: number }> }
+    >;
     for (const [nome, arq] of [
       ["gov", detalhesGov],
       ["sen", detalhesSen],
     ] as const) {
-      const d = arq as unknown as Record<string, { municipios?: unknown[] }>;
-      for (const sigla of Object.keys(d)) {
-        expect(
-          d[sigla]?.municipios,
-          `${nome}/${sigla}: municipios precisa existir (obrigatório em UfDetailBlob)`,
-        ).toEqual([]);
+      const d = arq as unknown as typeof pres;
+      for (const sigla of Object.keys(pres)) {
+        const a = new Map(pres[sigla]?.municipios.map((m) => [m.cod_ibge, m]) ?? []);
+        for (const m of d[sigla]?.municipios ?? []) {
+          const ref = a.get(m.cod_ibge);
+          expect(
+            ref,
+            `${nome}/${sigla}/${m.cod_ibge}: município que não existe no presidencial`,
+          ).toBeDefined();
+          expect(m.pct_apurado, `${nome}/${sigla}/${m.cod_ibge}: pct_apurado`).toBe(
+            ref?.pct_apurado,
+          );
+          expect(m.eleitores, `${nome}/${sigla}/${m.cod_ibge}: eleitores`).toBe(ref?.eleitores);
+        }
       }
     }
   });
