@@ -119,23 +119,36 @@ export function ProbabilityOverTime({
         <circle cx={lastX} cy={lastY} r={3.5} fill={liderCor} />
       </svg>
       {/* Fallback acessível (a11y RNF-023): tabela com a série completa. */}
-      <table className="sr-only">
-        <caption>Série temporal da probabilidade de vitória de {liderNome} (%)</caption>
-        <thead>
-          <tr>
-            <th scope="col">Tempo</th>
-            <th scope="col">Probabilidade</th>
-          </tr>
-        </thead>
-        <tbody>
-          {points.map((p) => (
-            <tr key={p.ts}>
-              <td>{p.ts}</td>
-              <td>{Math.round(p.pVitoria * 100)}%</td>
+      {/* 🔴 **A `sr-only` vai no DIV, nunca na `<table>`** (2026-09-19).
+          Medido: a 360px de largura esta tabela saía com **2.768px** e
+          empurrava a página inteira — 2.424px de rolagem horizontal na home.
+          O truque de esconder visualmente depende de `width: 1px`, e o
+          algoritmo de layout de TABELA trata isso como mínimo, não como
+          teto: a tabela cresce até caber o conteúdo, e `overflow: hidden`
+          não segura o próprio box dela.
+          ⚠️ Forçar `display: block` na tabela resolveria o tamanho e
+          DESTRUIRIA a semântica de linha/coluna para o leitor de tela — que
+          é a única razão desta tabela existir (RNF-023). O `<div>` de fora
+          aceita o recorte; a tabela dentro segue sendo tabela. */}
+      <div className="sr-only">
+        <table>
+          <caption>Série temporal da probabilidade de vitória de {liderNome} (%)</caption>
+          <thead>
+            <tr>
+              <th scope="col">Tempo</th>
+              <th scope="col">Probabilidade</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {points.map((p) => (
+              <tr key={p.ts}>
+                <td>{p.ts}</td>
+                <td>{Math.round(p.pVitoria * 100)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

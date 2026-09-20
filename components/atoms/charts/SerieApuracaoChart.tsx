@@ -40,6 +40,11 @@
  *    fariam a alternância parecer mudança de resultado — uma mentira gráfica
  *    produzida a cada clique do leitor.
  *
+ *    E, desde 2026-09-19, **um renderizador só para os dois ESTADOS**
+ *    ({@link ReguaVertical}). O estado "antes do dia" e o estado "ok" tinham
+ *    réguas próprias, em lados opostos da caixa, e a de quem tinha dado era a
+ *    mais pobre das duas — duas linhas contra seis.
+ *
  * 4. **`null` interrompe o traço.** Um balde sem ciclo vira dois elementos de
  *    traçado separados; nunca se interpola entre as pontas e nunca se desce a
  *    zero (RF-175b). Zero é um resultado; ausência de medição não é
@@ -79,7 +84,7 @@
 
 import type { CSSProperties } from "react";
 
-import { makeTimeScale } from "@/components/atoms/charts/scale";
+import { makeTimeScale, verticalScale } from "@/components/atoms/charts/scale";
 import { formatPercent, formatTimeHMS } from "@/lib/utils/format";
 import { textForParty } from "@/lib/utils/party-color";
 
@@ -87,13 +92,82 @@ import { textForParty } from "@/lib/utils/party-color";
 // Geometria — exportada para os testes não precisarem de números mágicos
 // ---------------------------------------------------------------------------
 
-/** Folga horizontal, dos dois lados. Mesmo valor do `<TimeSeriesChart>`. */
-export const SERIE_PAD_X = 32;
-/** Folga vertical, dos dois lados. Abaixo dela moram os rótulos de hora. */
-export const SERIE_PAD_Y = 20;
+/**
+ * 🔴 Quatro folgas, uma por lado — e não duas simétricas.
+ *
+ * Até 2026-09-19 eram duas (`SERIE_PAD_X = 32`, `SERIE_PAD_Y = 20`), e a conta
+ * que elas produziam era 416×180 dentro de 480×220: **70,9% da caixa**. Os
+ * outros 29% eram papel em branco pago quatro vezes pela folga do lado mais
+ * caro. Com os quatro lados declarados, a mesma caixa de 480×220 rende 80,0%, e
+ * a caixa nova de 480×260, 81,8%.
+ *
+ * O ponto não é economizar pixel: é que as linhas ficavam numa faixa estreita no
+ * meio de um bloco grande, e na coluna de `--container-sidebar: 400px` (menos
+ * 16px de padding de cada lado, `AppShellSplit.module.css`) o SVG real tem
+ * ~352px de largura — cada unidade do `viewBox` vale 0,73px de tela. Folga
+ * desperdiçada ali é altura de gráfico que o leitor nunca vê.
+ */
+
+/**
+ * ESQUERDA — continua 32, e agora está **em uso**.
+ *
+ * É onde a régua de percentual passa a morar nos dois estados (ver
+ * {@link ReguaVertical}). `formatPercent(50, 0)` = "50%" mede ~22px a
+ * `fontSize=10`, e um rótulo com `textAnchor="end"` ancorado em
+ * `SERIE_PAD_LEFT - 6` precisa desses 22px à esquerda dele. É folga **ganha**,
+ * não desperdiçada: antes destes 32 unidades ficavam vazios no estado "ok",
+ * porque os rótulos de Y estavam do outro lado.
+ */
+export const SERIE_PAD_LEFT = 32;
+
+/**
+ * DIREITA — 8, e não 32.
+ *
+ * Deste lado só precisam caber o raio do ponto final (`r = 3.5`) e o
+ * `textAnchor="end"` do rótulo da hora final, que cresce para dentro. Os 32
+ * antigos empurravam **o último boletim** — o ponto que o leitor procura
+ * primeiro na noite de 04/10 — 32 unidades para dentro da caixa, por nada.
+ */
+export const SERIE_PAD_RIGHT = 8;
+
+/**
+ * TOPO — 10.
+ *
+ * O rótulo do topo da régua tem baseline em `padTop + 4`; com 10px de corpo o
+ * glifo começa cerca de 3 unidades acima de `padTop`. 10 deixa essa sobra
+ * dentro do `viewBox` e nada mais — não há nada além do rótulo lá em cima.
+ */
+export const SERIE_PAD_TOP = 10;
+
+/**
+ * BASE — 18.
+ *
+ * Aqui mora a fileira de rótulos de hora: baseline em `height - 6`, glifos de
+ * `height - 13` a `height - 3`. 18 deixa 5 unidades entre a linha do eixo
+ * (`height - 18`) e o topo dos glifos — o respiro que impede o rótulo de
+ * encostar no eixo —, e nem uma a mais.
+ */
+export const SERIE_PAD_BOTTOM = 18;
 
 /** Passo dos rótulos do eixo vertical. Ver {@link limitesVerticais}. */
 export const SERIE_PASSO_EIXO_PP = 5;
+
+/**
+ * Teto de **intervalos** entre marcas rotuladas da régua vertical — não de
+ * marcas. Cinco intervalos são até seis marcas, e é de propósito: a régua
+ * ilustrativa do estado "antes do dia" vai de 0 a 50 e tem de continuar saindo
+ * exatamente como sai hoje — 0, 10, 20, 30, 40, 50 —, que são seis marcas e
+ * cinco vãos. Ver {@link marcasDaRegua}.
+ */
+export const SERIE_MAX_INTERVALOS_EIXO = 5;
+
+/**
+ * Piso de intervalos. Existe porque uma régua de duas marcas — só as pontas —
+ * é a régua pobre que este ajuste veio corrigir, e ela reapareceria sozinha em
+ * domínios cujo alcance em passos não tem divisor intermediário. Ver o degrau
+ * de {@link limitesVerticais}.
+ */
+export const SERIE_MIN_INTERVALOS_EIXO = 3;
 
 /** Espessura das linhas fora de vaga (e de todas, quando `vagas` é 1). */
 export const SERIE_TRACO_NORMAL = 1.5;
@@ -168,8 +242,9 @@ function valorFinito(v: number | null | undefined): v is number {
 }
 
 /**
- * `yMax = ceil(max/5)*5`, `yMin = max(0, floor(min/5)*5 - 5)`, sobre os valores
- * das **duas** bases juntas (RF-172d).
+ * `yMax = ceil(max/5)*5`; `yMin` é o degrau abaixo do mínimo, e desce **mais um
+ * passo só quando precisa** — sobre os valores das **duas** bases juntas
+ * (RF-172d).
  *
  * **Sem forçar zero**, ao contrário do `<TimeSeriesChart>`: aquele mede margem,
  * onde o zero é o cruzamento e tem significado. Aqui não há zero semântico —
@@ -192,8 +267,49 @@ function limitesVerticais(candidatos: SerieCandidatoView[]): { yMin: number; yMa
   const max = Math.max(...todos);
   const passo = SERIE_PASSO_EIXO_PP;
   const yMax = Math.ceil(max / passo) * passo;
-  const yMin = Math.max(0, Math.floor(min / passo) * passo - passo);
-  return { yMin, yMax: yMax > yMin ? yMax : yMin + passo };
+
+  // 🔴 O `- passo` incondicional que estava aqui **tinha uma razão** e ela
+  // continua valendo: sem folga nenhuma, a candidatura mais baixa sai desenhada
+  // colada na linha do eixo, e um traço sobre o eixo some. O errado não era
+  // cobrar a folga — era cobrá-la SEMPRE.
+  //
+  // Quando o mínimo já está longe do degrau abaixo dele, aquele degrau JÁ é a
+  // folga, e descer outro passo é regalar uma faixa inteira de gráfico a uma
+  // região onde nenhuma linha passa. Com min 8,2 e max 31,7 (um Senado típico)
+  // a régua saía 0–35 para desenhar valores que nunca descem de 8.
+  //
+  // O limiar é 30% do passo — 1,5pp. Acima dele o degrau basta; abaixo dele a
+  // linha encostaria. Removê-lo de vez (o atalho tentador) poria a linha do
+  // ZEMA, que mede 5,64%, a 1,6% da altura do eixo.
+  const piso = Math.floor(min / passo) * passo;
+  const yMin = Math.max(0, min - piso < passo * 0.3 ? piso - passo : piso);
+  let teto = yMax > yMin ? yMax : yMin + passo;
+
+  // ⚠️ O degrau, e o defeito que ele fecha.
+  //
+  // A régua só rotula em vãos que DIVIDEM o alcance do domínio — é o que garante
+  // que a marca do topo caia exatamente em `yMax` sem um último vão menor que os
+  // outros (ver {@link marcasDaRegua}). Mas há alcances sem divisor dentro do
+  // teto: 35pp são 7 passos, e 7 é primo, então o único vão que divide 35 sem
+  // estourar o teto é o próprio passo de 5pp — **oito vãos**, nove linhas
+  // rotuladas numa caixa de 232 unidades. Papel quadriculado, não régua, e o
+  // teto de {@link SERIE_MAX_INTERVALOS_EIXO} deixa de valer justamente onde
+  // ninguém olhou. E 35pp de alcance é uma noite plausível (mínimo 7%, máximo
+  // 38%), não um caso de laboratório.
+  //
+  // O conserto é subir o teto um passo de cada vez até o alcance admitir uma
+  // régua de 3 a 5 vãos. Custa até 10pp de folga ACIMA da candidatura líder —
+  // o lado barato da caixa, porque não é lá que a ação acontece — e só é cobrado
+  // nos alcances que precisam. Nenhum dos domínios do produto passa por aqui:
+  // 0–45 (nacional), 5–35 (Senado), 10–50 (UF) e 0–50 (a régua do pré) já têm
+  // divisor. Alcance de 1 ou 2 passos não sobe: 2 ou 3 marcas é o que cabe ali.
+  for (let i = 0; i < 3; i += 1) {
+    const passos = Math.round((teto - yMin) / passo);
+    if (passos < SERIE_MIN_INTERVALOS_EIXO || multiploDaRegua(passos) !== null) break;
+    teto += passo;
+  }
+
+  return { yMin, yMax: teto };
 }
 
 /**
@@ -304,8 +420,13 @@ const NOTA_SOBREPOSTA: CSSProperties = {
  * até cerca de 20h30, que é a janela do protótipo. Os valores existem para dar
  * ESCALA ao leitor, não para afirmar resultado: no dia, a régua vertical passa
  * a ser calculada dos dados e a horizontal, do `dado_ts` dos boletins.
+ *
+ * A lista de percentuais que ficava aqui (`[0, 10, 20, 30, 40, 50]`) **sumiu de
+ * propósito**: o domínio 0–50 entregue a {@link marcasDaRegua} devolve
+ * exatamente esses seis números. Um caminho de código a menos, mesma aparência
+ * — é o que o bloco "as duas réguas concordam" de
+ * `tests/unit/components/serie-apuracao-chart.test.tsx` verifica.
  */
-const GRADE_PCT = [0, 10, 20, 30, 40, 50] as const;
 const GRADE_PCT_MAX = 50;
 const GRADE_HORAS = ["17h", "18h", "19h", "20h", "20h30"] as const;
 
@@ -322,7 +443,12 @@ const GRADE_HORAS = ["17h", "18h", "19h", "20h", "20h30"] as const;
  * mesmo pixel, sem o caractere que denuncia medição fabricada.
  */
 
-const EIXO_STROKE = "var(--border-hairline)";
+/**
+ * Traço dos eixos E da régua. `--border-chart`, nunca `--border-hairline` —
+ * ver "O traço é `--border-chart`" acima. Os dois andam juntos de propósito:
+ * uma régua mais forte que o eixo que a ancora lê como ruído.
+ */
+const EIXO_STROKE = "var(--border-chart)";
 const ROTULO_FILL = "var(--text-muted)";
 
 /** Os dois eixos, iguais em todos os estados que desenham a moldura. */
@@ -330,21 +456,178 @@ function Eixos({ width, yBase }: { width: number; yBase: number }) {
   return (
     <g data-testid="serie-eixos">
       <line
-        x1={SERIE_PAD_X}
-        x2={width - SERIE_PAD_X}
+        x1={SERIE_PAD_LEFT}
+        x2={width - SERIE_PAD_RIGHT}
         y1={yBase}
         y2={yBase}
         stroke={EIXO_STROKE}
         strokeWidth="1"
       />
       <line
-        x1={SERIE_PAD_X}
-        x2={SERIE_PAD_X}
-        y1={SERIE_PAD_Y}
+        x1={SERIE_PAD_LEFT}
+        x2={SERIE_PAD_LEFT}
+        y1={SERIE_PAD_TOP}
         y2={yBase}
         stroke={EIXO_STROKE}
         strokeWidth="1"
       />
+    </g>
+  );
+}
+
+/**
+ * Os valores que a régua vertical rotula, de baixo para cima.
+ *
+ * A regra: o vão entre marcas é um **múltiplo inteiro** do passo (5pp) que
+ * **divide** o alcance do domínio, escolhido como o menor que caiba em
+ * {@link SERIE_MAX_INTERVALOS_EIXO} vãos. Dividir o alcance é o que garante que
+ * a marca do topo caia exatamente em `yMax` sem um último vão menor que os
+ * outros — vão desigual faz a régua parecer quebrada, e a marca do topo é
+ * obrigatória (é ela que carrega o `data-testid="serie-rotulo-ymax"`).
+ *
+ * Os domínios que a noite produz:
+ *
+ * | Domínio | Alcance ÷ 5 | Vão | Marcas |
+ * |---|---|---|---|
+ * | 0–50 (a régua ilustrativa do pré) | 10 | 10pp | 0,10,20,30,40,50 |
+ * | 0–45 (a fixture nacional) | 9 | 15pp | 0,15,30,45 |
+ * | 5–35 (um Senado típico) | 6 | 10pp | 5,15,25,35 |
+ * | 10–50 (uma UF típica) | 8 | 10pp | 10,20,30,40,50 |
+ * | 0–100 (série inteira em furo) | 20 | 20pp | 0,20,…,100 |
+ *
+ * Alcances sem divisor útil (35pp são 7 passos, e 7 é primo) não chegam aqui:
+ * {@link limitesVerticais} sobe o teto um passo antes de devolver o domínio.
+ */
+function marcasDaRegua(yMin: number, yMax: number): number[] {
+  const passo = SERIE_PASSO_EIXO_PP;
+  const passos = Math.max(1, Math.round((yMax - yMin) / passo));
+
+  // O `?? 1` cobre o domínio curto — 1 ou 2 passos, que não tem como render 3
+  // vãos. Ali a régua sai com 2 ou 3 marcas e está certo: não há mais o que
+  // rotular entre duas pontas a 5pp de distância. Alcance LONGO sem divisor não
+  // chega aqui: {@link limitesVerticais} já subiu o teto. Se um dia chegar, cai
+  // no vão de 5pp — denso demais, e é o que o degrau de lá existe para evitar.
+  const vao = passo * (multiploDaRegua(passos) ?? 1);
+  const vaos = Math.round((yMax - yMin) / vao);
+  return Array.from({ length: vaos + 1 }, (_, i) => yMin + i * vao);
+}
+
+/**
+ * Quantos passos de 5pp cabem em cada vão da régua, ou `null` se este alcance
+ * não admite nenhuma régua entre {@link SERIE_MIN_INTERVALOS_EIXO} e
+ * {@link SERIE_MAX_INTERVALOS_EIXO} vãos.
+ *
+ * Varre do menor múltiplo para o maior, e por isso devolve a régua mais DENSA
+ * que cabe no teto: em 10 passos (0–50) recusa o vão de 5pp, que daria 10 vãos,
+ * e devolve o de 10pp — os seis rótulos 0,10,20,30,40,50 que o estado
+ * "antes do dia" já mostrava antes deste arquivo ter uma régua só.
+ */
+function multiploDaRegua(passos: number): number | null {
+  for (let m = 1; m <= passos; m += 1) {
+    if (passos % m !== 0) continue;
+    const vaos = passos / m;
+    if (vaos >= SERIE_MIN_INTERVALOS_EIXO && vaos <= SERIE_MAX_INTERVALOS_EIXO) return m;
+  }
+  return null;
+}
+
+/**
+ * A régua vertical — **uma só**, para os dois estados que desenham a moldura.
+ *
+ * 🔴 Antes de 2026-09-19 havia duas, e elas discordavam de lado: o estado
+ * "antes do dia" punha os rótulos à esquerda (`textAnchor="end"` em
+ * `padX - 6`), o estado "ok" punha à direita (`width - padX + 4`). Um leitor
+ * que abrisse a página antes das 17h e voltasse às 19h via a régua saltar de
+ * lado. Pior: o estado COM dado desenhava duas linhas e quatro textos, e o
+ * estado SEM dado desenhava seis linhas e seis textos — a caixa cheia parecia
+ * mais vazia que a caixa vazia.
+ *
+ * O lado é a **esquerda** nos dois, porque é onde a moldura já vive: é ali que
+ * {@link Eixos} desenha a linha vertical, onde o rótulo do corte da 2ª vaga
+ * (RF-173) se apoia e onde o rótulo da hora inicial começa.
+ *
+ * ## O traço é `--border-chart`, e a razão é uma correção de rota
+ *
+ * A primeira versão desta régua usou `--border-hairline` (~1,45:1) com o
+ * argumento de que a gridline é **andaime redundante**: o que ela comunica
+ * estaria escrito no `<text>` ao lado, em `--text-muted` (5,52:1), então
+ * apagar todas as linhas não tiraria informação de ninguém — e usar o token
+ * dos eixos evitaria inventar um terceiro cinza de moldura.
+ *
+ * **O argumento não sobreviveu à auditoria de 2026-09-19, e ele estava errado
+ * no ponto que importa.** A gridline não é redundante: ela existe justamente
+ * para permitir seguir a ALTURA de uma linha de dado no meio da caixa até o
+ * rótulo da borda sem fazer a proporção de cabeça. Ler "35%" na régua diz qual
+ * valor mora naquela altura; não ajuda a comparar aquela altura com a curva do
+ * 3º colocado. Essa é exatamente a função que o SC 1.4.11 (Non-text Contrast,
+ * piso 3:1) protege para quem tem baixa visão. Se a linha fosse mesmo
+ * decorativa, bastariam mais rótulos e ela não teria sido acrescentada.
+ *
+ * Havia ainda um erro de escala no argumento do "mesmo token já em produção":
+ * antes desta mudança o estado "com dado" **não tinha gridline nenhuma** — o
+ * cinza fraco só existia no esqueleto pré-eleição, visto por poucos minutos
+ * antes do 1º boletim. Levá-lo para a tela que fica no ar a noite inteira da
+ * apuração não é reaproveitar dívida, é ampliá-la no pior momento possível.
+ *
+ * Decisão do dono (19/09): token próprio, `--rule-chart`/`--border-chart`,
+ * medido em **3,26:1** sobre `--paper-1` e 3,47:1 sobre `--paper-0` no tema
+ * claro; no escuro aponta para `--ink-3`, que já media 3,91:1. Continua
+ * visivelmente mais leve que o número ao lado (5,52:1), então a grade não
+ * compete com o dado.
+ *
+ * 🔴 **O portão automático não protege este número.** O axe joga contraste de
+ * SVG no balde `results.incomplete`, que não reprova nada — reconfirmado em
+ * 19/09 com Lighthouse nas 6 rotas, zero itens de série reportados. Quem
+ * trocar este token não receberá aviso nenhum: recalcule à mão.
+ */
+function ReguaVertical({
+  width,
+  yMin,
+  yMax,
+  yFor,
+}: {
+  width: number;
+  yMin: number;
+  yMax: number;
+  yFor: (valor: number) => number;
+}) {
+  const marcas = marcasDaRegua(yMin, yMax);
+  const topo = marcas.length - 1;
+
+  return (
+    <g data-testid="serie-regua-y">
+      {marcas.map((valor, i) => {
+        const y = yFor(valor);
+        // Os dois `data-testid` sobreviveram à absorção pela régua: eram dois
+        // `<text>` soltos e agora são a primeira e a última marca. Quem os
+        // consome (testes, e qualquer inspeção manual na noite) continua
+        // achando o mesmo número no mesmo nome.
+        const testid = i === topo ? "serie-rotulo-ymax" : i === 0 ? "serie-rotulo-ymin" : undefined;
+
+        return (
+          <g key={`marca-${valor}`} data-grade-pct={valor}>
+            <line
+              x1={SERIE_PAD_LEFT}
+              x2={width - SERIE_PAD_RIGHT}
+              y1={y}
+              y2={y}
+              stroke={EIXO_STROKE}
+              strokeWidth="1"
+            />
+            <text
+              data-testid={testid}
+              x={SERIE_PAD_LEFT - 6}
+              y={y + 3}
+              textAnchor="end"
+              fontSize="10"
+              fontFamily="var(--font-sans)"
+              fill={ROTULO_FILL}
+            >
+              {formatPercent(valor, 0)}
+            </text>
+          </g>
+        );
+      })}
     </g>
   );
 }
@@ -361,11 +644,11 @@ export function SerieApuracaoChart({
   vagas = 1,
   preEleicao = false,
   width = 480,
-  height = 220,
+  height = 260,
   titleId,
 }: SerieApuracaoChartProps) {
   const descId = `${titleId}-desc`;
-  const yBase = height - SERIE_PAD_Y;
+  const yBase = height - SERIE_PAD_BOTTOM;
 
   // -------------------------------------------------------------------------
   // Estado 1 — antes do dia da eleição (RF-174)
@@ -402,44 +685,29 @@ export function SerieApuracaoChart({
               Os rótulos de escala (0%..50%, 17h..20h30) NÃO afirmam resultado:
               são a moldura do gráfico, e é o que o protótipo do dono mostra.
               O que não pode aparecer aqui é valor DE CANDIDATURA — nenhum
-              traçado, nenhum nome com número ao lado (RF-174). */}
-          {GRADE_PCT.map((pct) => {
-            const y = yBase - (pct / GRADE_PCT_MAX) * (yBase - SERIE_PAD_Y);
-            return (
-              <g key={`grade-${pct}`} data-grade-pct={pct}>
-                <line
-                  x1={SERIE_PAD_X}
-                  x2={width - SERIE_PAD_X}
-                  y1={y}
-                  y2={y}
-                  stroke={EIXO_STROKE}
-                  strokeWidth="1"
-                />
-                {/* A escala do eixo, como no protótipo do dono.
-                    Ela dá RÉGUA, não medição: é a lateral de uma balança vazia.
-                    Decisão do dono em 2026-09-17, ao remover a proibição do
-                    caractere "%" da varredura de fase pré — "0% apurado é uma
-                    verdade antes da eleição". As guardas que medem AFIRMAÇÃO
-                    (palavras proibidas, frases do RF-154, o "0/27") continuam
-                    inteiras e cobrem os três casos de 13/09. */}
-                <text
-                  x={SERIE_PAD_X - 6}
-                  y={y + 3}
-                  textAnchor="end"
-                  fontSize="10"
-                  fontFamily="var(--font-sans)"
-                  fill={ROTULO_FILL}
-                >
-                  {pct}%
-                </text>
-              </g>
-            );
-          })}
+              traçado, nenhum nome com número ao lado (RF-174).
+
+              É o MESMO componente que o estado "ok" usa, com o domínio fixo
+              0–50 no lugar do domínio medido. A escala do eixo é a lateral de
+              uma balança vazia — decisão do dono em 2026-09-17, ao remover a
+              proibição do caractere "%" da varredura de fase pré ("0% apurado é
+              uma verdade antes da eleição"). As guardas que medem AFIRMAÇÃO
+              (palavras proibidas, frases do RF-154, o "0/27") continuam
+              inteiras e cobrem os três casos de 13/09. */}
+          <ReguaVertical
+            width={width}
+            yMin={0}
+            yMax={GRADE_PCT_MAX}
+            yFor={verticalScale(height, SERIE_PAD_TOP, SERIE_PAD_BOTTOM, 0, GRADE_PCT_MAX).yFor}
+          />
 
           {GRADE_HORAS.map((hora, i) => (
             <text
               key={`hora-${hora}`}
-              x={SERIE_PAD_X + (i / (GRADE_HORAS.length - 1)) * (width - 2 * SERIE_PAD_X)}
+              x={
+                SERIE_PAD_LEFT +
+                (i / (GRADE_HORAS.length - 1)) * (width - SERIE_PAD_LEFT - SERIE_PAD_RIGHT)
+              }
               y={height - 6}
               textAnchor={i === 0 ? "start" : i === GRADE_HORAS.length - 1 ? "end" : "middle"}
               fontSize="10"
@@ -531,8 +799,10 @@ export function SerieApuracaoChart({
   const { xFor, yFor } = makeTimeScale({
     width,
     height,
-    padX: SERIE_PAD_X,
-    padY: SERIE_PAD_Y,
+    padLeft: SERIE_PAD_LEFT,
+    padRight: SERIE_PAD_RIGHT,
+    padTop: SERIE_PAD_TOP,
+    padBottom: SERIE_PAD_BOTTOM,
     tMin,
     tMax,
     yMin,
@@ -581,8 +851,8 @@ export function SerieApuracaoChart({
         {corteVaga !== null ? (
           <g data-testid="serie-regua-vaga" data-base={base}>
             <line
-              x1={SERIE_PAD_X}
-              x2={width - SERIE_PAD_X}
+              x1={SERIE_PAD_LEFT}
+              x2={width - SERIE_PAD_RIGHT}
               y1={yFor(corteVaga)}
               y2={yFor(corteVaga)}
               stroke={ROTULO_FILL}
@@ -590,7 +860,7 @@ export function SerieApuracaoChart({
               strokeDasharray="4,3"
             />
             <text
-              x={SERIE_PAD_X + 4}
+              x={SERIE_PAD_LEFT + 4}
               y={yFor(corteVaga) - 4}
               fontSize="9"
               fontFamily="var(--font-sans)"
@@ -666,31 +936,17 @@ export function SerieApuracaoChart({
 
         <Eixos width={width} yBase={yBase} />
 
-        {/* Rótulos do eixo vertical, FORA dos grupos de base: são a régua
-            compartilhada, e mantê-los aqui torna estruturalmente impossível
-            que as duas visões anunciem escalas diferentes (RF-172d). */}
+        {/* A régua vertical, FORA dos grupos de base: é a régua compartilhada,
+            e mantê-la aqui torna estruturalmente impossível que as duas visões
+            anunciem escalas diferentes (RF-172d).
+
+            Desenhada ANTES dos grupos de base de propósito: em SVG a ordem do
+            documento é a ordem de pintura, e a gridline tem de passar por baixo
+            do traço da candidatura, nunca por cima dele. */}
+        <ReguaVertical width={width} yMin={yMin} yMax={yMax} yFor={yFor} />
+
         <text
-          data-testid="serie-rotulo-ymax"
-          x={width - SERIE_PAD_X + 4}
-          y={yFor(yMax) + 4}
-          fontSize="10"
-          fontFamily="var(--font-sans)"
-          fill={ROTULO_FILL}
-        >
-          {formatPercent(yMax, 0)}
-        </text>
-        <text
-          data-testid="serie-rotulo-ymin"
-          x={width - SERIE_PAD_X + 4}
-          y={yFor(yMin) + 4}
-          fontSize="10"
-          fontFamily="var(--font-sans)"
-          fill={ROTULO_FILL}
-        >
-          {formatPercent(yMin, 0)}
-        </text>
-        <text
-          x={SERIE_PAD_X}
+          x={SERIE_PAD_LEFT}
           y={height - 6}
           fontSize="10"
           fontFamily="var(--font-sans)"
@@ -699,7 +955,7 @@ export function SerieApuracaoChart({
           {horaInicio}
         </text>
         <text
-          x={width - SERIE_PAD_X}
+          x={width - SERIE_PAD_RIGHT}
           y={height - 6}
           textAnchor="end"
           fontSize="10"
@@ -714,60 +970,77 @@ export function SerieApuracaoChart({
       </svg>
 
       {/* RF-176 — a tabela. Uma só, com as duas bases lado a lado. */}
-      <table className="sr-only" data-testid="serie-apuracao-tabela">
-        <caption>
-          Evolução da apuração em {escopo}, de {horaInicio} a {horaFim}, com uma medição a cada{" "}
-          {cadenciaMin} minutos. As candidaturas listadas são as{" "}
-          {candidatos.length === 1 ? "que está" : `${candidatos.length} que estão`} à frente no
-          momento; quem sai do grupo deixa de aparecer, inclusive no passado. A coluna de projeção é
-          uma estimativa do SalaCofre, não um resultado oficial — o resultado oficial é o do
-          Tribunal Superior Eleitoral.
-          {destacaVagas && emVaga.length === 2
-            ? ` Esta corrida elege 2 vagas: no momento, ${emVaga
-                .map((c) => c.nome)
-                .join(" e ")} as ocupam.`
-            : ""}{" "}
-          Onde não houve boletim, a célula diz "sem medição" — não é zero.
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col">Hora do boletim</th>
-            {candidatos.map((c) => (
-              <th key={`${c.id}-apurado`} scope="col">
-                {c.nome} ({c.partido}) — apurado
-              </th>
-            ))}
-            {candidatos.map((c) => (
-              <th key={`${c.id}-projecao`} scope="col">
-                {c.nome} ({c.partido}) — projeção
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {eixo.map((iso, i) => (
-            <tr key={iso}>
-              <th scope="row">{formatTimeHMS(iso)}</th>
-              {candidatos.map((c) => {
-                const v = c.apurado[i];
-                return (
-                  <td key={`${c.id}-apurado-${iso}`} data-cand={c.id} data-base="parcial">
-                    {valorFinito(v) ? formatPercent(v, 1) : "sem medição"}
-                  </td>
-                );
-              })}
-              {candidatos.map((c) => {
-                const v = c.projetado[i];
-                return (
-                  <td key={`${c.id}-projecao-${iso}`} data-cand={c.id} data-base="proj">
-                    {valorFinito(v) ? formatPercent(v, 1) : "sem medição"}
-                  </td>
-                );
-              })}
+      {/* 🔴 **A `sr-only` vai no DIV, nunca na `<table>`** (2026-09-19).
+          Medido: a 360px de largura esta tabela saía com **2.768px** e
+          empurrava a página inteira — 2.424px de rolagem horizontal na home.
+          O truque de esconder visualmente depende de `width: 1px`, e o
+          algoritmo de layout de TABELA trata isso como mínimo, não como
+          teto: a tabela cresce até caber o conteúdo, e `overflow: hidden`
+          não segura o próprio box dela.
+          ⚠️ Forçar `display: block` na tabela resolveria o tamanho e
+          DESTRUIRIA a semântica de linha/coluna para o leitor de tela — que
+          é a única razão desta tabela existir (RNF-023). O `<div>` de fora
+          aceita o recorte; a tabela dentro segue sendo tabela. */}
+      <div className="sr-only">
+        <table data-testid="serie-apuracao-tabela">
+          <caption>
+            Evolução da apuração em {escopo}, de {horaInicio} a {horaFim}, com uma medição a cada{" "}
+            {cadenciaMin} minutos. As candidaturas listadas são as{" "}
+            {candidatos.length === 1 ? "que está" : `${candidatos.length} que estão`} à frente no
+            momento; quem sai do grupo deixa de aparecer, inclusive no passado. A coluna de projeção
+            é uma estimativa do SalaCofre, não um resultado oficial — o resultado oficial é o do
+            Tribunal Superior Eleitoral.
+            {destacaVagas && emVaga.length === 2
+              ? ` Esta corrida elege 2 vagas: no momento, ${emVaga
+                  .map((c) => c.nome)
+                  .join(" e ")} as ocupam.`
+              : ""}{" "}
+            Onde não houve boletim, a célula diz "sem medição" — não é zero.
+          </caption>
+          <thead>
+            <tr>
+              {/* 🔊 Sigla INTEIRA nos cabeçalhos abaixo (2026-09-19): esta tabela
+                é `sr-only` — ela não ocupa pixel nenhum, só é lida. A
+                abreviação de `lib/utils/sigla-partido.ts` vale para o que é
+                DESENHADO; aqui nada é. */}
+              <th scope="col">Hora do boletim</th>
+              {candidatos.map((c) => (
+                <th key={`${c.id}-apurado`} scope="col">
+                  {c.nome} ({c.partido}) — apurado
+                </th>
+              ))}
+              {candidatos.map((c) => (
+                <th key={`${c.id}-projecao`} scope="col">
+                  {c.nome} ({c.partido}) — projeção
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {eixo.map((iso, i) => (
+              <tr key={iso}>
+                <th scope="row">{formatTimeHMS(iso)}</th>
+                {candidatos.map((c) => {
+                  const v = c.apurado[i];
+                  return (
+                    <td key={`${c.id}-apurado-${iso}`} data-cand={c.id} data-base="parcial">
+                      {valorFinito(v) ? formatPercent(v, 1) : "sem medição"}
+                    </td>
+                  );
+                })}
+                {candidatos.map((c) => {
+                  const v = c.projetado[i];
+                  return (
+                    <td key={`${c.id}-projecao-${iso}`} data-cand={c.id} data-base="proj">
+                      {valorFinito(v) ? formatPercent(v, 1) : "sem medição"}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }

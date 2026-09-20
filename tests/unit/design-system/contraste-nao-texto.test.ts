@@ -438,3 +438,102 @@ describe("RNF-035 — o mapa de MUNICÍPIO (`ChoroplethMapUF`) também", () => {
     expect(cravadas, "line-color com hex cravado voltou ao mapa de município").toEqual([]);
   });
 });
+
+describe("RNF-035 — a RÉGUA do gráfico de evolução (2026-09-19)", () => {
+  /**
+   * Lê `--rule-chart` nos dois temas, resolvendo UM nível de `var()`.
+   *
+   * A indireção existe de propósito: no tema escuro o cinza decorativo
+   * (`--ink-3`) já passava o piso, então o token aponta para ele em vez de
+   * inventar um quarto cinza. Um leitor que não resolvesse `var()` leria
+   * `undefined` ali e o teste passaria **vazio** — que é a forma mais comum
+   * de um teste de token não discriminar nada.
+   */
+  function reguaPorTema(): { claro: string; escuro: string } {
+    const linhas = readFileSync(resolve(RAIZ, "app/globals.css"), "utf8").split("\n");
+    const brutos: { claro: Record<string, string>; escuro: Record<string, string> } = {
+      claro: {},
+      escuro: {},
+    };
+    let alvo: Record<string, string> | null = null;
+    for (const linha of linhas) {
+      if (linha.includes("@theme static")) alvo = brutos.claro;
+      else if (linha.includes('data-theme="dark"')) alvo = brutos.escuro;
+      const m = /^\s*--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6}|var\(--[a-z0-9-]+\))/.exec(linha);
+      const chave = m?.[1];
+      const valor = m?.[2];
+      if (chave && valor && alvo && !(chave in alvo)) alvo[chave] = valor;
+    }
+    const resolver = (tema: "claro" | "escuro"): string => {
+      const bruto = brutos[tema]["rule-chart"];
+      expect(bruto, `--rule-chart ausente no tema ${tema}`).toBeTruthy();
+      const ref = /^var\(--([a-z0-9-]+)\)$/.exec(bruto ?? "");
+      const hex = ref ? brutos[tema][ref[1] as string] : bruto;
+      expect(hex, `--rule-chart do tema ${tema} não resolveu para hex`).toMatch(
+        /^#[0-9a-fA-F]{6}$/,
+      );
+      return hex as string;
+    };
+    return { claro: resolver("claro"), escuro: resolver("escuro") };
+  }
+
+  /**
+   * 🔴 **Este teste é a ÚNICA proteção deste número.** O axe joga contraste de
+   * SVG no balde `results.incomplete`, que não reprova nada — medido em 18/09
+   * e reconfirmado em 19/09 com Lighthouse nas 6 rotas do produto, com o
+   * gráfico renderizado com dado real: **zero** itens de série reportados no
+   * audit `color-contrast`. Ou seja, clarear este token não acende nenhuma luz
+   * vermelha em lugar nenhum da esteira, exceto aqui.
+   *
+   * Mutação que morre: trocar `--rule-chart` de volta por `--rule` (1,45:1 no
+   * claro), que é exatamente o valor que a primeira versão da régua usou.
+   */
+  it("`--rule-chart` passa 3:1 contra as três superfícies, nos DOIS temas", () => {
+    const regua = reguaPorTema();
+    const reprovas: string[] = [];
+    for (const tema of ["claro", "escuro"] as const) {
+      for (const [nome, fundo] of Object.entries(SUPERFICIES[tema])) {
+        const r = contraste(regua[tema], fundo);
+        if (r < PISO_NAO_TEXTO) {
+          reprovas.push(`${tema}/${nome}: ${regua[tema]} sobre ${fundo} = ${r.toFixed(2)}:1`);
+        }
+      }
+    }
+    expect(reprovas, `régua do gráfico abaixo de ${PISO_NAO_TEXTO}:1`).toEqual([]);
+  });
+
+  /**
+   * O gráfico tem de USAR o token — um token correto que ninguém referencia é
+   * decoração de arquivo de tema.
+   *
+   * Mutação que morre: `EIXO_STROKE` voltar a `var(--border-hairline)`. O teste
+   * acima continuaria verde (o token seguiria existindo e passando), e a tela
+   * voltaria a 1,45:1 — é o par que fecha o buraco.
+   */
+  it("o gráfico referencia `--border-chart`, e não `--border-hairline`, no traço", () => {
+    const fonte = readFileSync(
+      resolve(RAIZ, "components/atoms/charts/SerieApuracaoChart.tsx"),
+      "utf8",
+    );
+    const stroke = /const EIXO_STROKE = "(var\(--[a-z-]+\))";/.exec(fonte)?.[1];
+    expect(stroke, "EIXO_STROKE não encontrado").toBeTruthy();
+    expect(stroke).toBe("var(--border-chart)");
+  });
+
+  /**
+   * A régua não pode ficar tão pesada quanto o número que ela ancora: se o
+   * traço competir com o rótulo, o gráfico vira papel quadriculado e o dado
+   * perde o primeiro plano. `--text-muted` mede 5,52:1 no claro.
+   *
+   * Mutação que morre: apontar `--rule-chart` para `--ink-2` (o tom do texto),
+   * que passaria o piso com folga e devolveria o problema pelo outro lado.
+   */
+  it("a régua é visivelmente mais leve que o rótulo numérico ao lado", () => {
+    const regua = reguaPorTema();
+    const claro = contraste(regua.claro, SUPERFICIES.claro.page);
+    expect(claro).toBeGreaterThanOrEqual(PISO_NAO_TEXTO);
+    // O rótulo é `--text-muted` (#5b636e no claro) = 5,52:1. A régua tem de
+    // ficar abaixo disso com margem, senão os dois pesam igual.
+    expect(claro).toBeLessThan(contraste("#5b636e", SUPERFICIES.claro.page) - 1);
+  });
+});

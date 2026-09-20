@@ -63,6 +63,47 @@ claro:
 No tema escuro as mesmas quatro medem entre 9,3 e 12,8 — **o problema é só do
 claro**, e é por isso que medir um tema só engana.
 
+### A régua do gráfico de evolução — 2026-09-19
+
+O gráfico "Evolução da apuração" ganhou **gridlines no estado com dado** em
+19/09 (antes só o esqueleto pré-eleição as tinha). A primeira versão usou
+`--border-hairline` (**1,45:1**), com o argumento de que a gridline é andaime
+redundante — o valor está escrito no rótulo ao lado, a 5,52:1.
+
+**O argumento não sobreviveu à auditoria do mesmo dia, e errava no ponto que
+importa.** A gridline não é redundante: ela é o que permite seguir a ALTURA de
+uma curva no meio da caixa até o rótulo da borda **sem fazer a proporção de
+cabeça** — exatamente a função que o SC 1.4.11 protege para baixa visão. Ler
+"35%" na régua diz qual valor mora naquela altura; não ajuda a comparar aquela
+altura com a linha do 3º colocado.
+
+Havia ainda um erro de escala no "é o mesmo token que já está em produção":
+verdade literal, mas o estado que o usava era o esqueleto visto por poucos
+minutos antes do 1º boletim. Levar o cinza fraco para a tela que fica no ar a
+**noite inteira da apuração** amplia a dívida no pior momento, não a reaproveita.
+
+**Decisão do dono (19/09): token próprio.**
+
+| Token | Claro | Escuro | Onde |
+|---|---|---|---|
+| `--rule-chart` / `--border-chart` | **3,26:1** (`--paper-1`) · 3,47:1 (`--paper-0`) | **3,91:1** — aponta para `--ink-3`, que já passava | eixos e régua de `SerieApuracaoChart` |
+
+Matiz preservada da família `--ink-*` para não introduzir um cinza de outra
+temperatura. Fica a 3,26:1 contra os 5,52:1 do rótulo — passa o piso **e**
+continua visivelmente mais leve que o número, para a grade não competir com o
+dado.
+
+🔴 **Este piso não tem portão automático.** O axe joga contraste de SVG no
+balde `results.incomplete`, que não reprova nada — reconfirmado em 19/09 com
+Lighthouse nas 6 rotas, com o gráfico renderizado com dado real: **zero** itens
+de série no audit `color-contrast`. A única proteção é
+`tests/unit/design-system/contraste-nao-texto.test.ts` § "a RÉGUA do gráfico",
+com três casos, e as três mutações foram aplicadas e morrem: clarear o token,
+apontar o gráfico de volta para `--border-hairline`, e escurecer o token até o
+peso do texto. Quem mexer aqui **não receberá aviso de nenhuma outra esteira**.
+
+---
+
 ### Lacunas do RNF-035 — 2026-09-18, 1ª passagem
 
 Uma fica **abaixo do piso e sem variante `-text`**, e não é identidade de

@@ -73,11 +73,35 @@ export interface MakeScaleArgs {
   yMax: number;
 }
 
+/**
+ * 🔴 Quatro lados, não dois — e nenhum deles opcional.
+ *
+ * `makeScale` continua com `padX`/`padY` porque os três gráficos que a chamam
+ * são simétricos e não têm por que deixar de ser. `makeTimeScale` tem **um
+ * consumidor só** (`<SerieApuracaoChart>`), e ali os quatro lados pagam contas
+ * diferentes: à esquerda mora a régua de percentual, à direita só o raio do
+ * ponto final, em cima só o glifo do rótulo do topo, embaixo a fileira de
+ * rótulos de hora. Cobrar de cada lado a folga do lado mais caro gastava 29%
+ * da caixa em papel em branco.
+ *
+ * Os quatro são **obrigatórios**, e não opcionais com default em `padX`/`padY`.
+ * Um default aqui teria duas fontes de verdade para a mesma folga — a forma
+ * exata que o bloco no topo deste arquivo recusa para o eixo horizontal, e que
+ * `docs/reference/risks.md` registra como já tendo mordido este repositório
+ * três vezes. Com os quatro obrigatórios, esquecer um é erro de tipo na
+ * chamada; com default, é um gráfico torto que ninguém vê até a noite de 04/10.
+ */
 export interface MakeTimeScaleArgs {
   width: number;
   height: number;
-  padX: number;
-  padY: number;
+  /** Folga à ESQUERDA. É onde a régua de percentual mora. */
+  padLeft: number;
+  /** Folga à DIREITA. Só precisa caber o ponto final e o rótulo da hora final. */
+  padRight: number;
+  /** Folga ACIMA. Só precisa caber o glifo do rótulo do topo da régua. */
+  padTop: number;
+  /** Folga ABAIXO. É onde a fileira de rótulos de hora mora. */
+  padBottom: number;
   /** Primeiro instante do eixo, em epoch ms. */
   tMin: number;
   /** Último instante do eixo, em epoch ms. */
@@ -89,21 +113,34 @@ export interface MakeTimeScaleArgs {
 /**
  * O eixo vertical, comum aos dois modos.
  *
+ * Recebe os dois lados **separados** (`padTop`, `padBottom`) porque eles pagam
+ * contas diferentes — ver o bloco de {@link MakeTimeScaleArgs}. `makeScale`
+ * passa o mesmo valor nos dois, de modo que `innerH` continua sendo
+ * `height - 2 * padY` para quem já chamava: `<TimeSeriesChart>`,
+ * `<ProbabilityOverTime>` e `<TurnoutAreaChart>` saem byte a byte iguais ao que
+ * saíam antes desta mudança, que é a promessa do topo deste módulo.
+ *
+ * Exportada porque o estado "antes do dia" do `<SerieApuracaoChart>` desenha a
+ * mesma régua sem ter eixo de tempo nenhum para pendurar nela. Ou ele reusa
+ * esta função, ou reimplementa a reta — e duas retas é como as duas versões da
+ * régua divergiriam sem ninguém notar.
+ *
  * `yMax - yMin || 1` preserva, literalmente, o comportamento que
  * `TimeSeriesChart` tinha desde 2026-09-08: domínio degenerado (todos os
  * valores iguais) não divide por zero — a linha sai colada no topo em vez de
  * virar `NaN`. Mudar isso aqui mudaria o gráfico existente, e este módulo
  * nasceu para NÃO mudá-lo.
  */
-function verticalScale(
+export function verticalScale(
   height: number,
-  padY: number,
+  padTop: number,
+  padBottom: number,
   yMin: number,
   yMax: number,
 ): { innerH: number; yFor: (valor: number) => number } {
-  const innerH = height - 2 * padY;
+  const innerH = height - padTop - padBottom;
   const yRange = yMax - yMin || 1;
-  return { innerH, yFor: (valor: number) => padY + ((yMax - valor) / yRange) * innerH };
+  return { innerH, yFor: (valor: number) => padTop + ((yMax - valor) / yRange) * innerH };
 }
 
 /**
@@ -127,7 +164,9 @@ export function makeScale({
   yMax,
 }: MakeScaleArgs): EscalaPorIndice {
   const innerW = width - 2 * padX;
-  const { innerH, yFor } = verticalScale(height, padY, yMin, yMax);
+  // Os dois lados verticais recebem o MESMO `padY`: é assim que `innerH`
+  // continua valendo `height - 2 * padY` e o gráfico existente não se move.
+  const { innerH, yFor } = verticalScale(height, padY, padY, yMin, yMax);
   return {
     innerW,
     innerH,
@@ -150,21 +189,23 @@ export function makeScale({
 export function makeTimeScale({
   width,
   height,
-  padX,
-  padY,
+  padLeft,
+  padRight,
+  padTop,
+  padBottom,
   tMin,
   tMax,
   yMin,
   yMax,
 }: MakeTimeScaleArgs): EscalaPorTempo {
-  const innerW = width - 2 * padX;
-  const { innerH, yFor } = verticalScale(height, padY, yMin, yMax);
+  const innerW = width - padLeft - padRight;
+  const { innerH, yFor } = verticalScale(height, padTop, padBottom, yMin, yMax);
   const span = tMax - tMin;
   return {
     innerW,
     innerH,
     yFor,
     xFor: (epochMs: number) =>
-      span > 0 ? padX + ((epochMs - tMin) / span) * innerW : padX + innerW / 2,
+      span > 0 ? padLeft + ((epochMs - tMin) / span) * innerW : padLeft + innerW / 2,
   };
 }

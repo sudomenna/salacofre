@@ -197,10 +197,11 @@ correção de 8.775 B estavam ambas erradas; ver a emenda no
 [ADR-0046](../../architecture/adrs/0046-serie-por-candidato-limitada-por-construcao.md),
 que registra também **por que** a segunda medição errou.
 
-A 480 pontos numa coluna de 400px (`--container-sidebar`), com `padX=32`, cada
-ponto ocupa 0,7 px — sub-pixel. A 5 min são 3,5 px. O passo de 5 min já é o
-precedente do repo (`SERIE_PASSO_MIN` no gerador de simulação; `CADENCIA_MIN` na
-página de senador).
+A 480 pontos numa coluna de 400px (`--container-sidebar`), com a folga
+horizontal de 32+8 unidades (ver o § 5), cada ponto ocupa 0,7 px — sub-pixel.
+A 5 min são 3,4 px. O passo de 5 min já é o precedente do repo
+(`SERIE_PASSO_MIN` no gerador de simulação; `CADENCIA_MIN` na página de
+senador).
 
 ### 3.3 Destino
 
@@ -295,10 +296,37 @@ interface SerieApuracaoChartProps {
   vagas?: 1 | 2;             // 2 liga a régua do Senado
   preEleicao?: boolean;
   width?: number;            // 480
-  height?: number;           // 220
+  height?: number;           // 260
   titleId: string;
 }
 ```
+
+> **Emenda de 2026-09-19 — a geometria.** O `height` default era 220 e a folga
+> era simétrica (`SERIE_PAD_X = 32`, `SERIE_PAD_Y = 20`): 416×180 dentro de
+> 480×220, **70,9% da caixa**. As linhas ficavam numa faixa estreita no meio de
+> um bloco grande, e o gutter esquerdo de 32 unidades estava VAZIO no estado
+> "ok", porque os rótulos do eixo vertical tinham ido para a direita enquanto o
+> estado "antes do dia" os desenhava à esquerda.
+>
+> Agora são quatro folgas, uma por lado — `LEFT 32` (a régua mora ali),
+> `RIGHT 8` (só o ponto final e o rótulo da hora final), `TOP 10`,
+> `BOTTOM 18` (a fileira de rótulos de hora) — e o default de altura é **260**
+> (decisão do dono). Área útil: **81,8%** na caixa nova, 80,0% se a altura de
+> 220 for passada explicitamente.
+>
+> Três consequências de contrato, todas em `SerieApuracaoChart.tsx`:
+>
+> 1. **Uma régua vertical, um renderizador, os dois estados**, sempre à
+>    esquerda. Teto de 5 vãos entre marcas rotuladas (até 6 marcas). Com o
+>    domínio fixo 0–50 do estado "antes do dia" isso devolve exatamente os seis
+>    rótulos que ele já mostrava — 0, 10, 20, 30, 40, 50.
+> 2. **O piso da escala deixa de pagar um passo de folga que não usa.** A folga
+>    continua existindo quando o mínimo está a menos de 30% do passo do degrau
+>    abaixo dele (sem ela a linha mais baixa encostaria no eixo); some quando o
+>    degrau já é folga. Um Senado de 8,2 a 31,7 passa de 0–35 para 5–35.
+> 3. `makeTimeScale` (`components/atoms/charts/scale.ts`) recebe os quatro lados
+>    em vez de `padX`/`padY`, **obrigatórios**, sem default silencioso.
+>    `makeScale` não mudou, e `<TimeSeriesChart>` sai byte a byte igual.
 
 Sem prop de visão: o componente renderiza as duas, em
 `<g data-view-only="parcial">` e `<g data-view-only="proj">`, e a cascata

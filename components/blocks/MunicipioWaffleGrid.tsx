@@ -165,6 +165,9 @@ export function MunicipioWaffleGrid({
                 rx={1}
                 data-cod={m.cod_ibge}
               >
+                {/* 🔊 Sigla INTEIRA (2026-09-19): `<title>` de SVG é o nome
+                    acessível do quadradinho e o tooltip nativo do navegador —
+                    é descrição, não layout. Nada aqui disputa largura. */}
                 <title>{`${m.nome} — ${
                   lider ? nomeExibicao(lider.nome, lider.sqcand) : `Cand ${m.lider.candidato_id}`
                 } (${lider?.partido ?? "?"}) líder · ${fmtPct(m.pct_apurado)} apur`}</title>
@@ -195,31 +198,46 @@ export function MunicipioWaffleGrid({
       </ul>
 
       {/* aria fallback: lista textual completa para SR (sr-only) */}
-      <table className="sr-only">
-        <caption>Municípios e seus líderes</caption>
-        <thead>
-          <tr>
-            <th scope="col">Município</th>
-            <th scope="col">Líder</th>
-            <th scope="col">% apurado</th>
-          </tr>
-        </thead>
-        <tbody>
-          {municipios.map((m) => {
-            const lider = candIndex.get(m.lider.candidato_id);
-            return (
-              <tr key={m.cod_ibge}>
-                <td>{m.nome}</td>
-                <td>
-                  {lider ? nomeExibicao(lider.nome, lider.sqcand) : `Cand ${m.lider.candidato_id}`}{" "}
-                  ({lider?.partido ?? "?"})
-                </td>
-                <td>{fmtPct(m.pct_apurado)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      {/* 🔴 **A `sr-only` vai no DIV, nunca na `<table>`** (2026-09-19).
+          Medido: a 360px de largura esta tabela saía com **2.768px** e
+          empurrava a página inteira — 2.424px de rolagem horizontal na home.
+          O truque de esconder visualmente depende de `width: 1px`, e o
+          algoritmo de layout de TABELA trata isso como mínimo, não como
+          teto: a tabela cresce até caber o conteúdo, e `overflow: hidden`
+          não segura o próprio box dela.
+          ⚠️ Forçar `display: block` na tabela resolveria o tamanho e
+          DESTRUIRIA a semântica de linha/coluna para o leitor de tela — que
+          é a única razão desta tabela existir (RNF-023). O `<div>` de fora
+          aceita o recorte; a tabela dentro segue sendo tabela. */}
+      <div className="sr-only">
+        <table>
+          <caption>Municípios e seus líderes</caption>
+          <thead>
+            <tr>
+              <th scope="col">Município</th>
+              <th scope="col">Líder</th>
+              <th scope="col">% apurado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {municipios.map((m) => {
+              const lider = candIndex.get(m.lider.candidato_id);
+              return (
+                <tr key={m.cod_ibge}>
+                  <td>{m.nome}</td>
+                  <td>
+                    {lider
+                      ? nomeExibicao(lider.nome, lider.sqcand)
+                      : `Cand ${m.lider.candidato_id}`}{" "}
+                    ({lider?.partido ?? "?"})
+                  </td>
+                  <td>{fmtPct(m.pct_apurado)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }

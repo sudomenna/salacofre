@@ -50,6 +50,20 @@
   --ink-3: #8c949e;
   --rule: #c9cdd3;
   --rule-strong: #14171b;
+  /* Régua de GRÁFICO — 2026-09-19. Não é `--rule` e não pode virar `--rule`.
+     `--rule` mede 1,45:1 contra `--paper-1`, o que basta para uma borda de
+     caixa (decoração pura: nada depende de enxergá-la) e NÃO basta para a
+     grade de um gráfico, que é o que permite a quem tem baixa visão seguir a
+     altura de uma linha de dado até o rótulo sem fazer a proporção de cabeça.
+     Isso é uso funcional, e cai no piso de 3:1 do WCAG SC 1.4.11 (Non-text
+     Contrast). Medido: 3,26:1 sobre `--paper-1`, 3,47:1 sobre `--paper-0`.
+     Matiz preservada da família `--ink-*` (R<G<B, mesmos deltas de `--ink-3`)
+     para não introduzir um cinza de outra temperatura no sistema.
+     🔴 O portão automático NÃO protege este número: o axe joga contraste de
+     SVG no balde `results.incomplete`, que não reprova nada (medido em
+     18/09 e reconfirmado em 19/09 com Lighthouse nas 6 rotas — zero itens de
+     série reportados). Quem mexer aqui não terá aviso nenhum; recalcule à mão. */
+  --rule-chart: #808892;
 
   /* Accent ocre — projeção, estado ao vivo, foco.
    * `--accent` (#C98A2B) tem 2.67:1 sobre paper-1: é cor de PREENCHIMENTO e de
@@ -281,6 +295,8 @@
   --text-inverse: var(--paper-0);
   --border-hairline: var(--rule);
   --border-strong: var(--rule-strong);
+  /* Para grade/eixo de gráfico, NUNCA `--border-hairline` — ver `--rule-chart`. */
+  --border-chart: var(--rule-chart);
   --rule-double: 3px double var(--border-strong);
 }
 
@@ -402,6 +418,11 @@ main[data-trilha="gov"] {
   --ink-3: #6e7681;
   --rule: #363b44;
   --rule-strong: #eceef1;
+  /* Régua de gráfico, tema escuro — ver o par no tema claro. Aqui o cinza
+     decorativo JÁ passa o piso de 3:1 (`--ink-3` = 3,91:1 sobre `--paper-1`,
+     3,60:1 sobre `--paper-0`), então o token aponta para ele em vez de
+     inventar um quarto cinza: o problema de contraste era só do tema claro. */
+  --rule-chart: var(--ink-3);
 
   /* Accent ocre, clareado. `--accent` (#e0a33f) sobe para 7,46:1 no card e
    * passa a servir também como texto — mas `--accent-text` continua existindo
@@ -615,7 +636,23 @@ a:hover {
 
 /* Visually-hidden util (WAI-ARIA APG / Tailwind sr-only). Usado por charts SVG
  * para anexar uma <table> com a série completa (a11y RNF-023): leitores de tela
- * leem a tabela; usuários visuais veem só o SVG. */
+ * leem a tabela; usuários visuais veem só o SVG.
+ *
+ * 🔴 **NUNCA ponha esta classe direto numa <table>** (regra de 2026-09-19,
+ * aprendida na tela). O recorte depende de `width: 1px`, e o algoritmo de
+ * layout de tabela trata largura como MÍNIMO, não como teto: a tabela cresce
+ * até caber o conteúdo e o `overflow: hidden` daqui não segura o box dela.
+ * Medido na home a 360px: a tabela da série saiu com **2.768px** e criou
+ * **2.424px de rolagem horizontal** na página inteira. As outras quatro
+ * tabelas `sr-only` do projeto tinham o mesmo defeito latente — só não
+ * estouraram antes porque têm menos colunas.
+ *
+ * ⚠️ E a correção "óbvia" está errada: `display: block` na tabela resolveria o
+ * tamanho e DESTRUIRIA a semântica de linha/coluna para o leitor de tela, que
+ * é a única razão de a tabela existir. O certo é envolver:
+ *   <div className="sr-only"><table>…</table></div>
+ * O div aceita o recorte; a tabela continua sendo tabela.
+ * Travado por `tests/unit/design-system/sr-only-tabela.test.ts`. */
 .sr-only {
   position: absolute;
   width: 1px;

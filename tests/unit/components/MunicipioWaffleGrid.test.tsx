@@ -109,10 +109,23 @@ describe("<MunicipioWaffleGrid />", () => {
     expect(html).toContain("Município 2");
   });
 
-  it("(e) fallback ARIA: tabela sr-only com nome+líder+pct", () => {
+  it("(e) fallback ARIA: tabela escondida com nome+líder+pct", () => {
+    // ⚠️ O seletor era `table.sr-only` até 2026-09-19. A classe saiu da tabela
+    // e foi para um `<div>` em volta, porque `sr-only` numa `<table>` NÃO
+    // esconde: o layout de tabela lê `width: 1px` como mínimo e cresce até
+    // caber o conteúdo — medido na home a 360px, a tabela irmã desta saiu com
+    // 2.768px e criou 2.424px de rolagem horizontal na página.
+    //
+    // O que este caso prova continua idêntico: a tabela EXISTE, tem uma linha
+    // por município e carrega o nome. Só o endereço dela mudou. Ver
+    // `tests/unit/design-system/sr-only-tabela.test.ts`.
     const doc = parse(<MunicipioWaffleGrid municipios={mkMunicipios(3)} candidatos={candidatos} />);
-    const table = doc.querySelector("table.sr-only");
-    expect(table).toBeTruthy();
+    const envelope = doc.querySelector("div.sr-only");
+    expect(envelope, "a tabela de leitor de tela perdeu o envelope `sr-only`").toBeTruthy();
+    const table = envelope?.querySelector("table");
+    expect(table, "a tabela de leitor de tela sumiu").toBeTruthy();
+    // 🔴 A classe NÃO pode voltar para a tabela — é o defeito de origem.
+    expect(table?.classList.contains("sr-only")).toBe(false);
     expect(table?.querySelectorAll("tbody tr").length).toBe(3);
     expect(table?.textContent ?? "").toContain("Município 1");
   });
