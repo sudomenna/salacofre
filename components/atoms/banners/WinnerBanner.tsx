@@ -19,6 +19,8 @@
 
 import type { CSSProperties } from "react";
 
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
+
 export interface WinnerBannerProps {
   /** Nome do candidato vencedor. */
   candidato: string;
@@ -67,7 +69,9 @@ export function WinnerBanner({ candidato, partido, ufSigla, cor, rank }: WinnerB
       <strong className="text-2xl font-semibold leading-tight">
         {candidato} vence em {ufSigla}
       </strong>
-      <span className="text-sm opacity-90">{partido}</span>
+      {/* Desenhado ⇒ abreviado (2026-09-19); o `aria-label` do banner segue
+          com a sigla inteira. */}
+      <span className="text-sm opacity-90">{siglaExibicao(partido)}</span>
     </div>
   );
 }

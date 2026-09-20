@@ -177,6 +177,76 @@ describe("<StateGroupedTable />", () => {
     expect(firstColCells).toEqual(["BBB", "CCC", "AAA"]);
   });
 
+  // --- 2026-09-19: a cauda ("Outros") como TEXTO -------------------------
+  //
+  // Contexto: o balão de hover do mapa nacional ganhou uma 5ª linha com o
+  // agregado das candidaturas fora das quatro primeiras, e o balão é
+  // `aria-hidden` por construção. Esta tabela é o alvo do `aria-describedby`
+  // daquele mapa (`_NationalChoroplethMapImpl.tsx`), então é aqui que o número
+  // precisa existir em texto.
+
+  /** `mkRow` + a cauda do payload. Os `top_candidatos` de `mkRow` somam 100 de
+   *  propósito: assim `100 − Σ(top)` dá 0 e diverge de `outros.pct`, e o teste
+   *  distingue "leu o campo" de "refez a subtração". */
+  const comOutros = (row: EdgeUfRow, over: Partial<NonNullable<EdgeUfRow["outros"]>> = {}) => ({
+    ...row,
+    outros: { pct: 8.1, pct_atual: 6.4, votos_atuais: 12_345, n_candidatos: 7, ...over },
+  });
+
+  it("(i) binary: a cauda vira texto real na célula, com o número do CAMPO", () => {
+    // Mutações que este caso mata:
+    //   1. não renderizar a linha (o número volta a existir só no balão);
+    //   2. trocar `outros.pct` por `100 − Σ(top_candidatos)` — aqui 0,0%, e a
+    //      subtração é proibida pela docstring de `EdgeUfRow.outros`: os pontos
+    //      de uma UF não fecham em 100, e o resíduo viraria voto de alguém;
+    //   3. apagar `n_candidatos` do rótulo ("Outros" sozinho não diz se são
+    //      sete candidaturas ou um arredondamento).
+    const doc = parse(
+      <StateGroupedTable rows={[comOutros(mkRow("SP", 13, 15))]} candidatoAId={13} />,
+    );
+    const celula = doc.querySelector("td a")?.textContent ?? "";
+
+    expect(celula).toContain("Outros (7)");
+    expect(celula).toContain("8,1%");
+    expect(celula).not.toContain("0,0%");
+
+    // A legenda define de que conjunto o 8,1% é a soma — sem ela o número
+    // flutua, porque a célula não nomeia nenhuma candidatura.
+    expect(doc.body.textContent ?? "").toMatch(/fora das quatro primeiras/i);
+  });
+
+  it("(j) cauda AUSENTE ⇒ nenhuma linha — nunca 'Outros 0,0%'", () => {
+    // Mutação alvo: renderizar incondicionalmente com `row.outros?.pct ?? 0`.
+    // Campo ausente significa "a cauda é vazia" (UF com ≤ 4 candidaturas), não
+    // "os demais somam zero" — decisão do dono de 14/09, "não sabemos" e
+    // "medimos zero" são estados diferentes.
+    const doc = parse(<StateGroupedTable rows={[mkRow("SP", 13, 15)]} candidatoAId={13} />);
+    const celula = doc.querySelector("td a")?.textContent ?? "";
+
+    expect(celula).not.toContain("Outros");
+    expect(celula).not.toContain("0,0%");
+  });
+
+  it("(j2) multi-1t carrega a mesma cauda que binary", () => {
+    // Mutação alvo: adicionar a linha só no ramo `binary`. Os dois modos
+    // renderizavam cópias byte a byte da mesma célula até 2026-09-19; quem
+    // mexer num e esquecer o outro deixa metade das configurações de página
+    // sem o equivalente textual, e `multi-1t` é justamente o modo do 1º turno
+    // multi-candidato — aquele em que a cauda é maior.
+    const doc = parse(
+      <StateGroupedTable
+        rows={[comOutros(mkRow("SP", 13, 15), { pct: 9.4, n_candidatos: 5 })]}
+        candidatoAId={13}
+        candidatos={[mkCand(13, "PT-Cand", 1)]}
+        mode="multi-1t"
+      />,
+    );
+    const celula = doc.querySelector("td a")?.textContent ?? "";
+
+    expect(celula).toContain("Outros (5)");
+    expect(celula).toContain("9,4%");
+  });
+
   it("(h) mode='multi-1t': 'Em disputa' agrupa UFs tossup independente do líder", () => {
     const candidatos = [mkCand(13, "P1", 1), mkCand(22, "P2", 2)];
     const rows: EdgeUfRow[] = [

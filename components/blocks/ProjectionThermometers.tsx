@@ -76,6 +76,7 @@ import {
   outrosFallback,
   type ProjectionBase,
 } from "@/lib/utils/participacao";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 const HEADING_ID = "projecao-termometros-heading";
 const ORIGEM_ID = "projecao-termometros-origem";
@@ -332,7 +333,13 @@ export function ProjectionThermometers({
               key={c.id}
               id={`termometro-cand-${c.id}`}
               titulo={nomeExibicao(c.nome, c.sqcand)}
-              subtitulo={c.partido}
+              // Desenhado ⇒ abreviado (2026-09-19). `subtitulo` é a linha de
+              // apoio do termômetro, e três deles dividem a largura da coluna.
+              // 🔴 SÓ aqui: `candidateColor(c.partido, …)` abaixo continua
+              // recebendo a sigla INTEIRA, porque cor é sempre da sigla
+              // completa (ADR-0024 / constituição § 2). O `aria-label` do átomo
+              // é montado só do `titulo`, então nada do que é lido muda.
+              subtitulo={siglaExibicao(c.partido)}
               base={base}
               // `cor` é preenchimento (faixa + tick). O número grande NÃO usa
               // esta cor: o átomo deriva a tinta de texto do `rank` via

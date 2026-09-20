@@ -44,6 +44,7 @@ import type { EdgeCandidate, EdgeNational, Turno } from "@/lib/edge-config/types
 import { formatPercent } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import { partyChipInk } from "@/lib/utils/party-color";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 /** Threshold mínimo de p_vitoria do líder para "chamada final". */
 export const NATIONAL_WIN_P_THRESHOLD = 0.99;
@@ -140,7 +141,12 @@ export function NationalWinnerBanner({
         {nome} é {turno === 2 ? "eleito" : "eleito no 1º turno"}
       </strong>
       <span className="text-sm opacity-90">
-        {lider.partido} · {pctLabel}
+        {/* Desenhado ⇒ abreviado (2026-09-19); o `aria-label` acima mantém a
+            sigla inteira. É a única divergência visto/ouvido desta faixa, e ela
+            é deliberada: a frase do `<strong>` — o nome da pessoa eleita — é
+            idêntica nos dois canais, e é ela que o comentário logo acima manda
+            manter igual. A sigla é o dado ao lado, não a frase. */}
+        {siglaExibicao(lider.partido)} · {pctLabel}
       </span>
     </div>
   );

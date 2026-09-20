@@ -26,6 +26,7 @@ import { candidateColor } from "@/components/blocks/_candidateColor";
 import { gridBounds, hexCenter, hexPoints, UF_HEX_POSITIONS } from "@/lib/data/uf-hex-layout";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 export interface HexCartogramBrasilProps {
   rows: EdgeUfRow[];
@@ -89,7 +90,19 @@ export function HexCartogramBrasil({ rows, candidatos, hexRadius = 26 }: HexCart
           const pts = hexPoints(x, y, hexRadius);
           const fill = uf ? fillFor(uf, candIndex) : "var(--color-bg-muted)";
           const lider = uf ? candIndex.get(uf.lider) : undefined;
-          const partidoLabel = lider?.partido ?? "";
+          // 2026-09-19 — o hexágono tem ~34 px de largura útil e já carrega a
+          // sigla da UF por cima; a do partido é a segunda linha de texto
+          // dentro dele. É o caso mais apertado do produto inteiro, e é
+          // desenhado ⇒ abreviado.
+          //
+          // 🔴 `ariaText` logo abaixo NÃO abrevia — o nome acessível do
+          // `<Link>` diz "REPUBLICANOS" enquanto o hexágono mostra "REP", e
+          // essa divergência é aceita de propósito. A WCAG 2.5.3 (Label in
+          // Name) fala do RÓTULO do controle: o rótulo deste link é a UF
+          // ("SP"), que é idêntica nos dois canais e é o que alguém diria em
+          // comando de voz. O partido é dado dentro do link, não o rótulo
+          // dele. Ver a seção "Visto ≠ ouvido" em `lib/utils/sigla-partido.ts`.
+          const partidoLabel = lider ? siglaExibicao(lider.partido) : "";
           const ariaText = uf
             ? `${sigla}${lider ? `, líder ${nomeExibicao(lider.nome, lider.sqcand)} (${lider.partido})` : ""}`
             : `${sigla}, sem dados`;

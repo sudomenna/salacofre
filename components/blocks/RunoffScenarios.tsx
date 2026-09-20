@@ -40,6 +40,7 @@ import type { EdgeCandidate, EdgeNational } from "@/lib/edge-config/types";
 import { colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 /**
  * Limiar mínimo de `p_segundo_turno_overall` para exibir os cenários.
@@ -156,8 +157,11 @@ export function RunoffScenarios({
                   />
                   <span className="truncate text-sm font-medium">
                     {nomeA}{" "}
+                    {/* Desenhado ⇒ abreviado (2026-09-19). Dois nomes + duas
+                        siglas + "vs" + a probabilidade numa linha só, com
+                        `truncate` nos nomes. */}
                     <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                      ({s.a.partido})
+                      ({siglaExibicao(s.a.partido)})
                     </span>
                   </span>
                   <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
@@ -169,9 +173,9 @@ export function RunoffScenarios({
                     style={{ background: corB }}
                   />
                   <span className="truncate text-sm font-medium">
-                    {nomeB}{" "}
+                    {nomeB} {/* Idem — ver a sigla do candidato A logo acima. */}
                     <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                      ({s.b.partido})
+                      ({siglaExibicao(s.b.partido)})
                     </span>
                   </span>
                 </div>

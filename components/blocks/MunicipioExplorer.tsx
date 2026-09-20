@@ -89,6 +89,7 @@ import {
   type MunicipioVotoCandidato as FolhaRow,
   votosPorCandidatoMunicipio,
 } from "@/lib/utils/municipio-votos";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 export interface MunicipioExplorerProps {
   ufSigla: string;
@@ -149,8 +150,11 @@ function FolhaLinha({ row, rank }: { row: FolhaRow; rank: number }) {
         >
           {/* 2026-09-18: o "—" agora é do RENDER, não do dado (ver docstring
               de `MunicipioVotoCandidato.partido` em `lib/utils/municipio-votos.ts`)
-              — o texto na tela é idêntico a antes. */}
-          {row.partido ?? "—"}
+              — o texto na tela é idêntico a antes.
+              2026-09-19: desenhado ⇒ abreviado. A abreviação roda DEPOIS do
+              `??`, sobre o texto que vai à tela: o travessão não está na tabela
+              e atravessa intacto. */}
+          {siglaExibicao(row.partido ?? "—")}
         </span>
       </div>
       <div className="text-right">

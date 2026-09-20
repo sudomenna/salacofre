@@ -39,6 +39,7 @@
 
 import { CandidateAvatar } from "@/components/atoms/data/CandidateAvatar";
 import { rankFromColorVar, strongForRank } from "@/lib/utils/cand-color";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 export interface CandidateRowProps {
   /** Nome do candidato (line 1). */
@@ -107,7 +108,8 @@ export function CandidateRow({ nome, partido, cor, votos, pct, iniciais }: Candi
             {nome}
           </strong>
           <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-            {partido}
+            {/* Desenhado ⇒ abreviado (2026-09-19). */}
+            {siglaExibicao(partido)}
           </span>
         </div>
         <div

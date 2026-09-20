@@ -17,6 +17,18 @@
  *   - `<table>` semântico, com `<caption>` + `<thead>` + `<tbody>`.
  *   - Linhas vinculadas a `/uf/[sigla]`.
  *
+ * 🔴 2026-09-19 — esta tabela é o EQUIVALENTE TEXTUAL do mapa nacional, não
+ * um extra. `_NationalChoroplethMapImpl.tsx` aponta o `aria-describedby` do
+ * `role="img"` para o `<h2 id="state-grouped-table-heading">` daqui: quem não
+ * enxerga o coroplético é mandado para cá. Tudo que o balão de hover
+ * (`<HoverCard>`, `aria-hidden` por construção) mostra sobre uma UF e não
+ * existe aqui é informação que a rota `/` simplesmente não entrega a leitor
+ * de tela — e o balão ganhou naquele dia uma 5ª linha, "Outros (N)", com a
+ * cauda de candidaturas fora das quatro primeiras. Ver a nota de `<CelulaUf>`
+ * mais abaixo para o que entrou, e o relatório da rodada para o que ficou de
+ * fora (o balão nomeia 4 candidaturas por UF; esta tabela nomeia só o líder,
+ * e só no cabeçalho da coluna).
+ *
  * As células de UF eram `<a href>` cru até 2026-09-08 e passaram a `<Link>`
  * (ADR-0033 § 1). Um `<a href>` recarrega o documento, e com a moldura
  * persistente isso significa derrubar a moldura inteira — medido no navegador
@@ -75,6 +87,85 @@ function bucketFor(
   const isA = row.lider === candidatoAId;
   if (isA) return abs >= comfortable ? "a_safe" : "a_close";
   return abs >= comfortable ? "b_safe" : "b_close";
+}
+
+/**
+ * Uma célula de UF — a mesma nos dois modos (`binary` e `multi-1t`), que até
+ * 2026-09-19 tinham **cópias byte a byte** deste `<Link>`. Virou função no dia
+ * em que ganhou a segunda linha: duas cópias de uma regra de ausência ("campo
+ * faltando ⇒ NENHUMA linha") é uma cópia a mais do que o número de lugares em
+ * que alguém vai lembrar de conferir.
+ *
+ * 🔴 **A segunda linha, "Outros (N)"** (2026-09-19, decisão do dono). É a
+ * cauda somada pelo produtor (`api/model/project.py`) — todas as candidaturas
+ * da UF fora das quatro primeiras. Ela já existia no balão de hover do mapa,
+ * que é `aria-hidden` por construção (`HoverCard.tsx`: espelha em pixels o que
+ * um ponteiro revelou, e quem navega por teclado não tem ponteiro). Esta
+ * tabela é o alvo do `aria-describedby` daquele mapa, então é AQUI que a
+ * informação passa a existir para todo mundo.
+ *
+ * Visível, não `sr-only`: texto escondido é uma segunda verdade que ninguém
+ * revisa e que apodrece — e este número interessa a quem enxerga também ("um
+ * décimo deste estado não está em nenhuma das quatro primeiras candidaturas"
+ * é exatamente o tipo de fato que o mapa pintado pelo 1º colocado esconde).
+ *
+ * Três regras duras, todas do contrato de `EdgeUfRow.outros`
+ * (`lib/edge-config/types.ts`) e todas com teste dedicado:
+ *
+ *   1. **Campo ausente ⇒ nenhuma linha.** Ausência significa "a cauda é
+ *      vazia" (UF com ≤ 4 candidaturas no cargo), não "os demais somam zero".
+ *      Renderizar incondicionalmente escreveria "Outros 0,0%" numa corrida de
+ *      três, que é uma linha falsa.
+ *   2. **Nada de `100 − Σ(top)`.** O número vem do campo, somado candidato a
+ *      candidato no produtor. Os pontos de uma UF não fecham em 100 (cada um
+ *      é a média de um bootstrap próprio); a subtração publicaria esse resíduo
+ *      de fechamento como se fosse voto de alguém — e aqui seria pior que no
+ *      balão, porque esta tabela nem tem os `top_candidatos` na tela para o
+ *      leitor desconfiar da conta.
+ *   3. **Só `pct` (a projeção), não `pct_atual` nem `votos_atuais`.** Não é
+ *      economia de bytes: a célula tem ~1/5 da largura da tabela e todo o
+ *      vocabulário dela é projeção (`margem_projetada` na mesma linha). Os
+ *      outros dois números da cauda estão em `/senador`, onde a linha é de
+ *      largura cheia. Mesma escolha de `<GovernorCard>`, que também publica
+ *      só o ponto projetado de "Outros".
+ *
+ * Sem marcador de cor, de propósito — e isto é decisão registrada, não
+ * esquecimento: o `<HoverCard>` põe um ESPAÇADOR INVISÍVEL no lugar do ponto
+ * de 8×8 desta linha, porque "um ponto cinza inventaria identidade visual para
+ * o resto" (docstring de `HoverCardRow.color`). Um quadradinho
+ * `var(--color-cand-other)` aqui reabriria exatamente isso. `<GovernorCard>`
+ * usa aquele token, mas para uma BARRA — preenchimento com extensão, que
+ * precisa de alguma tinta —, não para um marcador de identidade.
+ */
+function CelulaUf({ row }: { row: EdgeUfRow }) {
+  const outros = row.outros;
+  return (
+    <Link
+      href={`/uf/${row.sigla}`}
+      className="flex flex-col gap-0.5"
+      style={{ color: "var(--color-text)" }}
+    >
+      <span className="flex items-baseline justify-between gap-2">
+        <span className="font-medium tabular-nums">{row.sigla}</span>
+        <span className="text-xs tabular-nums" style={{ color: "var(--color-text-muted)" }}>
+          {formatPp(row.margem_projetada)} · {formatPercent(row.pct_apurado, 0)}
+        </span>
+      </span>
+      {outros ? (
+        <span
+          className="flex items-baseline justify-between gap-2 text-xs"
+          style={{ color: "var(--color-text-muted)" }}
+        >
+          {/* `n_candidatos` é a razão de este agregado não caber dentro de
+              `top_candidatos[]` — candidatura nenhuma tem esse campo — e é o
+              que impede o rótulo de mentir por omissão: "Outros" sozinho não
+              diz se é gente ou arredondamento. */}
+          <span className="truncate">Outros ({outros.n_candidatos})</span>
+          <span className="tabular-nums">{formatPercent(outros.pct, 1)}</span>
+        </span>
+      ) : null}
+    </Link>
+  );
 }
 
 export function StateGroupedTable({
@@ -143,7 +234,13 @@ export function StateGroupedTable({
           Resultados por estado
         </h2>
         <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-          UFs agrupadas pela margem projetada (líder atual).
+          UFs agrupadas pela margem projetada (líder atual).{" "}
+          {/* 🔴 A legenda é o que impede "Outros (7) 8,1%" de flutuar sem
+              referência: a célula não nomeia nenhuma candidatura (quem nomeia
+              é o cabeçalho da coluna, e só o líder), então sem esta frase o
+              leitor não tem como saber de que conjunto o 8,1% é a soma. */}
+          <strong style={{ fontWeight: 600 }}>Outros</strong> é a soma das candidaturas fora das
+          quatro primeiras de cada estado; o número entre parênteses é quantas são.
         </p>
       </header>
       <div className="overflow-x-auto">
@@ -185,21 +282,7 @@ export function StateGroupedTable({
                       className="border-b px-2 py-1.5 align-top"
                       style={{ borderColor: "var(--color-border)" }}
                     >
-                      {row ? (
-                        <Link
-                          href={`/uf/${row.sigla}`}
-                          className="flex items-baseline justify-between gap-2"
-                          style={{ color: "var(--color-text)" }}
-                        >
-                          <span className="font-medium tabular-nums">{row.sigla}</span>
-                          <span
-                            className="text-xs tabular-nums"
-                            style={{ color: "var(--color-text-muted)" }}
-                          >
-                            {formatPp(row.margem_projetada)} · {formatPercent(row.pct_apurado, 0)}
-                          </span>
-                        </Link>
-                      ) : null}
+                      {row ? <CelulaUf row={row} /> : null}
                     </td>
                   );
                 })}
@@ -297,7 +380,10 @@ function MultiTable({ rows, candidatos, multiDisputaThreshold, className }: Mult
           Resultados por estado
         </h2>
         <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-          UFs agrupadas pelo líder projetado (1º turno).
+          UFs agrupadas pelo líder projetado (1º turno).{" "}
+          {/* Gêmea da legenda do modo binário — ver lá o porquê. */}
+          <strong style={{ fontWeight: 600 }}>Outros</strong> é a soma das candidaturas fora das
+          quatro primeiras de cada estado; o número entre parênteses é quantas são.
         </p>
       </header>
       <div className="overflow-x-auto">
@@ -340,21 +426,7 @@ function MultiTable({ rows, candidatos, multiDisputaThreshold, className }: Mult
                       className="border-b px-2 py-1.5 align-top"
                       style={{ borderColor: "var(--color-border)" }}
                     >
-                      {row ? (
-                        <Link
-                          href={`/uf/${row.sigla}`}
-                          className="flex items-baseline justify-between gap-2"
-                          style={{ color: "var(--color-text)" }}
-                        >
-                          <span className="font-medium tabular-nums">{row.sigla}</span>
-                          <span
-                            className="text-xs tabular-nums"
-                            style={{ color: "var(--color-text-muted)" }}
-                          >
-                            {formatPp(row.margem_projetada)} · {formatPercent(row.pct_apurado, 0)}
-                          </span>
-                        </Link>
-                      ) : null}
+                      {row ? <CelulaUf row={row} /> : null}
                     </td>
                   );
                 })}

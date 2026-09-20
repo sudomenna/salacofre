@@ -14,6 +14,7 @@
 
 import { colorForRank } from "@/lib/utils/cand-color";
 import { formatCI, formatPercent, formatVotes } from "@/lib/utils/format";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 export interface CandidateBarProps {
   nome: string;
@@ -81,7 +82,9 @@ export function CandidateBar({
           <div className="text-lg font-medium" style={{ fontFamily: "var(--font-serif)" }}>
             {nome}{" "}
             <span className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-              ({partido})
+              {/* Desenhado ⇒ abreviado (2026-09-19); o `ariaLabel` acima segue
+                  com a sigla inteira. */}
+              ({siglaExibicao(partido)})
             </span>
           </div>
         </div>

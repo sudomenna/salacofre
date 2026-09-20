@@ -44,6 +44,7 @@ import { Panel } from "@/components/atoms/surfaces/Panel";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 import { candidateColorByMargin, DATA_FILL_STROKE } from "./_candidateColor";
 
 export interface RemainingPanelProps {
@@ -202,7 +203,11 @@ export function RemainingPanel({
                   </th>
                   <td style={{ ...CELL, font: "var(--type-body-sm)" }}>
                     <span>
-                      {lider ? `${nomeExibicao(lider.nome, lider.sqcand)} (${lider.partido})` : "—"}
+                      {/* Desenhado ⇒ abreviado (2026-09-19). Coluna do meio de
+                          uma tabela de 3 colunas dentro do painel lateral. */}
+                      {lider
+                        ? `${nomeExibicao(lider.nome, lider.sqcand)} (${siglaExibicao(lider.partido)})`
+                        : "—"}
                     </span>
                     <span
                       aria-hidden="true"

@@ -45,6 +45,25 @@
  * base escurecida na mesma matiz. Usar `colorForParty()` aqui reintroduz a
  * falha nesses dois.
  *
+ * ---------------------------------------------------------------------------
+ * A sigla desenhada é a ABREVIADA; `data-sigla` continua a inteira
+ * ---------------------------------------------------------------------------
+ * Desde 2026-09-19 o chip imprime `siglaExibicao(sigla)`
+ * (`lib/utils/sigla-partido.ts`): cinco siglas longas viram três letras porque
+ * não cabiam na coluna de 400 px (o caso medido está em
+ * `CandidateResultRow.tsx:266-271`). Oito componentes chegam aqui, então este
+ * é o ponto único.
+ *
+ * O atributo `data-sigla` guarda a sigla **inteira**, de propósito: ele é
+ * chave de máquina (seletor de teste, `querySelector`, depuração), não texto
+ * de leitura. Abreviá-lo faria a tela e o DOM discordarem sobre qual partido
+ * é aquele.
+ *
+ * `abreviar={false}` desliga a abreviação — existe para a home de Deputados
+ * (`app/(dep)/deputado-federal/page.tsx`), onde a sigla aparece em contexto de
+ * bancada por partido, tem espaço, e o dono quer o nome inteiro. O default é
+ * `true` porque a tela apertada é a regra e a folgada é a exceção.
+ *
  * **Passar `color` sem `ink` é inseguro e ninguém vai avisar em runtime**: a
  * tinta cai no default de `--party-outros` (escura), que só por acaso serve
  * para a cor que você passou. O átomo não pode conferir — ele não conhece
@@ -56,6 +75,8 @@
  */
 
 import type { CSSProperties } from "react";
+
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 /** Fallback enquanto os tokens `--party-*` (ADR-0024) não entram em globals.css. */
 export const PARTY_TAG_FALLBACK_COLOR = "var(--party-outros, var(--color-cand-other))";
@@ -72,8 +93,22 @@ export const PARTY_TAG_FALLBACK_INK = "var(--party-outros-ink, var(--text-primar
 export type PartyTagSize = "sm" | "md";
 
 export interface PartyTagProps {
-  /** Sigla exibida — ex. "PT". Renderizada como veio, em caixa alta via CSS. */
+  /**
+   * Sigla do partido — ex. "PT". Passe sempre a **inteira**, como ela vem do
+   * payload: é ela que vai para `data-sigla`, e é sobre ela que a abreviação
+   * de exibição roda. Caixa alta é do CSS, não do dado.
+   */
   sigla: string;
+  /**
+   * Encurtar a sigla na tela (`REPUBLICANOS` → `REP`,
+   * `lib/utils/sigla-partido.ts`). Default `true`.
+   *
+   * `false` só na home de Deputados — ver o bloco no topo do arquivo. Não é
+   * uma preferência de estilo: é o único lugar onde o dono pediu o nome
+   * inteiro, e passar `false` em qualquer outra tela reintroduz a truncagem
+   * com reticências que motivou a abreviação.
+   */
+  abreviar?: boolean;
   size?: PartyTagSize;
   /**
    * Chip sólido: `color` vira fundo e `ink` vira rótulo. **Passe o par inteiro**
@@ -99,6 +134,7 @@ export interface PartyTagProps {
 
 export function PartyTag({
   sigla,
+  abreviar = true,
   size = "md",
   filled = false,
   color = PARTY_TAG_FALLBACK_COLOR,
@@ -141,7 +177,7 @@ export function PartyTag({
           }}
         />
       )}
-      {sigla}
+      {abreviar ? siglaExibicao(sigla) : sigla}
     </span>
   );
 }

@@ -264,6 +264,10 @@ function segmentosDaBancada(payload: EdgePayloadDeputado): VoteBarSegment[] {
     .filter((a) => a.cadeiras > 0)
     .map((a) => ({
       id: a.cod,
+      // 🔴 Sigla inteira — exceção do dono para a home de Deputados
+      // (2026-09-19). O `<VoteBar>` desenha estes `label` sob a barra
+      // (`showLabels` default), então passar `siglaExibicao(a.sigla)` aqui
+      // abreviaria exatamente a tela que o dono mandou não abreviar.
       label: a.sigla,
       pct: (a.cadeiras * 100) / total,
       color: corDaAgremiacao(a),
@@ -544,6 +548,19 @@ export default async function DeputadoFederalPage() {
                           flex: "none",
                         }}
                       />
+                      {/* 🔴 A SIGLA INTEIRA, e isto é a exceção explícita do
+                          dono (2026-09-19): "lugares onde não precisa
+                          abreviar: home de Deputados". Aqui a sigla rotula uma
+                          BANCADA — uma linha por agremiação, largura da coluna
+                          inteira, nada disputando espaço com ela —, não uma
+                          candidatura espremida ao lado de um nome.
+
+                          Nenhum `siglaExibicao(...)` entra neste arquivo. Se
+                          um dia esta linha virar `<PartyTag>`, ela precisa
+                          de `abreviar={false}`: o default do átomo é abreviar,
+                          e sem a prop a exceção evapora em silêncio. O teste
+                          que trava isso é o caso (q) em
+                          `tests/unit/utils/sigla-partido.test.tsx`. */}
                       <span style={{ font: "var(--type-body-sm)" }}>{agr.sigla}</span>
                     </span>
 

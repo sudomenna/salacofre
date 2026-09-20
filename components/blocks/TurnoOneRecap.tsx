@@ -45,6 +45,7 @@ import { candidateMarkerColor } from "@/components/blocks/_candidateColor";
 import type { EdgePayload } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 export interface TurnoOneRecapProps {
   /**
@@ -130,7 +131,10 @@ export function TurnoOneRecap({ recap, className }: TurnoOneRecapProps) {
                 {nomeExibicao(c.nome, c.sqcand)}
               </span>
               <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
-                ({c.partido})
+                {/* Desenhado ⇒ abreviado (2026-09-19). Os três colocados
+                    dividem uma única fileira com `flex-wrap`. O `aria-label`
+                    do `<li>` acima segue com a sigla inteira. */}
+                ({siglaExibicao(c.partido)})
               </span>
               <span className="text-sm font-semibold tabular-nums">{pctLabel}</span>
             </li>

@@ -76,6 +76,7 @@ import type { EdgeDeputadoUfRow } from "@/lib/edge-config/types";
 import { formatPercent, formatTimeHMS, formatVotes } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import { colorForParty } from "@/lib/utils/party-color";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 import depUfFixture from "@/tests/fixtures/blob/dep-uf.json" with { type: "json" };
 import depFixture from "@/tests/fixtures/edge-config/dep-current.json" with { type: "json" };
 
@@ -553,6 +554,22 @@ export default async function UFDeputadoFederalPage({ params }: UFDeputadoPagePr
                               flex: "none",
                             }}
                           />
+                          {/* 🔴 Sigla INTEIRA aqui, e ABREVIADA na lista de
+                              pessoas logo abaixo (`cand.partido`) — não é
+                              incoerência, é a mesma regra aplicada a dois
+                              elementos diferentes (2026-09-19).
+
+                              Este é o cabeçalho de uma BANCADA por agremiação:
+                              a linha inteira é dele, ninguém disputa largura,
+                              e é o elemento idêntico ao que o dono isentou na
+                              home de Deputados. Abreviá-lo faria a MESMA peça
+                              de interface aparecer de dois jeitos em duas
+                              rotas do mesmo cargo.
+
+                              ⚠️ Ponto para o dono confirmar: ele isentou "a
+                              home de Deputados", e este cabeçalho está fora
+                              dela. A leitura adotada é que a isenção é do
+                              CONTEXTO (sigla que rotula bancada), não da URL. */}
                           <span style={{ font: "var(--type-body-sm)" }}>{agr.sigla}</span>
                         </span>
                         <span
@@ -626,7 +643,16 @@ export default async function UFDeputadoFederalPage({ params }: UFDeputadoPagePr
                                   a regra objetiva de prefixo é a que importa neste
                                   cargo: são 20 mil candidaturas. */}
                               {nomeExibicao(cand.nome, String(cand.sqcand))}{" "}
-                              <span style={{ color: "var(--text-muted)" }}>({cand.partido})</span>
+                              {/* 🔴 Desenhado ⇒ abreviado (2026-09-19). Esta é
+                                  a página de UF de Deputado (`/uf/SP/deputado-federal`),
+                                  que lista PESSOAS eleitas numa coluna estreita.
+                                  A exceção do dono — "home de Deputados não
+                                  abrevia" — é da rota `/deputado-federal`, onde
+                                  a sigla rotula uma BANCADA e tem espaço. Rota
+                                  diferente, contexto diferente. */}
+                              <span style={{ color: "var(--text-muted)" }}>
+                                ({siglaExibicao(cand.partido)})
+                              </span>
                               {/* RF-127 — firmeza falsa é o defeito a evitar.
                                   A marcação é TEXTO, não só cor (WCAG 1.4.1). */}
                               {cand.indefinido ? (

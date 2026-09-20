@@ -96,6 +96,15 @@ export function buildBulletin({
     text: `${formatPercent(pctApuradoTotal, 1)} das seções apuradas, com boletim em ${ufsApuradas} de ${totalUfs} unidades federativas.`,
   });
 
+  // 🔊 2026-09-19 — as siglas deste painel NÃO abreviam, e isso é deliberado.
+  //
+  // A abreviação de `lib/utils/sigla-partido.ts` vale para sigla que é TOKEN
+  // dentro de um layout (chip, coluna, rótulo colado ao nome), onde a largura é
+  // finita. Aqui ela está dentro de uma FRASE que quebra linha na largura
+  // inteira do painel — não há pixel em disputa. E `item.text` é a MESMA string
+  // que o leitor de tela recebe: não existe `aria-label` separado para segurar
+  // a versão inteira, então encurtar aqui encurtaria também o que é lido, que é
+  // o lado que a decisão do dia mandou preservar.
   const lider = byRank(national, 1);
   const segundo = byRank(national, 2);
 
