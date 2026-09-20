@@ -69,4 +69,40 @@ describe("<ShellControls />", () => {
       /body:not\(:has\(main\[data-trilha\]\)\)\s*\.controls\s*\{[^}]*display:\s*none/,
     );
   });
+
+  it("(f) `.control` e o `<SegmentedControl>` dentro dele abandonam `width: 100%` a partir de 960px — causa real do defeito medido em 1024px", () => {
+    // `getBoundingClientRect()` devolve zero no happy-dom — não dá para medir
+    // aqui que o controle ficou dentro da janela. O que dá para travar é a
+    // causa raiz: `<TurnoSwitch>` (este `.control`) e o `<SegmentedControl>`
+    // do `<ViewModeSwitch>` (o `[role="tablist"]` dentro do OUTRO `.control`)
+    // carregam `style={{ width: "100%" }}` inline. Isso é correto em mobile
+    // (`.controls` tem largura definida ali) e quebra a partir de 960px,
+    // quando `.controls` passa a se medir pelo próprio conteúdo: um filho
+    // pedindo "100% de um pai sem largura ainda" é a circularidade clássica
+    // do flexbox. Medido em 2026-09-20 (Chrome, 1024px): por causa dela,
+    // `.controls` computava 351px em vez dos 533px reais, e o
+    // `<SegmentedControl>` — que não encolhe (`white-space: nowrap`, sem
+    // `min-width: 0` no próprio `[role="tablist"]`) — pintava ~182px para
+    // fora da caixa do pai. Isto NÃO é o teste (g) de `flex-wrap`: aquele é
+    // rede de segurança e passava (e continuaria passando) com o defeito
+    // intacto — os dois filhos da `.row` sempre couberam lado a lado em
+    // 1024px; o transbordo nasce um nível abaixo, dentro de `.controls`.
+    const css = readFileSync("components/layout/ShellControls.module.css", "utf8");
+    const desktop = css.slice(css.indexOf("@media (min-width: 960px)"));
+    expect(desktop.length, "media query de 960px não encontrada no CSS").toBeGreaterThan(0);
+    expect(desktop).toMatch(/\.control\s*\{[^}]*width:\s*auto\s*!important/);
+    expect(desktop).toMatch(/\.control\s*\[role="tablist"\]\s*\{[^}]*width:\s*auto\s*!important/);
+  });
+
+  it("(g) a fileira também quebra em duas linhas como margem extra — NÃO é o conserto do defeito de 1024px", () => {
+    // `flex-wrap: wrap` na `.row` cobre uma faixa genuína entre 960px e
+    // ~974px (onde `cargoNav` + `.controls`, já com a largura REAL de
+    // conteúdo do teste (f), não cabem lado a lado) e dá margem para conteúdo
+    // futuro. Mas em 1024px — a largura onde o defeito foi medido — os dois
+    // filhos da `.row` sempre couberam; travar só isto, sem o teste (f),
+    // seria a família "teste que não discrimina" (passa com o controle fora
+    // da tela).
+    const css = readFileSync("components/layout/ShellControls.module.css", "utf8");
+    expect(css).toMatch(/\.row\s*\{[^}]*flex-wrap:\s*wrap/);
+  });
 });

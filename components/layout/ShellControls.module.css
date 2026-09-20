@@ -11,8 +11,29 @@
  * como o modo `pure` exige.
  */
 
+/* `flex-wrap: wrap` — REDE DE SEGURANÇA, não o conserto do defeito medido em
+ * 1024px. Esse conserto está lá embaixo, dentro de
+ * `@media (min-width: 960px)`, nas regras `.control` e
+ * `.control [role="tablist"]`. Em 1024px os dois filhos desta fileira CABEM
+ * lado a lado — medido em 2026-09-20: `cargoNav` tem 401px reais e
+ * `.controls` precisa de 533px reais de conteúdo, soma 942px dentro dos
+ * ~992px disponíveis (1024 − 32 de padding) — então `flex-wrap` fica inerte
+ * aqui e NÃO é o que resolve o "Parcial/Projeção" saindo da janela (isso é
+ * causa raiz dentro de `.controls`, não falta de espaço na `.row` — ver o
+ * comentário da media query). O que este `wrap` cobre de verdade é uma faixa
+ * estreita e genuína: entre 960px (onde `cargoNav` liga) e ~974px, a soma
+ * real (942px) excede o espaço disponível (928–942px), e sem `wrap` os dois
+ * transbordariam de novo, só que por falta de espaço legítima. Fica também
+ * como margem contra conteúdo futuro (uma 5ª aba de cargo, um rótulo mais
+ * longo, zoom do navegador empurrando o efetivo abaixo de 974px). Sem efeito
+ * abaixo de 960px: ali `cargoNav` é `display: none`
+ * (`CargoTabs.module.css`), um elemento com `display: none` não gera caixa
+ * nem participa do flex, então a fileira tem um único item e nunca precisa
+ * quebrar — o layout mobile (os dois controles dividindo a largura) continua
+ * idêntico. */
 .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   padding: 0 var(--space-4) var(--space-2);
@@ -94,5 +115,46 @@ body:not(:has(main[data-trilha])) .controls {
 
   .control {
     flex: 0 0 auto;
+  }
+
+  /* A CAUSA RAIZ do defeito medido em 1024px mora aqui, não na `.row`
+   * (comentário lá em cima). `<TurnoSwitch>` É este `.control`, e o
+   * `<SegmentedControl>` do `<ViewModeSwitch>` é o `[role="tablist"]` dentro
+   * do OUTRO `.control` (o `<span>` de `.control.viewMode`) — os dois
+   * carregam `style={{ width: "100%" }}` inline (`TurnoSwitch.tsx`,
+   * `SegmentedControl.tsx`). Isso é CORRETO em mobile: ali `.controls` tem
+   * `flex: 1 1 auto` preenchendo uma `.row` de largura DEFINIDA, e "100%"
+   * quer dizer "a metade que me cabe" — é assim que os dois controles
+   * dividem a tela no celular, e esta regra não toca nesse caso (só existe a
+   * partir de 960px).
+   *
+   * Aqui em cima a regra `.controls` logo acima muda para `flex: 0 0 auto`:
+   * ele passa a se medir pelo PRÓPRIO conteúdo — e um filho pedindo "100% de
+   * um pai que ainda não tem largura" é a circularidade clássica do flexbox.
+   * Medido em 2026-09-20: `.controls` computava 351px de largura (não os
+   * 533px reais que os dois controles precisam), porque o `width: 100%`
+   * aninhado (span → `[role="tablist"]`, dois níveis, nenhum com
+   * `min-width: 0` no meio) faz o Chrome subestimar a contribuição do
+   * `<SegmentedControl>` para essa conta — e como nada muda o que ele de fato
+   * DESENHA na tela (`whitespace-nowrap` nos rótulos, sem `min-width: 0` no
+   * próprio `[role="tablist"]`), ele recusa encolher e pinta ~182px para
+   * fora da caixa do próprio pai (que tem `overflow: visible`) — inalcançável,
+   * mesmo com a `.row` já quebrando linha (ela nunca precisava: os dois
+   * filhos DELA cabiam, o problema sempre esteve um nível abaixo).
+   *
+   * `width: auto !important` troca "estique até 100% do pai" por "o tamanho
+   * do meu conteúdo" — exatamente o que um item `flex: 0 0 auto` já faz
+   * sozinho quando não há `width` explícito competindo. O `!important` é
+   * necessário e não decorativo: só ele vence a declaração inline — nenhuma
+   * especificidade de seletor de folha de estilo vence `style={{ width }}`
+   * sem ele. */
+  .control {
+    /* biome-ignore lint/complexity/noImportantStyles: vence a largura 100% inline do TurnoSwitch (TurnoSwitch.tsx) — só `!important` bate style inline */
+    width: auto !important;
+  }
+
+  .control [role="tablist"] {
+    /* biome-ignore lint/complexity/noImportantStyles: vence a largura 100% inline do SegmentedControl (SegmentedControl.tsx), via ViewModeSwitch — só `!important` bate style inline */
+    width: auto !important;
   }
 }
