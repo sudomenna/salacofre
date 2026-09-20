@@ -136,10 +136,14 @@ describe("<CandidateRanking />", () => {
       }),
     ];
     const doc = parse(<CandidateRanking candidatos={cands} />);
+    // 🔴 2026-09-20 (2ª rodada) — só o parcial é `data-view-cell`; a projeção
+    // virou `data-view-only` e some na visão Parcial. Os dois números seguem no
+    // HTML servido, e é isso que as asserções de texto abaixo guardam.
     const celulas = [...doc.querySelectorAll("[data-view-cell]")].map((el) =>
       el.getAttribute("data-view-cell"),
     );
-    expect(celulas).toEqual(["parcial", "proj"]);
+    expect(celulas).toEqual(["parcial"]);
+    expect(doc.querySelector('[data-view-only="proj"].text-right')).not.toBeNull();
     const texto = doc.body.textContent ?? "";
     expect(texto).toContain("4,1%");
     expect(texto).toContain("4,5%");

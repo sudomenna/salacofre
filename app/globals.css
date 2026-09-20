@@ -703,9 +703,17 @@ a:hover {
  *                       o peso visual. É o que o ADR-0017 exige (nada sai da
  *                       tela) e o que o ADR-0029 § 7 pede (parcial e projeção
  *                       lado a lado).
- *   `data-view-only`  — exclusivo: só o da base ativa aparece. Reservado para
- *                       onde exibir os dois seria ilegível (o preenchimento da
- *                       barra) ou incoerente (o título do painel).
+ *   `data-view-only`  — exclusivo: só o da base ativa aparece. Para onde
+ *                       exibir os dois seria ilegível, incoerente (o título do
+ *                       painel) ou simplesmente não pedido.
+ *
+ * ⚠️ 2026-09-20 (2ª rodada) — a fronteira entre os dois se moveu. A coluna do
+ * número PROJETADO na linha de candidato saiu de `data-view-cell` para
+ * `data-view-only`: por decisão do dono, a visão "Parcial" não mostra leitura
+ * do modelo nenhuma. `display: none` (e não recuo de cor) é o certo aqui
+ * justamente porque tira o número da árvore de acessibilidade — mantê-lo faria
+ * um leitor de tela anunciar, na visão Parcial, um número que a tela não
+ * mostra. A coluna do número PARCIAL segue em `data-view-cell`.
  * ========================================================================= */
 
 [data-view-cell] {
@@ -743,6 +751,25 @@ a:hover {
 :root[data-view="proj"] [data-view-only="proj"],
 :root[data-view="parcial"] [data-view-only="parcial"] {
   display: revert;
+}
+
+/* 🔴 O vão fantasma da faixa colapsada (2026-09-20, 2ª rodada).
+ *
+ * `display: none` tira o item da grade, e a faixa `auto` que o hospedava
+ * colapsa para 0px — mas o `column-gap` ANTES dela continua ocupando espaço.
+ * Medido no Chrome numa reprodução isolada da grade da linha, largura 600px:
+ * com a coluna da projeção escondida, o número parcial terminava em 588px e a
+ * barra (`grid-column: 2 / -1`) em 600px. 12px de desalinhamento entre o
+ * número e a barra logo abaixo dele, só na visão Parcial.
+ *
+ * A grade da linha é declarada inline (é RSC, e o template é do componente),
+ * então a cascata não pode sobrescrevê-la diretamente — regra de folha de
+ * estilo perde para `style`. Por isso o componente lê uma custom property com
+ * o template de quatro faixas como FALLBACK, e este bloco troca só o valor.
+ * Sem `data-view` no `<html>`, ou na visão Projeção, o fallback vale e nada
+ * muda. */
+:root[data-view="parcial"] [data-result-row] {
+  --linha-faixas: 1.5rem minmax(0, 1fr) auto;
 }
 
 /* ----------------------------------------------------------------------------

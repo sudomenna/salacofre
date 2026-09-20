@@ -259,14 +259,33 @@ describe("<ResultPanel />", () => {
     // margem parcial, margem proj, barra parcial, barra proj.
     expect(exclusivos).toEqual(["parcial", "proj", "parcial", "proj"]);
 
-    // E as duas colunas de cada linha continuam sendo `data-view-cell` — os
-    // dois números por candidato ficam visíveis nas duas bases.
+    // 🔴 2026-09-20 (2ª rodada) — as duas colunas da linha deixaram de ser
+    // simétricas. O PARCIAL segue em `data-view-cell` (sempre no DOM, só a
+    // ênfase muda); a PROJEÇÃO virou `data-view-only` e some na visão Parcial,
+    // por decisão do dono. Mutação que morre: devolver a projeção para
+    // `data-view-cell`.
     const linha = doc.querySelector('[data-testid="candidate-result-row"]');
     expect(
       [...(linha?.querySelectorAll("[data-view-cell]") ?? [])].map((c) =>
         c.getAttribute("data-view-cell"),
       ),
-    ).toEqual(["parcial", "proj"]);
+    ).toEqual(["parcial"]);
+    // Dentro da linha há DOIS `data-view-only`, e os dois são `proj`: a coluna
+    // do número projetado e o traço. Nenhum é `parcial` — a visão Parcial não
+    // tem nada de exclusivo, ela é a linha sem esses dois elementos.
+    const exclusivosDaLinha = [...(linha?.querySelectorAll("[data-view-only]") ?? [])];
+    expect(exclusivosDaLinha.map((c) => c.getAttribute("data-view-only"))).toEqual([
+      "proj",
+      "proj",
+    ]);
+    expect(linha?.querySelector('[data-view-only="parcial"]')).toBeNull();
+
+    // E são exatamente esses dois — nomeados, para que trocar um pelo outro
+    // não passe despercebido.
+    expect(linha?.querySelector('[data-view-only="proj"].text-right')?.textContent).toContain("%");
+    expect(
+      linha?.querySelector('[data-testid="result-bar-marker"][data-view-only="proj"]'),
+    ).not.toBeNull();
   });
 
   it("(h) a barra de maioria tem os três segmentos do kit e o marcador em 50%", () => {

@@ -294,14 +294,21 @@ WHEN o cursor do mouse se posiciona em uma UF próxima à borda inferior do cont
 - Given um estado no terço superior, when o balão cabe para baixo, then `translateY(+12px)` padrão.
 - Given um cartão de altura H=150px e contêiner C=400px, when clientY = 350px (>200), then reposicionar para cima, com base em medição real do cartão e contêiner.
 
-**RF-180 — Traço de comparação marca a base não-ativa**
+**RF-180 — A barra é o apurado; o traço é a projeção, e só existe na visão de Projeção**
 
-WHEN uma linha de candidato renderiza em tela com duas bases visíveis (parcial e projeção), the system SHALL exibir um traço vertical curto marcador `[data-testid="result-bar-marker"]` identificando a base que **não** está em foco conforme o seletor Parcial/Projeção do shell.
+> 🔴 **Reescrito em 2026-09-20 (2ª rodada de decisões do dono).** A redação
+> anterior exigia o oposto — "o traço marca a base que **não** está em foco",
+> um traço em cada visão. Ver o histórico no docblock de
+> `components/atoms/tables/CandidateResultRow.tsx`.
+
+WHEN uma linha de candidato renderiza, the system SHALL desenhar o preenchimento da barra `[data-testid="result-bar-fill"]` no percentual **apurado**, em ambas as bases; e SHALL exibir um traço vertical curto `[data-testid="result-bar-marker"]` na posição do percentual **projetado** apenas na visão "Projeção".
 
 **Aceitação**:
-- Given `data-view-only="parcial"` no seletor, when renderiza, then um traço marca a coluna de Projeção (a base ausente do foco).
-- Given `data-view-only="proj"`, when renderiza, then um traço marca a coluna de Parcial.
-- Given ambas as bases no DOM em todos os casos (ADR-0029 § 7), when o traço é omitido por bug, then nenhuma base é mudita (defeito = regressão em cobertura, não ausência invisible).
+- Given a visão "Parcial", when a linha renderiza, then não existe traço algum, e a coluna de projeção sai do DOM (`data-view-only="proj"` ⇒ `display: none` pela cascata do shell) — inclusive da árvore de acessibilidade.
+- Given a visão "Projeção", when a linha renderiza, then existe exatamente **um** traço, com `data-marca="proj"`, posicionado em `left: min(<pct_projetado>%, calc(100% - 2px))`.
+- Given qualquer das duas bases, when a barra renderiza, then o preenchimento tem largura `<pct_atual>%` — nenhuma base desenha a projeção na barra, e é isso que torna impossível o traço coincidir com a ponta do preenchimento.
+- Given `pct_projetado` igual a `0` ou não-finito, when a linha renderiza, then nenhum traço é desenhado (regra dos três estados: não fabricar zero de resgate). O número `0,0%` continua na coluna de texto.
+- Given a coluna "Parcial", when a linha renderiza em qualquer base, then ela permanece no DOM com `data-view-cell="parcial"` — só a ênfase tipográfica muda.
 
 **RF-181 — Lista de candidatos reordena ao trocar base ativa**
 

@@ -185,10 +185,12 @@ function barraDaLista(sigla: string | undefined, posicao: number): string | null
   const doc = parse(
     <CandidateResultRow {...candidateResultRowProps(mkSource(sigla, posicao), posicao + 1)} />,
   );
-  return cssValor(
-    doc.querySelector("[data-testid='result-bar-clip'] > [data-view-only='proj']"),
-    "background",
-  );
+  // 🔴 `result-bar-fill` desde 2026-09-20 (2ª rodada). Era
+  // `[data-testid='result-bar-clip'] > [data-view-only='proj']`: havia DOIS
+  // preenchimentos, um por base. Agora há um só, ele é sempre o apurado, e
+  // perdeu o `data-view-only` — o seletor antigo devolvia `null`, e um teste
+  // de COR que lê `null` compara nada com nada.
+  return cssValor(doc.querySelector("[data-testid='result-bar-fill']"), "background");
 }
 
 /**

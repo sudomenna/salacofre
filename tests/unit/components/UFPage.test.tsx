@@ -374,12 +374,16 @@ describe("UFPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
     const doc = await renderUF();
     const linhas = doc.querySelectorAll('[data-testid="candidate-result-row"]');
     expect(linhas).toHaveLength(candidatos.length);
-    // Nenhuma linha sai do DOM (ADR-0017): as duas bases sempre visíveis.
+    // 🔴 2026-09-20 (2ª rodada) — os DOIS números continuam no HTML servido,
+    // mas por mecanismos diferentes: o parcial em `data-view-cell` (sempre
+    // visível, só a ênfase muda) e a projeção em `data-view-only`, que a
+    // cascata esconde na visão Parcial. Era `data-view-cell` nos dois.
     expect(linhas[0]?.querySelector('[data-view-cell="parcial"]')).not.toBeNull();
-    expect(linhas[0]?.querySelector('[data-view-cell="proj"]')).not.toBeNull();
+    expect(linhas[0]?.querySelector('[data-view-cell="proj"]')).toBeNull();
+    expect(linhas[0]?.querySelector('[data-view-only="proj"]')).not.toBeNull();
     // `pct_atual` do fixture é `pct - 1`; `pct_projetado` é `pct`.
     expect(linhas[0]?.querySelector('[data-view-cell="parcial"]')?.textContent).toContain("40,0%");
-    expect(linhas[0]?.querySelector('[data-view-cell="proj"]')?.textContent).toContain("41,0%");
+    expect(linhas[0]?.querySelector('[data-view-only="proj"]')?.textContent).toContain("41,0%");
   });
 
   it("(j) o kicker da 1ª seção de dado carrega o rótulo 'não oficial' (constituição § 1)", async () => {

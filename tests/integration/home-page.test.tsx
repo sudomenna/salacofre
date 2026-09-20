@@ -614,10 +614,15 @@ describe("HomePage (integration / smoke)", () => {
 
     expect(linhas.length).toBeGreaterThan(0);
     for (const linha of linhas) {
+      // 🔴 2026-09-20 (2ª rodada) — as duas colunas deixaram de ser simétricas:
+      // o parcial fica em `data-view-cell` (sempre no DOM, só a ênfase muda) e
+      // a projeção virou `data-view-only`, que some na visão Parcial. Os DOIS
+      // números continuam no HTML servido, que é o que este caso guarda.
       const celulas = [...linha.querySelectorAll("[data-view-cell]")].map((c) =>
         c.getAttribute("data-view-cell"),
       );
-      expect(celulas).toEqual(["parcial", "proj"]);
+      expect(celulas).toEqual(["parcial"]);
+      expect(linha.querySelector('[data-view-only="proj"].text-right')).not.toBeNull();
     }
     // E nada de collapsible entrou junto com o formato do kit (ADR-0017).
     // Escopado ao `<Panel>` pelo mesmo motivo do teste (l): o `<details>` de
