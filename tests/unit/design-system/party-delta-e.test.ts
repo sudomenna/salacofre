@@ -272,11 +272,13 @@ describe("scripts/data/party-official-hexes.json", () => {
   });
 
   it("partido sem fonte primária é declarado explicitamente, não por omissão", () => {
-    // `official: []` é uma afirmação ("procuramos e não achamos"), e por isso
-    // exige `note` dizendo o que foi procurado. Hoje são dois: DEMOCRATA (o
-    // site usa a paleta padrão do Tailwind, não uma paleta de marca) e
-    // MOBILIZA (domínios fora do ar). O validador não reprova por ausência de
-    // oficial — não há do que se afastar — mas a dívida fica escrita.
+    // `official: []` é uma afirmação ("procuramos e não achamos" OU "não
+    // procuramos"), e por isso exige `note` dizendo qual dos dois foi. Hoje
+    // são três: DEMOCRATA (o site usa a paleta padrão do Tailwind, não uma
+    // paleta de marca), MOBILIZA (domínios fora do ar) e PTB (busca NÃO
+    // tentada em 2026-09-20 — diferente dos outros dois, a note é explícita
+    // sobre essa diferença). O validador não reprova por ausência de oficial
+    // — não há do que se afastar — mas a dívida fica escrita.
     const semFonte = Object.entries(OFFICIAL).filter(
       ([key, e]) => e.official.length === 0 && !STATE_TOKENS.has(key.replace("--party-", "")),
     );
@@ -287,6 +289,7 @@ describe("scripts/data/party-official-hexes.json", () => {
       "--party-democrata",
       "--party-mobiliza",
       "--party-outros",
+      "--party-ptb",
     ]);
   });
 });
@@ -306,8 +309,8 @@ for (const theme of THEMES) {
   ].sort();
 
   describe(`[tema ${theme.id}] constituição § 2 — ΔE76 contra o hex oficial de cada partido`, () => {
-    it("mede todos os 30 partidos + fallback: base, chip, text e 5 níveis", () => {
-      expect(slugs.length).toBe(31);
+    it("mede todos os 31 partidos + fallback: base, chip, text e 5 níveis", () => {
+      expect(slugs.length).toBe(32);
       for (const slug of slugs) {
         expect(tokensOfIn(T, slug), `--party-${slug}`).toHaveLength(8);
       }

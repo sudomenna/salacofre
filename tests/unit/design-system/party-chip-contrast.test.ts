@@ -168,7 +168,7 @@ for (const theme of THEMES) {
 
   describe(`[tema ${theme.id}] constituição § 4 — o par chip/tinta do <PartyTag filled>`, () => {
     it("todo partido tem os dois tokens do par (um sem o outro não garante nada)", () => {
-      expect(slugs.length).toBe(31);
+      expect(slugs.length).toBe(32);
       for (const slug of slugs) {
         expect(T.get(`${slug}-chip`), `--party-${slug}-chip ausente`).toMatch(/^#[0-9a-f]{6}$/);
         expect(T.get(`${slug}-ink`), `--party-${slug}-ink ausente`).toMatch(/^#[0-9a-f]{6}$/);
@@ -243,20 +243,22 @@ describe("por que nenhuma tinta fixa serve", () => {
     const escuras = PARTY_SLUGS.length - claras;
     // Números medidos sobre os chips (não sobre as bases): MDB e Rede escurecem
     // e por isso viram tinta clara, enquanto as bases delas pediriam a escura —
-    // daí 21/10 aqui contra os 19/12 medidos nas bases pelo teste abaixo.
+    // daí 22/10 aqui contra os 20/12 medidos nas bases pelo teste abaixo
+    // (eram 21/10 e 19/12 antes do PTB entrar na paleta em 2026-09-20 — o PTB
+    // pede tinta clara nos dois papéis, então soma 1 em cada "claras").
     expect(claras).toBeGreaterThan(0);
     expect(escuras).toBeGreaterThan(0);
-    expect(claras + escuras).toBe(31);
+    expect(claras + escuras).toBe(32);
   });
 
-  it("medido nas bases: 19 partidos pedem tinta clara e 12 pedem escura", () => {
+  it("medido nas bases: 20 partidos pedem tinta clara e 12 pedem escura", () => {
     // É este número que torna `--text-inverse` fixo indefensável: qualquer
     // tinta única reprova uma dúzia de partidos ou mais.
     const bases = PARTY_SLUGS.map((s) => TOKENS.get(s) as string);
     const claras = bases.filter(
       (hex) => contrastRatio(hex, INK_LIGHT) > contrastRatio(hex, INK_DARK),
     ).length;
-    expect({ claras, escuras: bases.length - claras }).toEqual({ claras: 19, escuras: 12 });
+    expect({ claras, escuras: bases.length - claras }).toEqual({ claras: 20, escuras: 12 });
   });
 
   it("MDB e Rede são exatamente os partidos cuja base reprova com as duas tintas", () => {

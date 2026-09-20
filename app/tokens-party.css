@@ -432,12 +432,23 @@
   --party-mobiliza-4: #0062c0; /* C* 66.0 → 57.3 (gamut sRGB) */
   --party-mobiliza-5: #004388; /* C* 53.0 → 44.5 (gamut sRGB) */
 
+  /* PTB — base L* 46.0 · C* 30.0 · h 245.4° · sem hex oficial conhecido */
+  --party-ptb: #17759a;
+  --party-ptb-chip: #17759a; /* = base · 5.02:1 com a tinta abaixo */
+  --party-ptb-ink: #fbfbfc; /* tinta clara sobre o chip — 5.02:1 (§ 4 exige 4.5:1) */
+  --party-ptb-text: #17759a; /* = base · 4.71:1 em #f3f4f6 · 5.02:1 em #fbfbfc */
+  --party-ptb-1: #d1e6f3;
+  --party-ptb-2: #86c3e6;
+  --party-ptb-3: #4694ba; /* C* 48.0 → 29.6 (gamut sRGB) */
+  --party-ptb-4: #006b8f; /* C* 66.0 → 29.6 (gamut sRGB) */
+  --party-ptb-5: #004a64; /* C* 53.0 → 23.0 (gamut sRGB) */
+
   /* Outros / não mapeado — base L* 65.6 · C* 4.9 · h 263.8° · rampa acromática (C* = 0) — cinza institucional */
   --party-outros: #9aa0a8;
   --party-outros-chip: #9aa0a8; /* = base · 6.82:1 com a tinta abaixo */
   --party-outros-ink: #14171b; /* tinta escura sobre o chip — 6.82:1 (§ 4 exige 4.5:1) */
   --party-outros-text: #6b7078; /* base escurecida L* 65.6 → 47.1 (matiz intacta): a base parava em 2.39:1 sobre o papel · agora 4.53:1 em #f3f4f6 · 4.82:1 em #fbfbfc · ΔE76 18.6 da base, sem hex oficial conhecido */
-  --party-outros-1: #e2e2e2;
+  --party-outros-1: #ede1d0;
   --party-outros-2: #bbbbbb;
   --party-outros-3: #8b8b8b;
   --party-outros-4: #636363;
@@ -794,13 +805,24 @@
   --party-mobiliza-4: #2175de;
   --party-mobiliza-5: #789cf1;
 
+  /* PTB — base L* 62.4 · C* 39.0 · h 245.5° · sem hex oficial conhecido */
+  --party-ptb: #17a2d5; /* mapa afim de L* a partir de #17759a (matiz intacta) · 5.64:1 sobre o papel escuro */
+  --party-ptb-chip: #17a2d5; /* = base · 6.13:1 com a tinta abaixo */
+  --party-ptb-ink: #14171b; /* tinta escura sobre o chip — 6.13:1 (§ 4 exige 4.5:1) */
+  --party-ptb-text: #17a2d5; /* = base · 6.13:1 em #14171b · 5.64:1 em #1c1f24 */
+  --party-ptb-1: #0b2b3a;
+  --party-ptb-2: #00435b; /* C* 33.0 → 21.4 (gamut sRGB) */
+  --party-ptb-3: #005e7e; /* C* 52.0 → 27.1 (gamut sRGB) */
+  --party-ptb-4: #0080aa; /* C* 62.0 → 33.7 (gamut sRGB) */
+  --party-ptb-5: #4aa8d4; /* C* 48.0 → 33.7 (gamut sRGB) */
+
   /* Outros / não mapeado — base L* 82.4 · C* 0.0 · h 158.2° · rampa acromática (C* = 0) — cinza institucional */
   --party-outros: #cdcdcd; /* mapa afim de L* a partir de #9aa0a8 (matiz intacta) · 10.39:1 sobre o papel escuro */
   --party-outros-chip: #cdcdcd; /* = base · 11.31:1 com a tinta abaixo */
   --party-outros-ink: #14171b; /* tinta escura sobre o chip — 11.31:1 (§ 4 exige 4.5:1) */
   --party-outros-text: #cdcdcd; /* = base · 11.31:1 em #14171b · 10.39:1 em #1c1f24 */
-  --party-outros-1: #282828;
-  --party-outros-2: #3e3e3e;
+  --party-outros-1: #2c271f;
+  --party-outros-2: #413d36;
   --party-outros-3: #575757;
   --party-outros-4: #777777;
   --party-outros-5: #9e9e9e;

@@ -830,6 +830,11 @@
     "official": [],
     "note": "sem fonte primaria localizada — mobiliza.org.br retorna 'Account Suspended' e pmn.org.br tem certificado TLS expirado. Wikipedia descreve as cores como vermelho/branco/preto, sem hex."
   },
+  "--party-ptb": {
+    "party": "PTB — Partido Trabalhista Brasileiro",
+    "official": [],
+    "note": "sem fonte primaria localizada NESTA SESSAO (2026-09-20) — nenhuma pesquisa nova foi feita; a instrucao da tarefa foi explicita em nao navegar atras disso. Diferente de democrata/mobiliza acima (onde a busca FOI tentada e falhou), aqui o campo esta vazio por falta de tentativa, nao por tentativa frustrada. Tratamento identico aos dois: o validador nao reprova por ausencia de oficial, e o gerador avisa. Dívida a revisitar com uma sessao que tenha permissao de pesquisa."
+  },
   "--party-outros": {
     "party": "(fallback, nao e partido)",
     "official": [],

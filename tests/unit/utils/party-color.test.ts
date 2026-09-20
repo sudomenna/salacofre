@@ -106,10 +106,10 @@ describe("normalizePartySlug", () => {
     expect(normalizePartySlug("PMN")).toBe(PARTY_FALLBACK_SLUG);
   });
 
-  it("cobre os 30 partidos registrados para 2026", () => {
+  it("cobre os 31 partidos registrados para 2026 (30 + PTB em 2026-09-20)", () => {
     // O `- 1` desconta `outros`, que é fallback, não partido.
-    expect(KNOWN_PARTY_SLUGS.size - 1).toBe(30);
-    for (const sigla of ["PDT", "PSDB", "PC do B", "PV", "Solidariedade", "Mobiliza"]) {
+    expect(KNOWN_PARTY_SLUGS.size - 1).toBe(31);
+    for (const sigla of ["PDT", "PSDB", "PC do B", "PV", "Solidariedade", "Mobiliza", "PTB"]) {
       expect(normalizePartySlug(sigla)).not.toBe(PARTY_FALLBACK_SLUG);
     }
     // A pontuação e o espaço da forma como o TSE publica não atrapalham.
@@ -443,7 +443,7 @@ describe("constituição § 2 — matiz constante no chip e nos 5 níveis", () =
   const derivados = [...KNOWN_PARTY_SLUGS].filter((s) => !ACROMATICOS.has(s));
 
   it("cobre os partidos de rampa derivada", () => {
-    expect(derivados.length).toBe(30);
+    expect(derivados.length).toBe(31);
   });
 
   /**
@@ -495,11 +495,33 @@ describe("constituição § 2 — matiz constante no chip e nos 5 níveis", () =
     }
   });
 
-  it("--party-outros é acromático nos níveis derivados (cinza fica cinza)", () => {
-    for (const level of [1, 2, 3, 5]) {
+  it("--party-outros continua acromático nos níveis 2-5 (cinza fica cinza)", () => {
+    // Até 2026-09-19 os 5 níveis eram acromáticos por construção (C* = 0 em
+    // todo L*). Desde 2026-09-20 o nível 1 ganhou um croma MÍNIMO de fuga de
+    // `--map-uncounted` — ver o teste seguinte e
+    // docs/design-system/tokens.md § "--party-outros × --map-uncounted". Os
+    // demais níveis não colidiam com `--map-uncounted` (a distância em L* já
+    // bastava) e continuam neutros, sem mudança nenhuma.
+    for (const level of [2, 3, 4, 5]) {
       const hex = TOKENS.get(`outros-${level}`) as string;
       expect(chroma(hex), `--party-outros-${level} (${hex}) não é neutro`).toBeLessThan(1);
     }
+  });
+
+  it("--party-outros-1 ganhou um croma MÍNIMO de fuga de --map-uncounted — não virou cor de partido", () => {
+    // O nível 1 colidia com --map-uncounted (ΔE76 2,39 antes do fix — a
+    // rampa acromática caía quase em cima do cinza de "sem apuração", ver
+    // party-separation.test.ts). A correção dá a ele um croma pequeno numa
+    // matiz oposta à de --map-uncounted — pequeno o bastante para não ler
+    // como "cor de partido" (um partido real já usa C* ≈ 10 no PRÓPRIO nível
+    // 1, e sobe até C* 48-66 nos níveis 3-4), grande o bastante para separar.
+    const hex = TOKENS.get("outros-1") as string;
+    const c = chroma(hex);
+    expect(c, `--party-outros-1 (${hex}) devia ter ganhado croma de fuga`).toBeGreaterThan(1);
+    expect(
+      c,
+      `--party-outros-1 (${hex}) croma de fuga grande demais — está lendo como cor de partido`,
+    ).toBeLessThan(15);
   });
 
   it("todo token é hex literal de 6 dígitos (contrato do MapLibre)", () => {

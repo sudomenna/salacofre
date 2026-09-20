@@ -409,6 +409,11 @@ describe("RNF-035 — o mapa de MUNICÍPIO (`ChoroplethMapUF`) também", () => {
     // para uma linha branca, este número é o argumento contra.
     //
     // Medido em 18/09: 14 reprovações no claro, 17 no escuro, de 54 cores.
+    // Refeito em 2026-09-20 com o PTB (32º partido, ver
+    // docs/design-system/tokens.md): 14 no claro (inalterado — a base clara do
+    // PTB, #17759a, passa 3:1 contra branco), **18** no escuro (a base escura
+    // derivada do PTB, #17a2d5, reprova contra branco — mais um azul-claro na
+    // pilha, e a razão de fundo continua a mesma: branco cravado não é halo).
     const porTema: Record<string, number> = {};
     for (const tema of ["claro", "escuro"] as const) {
       porTema[tema] = Object.values(coresQueEsteMapaPinta(tema)).filter(
@@ -416,7 +421,7 @@ describe("RNF-035 — o mapa de MUNICÍPIO (`ChoroplethMapUF`) também", () => {
       ).length;
     }
     expect(porTema.claro, "no claro, o branco cravado reprovava contra 14 cores").toBe(14);
-    expect(porTema.escuro, "no escuro, contra 17").toBe(17);
+    expect(porTema.escuro, "no escuro, contra 18 (era 17 antes do PTB)").toBe(18);
   });
 
   it("o mapa de município desenha as DUAS linhas e não usa cor cravada no traço", () => {

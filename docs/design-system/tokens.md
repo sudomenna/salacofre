@@ -233,9 +233,12 @@ h1, h2, h3 { font-family: var(--font-serif); font-weight: 600; }
 > Validação em runtime: `scripts/gen-party-scale.ts` e gates
 > `tests/unit/design-system/party-delta-e.test.ts` e `.../party-separation.test.ts`.
 
-**31 partidos registrados em 2026-09-07.** A tabela abaixo foi **medida** a partir do
-`app/tokens-party.css` commitado e de `scripts/data/party-official-hexes.json` — não digitada.
-Para regerar: `pnpm gen:party-scale --report`.
+**32 partidos registrados** (31 em 2026-09-07 + PTB em 2026-09-20 — o PTB aparece no dado real e não
+tinha token próprio, caindo no mesmo cinza de "sem apuração" tratado abaixo em
+"`--party-outros` × `--map-uncounted`"; hex escolhido no maior vão de matiz livre da paleta, ΔE76
+mínimo 15,82 de qualquer outro partido — ver nota de fonte oficial após a tabela). A tabela abaixo
+foi **medida** a partir do `app/tokens-party.css` commitado e de
+`scripts/data/party-official-hexes.json` — não digitada. Para regerar: `pnpm gen:party-scale --report`.
 
 | Partido | Token base | Hex | ΔE76 mínimo contra oficial | Contraste sobre papel | Uso seguro |
 |---|---|---|---|---|---|
@@ -264,6 +267,7 @@ Para regerar: `pnpm gen:party-scale --report`.
 | PSOL | `--party-psol` | `#d6a400` | 15.55 vs `#FFC200` | 2.08:1 | **só preenchimento com traço** (reprova 3:1) |
 | PSTU | `--party-pstu` | `#97272b` | 38.68 vs `#CC0000` | 7.23:1 | texto e preenchimento |
 | PT | `--party-pt` | `#c62e49` | 12.01 vs `#B9142C` | 4.91:1 | texto e preenchimento |
+| PTB | `--party-ptb` | `#17759a` | — (sem fonte oficial) | 4.71:1 | texto e preenchimento |
 | PV | `--party-pv` | `#ac2c92` | 108.04 vs `#146332` | 5.41:1 | texto e preenchimento |
 | REDE | `--party-rede` | `#3d8f3d` | 37.12 vs `#379E8D` | 3.67:1 | preenchimento com traço |
 | REPUBLICANOS | `--party-republicanos` | `#2a548a` | 14.08 vs `#005CA9` | 6.98:1 | texto e preenchimento |
@@ -273,9 +277,12 @@ Para regerar: `pnpm gen:party-scale --report`.
 
 **Sem fonte oficial localizada** (dívida a revisitar, não problema resolvido):
 `--party-democrata` (ex-PMB, renomeado pelo TSE em 02/12/2025 — o site usa a paleta padrão do
-Tailwind, que não é identidade de marca) e `--party-mobiliza` (ex-PMN — `mobiliza.org.br` fora do ar,
-`pmn.org.br` com TLS expirado). O validador **não reprova** por ausência de oficial (não há do que se
-afastar), mas o gerador avisa.
+Tailwind, que não é identidade de marca), `--party-mobiliza` (ex-PMN — `mobiliza.org.br` fora do ar,
+`pmn.org.br` com TLS expirado) e `--party-ptb` (Partido Trabalhista Brasileiro — incluído em
+2026-09-20; ⚠️ diferente dos dois anteriores, aqui a busca por fonte oficial **não foi tentada**
+nesta sessão, não foi tentada-e-falhou — a tarefa que incluiu o PTB foi instruída a não pesquisar.
+Dívida a revisitar com uma sessão que possa pesquisar). O validador **não reprova** por ausência de
+oficial (não há do que se afastar), mas o gerador avisa.
 
 ### Distância entre os nossos partidos (gate novo, 2026-09-08)
 
@@ -296,9 +303,9 @@ E uma sexta que só aparecia nas **tintas**: PSB e PSOL distavam 10,51 como base
 correção de a11y tinha criado uma colisão de identidade.
 
 **O gate.** `PARTY_SEPARATION_FLOOR = 12` no gerador: todo par de partidos, nos **três papéis que
-identificam** (`--party-<slug>`, `-chip`, `-text`), precisa de ΔE76 ≥ 12 — 1395 medições
-(465 pares × 3). Falha com código ≠ 0 e é refeito sobre o CSS commitado por
-`tests/unit/design-system/party-separation.test.ts`.
+identificam** (`--party-<slug>`, `-chip`, `-text`), precisa de ΔE76 ≥ 12 — com os 32 partidos de
+2026-09-20, 1488 medições (496 pares × 3; eram 1395/465 com os 31 de 07-08/09). Falha com código ≠ 0
+e é refeito sobre o CSS commitado por `tests/unit/design-system/party-separation.test.ts`.
 
 - **Por que 12**: é o mesmo `DELTA_E_FLOOR` que já vale contra os hexes oficiais — a mesma pergunta
   perceptual ("estas duas cores são a mesma?") não pode ter duas respostas. E 12 cai dentro de um
@@ -348,15 +355,92 @@ motivo em seus pares.
 | 13,00 | `base` | `--party-rede` `#3d8f3d` × `--party-mdb` `#408a50` |
 | 13,06 | `text` | `--party-rede-text` `#2c802f` × `--party-mdb-text` `#347e45` |
 | 13,07 | `chip` | `--party-rede-chip` `#318433` × `--party-mdb-chip` `#388249` |
-| 13,09 | `text` | `--party-psd-text` `#1a7f5c` × `--party-mdb-text` `#347e45` |
+| 13,09 | `text` | `--party-pl-text` `#1a7f5c` × `--party-mdb-text` `#347e45` |
 | 13,13 | `text` | `--party-psb-text` `#7a7200` × `--party-psol-text` `#8d6b00` |
 | 13,15 | `base` | `--party-avante` `#794cae` × `--party-prd` `#6a5acd` |
+
+Refeito em 2026-09-20 (`pnpm gen:party-scale --report`, 32 partidos). Um achado de passagem, não
+defeito desta sessão: a linha que era `--party-psd-text × --party-mdb-text` em 08/09 já não existe —
+virou `--party-pl-text × --party-mdb-text` porque **PL e PSD trocaram de hex base entre si em
+2026-09-19** (a pedido do dono, ver comentário em `PARTY_BASE`); esta tabela não tinha sido refeita
+desde então. PTB (incluído nesta sessão) não aparece nos 10 pares mais próximos — nos três papéis
+(`base`/`chip`/`text`), o par mais próximo dele na paleta inteira é `--party-ptb-text` ×
+`--party-missao-text`, a ΔE76 15,82, bem acima do piso.
 
 O par mais apertado da paleta é o único que **não** passou pelo solver:
 `--party-democrata-text` × `--party-outros-text`, a 12,09 — o cinza-azulado do Democrata contra o
 cinza do fallback, ambos escurecidos para alcançar 4,5:1 sobre o papel. Passa o piso e por isso
 ficou parado (regra 1), mas tem 0,09 de folga: qualquer mexida nas superfícies de papel ou no hex
 do fallback reabre o caso.
+
+### `--party-outros` × `--map-uncounted` (gate novo, 2026-09-20)
+
+O gate acima mede a paleta **contra ela mesma** — mas nunca contra `--map-uncounted`
+(`app/globals.css`), o cinza que o mapa usa para "sem apuração". Defeito medido em 2026-09-20: o
+nível 1 de `--party-outros` (o fallback universal — qualquer sigla sem token próprio, e não é raro:
+PTB antes desta sessão, e ainda hoje qualquer sigla nova que o TSE publique e este repositório não
+tenha cadastrado) saía **puramente acromático** (rampa acromática por construção, C\* = 0 em todo
+L\*) e caía a ΔE76 **2,39** de `--map-uncounted` no claro. Na vista "margem" do mapa nacional, o
+nível 1 é o de menor margem: um estado onde uma candidatura sem cor própria **lidera por pouco**
+ficava visualmente indistinguível de um estado onde **ninguém apurou** — quebrando a decisão do
+dono de 14/09 de que "não começou", "não sabemos" e "apurando" são três estados que nunca podem se
+confundir.
+
+**Medido nos dois temas, nível 1 de todo partido contra `--map-uncounted`** (menores primeiro; o
+piso é 10, ver abaixo):
+
+| Tema claro | ΔE76 | | Tema escuro | ΔE76 |
+|---|---|---|---|---|
+| `--party-outros-1` (era) | **2,39** | | `--party-outros-1` (era) | **6,28** |
+| `--party-dc-1` | 7,44 | | `--party-democrata-1` | 9,28 |
+| `--party-democrata-1` | 7,72 | | `--party-pp-1` | 9,29 |
+| `--party-mobiliza-1` | 7,81 | | `--party-republicanos-1` | 9,42 |
+| `--party-pp-1` | 7,83 | | `--party-dc-1` | 9,51 |
+| `--party-republicanos-1` | 7,91 | | *(outros-1 depois do fix: **11,96**)* | |
+| … 9 outros entre 8,4 e 9,7 | | | | |
+| *(outros-1 depois do fix: **12,18**)* | | | `--party-outros-2` (era) | 8,36 |
+| | | | *(outros-2 depois do fix: **11,93**)* | |
+
+**15 dos 31 partidos reais** ficam abaixo de 10 no claro (nível 1) e **4** no escuro — o mesmo
+defeito perceptual, só que em cores que TÊM identidade própria (o problema ali é mais brando: um
+partido real que lidera por pouco ainda tem cor de FUNDO própria nos outros papéis; `--party-outros`
+não tem nenhuma). Esta sessão **não mexeu nesses 15+4** — é redesenho de rampa, não conserto pontual,
+e fica como recomendação (ver abaixo), não como pendência bloqueante.
+
+**Por que 10 e não 12.** `PARTY_SEPARATION_FLOOR` (12, acima) responde "estas duas cores são o MESMO
+PARTIDO?" e carrega 2 unidades de folga contra revisão de fonte OFICIAL de terceiro — não se aplica
+aqui, porque `--map-uncounted` não é hex de terceiro sujeito a revisão, é token de primeira mão deste
+repositório. A pergunta certa é mais simples — "sem apuração" e "há um número aqui" leem como a
+MESMA COR? — e é exatamente o que `components/blocks/_swingRamp.ts` já respondeu em 18/09 para o
+mesmo cinza, com o piso **10** da constituição § 2 (`PISO_DELTA_E` em
+`tests/unit/design-system/swing-ramp.test.ts`). `MAP_UNCOUNTED_SEPARATION_FLOOR` no gerador reusa
+esse piso pela mesma razão, não é um número novo.
+
+**A correção.** Não é pintar `--party-outros` de uma cor — isso reabriria a colisão original entre
+"cinza institucional" e "cor de partido" (aplicar os alvos de croma reais, C\* 10‥66, ao resíduo de
+matiz do cinza produziria um azul de verdade no nível 3). Cada nível da rampa neutra passa a receber
+o croma **mínimo** que o separa de `--map-uncounted` pelo piso — **0** onde a distância em L\* já
+resolve sozinha (a maioria: níveis 3–5 nos dois temas, nível 2 no claro), e uma matiz **fixa** e
+**oposta** à de `--map-uncounted` (o ponto mais eficiente para abrir distância — os dois vetores
+somam em módulo em vez de cancelar). Só os níveis que de fato colidiam mudam: nível 1 nos dois temas,
+e também o nível 2 no escuro. O resultado é sutil por desenho: nível 1 sai com C\* ≈ 10 (claro) / ≈ 9
+(escuro) — a MESMA ordem de grandeza que qualquer partido real já usa no próprio nível 1
+(`RAMP_C[0]` = 10) — visualmente a mesma discrição, só apontada para longe da ausência de dado em vez
+de para a identidade de um partido. Base, chip e tinta de `--party-outros` não mudaram (já estavam a
+ΔE76 ≥ 24 de `--map-uncounted` nos dois temas).
+
+Implementado em `scripts/gen-party-scale.ts` § 4b (`escapeChromaFromMapUncounted`,
+`escapeHueFromMapUncounted`, `loadMapUncounted`) e gateado em
+`tests/unit/design-system/party-separation.test.ts` (descreve `"--party-outros" × "--map-uncounted"`,
+os dois temas).
+
+**Recomendação para os 15+4 que sobraram** (fora do escopo desta correção): mover só o nível 1 (e o
+2 no escuro) dos 15/4 partidos reais mais próximos exigiria a mesma técnica de croma-de-fuga, mas
+aplicada à identidade de CADA partido — potencialmente reabrindo `PARTY_SEPARATION_FLOOR` entre eles
+(o nível 1 já está deliberadamente fora desse gate por ser matematicamente impossível separar 31+
+partidos num círculo de L\* 90 / C\* 10, ver "Os 5 níveis são escala de MARGEM" acima — introduzir
+uma segunda restrição, "e também longe de `--map-uncounted`", ali é um problema de otimização maior,
+não uma correção pontual). Rever numa sessão dedicada a rampa.
 
 ### O nível 5 não pode virar cinza
 
@@ -389,9 +473,11 @@ carrega em campo próprio.
 
 Invariantes garantidas por teste (`tests/unit/design-system/party-delta-e.test.ts`) e verificadas
 por mim de forma independente em 2026-09-07 e refeitas em 2026-09-08: **L\* estritamente
-decrescente do nível 1 ao 5 nos 31 partidos**, **matiz constante** (maior desvio: 2,7° em
-`--party-pco`, com croma 9,9 = 0,47 unidade Lab, abaixo do limiar de percepção) e **croma do nível 5
-≥ 60% do nível 4** (ver "O nível 5 não pode virar cinza").
+decrescente do nível 1 ao 5 nos 32 partidos** (31 em 07-09/09 + PTB em 20/09), **matiz constante**
+(maior desvio: 2,7° em `--party-pco`, com croma 9,9 = 0,47 unidade Lab, abaixo do limiar de
+percepção) e **croma do nível 5 ≥ 60% do nível 4** (ver "O nível 5 não pode virar cinza"). Exceção
+documentada à matiz constante: os 5 níveis de `--party-outros` (não é partido, não tem identidade a
+proteger) — ver "`--party-outros` × `--map-uncounted`", abaixo.
 
 ### Contraste — o que estes tokens podem carregar
 
@@ -402,8 +488,8 @@ Medido sobre `--surface-page` (`#F3F4F6`) em 2026-09-07:
   amarelos e laranjas. Elas **só podem** aparecer como preenchimento delimitado por traço
   (`--map-stroke` no mapa, borda no chip), **nunca** atrás de texto nem como preenchimento solto.
 - **Para texto existe token próprio: `--party-<slug>-text`**, gerado e medido, com **≥ 4,5:1 sobre
-  `--surface-page` e sobre `--surface-card`**. Catorze dos 31 partidos precisaram escurecer para
-  alcançá-lo — `--party-psol` vai de `#d6a400` (2,08:1) para `#8d6b00` (4,51:1), o maior
+  `--surface-page` e sobre `--surface-card`**. Catorze dos 32 partidos precisaram escurecer para
+  alcançá-lo (PTB não é um deles: `#17759a` já dá 4,71:1 sobre `--surface-page` sem precisar mover) — `--party-psol` vai de `#d6a400` (2,08:1) para `#8d6b00` (4,51:1), o maior
   deslocamento da paleta (ΔE 30,1). Os escurecidos continuam a ΔE76 ≥ 12 dos hexes oficiais e com
   a matiz intacta. Consuma por `textForParty(sigla)`; **nunca** pinte número ou rótulo com
   `colorForParty()`, que devolve a cor de identidade — foi exatamente esse erro que produziu a
@@ -428,7 +514,7 @@ paleta faltando.
 ### Geração e consumo
 
 ```bash
-pnpm gen:party-scale            # regenera app/tokens-party.css (281 tokens)
+pnpm gen:party-scale            # regenera app/tokens-party.css (290 tokens; 281 antes do PTB)
 pnpm gen:party-scale --check    # prova determinismo: saída byte-idêntica
 pnpm gen:party-scale --report   # tabela ΔE76 / L* / C* / h + os 10 pares mais próximos
 pnpm gen:party-scale --suggest  # conjunto MÍNIMO de hexes a mudar quando dois partidos colidem
@@ -445,7 +531,7 @@ API de consumo (`lib/utils/party-color.ts`, exports reais):
 | Função | O que faz |
 |---|---|
 | `colorForParty(sigla)` | sigla → `var(--party-<slug>)`; sigla desconhecida → `var(--party-outros)`. É cor de **área** (chip, barra, polígono do mapa) |
-| `textForParty(sigla)` | sigla → `var(--party-<slug>-text)`, a variante legível **sobre o papel**. Em 17 dos 31 partidos **é** a base. Use para texto colorido por identidade **e para traçado de gráfico** — ver a nota abaixo |
+| `textForParty(sigla)` | sigla → `var(--party-<slug>-text)`, a variante legível **sobre o papel**. Em 18 dos 32 partidos **é** a base (PTB incluído — `#17759a` já passa 4,5:1 sem escurecer). Use para texto colorido por identidade **e para traçado de gráfico** — ver a nota abaixo |
 | `partyChipInk(sigla)` | par `{ background, ink }` pronto para superfície sólida com rótulo em cima (≥ 4,5:1 medido pelo gerador) |
 | `intensityForParty(sigla, nivel)` | sigla + nível 1..5 → `var(--party-<slug>-<n>)` |
 | `intensityLevelForMargin(margemPp)` | margem em pp → nível 1..5 |

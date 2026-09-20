@@ -219,6 +219,18 @@ const PARTY_BASE: readonly PartyEntry[] = [
   { slug: "pv", base: "#AC2C92", nome: "PV" },
   { slug: "solidariedade", base: "#EB4784", nome: "Solidariedade" },
   { slug: "mobiliza", base: "#3E89F9", nome: "Mobiliza (ex-PMN)" },
+  // Incluído em 2026-09-20: o PTB aparece nas fixtures (ex.:
+  // tests/fixtures/edge-config/projection-current.json) e não tinha token
+  // próprio — caía em `--party-outros`, o mesmo cinza que "sem apuração"
+  // (defeito A do mesmo commit). Hex escolhido no maior vão de matiz livre da
+  // paleta (missão h 213,8° ↔ outros h 263,8°, vão de 50°): sem fonte oficial
+  // localizada nesta sessão (nenhuma pesquisa nova foi feita — ver nota em
+  // `scripts/data/party-official-hexes.json`), então o piso de ΔE76 contra o
+  // hex oficial não é aplicável, mesmo tratamento de `democrata`/`mobiliza`
+  // acima. Continua sujeito aos DOIS pisos de separação de primeira mão: 12
+  // contra os outros 30 partidos e 10 contra `--map-uncounted` (seção 4b) —
+  // ambos medidos, não presumidos.
+  { slug: "ptb", base: "#17759A", nome: "PTB" },
   // Fallback universal — sigla desconhecida, ausente, ou federação sem
   // composição resolvida (ADR-0024 § Decisão).
   { slug: "outros", base: "#9AA0A8", nome: "Outros / não mapeado", neutral: true },
@@ -690,6 +702,123 @@ function forbiddenChromaIntervals(L: number, discs: readonly Disc[]): Array<[num
     }
   }
   return out;
+}
+
+// ===========================================================================
+// 4b. `--map-uncounted` — o cinza de "sem apuração" não é um partido
+// ===========================================================================
+// **O defeito medido em 2026-09-20.** `--party-outros` (fallback universal de
+// sigla sem token próprio — PTB e outros 8+ casos reais nas fixtures) força os
+// 5 níveis da rampa a serem **puramente acromáticos** (C* = 0 em todo L*, ver
+// `entry.neutral` em `buildRamp`). O nível 1 sai em L* 90 · C* 0, que é quase
+// exatamente `--map-uncounted` (o cinza de "sem apuração" do mapa, L* 90,47 ·
+// C* 2,31 no claro): ΔE76 **2,39**. Na vista "margem" do mapa nacional, o
+// nível 1 é o de menor margem — um estado onde um candidato sem cor própria
+// LIDERA por pouco fica visualmente indistinguível de um estado onde NINGUÉM
+// apurou. Isso quebra a decisão do dono de 14/09: "não começou", "não sabemos"
+// e "apurando" são três estados que nunca podem se confundir.
+//
+// **Por que 10, não 12.** `PARTY_SEPARATION_FLOOR` (12) responde "estas duas
+// cores são o MESMO PARTIDO?" e carrega 2 unidades de folga contra revisão de
+// fonte oficial — não se aplica aqui, porque `--map-uncounted` não é hex de
+// terceiro sujeito a revisão, é token de primeira mão deste repositório. A
+// pergunta certa é a mais simples, "sem apuração" e "há um número aqui" leem
+// como a MESMA COR? — exatamente o que `components/blocks/_swingRamp.ts` já
+// respondeu em 18/09 para o mesmo cinza, com o piso **10** da constituição §2
+// (ver `PISO_DELTA_E` em `tests/unit/design-system/swing-ramp.test.ts`). Este
+// gerador reusa o mesmo piso pela mesma razão, não um número novo.
+//
+// **A correção não é "outros" ficar colorido.** Aplicar os alvos de croma reais
+// (`RAMP_C` = 10..66) ao resíduo de matiz do cinza produziria um azul de
+// verdade no nível 3 — o comentário original de `entry.neutral` já registra
+// essa armadilha, e ela continua válida. Em vez disso, cada nível neutro ganha
+// só o croma MÍNIMO necessário, numa matiz FIXA e oposta à de
+// `--map-uncounted` (o ponto mais eficiente para abrir distância), calculado
+// em forma fechada: como a matiz é exatamente oposta, o vetor (a,b) do alvo e
+// o de `--map-uncounted` somam em módulo em vez de cancelar, e
+// `ΔE76² = ΔL² + (C + C_mapa)²` — sem essa simetria seria preciso buscar.
+// Níveis já longes em L* (3, 4, 5 no claro; 3+ no escuro) já vencem o piso só
+// pela distância em L* e recebem croma 0, exatamente como antes: a mudança só
+// toca os níveis que de fato colidiam (1 nos dois temas; também o 2 no
+// escuro), o menor deslocamento que resolve o defeito.
+//
+// Medido, o nível 1 sai com C* ≈ 10 (claro) / ≈ 9 (escuro) — a MESMA ordem de
+// grandeza do croma que qualquer partido real já usa no próprio nível 1
+// (`RAMP_C[0]` = 10): visualmente é a mesma sutileza de matiz que o nível mais
+// claro de qualquer partido tem, só apontada para longe do cinza de ausência
+// em vez de para a identidade de um partido.
+
+const GLOBALS_CSS_PATH = path.resolve(import.meta.dirname, "..", "app", "globals.css");
+
+/**
+ * Piso de ΔE76 entre `--party-outros` (base, chip, tinta e os 5 níveis) e
+ * `--map-uncounted`. Ver justificativa do "10, não 12" acima.
+ */
+export const MAP_UNCOUNTED_SEPARATION_FLOOR = 10;
+
+/**
+ * Folga de busca contra `--map-uncounted`, mesmo padrão de `SEARCH_MARGIN`
+ * (linha ~610): o alvo contínuo mira `FLOOR + MARGIN` para sobreviver ao
+ * arredondamento de 8 bits por canal e ao clamp de gamut sem cair abaixo do
+ * piso no hex final.
+ */
+const MAP_UNCOUNTED_SEARCH_MARGIN = 2;
+
+/**
+ * `--map-uncounted` por tema, lido de `app/globals.css` — não de
+ * `tokens-party.css`, porque não é token de partido. Mesmo padrão de
+ * `loadOfficialHexes()`: ler do arquivo (não embutir o hex aqui) é o que
+ * permite ao teste em `tests/unit/design-system/` refazer a mesma conta sem
+ * importar este gerador. Os dois tokens (claro, escuro) são a 1ª e a 2ª
+ * ocorrência de `--map-uncounted:` no arquivo, nesta ordem — o claro vem
+ * antes de qualquer bloco `[data-theme="dark"]`.
+ */
+function loadMapUncounted(): { light: string; dark: string } {
+  const css = readFileSync(GLOBALS_CSS_PATH, "utf8");
+  const found = [...css.matchAll(/--map-uncounted:\s*(#[0-9a-fA-F]{6})\s*;/g)].map((m) =>
+    (m[1] as string).toLowerCase(),
+  );
+  if (found.length < 2) {
+    throw new Error(
+      `--map-uncounted: esperadas 2 ocorrências (claro, escuro) em app/globals.css, achadas ${found.length}.`,
+    );
+  }
+  return { light: found[0] as string, dark: found[1] as string };
+}
+
+const MAP_UNCOUNTED = loadMapUncounted();
+
+function mapUncountedHexFor(spec: ThemeSpec): string {
+  return spec.id === "light" ? MAP_UNCOUNTED.light : MAP_UNCOUNTED.dark;
+}
+
+/**
+ * Matiz oposta à de `--map-uncounted` — o ponto de fuga mais eficiente no
+ * plano (a, b): afastar-se nessa direção soma módulos em vez de cancelar
+ * parcialmente (ver derivação da seção 4b).
+ */
+function escapeHueFromMapUncounted(mapLab: Lab): number {
+  const hueMap = (Math.atan2(mapLab.b, mapLab.a) * 180) / Math.PI;
+  return (hueMap + 180 + 360) % 360;
+}
+
+/**
+ * Croma mínimo, na matiz `escapeHueFromMapUncounted`, para que um ponto em
+ * `L` fique a `floorWithMargin` de `--map-uncounted`. Fechado em forma
+ * analítica (nunca busca): com a matiz exatamente oposta, o vetor (a, b) do
+ * alvo é `C · (cos, sin)` na direção oposta à de `mapLab`, então a projeção do
+ * vetor de `mapLab` sobre essa direção é `−C_mapa` e
+ * `ΔE76² = ΔL² + (C − (−C_mapa))² = ΔL² + (C + C_mapa)²`. Isolando C:
+ * `C = √(floorWithMargin² − ΔL²) − C_mapa`, e `0` quando a distância em L* já
+ * basta sozinha (ou quando o alvo é inatingível nesse L — não ocorre nos
+ * níveis usados aqui, ver comentário da seção 4b).
+ */
+function escapeChromaFromMapUncounted(L: number, mapLab: Lab, floorWithMargin: number): number {
+  const mapC = Math.hypot(mapLab.a, mapLab.b);
+  const dL = L - mapLab.L;
+  const remaining = floorWithMargin * floorWithMargin - dL * dL;
+  if (remaining <= 0) return 0;
+  return Math.max(0, Math.sqrt(remaining) - mapC);
 }
 
 // ===========================================================================
@@ -1442,28 +1571,56 @@ function buildRamp(
   const rampC = spec.ramp.C;
   const discs = entry.neutral ? [] : discsForHue(h, officials, DELTA_E_FLOOR + SEARCH_MARGIN);
 
+  // Para um partido neutro ("outros"), os 5 níveis não usam a matiz da base
+  // (que existe só para identidade em `--party-outros`/`-chip`/`-text`,
+  // intocada abaixo): usam a matiz OPOSTA a `--map-uncounted` — ver seção 4b.
+  // Para os 30 partidos reais, `levelHue` é a mesma `h` de sempre.
+  const mapLab = entry.neutral ? hexToLab(mapUncountedHexFor(spec)) : null;
+  const levelHue = mapLab !== null ? escapeHueFromMapUncounted(mapLab) : h;
+
   // Passada 1 — alvo ∧ gamut.
+  //
+  // Para "outros", o alvo por nível não é 0 fixo: é o croma MÍNIMO que separa
+  // aquele L* de `--map-uncounted` pelo piso da seção 4b — 0 quando a própria
+  // distância em L* já basta (a maioria dos níveis, ver comentário da 4b).
   const chroma: number[] = [];
   const clamped: boolean[] = [];
+  const rawTarget: number[] = [];
   for (let i = 0; i < 5; i++) {
-    const target = entry.neutral ? 0 : (rampC[i] ?? 0);
-    const c = entry.neutral ? 0 : Math.min(target, maxChroma(rampL[i] ?? 0, h));
+    const target =
+      mapLab !== null
+        ? escapeChromaFromMapUncounted(
+            rampL[i] ?? 0,
+            mapLab,
+            MAP_UNCOUNTED_SEPARATION_FLOOR + MAP_UNCOUNTED_SEARCH_MARGIN,
+          )
+        : (rampC[i] ?? 0);
+    const c = Math.min(target, maxChroma(rampL[i] ?? 0, levelHue));
     chroma.push(c);
-    clamped.push(!entry.neutral && c < target - 1e-9);
+    clamped.push(c < target - 1e-9);
+    rawTarget.push(target);
   }
 
   // Passada 2 — ordenação de croma.
+  //
+  // Este passo assume a FORMA de `RAMP_C` (sobe do nível 1 ao 4, recua no 5) e
+  // por isso só se aplica aos 30 partidos reais. O croma de fuga de "outros"
+  // tem a forma OPOSTA por construção (maior perto de `--map-uncounted`,
+  // caindo a 0 assim que a distância em L* já resolve sozinha — ver 4b): forçar
+  // esta ordenação nele destruiria exatamente o croma que separa o nível 1.
   const ordered: boolean[] = [false, false, false, false, false];
-  for (let i = 2; i >= 0; i--) {
-    const next = chroma[i + 1] ?? 0;
-    if ((chroma[i] ?? 0) > next) {
-      chroma[i] = next;
-      ordered[i] = true;
+  if (mapLab === null) {
+    for (let i = 2; i >= 0; i--) {
+      const next = chroma[i + 1] ?? 0;
+      if ((chroma[i] ?? 0) > next) {
+        chroma[i] = next;
+        ordered[i] = true;
+      }
     }
-  }
-  if ((chroma[4] ?? 0) > (chroma[3] ?? 0)) {
-    chroma[4] = chroma[3] ?? 0;
-    ordered[4] = true;
+    if ((chroma[4] ?? 0) > (chroma[3] ?? 0)) {
+      chroma[4] = chroma[3] ?? 0;
+      ordered[4] = true;
+    }
   }
 
   // Passada 3 — empurrão de ΔE76, com a rampa resolvida do topo para a base
@@ -1483,15 +1640,15 @@ function buildRamp(
       previousL === null || spec.ramp.ascending === true
         ? targetL + SOLVER_L_SLACK
         : Math.min(targetL + SOLVER_L_SLACK, previousL - LEVEL_MIN_GAP);
-    const solved = solveLevel(targetL, targetC, h, discs, minL, maxL);
+    const solved = solveLevel(targetL, targetC, levelHue, discs, minL, maxL);
     if (solved === null) {
       throw new Error(
         `--party-${entry.slug}-${i + 1}: nenhum ponto em L* ∈ [${minL.toFixed(1)}, ${maxL.toFixed(1)}] ` +
-          `na matiz ${h.toFixed(1)}° fica a ΔE76 ≥ ${DELTA_E_FLOOR} de todos os hexes oficiais do partido.\n` +
+          `na matiz ${levelHue.toFixed(1)}° fica a ΔE76 ≥ ${DELTA_E_FLOOR} de todos os hexes oficiais do partido.\n` +
           `A matiz base #${entry.base} está cercada demais pela paleta oficial: escolha outro hex base em PARTY_BASE.`,
       );
     }
-    const hex = lchToHex(solved.L, solved.C, h);
+    const hex = lchToHex(solved.L, solved.C, levelHue);
     const { delta, official } = worstAgainstOfficials(hex, officials);
     levels.push({
       level: (i + 1) as 1 | 2 | 3 | 4 | 5,
@@ -1500,7 +1657,7 @@ function buildRamp(
       clamped: clamped[i] ?? false,
       ordered: ordered[i] ?? false,
       pushed: solved.pushed,
-      requestedChroma: entry.neutral ? 0 : (rampC[i] ?? 0),
+      requestedChroma: rawTarget[i] ?? 0,
       gamutChroma: targetC,
       effectiveL: solved.L,
       effectiveChroma: solved.C,
@@ -2085,7 +2242,7 @@ interface ChromaCollapse {
 function chromaCollapses(parties: readonly GeneratedParty[]): ChromaCollapse[] {
   const out: ChromaCollapse[] = [];
   for (const p of parties) {
-    if (p.entry.neutral) continue; // rampa acromática por construção: C* = 0.
+    if (p.entry.neutral) continue; // croma mínimo de fuga (seção 4b), não a rampa de matiz.
     const c4 = p.levels[3]?.measured.C ?? 0;
     const c5 = p.levels[4]?.measured.C ?? 0;
     if (c4 <= 0) continue;

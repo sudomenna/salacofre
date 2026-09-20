@@ -26,6 +26,15 @@
  * **CSS commitado**, a cada `pnpm test`, com a colorimetria **reimplementada**
  * — um teste que importa a função que quer verificar não verifica nada.
  *
+ * **2026-09-20 — o gate media a paleta contra ela mesma, e não contra a
+ * AUSÊNCIA de dado.** `--party-outros` (o fallback universal) tinha o nível 1
+ * a ΔE76 **2,39** de `--map-uncounted` (`app/globals.css`, o cinza de "sem
+ * apuração"), e nada aqui olhava para lá. Um bloco novo abaixo
+ * (`"--party-outros" × "--map-uncounted"`) fecha essa lacuna, com piso
+ * **10**, não 12 — ver `MAP_FLOOR` para a justificativa completa e
+ * `docs/design-system/tokens.md` § "`--party-outros` × `--map-uncounted`"
+ * para a tabela e a correção.
+ *
  * Cross-refs:
  *   - Constituição § 2: `docs/constitution.md`
  *   - ADR-0024: `docs/architecture/adrs/0024-paleta-editorial-por-partido.md`
@@ -43,6 +52,7 @@ import { describe, expect, it } from "vitest";
 // independente de propósito; se as duas divergirem, este teste falha, que é o
 // comportamento desejado.
 import {
+  MAP_UNCOUNTED_SEPARATION_FLOOR,
   PARTY_SEPARATION_FLOOR,
   separationFailureMessage,
 } from "../../../scripts/gen-party-scale.ts";
@@ -65,6 +75,38 @@ import {
  * custo por piso está no comentário da seção 7b do gerador.
  */
 const SEPARATION_FLOOR = 12;
+
+/**
+ * Piso de ΔE76 entre um token de partido (base/chip/text, e — só para
+ * `--party-outros` — também os 5 níveis) e `--map-uncounted`
+ * (`app/globals.css`), o cinza que o mapa usa para "sem apuração".
+ *
+ * Escrito à mão aqui (não importado), pela mesma razão de `SEPARATION_FLOOR`
+ * acima: é o **contrato**, e o teste "o piso do gerador é o piso deste
+ * contrato" (fim do arquivo) reprova se alguém abaixar
+ * `MAP_UNCOUNTED_SEPARATION_FLOOR` no gerador para fazer uma colisão passar.
+ *
+ * **Por que 10, e não os 12 de `SEPARATION_FLOOR`.** Os 12 carregam 2 unidades
+ * de folga contra revisão de fonte OFICIAL de terceiro — não se aplica aqui,
+ * `--map-uncounted` não é hex de terceiro. A pergunta é mais simples: "sem
+ * apuração" e "há um número aqui" leem como a MESMA COR? Exatamente o que
+ * `components/blocks/_swingRamp.ts` respondeu em 18/09 para o mesmo cinza, com
+ * o piso 10 da constituição § 2 (`PISO_DELTA_E` em `swing-ramp.test.ts`). Este
+ * gate reusa esse piso pela mesma razão, não inventa um número novo.
+ *
+ * **Por que existe.** Medido em 2026-09-20: `--party-outros-1` (o fallback
+ * universal — qualquer sigla sem token próprio, e não é raro: 8+ candidaturas
+ * reais nas fixtures antes do PTB ganhar token) chegava a ΔE76 **2,39** de
+ * `--map-uncounted` no claro — a rampa acromática (C* = 0) do nível 1 caía
+ * quase em cima do cinza de "sem apuração". Na vista "margem" do mapa
+ * nacional, o nível 1 é o de MENOR margem: um estado onde uma candidatura sem
+ * cor própria lidera por pouco ficava indistinguível de um estado onde
+ * NINGUÉM apurou — quebrando a decisão do dono de 14/09 (três estados que
+ * nunca podem se confundir). Ver `docs/design-system/tokens.md`
+ * § "`--party-outros` × `--map-uncounted`" para a tabela completa e a correção
+ * (`scripts/gen-party-scale.ts` § 4b).
+ */
+const MAP_FLOOR = 10;
 
 // ---------------------------------------------------------------------------
 // Colorimetria — reimplementada de propósito (ver docblock)
@@ -139,6 +181,33 @@ const THEMES = [
   { id: "escuro", tokens: parseTokens(blockOf(TOKENS_CSS, ':root[data-theme="dark"] {')) },
 ] as const;
 
+/**
+ * `--map-uncounted` não é token de partido — vive em `app/globals.css`, não em
+ * `app/tokens-party.css`. Esse arquivo tem VÁRIOS blocos
+ * `:root[data-theme="dark"] { … }` (não um só, ao contrário de
+ * `tokens-party.css`), então `blockOf` não serve para achá-lo com segurança.
+ * Em vez de casar chaves, pegamos as duas ocorrências literais de
+ * `--map-uncounted:` na ordem em que aparecem no arquivo — a 1ª é sempre a do
+ * tema claro (declarada antes de qualquer bloco `[data-theme="dark"]`), a 2ª é
+ * a do escuro. Mesmo padrão de leitura direta do CSS commitado que o resto
+ * deste arquivo usa, e o mesmo método do gerador (`loadMapUncounted()` em
+ * `scripts/gen-party-scale.ts` § 4b) — reimplementado aqui, não importado, por
+ * ser este um teste que não confia na função que quer verificar.
+ */
+const GLOBALS_CSS = readFileSync(path.join(ROOT, "app/globals.css"), "utf8");
+const MAP_UNCOUNTED_MATCHES = [
+  ...GLOBALS_CSS.matchAll(/--map-uncounted:\s*(#[0-9a-fA-F]{6})\s*;/g),
+].map((m) => (m[1] as string).toLowerCase());
+if (MAP_UNCOUNTED_MATCHES.length < 2) {
+  throw new Error(
+    `--map-uncounted: esperadas 2 ocorrências (claro, escuro) em app/globals.css, achadas ${MAP_UNCOUNTED_MATCHES.length}.`,
+  );
+}
+const MAP_UNCOUNTED_BY_THEME: Record<"claro" | "escuro", string> = {
+  claro: MAP_UNCOUNTED_MATCHES[0] as string,
+  escuro: MAP_UNCOUNTED_MATCHES[1] as string,
+};
+
 /** Estados de corrida: não são partido, logo não entram na comparação. */
 const STATE_TOKENS = new Set(["tie", "none"]);
 
@@ -197,9 +266,9 @@ for (const theme of THEMES) {
   // -------------------------------------------------------------------------
 
   describe(`[tema ${theme.id}] app/tokens-party.css — cobertura da comparação`, () => {
-    it("compara os 31 partidos em três papéis: 465 pares × 3 = 1395 medições", () => {
-      expect(PARTY_SLUGS.length).toBe(31);
-      expect(PAIRS.length).toBe(((31 * 30) / 2) * 3);
+    it("compara os 32 partidos em três papéis: 496 pares × 3 = 1488 medições", () => {
+      expect(PARTY_SLUGS.length).toBe(32);
+      expect(PAIRS.length).toBe(((32 * 31) / 2) * 3);
     });
 
     it("todo papel comparado existe no CSS de todo partido", () => {
@@ -256,6 +325,87 @@ for (const theme of THEMES) {
   });
 
   // -------------------------------------------------------------------------
+  // O gate novo (2026-09-20): a paleta também precisa se separar do AUSENTE
+  // -------------------------------------------------------------------------
+  // O gate acima mede a paleta contra ELA MESMA. Nenhuma medida olhava para
+  // `--map-uncounted` (o cinza de "sem apuração", em `app/globals.css`), e foi
+  // assim que `--party-outros-1` nasceu quase idêntico a ele (ΔE76 2,39 no
+  // claro) sem que nada reclamasse — ver `MAP_FLOOR` acima para o histórico
+  // completo e a justificativa do piso 10.
+
+  const mapUncountedHex = MAP_UNCOUNTED_BY_THEME[theme.id];
+
+  interface MapPair {
+    label: string;
+    token: string;
+    hex: string;
+    deltaE: number;
+  }
+
+  /**
+   * Toda medição contra `--map-uncounted`, construída ANTES dos `it()` — o
+   * mesmo padrão de `PAIRS` acima. É o que torna a cobertura auditável: o
+   * teste de sanidade logo abaixo trava o TAMANHO deste array, então remover
+   * (ou silenciosamente encolher) um dos dois laços que o povoam — o de
+   * `--party-outros` ou o dos outros 31 partidos — derruba a contagem e
+   * reprova ali, mesmo que a `it()` que fazia a medição em si tenha sumido.
+   */
+  const MAP_PAIRS: MapPair[] = [];
+  for (const role of ROLES) {
+    const hex = roleHex("outros", role);
+    MAP_PAIRS.push({
+      label: "outros",
+      token: tokenName("outros", role),
+      hex,
+      deltaE: deltaE76(hex, mapUncountedHex),
+    });
+  }
+  for (const level of [1, 2, 3, 4, 5] as const) {
+    const hex = TOKENS.get(`outros-${level}`) as string;
+    MAP_PAIRS.push({
+      label: "outros",
+      token: `--party-outros-${level}`,
+      hex,
+      deltaE: deltaE76(hex, mapUncountedHex),
+    });
+  }
+  for (const slug of PARTY_SLUGS) {
+    if (slug === "outros") continue; // coberto acima, com o mesmo piso
+    for (const role of ROLES) {
+      const hex = roleHex(slug, role);
+      MAP_PAIRS.push({
+        label: slug,
+        token: tokenName(slug, role),
+        hex,
+        deltaE: deltaE76(hex, mapUncountedHex),
+      });
+    }
+  }
+
+  describe(`[tema ${theme.id}] "--party-outros" × "--map-uncounted" — ausência não é dado`, () => {
+    it("cobertura: outros em 3 papéis + 5 níveis, os demais 31 partidos em 3 papéis = 101 medições", () => {
+      // 8 (outros) + 31 × 3 (os demais, só base/chip/text — nível fica de fora
+      // por design, ver "Por que os níveis 1..5 NÃO entram no gate" abaixo).
+      expect(MAP_PAIRS.length).toBe(ROLES.length + 5 + (PARTY_SLUGS.length - 1) * ROLES.length);
+      expect(MAP_PAIRS.length).toBe(101);
+    });
+
+    it.each(
+      MAP_PAIRS.map((p): [string, MapPair] => [p.token, p]),
+    )("%s fica a ΔE76 ≥ 10 de --map-uncounted", (_label, pair) => {
+      expect(
+        pair.deltaE,
+        `${separationFailureMessage(
+          { token: pair.token, hex: pair.hex, nome: pair.label.toUpperCase() },
+          { token: "--map-uncounted", hex: mapUncountedHex, nome: "MAP-UNCOUNTED" },
+          pair.deltaE,
+          MAP_FLOOR,
+        )}\n\nTema ${theme.id}. "Sem apuração" e "há um candidato aqui" não podem ler como\na mesma cor — é a decisão do dono de 14/09 (três estados que nunca se\nconfundem). Na vista "margem" o nível 1 é o de MENOR margem, onde essa\nconfusão dói mais.`,
+      ).toBeGreaterThanOrEqual(MAP_FLOOR);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Por que os níveis 1..5 NÃO entram no gate
   // -------------------------------------------------------------------------
 
@@ -291,6 +441,15 @@ describe("app/tokens-party.css — o piso do gerador é o piso deste contrato", 
         "deliberada, atualize SEPARATION_FLOOR aqui E a seção de paleta em\n" +
         "docs/design-system/tokens.md, com a tabela de custo por piso refeita.",
     ).toBe(SEPARATION_FLOOR);
+  });
+
+  it("MAP_UNCOUNTED_SEPARATION_FLOOR e MAP_FLOOR não divergem", () => {
+    expect(
+      MAP_UNCOUNTED_SEPARATION_FLOOR,
+      "MAP_UNCOUNTED_SEPARATION_FLOOR mudou em scripts/gen-party-scale.ts. Se a\n" +
+        "mudança é deliberada, atualize MAP_FLOOR aqui E a seção\n" +
+        '"--party-outros × --map-uncounted" em docs/design-system/tokens.md.',
+    ).toBe(MAP_FLOOR);
   });
 });
 

@@ -186,7 +186,7 @@ for (const theme of THEMES) {
 
   describe(`[tema ${theme.id}] constituição § 4 — a cor de partido usada como texto`, () => {
     it("todo partido tem o token -text (sem ele, textForParty aponta para o vazio)", () => {
-      expect(slugs.length).toBe(31);
+      expect(slugs.length).toBe(32);
       for (const slug of slugs) {
         expect(T.get(`${slug}-text`), `--party-${slug}-text ausente`).toMatch(/^#[0-9a-f]{6}$/);
       }
