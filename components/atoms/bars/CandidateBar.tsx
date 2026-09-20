@@ -3,9 +3,49 @@
  *
  * Barra horizontal proporcional para um candidato — exibe nome, partido,
  * %, votos e CI95 ao lado/abaixo da barra. Usada por `<HeadlineScore />`
- * (RF-022, RF-023) e por `<DecisiveUFsGrid />` (cards estreitos).
+ * (RF-022, RF-023), único caller no repositório.
+ *
+ * ⚠️ O docblock afirmou até 2026-09-20 que `<DecisiveUFsGrid />` também a
+ * usava. Não usa, e nunca usou: aquele bloco desenha a própria mini-barra com
+ * `candidateColor` e não importa este átomo.
  *
  * Server Component puro — sem state, sem hooks, sem 'use client'.
+ *
+ * ## 🔴 DUAS tintas, não uma (2026-09-20)
+ *
+ * Este átomo pinta duas superfícies de natureza oposta com a identidade do
+ * partido, e elas NÃO podem sair da mesma variável:
+ *
+ * | superfície | piso | o que usa |
+ * |---|---|---|
+ * | o número `text-3xl` | 4,5:1 — TEXTO (RNF-022 / const. § 4) | `textForParty` |
+ * | o preenchimento da barra | 3:1 — não-texto com extensão (RNF-035) | `colorForParty` |
+ *
+ * Até esta data as duas saíam de `corResolvida`, a cor-base. Medido contra
+ * `--surface-page` (`#f3f4f6`, o fundo real — nem `<Panel>` nem nenhum outro
+ * ancestral declara fundo próprio; quem decide é `body`): **PSOL 2,08:1**,
+ * PSB 2,20, NOVO 2,72, federação/sem sigla 2,39 — abaixo de metade do piso
+ * que o projeto adotou para si.
+ *
+ * 🔴 **QUANDO essa tela aparece, porque a resposta não é "sempre".** O único
+ * caller é `<HeadlineScore>`, e `app/(pres)/page.tsx:685,903-948` só o
+ * renderiza no ramo `mode === "binary"` e fora da fase pré — ou seja, no **2º
+ * turno (25/10)**, ou num 1º turno com exatamente 2 candidaturas (ramo
+ * defensivo). No 1º turno multi-candidato de 04/10 a home cai em
+ * `painelDeIdentidade` e usa `<ResultPanel>`, onde este átomo não entra.
+ * O defeito era real e o conserto vale; mas ele mira a tela de 25/10, não a
+ * de 04/10 — e essa distinção foi corrigida depois de um relato inicial que
+ * a tratava como "a porta de entrada do site hoje".
+ *
+ * É o MESMO erro que `eb3170e` consertou na coluna "Margem" da
+ * `<MunicipioTable>` no mesmo dia, e que o componente irmão
+ * `<ProjectionThermometer>` já evitava por `corTextoResolvida`. A distinção
+ * está escrita desde 18/09 em `components/blocks/_candidateColor.ts`: texto
+ * não tem extensão a contornar, então escurece-se a tinta; preenchimento com
+ * extensão não pode escurecer sem trair a identidade, então ganha fronteira.
+ *
+ * A barra **não** escureceu junto: ela é preenchimento com extensão, e é ali
+ * que a cor viva do partido tem de viver.
  *
  * A11y
  *   - role="meter" + aria-valuemin/max/now e aria-label descritivo.
@@ -13,7 +53,7 @@
  */
 
 import { formatCI, formatPercent, formatVotes } from "@/lib/utils/format";
-import { colorForParty } from "@/lib/utils/party-color";
+import { colorForParty, textForParty } from "@/lib/utils/party-color";
 import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 export interface CandidateBarProps {
@@ -78,6 +118,17 @@ export function CandidateBar({
   // que `ChoroplethMapUF.tsx` declara. As duas funções devolvem o mesmo token;
   // `candidateColor` é a fachada de `blocks/`.
   const corResolvida: string = cor ?? colorForParty(partido);
+  // 🔴 A tinta do NÚMERO não passa por `cor` nem por `corResolvida`, de
+  // propósito — é isso que impede um caller de derrubar o contraste do maior
+  // número da home só por passar a cor de preenchimento, que é exatamente
+  // como o defeito viveu até 2026-09-20 (`<HeadlineScore>` passa
+  // `cor={candidateColor(...)}`). Ver a tabela das duas tintas no topo.
+  //
+  // `partido` é prop OBRIGATÓRIA, então não há terceiro degrau a percorrer:
+  // sigla ausente, desconhecida ou de federação já cai em
+  // `--party-outros-text` (4,53:1) dentro de `textForParty`, e não na
+  // cor-base `--party-outros` (2,39:1), que reprovaria.
+  const corTextoResolvida: string = textForParty(partido);
   const pctSafe = Number.isFinite(pctProjetado) ? Math.max(0, Math.min(100, pctProjetado)) : 0;
   const ariaLabel = `${nome} (${partido}): ${formatPercent(pctSafe)} projetado${
     typeof pctLower === "number" && typeof pctUpper === "number"
@@ -107,7 +158,7 @@ export function CandidateBar({
         <div className={numberClass}>
           <div
             className="font-serif text-3xl font-semibold tabular-nums leading-none"
-            style={{ color: corResolvida }}
+            style={{ color: corTextoResolvida }}
           >
             {formatPercent(pctSafe, 1)}
           </div>

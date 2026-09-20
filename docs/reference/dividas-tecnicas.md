@@ -13,15 +13,17 @@ observado no código; (b) implicação; (c) decisão necessária.
 
 ---
 
-## 1. 🔴 `CandidateBar.tsx:94` — número grande pinta com cor de preenchimento
+## 1. ✅ RESOLVIDA (2026-09-20) — `CandidateBar.tsx` pintava o número grande com cor de preenchimento
 
-| Fato | Número `text-3xl` na barra de candidatura usa `color: colorForParty(sigla)` |
+| Fato | O número `text-3xl` da barra de candidatura usava `color: colorForParty(sigla)` — a cor-base, de preenchimento |
 |---|---|
-| Medição | PSOL 2,08:1 · PSB 2,20:1 · NOVO 2,72:1 · fallback 2,39:1 contra 4,5:1 (AA) |
-| RNF | RNF-023 (contraste) — violação do mesmo tipo reprová em 07/09 pelo axe |
-| **Solução** | **Usar `textForParty(sigla)` em vez de `colorForParty()`** — função já existe, devolve cor escurecida com ≥4,5:1 |
-| Prioridade | P1 (regressão visual) |
-| Proprietário | `spec-implementer` (specs 003, 004, 005, 016) |
+| Medição | PSOL 2,08:1 · PSB 2,20:1 · NOVO 2,72:1 · federação/sem sigla 2,39:1, contra o piso de 4,5:1 (RNF-022 / const. § 4) |
+| Superfície | `--surface-page` (`#f3f4f6`). Verificado que é o fundo real: `<Panel>` declara só `border-top`/`padding-top`, nenhum ancestral da home declara fundo, e quem decide é `body { background: var(--surface-page) }` (`app/globals.css:570`) |
+| Alcance | `<CandidateBar>` → `<HeadlineScore>` → `app/(pres)/page.tsx`, caller único. ⚠️ **Só no 2º turno**: `app/(pres)/page.tsx:685,903-948` renderiza `<HeadlineScore>` apenas no ramo `mode === "binary"` fora da fase pré — 25/10, ou um 1º turno com exatamente 2 candidaturas. No 1º turno multi-candidato de 04/10 a home usa `<ResultPanel>`, onde este átomo não entra. Corrigido depois de um relato inicial que dizia "a porta de entrada do site hoje" |
+| **Conserto** | **Decisão do dono, 2026-09-20: "pode escurecer".** Duas tintas em vez de uma — o NÚMERO usa `textForParty()` (variante `-text`, escurecida com a matiz intacta); a BARRA continua em `colorForParty()`, porque é preenchimento com extensão e o remédio dela é contorno, não tinta (RNF-035) |
+| Padrão seguido | `<ProjectionThermometer>`, componente irmão no mesmo diretório, já fazia isso por `corTextoResolvida`. `<CandidateBar>` era o que faltava |
+| Cobertura | `tests/unit/design-system/placar-contraste.test.tsx` (6 casos) — mede contraste real contra os tokens do CSS, nos dois temas, nas 32 siglas. Três mutações aplicadas e revertidas: desfazer o conserto → 4 mortos; escurecer a barra junto (o remédio errado) → 2 mortos; medir contra `--surface-sunken` → 3 mortos |
+| De passagem | O docblock do arquivo afirmava que `<DecisiveUFsGrid>` também usava o átomo. Não usa e nunca usou — corrigido. `<HeadlineScore>` e `<DecisiveUFsGrid>` foram auditados: todo `candidateColor` neles é `backgroundColor`, nenhum pinta texto |
 
 ---
 
@@ -198,8 +200,11 @@ observado no código; (b) implicação; (c) decisão necessária.
 | Por que é dívida e não defeito | Matematicamente passa, sem ambiguidade. O problema é **não haver absorção de erro**: três coisas derrubam AGIR abaixo do piso sem ninguém tocar em cor de partido — (1) mudar `--paper-1` por motivo alheio a partido, ex. redesign de tema; (2) arredondamento diferente entre o gerador do token e quem audita; (3) navegador com perfil de cor diferente de sRGB puro, que é o que o cálculo WCAG assume |
 | O que já protege | `tests/unit/design-system/municipio-contraste.test.tsx` e `party-text-contrast.test.ts` pegam a **regressão de token** (caso 1) e reprovam a suíte |
 | O que falta | Não há decisão escrita dizendo "sabemos que é justo, é aceito, e eis o porquê". Quem mexer em `--paper-1` vai descobrir pelo teste vermelho, sem contexto. Mesmo padrão que o RNF-035 já resolveu para o problema irmão (rampa do halo do mapa) |
-| Próximo passo | Nota curta em `docs/nfr/accessibility.md`: "a variante `-text` mira 4,5:1 com folga mínima em 2 das 32 siglas (AGIR, REDE); recalibrar se `--surface-page` mudar" |
-| Prioridade | P3 — registro, não bloqueio |
+| ⚠️ Remedição de 2026-09-20 | **São 15, não 2.** A varredura independente das 32 siglas contra `#f3f4f6` dá: 5 abaixo de 4,51 (AGIR 4,5021 · REDE 4,5049 · PSOL 4,5051 · PSB 4,5064 · PL 4,5066), **10 abaixo de 4,52 e 15 abaixo de 4,60**. Não é acaso: as siglas que não alcançavam o piso foram escurecidas mecanicamente até encostar nele, então a paleta tem um pelotão inteiro na linha, não duas exceções |
+| 🔴 O risco tem DIREÇÃO, e isso é o que faltava | **Clarear o papel é de graça; escurecer derruba tudo de uma vez.** Medido: com `--paper-1` em `#f4f5f7`, `#f6f7f9` ou até `#ffffff`, nenhuma das 32 cai. Com `#f1f2f4` — dois pontinhos de hex mais escuro — **15 das 32 reprovam**. Uma regra com direção é seguível sem régua; "recalibrar se mudar" não é |
+| ⬆️ Aposta subiu em 2026-09-20 | Com a dívida 1 consertada, essa paleta deixou de pintar só a coluna "Margem" da tabela de municípios e passou a pintar o **número `text-3xl` do placar da home** — o maior número do site. A margem de 0,002 agora está embaixo do elemento mais visível que existe |
+| Próximo passo | Nota em `docs/nfr/accessibility.md`, no formato do RNF-035 (fato medido + decisão + porquê): "a variante `-text` mira 4,5:1 e 15 das 32 siglas ficam entre 4,50 e 4,60. **`--surface-page` pode clarear, nunca escurecer.**" |
+| Prioridade | P3 — registro, não bloqueio (o teste já pega a regressão de token; o que falta é a decisão escrita) |
 
 ---
 
