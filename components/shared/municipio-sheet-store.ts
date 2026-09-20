@@ -33,9 +33,22 @@
  * O `useHoverStore` já carrega `{ type: "municipio", codIbge }`, mas ele é
  * escrito no `mousemove` do mapa. Reaproveitá-lo aqui abriria a folha ao
  * passar o mouse. São dois sinais diferentes: hover realça, clique abre.
+ *
+ * ## 🔴 Instância única por página (2026-09-20)
+ *
+ * As duas árvores irmãs descritas acima são, além de irmãs, **lados opostos de
+ * um `next/dynamic({ ssr: false })`**: `<ChoroplethMapUF>` (quem escreve, no
+ * clique) só existe atrás do import dinâmico de `UfMapsLazy`/`PersistentMapFrame`
+ * (ADR-0010), enquanto `<MunicipioExplorer>` (quem lê e desenha a folha) é
+ * importado direto pelo `page.tsx`. O empacotador põe o corpo deste módulo nos
+ * dois pacotes — no build de 2026-09-20, em 5 chunks distintos. Daí
+ * `storeUnicaPorPagina`; a justificativa completa está em
+ * `lib/state/store-por-pagina.ts`.
  */
 
 import { create } from "zustand";
+
+import { storeUnicaPorPagina } from "@/lib/state/store-por-pagina";
 
 interface MunicipioSheetState {
   /** `cod_ibge` do município com a folha aberta, ou `null` (folha fechada). */
@@ -46,8 +59,12 @@ interface MunicipioSheetState {
   clear: () => void;
 }
 
-export const useMunicipioSheetStore = create<MunicipioSheetState>((set) => ({
-  codIbge: null,
-  select: (codIbge) => set({ codIbge }),
-  clear: () => set({ codIbge: null }),
-}));
+export const useMunicipioSheetStore = storeUnicaPorPagina(
+  "components/shared/municipio-sheet-store.ts",
+  () =>
+    create<MunicipioSheetState>((set) => ({
+      codIbge: null,
+      select: (codIbge) => set({ codIbge }),
+      clear: () => set({ codIbge: null }),
+    })),
+);
