@@ -184,6 +184,7 @@ import { readArchivedProjection, readNationalProjection } from "@/lib/edge-confi
 import type { EdgePayload } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
+import { rankByParcial } from "@/lib/utils/rank-parcial";
 import nationalFixture from "@/tests/fixtures/edge-config/projection-current.json" with {
   type: "json",
 };
@@ -710,8 +711,28 @@ export default async function HomePage() {
   // busca. Esta página não tem mais consumidor para ele.
 
   // Para tabela e indicadores que precisam do nome do líder.
+  //
+  // 🔴 `rank` é o rank de **PROJEÇÃO**: quem o escreve é o produtor
+  // (`api/model/project.py`, `sorted(key=-point, id)`), e é essa a ordem que
+  // `EdgeNational.candidatos` já chega. Ou seja, `lider`/`segundo` são "quem o
+  // MODELO põe na frente" — que é exatamente o que a tabela por estado
+  // (candidato A/B) e a agulha querem, e por isso eles seguem intocados.
   const lider = national.candidatos.find((c) => (c.rank ?? -1) === 1) ?? national.candidatos[0];
   const segundo = national.candidatos.find((c) => (c.rank ?? -1) === 2) ?? national.candidatos[1];
+
+  // ...e quem a CONTAGEM põe na frente, que desde 2026-09-20 é uma pergunta
+  // diferente NA TELA: com "tudo acompanha a base ativa", o `<ResultPanel>`
+  // logo acima reordena por apurado quando o leitor troca para "Parcial".
+  // Enquanto o painel de chances nomeava só `lider`, a home podia listar B em
+  // primeiro e, duas seções abaixo, dizer "A vence no 1º turno" — dois blocos
+  // vizinhos discordando sobre quem está na disputa, na corrida de maior
+  // audiência do produto.
+  //
+  // `rankByParcial` é o MESMO comparador que o `<ResultPanel>` usa
+  // (`lib/utils/rank-parcial.ts`, ponto único das duas ordens): se a lista e
+  // este nome divergirem algum dia, será porque o comparador mudou, não porque
+  // há dois critérios na mesma página.
+  const liderParcial = rankByParcial(national.candidatos)[0] ?? lider;
 
   // Badges de estado ao lado do título do painel de resultado (RF-028). São
   // os mesmos nos dois modos — por isso saíram do JSX de cada ramo.
@@ -951,9 +972,24 @@ export default async function HomePage() {
         <ChancesPanel
           title="Segundo turno?"
           pSegundoTurno={national.p_segundo_turno_overall}
-          liderNome={lider ? nomeExibicao(lider.nome, lider.sqcand) : undefined}
-          liderPFecha1t={lider?.p_fecha_1t}
-          liderPctProjetado={lider?.pct_projetado}
+          /* 🔴 As props `lider*` soltas descrevem a base PARCIAL e `liderProj`
+             a base PROJEÇÃO — a mesma convenção de `eleitos`/`eleitosProj`.
+             Cada lado leva o registro INTEIRO de UMA candidatura: nome,
+             `p_fecha_1t` e `pct_projetado` da mesma pessoa. Trocar só o nome
+             produziria "B vence no 1º turno — 31%" com a probabilidade de A,
+             que é uma frase falsa costurada com dois fatos verdadeiros.
+             Quando as duas bases nomeiam a mesma pessoa — o caso comum — o
+             painel emite um medidor só e o DOM é o de antes. */
+          liderNome={
+            liderParcial ? nomeExibicao(liderParcial.nome, liderParcial.sqcand) : undefined
+          }
+          liderPFecha1t={liderParcial?.p_fecha_1t}
+          liderPctProjetado={liderParcial?.pct_projetado}
+          liderProj={{
+            nome: lider ? nomeExibicao(lider.nome, lider.sqcand) : undefined,
+            pFecha1t: lider?.p_fecha_1t,
+            pctProjetado: lider?.pct_projetado,
+          }}
           pctApurado={pct_apurado_total}
         />
       )}

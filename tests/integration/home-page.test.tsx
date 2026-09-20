@@ -35,7 +35,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "@/app/(pres)/page";
+import type { EdgeCandidate } from "@/lib/edge-config/types";
 import fixture from "@/tests/fixtures/edge-config/projection-current.json" with { type: "json" };
+import { candidatosComProjecao, payloadNormalApurando } from "@/tests/fixtures/spec-019/payloads";
 
 /**
  * O reader é mockado desde 2026-09-13 porque ele passou a ser a VARIÁVEL do
@@ -243,6 +245,105 @@ describe("HomePage (integration / smoke)", () => {
     expect(html).toContain("Chance de ir ao 2º turno");
     // A frase do indicador removido não pode reaparecer.
     expect(html).not.toContain("65% de chance de ir a 2º turno");
+  });
+
+  // -------------------------------------------------------------------------
+  // 2026-09-20 — QUEM o painel de chances nomeia acompanha a base ativa
+  //
+  // Mesma decisão do dono que fez o `<ResultPanel>` reordenar ("tudo acompanha
+  // a base ativa"), e o mesmo defeito que já foi fechado na tela de Senador.
+  // Aqui ele era pior: a home nomeava quem tem `rank === 1` — o rank de
+  // PROJEÇÃO publicado pelo produtor —, então na visualização "Parcial" a
+  // lista podia pôr B em primeiro e o painel, logo abaixo, dizer "A vence no
+  // 1º turno". É a corrida de maior audiência do produto.
+  //
+  // A fixture separa as duas leituras de ponta a ponta:
+  //   projeção → CANDIDATA TREZE (41,2%), `p_fecha_1t` 0,34
+  //   contagem → CANDIDATO VINTE E DOIS (55% apurado), `p_fecha_1t` 0,07
+  // -------------------------------------------------------------------------
+  function candidatosComLideresDiferentes(): EdgeCandidate[] {
+    return candidatosComProjecao().map((c, i) => {
+      // Lidera a PROJEÇÃO e não a contagem.
+      if (i === 0) return { ...c, pct_atual: 20 };
+      // Lidera a CONTAGEM. `p_fecha_1t` != 0 de propósito: com 0 o teste
+      // passaria mesmo se o painel ignorasse a candidatura e mostrasse um
+      // medidor vazio.
+      if (i === 1) return { ...c, pct_atual: 55, p_fecha_1t: 0.07 };
+      return c;
+    });
+  }
+
+  const medidorDe = (el: Element | null | undefined) => el?.querySelector('[role="meter"]');
+  const notaDe = (el: Element | null | undefined) =>
+    el?.querySelector('[data-testid="probability-meter-note"]')?.textContent ?? "";
+
+  it("(j2) o nome anunciado acompanha a base — e leva junto o número DELE", async () => {
+    readNationalProjectionMock.mockResolvedValue(
+      payloadNormalApurando({ candidatos: candidatosComLideresDiferentes() }),
+    );
+    const doc = parse(renderToStaticMarkup(await HomePage()));
+    const painel = doc.querySelector('[data-testid="chances-panel-meters"]');
+    const parcial = painel?.querySelector('[data-view-only="parcial"]');
+    const proj = painel?.querySelector('[data-view-only="proj"]');
+
+    expect(parcial, "medidor da base parcial").not.toBeNull();
+    expect(proj, "medidor da base projeção").not.toBeNull();
+
+    // 🔴 O par (nome, probabilidade) de CADA base sai do MESMO registro. É
+    // este assert que impede a frase falsa: "CANDIDATO VINTE E DOIS vence no
+    // 1º turno — 34%" seria o nome de quem lidera a contagem com a
+    // probabilidade de quem lidera a projeção.
+    expect(medidorDe(parcial)?.getAttribute("aria-label")).toBe(
+      "CANDIDATO VINTE E DOIS vence no 1º turno",
+    );
+    expect(medidorDe(parcial)?.getAttribute("aria-valuenow")).toBe("7");
+    expect(medidorDe(proj)?.getAttribute("aria-label")).toBe("CANDIDATA TREZE vence no 1º turno");
+    expect(medidorDe(proj)?.getAttribute("aria-valuenow")).toBe("34");
+
+    // E o percentual projetado da nota também: 33,7% é o da candidatura
+    // nomeada na parcial; 41,2% é o da outra, e não pode vazar para cá.
+    expect(notaDe(parcial)).toContain("Projeção 33,7%");
+    expect(notaDe(parcial)).not.toContain("41,2%");
+    expect(notaDe(proj)).toContain("Projeção 41,2%");
+
+    // 🔴 Fecha o laço com a LISTA de cima, que é o bloco com que o painel
+    // discordava: em cada base, quem o painel nomeia é quem a lista põe em 1º.
+    const linhas = [...doc.querySelectorAll("[data-ord]")];
+    const primeiraEm = (base: "parcial" | "proj") =>
+      linhas.find((li) => (li.getAttribute("style") ?? "").includes(`--ord-${base}:0`))
+        ?.textContent;
+    expect(primeiraEm("parcial")).toContain("CANDIDATO VINTE E DOIS");
+    expect(primeiraEm("proj")).toContain("CANDIDATA TREZE");
+  });
+
+  it("(j3) a nota nomeia o CANDIDATO, não 'o líder' — a frase segue verdadeira nas duas bases", async () => {
+    // Enquanto o painel só falava de quem lidera a projeção, "a projeção do
+    // líder fecha 50% + 1" era inofensivo. Com o nome acompanhando a base, na
+    // parcial o nomeado lidera a CONTAGEM e pode não liderar a projeção — e o
+    // anafórico passaria a apontar para outra pessoa dentro da mesma frase.
+    readNationalProjectionMock.mockResolvedValue(
+      payloadNormalApurando({ candidatos: candidatosComLideresDiferentes() }),
+    );
+    const doc = parse(renderToStaticMarkup(await HomePage()));
+    const painel = doc.querySelector('[data-testid="chances-panel-meters"]');
+
+    for (const base of ["parcial", "proj"] as const) {
+      const nota = notaDe(painel?.querySelector(`[data-view-only="${base}"]`));
+      expect(nota, base).toContain("a projeção deste candidato fecha 50% + 1");
+      expect(nota, base).not.toContain("a projeção do líder");
+    }
+  });
+
+  it("(j4) bases que nomeiam a MESMA candidatura não duplicam medidor", async () => {
+    // Contraprova de (j2): na fixture normal `pct_atual` e `pct_projetado`
+    // apontam para a mesma pessoa, e o DOM tem de continuar sendo o de antes.
+    readNationalProjectionMock.mockResolvedValue(payloadNormalApurando());
+    const doc = parse(renderToStaticMarkup(await HomePage()));
+    const painel = doc.querySelector('[data-testid="chances-panel-meters"]');
+
+    expect(painel?.querySelectorAll("[data-view-only]").length).toBe(0);
+    // Os dois do protótipo: P(2º turno) + o do líder. Nem um a mais.
+    expect(painel?.querySelectorAll('[role="meter"]').length).toBe(2);
   });
 
   // -------------------------------------------------------------------------

@@ -1050,6 +1050,130 @@ describe("/uf/[sigla]/senador (T-10)", () => {
     expect(marcadorCelia?.textContent?.toLowerCase()).toContain("parcial");
     expect(marcadorCelia?.textContent?.toLowerCase()).not.toContain("projetada");
   });
+
+  // -------------------------------------------------------------------------
+  // RF-103 + decisão do dono de 2026-09-20 — o ELENCO do painel de chances
+  // acompanha a base ativa, como a lista logo acima já fazia.
+  //
+  // O defeito que estes casos fecham: o painel recortava `vagas + 1` SEMPRE
+  // pela ordem do apurado, então na visualização "Projeção" a lista podia
+  // marcar A e B como ocupantes de vaga enquanto os medidores logo abaixo
+  // falavam de B e C.
+  //
+  // A fixture põe UMA candidatura em cada base e nenhuma nas duas, que é o
+  // único formato que discrimina: com os mesmos três nomes nas duas listas
+  // (só que em ordem diferente), um painel que ignorasse a base continuaria
+  // dizendo a coisa certa por acidente.
+  //
+  //   por `pct_atual`     → Célia (60) · Bruno (20) · Ana (10) · Davi (1)
+  //   por `pct_projetado` → Ana (40)   · Bruno (30) · Davi (29) · Célia (5)
+  //
+  // Recorte de 3 (`vagas + 1`): parcial = Célia/Bruno/Ana, projeção =
+  // Ana/Bruno/Davi. Célia só entra numa; Davi só na outra.
+  // -------------------------------------------------------------------------
+  const elencosDivergentes = (over: Partial<EdgeUfCandidate>[] = []) =>
+    ufPayload({
+      candidatos: [
+        ufCand(1, "Ana Lima", "PT", 40, { pct_atual: 10, p_eleito: 0.5, ...over[0] }),
+        ufCand(2, "Bruno Reis", "PL", 30, { pct_atual: 20, p_eleito: 0.5, ...over[1] }),
+        ufCand(3, "Célia Mota", "MDB", 5, { pct_atual: 60, p_eleito: 0.9, ...over[2] }),
+        ufCand(4, "Davi Nunes", "PSOL", 29, { pct_atual: 1, p_eleito: 0.13, ...over[3] }),
+      ],
+    });
+
+  /** Os medidores de UMA base dentro do painel de chances. */
+  function chancesDaBase(doc: Document, base: "parcial" | "proj"): Element | null {
+    return doc.querySelector(`[data-testid='chances-panel-meters'] [data-view-only='${base}']`);
+  }
+
+  it("(w2) o elenco do painel de chances acompanha a base — quem tem selo é quem tem medidor", async () => {
+    readUfProjectionMock.mockResolvedValue(elencosDivergentes());
+    const doc = await render(UFSenadorPage(PARAMS_SP));
+
+    const parcial = chancesDaBase(doc, "parcial");
+    const proj = chancesDaBase(doc, "proj");
+    expect(parcial, "grupo da base parcial").not.toBeNull();
+    expect(proj, "grupo da base projeção").not.toBeNull();
+
+    // Parcial: o recorte do APURADO. Célia lidera a contagem e está aqui;
+    // Davi, que só existe na projeção, não pode estar.
+    expect(parcial?.querySelectorAll("[role='meter']").length).toBe(3);
+    expect(parcial?.textContent).toContain("Célia Mota se elege em SP");
+    expect(parcial?.textContent).not.toContain("Davi Nunes");
+
+    // Projeção: o recorte do PROJETADO. Simétrico, e é esta metade que o
+    // defeito de hoje errava.
+    expect(proj?.querySelectorAll("[role='meter']").length).toBe(3);
+    expect(proj?.textContent).toContain("Davi Nunes se elege em SP");
+    expect(proj?.textContent).not.toContain("Célia Mota");
+
+    // 🔴 E o painel concorda com a LISTA de cima na mesma base: quem tem selo
+    // de vaga na projeção é quem tem medidor na projeção. Sem este par de
+    // asserts, os dois blocos poderiam voltar a divergir sem quebrar nada —
+    // que é exatamente o defeito de origem.
+    const comVagaNaProj = [...doc.querySelectorAll("ol > li")]
+      .filter((li) => ["true", "proj"].includes(li.getAttribute("data-vaga") ?? ""))
+      .map((li) => li.textContent ?? "");
+    expect(comVagaNaProj.some((t) => t.includes("Ana Lima"))).toBe(true);
+    expect(comVagaNaProj.some((t) => t.includes("Bruno Reis"))).toBe(true);
+    for (const nome of ["Ana Lima", "Bruno Reis"]) {
+      expect(proj?.textContent, `${nome} tem selo na projeção e precisa de medidor`).toContain(
+        nome,
+      );
+    }
+  });
+
+  it("(w3) bases que escolhem o MESMO elenco não duplicam nada no DOM", async () => {
+    // A fixture padrão tem `pct_atual === pct_projetado` em todo mundo, então
+    // as duas ordenações coincidem — o caso comum de uma noite eleitoral.
+    // Contraprova de (w2): o custo em nós só existe quando há divergência.
+    readUfProjectionMock.mockResolvedValue(ufPayload());
+    const doc = await render(UFSenadorPage(PARAMS_SP));
+
+    const painel = doc.querySelector("[data-testid='chances-panel-meters']");
+    expect(painel?.querySelectorAll("[role='meter']").length).toBe(3);
+    expect(painel?.querySelectorAll("[data-view-only]").length).toBe(0);
+  });
+
+  it("(w4) candidatura sem `p_eleito` não vira medidor em base nenhuma — nem com 0%", async () => {
+    // Davi entra no recorte da PROJEÇÃO (3º projetado) e o modelo não publicou
+    // `p_eleito` para ele. O painel tem de simplesmente não desenhá-lo: um
+    // medidor em 0% afirmaria que ele não se elege, que é uma conclusão que o
+    // payload não sustenta.
+    readUfProjectionMock.mockResolvedValue(
+      elencosDivergentes([{}, {}, {}, { p_eleito: undefined }]),
+    );
+    const doc = await render(UFSenadorPage(PARAMS_SP));
+
+    const proj = chancesDaBase(doc, "proj");
+    expect(proj?.querySelectorAll("[role='meter']").length).toBe(2);
+    expect(proj?.textContent).not.toContain("Davi Nunes");
+    // E ninguém foi promovido para o lugar dele: o recorte é dos 3 primeiros,
+    // não "os 3 primeiros com dado".
+    expect(proj?.textContent).not.toContain("Célia Mota");
+
+    const zeros = [
+      ...(doc.querySelectorAll("[data-testid='chances-panel-meters'] [role='meter']") ?? []),
+    ].map((m) => m.getAttribute("aria-valuenow"));
+    expect(zeros).not.toContain("0");
+  });
+
+  it("(w5) o número do medidor é o do payload — o painel não recalcula probabilidade", async () => {
+    // Constituição § 6: `p_eleito` sai do bootstrap (ADR-0014) e a UI só
+    // imprime. A fixture desalinha de propósito a probabilidade do percentual
+    // (Davi projeta 29% e tem 13% de chance; Célia projeta 5% e tem 90%), de
+    // modo que qualquer número derivado de `pct_projetado` na tela erraria.
+    readUfProjectionMock.mockResolvedValue(elencosDivergentes());
+    const doc = await render(UFSenadorPage(PARAMS_SP));
+
+    const valor = (base: "parcial" | "proj", nome: string) =>
+      [...(chancesDaBase(doc, base)?.querySelectorAll("[role='meter']") ?? [])]
+        .find((m) => m.getAttribute("aria-label")?.startsWith(nome))
+        ?.getAttribute("aria-valuenow");
+
+    expect(valor("proj", "Davi Nunes")).toBe("13");
+    expect(valor("parcial", "Célia Mota")).toBe("90");
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -77,6 +77,104 @@ describe("<ChancesPanel eleitos /> — RF-103", () => {
     );
     expect(doc.querySelectorAll("[role='meter']").length).toBe(1);
   });
+
+  // ---------------------------------------------------------------------------
+  // `eleitosProj` — o elenco acompanha a base ativa (2026-09-20)
+  //
+  // A escolha de QUAIS candidaturas entram é de quem chama (a página recorta
+  // `vagas + 1` em cada ordenação). O que se mede aqui é o contrato do painel:
+  // elencos iguais ⇒ DOM idêntico ao de antes; diferentes ⇒ os dois no DOM sob
+  // `data-view-only`, que é o que a cascata de `app/globals.css` sabe resolver
+  // sem uma linha de JavaScript.
+  // ---------------------------------------------------------------------------
+  const PROJ = [
+    { id: 1, nome: "Ana Lima", p: 0.97, pctProjetado: 40 },
+    { id: 2, nome: "Bruno Reis", p: 0.61, pctProjetado: 30 },
+    { id: 4, nome: "Davi Nunes", p: 0.13, pctProjetado: 29 },
+  ];
+
+  it("(e2) elencos iguais nas duas bases: um grupo só, sem invólucro de base", () => {
+    // O caso comum, e a razão de o custo em nós ser zero quase sempre. Também
+    // é a contraprova de (e3): sem ele, um painel que SEMPRE duplicasse
+    // passaria naquele teste.
+    const comProj = renderToStaticMarkup(
+      <ChancesPanel
+        eleitos={ELEITOS}
+        eleitosProj={[...ELEITOS]}
+        escopo="SP"
+        pctApurado={62}
+        vagas={2}
+      />,
+    );
+    const semProj = renderToStaticMarkup(
+      <ChancesPanel eleitos={ELEITOS} escopo="SP" pctApurado={62} vagas={2} />,
+    );
+
+    expect(comProj).toBe(semProj);
+    expect(
+      new DOMParser().parseFromString(comProj, "text/html").querySelectorAll("[data-view-only]")
+        .length,
+    ).toBe(0);
+  });
+
+  it("(e3) elencos diferentes: os dois no DOM, cada um sob a sua base", () => {
+    const doc = parse(
+      <ChancesPanel eleitos={ELEITOS} eleitosProj={PROJ} escopo="SP" pctApurado={62} vagas={2} />,
+    );
+    const parcial = doc.querySelector("[data-view-only='parcial']");
+    const proj = doc.querySelector("[data-view-only='proj']");
+
+    expect(parcial?.textContent).toContain("Célia Mota se elege em SP");
+    expect(parcial?.textContent).not.toContain("Davi Nunes");
+    expect(proj?.textContent).toContain("Davi Nunes se elege em SP");
+    expect(proj?.textContent).not.toContain("Célia Mota");
+
+    // 🔴 O atributo mora num `<div>` NU. Numa `.grid` ele teria de vencer a
+    // utilitária de display na cascata — corrida que o cabeçalho do arquivo
+    // recusa explicitamente, e que nenhum teste de texto pegaria.
+    expect(parcial?.className).toBe("");
+    expect(proj?.className).toBe("");
+  });
+
+  it("(e4) o filtro de `p` vale nas DUAS bases — nem zero, nem medidor órfão", () => {
+    const doc = parse(
+      <ChancesPanel
+        eleitos={[
+          { id: 1, nome: "Ana", p: 0.9 },
+          { id: 3, nome: "Célia", p: 0.4 },
+        ]}
+        eleitosProj={[
+          { id: 1, nome: "Ana", p: 0.9 },
+          { id: 4, nome: "Davi", p: Number.NaN },
+        ]}
+        pctApurado={10}
+        vagas={2}
+      />,
+    );
+
+    expect(doc.querySelector("[data-view-only='proj']")?.textContent).not.toContain("Davi");
+    expect(doc.querySelectorAll("[data-view-only='proj'] [role='meter']").length).toBe(1);
+    expect(doc.querySelectorAll("[data-view-only='parcial'] [role='meter']").length).toBe(2);
+    const valores = [...doc.querySelectorAll("[role='meter']")].map((m) =>
+      m.getAttribute("aria-valuenow"),
+    );
+    expect(valores).not.toContain("0");
+  });
+
+  it("(e5) ninguém com `p` em nenhuma das bases: o painel inteiro some", () => {
+    // A regra de sempre (sem campo, sem medidor; sem nenhum, sem painel),
+    // estendida para duas bases. Um `<Panel>` com moldura e nada dentro seria
+    // pior que a ausência: o leitor leria o título como promessa.
+    const markup = renderToStaticMarkup(
+      <ChancesPanel
+        eleitos={[{ id: 1, nome: "Ana", p: Number.NaN }]}
+        eleitosProj={[{ id: 2, nome: "Bruno", p: Number.NaN }]}
+        pctApurado={10}
+        vagas={2}
+      />,
+    );
+    expect(markup).toBe("");
+  });
 });
 
 describe("<ForecastTransparency /> — RF-108", () => {

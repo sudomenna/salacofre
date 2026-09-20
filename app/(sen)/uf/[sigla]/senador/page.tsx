@@ -92,7 +92,7 @@ import { simulacaoLigada, simulacaoMunicipiosUf, simulacaoSenadorUf } from "@/li
 import { readProjection, readUfProjection } from "@/lib/edge-config/reader";
 import type { EdgePayloadUf, EdgeUfCandidate, EdgeUfMunicipio } from "@/lib/edge-config/types";
 import { nomeExibicao, primeiroNomeExibicao } from "@/lib/utils/nome-candidato";
-import { rankByParcial } from "@/lib/utils/rank-parcial";
+import { ordensPorBase } from "@/lib/utils/rank-parcial";
 import senUfFixture from "@/tests/fixtures/edge-config/sen-uf.json" with { type: "json" };
 
 /** Ver a nota em `app/(sen)/senador/page.tsx`: o fallback sai da tabela
@@ -431,29 +431,42 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
   // `lib/config/cargos.ts`); o default cobre payloads gravados antes da spec
   // 016, que não têm a chave.
   const vagas = payload.vagas ?? VAGAS_PADRAO;
-  // 🔴 Este `rankeados` NÃO alimenta mais o `<ResultPanel>` (2026-09-20): o
-  // painel deriva as duas ordens sozinho e a cascata escolhe a da base ativa.
-  // O que sobrou aqui é o recorte do `<ChancesPanel>` — que continua na ordem
-  // do APURADO, de propósito: ele lista medidores de `p_eleito`, não um
-  // ranking, e trocar o elenco dele a cada toque no botão de visualização
-  // seria mudar um bloco que o dono não pediu para mudar.
-  const rankeados = rankByParcial(payload.candidatos);
+  // 🔴 Estas ordens NÃO alimentam mais o `<ResultPanel>` (2026-09-20): o
+  // painel deriva as duas sozinho e a cascata escolhe a da base ativa. O que
+  // sobrou aqui é o recorte do `<ChancesPanel>` — que **também** passou a
+  // acompanhar a base, um turno depois da lista. Enquanto não acompanhava, a
+  // lista de cima podia marcar A e B como ocupantes de vaga na visualização
+  // "Projeção" enquanto os medidores logo abaixo falavam de B e C: dois
+  // blocos vizinhos discordando sobre quem está na disputa.
+  //
+  // `ordensPorBase` é o ponto único das duas ordenações
+  // (`lib/utils/rank-parcial.ts`) — o mesmo que o `<ResultPanel>` usa, para
+  // que nunca haja dois critérios de rank nesta página.
+  const { parcial: porParcial, proj: porProj } = ordensPorBase(payload.candidatos);
   const incertezaMedida = temIncertezaMedida(payload.candidatos);
 
   // RF-103 — os `vagas + 1` primeiros são os únicos com chance relevante de
   // mudar de lado. Mostrar os 12 medidores de uma corrida grande enterraria
   // a disputa que importa, que é pela última cadeira.
-  const eleitos = rankeados
-    .slice(0, vagas + 1)
-    .filter((c): c is EdgeUfCandidate & { p_eleito: number } => c.p_eleito != null)
-    .map((c) => ({
-      id: c.id,
-      // `ChancesPanel.eleitos[].nome` é string e vira o rótulo do medidor —
-      // o mesmo nome que o `<ResultPanel>` logo acima imprime na linha.
-      nome: nomeExibicao(c.nome, c.sqcand),
-      p: c.p_eleito,
-      pctProjetado: c.pct_projetado,
-    }));
+  //
+  // 🔴 O `.filter()` vem DEPOIS do `.slice()`, e isso é decisão: quem está no
+  // recorte e não tem `p_eleito` some do painel, e não é substituído pelo
+  // próximo colocado. Publicar um medidor de quem o modelo não avaliou — nem
+  // que fosse com 0% — seria inventar uma afirmação que o payload não faz.
+  const elencoDe = (ordenados: readonly EdgeUfCandidate[]) =>
+    ordenados
+      .slice(0, vagas + 1)
+      .filter((c): c is EdgeUfCandidate & { p_eleito: number } => c.p_eleito != null)
+      .map((c) => ({
+        id: c.id,
+        // `ChancesPanel.eleitos[].nome` é string e vira o rótulo do medidor —
+        // o mesmo nome que o `<ResultPanel>` logo acima imprime na linha.
+        nome: nomeExibicao(c.nome, c.sqcand),
+        p: c.p_eleito,
+        pctProjetado: c.pct_projetado,
+      }));
+  const eleitosParcial = elencoDe(porParcial);
+  const eleitosProj = elencoDe(porProj);
 
   // Maps de id → cor / nome curto para a tabela de municípios e para a folha.
   // 🔴 A cor sai da SIGLA (ADR-0024), não de `c.cor` — a paleta por COLOCAÇÃO
@@ -507,10 +520,19 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
 
       {/* Seção 2 — RF-103. O bloco NUNCA sai do DOM (ADR-0017): sem
           incerteza medida ele explica por quê, em vez de sumir ou de
-          publicar um 0/1 vestido de probabilidade. */}
-      {incertezaMedida && eleitos.length > 0 ? (
+          publicar um 0/1 vestido de probabilidade.
+
+          🔴 Os DOIS elencos vão para o painel (2026-09-20): o do apurado e o
+          do projetado. Quando coincidem — o caso comum — o painel emite um
+          grupo só e o DOM é o de antes; quando divergem, a cascata de
+          `data-view-only` mostra o da base ativa, para que a tela nunca diga
+          numa lista que A e B ocupam vaga e no painel de baixo que a disputa
+          é entre B e C. O gate aceita qualquer uma das duas não-vazia: se uma
+          base tem medidores, o painel tem o que dizer. */}
+      {incertezaMedida && (eleitosParcial.length > 0 || eleitosProj.length > 0) ? (
         <ChancesPanel
-          eleitos={eleitos}
+          eleitos={eleitosParcial}
+          eleitosProj={eleitosProj}
           escopo={sigla}
           pctApurado={payload.pct_apurado}
           title="Chances de eleição"
