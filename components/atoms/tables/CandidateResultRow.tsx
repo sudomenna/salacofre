@@ -22,9 +22,10 @@
  *
  * A barra é a única parte exclusiva: exibir dois preenchimentos sobrepostos
  * seria ilegível, então `data-view-only` mostra o da base ativa. O traço
- * vertical na posição projetada continua visível nas duas bases — é a
- * distância entre "onde está" e "onde o modelo diz que termina", que é a
- * leitura que o § 8 da constituição pede.
+ * vertical marca a OUTRA base — a distância entre "onde está" e "onde o modelo
+ * diz que termina", que é a leitura que o § 8 da constituição pede. Ver
+ * {@link MARCADOR_SOBRA_PX} e o bloco da barra no JSX para por que o traço é
+ * DOIS elementos e não um.
  *
  * ## Cor
  *
@@ -261,6 +262,34 @@ const BARRA_ALTURA_PX = 8;
  * continuam sendo 2px de tinta legível. Mas a **fração** visível caiu — antes
  * seriam 4px de sobra num traço de 8 (metade), agora são 4px num traço de 12
  * (um terço). Aumentar a sobra é a alavanca, se o traço ficar difícil de achar.
+ *
+ * ## 🔴 2026-09-20, parte 2 — a inversão do traço AUMENTA o peso desta sobra
+ *
+ * Quando o traço passou a marcar a base oposta (ver {@link MARCADOR_BASE_OPOSTA}),
+ * a situação "traço dentro do preenchimento" deixou de ser só o caso da
+ * projeção que recua e virou **metade do problema por construção**:
+ *
+ *   - na base `parcial` a barra desenha `atual` e o traço marca `projetado` —
+ *     o traço cai dentro quando a projeção RECUA (o caso já documentado acima,
+ *     6 de 7 candidaturas na tela de 19/09);
+ *   - na base `proj` a barra desenha `projetado` e o traço marca `atual` —
+ *     o traço cai dentro quando a projeção AVANÇA, que é o caso complementar.
+ *
+ * Somadas, as duas bases cobrem todas as candidaturas: para qualquer linha,
+ * numa das duas visões o traço está dentro do preenchimento. Não há mais
+ * nenhuma combinação em que a sobra seja dispensável.
+ *
+ * Contraste de `--accent-strong` (#9e6a1c) sobre a cor do partido, medido no
+ * Chrome em 2026-09-20 nas cinco candidaturas da tela:
+ *
+ * | FLAVIO | LULA | ZEMA | SAMARA | CAIADO |
+ * |---|---|---|---|---|
+ * | 1,16 | 1,17 | 1,55 | 1,69 | 1,70 |
+ *
+ * Todas abaixo do piso de 3:1 do SC 1.4.11. O que salva continua sendo a
+ * sobra, que sobre o fundo da página mede **4,21:1**. Em outras palavras: a
+ * inversão só é legível porque o conserto estrutural de `8d92e95` veio antes.
+ * Desfazer aquele conserto agora não degrada o traço — apaga ele.
  */
 const MARCADOR_SOBRA_PX = 2;
 
@@ -278,8 +307,80 @@ const MARCADOR_SOBRA_PX = 2;
  * Daí o `min(pct%, calc(100% - largura))`: até 100% o traço encosta na borda
  * direita e fica inteiro visível, em vez de sumir aparado como sumia antes.
  * Horizontalmente ele continua contido; a liberdade nova é só vertical.
+ *
+ * ⚠️ Desde 2026-09-20 há DOIS traços (ver {@link MARCADOR_BASE_OPOSTA}) e o teto
+ * vale para os dois: `atual` chega a 100% no fim da noite tanto quanto
+ * `projetado`, e um traço sem teto empurraria a página exatamente igual.
  */
 const MARCADOR_LARGURA_PX = 2;
+
+/**
+ * Qual base cada traço marca — **sempre a OUTRA**, nunca a que a barra desenha.
+ *
+ * 🔴 Decisão do dono em 2026-09-20, e ela conserta um defeito que estava na
+ * tela desde o nascimento do arquivo. A regra fica dizível em voz alta: *a
+ * barra é a base que você escolheu; o traço é a outra.*
+ *
+ * ## O defeito
+ *
+ * Havia UM traço, fixo em `projetado`. Na base `parcial` isso funciona — a
+ * barra desenha `atual` e o traço mostra para onde o modelo diz que a coisa
+ * caminha. Na base `proj`, porém, a barra TAMBÉM desenha `projetado`: o
+ * preenchimento e o traço caem no mesmo ponto, em toda candidatura, sempre.
+ * Medido no Chrome em 20/09, rota `/`, base `proj`, linha do LULA:
+ * preenchimento com 113,125px e traço com `left` em 113,1px.
+ *
+ * E a base `proj` é o DEFAULT (`lib/state/view-mode.ts`, `VIEW_MODE_DEFAULT`):
+ * o servidor renderiza `<html data-view="proj">`, então quem abre o site vê o
+ * traço justamente no estado em que ele não informa nada. O traço só dizia
+ * alguma coisa para quem clicava no controle.
+ *
+ * A origem é rastreável: o `CandidateRow` do kit
+ * (`docs/design-system/atlas-menna/components/data/CandidateRow.jsx:29-31`) tem
+ * **um preenchimento só, e ele é o apurado** — o traço em `projPct` era
+ * coerente porque não havia outra base para a barra desenhar. O segundo
+ * preenchimento e o alternador são adaptação do SalaCofre, e foi aí que a
+ * gramática quebrou em uma das duas visões.
+ *
+ * ## Por que dois elementos e não um cálculo
+ *
+ * Este componente é Server Component puro e a reação ao controle é CSS — não
+ * há JS para trocar o `left` do traço quando a base muda. Dois traços, cada um
+ * com seu `data-view-only`, reaproveitam exatamente o mecanismo que os dois
+ * preenchimentos já usam (`app/globals.css`, bloco "ADR-0029 — ênfase
+ * Parcial/Projeção"): a cascata mostra só o da base ativa, sem store, sem
+ * hidratação e sem re-render. Introduzir um segundo mecanismo para o mesmo
+ * problema custaria `"use client"` nesta linha, que aparece ~7 vezes por tela.
+ */
+const MARCADOR_BASE_OPOSTA = { parcial: "proj", proj: "parcial" } as const;
+
+/**
+ * O traço some quando a base que ele marca vale **zero**.
+ *
+ * 🔴 Não é micro-otimização: é a regra dos TRÊS ESTADOS (não começou / não
+ * sabemos / apurando), que este projeto tem escrita e que proíbe fabricar
+ * zeros de resgate.
+ *
+ * O caso que força a decisão nasceu com a inversão. No começo da noite `atual`
+ * é 0 para todo mundo, e na base `proj` — o default — o traço invertido iria
+ * para o extremo esquerdo da barra. Um traço colado na borda esquerda **afirma
+ * "0% apurado"**, que é um dos três estados; mas o componente não sabe em qual
+ * dos três está: `pctAtual` é um `number` obrigatório e não distingue "medimos
+ * zero" de "ainda não abriu urna". Desenhar o traço ali seria o componente
+ * escolhendo o estado mais específico sem ter o dado que o sustenta.
+ *
+ * A condição é **simétrica e vale para os dois traços**, depois de
+ * {@link clampPct}: `> 0`. Isso também cobre `NaN` (que clampa para 0), e
+ * cobrir é o comportamento certo — `NaN` é literalmente "não sabemos".
+ *
+ * Nada de informação se perde: `0,0%` continua na coluna de texto, sempre no
+ * DOM, nas duas bases. O que sai é a AFIRMAÇÃO GEOMÉTRICA, que é a parte que
+ * este componente não tem como sustentar. E um traço na borda esquerda seria
+ * ilegível de qualquer forma, encavalado no canto arredondado da barra.
+ */
+function marcadorVisivel(pct: number): boolean {
+  return pct > 0;
+}
 
 const KICKER: CSSProperties = {
   font: "var(--type-kicker)",
@@ -319,6 +420,10 @@ export function CandidateResultRow({
   const projLabel = formatPercent(projetado, 1);
   const glyph = deltaGlyph(projetado - atual);
   const kit = variant === "kit";
+  // O percentual de cada base, endereçável pelo nome dela. Os preenchimentos e
+  // os traços leem daqui — é o que garante que "a barra desenha X" e "o traço
+  // marca o oposto de X" continuem falando dos mesmos dois números.
+  const pctPorBase = { parcial: atual, proj: projetado } as const;
 
   // `CandidateRow.jsx:20` — 18px na linha normal, `--type-figure-sm` na
   // compacta. Medido contra o protótipo em 09/09: a linha densa desta base
@@ -458,9 +563,11 @@ export function CandidateResultRow({
       </div>
 
       {/* Barra: preenchimento exclusivo da base ativa (`data-view-only`), com
-          o traço da projeção sempre visível. `aria-hidden` porque o mesmo dado
-          já está nos dois números acima, em texto — uma progressbar aqui
-          faria o leitor de tela repetir o percentual três vezes por linha.
+          o traço marcando a base OPOSTA — também exclusivo, também por
+          `data-view-only`. Ver {@link MARCADOR_BASE_OPOSTA}. `aria-hidden`
+          porque o mesmo dado já está nos dois números acima, em texto — uma
+          progressbar aqui faria o leitor de tela repetir o percentual três
+          vezes por linha.
 
           🔴 **DUAS caixas, e a separação é o conserto de 2026-09-20.** Até essa
           data havia uma só, com `overflow: hidden`, e o traço morava dentro
@@ -500,26 +607,56 @@ export function CandidateResultRow({
         >
           <div
             data-view-only="parcial"
-            style={{ position: "absolute", inset: 0, width: `${atual}%`, background: cor }}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: `${pctPorBase.parcial}%`,
+              background: cor,
+            }}
           />
           <div
             data-view-only="proj"
-            style={{ position: "absolute", inset: 0, width: `${projetado}%`, background: cor }}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: `${pctPorBase.proj}%`,
+              background: cor,
+            }}
           />
         </div>
-        {/* Irmão do recorte, nunca filho. Ver {@link MARCADOR_LARGURA_PX} para
-            o porquê do teto no `left`. */}
-        <div
-          data-testid="result-bar-marker"
-          style={{
-            position: "absolute",
-            top: -MARCADOR_SOBRA_PX,
-            bottom: -MARCADOR_SOBRA_PX,
-            left: `min(${projetado}%, calc(100% - ${MARCADOR_LARGURA_PX}px))`,
-            width: MARCADOR_LARGURA_PX,
-            background: "var(--accent-strong)",
-          }}
-        />
+        {/* 🔴 Os DOIS traços são irmãos do recorte, nunca filhos — é o que faz
+            a sobra de {@link MARCADOR_SOBRA_PX} chegar ao vidro, e a inversão
+            depende dela para ser legível (a tabela de contraste está lá).
+            {@link MARCADOR_LARGURA_PX} explica o teto no `left`. */}
+        {(["parcial", "proj"] as const).map((base) => {
+          // `base` é a base ATIVA que faz ESTE traço aparecer; o que ele marca
+          // é a outra, e o número sai daí — nunca de um segundo ternário. Duas
+          // expressões dizendo a mesma troca podiam divergir em silêncio, e a
+          // divergência seria exatamente o defeito que esta mudança conserta.
+          const marca = MARCADOR_BASE_OPOSTA[base];
+          const pct = pctPorBase[marca];
+          if (!marcadorVisivel(pct)) return null;
+          return (
+            <div
+              key={base}
+              data-testid="result-bar-marker"
+              data-view-only={base}
+              // Nomeia, no próprio DOM, QUAL base este traço está marcando.
+              // Sem ele, um teste só conseguiria distinguir os dois traços pelo
+              // número no `left` — o que funciona com a fixture e falha
+              // silenciosamente no dia em que `atual` e `projetado` empatarem.
+              data-marca={marca}
+              style={{
+                position: "absolute",
+                top: -MARCADOR_SOBRA_PX,
+                bottom: -MARCADOR_SOBRA_PX,
+                left: `min(${pct}%, calc(100% - ${MARCADOR_LARGURA_PX}px))`,
+                width: MARCADOR_LARGURA_PX,
+                background: "var(--accent-strong)",
+              }}
+            />
+          );
+        })}
       </div>
     </div>
   );

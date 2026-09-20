@@ -108,8 +108,20 @@ describe("<MinorCandidatesList />", () => {
     expect(html).toContain("var(--color-cand-other)");
     expect(html).not.toMatch(/color\s*:\s*var\(--color-cand-/);
 
-    const fills = [...doc.querySelectorAll("[data-view-only]")];
+    // 🔴 Escopado ao recorte da barra desde 2026-09-20. `data-view-only` é o
+    // mecanismo de exclusividade do shell, e naquele dia os TRAÇOS da linha
+    // passaram a usá-lo também (o traço marca a base oposta à que a barra
+    // desenha, e a cascata mostra só o da base ativa). Um `querySelectorAll`
+    // solto voltou a devolver quatro elementos — e o que este caso quer contar
+    // são os PREENCHIMENTOS, que são os que recebem a cor do candidato.
+    const fills = [...doc.querySelectorAll('[data-testid="result-bar-clip"] > [data-view-only]')];
     expect(fills.map((f) => f.getAttribute("data-view-only")).sort()).toEqual(["parcial", "proj"]);
+    // E a cor está neles, não nos traços — que são `--accent-strong`, um token
+    // único, exatamente para não virarem um segundo lugar onde a cor do
+    // candidato possa divergir.
+    for (const fill of fills) {
+      expect(fill.getAttribute("style")).toContain("background:var(--color-cand-other)");
+    }
   });
 
   it("(e) cada <li> anuncia as duas bases rotuladas", () => {

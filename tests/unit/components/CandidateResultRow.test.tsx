@@ -24,6 +24,45 @@ function parse(node: React.ReactElement): Document {
   return new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
 }
 
+/**
+ * Os PREENCHIMENTOS da barra, e só eles.
+ *
+ * 🔴 Escopado ao recorte de propósito. Desde 2026-09-20 os traços também usam
+ * `data-view-only` (é o mecanismo de exclusividade do shell, e reusá-lo é o que
+ * mantém esta linha sem JS), então um `doc.querySelectorAll("[data-view-only]")`
+ * solto passou a devolver QUATRO elementos. Um teste que continuasse lendo
+ * `[0]` e `[1]` dali mediria os preenchimentos por acidente de ordem no DOM.
+ */
+function preenchimentos(doc: Document): Element[] {
+  return [...doc.querySelectorAll('[data-testid="result-bar-clip"] > [data-view-only]')];
+}
+
+/** Os dois traços, na ordem em que o componente os emite. */
+function marcadores(doc: Document): Element[] {
+  return [...doc.querySelectorAll('[data-testid="result-bar-marker"]')];
+}
+
+/** O traço que a base `base` mostra — o que o CSS revela naquela visão. */
+function marcadorDaBase(doc: Document, base: "parcial" | "proj"): Element | null {
+  return doc.querySelector(`[data-testid="result-bar-marker"][data-view-only="${base}"]`);
+}
+
+/** Lê `prop: <n>px` do atributo `style`, sem regex — escape em heredoc mente. */
+function px(el: Element | null, prop: string): number | null {
+  for (const decl of (el?.getAttribute("style") ?? "").split(";")) {
+    const [chave, valor] = decl.split(":");
+    if (chave?.trim() !== prop) continue;
+    const n = Number.parseFloat((valor ?? "").trim());
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/** `style` sem espaço em branco — comparação estável contra o que o React emite. */
+function estilo(el: Element | null): string {
+  return (el?.getAttribute("style") ?? "").replace(/\s+/g, "");
+}
+
 const BASE = {
   rank: 3,
   nome: "Candidato MDB",
@@ -60,15 +99,16 @@ describe("<CandidateResultRow />", () => {
     }
   });
 
-  it("(c) a barra tem um preenchimento por base + o traço da projeção", () => {
+  it("(c) a barra tem um preenchimento por base — e cada um desenha a sua", () => {
     const doc = parse(<CandidateResultRow {...BASE} />);
-    const fills = [...doc.querySelectorAll("[data-view-only]")];
+    const fills = preenchimentos(doc);
 
     expect(fills.map((f) => f.getAttribute("data-view-only"))).toEqual(["parcial", "proj"]);
     expect(fills[0]?.getAttribute("style")).toContain("width:8.4%");
     expect(fills[1]?.getAttribute("style")).toContain("width:9.1%");
-    // O traço da projeção fica visível nas duas bases — é a distância entre
-    // "onde está" e "onde o modelo diz que termina" (constituição § 8).
+    // A distância entre "onde está" e "onde o modelo diz que termina"
+    // (constituição § 8) continua na tela — pelo traço, nas duas bases. Qual
+    // valor cada traço marca é o bloco "o traço marca sempre a OUTRA base".
     expect(renderToStaticMarkup(<CandidateResultRow {...BASE} />)).toContain(
       "var(--accent-strong)",
     );
@@ -105,7 +145,7 @@ describe("<CandidateResultRow />", () => {
     const doc = parse(
       <CandidateResultRow {...BASE} pctAtual={Number.NaN} pctProjetado={140} votos={null} />,
     );
-    const fills = [...doc.querySelectorAll("[data-view-only]")];
+    const fills = preenchimentos(doc);
     expect(fills[0]?.getAttribute("style")).toContain("width:0%");
     expect(fills[1]?.getAttribute("style")).toContain("width:100%");
   });
@@ -193,17 +233,6 @@ describe("altura da barra — dobrada em 2026-09-19", () => {
     return doc.querySelector<HTMLElement>('[data-testid="result-bar"]');
   }
 
-  /** Lê `prop: <n>px` do atributo `style`, sem regex — escape em heredoc mente. */
-  function px(el: Element | null, prop: string): number | null {
-    for (const decl of (el?.getAttribute("style") ?? "").split(";")) {
-      const [chave, valor] = decl.split(":");
-      if (chave?.trim() !== prop) continue;
-      const n = Number.parseFloat((valor ?? "").trim());
-      return Number.isFinite(n) ? n : null;
-    }
-    return null;
-  }
-
   it("🔴 a barra tem 8px — o dobro dos 4px que tinha", () => {
     // Mutação que morre: qualquer valor que não seja 8. O número é literal de
     // propósito: importar `BARRA_ALTURA_PX` e comparar com ele mesmo seria a
@@ -212,7 +241,7 @@ describe("altura da barra — dobrada em 2026-09-19", () => {
     expect(px(barra(parse(<CandidateResultRow {...BASE} />)), "height")).toBe(8);
   });
 
-  it("o traço da projeção NÃO dobrou junto — segue sobrando 2px de cada lado", () => {
+  it("o traço NÃO dobrou junto — OS DOIS seguem sobrando 2px de cada lado", () => {
     // Decisão registrada no componente: o traço precisa ser visível acima e
     // abaixo do preenchimento, e 2px cumprem isso numa barra de 4 ou de 8.
     // Dobrá-lo faria dele um segundo elemento competindo com a barra.
@@ -222,11 +251,18 @@ describe("altura da barra — dobrada em 2026-09-19", () => {
     // ⚠️ Este caso mede a INTENÇÃO declarada, e sozinho ele não prova nada
     // sobre a tela: passou verde entre 08/09 e 20/09 com a sobra recortada e
     // invisível. Quem prova que ela chega ao vidro é o bloco logo abaixo.
+    //
+    // 🔴 Percorre os DOIS traços (20/09): com a inversão, em CADA linha há uma
+    // base em que o traço cai dentro do preenchimento — a sobra é a única
+    // parte legível ali, e um caso que olhasse só o primeiro deixaria o outro
+    // regredir sozinho.
     const doc = parse(<CandidateResultRow {...BASE} />);
-    const marcador = doc.querySelector('[data-testid="result-bar-marker"]');
-    expect(marcador?.getAttribute("style")).toContain("--accent-strong");
-    expect(px(marcador, "top")).toBe(-2);
-    expect(px(marcador, "bottom")).toBe(-2);
+    expect(marcadores(doc)).toHaveLength(2);
+    for (const marcador of marcadores(doc)) {
+      expect(marcador.getAttribute("style")).toContain("--accent-strong");
+      expect(px(marcador, "top")).toBe(-2);
+      expect(px(marcador, "bottom")).toBe(-2);
+    }
   });
 });
 
@@ -271,30 +307,37 @@ describe("o traço da projeção não pode ser recortado", () => {
     );
   }
 
-  it("🔴 nenhum ancestral do traço recorta — a sobra chega ao vidro", () => {
-    // Mutação que morre: mover o traço de volta para dentro de
-    // `[data-testid="result-bar-clip"]`, que é onde ele ficou de 08/09 a 20/09.
+  it("🔴 nenhum ancestral de NENHUM dos dois traços recorta — a sobra chega ao vidro", () => {
+    // Mutação que morre: mover QUALQUER um dos dois traços para dentro de
+    // `[data-testid="result-bar-clip"]`, que é onde o traço único ficou de
+    // 08/09 a 20/09.
     const doc = parse(<CandidateResultRow {...BASE} />);
-    const marcador = doc.querySelector('[data-testid="result-bar-marker"]');
-    expect(marcador).not.toBeNull();
+    expect(marcadores(doc)).toHaveLength(2);
 
-    const culpados = ancestrais(marcador)
-      .filter(recorta)
-      .map((el) => el.getAttribute("data-testid") ?? el.getAttribute("style") ?? el.tagName);
+    for (const marcador of marcadores(doc)) {
+      const culpados = ancestrais(marcador)
+        .filter(recorta)
+        .map((el) => el.getAttribute("data-testid") ?? el.getAttribute("style") ?? el.tagName);
 
-    expect(culpados).toEqual([]);
+      expect({ base: marcador.getAttribute("data-view-only"), culpados }).toEqual({
+        base: marcador.getAttribute("data-view-only"),
+        culpados: [],
+      });
+    }
   });
 
-  it("🔴 o traço é IRMÃO do recorte, não descendente dele", () => {
+  it("🔴 os DOIS traços são IRMÃOS do recorte, não descendentes dele", () => {
     // O caso acima já pegaria a regressão, mas só pelo efeito. Este nomeia a
     // estrutura: se um dia o recorte sair do `clip` e for parar em outro lugar,
-    // a resposta certa continua sendo manter o traço fora dele.
+    // a resposta certa continua sendo manter os traços fora dele.
     const doc = parse(<CandidateResultRow {...BASE} />);
     const clip = doc.querySelector('[data-testid="result-bar-clip"]');
-    const marcador = doc.querySelector('[data-testid="result-bar-marker"]');
 
-    expect(clip?.contains(marcador ?? null)).toBe(false);
-    expect(marcador?.parentElement?.getAttribute("data-testid")).toBe("result-bar");
+    expect(marcadores(doc)).toHaveLength(2);
+    for (const marcador of marcadores(doc)) {
+      expect(clip?.contains(marcador)).toBe(false);
+      expect(marcador.parentElement?.getAttribute("data-testid")).toBe("result-bar");
+    }
   });
 
   it("🔴 o recorte CONTINUA sobre os preenchimentos — é o canto arredondado", () => {
@@ -305,24 +348,193 @@ describe("o traço da projeção não pode ser recortado", () => {
     // Mutação que morre: remover o `overflow`/`border-radius` da caixa interna.
     const doc = parse(<CandidateResultRow {...BASE} />);
     const clip = doc.querySelector('[data-testid="result-bar-clip"]');
-    const estilo = (clip?.getAttribute("style") ?? "").replace(/\s+/g, "");
+    const css = estilo(clip);
 
-    expect(estilo).toContain("overflow:hidden");
-    expect(estilo).toContain("border-radius:var(--radius-xs)");
-    for (const fill of doc.querySelectorAll("[data-view-only]")) {
+    expect(css).toContain("overflow:hidden");
+    expect(css).toContain("border-radius:var(--radius-xs)");
+
+    const fills = preenchimentos(doc);
+    expect(fills).toHaveLength(2);
+    for (const fill of fills) {
       expect(clip?.contains(fill)).toBe(true);
     }
   });
 
-  it("horizontalmente o traço continua contido — 100% não vira rolagem lateral", () => {
+  it("horizontalmente OS DOIS traços continuam contidos — 100% não vira rolagem lateral", () => {
     // Sem recorte, `left: 100%` pintaria 2px FORA da barra, e a barra termina
     // na borda direita da linha. O teto no `left` mantém o traço dentro e, de
     // quebra, torna visível o caso que ANTES sumia aparado.
+    //
+    // 🔴 Vale para OS DOIS desde 20/09: `atual` chega a 100% no fim da noite
+    // tanto quanto `projetado`, e um traço sem teto empurra a página igual.
+    // Mutação que morre: tirar o `min(...)` de um dos dois.
     const doc = parse(<CandidateResultRow {...BASE} pctAtual={100} pctProjetado={100} />);
-    const estilo = (
-      doc.querySelector('[data-testid="result-bar-marker"]')?.getAttribute("style") ?? ""
-    ).replace(/\s+/g, "");
 
-    expect(estilo).toContain("left:min(100%,calc(100%-2px))");
+    expect(marcadores(doc)).toHaveLength(2);
+    for (const marcador of marcadores(doc)) {
+      expect(estilo(marcador)).toContain("left:min(100%,calc(100%-2px))");
+    }
+  });
+});
+
+/**
+ * 🔴 2026-09-20 — o traço marca sempre a OUTRA base.
+ *
+ * ## O defeito que este bloco existe para impedir
+ *
+ * Havia UM traço, fixo em `pctProjetado`. Na base `parcial` isso é coerente: a
+ * barra desenha `atual` e o traço mostra para onde o modelo diz que a corrida
+ * termina. Na base `proj`, porém, a barra TAMBÉM desenha `projetado` — o
+ * preenchimento e o traço caem no mesmo ponto, em toda candidatura, sempre.
+ * Medido no Chrome em 20/09, rota `/`, base `proj`, linha do LULA:
+ * preenchimento com 113,125px e traço com `left` em 113,1px.
+ *
+ * E `proj` é o DEFAULT (`lib/state/view-mode.ts`, `VIEW_MODE_DEFAULT`): quem
+ * abre o site vê exatamente o estado em que o traço não informa nada.
+ *
+ * ## Por que a suíte antiga não pegou
+ *
+ * Porque nenhum caso perguntava *qual* valor o traço marca em *qual* base. O
+ * caso (c) checava que a cor `--accent-strong` estava no HTML; o bloco da
+ * altura checava `top`/`bottom`. Ambos passariam com o traço em qualquer
+ * posição — inclusive empilhado sobre a ponta do preenchimento. É a família
+ * "teste que não discrimina" já registrada neste repositório: mede a presença
+ * do elemento, não a informação que ele carrega.
+ *
+ * A regra agora é dizível em voz alta, e é o que estes casos travam: **a barra
+ * é a base que você escolheu; o traço é a outra.**
+ */
+describe("o traço marca sempre a OUTRA base", () => {
+  it("🔴 na base `parcial` o traço visível aponta para a PROJEÇÃO", () => {
+    // Mutação que morre: trocar a entrada `parcial` de `MARCADOR_BASE_OPOSTA`.
+    const doc = parse(<CandidateResultRow {...BASE} />);
+    const marcador = marcadorDaBase(doc, "parcial");
+
+    expect(marcador).not.toBeNull();
+    expect(marcador?.getAttribute("data-marca")).toBe("proj");
+    expect(estilo(marcador)).toContain("left:min(9.1%,calc(100%-2px))");
+  });
+
+  it("🔴 na base `proj` o traço visível aponta para a PARCIAL — era aí que ele era mudo", () => {
+    // Mutação que morre: devolver este traço para `projetado`, que é o defeito
+    // que a tela mostrava até 20/09. O `left` deixaria de ser 8,4% e passaria a
+    // ser 9,1% — o mesmo ponto onde o preenchimento `proj` termina.
+    const doc = parse(<CandidateResultRow {...BASE} />);
+    const marcador = marcadorDaBase(doc, "proj");
+
+    expect(marcador).not.toBeNull();
+    expect(marcador?.getAttribute("data-marca")).toBe("parcial");
+    expect(estilo(marcador)).toContain("left:min(8.4%,calc(100%-2px))");
+  });
+
+  it("🔴 traço e preenchimento NUNCA caem no mesmo ponto, em nenhuma das bases", () => {
+    // Este é o caso que nomeia o defeito em vez do conserto: seja qual for a
+    // base ativa, o número que a barra desenha e o número que o traço marca têm
+    // de ser DIFERENTES sempre que as duas bases diferirem.
+    //
+    // Mutação que morre: qualquer versão de `MARCADOR_BASE_OPOSTA` que mapeie
+    // uma base para ela mesma — inclusive a identidade completa.
+    const doc = parse(<CandidateResultRow {...BASE} />);
+
+    for (const base of ["parcial", "proj"] as const) {
+      const fill = doc.querySelector(
+        `[data-testid="result-bar-clip"] > [data-view-only="${base}"]`,
+      );
+      const larguraDoFill = estilo(fill).match(/width:([\d.]+)%/)?.[1];
+      const posicaoDoTraco = estilo(marcadorDaBase(doc, base)).match(/left:min\(([\d.]+)%/)?.[1];
+
+      expect(larguraDoFill).toBeDefined();
+      expect(posicaoDoTraco).toBeDefined();
+      expect({ base, mesmoPonto: larguraDoFill === posicaoDoTraco }).toEqual({
+        base,
+        mesmoPonto: false,
+      });
+    }
+  });
+
+  it("os dois traços existem no DOM com os `data-view-only` certos", () => {
+    // Mutação que morre: trocar os dois `data-view-only` entre si. A cascata do
+    // shell (`app/globals.css`, `[data-view-only] { display: none }` +
+    // `:root[data-view=X] [data-view-only=X] { display: revert }`) é o ÚNICO
+    // mecanismo que decide qual traço aparece; com os atributos trocados, cada
+    // base mostraria o traço da outra e as duas visões voltariam a ser mudas —
+    // desta vez as duas, não só uma.
+    const doc = parse(<CandidateResultRow {...BASE} />);
+
+    expect(marcadores(doc).map((m) => m.getAttribute("data-view-only"))).toEqual([
+      "parcial",
+      "proj",
+    ]);
+    // Nenhum dos dois nasce com `display:none` no `style`: quem esconde é a
+    // cascata, e é ela que também os traz de volta. Um `display` inline aqui
+    // venceria a cascata e congelaria a linha numa base só.
+    for (const marcador of marcadores(doc)) {
+      expect(estilo(marcador)).not.toContain("display:none");
+    }
+  });
+});
+
+/**
+ * 🔴 2026-09-20 — o traço some quando a base que ele marca vale ZERO.
+ *
+ * O caso nasceu com a inversão. No começo da noite `atual` é 0 para todo mundo,
+ * e na base `proj` — o default — o traço invertido iria para o extremo esquerdo
+ * da barra. Um traço colado na borda esquerda **afirma "0% apurado"**, e este
+ * projeto tem regra escrita do dono sobre TRÊS estados distintos (não começou /
+ * não sabemos / apurando) e sobre nunca fabricar zeros de resgate.
+ *
+ * O componente não sabe em qual dos três está: `pctAtual` é um `number`
+ * obrigatório, sem `null`. Então a afirmação geométrica sai, e só ela — o
+ * `0,0%` continua na coluna de texto, nas duas bases, porque ali ele é um
+ * número exibido e não uma posição na barra.
+ *
+ * A condição é simétrica e exata: **o traço de uma base só é renderizado se o
+ * percentual da base OPOSTA for `> 0`**, depois do clamp.
+ */
+describe("traço em base zerada", () => {
+  it("🔴 início da noite: `atual = 0` e o traço da base `proj` não é desenhado", () => {
+    // Mutação que morre: trocar o `> 0` por `>= 0` (ou remover a guarda).
+    const doc = parse(<CandidateResultRow {...BASE} pctAtual={0} pctProjetado={35.8} votos={0} />);
+
+    expect(marcadorDaBase(doc, "proj")).toBeNull();
+    // O da base `parcial` CONTINUA: `projetado` vale 35,8 e é informação real.
+    expect(marcadorDaBase(doc, "parcial")).not.toBeNull();
+    // E o número zero não some da tela — o que some é a posição na barra.
+    expect(doc.body.textContent).toContain("0,0%");
+  });
+
+  it("`projetado = 0` esconde o traço da base `parcial`, pela mesma regra", () => {
+    // A simetria não é enfeite: sem ela a regra vira "o traço some às vezes",
+    // que é impossível de verificar na tela.
+    const doc = parse(<CandidateResultRow {...BASE} pctAtual={12.3} pctProjetado={0} />);
+
+    expect(marcadorDaBase(doc, "parcial")).toBeNull();
+    expect(marcadorDaBase(doc, "proj")).not.toBeNull();
+  });
+
+  it("`NaN` — 'não sabemos' — também não vira traço na borda esquerda", () => {
+    // `clampPct` manda `NaN` para 0, e desenhar o traço ali seria o componente
+    // afirmando um valor medido a partir de um valor ausente.
+    const doc = parse(<CandidateResultRow {...BASE} pctAtual={Number.NaN} />);
+    expect(marcadorDaBase(doc, "proj")).toBeNull();
+  });
+
+  it("ambas zeradas: nenhum traço, e a barra continua inteira", () => {
+    const doc = parse(<CandidateResultRow {...BASE} pctAtual={0} pctProjetado={0} />);
+
+    expect(marcadores(doc)).toHaveLength(0);
+    // A barra e o recorte não dependem do traço para existir — a linha continua
+    // desenhando o trilho vazio, que é o estado "ainda não".
+    expect(doc.querySelector('[data-testid="result-bar"]')).not.toBeNull();
+    expect(preenchimentos(doc)).toHaveLength(2);
+  });
+
+  it("um percentual pequeno mas real CONTINUA ganhando traço — a guarda é só o zero", () => {
+    // Guarda contra a correção exagerada: um limiar (`> 0.5`, digamos) apagaria
+    // o traço de candidaturas pequenas de verdade, que é informação legítima.
+    const doc = parse(<CandidateResultRow {...BASE} pctAtual={0.04} pctProjetado={0.2} />);
+
+    expect(marcadorDaBase(doc, "proj")).not.toBeNull();
+    expect(estilo(marcadorDaBase(doc, "proj"))).toContain("left:min(0.04%,");
   });
 });
