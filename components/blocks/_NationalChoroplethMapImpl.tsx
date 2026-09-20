@@ -29,16 +29,52 @@
  *     ainda; nenhum consumidor existe hoje (grep confirmado), então isto é
  *     aditivo/forward-compat, não uma migração de contrato quebrado.
  *
- * 2026-09-08 (decisão do usuário): clique/toque numa UF NÃO navega mais
- * direto para `/uf/[sigla]` — abre a `<StateResultSheet>` (folha, ver
- * `NationalChoroplethMap.tsx`) via o callback `onSelectUf`. A navegação real
- * para `/uf/[sigla]` agora vive só no botão "Ver detalhes do estado" dentro
- * da folha (link `<a href>` de verdade, não `router.push`). `useRouter` saiu
- * daqui — este arquivo não navega mais sozinho.
+ * ## O clique numa UF — duas decisões, nesta ordem
+ *
+ * **2026-09-08 (decisão do usuário)**: clique/toque numa UF deixou de navegar
+ * direto para `/uf/[sigla]` e passou a abrir a `<StateResultSheet>` (folha,
+ * ver `NationalChoroplethMap.tsx`) via o callback `onSelectUf`. A navegação
+ * real para `/uf/[sigla]` passou a viver só no botão "Ver detalhes do estado"
+ * dentro da folha (link `<a href>` de verdade, não `router.push`), e
+ * `useRouter` SAIU deste arquivo — ele deixou de navegar sozinho. Esta nota
+ * fica porque explica por que o código esteve assim por onze dias, e por que
+ * `onSelectUf` existe.
+ *
+ * **2026-09-19 (decisão do usuário, ADR-0050 — reverte a anterior só no
+ * DESKTOP)**: o clique volta a NAVEGAR, mas apenas onde há espaço para a página de estado —
+ * `navegarNoClique` (prop nova, default `false`) é ligada pelo wrapper quando
+ * a media query de desktop casa. No mobile nada muda: `navegarNoClique` fica
+ * falso, o clique continua chamando `onSelectUf` e a folha continua sendo o
+ * caminho. Quem decide o breakpoint é o wrapper (`NationalChoroplethMap.tsx`,
+ * `useIsDesktop`); quem navega é este arquivo, porque `useRouter` não pode
+ * subir para o wrapper — ver a docstring dele, que é eager e é renderizado
+ * por `renderToStaticMarkup` em `tests/integration/home-page.test.tsx` sem
+ * nenhum mock de `next/navigation`. Aqui o `ssr: false` do `next/dynamic`
+ * garante que `useRouter` nunca vê SSR — que é exatamente onde ele morava
+ * antes de 08/09.
+ *
+ * Vale nos três cargos e em TODA fase, inclusive pré-eleição (decisão do dono
+ * em 19/09): a página do estado mostra quem concorre ali
+ * (`<CandidaturasAguardando>`, RF-149), então navegar antes do pleito leva a
+ * conteúdo útil, não a tela vazia — e o comportamento não muda de um dia para
+ * o outro. Nenhuma condição de fase no handler.
+ *
+ * A `<StateResultSheet>` NÃO morreu: continua sendo o caminho de mobile, e no
+ * desktop simplesmente nunca é aberta (`selectedSigla` fica `null`). Toda a
+ * fiação dela segue intacta no wrapper.
+ *
+ * Isto devolve o código ao que `docs/specs/003-home-nacional/spec.md:139-142`
+ * (RF-030.3) sempre disse — aquela linha nunca foi emendada em 08/09. A
+ * ressalva desktop/mobile entra na spec num passo separado.
  */
 
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+// 🔴 `useRouter` mora AQUI, e não no wrapper eager (`NationalChoroplethMap.tsx`),
+// de propósito — ver a docstring do topo deste arquivo e a do wrapper. Este
+// módulo só existe atrás de `next/dynamic({ ssr: false })`, então este hook
+// nunca é avaliado num render de servidor.
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { MapView } from "@/components/atoms/controls/MapViewToggle";
@@ -50,15 +86,15 @@ import { UF_NOMES } from "@/components/atoms/maps/_shared";
 import { HoverCard, type HoverCardRow } from "@/components/atoms/overlays/HoverCard";
 import { FILL_OPACITY, fillOpacityExpression, swingToColor } from "@/components/blocks/_swingRamp";
 // 🔴 `ariaRessalvaVagas`/`margemSegundaVaga` vêm de `lib/utils/margem-senado`,
-// NÃO de `@/components/layout/UfPicker` — este arquivo é o chunk lazy do
-// MapLibre (RNF-007b, 14,7 KiB de margem no orçamento medido pelo
-// `a11y-perf-auditor` em 18/09) e `UfPicker.tsx` é `"use client"` com
-// `<UfPicker>`/`<UfPickerGrid>` no MESMO módulo (`<Button>`, `<Sheet>`,
-// `next/link`). Um import em RUNTIME dali arriscaria puxar esse peso para
-// dentro do chunk que menos tem margem. `type UfPickerCargo` abaixo é
-// type-only (erasado na compilação) e não tem este custo — só os dois
-// valores de runtime precisam do módulo puro. Ver docstring completa em
-// `lib/utils/margem-senado.ts`.
+// e `ufHref` vem de `lib/utils/uf-href` — NÃO de `@/components/layout/UfPicker`.
+// Este arquivo é o chunk lazy do MapLibre (RNF-007b, 14,7 KiB de margem no
+// orçamento medido pelo `a11y-perf-auditor` em 18/09) e `UfPicker.tsx` é
+// `"use client"` com `<UfPicker>`/`<UfPickerGrid>` no MESMO módulo
+// (`<Button>`, `<Sheet>`, `next/link`). Um import em RUNTIME dali arriscaria
+// puxar esse peso para dentro do chunk que menos tem margem. `type
+// UfPickerCargo` abaixo é type-only (erasado na compilação) e não tem este
+// custo — só os TRÊS valores de runtime precisam de módulo puro. Ver
+// docstrings completas em `lib/utils/margem-senado.ts` e `lib/utils/uf-href.ts`.
 import type { UfPickerCargo } from "@/components/layout/UfPicker";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { useHoverStore } from "@/lib/state/hover-store";
@@ -79,6 +115,7 @@ import {
   resolvePartyHex,
   textForParty,
 } from "@/lib/utils/party-color";
+import { ufHref } from "@/lib/utils/uf-href";
 
 const PMTILES_BASE = "https://jbtu251tioj3y57z.public.blob.vercel-storage.com";
 
@@ -135,9 +172,29 @@ export interface NationalChoroplethMapImplProps {
    * Chamado no click/tap sobre uma UF (2026-09-08, decisão do usuário) — a
    * folha (`<StateResultSheet>`) é responsabilidade do wrapper
    * (`NationalChoroplethMap.tsx`), não deste arquivo. Este componente só
-   * reporta a sigla selecionada; nunca navega sozinho.
+   * reporta a sigla selecionada.
+   *
+   * 2026-09-19: continua sendo o caminho de MOBILE. No desktop
+   * (`navegarNoClique`, abaixo) o clique navega e este callback não é
+   * chamado — a folha nunca abre porque `selectedSigla` nunca muda.
    */
   onSelectUf?: (sigla: string) => void;
+  /**
+   * O clique numa UF navega para a página daquele estado em vez de chamar
+   * `onSelectUf` (2026-09-19, decisão do usuário, ADR-0050 — reverte a de
+   * 08/09 só no desktop; ver a docstring do topo do arquivo).
+   *
+   * **Default `false` de propósito**: o comportamento vigente desde 08/09 (o
+   * clique abre a folha) é o default, não um palpite. Quem liga isto é o
+   * wrapper, e só quando a media query de desktop casa — nenhum outro caller
+   * precisa saber que esta prop existe.
+   *
+   * 🔴 Lida de uma REF dentro do handler de clique, nunca de closure: o
+   * efeito que registra o handler roda UMA vez, na montagem, e o wrapper
+   * começa com `false` (o `matchMedia` só resolve no `useEffect` dele). Uma
+   * closure congelaria esse `false` inicial e o desktop nunca navegaria.
+   */
+  navegarNoClique?: boolean;
   /**
    * Qual corrida este mapa mostra (2026-09-18; estendido a `"sen"` em
    * 2026-09-18) — hoje só decide o alvo do `aria-describedby` (ver o atributo
@@ -154,6 +211,15 @@ interface TooltipState {
   y: number;
   /** Vira o cartão pra esquerda quando o ponteiro está na metade direita do mapa. */
   flip: boolean;
+  /**
+   * Vira o cartão pra CIMA quando o ponteiro está na metade de baixo do mapa
+   * (2026-09-19). **Obrigatório, não opcional**: um `setTooltip` que esqueça
+   * o campo tem de ser erro de compilação, não `undefined` silencioso
+   * chegando ao `<HoverCard>` e caindo no default `false` — que é
+   * exatamente o comportamento defeituoso que este campo existe para
+   * corrigir. Mesma razão para `flip` nunca ter sido opcional aqui.
+   */
+  flipY: boolean;
   sigla: string;
   row: EdgeUfRow;
 }
@@ -427,7 +493,7 @@ function buildHoverRows(
   candidatosById: Map<number, EdgeCandidate>,
   rankByLider: Record<number, number> | undefined,
 ): HoverCardRow[] {
-  return row.top_candidatos.map((tc, index) => {
+  const linhas: HoverCardRow[] = row.top_candidatos.map((tc, index) => {
     const cand = candidatosById.get(tc.id);
     const nomeBruto = tc.nome ?? cand?.nome;
     const partido = tc.partido ?? cand?.partido;
@@ -468,6 +534,43 @@ function buildHoverRows(
       winnerInk: winnerPair?.ink,
     };
   });
+
+  // 🔴 **A linha "Outros"** (2026-09-19, pedido do dono). `row.outros` é o
+  // agregado de TODAS as candidaturas fora de `top_candidatos` — somado no
+  // produtor (`api/model/project.py`), candidato a candidato, NUNCA aqui e
+  // nunca como `100 − Σ(top 4)` (ver a docstring do campo em
+  // `lib/edge-config/types.ts`: os pontos de uma UF não fecham em 100, e a
+  // subtração publicaria o resíduo de fechamento como se fosse voto de
+  // alguém).
+  //
+  // **Ausente ⇒ nenhuma linha.** Campo faltando significa "a cauda é vazia"
+  // (UF com ≤ 4 candidaturas no cargo), não "os demais somam zero" — escrever
+  // "Outros 0,0%" numa corrida de três seria uma linha falsa.
+  const outros = row.outros;
+  if (outros) {
+    linhas.push({
+      kind: "outros",
+      // `n_candidatos` é a razão de este agregado não caber dentro de
+      // `top_candidatos[]`: candidatura nenhuma tem esse campo.
+      name: `Outros (${outros.n_candidatos})`,
+      // Sem `color` e sem `partido`: o agregado junta partidos de cores
+      // diferentes e não tem identidade própria. O `<HoverCard>` põe um
+      // espaçador invisível no lugar do ponto de 8×8 — ver lá.
+      //
+      // 🔴 **Os nomes de `pct` são TROCADOS entre o payload e o componente, e
+      // este é o cruzamento mais fácil de errar deste arquivo.** No payload
+      // (`EdgeUfRow`), `pct` é a PROJEÇÃO e `pct_atual` é a PARCIAL. No
+      // `HoverCardRow`, é o contrário: `pct` é a PARCIAL e `proj` é a
+      // PROJEÇÃO. As quatro linhas acima já fazem exatamente este cruzamento
+      // (`pct: tc.pct_atual` / `proj: tc.pct`); esta o repete. Trocar os dois
+      // aqui mostraria a projeção sob o rótulo "Parcial" — número plausível,
+      // em coluna errada, sem nenhum sintoma visual.
+      pct: outros.pct_atual,
+      proj: outros.pct,
+      votos: outros.votos_atuais,
+    });
+  }
+  return linhas;
 }
 
 /**
@@ -628,8 +731,10 @@ export function NationalChoroplethMapImpl({
   preEleicao = false,
   height = 420,
   onSelectUf,
+  navegarNoClique = false,
   cargo = "pres",
 }: NationalChoroplethMapImplProps) {
+  const router = useRouter();
   // Backward-compat: caller pré-S05 só passa `candidatoAId`; sintetizamos um
   // rankByLider mínimo `{ [candidatoAId]: 1 }` pra manter o líder em
   // `--color-cand-1` (= --color-pt, mesmo hex). Líderes "diferentes" caem
@@ -856,6 +961,30 @@ export function NationalChoroplethMapImpl({
               y,
               // Vira o cartão pra esquerda perto da borda direita do mapa.
               flip: x > rect.width / 2,
+              // 🔴 Vira pra CIMA na metade de baixo (2026-09-19 — queixa do
+              // dono: hover em RS/SC abria o cartão para baixo e a moldura
+              // do mapa, que é `overflow: hidden`, o cortava). Simétrico ao
+              // horizontal, e **calculado aqui**, no mapa, nunca no átomo:
+              //   (a) `<HoverCard>` é Server Component e medir a própria
+              //       altura exigiria `"use client"` + `useLayoutEffect`
+              //       nele, o que o joga para dentro DESTE chunk — o de
+              //       menor folga do projeto (RNF-007b, 14,7 KiB medidos em
+              //       18/09) — para decidir 12px;
+              //   (b) `mousemove` é throttled a 16ms: medir-e-reposicionar a
+              //       ~60Hz faria o cartão tremer no meio da tela;
+              //   (c) `HoverCard.test.tsx` renderiza por
+              //       `renderToStaticMarkup`, onde `useLayoutEffect` nunca
+              //       roda — os testes do átomo passariam a exercitar só o
+              //       ramo NÃO-medido.
+              //
+              // ⚠️ **Limite conhecido do proxy**: `rect.height / 2` só é
+              // seguro enquanto o cartão couber na metade do contêiner. Com a
+              // linha "Outros" ele vai a ~6 linhas (~190px) contra o `height`
+              // default de 420 — a folga caiu de ~70px para ~20px. Um cartão
+              // mais alto que isso (uma 7ª linha, ou um mapa em moldura baixa)
+              // volta a poder encostar na borda, e aí o remédio é medir de
+              // verdade, não mexer no divisor.
+              flipY: y > rect.height / 2,
               sigla,
               row,
             });
@@ -873,15 +1002,36 @@ export function NationalChoroplethMapImpl({
         map.getCanvas().style.cursor = "";
       });
 
-      // Click: abre a folha de resumo da UF (RF-030.3, decisão 2026-09-08 — ver
-      // docstring do topo do arquivo). Também emite pro hover-store (mesmo
-      // padrão de tap-to-select do ChoroplethMapUF.tsx) — em touch não há
-      // mousemove antes do tap. `onSelectUfRef` porque este efeito roda só na
-      // montagem (mesmo padrão de `routerRef` antes dele).
+      // Click (RF-030.3) — dois destinos, ver a docstring do topo do arquivo:
+      // no DESKTOP navega para a página do estado (decisão 2026-09-19); no
+      // mobile abre a folha de resumo via `onSelectUf` (decisão 2026-09-08).
+      // Emite pro hover-store nos dois casos (mesmo padrão de tap-to-select do
+      // ChoroplethMapUF.tsx) — em touch não há mousemove antes do tap, e no
+      // desktop o mousemove já deixou a mesma UF ali; em nenhum dos dois a
+      // emissão afirma algo diferente do que está sob o ponteiro.
+      //
+      // 🔴 TUDO que este handler lê vem de REF, nunca de closure: este efeito
+      // roda só na montagem. `navegarNoCliqueRef` em especial — ele NASCE
+      // `false` no wrapper e só vira `true` depois do `useEffect` do
+      // `matchMedia`; uma closure congelaria o `false` e o desktop nunca
+      // navegaria. Mesmo motivo de `onSelectUfRef`, `cargoRef` e `routerRef`.
       map.on("click", "ufs-fill", (e) => {
         const sigla = e.features?.[0]?.properties?.SIGLA_UF as string | undefined;
         if (!sigla) return;
         useHoverStore.getState().setHovered({ type: "uf", sigla }, "map");
+        if (navegarNoCliqueRef.current) {
+          // `router.push` e NÃO `<a href>`/`location.assign`: `/` e
+          // `/uf/[sigla]` são irmãos sob o MESMO `layout.tsx` de grupo, que
+          // hospeda a moldura persistente do mapa. A navegação soft preserva
+          // a instância MapLibre viva; um link cru remontaria o mapa do zero
+          // — exatamente o defeito que o ADR-0033 § 1 existe para evitar.
+          //
+          // `ufHref` (módulo puro `lib/utils/uf-href`) é a fonte ÚNICA do
+          // destino por cargo — um template escrito à mão aqui seria a quarta
+          // ocorrência do default silencioso de cargo neste repositório.
+          routerRef.current.push(ufHref(cargoRef.current, sigla));
+          return;
+        }
         onSelectUfRef.current?.(sigla);
       });
 
@@ -908,6 +1058,18 @@ export function NationalChoroplethMapImpl({
   useEffect(() => {
     onSelectUfRef.current = onSelectUf;
   }, [onSelectUf]);
+
+  // 2026-09-19 — o par do clique-navega. `routerRef` porque o objeto do
+  // `useRouter` pode trocar de identidade entre renders e o handler de clique
+  // é registrado uma vez só; `navegarNoCliqueRef` porque o valor NASCE `false`
+  // e vira `true` um tick depois (o `matchMedia` do wrapper só resolve no
+  // `useEffect` dele) — ver a docstring da prop.
+  const routerRef = useRef(router);
+  const navegarNoCliqueRef = useRef(navegarNoClique);
+  useEffect(() => {
+    routerRef.current = router;
+    navegarNoCliqueRef.current = navegarNoClique;
+  }, [router, navegarNoClique]);
 
   // Refs for view/rankByLider/candidatosById used in load handler
   const viewRef = useRef(view);
@@ -947,6 +1109,24 @@ export function NationalChoroplethMapImpl({
     <div style={{ position: "relative", height }}>
       <div
         ref={containerRef}
+        // 🔴 2026-09-19 — trocar o clique→folha por clique→navegação no
+        // desktop NÃO é regressão de acessibilidade, e isto foi CONFERIDO no
+        // código, não presumido: este `role="img"` não tem `tabIndex` e não há
+        // um único handler de teclado neste arquivo (`grep tabIndex|onKeyDown|
+        // keydown` = zero linhas). O canvas do MapLibre nunca esteve na ordem
+        // de tabulação, logo a `<StateResultSheet>` que o clique abria também
+        // nunca foi alcançável por teclado — não se perde um caminho que não
+        // existia. O caminho de teclado para chegar a um estado é, e continua
+        // sendo, o `<UfPicker>`: 27 `<Link>` de verdade (`UfPicker.tsx:232`,
+        // `ufsPorNome()`), montado em TODOS os ramos de
+        // `PersistentMapFrame.tsx` (pres, gov e sen, com e sem `sigla`) — e
+        // agora ele leva ao MESMO destino que o clique no mapa, porque os dois
+        // derivam de `ufHref`.
+        //
+        // O `aria-describedby` logo abaixo também não precisou mudar: ele
+        // aponta para a lista textual paralela (`<StateGroupedTable>` em
+        // Presidente, o painel "Estado a estado" em Senador) — nunca descreveu
+        // a folha nem o efeito do clique.
         role="img"
         // RF-161 — "projeção" não ocorre em nenhuma das quatro telas em fase
         // pré, fora do bloco de transparência (RF-158). A métrica da spec é
@@ -1009,6 +1189,7 @@ export function NationalChoroplethMapImpl({
           x={tooltip.x}
           y={tooltip.y}
           flip={tooltip.flip}
+          flipY={tooltip.flipY}
           title={ufTitleFor(tooltip.sigla)}
           kicker={tooltip.row.chamada ? "Chamada" : undefined}
           apurado={tooltip.row.pct_apurado}

@@ -3,7 +3,7 @@
   "name": "SalaCofre Docs Index",
   "description": "Índice machine-readable da documentação SDD do SalaCofre. Carregar este arquivo dá a um agente o mapa completo das specs, NFRs, ADRs e fontes canônicas.",
   "version": "1.0",
-  "last_updated": "2026-09-18",
+  "last_updated": "2026-09-19",
   "source_prd": "docs/PRD.md",
   "constitution": "docs/constitution.md",
   "conventions": "docs/_meta/conventions.md",
@@ -269,7 +269,8 @@
       "status": "accepted",
       "date": "2026-09-08",
       "amends": "0029",
-      "note": "3 decisões da sessão de 08/09: (1) navegação por moldura persistente ('jeito C') — mapa vive em layout.tsx compartilhado entre home/UF do mesmo cargo, endereço continua mudando, mapa não desmonta; (2) home adota ordem de painéis do protótipo (Resultado→Chances→Redutos→Falta apurar→Boletim) com Placar por estado mantido e Cenários/UFs decisivas removidos; (3) gate OT-4 não é calibrado ajustando REGIONAL_DELAY do fixture sintético — aguarda pesquisa de dado real de 2022, que pode não existir. Emenda o ADR-0029 (nota de Status, D17: reversão da posição/exceção do hero) sem tocar seu corpo. Decisão 3 implementada em 2026-09-11 (scripts/replay-sensitivity.ts); nota adicional 2026-09-11 registra que o ADR-0035 (ingestão por par) usou esses números como prova de que o modelo ficou intocado.",
+      "note": "3 decisões da sessão de 08/09: (1) navegação por moldura persistente ('jeito C') — mapa vive em layout.tsx compartilhado entre home/UF do mesmo cargo, endereço continua mudando, mapa não desmonta; (2) home adota ordem de painéis do protótipo (Resultado→Chances→Redutos→Falta apurar→Boletim) com Placar por estado mantido e Cenários/UFs decisivas removidos; (3) gate OT-4 não é calibrado ajustando REGIONAL_DELAY do fixture sintético — aguarda pesquisa de dado real de 2022, que pode não existir. Emenda o ADR-0029 (nota de Status, D17: reversão da posição/exceção do hero) sem tocar seu corpo. Decisão 3 implementada em 2026-09-11 (scripts/replay-sensitivity.ts); nota adicional 2026-09-11 registra que o ADR-0035 (ingestão por par) usou esses números como prova de que o modelo ficou intocado. Nota 2026-09-19: a premissa de clique da Decisão 1 ('sem alterar o mecanismo de clique já decidido nesta sessão') é parcialmente superada pelo ADR-0050 — no desktop; o restante da Decisão 1 (moldura persistente) permanece intocado.",
+      "amended_by": "0050",
       "path": "docs/architecture/adrs/0033-navegacao-moldura-persistente-paineis-home-calibracao-ot4.md"
     },
     {
@@ -405,6 +406,15 @@
       "date": "2026-09-18",
       "note": "Decisão do dono 18/09, commit 16d4a26: CamaraHemiciclo.tsx (Server Component, zero JS) + hemiciclo.ts (geometria pura) + bancada.ts (ordenarBancada extraída para ser compartilhada com a lista). total_cadeiras nunca hardcoded (RF-124) — arcos são constante de desenho (ARCOS_PADRAO=12), não derivados de N, para 513→531 (Censo 2022/PLP 177) não reestruturar o desenho; distribuição por maiores restos (Hare), ângulos em centro de célula, coordenadas a 3 casas (determinismo, constituição § 6). Três estados de cadeira (definida/indefinida/nao_atribuida); indefinida ganha ANEL na cor da agremiação, não cinza chapado — trade-off apresentado e aceito pelo dono (RF-127). RF-127 entra pela metade: cadeiras_indefinidas vira anel; cadeiras_ci95 (intervalo) NÃO é desenhado, travado por teste de outerHTML idêntico com/sem o campo. Cor via textForParty, nunca colorForParty (RNF-035, corrige PSOL 2,08:1 nesta tela). Ordem cadeiras desc/sigla asc, sem eixo ideológico, sem marcador de maioria em 257 (constituição § 2). Corrige premissa do pedido original (\"coligações partidárias\" não existe em proporcional desde EC 97/2017; federação já é uma agremiação, api/model/cadeiras.py). Negativas nomeadas: os 3 orçamentos de RNF-007 não enxergam o widget (zero script) — mitigado por teto de 36 KiB no markup e por caso PROVISÓRIO em perf-budget.spec.ts (300 KiB, não medido de verdade — BotID derruba o e2e local); trava de sanidade contra multiplicação de votos do cargo 6 EXISTE desde 13/09 (project.py:5658) mas o alarme via _alert_slack não alcança ninguém sem SLACK_WEBHOOK_URL — correção de registro: risks.md e a mensagem do commit afirmavam a trava ausente, o que é falso; 27 bandeiras de UF com encaixe pronto e 0/27 arquivos entregues; nenhum RF publicado descreve o widget em si (RF-124/125.1/127 só normatizam os dados).",
       "path": "docs/architecture/adrs/0049-hemiciclo-camara-geometria-fixa-anel-na-indefinida.md"
+    },
+    {
+      "id": "0050",
+      "title": "Clique em UF navega no desktop via router.push, gaveta permanece no mobile — reversão parcial da decisão de 2026-09-08",
+      "status": "accepted",
+      "date": "2026-09-19",
+      "supersedes": "0033 (parcial — apenas a premissa de clique da Decisão 1)",
+      "note": "Decisão do dono 19/09. Reverte, só no desktop (min-width: 960px, DESKTOP_QUERY já existente em NationalChoroplethMap.tsx:61), a mudança de 08/09 que trocou clique-navega por clique-abre-StateResultSheet — RF-030.3 (spec 003) nunca foi emendado e continuou sendo a fonte de verdade; quem estava fora de conformidade era o código. Vale para os três mapas nacionais coropléticos (pres/gov/sen, ADR-0048), que compartilham NationalChoroplethMap. Mecanismo: router.push(ufHref(cargo, sigla)), não <a href> — soft nav preserva a moldura persistente do ADR-0033 § 1 (que este ADR NÃO toca), e não há nó de DOM por UF sobre o <canvas> MapLibre para ancorar um <a> real (27 âncoras invisíveis reprojetadas por map.project() reprovariam WCAG SC 2.4.7). useRouter volta a morar no impl (_NationalChoroplethMapImpl.tsx, next/dynamic ssr:false, ADR-0010), nunca no wrapper eager (home-page.test.tsx usa renderToStaticMarkup sem mock de next/navigation). Não é regressão de teclado: o canvas (role=img, _NationalChoroplethMapImpl.tsx:1020) nunca teve tabIndex nem handler de teclado — o caminho de teclado sempre foi o <UfPicker> (27 <Link> reais), inalterado. Mobile inalterado (gaveta continua). Regressão real aceita: risks.md:89 nomeava a <StateResultSheet> como única saída de quem lê cor em /governador e /senador (sem legenda, rank reinicia por UF) — essa saída some no desktop; mitigação parcial já existente é a coluna 'Part.' do <HoverCard> desde 18/09. risks.md:89 e RF-030.3 (cláusula de superfície) ficam como emenda pendente via spec-syncer.",
+      "path": "docs/architecture/adrs/0050-clique-em-uf-desktop-navega-mobile-gaveta.md"
     }
   ],
   "nfr": {
@@ -824,7 +834,8 @@
         "0025",
         "0033",
         "0034",
-        "0038"
+        "0038",
+        "0050"
       ],
       "shipped_with_carry_overs": ""
     },

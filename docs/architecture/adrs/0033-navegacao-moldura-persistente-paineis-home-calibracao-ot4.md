@@ -4,13 +4,25 @@ title: Moldura persistente para o mapa entre rotas de UF, não SPA do protótipo
 status: accepted
 date: 2026-09-08
 amends: 0029
+amended_by: ADR-0050 # parcial — premissa de clique da Decisão 1, só no desktop
 ---
 
 # ADR-0033 — Moldura persistente para o mapa entre rotas de UF, não SPA nem troca de página inteira
 
 ## Status
 
-Aceito. Decisão 3 **implementada em 2026-09-11**: `scripts/replay-sensitivity.ts` (novo) roda o
+Aceito. **Nota 2026-09-19 (parcial, [ADR-0050](0050-clique-em-uf-desktop-navega-mobile-gaveta.md)).**
+A premissa entre parênteses da Decisão 1 abaixo ("sem alterar o mecanismo de clique já decidido nesta
+sessão") deixa de valer **no desktop**: o clique numa UF volta a navegar direto via `router.push`, em
+vez de abrir a `<StateResultSheet>`. Segue o precedente de supersessão parcial já registrado no
+[ADR-0017](0017-transparencia-total-3-camadas.md) `## Status`: este ADR mantém `status: accepted`
+porque a decisão como um todo — a moldura persistente em `layout.tsx` de grupo de rotas, o mapa nunca
+desmontando entre Brasil e UF do mesmo cargo — continua majoritariamente vigente e é, aliás, a razão
+técnica pela qual o ADR-0050 escolhe `router.push` (navegação soft dentro da mesma moldura) e não um
+`<a href>` cru. No mobile, o clique/toque continua abrindo a folha exatamente como esta Decisão 1
+descreve; nada mais nesta Decisão 1, nem as Decisões 2 e 3, é tocado por essa nota.
+
+Decisão 3 **implementada em 2026-09-11**: `scripts/replay-sensitivity.ts` (novo) roda o
 replay 2022 sob `REGIONAL_DELAY` ∈ {0, 1, 2, 3} timesteps (parametrizado via
 `REPLAY_REGIONAL_DELAY` em `scripts/build-replay-fixtures.ts`, default 3, o gate oficial
 inalterado) e grava a faixa medida em

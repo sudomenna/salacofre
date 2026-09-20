@@ -45,18 +45,68 @@
  * obrigatório (nunca `undefined`) — lá a coluna continua sempre presente,
  * só que agora por CONSEQUÊNCIA do dado, não por um caminho de código à
  * parte que não sabia degradar.
+ *
+ * 2026-09-19 (pedido do dono), duas mudanças independentes:
+ *
+ *   1. **A linha "Outros"** — `HoverCardRow.kind`. O balão passou de 3 para 4
+ *      candidaturas mais uma linha de agregado com o que sobrou. O átomo não
+ *      calcula nada disso: quem soma a cauda é o caller (o payload, no mapa
+ *      nacional; `votosPorCandidatoMunicipio`, no municipal). Aqui `kind` só
+ *      decide duas coisas visuais — o ponto de cor vira espaçador invisível e
+ *      o nome recua para `--text-secondary` — e barra o tratamento de
+ *      vencedor chamado nessa linha.
+ *
+ *   2. **`flipY`** — o cartão vira para CIMA perto da borda de baixo. Até
+ *      aqui o deslocamento vertical era fixo em `+12px` nos DOIS ramos do
+ *      ternário de `transform`: só existia flip horizontal, e passar o mouse
+ *      em RS/SC (o pé do mapa) abria o cartão para baixo, onde a moldura
+ *      (`PersistentMapFrame`, `overflow: hidden`) o cortava. Como no eixo
+ *      horizontal, quem DECIDE é o mapa (`flipY: y > rect.height / 2`) e o
+ *      átomo só obedece — ver a nota nos dois mapas sobre por que a altura
+ *      real do cartão não é medida.
  */
 
 import type { CSSProperties } from "react";
 import { Fragment } from "react";
 
 import { formatPercent, formatVotes } from "@/lib/utils/format";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 export interface HoverCardRow {
   name: string;
-  /** Cor do candidato/partido, `var(--token)`. Vira o ponto de 8×8 (linha
-   * comum) — some quando `winnerBackground` está definido (o ✓ toma o lugar). */
-  color: string;
+  /**
+   * Que espécie de linha é esta (2026-09-19, pedido do dono — o balão passou
+   * a mostrar 4 candidaturas + o agregado do resto).
+   *
+   * **Ausente ⇒ `"candidatura"`**, e é por isso que este campo é opcional em
+   * vez de obrigatório: todo call-site anterior a esta data segue válido sem
+   * uma letra de mudança, e um `kind` esquecido cai no caso comum, não no
+   * caso especial.
+   *
+   * 🔴 **Não é uma união discriminada de propósito.** A grade é um único
+   * `rows.map` contra um `gridTemplateColumns` COMPARTILHADO — as cinco
+   * colunas têm de existir (ou não existir) igualmente em todas as linhas,
+   * senão a tabela desalinha. Uma união (`{kind:"outros", n:number} | {...}`)
+   * obrigaria um ramo discriminado dentro de cada uma das cinco células para
+   * ler campos que, no fim, são os MESMOS quatro números. O discriminador
+   * aqui muda só duas coisas visuais (o ponto de cor vira espaçador; o nome
+   * vai para `--text-secondary`), e nada da estrutura.
+   */
+  kind?: "candidatura" | "outros";
+  /**
+   * Cor do candidato/partido, `var(--token)`. Vira o ponto de 8×8 (linha
+   * comum) — some quando `winnerBackground` está definido (o ✓ toma o lugar).
+   *
+   * **Opcional desde 2026-09-19, e só por causa de `kind: "outros"`**: aquela
+   * linha não representa ninguém — é a soma de todo mundo que sobrou — e
+   * portanto não tem identidade nem cor de identidade. O ponto de 8×8 dela é
+   * um espaçador invisível (ver `HoverCard`), não um ponto cinza: um ponto
+   * cinza inventaria identidade visual para "o resto". Toda linha
+   * `"candidatura"` continua passando cor; um valor sentinela (`"transparent"`)
+   * só para satisfazer um campo obrigatório seria pior — diria "esta linha tem
+   * cor, e a cor é nenhuma", que é diferente de "esta linha não tem cor".
+   */
+  color?: string;
   /** Parcial (% de votos válidos apurados deste candidato nesta UF) em
    * 0–100. Ausente ou não-finita ⇒ a coluna "Parcial" some do cartão
    * inteiro (ver `HoverCard`), em vez de exibir uma coluna de travessões. */
@@ -102,6 +152,17 @@ export interface HoverCardProps {
   y: number;
   /** Vira o cartão para a esquerda quando ele encostaria na borda direita. */
   flip?: boolean;
+  /**
+   * Vira o cartão para CIMA quando ele encostaria na borda de baixo
+   * (2026-09-19 — queixa do dono: hover em RS/SC abria o cartão para baixo e
+   * a moldura do mapa o cortava).
+   *
+   * Simétrico a {@link flip} em tudo: mesmo default `false`, mesmo dono da
+   * decisão (o MAPA, que conhece o contêiner; o átomo nunca se mede) e mesmo
+   * deslocamento de 12px. Ver `_NationalChoroplethMapImpl.tsx` /
+   * `ChoroplethMapUF.tsx` para o predicado e para o limite conhecido dele.
+   */
+  flipY?: boolean;
   title: string;
   kicker?: string;
   /** % apurado da região, 0–100. */
@@ -130,6 +191,9 @@ const NOME_MIN_PX = 116;
 const COLUNA_EXTRA_PX = 72;
 
 const HEAD_STYLE: CSSProperties = {
+  // O `rowGap` da grade saiu em 19/09 (ver `CELULA_PADDING_BLOCK`); sem isto o
+  // cabeçalho encostaria na 1ª candidatura.
+  paddingBottom: "var(--space-1)",
   font: "var(--type-kicker)",
   letterSpacing: "var(--tracking-caps)",
   textTransform: "uppercase",
@@ -145,6 +209,17 @@ const HEAD_STYLE: CSSProperties = {
  * torna a tabela comparável de relance.
  */
 const HEAD_TEXT_STYLE: CSSProperties = { ...HEAD_STYLE, textAlign: "left" };
+
+/**
+ * Respiro vertical de cada célula, acima E abaixo do texto.
+ *
+ * Substitui o `rowGap` da grade desde 2026-09-19 — ver o comentário no
+ * `display: "grid"`. Sendo `padding`, ele entra na altura da linha, e a faixa
+ * que o fio separador desenha passa a conter o texto CENTRADO em vez de
+ * encostado no topo. Mesmo valor do `rowGap` anterior, para o cartão não mudar
+ * de altura: o que muda é de que lado a folga fica.
+ */
+const CELULA_PADDING_BLOCK = "var(--space-1)";
 
 /**
  * Margem negativa que faz uma faixa de largura total (fundo do vencedor, fio
@@ -166,7 +241,12 @@ function fmtVotos(value: number | undefined): string {
 }
 
 function fmtPartido(value: string | undefined): string {
-  return value?.trim() ? value : "—";
+  // 2026-09-19 — a coluna de partido do balão é DESENHADA, então abrevia
+  // (`lib/utils/sigla-partido.ts`). O balão é o lugar mais apertado do
+  // produto: ele se ajusta ao ponteiro e precisa caber ao lado do cursor em
+  // 1280 px sem empurrar as colunas de número. O travessão de "sem partido"
+  // atravessa a tabela intacto — não está nela.
+  return value?.trim() ? siglaExibicao(value) : "—";
 }
 
 /**
@@ -205,6 +285,7 @@ export function HoverCard({
   x,
   y,
   flip = false,
+  flipY = false,
   title,
   kicker,
   apurado,
@@ -244,25 +325,54 @@ export function HoverCard({
   // no municipal, `proj` ausente só significa um teto ligeiramente folgado —
   // inofensivo, porque `width: max-content` já dimensiona pelo conteúdo real.
   const extras = [partido, votos, parcial].filter(Boolean).length;
-  const gridTemplateColumns = [
-    `minmax(${NOME_MIN_PX}px, 1fr)`,
-    partido && "auto",
-    votos && "auto",
-    parcial && "auto",
-    proj && "auto",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const colunas = [
+    { chave: "nome", trilho: `minmax(${NOME_MIN_PX}px, 1fr)`, presente: true },
+    { chave: "partido", trilho: "auto", presente: partido },
+    { chave: "votos", trilho: "auto", presente: votos },
+    { chave: "parcial", trilho: "auto", presente: parcial },
+    { chave: "proj", trilho: "auto", presente: proj },
+  ].filter((c) => c.presente);
+  const gridTemplateColumns = colunas.map((c) => c.trilho).join(" ");
+  /**
+   * Coluna de cada campo, 1-based, derivada da MESMA lista que monta o
+   * template — nunca de um número escrito à mão.
+   *
+   * 🔴 **Toda célula precisa de linha E coluna explícitas.** O fio separador é
+   * `gridColumn: "1 / -1"`: ele consome a faixa inteira da sua linha. Enquanto
+   * as células eram auto-posicionadas, o CSS Grid não tinha onde encaixá-las
+   * naquela linha e criava COLUNAS IMPLÍCITAS à direita — medido ao vivo em
+   * 2026-09-19: um cartão declarando 5 colunas computava
+   * `grid-template-columns` com **10**, e a coluna do nome caía para 15px
+   * ("WILDER MORAIS" virava uma letra e reticências).
+   *
+   * Com linha e coluna definidas em todo item, não há auto-posicionamento
+   * nenhum: o fio SOBREPÕE a linha em vez de disputá-la (o CSS Grid permite
+   * itens sobrepostos quando as duas coordenadas são explícitas), e nenhuma
+   * coluna implícita nasce.
+   */
+  const colDe = (chave: string): number => colunas.findIndex((c) => c.chave === chave) + 1;
   return (
     <div
       aria-hidden="true"
       data-testid="hover-card"
       data-flip={flip ? "true" : "false"}
+      data-flip-y={flipY ? "true" : "false"}
       className={["pointer-events-none absolute rounded-sm", className].filter(Boolean).join(" ")}
       style={{
         left: x,
         top: y,
-        transform: flip ? "translate(calc(-100% - 12px), 12px)" : "translate(12px, 12px)",
+        // 🔴 **Um ternário por EIXO, nunca um de quatro casos** (2026-09-19).
+        // As quatro combinações escritas à mão (`flip && flipY ? … : flip ? …
+        // : flipY ? … : …`) são quatro strings que precisam concordar entre
+        // si sobre os mesmos 12px; a primeira vez que alguém ajustar o
+        // deslocamento, três delas mudam e uma fica para trás. Aqui os dois
+        // eixos são independentes por construção, e os dois casos que já
+        // existiam (`translate(12px, 12px)` e
+        // `translate(calc(-100% - 12px), 12px)`) saem byte a byte idênticos
+        // ao que saíam antes — é o que `HoverCard.test.tsx` (c) trava.
+        transform: `translate(${flip ? "calc(-100% - 12px)" : "12px"}, ${
+          flipY ? "calc(-100% - 12px)" : "12px"
+        })`,
         zIndex: 20,
         // 🔴 **Encolhe para o conteúdo** (2026-09-18, 2ª queixa do dono sobre a
         // mesma coluna). Sem isto o cartão ocupava SEMPRE o `maxWidth`, a
@@ -327,7 +437,36 @@ export function HoverCard({
         style={{
           display: "grid",
           gridTemplateColumns,
-          gap: "var(--space-1) var(--space-3)",
+          // 🔴 **Só `columnGap`. O respiro vertical mora na CÉLULA, não aqui**
+          // (2026-09-19). Com `rowGap`, a folga entre linhas caía inteira
+          // ABAIXO do texto: o fio separador é `border-top` de uma faixa que
+          // começa no topo exato da linha, então a linha encostava no texto e
+          // os 4px de sobra ficavam só embaixo. Medido: faixa de 23px, texto de
+          // 19px, 0px acima e 4px abaixo.
+          //
+          // `paddingBlock` em cada célula ({@link CELULA_PADDING_BLOCK}) divide
+          // a mesma folga nos dois lados, e o texto passa a ficar centrado
+          // entre dois fios. O `rowGap` não pode voltar junto: os dois somados
+          // dariam de novo uma sobra assimétrica, e a assimetria é invisível em
+          // teste estático — só aparece medindo a tela.
+          columnGap: "var(--space-3)",
+          // 🔴 **`center`, não o `stretch` padrão** (2026-09-19, 2ª queixa do
+          // dono sobre a mesma linha).
+          //
+          // As colunas não usam a mesma fonte: nome e sigla são
+          // `--type-body-sm`, os números são `--type-figure-sm`, e as duas têm
+          // `line-height` diferente. Com `stretch`, a linha toma a altura da
+          // caixa mais ALTA e todas as outras são esticadas até ela — e dentro
+          // de uma caixa esticada o texto fica no TOPO. Resultado: os números
+          // subiam alguns pixels em relação ao nome, e a linha inteira parecia
+          // encostada no fio de cima.
+          //
+          // ⚠️ Foi isto que a minha primeira medição não pegou: eu medi a
+          // CAIXA da célula (que de fato tinha 4px acima e 4px abaixo) em vez
+          // do texto dentro dela. A caixa estava centrada; o texto, não. Medir
+          // a coisa errada com precisão dá um número certo sobre a pergunta
+          // errada.
+          alignItems: "center",
           font: "var(--type-body-sm)",
         }}
       >
@@ -350,7 +489,17 @@ export function HoverCard({
           // por isso que a checagem de índice basta e não precisa de mais
           // nenhuma prop de "é a linha N".
           const isLeading = i === 0;
-          const isCalledWinner = isLeading && row.winnerBackground != null;
+          // 🔴 2026-09-19 — a linha "Outros" NUNCA recebe o tratamento de
+          // vencedor chamado, nem que o caller mande `winnerBackground` nela.
+          // Hoje a guarda de índice já bastaria (o agregado é sempre a ÚLTIMA
+          // linha, e o par (fundo, tinta) só é resolvido para a 0ª), mas
+          // "bastaria" é o estado de que nascem os defeitos: basta alguém
+          // passar a lista invertida, ou um consumidor cortar o top com
+          // `.slice()` e deixar o agregado sozinho no índice 0, para uma UF
+          // chamada declarar "✓ Outros (7)" como vencedora da corrida. Um
+          // agregado de candidaturas não vence eleição (constituição § 1).
+          const isOutros = row.kind === "outros";
+          const isCalledWinner = !isOutros && isLeading && row.winnerBackground != null;
           const ink = isCalledWinner ? row.winnerInk : undefined;
           return (
             <Fragment key={row.name}>
@@ -375,6 +524,11 @@ export function HoverCard({
                   style={{
                     gridColumn: "1 / 2",
                     gridRow: i + 2,
+                    // `stretch` explícito: a grade agora centra (ver
+                    // `alignItems` acima) e uma FAIXA centrada encolheria para
+                    // a altura do conteúdo — que aqui é zero. Ela precisa
+                    // cobrir a linha inteira, de fio a fio.
+                    alignSelf: "stretch",
                     background: row.winnerBackground,
                     // **Sangra até as bordas do cartão** (2026-09-18, fidelidade
                     // ao NYT): lá a faixa do vencedor encosta nas laterais da
@@ -392,13 +546,35 @@ export function HoverCard({
               {/* Fio separador entre candidatos (NYT). Só a partir da 2ª linha
                   — acima da 1ª está o cabeçalho, que já se separa pelo peso e
                   pela cor. Nunca colide com a faixa do vencedor: ela só existe
-                  em `i === 0` e o fio só em `i > 0`. */}
+                  em `i === 0` e o fio só em `i > 0`.
+
+                  🔴 **Este `<span>` é `gridColumn: "1 / -1"` — ele OCUPA a
+                  linha inteira da grade, não flutua sobre ela.** Enquanto as
+                  células de texto eram auto-posicionadas, o CSS Grid colocava
+                  primeiro os itens com linha explícita (os fios, em 3, 4, 5,
+                  6…) e depois empurrava o texto para as linhas livres
+                  seguintes. Resultado, medido em 2026-09-19 com 5 linhas: os
+                  QUATRO fios empilhados logo abaixo do 1º colocado e nenhum
+                  entre os demais.
+
+                  O defeito existia desde que o fio foi escrito, mas com 3
+                  candidatos eram dois fios juntos — passava por "espaçamento".
+                  A 4ª linha e a de "Outros" o tornaram impossível de ignorar.
+                  Por isso TODA célula desta linha declara `gridRow` abaixo:
+                  auto-posicionamento e posicionamento explícito na mesma grade
+                  não convivem. */}
               {i > 0 ? (
                 <span
                   aria-hidden="true"
                   style={{
                     gridColumn: "1 / -1",
                     gridRow: i + 2,
+                    // `stretch` explícito, pelo mesmo motivo da faixa do
+                    // vencedor — e aqui o efeito é mais crítico: este `<span>`
+                    // não tem conteúdo, e centrado ele viraria uma caixa de
+                    // altura zero no MEIO da linha, desenhando o fio por cima
+                    // do texto em vez de acima dele.
+                    alignSelf: "stretch",
                     marginInline: SANGRIA,
                     borderTop: "1px solid var(--border-hairline)",
                   }}
@@ -407,6 +583,10 @@ export function HoverCard({
               <span
                 className="flex min-w-0 items-center"
                 style={{
+                  // Linha E coluna explícitas — ver o 🔴 em `colDe` acima.
+                  gridRow: i + 2,
+                  gridColumn: colDe("nome"),
+                  paddingBlock: CELULA_PADDING_BLOCK,
                   gap: "var(--space-2)",
                   // 🔴 Negrito **só no vencedor chamado** (2026-09-18). Antes era
                   // `isLeading`, e isso é ênfase sem fato por trás: liderar a
@@ -420,7 +600,14 @@ export function HoverCard({
                   // `ink` (tinta legível sobre a faixa) vale SÓ aqui: a faixa
                   // cobre apenas esta coluna, e pintar os números de branco os
                   // deixaria ilegíveis sobre o fundo claro do cartão.
-                  color: ink,
+                  //
+                  // 🔴 "Outros" em `--text-secondary` e **sem itálico**
+                  // (2026-09-19). O recuo de cor diz "isto não é uma pessoa,
+                  // é o resto da lista" sem tirar a linha da tabela. Itálico
+                  // faria outra coisa: lê como comentário editorial do
+                  // produto sobre o número, e este número é dado medido igual
+                  // aos quatro de cima — mesma base, mesmo denominador.
+                  color: isOutros ? "var(--text-secondary)" : ink,
                 }}
               >
                 {isCalledWinner ? (
@@ -430,6 +617,17 @@ export function HoverCard({
                   <span aria-hidden="true" className="flex-none">
                     ✓
                   </span>
+                ) : isOutros ? (
+                  // 🔴 **Espaçador invisível de 8px, não um ponto cinza**
+                  // (2026-09-19). Sem ele o rótulo "Outros (N)" perde os 8px
+                  // do ponto mais o `gap` e desalinha das quatro linhas
+                  // acima — a coluna de nomes deixa de ter uma borda
+                  // esquerda só. Com um ponto CINZA o defeito seria outro e
+                  // pior: inventaria uma identidade visual ("a cor de todo
+                  // mundo que sobrou") para um agregado que, por definição,
+                  // junta partidos de cores diferentes. O balão do NYT faz o
+                  // mesmo — "Others" entra sem marcador.
+                  <span aria-hidden="true" className="flex-none" style={{ width: 8, height: 8 }} />
                 ) : (
                   <span
                     className="flex-none"
@@ -446,7 +644,13 @@ export function HoverCard({
               {partido ? (
                 <span
                   data-testid="hover-card-partido"
-                  style={{ font: "var(--type-body-sm)", textAlign: "left" }}
+                  style={{
+                    gridRow: i + 2,
+                    gridColumn: colDe("partido"),
+                    paddingBlock: CELULA_PADDING_BLOCK,
+                    font: "var(--type-body-sm)",
+                    textAlign: "left",
+                  }}
                 >
                   {fmtPartido(row.partido)}
                 </span>
@@ -454,7 +658,13 @@ export function HoverCard({
               {votos ? (
                 <span
                   data-testid="hover-card-votos"
-                  style={{ font: "var(--type-figure-sm)", textAlign: "right" }}
+                  style={{
+                    gridRow: i + 2,
+                    gridColumn: colDe("votos"),
+                    paddingBlock: CELULA_PADDING_BLOCK,
+                    font: "var(--type-figure-sm)",
+                    textAlign: "right",
+                  }}
                 >
                   {fmtVotos(row.votos)}
                 </span>
@@ -462,7 +672,13 @@ export function HoverCard({
               {parcial ? (
                 <span
                   data-testid="hover-card-parcial"
-                  style={{ font: "var(--type-figure-sm)", textAlign: "right" }}
+                  style={{
+                    gridRow: i + 2,
+                    gridColumn: colDe("parcial"),
+                    paddingBlock: CELULA_PADDING_BLOCK,
+                    font: "var(--type-figure-sm)",
+                    textAlign: "right",
+                  }}
                 >
                   {fmt(row.pct)}
                 </span>
@@ -471,6 +687,9 @@ export function HoverCard({
                 <span
                   data-testid="hover-card-proj"
                   style={{
+                    gridRow: i + 2,
+                    gridColumn: colDe("proj"),
+                    paddingBlock: CELULA_PADDING_BLOCK,
                     font: "var(--type-figure-sm)",
                     textAlign: "right",
                     color: "var(--accent-text)",

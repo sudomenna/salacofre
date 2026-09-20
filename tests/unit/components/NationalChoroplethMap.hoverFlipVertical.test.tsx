@@ -1,0 +1,290 @@
+// @vitest-environment happy-dom
+/**
+ * tests/unit/components/NationalChoroplethMap.hoverFlipVertical.test.tsx
+ *
+ * 2026-09-19 (queixa do dono) — passando o mouse em **RS e SC**, o pé do
+ * mapa, o balão abria para BAIXO e era cortado.
+ *
+ * Causa medida: não existia lógica vertical nenhuma. O deslocamento era
+ * `+12px` fixo nos DOIS ramos do ternário de `transform`
+ * (`HoverCard.tsx`), e só o eixo horizontal virava, por um proxy grosseiro —
+ * `flip: x > rect.width / 2`. O corte vinha do `overflow: hidden` da moldura
+ * (`PersistentMapFrame`), que não pode sair: sem ele o mapa vaza por cima do
+ * painel irmão.
+ *
+ * O remédio é o simétrico do horizontal, `flipY: y > rect.height / 2`,
+ * calculado NO MAPA (que conhece o contêiner) e obedecido pelo átomo — nunca
+ * medindo a altura real do cartão. Ver o comentário no `setTooltip` de
+ * `_NationalChoroplethMapImpl.tsx` para as três razões (bundle do chunk mais
+ * apertado do projeto, `mousemove` throttled a 16ms, e
+ * `renderToStaticMarkup` nos testes do átomo, onde `useLayoutEffect` nunca
+ * roda).
+ *
+ * 🔴 **ARMADILHA DE INSTRUMENTO — leia antes de mexer neste arquivo.**
+ * No happy-dom `getBoundingClientRect()` devolve **tudo zero**. Logo
+ * `rect.height / 2 === 0`, e QUALQUER `clientY` positivo satisfaz
+ * `y > 0`: todo hover de todo teste desta suíte já flipa para cima sem que
+ * ninguém tenha pedido. Um teste que não estube o rect passaria com `flipY`
+ * cravado em `true` e não provaria absolutamente nada.
+ *
+ * Por isso o rect é estubado — e **NÃO-QUADRADO, 800×400**, de propósito:
+ * com um rect quadrado, `y > rect.width / 2` (copiar o predicado horizontal,
+ * o erro mais provável) daria exatamente a mesma resposta que
+ * `y > rect.height / 2` em todos os casos, e o teste do divisor não
+ * discriminaria nada. Com 800×400 e o ponteiro em `y = 300`: o divisor certo
+ * (200) responde `true`, o errado (400) responde `false`.
+ */
+
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
+
+type Handler = (e: unknown) => void;
+
+const espiao = vi.hoisted(() => ({
+  handlers: new Map<string, Handler>(),
+}));
+
+vi.mock("maplibre-gl", () => {
+  class FakeMap {
+    cameraForBounds() {
+      return { center: [-51.415, -14.24] as [number, number], zoom: 3 };
+    }
+    jumpTo() {}
+    setPaintProperty() {}
+    setFilter() {}
+    getCanvas() {
+      return { style: {} };
+    }
+    isStyleLoaded() {
+      return true;
+    }
+    loaded() {
+      return true;
+    }
+    remove() {}
+    on(event: string, a: unknown, b?: unknown) {
+      if (typeof a === "function") {
+        espiao.handlers.set(event, a as Handler);
+      } else {
+        espiao.handlers.set(`${event}:${String(a)}`, b as Handler);
+      }
+    }
+  }
+  return { default: { Map: FakeMap } };
+});
+vi.mock("maplibre-gl/dist/maplibre-gl.css", () => ({}));
+vi.mock("@/components/atoms/maps/_pmtiles-protocol", () => ({
+  registerPmtilesProtocolOnce: () => {},
+  resetPmtilesProtocol: () => {},
+}));
+// 🔴 2026-09-19 — `_NationalChoroplethMapImpl` passou a chamar `useRouter()`:
+// no desktop o clique numa UF navega para a página do estado (decisão do dono;
+// ver a docstring do topo daquele arquivo). Sem App Router montado o hook
+// lança "invariant expected app router to be mounted" e o componente nem
+// renderiza. Este mock é HARNESS, não asserção — nenhum caso deste arquivo
+// observa navegação. Quem afere o clique-navega é
+// `NationalChoroplethMap.cliqueDesktopNavega.test.tsx`.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: () => {},
+    replace: () => {},
+    prefetch: () => {},
+    back: () => {},
+    forward: () => {},
+    refresh: () => {},
+  }),
+}));
+
+import { NationalChoroplethMapImpl } from "@/components/blocks/_NationalChoroplethMapImpl";
+
+const CANDIDATOS: EdgeCandidate[] = [
+  {
+    id: 13,
+    nome: "FERNANDA DA SILVA",
+    partido: "PT",
+    cor: "var(--color-cand-1)",
+    votos_atuais: 1,
+    votos_projetados: 1,
+    pct_atual: 55,
+    pct_projetado: 55,
+    pct_projetado_lower: 53,
+    pct_projetado_upper: 57,
+    p_vitoria: 0.8,
+    rank: 1,
+    p_passa_2t: 0.9,
+    p_fecha_1t: 0,
+  },
+];
+
+const ROW_RS: EdgeUfRow = {
+  sigla: "RS",
+  pct_apurado: 40,
+  lider: 13,
+  margem_atual: 10,
+  margem_projetada: 10,
+  margem_projetada_ci: [8, 12],
+  chamada: false,
+  swing_vs_2022: null,
+  top_candidatos: [{ id: 13, pct: 55, nome: "FERNANDA DA SILVA", partido: "PT" }],
+  vai_a_2t: null,
+  bucket: "indefinido",
+};
+
+/** Largura e altura DIFERENTES — ver a armadilha no cabeçalho. */
+const RECT_W = 800;
+const RECT_H = 400;
+
+/**
+ * Monta o mapa e substitui o `getBoundingClientRect` do contêiner real.
+ *
+ * Substituir DEPOIS da montagem funciona porque o handler de `mousemove`
+ * (nascido dentro de `mount()`) guarda o NÓ por closure e só chama
+ * `.getBoundingClientRect()` no momento do evento — não guarda o retângulo.
+ */
+function montarComRect() {
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  act(() => {
+    root.render(
+      <NationalChoroplethMapImpl
+        candidatoAId={13}
+        candidatos={CANDIDATOS}
+        rows={[ROW_RS]}
+        view="winner"
+        cargo="gov"
+      />,
+    );
+  });
+
+  const container = host.querySelector('[role="img"]') as HTMLElement;
+  expect(container, "contêiner do mapa não encontrado").not.toBeNull();
+  container.getBoundingClientRect = () =>
+    ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: RECT_W,
+      height: RECT_H,
+      right: RECT_W,
+      bottom: RECT_H,
+      toJSON: () => ({}),
+    }) as DOMRect;
+
+  // 🔴 Controle do instrumento: se o estube não pegar, o rect volta a ser
+  // todo-zero e TODOS os casos abaixo passariam com `flipY` cravado em
+  // `true`. Melhor falhar aqui, com esta mensagem.
+  expect(container.getBoundingClientRect().height).toBe(RECT_H);
+
+  return { host, root };
+}
+
+/**
+ * Um hover por teste, e uma montagem por teste: `onMouseMove` é throttled a
+ * 16ms (`throttle` em `_NationalChoroplethMapImpl.tsx`), então dois disparos
+ * seguidos dentro do mesmo teste descartariam o segundo em silêncio e o
+ * segundo `expect` leria o estado do PRIMEIRO. Montagem nova ⇒ handler novo
+ * ⇒ relógio do throttle zerado.
+ */
+function hover(clientX: number, clientY: number) {
+  const onMouseMove = espiao.handlers.get("mousemove:ufs-fill");
+  expect(onMouseMove, "handler de mousemove não foi registrado").toBeDefined();
+  act(() => {
+    onMouseMove?.({
+      features: [{ properties: { SIGLA_UF: "RS" } }],
+      originalEvent: { clientX, clientY },
+    });
+  });
+}
+
+function card(host: HTMLElement): Element | null {
+  return host.querySelector('[data-testid="hover-card"]');
+}
+
+beforeEach(() => {
+  espiao.handlers.clear();
+  if (typeof window.matchMedia !== "function") {
+    window.matchMedia = (() => ({ matches: false })) as unknown as typeof window.matchMedia;
+  }
+});
+
+afterEach(() => {
+  document.body.innerHTML = "";
+});
+
+describe("hover do mapa nacional — o balão vira para cima perto da borda de baixo", () => {
+  it("metade de CIMA (y=100 de 400): o balão desce, como sempre [mutação: `flipY` cravado em `true`]", () => {
+    const { host, root } = montarComRect();
+    hover(400, 100);
+
+    const el = card(host);
+    expect(el, "HoverCard não renderizou após o hover").not.toBeNull();
+    expect(el?.getAttribute("data-flip-y")).toBe("false");
+    expect(el?.getAttribute("style")).toContain("translate(12px, 12px)");
+
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  it("metade de BAIXO (y=300 de 400): o balão sobe — é o caso de RS/SC [mutação: apagar o campo `flipY` do `setTooltip`, ou cravá-lo em `false`]", () => {
+    const { host, root } = montarComRect();
+    hover(400, 300);
+
+    const el = card(host);
+    expect(el?.getAttribute("data-flip-y")).toBe("true");
+    expect(el?.getAttribute("style")).toContain("calc(-100% - 12px))");
+
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  it("🔴 os dois eixos são INDEPENDENTES: metade esquerda + metade de baixo ⇒ flip=false, flipY=true [mutação: `flipY: x > rect.width / 2` — copiar o predicado horizontal]", () => {
+    const { host, root } = montarComRect();
+    // x=100 está na metade ESQUERDA (divisor 400) ⇒ não vira de lado.
+    // y=300 está na metade de BAIXO (divisor 200) ⇒ vira para cima.
+    hover(100, 300);
+
+    const el = card(host);
+    expect(el?.getAttribute("data-flip")).toBe("false");
+    expect(el?.getAttribute("data-flip-y")).toBe("true");
+    // O `transform` prova que os dois eixos saíram diferentes um do outro.
+    expect(el?.getAttribute("style")).toContain("translate(12px, calc(-100% - 12px))");
+
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  it("🔴 o divisor vertical é a ALTURA, não a largura [mutação: `flipY: y > rect.width / 2`]", () => {
+    const { host, root } = montarComRect();
+    // É por ISTO que o rect estubado é 800×400 e não quadrado:
+    //   divisor certo  → 300 > 400/2 = 200 ⇒ true  (o balão sobe)
+    //   divisor errado → 300 > 800/2 = 400 ⇒ false (o balão desce e é cortado)
+    // Num rect quadrado as duas contas dariam o mesmo e este teste passaria
+    // com a mutação aplicada.
+    hover(100, 300);
+
+    expect(card(host)?.getAttribute("data-flip-y")).toBe("true");
+
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  it("canto inferior direito ⇒ os dois eixos viram ao mesmo tempo [mutação: um eixo anular o outro]", () => {
+    const { host, root } = montarComRect();
+    hover(500, 300);
+
+    const el = card(host);
+    expect(el?.getAttribute("data-flip")).toBe("true");
+    expect(el?.getAttribute("data-flip-y")).toBe("true");
+    expect(el?.getAttribute("style")).toContain(
+      "translate(calc(-100% - 12px), calc(-100% - 12px))",
+    );
+
+    act(() => root.unmount());
+    host.remove();
+  });
+});

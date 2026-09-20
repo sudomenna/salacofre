@@ -22,16 +22,48 @@
  *   seguro (SSR nunca roda `useEffect`; `useState` só devolve o valor
  *   inicial).
  *
- * A11y: lista textual paralela fica em <StateGroupedTable /> (irmão no shell).
+ *   🔴 É por isso que `useRouter` NÃO subiu para cá em 2026-09-19, quando o
+ *   clique voltou a navegar (ver abaixo): este arquivo é EAGER e é renderizado
+ *   por `renderToStaticMarkup` em `tests/integration/home-page.test.tsx`, que
+ *   não declara nenhum `vi.mock("next/navigation")` (conferido). `useRouter`
+ *   aqui quebraria aquele teste na hora. O breakpoint é decidido AQUI; a
+ *   navegação acontece no impl, onde `ssr: false` garante que o hook nunca vê
+ *   um render de servidor.
  *
- * Folha de UF (2026-09-08, decisão do usuário): clique/toque numa UF do mapa
- * não navega mais direto para `/uf/[sigla]` — abre `<StateResultSheet>`
+ * A11y: lista textual paralela fica em <StateGroupedTable /> (irmão no shell).
+ * O caminho de teclado para um estado é o `<UfPicker>` (27 `<Link>` reais),
+ * nunca o canvas — que não tem `tabIndex`. Ver a nota junto ao `role="img"` em
+ * `_NationalChoroplethMapImpl.tsx`.
+ *
+ * ## O clique numa UF — duas decisões, nesta ordem
+ *
+ * **2026-09-08 (decisão do usuário)**: clique/toque numa UF do mapa deixou de
+ * navegar direto para `/uf/[sigla]` e passou a abrir `<StateResultSheet>`
  * (scrim modal no mobile, cartão lateral não-modal no desktop, `Sheet.side`).
  * O estado da UF selecionada mora AQUI, não em `_NationalChoroplethMapImpl.tsx`
  * nem em `app/`: este wrapper já é client e já é carregado eager (fora do
  * chunk lazy do MapLibre), então a folha soma ao orçamento de aplicação
  * (RNF-007a, headroom grande hoje) em vez de inflar o chunk do mapa
  * (RNF-007b, 285 KiB de 300 KiB — sem margem pra mais JS).
+ *
+ * **2026-09-19 (decisão do usuário, ADR-0050 — reverte a anterior só no
+ * DESKTOP)**: no desktop o clique volta a NAVEGAR para a página do estado; no
+ * mobile continua abrindo a folha. Divisão de trabalho entre os dois níveis:
+ *
+ *   - aqui: `useIsDesktop()` resolve a media query e passa
+ *     `navegarNoClique={isDesktop}` ao impl;
+ *   - lá: o handler de clique lê essa prop de uma ref e chama
+ *     `router.push(ufHref(cargo, sigla))`.
+ *
+ * A folha NÃO morre — ela é o caminho de mobile, e no desktop simplesmente
+ * nunca abre (`selectedSigla` fica `null`, porque `onSelectUf` não é chamado).
+ * Toda a fiação dela (`open`, `onClose`, `row`, `side`, `cargo`) fica intacta
+ * de propósito: é o que permite um gatilho de desktop futuro sem refazer nada.
+ *
+ * Consequência registrada fora daqui: `docs/reference/risks.md` nomeava a
+ * folha como "única saída" de quem depende de cor nos mapas de Governador e
+ * Senador (que não têm legenda). Essa linha foi atualizada no mesmo commit —
+ * o `<HoverCard>` carrega a coluna "Part." por candidato desde 18/09.
  */
 
 import dynamic from "next/dynamic";
@@ -52,7 +84,7 @@ import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import { intensityForParty, type PartyIntensity } from "@/lib/utils/party-color";
 
 /**
- * Breakpoint desktop do `Sheet` — mesmo valor de `ADR-0029` (mobile <960px).
+ * Breakpoint desktop — mesmo valor de `ADR-0029` (mobile <960px).
  * Sem hook compartilhado em `lib/utils/**` pra este propósito hoje (o mais
  * próximo, `BreakingNewsTicker.tsx`, resolve `prefers-reduced-motion`, outra
  * media query) — local e pequeno, como o padrão já usado em `UF_NAMES`
@@ -60,7 +92,22 @@ import { intensityForParty, type PartyIntensity } from "@/lib/utils/party-color"
  */
 const DESKTOP_QUERY = "(min-width: 960px)";
 
-function useIsDesktopSheet(): boolean {
+/**
+ * Estamos num viewport de desktop?
+ *
+ * Chamava-se `useIsDesktopSheet` até 2026-09-19, quando governava uma coisa só
+ * — a FORMA da folha (`Sheet.side`: cartão lateral no desktop, scrim modal no
+ * mobile). Desde a decisão do clique-navega ele governa DUAS, e a segunda é a
+ * mais importante das duas: se a folha abre (mobile) ou se o clique navega
+ * para a página do estado (desktop). O nome perdeu o sufixo porque ele afirmava
+ * um escopo que deixou de ser verdade.
+ *
+ * 🔴 Começa `false` em TODO viewport e só vira `true` depois do `useEffect`
+ * — `window.matchMedia` não existe no render de servidor. Quem consome o valor
+ * num handler registrado uma vez só (o impl do mapa) tem de lê-lo de uma ref
+ * sincronizada, nunca de closure.
+ */
+function useIsDesktop(): boolean {
   const [desktop, setDesktop] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia(DESKTOP_QUERY);
@@ -364,7 +411,7 @@ export function NationalChoroplethMap({
   // ganhar uma.
   const legendEntries = preEleicao ? null : buildCandidateLegendEntries(candidatos, view, cargo);
   const [selectedSigla, setSelectedSigla] = useState<string | null>(null);
-  const isDesktop = useIsDesktopSheet();
+  const isDesktop = useIsDesktop();
   const selectedRow = selectedSigla ? (rows.find((r) => r.sigla === selectedSigla) ?? null) : null;
 
   return (
@@ -402,6 +449,12 @@ export function NationalChoroplethMap({
         viewMode={viewMode}
         preEleicao={preEleicao}
         height={height}
+        // 🔴 Os dois juntos, e não um OU outro: `navegarNoClique` decide qual
+        // dos dois caminhos o impl toma, e `onSelectUf` continua sendo o
+        // caminho de MOBILE (quando `isDesktop` é falso). Remover `onSelectUf`
+        // "porque o desktop navega" mataria a folha no telefone, que é onde a
+        // decisão de 08/09 continua valendo inteira.
+        navegarNoClique={isDesktop}
         onSelectUf={setSelectedSigla}
         cargo={cargo}
       />
@@ -423,6 +476,14 @@ export function NationalChoroplethMap({
           <CandidateLegendGroup entries={legendEntries} className="mt-2" />
         )
       ) : null}
+      {/*
+       * Caminho de MOBILE desde 2026-09-19 (ver a docstring do topo). No
+       * desktop o clique navega, `setSelectedSigla` nunca é chamado e esta
+       * folha fica permanentemente fechada — mas a fiação inteira continua
+       * montada de propósito, para que um gatilho de desktop futuro (um botão,
+       * um atalho) não precise refazer nada. `side={isDesktop}` segue valendo
+       * para o dia em que isso acontecer.
+       */}
       <StateResultSheet
         open={selectedSigla != null}
         onClose={() => setSelectedSigla(null)}

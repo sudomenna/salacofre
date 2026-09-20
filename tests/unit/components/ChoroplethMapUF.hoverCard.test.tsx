@@ -18,8 +18,15 @@
  *   (c) município sem `votos_reportados` não fabrica linha nenhuma — o
  *       balão ainda aparece (título + apurado), mas zero linhas de
  *       candidato;
- *   (d) corta em top-3 mesmo com mais candidatos em `votos_reportados`;
- *   (e) `mouseleave` fecha o balão.
+ *   (d) nomeia os 4 mais votados e agrega o resto numa linha "Outros (N)"
+ *       (2026-09-19 — era "corta em top-3", sem cauda);
+ *   (e) `mouseleave` fecha o balão;
+ *   (f) sem a prop `detalhe`, nenhum balão — degradação honesta;
+ *   (g) exatamente 4 candidaturas ⇒ 4 linhas e nenhuma "Outros";
+ *   (h) a linha "Outros" do município também não ganha "Proj.".
+ *
+ * Mais, no fim do arquivo, o `flipY` (2026-09-19) — com a armadilha de
+ * instrumento do happy-dom documentada lá.
  *
  * Harness: MapLibre falso que grava os handlers registrados via `map.on(...)`
  * e permite disparar `mousemove`/`mouseleave` na camada `municipios-fill`
@@ -115,6 +122,10 @@ const CANDIDATOS_SP: EdgeUfCandidate[] = [
   cand({ id: 33, nome: "MARIA LIMA", partido: "PSOL", cor: "var(--party-psol)" }),
   cand({ id: 44, nome: "CARLOS ROCHA", partido: "PSD", cor: "var(--party-psd)" }),
   cand({ id: 55, nome: "ANA COSTA", partido: "MDB", cor: "var(--party-mdb)" }),
+  // 66/77 entraram em 2026-09-19 para o caso (d): a cauda de "Outros"
+  // precisa de mais de uma candidatura para que a soma seja uma soma.
+  cand({ id: 66, nome: "PEDRO ALVES", partido: "PP", cor: "var(--party-pp)" }),
+  cand({ id: 77, nome: "LUCIA RAMOS", partido: "PDT", cor: "var(--party-pdt)" }),
 ];
 
 function montar(props: { detalhe?: EdgeUfMunicipio[]; candidatos?: EdgeUfCandidate[] } = {}) {
@@ -222,23 +233,95 @@ describe("<ChoroplethMapUF /> — balão do hover (mesmo átomo do mapa nacional
     host.remove();
   });
 
-  it("(d) corta em top-3 mesmo com mais candidatos em votos_reportados [mutação: trocar `.slice(0, 3)` por `.slice(0, 5)` em ChoroplethMapUF.tsx faria este teste apanhar 5 linhas]", () => {
+  it("(d) 🔴 nomeia os 4 mais votados e agrega o RESTO numa linha 'Outros (N)' [mutação: `.slice(0, MUNICIPIO_TOP_N)` → `.slice(0, 3)`, ou a cauda começando em 3 em vez de 4]", () => {
+    // Reescrito em 2026-09-19: até aqui este caso travava o corte em top-3 e
+    // nenhuma cauda. O dono pediu 4 + "Outros".
+    //
+    // 🔴 A fixture tem **7 candidaturas com votos todos DISTINTOS e o 4º
+    // não-nulo**, e isso é o que faz o teste discriminar. Com o 4º valendo 0,
+    // uma cauda que começasse em 3 (a mutação mais provável) somaria o MESMO
+    // que uma que começa em 4 — o teste passaria com o corte errado.
     const { host, root } = montar({
       detalhe: [
         municipio({
-          votos_reportados: { 13: 900, 22: 800, 33: 700, 44: 600, 55: 500 },
+          votos_reportados: { 13: 900, 22: 800, 33: 700, 44: 600, 55: 200, 66: 150, 77: 100 },
         }),
       ],
       candidatos: CANDIDATOS_SP,
     });
     disparaHoverEmSp();
 
-    expect(host.querySelectorAll('[data-testid="hover-card-votos"]').length).toBe(3);
-    // Os TRÊS mais votados — 13, 22, 33 (900/800/700) — não 44/55.
+    const nomes = Array.from(host.querySelectorAll(".overflow-hidden.text-ellipsis")).map(
+      (e) => e.textContent,
+    );
+    expect(nomes).toHaveLength(5);
+    expect(nomes[4]).toBe("Outros (3)");
+
     const votos = Array.from(host.querySelectorAll('[data-testid="hover-card-votos"]')).map(
       (e) => e.textContent,
     );
-    expect(votos).toEqual(["900", "800", "700"]);
+    // Os QUATRO mais votados nomeados, e a cauda somada: 200 + 150 + 100.
+    expect(votos).toEqual(["900", "800", "700", "600", "450"]);
+
+    // O percentual da cauda é a SOMA dos `pct` das três linhas que sobraram,
+    // sobre o mesmo denominador (Σ votos_reportados = 3.450) que as quatro de
+    // cima usam: 450/3450 = 13,0%. Com a cauda começando em 3, seriam
+    // 1.050/3.450 = 30,4% — é essa diferença que a fixture existe para criar.
+    //
+    // ⚠️ O que este caso NÃO discrimina, e é honesto dizer: aqui
+    // `100 − Σ(top 4)` daria o mesmo número, porque no município os `pct`
+    // dividem todos pelo MESMO total e fecham em 100 por construção. A
+    // diferença entre somar e subtrair só aparece no balão NACIONAL, onde
+    // cada ponto é média de um bootstrap próprio — ver
+    // `tests/unit/model/test_uf_outros.py`, cuja fixture soma 99,1 de
+    // propósito.
+    const parcial = Array.from(host.querySelectorAll('[data-testid="hover-card-parcial"]')).map(
+      (e) => e.textContent,
+    );
+    expect(parcial).toEqual(["26,1%", "23,2%", "20,3%", "17,4%", "13,0%"]);
+
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  it("(g) exatamente 4 candidaturas ⇒ 4 linhas e NENHUMA 'Outros' — cauda vazia não é 'os demais somam 0%' [mutação: agregar incondicionalmente, ou `if (cauda.length >= 0)`]", () => {
+    const { host, root } = montar({
+      detalhe: [municipio({ votos_reportados: { 13: 900, 22: 800, 33: 700, 44: 600 } })],
+      candidatos: CANDIDATOS_SP,
+    });
+    disparaHoverEmSp();
+
+    const nomes = Array.from(host.querySelectorAll(".overflow-hidden.text-ellipsis")).map(
+      (e) => e.textContent,
+    );
+    expect(nomes).toHaveLength(4);
+    const card = host.querySelector('[data-testid="hover-card"]');
+    expect(card?.textContent).not.toContain("Outros");
+    // E a coluna "Proj." continua ausente: o agregado municipal não ganhou
+    // projeção nenhuma de contrabando (não existe projeção por município —
+    // ADR-0021).
+    expect(card?.textContent).not.toContain("Proj.");
+    expect(host.querySelectorAll('[data-testid="hover-card-proj"]').length).toBe(0);
+
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  it("(h) a linha 'Outros' do município também não traz Proj. [mutação: copiar `proj` do balão nacional para `buildMunicipioHoverRows`]", () => {
+    const { host, root } = montar({
+      detalhe: [
+        municipio({
+          votos_reportados: { 13: 900, 22: 800, 33: 700, 44: 600, 55: 200, 66: 150, 77: 100 },
+        }),
+      ],
+      candidatos: CANDIDATOS_SP,
+    });
+    disparaHoverEmSp();
+
+    const card = host.querySelector('[data-testid="hover-card"]');
+    expect(card?.textContent).toContain("Outros (3)");
+    expect(card?.textContent).not.toContain("Proj.");
+    expect(host.querySelectorAll('[data-testid="hover-card-proj"]').length).toBe(0);
 
     act(() => root.unmount());
     host.remove();
@@ -263,6 +346,88 @@ describe("<ChoroplethMapUF /> — balão do hover (mesmo átomo do mapa nacional
     const { host, root } = montar({ candidatos: CANDIDATOS_SP });
     expect(() => disparaHoverEmSp()).not.toThrow();
     expect(host.querySelector('[data-testid="hover-card"]')).toBeNull();
+
+    act(() => root.unmount());
+    host.remove();
+  });
+});
+
+/**
+ * 2026-09-19 — o balão do mapa MUNICIPAL também vira para cima perto da borda
+ * de baixo (`flipY`), mesma regra e mesmo predicado do mapa nacional. A
+ * versão longa do argumento (por que o cálculo é do mapa e não do átomo, e
+ * qual é o limite conhecido do proxy) está em
+ * `tests/unit/components/NationalChoroplethMap.hoverFlipVertical.test.tsx`.
+ *
+ * 🔴 **A mesma armadilha de instrumento vale aqui**: no happy-dom
+ * `getBoundingClientRect()` devolve tudo zero, `rect.height / 2` vira `0`, e
+ * qualquer `clientY` positivo satisfaz `y > 0` — todos os casos (a)-(h) acima
+ * já flipam para cima sem que nada os tenha pedido. Um teste que não estube o
+ * rect passaria com `flipY` cravado em `true`. O estube é **não-quadrado
+ * (800×400)** para que `y > rect.width / 2` (copiar o predicado horizontal)
+ * responda diferente de `y > rect.height / 2`.
+ */
+describe("<ChoroplethMapUF /> — o balão vira para cima perto da borda de baixo", () => {
+  const RECT_W = 800;
+  const RECT_H = 400;
+
+  function montarComRect() {
+    const { host, root } = montar({
+      detalhe: [municipio({ votos_reportados: { 13: 900, 22: 500 } })],
+      candidatos: CANDIDATOS_SP,
+    });
+    const container = host.querySelector('[role="img"]') as HTMLElement;
+    expect(container, "contêiner do mapa não encontrado").not.toBeNull();
+    container.getBoundingClientRect = () =>
+      ({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        width: RECT_W,
+        height: RECT_H,
+        right: RECT_W,
+        bottom: RECT_H,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    // Controle do instrumento — sem ele, todo caso abaixo passa de graça.
+    expect(container.getBoundingClientRect().height).toBe(RECT_H);
+    return { host, root };
+  }
+
+  /** Um hover por teste: `onMouseMove` é throttled a 16ms e um segundo
+   *  disparo no mesmo teste seria descartado em silêncio. */
+  function hover(clientX: number, clientY: number) {
+    const onMouseMove = espiao.handlers.get("mousemove:municipios-fill");
+    expect(onMouseMove, "handler de mousemove não foi registrado").toBeDefined();
+    act(() => {
+      onMouseMove?.({
+        features: [{ properties: { CD_MUN: "3550308" } }],
+        originalEvent: { clientX, clientY },
+      });
+    });
+  }
+
+  it("metade de cima (y=100 de 400) ⇒ o balão desce [mutação: `flipY` cravado em true]", () => {
+    const { host, root } = montarComRect();
+    hover(400, 100);
+
+    const el = host.querySelector('[data-testid="hover-card"]');
+    expect(el, "HoverCard não renderizou após o hover").not.toBeNull();
+    expect(el?.getAttribute("data-flip-y")).toBe("false");
+
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  it("🔴 metade de baixo e metade esquerda (x=100, y=300) ⇒ flip=false, flipY=true [mutação: `flipY: x > rect.width / 2`, ou `y > rect.width / 2` — 300 > 400 daria false]", () => {
+    const { host, root } = montarComRect();
+    hover(100, 300);
+
+    const el = host.querySelector('[data-testid="hover-card"]');
+    expect(el?.getAttribute("data-flip")).toBe("false");
+    expect(el?.getAttribute("data-flip-y")).toBe("true");
+    expect(el?.getAttribute("style")).toContain("translate(12px, calc(-100% - 12px))");
 
     act(() => root.unmount());
     host.remove();

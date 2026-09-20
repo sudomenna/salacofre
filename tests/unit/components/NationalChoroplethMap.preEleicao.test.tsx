@@ -94,6 +94,23 @@ vi.mock("@/components/atoms/maps/_pmtiles-protocol", () => ({
   registerPmtilesProtocolOnce: () => {},
   resetPmtilesProtocol: () => {},
 }));
+// 🔴 2026-09-19 — `_NationalChoroplethMapImpl` passou a chamar `useRouter()`:
+// no desktop o clique numa UF navega para a página do estado (decisão do dono;
+// ver a docstring do topo daquele arquivo). Sem App Router montado o hook
+// lança "invariant expected app router to be mounted" e o componente nem
+// renderiza. Este mock é HARNESS, não asserção — nenhum caso deste arquivo
+// observa navegação. Quem afere o clique-navega é
+// `NationalChoroplethMap.cliqueDesktopNavega.test.tsx`.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: () => {},
+    replace: () => {},
+    prefetch: () => {},
+    back: () => {},
+    forward: () => {},
+    refresh: () => {},
+  }),
+}));
 
 import { NationalChoroplethMapImpl } from "@/components/blocks/_NationalChoroplethMapImpl";
 

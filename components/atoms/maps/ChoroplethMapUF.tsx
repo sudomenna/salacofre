@@ -120,6 +120,25 @@ function partidoIsMapped(partido: string | null | undefined): partido is string 
 }
 
 /**
+ * Quantas candidaturas o balão do município nomeia antes de agregar o resto
+ * na linha "Outros" (2026-09-19, pedido do dono — era 3, sem agregado).
+ *
+ * Constante nomeada e não `4` literal porque o número aparece em DOIS lugares
+ * que têm de concordar: o corte do topo e o começo da cauda. Com dois
+ * literais, mudar um e esquecer o outro não quebra nada visível — produz uma
+ * candidatura contada duas vezes (topo 4, cauda a partir do 3) ou uma que
+ * some da tela (topo 4, cauda a partir do 5), e a soma de "Outros" continua
+ * parecendo plausível.
+ *
+ * Casa com `TOP_CANDIDATOS_POR_UF` (`api/model/project.py`), que define o
+ * mesmo corte para o balão NACIONAL — mas por coincidência de decisão
+ * editorial, não por contrato: lá quem corta é o produtor do payload, aqui é
+ * este consumidor (o dado municipal chega inteiro). Um dos dois pode mudar
+ * sem o outro.
+ */
+const MUNICIPIO_TOP_N = 4;
+
+/**
  * Linhas do `<HoverCard>` do mapa municipal.
  *
  * 2026-09-18 (correção de rota do orquestrador) — o percentual e a
@@ -134,9 +153,18 @@ function partidoIsMapped(partido: string | null | undefined): partido is string 
  * `pct_atual` usa no resto do produto.
  *
  * O que ESTA função decide, que é específico do balão (não da conta):
- *   - corta em top-3 (mesma densidade visual do balão nacional, cujo
- *     `top_candidatos` já chega truncado do payload) — a folha mostra TODOS,
- *     o balão não tem esse espaço nem essa vocação;
+ *   - corta em {@link MUNICIPIO_TOP_N} e agrega o resto numa linha "Outros"
+ *     — a folha mostra TODOS, o balão não tem esse espaço nem essa vocação.
+ *     🔴 Correção de 2026-09-19: até aqui esta docstring afirmava que o
+ *     balão nacional cortava em 3 porque `top_candidatos` "já chega truncado
+ *     do payload", e usava isso como justificativa para o `.slice(0, 3)`
+ *     daqui. As duas metades estavam erradas juntas — o corte de lá é do
+ *     PRODUTOR (`TOP_CANDIDATOS_POR_UF`, `api/model/project.py`), não do
+ *     consumidor, e desde 2026-09-19 ele é 4, não 3. O corte daqui sempre
+ *     foi decisão local desta função, e continua sendo: o payload municipal
+ *     (`votosPorCandidatoMunicipio`) devolve a lista INTEIRA, ordenada, e a
+ *     docstring dela diz literalmente "Sem corte: o CALLER decide";
+ *   - soma a cauda ele mesmo (ver {@link MUNICIPIO_TOP_N});
  *   - resolve a COR pelo padrão de acessibilidade do `<HoverCard>`
  *     (RNF-035/SC 1.4.11: `textForParty` quando o partido tem token próprio,
  *     mesma variante legível que o balão NACIONAL usa para o mesmo ponto de
@@ -153,18 +181,52 @@ function buildMunicipioHoverRows(
   municipio: EdgeUfMunicipio,
   candidatos: EdgeUfCandidate[],
 ): HoverCardRow[] {
-  return votosPorCandidatoMunicipio(municipio, candidatos)
-    .slice(0, 3)
-    .map((v) => {
-      const useParty = partidoIsMapped(v.partido);
-      return {
-        name: v.nome,
-        color: useParty ? textForParty(v.partido) : v.cor,
-        partido: v.partido,
-        votos: v.votos,
-        pct: v.pct,
-      };
-    });
+  const todos = votosPorCandidatoMunicipio(municipio, candidatos);
+  const linhas: HoverCardRow[] = todos.slice(0, MUNICIPIO_TOP_N).map((v) => {
+    const useParty = partidoIsMapped(v.partido);
+    return {
+      name: v.nome,
+      color: useParty ? textForParty(v.partido) : v.cor,
+      partido: v.partido,
+      votos: v.votos,
+      pct: v.pct,
+    };
+  });
+
+  const cauda = todos.slice(MUNICIPIO_TOP_N);
+  if (cauda.length === 0) return linhas;
+
+  return [
+    ...linhas,
+    {
+      kind: "outros",
+      name: `Outros (${cauda.length})`,
+      // 🔴 **A soma dos `pct` DAS LINHAS**, nunca `100 − Σ(top 4)` e nunca uma
+      // segunda divisão sobre um denominador remontado aqui. `pct` de cada
+      // entrada já é `votos / Σ votos_reportados × 100`
+      // (`lib/utils/municipio-votos.ts`) — o MESMO denominador para todas —,
+      // então somar os numeradores normalizados é exato por construção, sem
+      // resíduo de fechamento. A subtração, ao contrário, empurraria para
+      // dentro de "Outros" qualquer diferença de arredondamento das quatro
+      // linhas de cima e a publicaria como voto de alguém.
+      pct: cauda.reduce((acc, v) => acc + v.pct, 0),
+      // Votos absolutos: soma de inteiros, exata e conhecida. Deixá-la de
+      // fora mostraria "—" na coluna "Votos" de uma linha cujo total o
+      // produto sabe de cor.
+      votos: cauda.reduce((acc, v) => acc + v.votos, 0),
+      // Sem `proj` — não existe projeção municipal (ADR-0021, docstring do
+      // topo deste arquivo). Nem `color`/`partido`: o agregado não tem
+      // identidade.
+      //
+      // ⚠️ **Herdado, não novo**: com `Σ votos_reportados === 0` todos os
+      // `pct` são `0` (ver `municipio-votos.ts:80-96`, questão aberta lá) e
+      // esta linha mostrará "0,0%" como as quatro de cima — "não sabemos"
+      // exibido como "medimos zero". Resolver aqui divergiria do que a FOLHA
+      // já publicada mostra para o mesmo município, que é precisamente o
+      // defeito que ter uma conta só existe para evitar. O conserto é lá,
+      // para os dois consumidores ao mesmo tempo.
+    },
+  ];
 }
 
 interface MunicipioTooltipState {
@@ -172,6 +234,16 @@ interface MunicipioTooltipState {
   y: number;
   /** Vira o cartão pra esquerda perto da borda direita do mapa. */
   flip: boolean;
+  /**
+   * Vira o cartão pra CIMA perto da borda de baixo do mapa (2026-09-19).
+   * **Obrigatório, não opcional** — pelo mesmo motivo que `flip`: um
+   * `setTooltip` que esqueça o campo tem de ser erro de compilação, não um
+   * `undefined` que cai no default `false` do `<HoverCard>` e reproduz em
+   * silêncio o defeito que este campo corrige. Ver a nota sobre o predicado
+   * e o limite dele no handler de `mousemove`, e a versão longa em
+   * `_NationalChoroplethMapImpl.tsx`.
+   */
+  flipY: boolean;
   /**
    * SÓ o código — não o `EdgeUfMunicipio` inteiro (2026-09-18, 2ª correção de
    * rota do dia). `detalhe` (o prop com `votos_reportados`) chega por busca
@@ -517,6 +589,18 @@ export function ChoroplethMapUF({
             // Vira o cartão pra esquerda perto da borda direita do mapa
             // (mesma regra de `_NationalChoroplethMapImpl.tsx`).
             flip: x > rect.width / 2,
+            // 🔴 E pra CIMA perto da borda de baixo (2026-09-19) — simétrico,
+            // e pelo mesmo caminho: quem mede o contêiner é o MAPA, o
+            // `<HoverCard>` nunca se mede (ele é Server Component; a versão
+            // longa do argumento está em `_NationalChoroplethMapImpl.tsx`,
+            // no `setTooltip` de lá).
+            //
+            // ⚠️ Mesmo limite conhecido: `rect.height / 2` só é seguro
+            // enquanto o cartão couber na metade do contêiner. O balão
+            // municipal também foi a ~6 linhas com a linha "Outros", e aqui
+            // o `height` default é 360 (não 420) — a folga é ainda menor que
+            // a do mapa nacional.
+            flipY: y > rect.height / 2,
             codIbge,
           });
         },
@@ -616,6 +700,7 @@ export function ChoroplethMapUF({
           x={municipioTooltip.pos.x}
           y={municipioTooltip.pos.y}
           flip={municipioTooltip.pos.flip}
+          flipY={municipioTooltip.pos.flipY}
           // Sem sufixo de UF (ao contrário do balão nacional, que escreve
           // "Minas Gerais (MG)"): ali a ambiguidade é real — o mapa cobre as
           // 27 UFs ao mesmo tempo. Aqui o mapa já está dentro de UMA UF

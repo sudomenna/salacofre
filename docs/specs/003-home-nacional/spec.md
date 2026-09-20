@@ -10,7 +10,7 @@ depends_on: [001-ingestao-tse, 002-modelo-estatistico, 008-interatividade-brushi
 apis: [GET /api/projection]
 components: [HeadlineScore, NationalChoroplethMap, MapViewToggle, StateGroupedTable, NationalNeedle, ChancesPanel, InsightCard, ForecastTransparency, LiveBadge, Tabs, MinorCandidatesList, RaceTypeIndicator, TurnoBadge, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader, ApuracaoMeta, BreakingNewsTicker, NationalWinnerBanner, TurnoOneRecap, ResultPanel, CandidateListCollapse]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-007, RNF-008, RNF-022, RNF-023, RNF-024, RNF-025, RNF-026, RNF-028]
-adrs: [0001, 0002, 0003, 0004, 0005, 0010, 0012, 0013, 0014, 0017, 0018, 0019, 0025, 0033, 0034, 0038]
+adrs: [0001, 0002, 0003, 0004, 0005, 0010, 0012, 0013, 0014, 0017, 0018, 0019, 0025, 0033, 0034, 0038, 0050]
 shipped_with_carry_overs:
   - RF-025-UFForecastTable-completa-deferida-S05
   - RF-030.4-hachura-flip-MapLibre-sprite-deferida-S05
@@ -136,10 +136,11 @@ WHEN a home renderiza, the system SHALL exibir um mapa coroplético do Brasil em
 
 WHEN o usuário interage com `<MapViewToggle />`, the system SHALL alternar a coloração do mapa entre `Por vencedor`, `Margem`, `Swing vs 2022` e `% apurado`.
 
-**RF-030.3 — Hover/tap em UF abre tooltip e click navega**
+**RF-030.3 — Hover/tap em UF abre tooltip e click navega (desktop) ou abre gaveta (mobile)**
 
 WHEN o usuário passa o mouse (desktop) ou toca (mobile) em uma UF, the system SHALL exibir tooltip com `{votos, %, contribuição ao swing}`.
-WHEN o usuário clica em uma UF, the system SHALL navegar para `/uf/[sigla]`.
+WHEN o usuário clica em uma UF **no desktop** (`viewport ≥ 960px`), the system SHALL navegar para `/uf/[sigla]`.
+WHERE `viewport < 960px`, WHEN o usuário clica em uma UF, the system SHALL exibir `<StateResultSheet>` (folha de resumo) com opção "Ver detalhes do estado" para navegação (ADR-0050).
 
 **RF-030.4 — Hachura/pattern em UFs que viraram (Should)**
 

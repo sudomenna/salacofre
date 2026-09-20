@@ -55,9 +55,15 @@ import { ufsPorNome } from "@/components/atoms/maps/_shared";
 import { Sheet } from "@/components/atoms/overlays/Sheet";
 import { cargoFromToken, cargoInfo } from "@/lib/config/cargos";
 import { ariaRessalvaVagas, margemSegundaVaga } from "@/lib/utils/margem-senado";
+import { type UfPickerCargo, ufHref } from "@/lib/utils/uf-href";
 
-/** Cargo aceito por este seletor — as três corridas com mapa nacional. */
-export type UfPickerCargo = "pres" | "gov" | "sen";
+// `UfPickerCargo` e `ufHref` passaram a morar em `lib/utils/uf-href.ts` em
+// 2026-09-19 — módulo puro, sem React, para que o chunk lazy do MapLibre possa
+// importar o VALOR `ufHref` sem arrastar `<Button>`/`<Sheet>`/`next/link`
+// junto (RNF-007b; mesmo precedente de `lib/utils/margem-senado.ts`, e a razão
+// está escrita lá). Re-exportados daqui para que nenhum dos call-sites
+// existentes precisasse trocar de import.
+export { type UfPickerCargo, ufHref };
 
 export interface UfPickerProps {
   /**
@@ -68,25 +74,6 @@ export interface UfPickerProps {
   cargo: UfPickerCargo;
   /** UF corrente, quando a rota já é de UF. Ganha `aria-current="page"`. */
   atual?: string | null;
-}
-
-/**
- * Sufixo de rota por cargo — `Record` total sobre `UfPickerCargo`, não
- * ternário nem `??`. O default silencioso em conversor de cargo já mordeu
- * este repositório três vezes (a última mandava todo payload de Senador para
- * a chave do Presidente); um `Record` sem entrada para um cargo novo é erro
- * de COMPILAÇÃO (`ufHref`/`UF_HREF_SUFFIX` deixam de cobrir o tipo), não uma
- * rota calada levando ao destino de outra corrida.
- */
-const UF_HREF_SUFFIX: Record<UfPickerCargo, string> = {
-  pres: "",
-  gov: "/governador",
-  sen: "/senador",
-};
-
-/** Destino da UF na corrida corrente. */
-export function ufHref(cargo: UfPickerCargo, sigla: string): string {
-  return `/uf/${sigla}${UF_HREF_SUFFIX[cargo]}`;
 }
 
 /** Título da folha "Escolher UF" — um por cargo, mesmo motivo do `Record` acima. */
