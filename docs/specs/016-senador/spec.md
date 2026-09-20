@@ -1,11 +1,11 @@
 ---
 id: 016-senador
 title: Senador — corrida majoritária de 2 vagas por UF
-status: draft
+status: shipped
 priority: M
 personas: [P1, P2, P3]
 screens: [T-09, T-10]
-requirements: [RF-100, RF-101, RF-102, RF-103, RF-104, RF-105, RF-106, RF-107, RF-108]
+requirements: [RF-100, RF-101, RF-102, RF-103, RF-104, RF-105, RF-106, RF-107, RF-108, RF-179, RF-184, RF-181, RF-185, RF-186, RF-187, RF-188]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico]
 apis: [GET /api/ingest/senador, POST /api/ingest/senador, GET /api/projection?cargo=senador]
 components: [ResultPanel, CandidateListCollapse, ChancesPanel, CargoTabs, RaceHeader, ForecastTransparency, NationalChoroplethMap, ChoroplethMapUF, StateResultSheet, UfHoverLink, MunicipioTable, MunicipioExplorer]
@@ -13,6 +13,33 @@ nfr: [RNF-001, RNF-002, RNF-003, RNF-006, RNF-022, RNF-023, RNF-024]
 adrs: [0001, 0012, 0020, 0021, 0026, 0028, 0033, 0034, 0035, 0038, 0042, 0048]
 opens_after: 2026-09-11
 ---
+
+> **Promovida a `shipped` em 2026-09-20**, depois dos quatro portões de
+> [`CLAUDE.md § 9`](../../../CLAUDE.md):
+>
+> | Portão | Veredito |
+> |---|---|
+> | Cobertura de RF | ✅ 9/9 RFs `M` com teste que discrimina (46 vitest + 29 pytest) |
+> | Constituição | ✅ sem violação; 341 testes rodados em 10 arquivos |
+> | Acessibilidade / performance | ❌ → ✅ **reprovou na primeira passada** e passou depois do conserto |
+> | Documentação sincronizada | ✅ este commit |
+>
+> 🔴 **O portão de acessibilidade reprovou de verdade**, e vale registrar por quê: a coluna
+> "Margem" da `<MunicipioTable>` — tela que esta spec passou a montar em 2026-09-20 — pintava
+> **texto** com a cor de *preenchimento* do partido. Medido: PSOL **2,08:1** contra o piso de
+> 4,5:1 do RNF-022. O defeito **não era de 20/09**: o handoff de 19/09 já o registrava, e ele
+> sobreviveu a uma reescrita inteira do arquivo sem que nenhum teste o pegasse. Corrigido para
+> `candidateMarkerColor` (a variante `-text`) nas três rotas de UF, e agora as **32 siglas**
+> medem ≥ 4,50 contra `--surface-page`.
+>
+> ⚠️ **Margem de erro zero, e isto é dívida registrada**: as duas piores siglas (AGIR 4,502 ·
+> REDE 4,505) ficam praticamente na linha. Qualquer mudança em `--paper-1` derruba 32 tokens de
+> uma vez. Ver `docs/reference/dividas-tecnicas.md`.
+>
+> **O que NÃO bloqueou, por decisão de escopo:** o tom claro de 15 dos 32 partidos ainda se
+> confunde com `--map-uncounted` no mapa — mas isso é o mesmo mapa que Presidente e Governador
+> já usam em produção sob spec `shipped`, não é regressão nem é específico de Senador.
+
 
 # Spec 016 — Senador
 
@@ -192,6 +219,29 @@ atualização é a cada 5 minutos (constituição § 8, ADR-0026 item 5).
   o cargo passou a ser ingerido por zona. A guarda de tela
   (`temIncertezaMedida`) **permanece**, para o caso de uma UF vir com uma única
   zona apurada — aí o intervalo volta a ser degenerado e a chance não é exibida.
+
+### Cobertura municipal e tabela de municípios (S08/2026-09-19/20)
+
+**RF-179 — Mapa municipal de Senador no nível UF**
+
+WHEN um usuário acessa `/uf/[sigla]/senador` (página de resultado do Senado por estado), the system SHALL exibir um mapa coroplético de municípios do estado, colorido pela liderança em votos ou projeção, acompanhado de lista paginada de municípios.
+
+**Aceitação**:
+- Given a rota `/uf/SP/senador`, when renderiza, then um `<ChoroplethMapUF>` de São Paulo aparece com os municípios coloridos por líder (Senador cargo 5).
+- Given município sem par (município × zona) apurado em nenhuma zona do estado, when o mapa renderiza, then o município recebe cor default (sem dados) ou é omitido da coloração (cobertura estruturalmente parcial — apenas pares município×zona com apuração recebem projeção).
+- **Restrição de cobertura** — a cobertura municipal é estruturalmente parcial neste e em todos os cargos, dependendo da granularidade de zona apurada: `risks.md § XX` detalha que ~31% dos votos podem estar sob município sem par apurado. Este RF promete exibir o mapa; **não promete 100% de cobertura geográfica**.
+
+**RF-184 — VagaBadge por base (Senador)**
+
+WHEN um candidato ao Senado está visível em tabela de resultado em `/uf/[sigla]/senador` ou `/senador` (ficha de UF no mapa nacional), the system SHALL exibir um badge `<VagaBadge>` que indica seu estado de ocupação de vaga segundo a base ativa (Parcial/Projeção):
+- Base Projeção: "Vaga projetada" se em top-2 na projeção, "Indefinido" caso contrário.
+- Base Parcial: "Vaga na parcial" se em top-2 no apurado, "Indefinido" caso contrário.
+
+**Aceitação**:
+- Given candidato em 1º lugar na base projeção, when seletor = "proj", then badge diz "Vaga projetada".
+- Given mesmo candidato em 4º lugar na base parcial, when seletor = "parcial", then badge diz "Indefinido" (4º não ocupa vaga, são apenas 2 vagas).
+- Given candidato não em top-2 em nenhuma base, when renderiza em qualquer seletor, then badge exibe "Indefinido".
+- Given a base muda do seletor Parcial/Projeção, when a linha re-renderiza, then o texto do badge acompanha a nova base sem latência.
 
 ## Requisitos Não-Funcionais
 

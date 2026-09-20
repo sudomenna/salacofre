@@ -5,7 +5,7 @@ status: shipped
 priority: M
 personas: [P1, P2, P3, P4]
 screens: [T-03]
-requirements: [RF-031, RF-032, RF-033, RF-034, RF-037, RF-043, RF-061, RF-062, RF-063]
+requirements: [RF-031, RF-032, RF-033, RF-034, RF-037, RF-043, RF-061, RF-062, RF-063, RF-182, RF-183]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 008-interatividade-brushing, 003-home-nacional]
 apis: [GET /api/projection?uf=<sigla>]
 components: [WinnerBanner, CandidateRow, ChoroplethMapUF, MunicipioTable, ForecastTransparency, Footer, ProjectionThermometer, TrilhaKicker, RaceHeader, CandidateResultRow, MunicipioExplorer, ResultPanel, CandidateListCollapse]
@@ -156,6 +156,29 @@ WHEN a página renderiza, the system SHALL exibir bloco `<ForecastTransparency /
 **RF-044 — Análise textual gerada por templates estáticos**
 
 WHEN a página renderiza, the system SHALL exibir 1–3 frases analíticas geradas pelo engine de templates ([insights-templates](../../design-system/insights-templates.md)).
+
+### Tabela de municípios — paginação e ordem (S08/2026-09-20)
+
+**RF-182 — Tabela de municípios paginada (20 inicial + 40 por toque)**
+
+WHEN a página de UF renderiza e a tabela de municípios é exibida, the system SHALL exibir 20 municípios inicialmente com um botão que, ao toque, carrega +40 municípios adicionais por lote (em vez da virtualização anterior), e cujo rótulo informa **o tamanho do próximo lote e quantos municípios ainda faltam** — implementado como `Mostrar mais 40 · faltam 625` (`MunicipioTable.tsx:783`).
+
+**Aceitação**:
+- Given um estado com >50 municípios, when renderiza, then os primeiros 20 aparecem no viewport + o botão acessível, com o rótulo dizendo o lote e quantos faltam.
+- Given usuário toca o botão, when carrega, then +40 linhas adicionadas ao DOM (total 60 visíveis).
+- Given usuário toca novamente, when carrega, then +40 mais (total 100).
+- Given um estado com ≤20 municípios, when renderiza, then nenhum botão aparece (lista completa já está presente).
+- Given a lista em scroll, when usuário toca o botão abaixo do fold, then a página não retorna ao topo, e o **foco permanece no botão** enquanto sobrar município; no toque que esgota a lista o foco vai para a linha de status.
+
+**RF-183 — Ordem da tabela de municípios por eleitorado decrescente**
+
+WHEN a tabela de municípios é renderizada em uma página de UF, the system SHALL ordenar todos os registros por eleitorado decrescente, SEM omitir municípios cujo campo `EdgeUfMunicipio.eleitores` está ausente ou é nulo.
+
+**Aceitação**:
+- Given lista de 50 municípios com valores de eleitorado distintos (São Paulo 11,7M até Turuveleta 3.210), when renderiza, then ordem segue eleitorado decrescente (maior para menor).
+- Given um município sem eleitorado registrado (`eleitores = null`, situação legítima em payload legado), when renderiza, then o município permanece na tabela (não é filtrado), posicionado ao fim após os que têm eleitorado.
+- Given São Paulo (11.721.000) e Guarulhos (1.162.000) na mesma UF, when renderiza, then São Paulo aparece ANTES de Guarulhos, independente de ser capital ou código IBGE.
+- Given payload onde NENHUM município tem eleitorado (todos null), when renderiza, then lista completa aparece na ordem original, com legenda "Ordenação por eleitorado indisponível".
 
 ## Requisitos herdados da spec 003 (S07)
 

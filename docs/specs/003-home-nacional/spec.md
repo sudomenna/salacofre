@@ -5,7 +5,7 @@ status: shipped
 priority: M
 personas: [P1, P2, P3, P4]
 screens: [T-01]
-requirements: [RF-021, RF-022, RF-023, RF-025, RF-026, RF-027, RF-028, RF-029, RF-030, RF-030.1, RF-030.2, RF-030.3, RF-030.4, RF-030.5, RF-030.6, RF-030.7, RF-030.8, RF-061, RF-062, RF-063]
+requirements: [RF-021, RF-022, RF-023, RF-025, RF-026, RF-027, RF-028, RF-029, RF-030, RF-030.1, RF-030.2, RF-030.3, RF-030.4, RF-030.5, RF-030.6, RF-030.7, RF-030.8, RF-061, RF-062, RF-063, RF-177, RF-178, RF-180, RF-181, RF-185, RF-186, RF-187, RF-188]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 008-interatividade-brushing]
 apis: [GET /api/projection]
 components: [HeadlineScore, NationalChoroplethMap, MapViewToggle, StateGroupedTable, NationalNeedle, ChancesPanel, InsightCard, ForecastTransparency, LiveBadge, Tabs, MinorCandidatesList, RaceTypeIndicator, TurnoBadge, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader, ApuracaoMeta, BreakingNewsTicker, NationalWinnerBanner, TurnoOneRecap, ResultPanel, CandidateListCollapse]
@@ -272,6 +272,80 @@ WHERE a trilha é `gov`, the system SHALL exibir o breadcrumb **sem** nó nacion
 - Given `/uf/SP/governador`, when o HTML é servido, then `<main data-trilha="gov">`, o kicker lê "GOVERNADOR · SP" e o breadcrumb é `Governadores › SP` — sem nó "Brasil".
 - Given qualquer uma das quatro páginas, when os tokens de cor são inspecionados, then nenhum elemento que representa dado eleitoral usa `--trilha-accent`.
 - **Gate obrigatório** (ADR-0019): o accent escolhido precisa ser perceptualmente distinguível de `--color-cand-2` e `--color-cand-4`, verificado por `a11y-perf-auditor` antes de qualquer promoção a `shipped`.
+
+### Balão do mapa e seletor de base (S08/2026-09-19/20)
+
+**RF-177 — Balão do mapa com 4 candidaturas + agregado "Outros"**
+
+WHEN o usuário passa o mouse sobre uma UF no mapa nacional, the system SHALL exibir um balão com os 4 candidatos com maior intenção de voto registrados em `top_candidatos[0..3]`, seguidos de uma linha agregada "Outros (N)" que resume o restante das candidaturas.
+
+**Aceitação**:
+- Given um estado com 10+ candidaturas em `EdgeUfRow.candidatos`, when o tooltip renderiza, then exatamente 5 linhas aparecem (4 líderes + 1 agregado).
+- Given `EdgeUfRow.outros` ausente (payload pré-2026-09-19 ou legado), when o balão monta, then a linha "Outros" não aparece e nenhuma candidatura é omitida.
+- Given um estado com ≤4 candidaturas registradas, when renderiza, then nenhuma linha "Outros" aparece.
+- Given `top_candidatos[i].pct_atual` ausente (impute_uf ou payload em transição), when a coluna "Parcial" renderiza, then exibe "—" (ausência), não "0%" (zero medido).
+
+**RF-178 — Orientação vertical adaptativa do balão do mapa**
+
+WHEN o cursor do mouse se posiciona em uma UF próxima à borda inferior do contêiner, the system SHALL reposicionar o balão para cima, evitando corte pela moldura `<PersistentMapFrame overflow: hidden>`.
+
+**Aceitação**:
+- Given um estado no terço inferior do mapa (RS, SC) com clientY > contêiner.height − cartão.height, when o tooltip renderiza, then transform aplicar `translateY(-100% - gap)` para cima.
+- Given um estado no terço superior, when o balão cabe para baixo, then `translateY(+12px)` padrão.
+- Given um cartão de altura H=150px e contêiner C=400px, when clientY = 350px (>200), then reposicionar para cima, com base em medição real do cartão e contêiner.
+
+**RF-180 — Traço de comparação marca a base não-ativa**
+
+WHEN uma linha de candidato renderiza em tela com duas bases visíveis (parcial e projeção), the system SHALL exibir um traço vertical curto marcador `[data-testid="result-bar-marker"]` identificando a base que **não** está em foco conforme o seletor Parcial/Projeção do shell.
+
+**Aceitação**:
+- Given `data-view-only="parcial"` no seletor, when renderiza, then um traço marca a coluna de Projeção (a base ausente do foco).
+- Given `data-view-only="proj"`, when renderiza, then um traço marca a coluna de Parcial.
+- Given ambas as bases no DOM em todos os casos (ADR-0029 § 7), when o traço é omitido por bug, then nenhuma base é mudita (defeito = regressão em cobertura, não ausência invisible).
+
+**RF-181 — Lista de candidatos reordena ao trocar base ativa**
+
+WHEN um usuário alterna o seletor "Parcial / Projeção" do `<ShellControls />`, the system SHALL reordenar a lista de candidatos conforme a ranking da base agora ativa, atualizando também numeração sequencial, highlight de margem e (em Senado) ocupação de vagas — sem reescrever o DOM, apenas ajustando a ordem visual via CSS `order`.
+
+**Aceitação**:
+- Given lista emitida em ordem de Projeção, com custom properties `--ord-parcial` e `--ord-proj` em cada linha, when usuário seleciona "Parcial", then a cascata de `app/globals.css` muda a regra ativa de `order: var(--ord-proj)` para `order: var(--ord-parcial)`.
+- Given candidato em 1º na Projeção e 3º na Parcial, when bases alternam, then a numeração de posição, a intensidade de cor de margem e (se Senado) o badge de vaga acompanham a nova base.
+
+**RF-185 — Painel de chances acompanha a base ativa**
+
+WHEN o usuário alterna a base ativa do seletor (Parcial/Projeção), the system SHALL atualizar o `<ChancesPanel />` para refletir as probabilidades de VITÓRIA e FECHAMENTO 1º TURNO (se Presidente) ou ELEIÇÃO (se Governador/Senado) calculadas sobre a base exibida.
+
+**Aceitação**:
+- Given `payload.nacional.p_vitoria = 0.78` (Projeção) e `payload.nacional.p_vitoria_parcial = 0.62` (Parcial), when usuário muda base de proj→parcial, then o medidor de `aria-valuenow` muda de 78 para 62.
+- Given campo de probabilidade ausente para uma base (payload legado), when aquela base é ativada, then o medidor correspondente não renderiza (não fabrica zero).
+
+**RF-186 — Ficha do mapa (StateResultSheet) exibe apurado E projetado por candidatura**
+
+WHEN um usuário abre a ficha de resultado de uma UF via toque no mapa, the system SHALL exibir os dados de apurado e projetado **lado a lado** por candidatura, com rótulo explícito "Em ordem de projeção", NUNCA fabricando zero quando `EdgeCandidate.pct_atual` é ausente.
+
+**Aceitação**:
+- Given uma candidatura em uma UF com `pct_atual = null` (impute_uf ou payload pré-09-19), when a ficha renderiza, then a coluna "Parcial" mostra "—" (traço), não "0,0%".
+- Given `pct_atual = 0` (medido: zero voto apurado para essa candidatura), when renderiza, then "0,0%" aparece — diferença intencional: "não sabemos" vs "medimos zero".
+- Given o rótulo "Em ordem de projeção", when inspecionado em `/uf/SP`, then não aparece em `/uf/SP/governador` se a UF tem múltiplos candidatos com ordens conflitantes entre as bases (degrade gracioso — rótulo é premissa de ordem única).
+
+**RF-187 — Seletor Parcial/Projeção renderizado dentro do conteúdo (desktop)**
+
+WHERE usuário tem capacidade de ponteiro fino (`(hover: hover) and (pointer: fine)`), the system SHALL renderizar o seletor "Parcial / Projeção" **dentro** do espaço de conteúdo do `<TopBar>` em `<ShellControls />`, permanentemente visível e acessível via teclado.
+
+**Aceitação**:
+- Given desktop com mouse, when a página renderiza, then `<SegmentedControl role="tablist">` com os dois tabs aparece inline no top bar, não em overlay modal.
+- Given `role="tablist"` + dois tabs com `data-value="parcial"` e `data-value="proj"`, when renderiza, then exatamente um tem `aria-selected="true"` (default = proj conforme state de store).
+- Given height do botão ≥ `--tap-min` (28px constituição § 4), when inspecionado em Chromium DevTools, then satisfaz.
+
+**RF-188 — Interação com o mapa segue capacidade de ponteiro, não viewport width**
+
+WHEN o usuário interage com um estado/município no mapa, the system SHALL avaliar `(hover: hover) and (pointer: fine)` em lugar de `window.innerWidth > breakpoint` para decidir o modo de apresentação: desktop (mouse) abre balão; toque (sem fine pointer) abre gaveta.
+
+**Aceitação**:
+- Given dispositivo desktop com mouse (fine pointer + hover capability), when hover sobre UF, then `<HoverCard>` balão aparece.
+- Given tablet com touch (pointer: coarse, sem suporte a hover), when toque UF, then balão **não** aparece; `<StateResultSheet>` gaveta abre ao tap.
+- Given Safari/Chrome em aparelho com toque que emite mousemove **sintético** antes do tap, when `bloqueiaBalaoNoToqueRef` está ativo (lê resultado de `useHasFinePointer`), then balão é suprimido apesar do mousemove artificial.
+- Given desktop de 375px de largura com mouse real (fine pointer), when cursor sobre UF, then balão abre (critério é ponteiro, não viewport).
 
 ## Requisitos Não-Funcionais aplicáveis
 

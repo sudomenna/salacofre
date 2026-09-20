@@ -383,6 +383,19 @@ Spec 016 (Senador) — `draft`, implementada em S07. Spec 017 (Deputado Federal)
 Além dos 66 RFs do PRD (RF-001..RF-060 + RF-030.1..RF-030.6), as specs adicionaram 88 RFs próprios.
 Vide frontmatters de cada spec (`requirements:` no YAML). Soma global: 154 RFs únicos.
 
+| RF-177 | Balão do mapa com 4 candidaturas + agregado "Outros" | M | [003](../specs/003-home-nacional/) | `<NationalChoroplethMap />`, `<HoverCard />` | unit (`NationalChoroplethMap.hoverOutros.test.tsx`, casos a–e: 5 linhas + 4 colunas, agregação + ausência, cruzamento pct↔pct_atual, "Outros" sem camada de vencedor) |
+| RF-178 | Orientação vertical adaptativa do balão do mapa | M | [003](../specs/003-home-nacional/) | `<HoverCard />`, `lib/utils/hover-card-placement.ts` | unit (`NationalChoroplethMap.hoverFlipVertical.test.tsx`, 5 casos: metade cima/baixo × dois eixos independentes, regra de altura não largura) |
+| RF-179 | Mapa municipal de Senador no nível UF | M | [016](../specs/016-senador/) | `<ChoroplethMapUF />`, `<MunicipioTable />`, `<MunicipioExplorer />` | integration (`tests/unit/pages/senador.test.tsx` — cobertura estrutural de `/uf/[sigla]/senador`; cobertura parcial por par município×zona apurado) |
+| RF-180 | Traço de comparação marca a base não-ativa | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<CandidateResultRow />` | unit (`CandidateResultRow.test.tsx`, caso a: dois traços, um por base, exclusividade de DOM) |
+| RF-181 | Lista de candidatos reordena ao trocar base ativa | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [016](../specs/016-senador/) | `<ResultPanel />`, `<CandidateRanking />` | unit (`ResultPanel.ordemPorBase.test.tsx`, 22 casos: ordem projeção/parcial, numeração, margem, vagas, cor invariante) |
+| RF-182 | Tabela de municípios paginada (20 inicial + 40 por toque) | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [016](../specs/016-senador/) | `<MunicipioTable />` | unit (`MunicipioTable.test.tsx`, casos de paginação: primeira leva 20, botão "Ver mais", +40 por toque) |
+| RF-183 | Ordem da tabela de municípios por eleitorado decrescente | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [016](../specs/016-senador/) | `<MunicipioTable />` | unit (`MunicipioTable.ordem.test.tsx`, 13 casos: ordem eleitorado desc, município sem eleitorado no fim nunca filtrado, capital não força topo, payload legado, MG caso real) |
+| RF-184 | VagaBadge mostra estado de ocupação por base (Senador) | M | [016](../specs/016-senador/) | `<ResultPanelVagas />` | unit (`ResultPanelVagas.test.tsx`, casos de VagaBadge: textos por base, top-2 vs indefinido) |
+| RF-185 | Painel de chances acompanha a base ativa | M | [003](../specs/003-home-nacional/), [016](../specs/016-senador/) | `<ChancesPanel />` | unit (`ChancesPanel.test.tsx`, casos a–g: medidores por campo, ausência sem zero, rótulos por base) |
+| RF-186 | Ficha do mapa (StateResultSheet) exibe apurado E projetado por candidatura | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [016](../specs/016-senador/) | `<StateResultSheet />` | unit (`StateResultSheet.parcialEProjecao.test.tsx`, 4 cenários: completo, sem parcial, sem projeção, misto; nunca fabrica zero) |
+| RF-187 | Seletor Parcial/Projeção renderizado dentro do conteúdo (desktop) | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [016](../specs/016-senador/) | `<ShellControls />`, `<BaseToggle />` | unit (`ShellControls.test.tsx`, casos a/b/d: tablist + dois tabs com aria-selected, altura tap-min) |
+| RF-188 | Interação com o mapa segue capacidade de ponteiro, não viewport | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [008](../specs/008-interatividade-brushing/), [016](../specs/016-senador/) | `<NationalChoroplethMap />`, `<ChoroplethMapUF />` | unit (`NationalChoroplethMap.toqueNaoAbreBalao.test.tsx`, 3 casos: toque NÃO abre balão, gaveta abre, mouse continua; `ChoroplethMapUF.toqueNaoAbreBalao.test.tsx` análogo) |
+
 ---
 
 ## Comportamentos entregues sem RF formal (2026-09-19/20)
@@ -399,15 +412,17 @@ têm RF correspondente. Registrados aqui para visibilidade — **cada um é uma 
 
 ### De 2026-09-20 (paginação, ordem, marca)
 
-4. Traço de comparação marca sempre a **outra base** (apurado ↔ projeção)
-5. Lista de candidatos reordena ao trocar base ativa (Parcial ↔ Projeção)
-6. Tabela de municípios paginada (20 inicial + 40 por toque) vs virtualizada antes
-7. Ordem da tabela segue eleitorado decrescente, com numeração sequencial e margem consistentes
-8. `VagaBadge` (Senador) mostra dois textos: ocupante + estado (eleito/indefinido)
-9. Painel de chances por base (aparece/desaparece conforme composição muda)
-10. Ficha do mapa mostra apurado E projetado com rótulo "Em ordem de projeção"
-11. Seletor Parcial/Projeção renderizado **dentro da tela** de conteúdo (não em overlay/drawer)
-12. Critério de interação é capacidade de ponteiro (`pointer: fine + hover: hover`), não viewport
+Os itens 4–12 de 2026-09-20 foram formalizados como **RF-180 a RF-188**. Consulte a matriz acima.
+
+### Comportamentos que NÃO foram formalizados como RF (2026-09-20)
+
+Três itens mencionados no briefing não se enquadram em RF (requisito funcional de comportamento observável do usuário) e receberam cobertura alternativa:
+
+1. **Percentual em pt-BR com vírgula decimal** — Não é RF; é **restrição de localização (Constituição § 2)**. Cobertura: `tests/unit/lib/format.test.ts` (56 casos: separador, arredondamento, casas decimais). Os cinco pontos de formatação percentual do codebase (`formatPercentTrim()`, `formatPercent()`, etc.) convergem para este único testador.
+
+2. **Cor de candidatura NUNCA vem da posição na lista** — Não é RF; é **restrição arquitetural (ADR-0024 supersedes ADR-0013)**. Cobertura: `tests/unit/components/cor-nunca-da-posicao.test.ts` (varredura negativa estrutural: `colorForRank`, `bandForRank`, `strongForRank`, `rankFromColorVar`, tokens literais `var(--color-cand-N)` proibidos em `app/`, `components/`, `lib/`). Complementos: `cor-nunca-do-payload.test.ts` (varredura de leitura do campo `.cor`), `candidate-color.test.ts` (contrato de `candidateColor()`).
+
+3. **Votos por município na lista + três estados (desconhecido / não sabemos / apurando)** — Já coberto por **RF-037 "Tabela de municípios"** (em traceability) + **RF-182 "Paginação"** (novo). Cobertura adicional: `tests/unit/components/MunicipioTable.votos.test.tsx` (largura sem truncamento, orçamento de glifos medidos), `tests/unit/lib/municipio-votos.test.ts` (três estados de voto: ausência vs. zero medido).
 
 ---
 

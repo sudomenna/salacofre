@@ -191,6 +191,30 @@ observado no código; (b) implicação; (c) decisão necessária.
 
 ---
 
+## 16. 🟡 A variante `-text` da paleta passa com margem ZERO
+
+| Fato | Depois do conserto de contraste de 2026-09-20, as **32 siglas** medem ≥ 4,50:1 contra `--surface-page` (`--paper-1`, `#f3f4f6`) — o piso do RNF-022. Mas as duas piores ficam praticamente **na linha**: **AGIR `#7c6e5b` a 4,502** e **REDE `#2c802f` a 4,505** (medições independentes do orquestrador e do `a11y-perf-auditor`, que divergiram no terceiro decimal por método de arredondamento) |
+|---|---|
+| Por que é dívida e não defeito | Matematicamente passa, sem ambiguidade. O problema é **não haver absorção de erro**: três coisas derrubam AGIR abaixo do piso sem ninguém tocar em cor de partido — (1) mudar `--paper-1` por motivo alheio a partido, ex. redesign de tema; (2) arredondamento diferente entre o gerador do token e quem audita; (3) navegador com perfil de cor diferente de sRGB puro, que é o que o cálculo WCAG assume |
+| O que já protege | `tests/unit/design-system/municipio-contraste.test.tsx` e `party-text-contrast.test.ts` pegam a **regressão de token** (caso 1) e reprovam a suíte |
+| O que falta | Não há decisão escrita dizendo "sabemos que é justo, é aceito, e eis o porquê". Quem mexer em `--paper-1` vai descobrir pelo teste vermelho, sem contexto. Mesmo padrão que o RNF-035 já resolveu para o problema irmão (rampa do halo do mapa) |
+| Próximo passo | Nota curta em `docs/nfr/accessibility.md`: "a variante `-text` mira 4,5:1 com folga mínima em 2 das 32 siglas (AGIR, REDE); recalibrar se `--surface-page` mudar" |
+| Prioridade | P3 — registro, não bloqueio |
+
+---
+
+## 17. 🔴 A ordem visual da lista de candidatos diverge da ordem do DOM — DECISÃO DO DONO PENDENTE
+
+| Fato | Desde `290b8de`, `ResultPanel` monta as `<li>` **sempre na ordem da Projeção** e reposiciona visualmente por `order` de CSS conforme a base ativa. Leitor de tela e `Ctrl+F` seguem o DOM, não o CSS |
+|---|---|
+| O que quebra | Nenhuma linha isolada mente — cada uma carrega o número certo da base ativa. O que se perde é a **sequência**: na base "Parcial", quem navega linha a linha ouve "3º, 1º, 2º", com a mesma numeração que a tela mostra, fora de ordem. É o que a **WCAG SC 1.3.2 (Meaningful Sequence, nível A)** existe para proibir |
+| Por que não bloqueou o `shipped` da 016 | Avaliação do `a11y-perf-auditor`: é padrão deliberado e extensamente documentado em código (há análise de custo real, não é descuido); é **compartilhado pelas quatro telas** de resultado desde a decisão do dono de 2026-09-20, não é regressão específica de Senador; e cada dado individual continua verdadeiro |
+| Por que nenhuma ferramenta pegou | axe-core e Lighthouse **não detectam** divergência entre ordem visual e ordem do DOM — é um balde cego conhecido, o mesmo tipo que este projeto já documentou para contraste em SVG. Só aparece em teste manual com leitor de tela |
+| 🔴 Decisão do dono | Três caminhos: **(a)** aceitar e documentar formalmente em `docs/nfr/accessibility.md`, no mesmo formato que o RNF-035 usou (fato medido + decisão + porquê) — é o que o auditor recomenda; **(b)** anunciar a nova ordem por `aria-live="polite"` ao trocar de base — mitigação barata, sem custo de nós permanentes; **(c)** duplicar a lista sob `data-view-only`, que resolve mas custa +312 nós (+85%) no painel |
+| Prioridade | P2 — não bloqueia D1, mas é a maior dívida de acessibilidade aberta hoje |
+
+---
+
 ## Próximos passos
 
 **Sessão atual**: dívidas catalogadas, proprietários e timelines atribuídos.

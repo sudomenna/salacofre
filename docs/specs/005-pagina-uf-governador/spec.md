@@ -6,7 +6,7 @@ shipped_date: 2026-05-18
 priority: M
 personas: [P1, P2, P3]
 screens: [T-04]
-requirements: [RF-031, RF-032, RF-033, RF-034, RF-037, RF-043, RF-005.4, RF-061, RF-062, RF-063]
+requirements: [RF-031, RF-032, RF-033, RF-034, RF-037, RF-043, RF-005.4, RF-061, RF-062, RF-063, RF-182, RF-183]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 004-pagina-uf-presidencial]
 apis: [GET /api/projection?cargo=governador&uf=<sigla>]
 components: [WinnerBanner, CandidateRow, ChoroplethMapUF, MunicipioTable, ForecastTransparency, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader, CandidateResultRow, MunicipioExplorer, ResultPanel, CandidateListCollapse]
@@ -65,31 +65,16 @@ WHEN `payload.mesorregioes?.length > 0`, the system SHALL renderizar tabela `(no
 
 WHEN ao final da composição, the system SHALL renderizar `<MunicipioTable />` exibindo a lista **completa** de municípios da UF, ordenada por eleitorado decrescente, **paginada com 20 itens na primeira leva + 40 adicionais por toque** (ADR-0034 D21; igual nas três rotas: Presidente, Governador, Senador).
 
-### Open question resolvida (kickoff S06)
+### Tabela de municípios — paginação e ordem detalhe formal (S08/2026-09-20)
 
-> Quando todos os candidatos a Governador de uma UF não são mapeáveis em 2022 (100% novos), a página deve existir ou retornar 404?
+**RF-182 · RF-183 — Tabela de municípios (paginação e ordem)**
 
-**Decisão**: página **EXISTE** com K-1 disclaimer tier 3 e exibe parcial atual sem projeção. `WinnerBanner` "ELEITO" ainda pode aparecer com base em apuração factual (>= 99% apurado), apesar de p_vitoria não ser confiável.
+Definidos **uma única vez** em [`docs/specs/004-pagina-uf-presidencial/spec.md`](../004-pagina-uf-presidencial/spec.md)
+e válidos sem alteração nesta rota: é o **mesmo** `<MunicipioTable>`, com o mesmo
+`<MunicipioExplorer>` em volta, montado por `app/(gov)/uf/[sigla]/governador/page.tsx`.
 
-## Requisitos herdados da spec 003 (S07)
+⚠️ Não reescreva o texto aqui. Ele já esteve duplicado nas duas specs por algumas horas em
+2026-09-20 e as duas cópias **nasceram divergentes** (uma trazia um critério de aceitação que a
+outra não tinha). Requisito normativo em duas cópias é a mesma classe de defeito que o produto
+passou o dia consertando no código.
 
-Esta rota está no escopo do hero de 1º turno (decisão D7 de 2026-09-05). Definidos em [spec 003](../003-home-nacional/spec.md), referenciados aqui:
-
-| RF | Aplicação em `/uf/[sigla]/governador` |
-|---|---|
-| **RF-061** — hero de seis termômetros | Renderizado em modo `multi-1t`, com heading "Projeção do 1º turno — Governador \<SIGLA\>". IC dos candidatos via `ci95`. Em `binary` (2T) a corrida é literalmente binária e o layout de S06 é preservado. |
-| **RF-062** — participação e "Outros" | Alimentado por `payload.participacao` da UF (RF-020.1, [spec 002](../002-modelo-estatistico/spec.md)). Quando `participacao.outros` está ausente, o termômetro cai no fallback `100 − Σtop3` rotulado "IC indisponível". |
-| **RF-063** — identidade de trilha | `<main data-trilha="gov">`, `<RaceHeader />` com kicker "GOVERNADOR · \<SIGLA\>" e breadcrumb `Governadores › \<SIGLA\>`. |
-
-## Requisitos Não-Funcionais
-
-Mesmos da spec 004 — URL canônica `/uf/[sigla]/governador`. ISR cadência 60s (ADR-0011).
-
-## Cross-refs
-
-- Spec irmã (Presidencial): [../004-pagina-uf-presidencial/](../004-pagina-uf-presidencial/)
-- Lista nacional Gov: [../006-grid-governadores/](../006-grid-governadores/)
-- Modelo (casos de borda): [../002-modelo-estatistico/spec.md](../002-modelo-estatistico/spec.md)
-- ADR-0015 (K-1 3-tier): [../../architecture/adrs/0015-k1-fallback-3-tier.md](../../architecture/adrs/0015-k1-fallback-3-tier.md)
-- ADR-0016 (placement 2T recap): [../../architecture/adrs/0016-turno-um-recap-placement.md](../../architecture/adrs/0016-turno-um-recap-placement.md)
-- Design técnico: [./design.md](./design.md)
