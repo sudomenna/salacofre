@@ -51,7 +51,14 @@ const SAO_JOSE_PX = 130.8;
 const CAPITAL_MAIS_LARGA_PX = 149.83;
 /** `"9.322.444 eleitores"` (São Paulo) em JetBrains Mono 400 11px (`--type-data`). */
 const SUBTITULO_PIOR_CASO_PX = 125.42;
-/** `"54.5%"` em Archivo 400 13px — pior caso da coluna "Apurado". */
+/**
+ * `"54,5%"` em Archivo 400 13px — pior caso da coluna "Apurado".
+ *
+ * ⚠️ Era `"54.5%"` (ponto decimal) até 2026-09-20. O número NÃO mudou com a
+ * troca: em Archivo a vírgula e o ponto têm o mesmo avanço (3,61px em 400/13px,
+ * 3,75px em 500/13px), medido no mesmo Chromium e com o mesmo `.woff2`. É por
+ * isso que o conserto da pontuação não precisou reabrir o orçamento de largura.
+ */
 const APURADO_PIOR_CASO_PX = 36.88;
 /** `"9.322.444"` em JetBrains Mono 11px: o mínimo de uma coluna de votos. */
 const NUMERO_DE_VOTOS_PX = 59.42;

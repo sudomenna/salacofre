@@ -22,7 +22,11 @@ describe("<CandidateRow />", () => {
     expect(text).toContain("PT");
     // pt-BR: 8.234.567
     expect(text).toContain("8.234.567");
-    expect(text).toContain("54.1%");
+    // Vírgula, não ponto (2026-09-20): o percentual sai de `formatPercentTrim`,
+    // e pt-BR separa decimal com vírgula. Até esta data eram cinco cópias
+    // inline de `toFixed(1)` espalhadas pelos componentes.
+    expect(text).toContain("54,1%");
+    expect(text).not.toContain("54.1%");
   });
 
   it("(b) barra de progresso usa aria-valuenow arredondado", () => {

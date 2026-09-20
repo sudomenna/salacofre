@@ -31,6 +31,7 @@
 import { useMemo } from "react";
 import { candidateColor, candidateMarkerColor } from "@/components/blocks/_candidateColor";
 import type { EdgeCandidate, EdgeUfMunicipio } from "@/lib/edge-config/types";
+import { formatPercentTrim } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 export interface MunicipioWaffleGridProps {
@@ -61,11 +62,6 @@ export interface MunicipioWaffleGridProps {
    * de ponteiro sobre uma imagem, não a única porta.
    */
   onSelect?: (codIbge: string) => void;
-}
-
-function fmtPct(pct: number): string {
-  const r = Math.round(pct * 10) / 10;
-  return Number.isInteger(r) ? `${r}%` : `${r.toFixed(1)}%`;
 }
 
 export function MunicipioWaffleGrid({
@@ -170,7 +166,7 @@ export function MunicipioWaffleGrid({
                     é descrição, não layout. Nada aqui disputa largura. */}
                 <title>{`${m.nome} — ${
                   lider ? nomeExibicao(lider.nome, lider.sqcand) : `Cand ${m.lider.candidato_id}`
-                } (${lider?.partido ?? "?"}) líder · ${fmtPct(m.pct_apurado)} apur`}</title>
+                } (${lider?.partido ?? "?"}) líder · ${formatPercentTrim(m.pct_apurado)} apur`}</title>
               </rect>
             );
           })}
@@ -231,7 +227,7 @@ export function MunicipioWaffleGrid({
                       : `Cand ${m.lider.candidato_id}`}{" "}
                     ({lider?.partido ?? "?"})
                   </td>
-                  <td>{fmtPct(m.pct_apurado)}</td>
+                  <td>{formatPercentTrim(m.pct_apurado)}</td>
                 </tr>
               );
             })}

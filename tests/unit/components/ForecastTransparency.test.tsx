@@ -170,10 +170,11 @@ describe("<ForecastTransparency /> — o ramo de prosa e as duas variantes", () 
 
     expect(prosa(doc)).toBeNull();
     expect(meters(doc)).toHaveLength(2);
-    // ⚠️ Ponto decimal, não vírgula: este bloco formata com o `formatPercent`
-    // LOCAL do arquivo, e não com o de `lib/utils/format` que o resto do
-    // produto usa. Divergência de apresentação preexistente, fora do recorte
-    // desta emenda — registrada aqui para que ninguém a "conserte" sem medir.
-    expect(doc.body.textContent ?? "").toContain("37.4%");
+    // ✅ Vírgula. A divergência que este comentário registrava — um
+    // `formatPercent` LOCAL deste arquivo, com ponto decimal, em vez do de
+    // `lib/utils/format` — foi fechada em 2026-09-20: o helper local sumiu e
+    // o bloco chama `formatPercentTrim`. Era uma de cinco cópias idênticas.
+    expect(doc.body.textContent ?? "").toContain("37,4%");
+    expect(doc.body.textContent ?? "").not.toContain("37.4%");
   });
 });

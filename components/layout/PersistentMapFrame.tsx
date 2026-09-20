@@ -145,6 +145,7 @@ import { cargoFromToken } from "@/lib/config/cargos";
 import { isPreEleicao } from "@/lib/config/fase";
 import type { EdgePayload, EdgePayloadUf, EdgeUfMunicipio } from "@/lib/edge-config/types";
 import { useDadoFrescorStore } from "@/lib/state/dado-freshness-store";
+import { formatPercent } from "@/lib/utils/format";
 
 /** Mesma cadência de escrita do orchestrator (ADR-0011). */
 const REFRESH_MS = 60_000;
@@ -365,7 +366,7 @@ export function PersistentMapFrame({ cargo }: PersistentMapFrameProps) {
   const escopo = sigla
     ? `${CARGO_LABEL[cargo]} · ${sigla}${
         typeof ufResumo?.pct_apurado === "number"
-          ? ` · ${ufResumo.pct_apurado.toFixed(1).replace(".", ",")}% apurado`
+          ? ` · ${formatPercent(ufResumo.pct_apurado, 1)} apurado`
           : ""
       }${cargo === "sen" ? " · 2 vagas" : ""}`
     : `${CARGO_LABEL[cargo]} · Brasil${cargo === "sen" ? " · 2 vagas" : ""}`;

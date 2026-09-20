@@ -265,8 +265,11 @@ describe("<GovernorCard />", () => {
 
     // 5ª linha = o agregado, com o número que o PRODUTOR somou.
     expect(rows[4]?.textContent ?? "").toContain("Outros");
-    expect(rows[4]?.lastElementChild?.textContent).toBe("7.3%");
-    // 🔴 O número da subtração não pode aparecer em lugar nenhum do card.
+    expect(rows[4]?.lastElementChild?.textContent).toBe("7,3%");
+    // 🔴 O número da subtração não pode aparecer em lugar nenhum do card —
+    // nas duas pontuações, porque a troca de ponto por vírgula (2026-09-20)
+    // não pode ter sido o que fez a asserção parar de discriminar.
+    expect(doc.body.textContent ?? "").not.toContain("8,9%");
     expect(doc.body.textContent ?? "").not.toContain("8.9%");
   });
 
@@ -295,6 +298,6 @@ describe("<GovernorCard />", () => {
     // substring de "27.8%", então um `toContain` global passaria mesmo com a
     // 4ª linha ausente. (Foi o primeiro jeito que escrevi este teste — não
     // discriminava nada.)
-    expect(pctsExibidos(doc)).toEqual(["41.2%", "27.8%", "14.1%", "8%", "7.3%"]);
+    expect(pctsExibidos(doc)).toEqual(["41,2%", "27,8%", "14,1%", "8%", "7,3%"]);
   });
 });

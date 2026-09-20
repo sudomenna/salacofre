@@ -9,6 +9,8 @@
 
 import type { CSSProperties } from "react";
 
+import { formatPercent } from "@/lib/utils/format";
+
 export interface TurnoutPoint {
   ts: string;
   pctApurado: number; // 0–100
@@ -64,7 +66,7 @@ export function TurnoutAreaChart({ points, width = 480, height = 200 }: TurnoutA
         height={height}
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label={`Turnout cumulativo: ${lastPoint.pctApurado.toFixed(1)}% apurado.`}
+        aria-label={`Turnout cumulativo: ${formatPercent(lastPoint.pctApurado, 1)} apurado.`}
         xmlns="http://www.w3.org/2000/svg"
       >
         <path d={areaPath} fill="var(--color-success)" opacity={0.18} />
@@ -127,7 +129,7 @@ export function TurnoutAreaChart({ points, width = 480, height = 200 }: TurnoutA
             {points.map((p) => (
               <tr key={p.ts}>
                 <td>{p.ts}</td>
-                <td>{p.pctApurado.toFixed(1)}%</td>
+                <td>{formatPercent(p.pctApurado, 1)}</td>
               </tr>
             ))}
           </tbody>

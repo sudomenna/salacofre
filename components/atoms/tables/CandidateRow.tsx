@@ -38,6 +38,7 @@
  */
 
 import { CandidateAvatar } from "@/components/atoms/data/CandidateAvatar";
+import { formatPercentTrim } from "@/lib/utils/format";
 import { partyChipInk } from "@/lib/utils/party-color";
 import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
@@ -59,11 +60,6 @@ export interface CandidateRowProps {
 function formatVotos(votos: number | null): string {
   if (votos === null) return "—";
   return new Intl.NumberFormat("pt-BR").format(votos);
-}
-
-function formatPct(pct: number): string {
-  const r = Math.round(pct * 10) / 10;
-  return Number.isInteger(r) ? `${r}%` : `${r.toFixed(1)}%`;
 }
 
 export function CandidateRow({ nome, partido, cor, votos, pct, iniciais }: CandidateRowProps) {
@@ -135,7 +131,7 @@ export function CandidateRow({ nome, partido, cor, votos, pct, iniciais }: Candi
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(safePct)}
-          aria-label={`${nome}: ${formatPct(safePct)}`}
+          aria-label={`${nome}: ${formatPercentTrim(safePct)}`}
           className="relative h-2 w-full overflow-hidden rounded-sm"
           style={{ backgroundColor: "var(--color-bg-muted)" }}
         >
@@ -156,7 +152,7 @@ export function CandidateRow({ nome, partido, cor, votos, pct, iniciais }: Candi
         className="text-right text-base font-medium tabular-nums"
         style={{ color: "var(--color-text)" }}
       >
-        {formatPct(safePct)}
+        {formatPercentTrim(safePct)}
       </span>
     </div>
   );

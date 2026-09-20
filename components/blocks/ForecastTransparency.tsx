@@ -32,6 +32,7 @@
 import type { CSSProperties } from "react";
 
 import type { VarianteFasePreEleicao } from "@/components/atoms/banners/FasePreEleicaoBanner";
+import { formatPercentTrim } from "@/lib/utils/format";
 
 export interface ForecastTransparencyProps {
   /** Percentual apurado da corrida (0–100). Vem de `EdgePayload.pct_apurado_total`. */
@@ -132,15 +133,6 @@ function clampPercent(value: number): number {
   return value;
 }
 
-/**
- * Arredonda para 1 casa decimal quando o valor não é inteiro — evita
- * "33.333333%" no rótulo numérico. Mantém inteiro quando exato (ex. 50%).
- */
-function formatPercent(value: number): string {
-  const rounded = Math.round(value * 10) / 10;
-  return Number.isInteger(rounded) ? `${rounded}%` : `${rounded.toFixed(1)}%`;
-}
-
 interface BarRowProps {
   label: string;
   pct: number;
@@ -185,7 +177,7 @@ function BarRow({ label, pct, color, ariaLabel }: BarRowProps) {
         className="text-right text-sm font-medium tabular-nums"
         style={{ color: "var(--color-text)" }}
       >
-        {formatPercent(pct)}
+        {formatPercentTrim(pct)}
       </span>
     </div>
   );
@@ -274,13 +266,13 @@ export function ForecastTransparency({
           label="Modelo"
           pct={pctModel}
           color="var(--color-text-muted)"
-          ariaLabel={`Modelo contribui ${formatPercent(pctModel)}`}
+          ariaLabel={`Modelo contribui ${formatPercentTrim(pctModel)}`}
         />
         <BarRow
           label="Apuração"
           pct={pctReal}
           color="var(--color-success)"
-          ariaLabel={`Apuração contribui ${formatPercent(pctReal)}`}
+          ariaLabel={`Apuração contribui ${formatPercentTrim(pctReal)}`}
         />
       </div>
       {/* RF-108 — os dois fatos que o leitor não tem como inferir da tela:

@@ -29,6 +29,7 @@
 
 import { candidateColor } from "@/components/blocks/_candidateColor";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
+import { formatPercentTrim } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
@@ -121,11 +122,6 @@ function chipFor(bucket: EdgeUfRow["bucket"]): StatusChip {
         ariaText: "em apuração",
       };
   }
-}
-
-function fmtPct(pct: number): string {
-  const r = Math.round(pct * 10) / 10;
-  return Number.isInteger(r) ? `${r}%` : `${r.toFixed(1)}%`;
 }
 
 interface Row {
@@ -240,8 +236,10 @@ export function GovernorCard({ uf, candidatos, mode = "expanded" }: GovernorCard
   // resolve largura, e aqui não há largura: "REPUBLICANOS" dito por inteiro é
   // exatamente o que o TSE publica. A regra está em `lib/utils/sigla-partido.ts`.
   const ariaLabel = `${nomeUf}, ${chip.ariaText}${
-    liderRow ? `, líder: ${liderRow.nome} (${liderRow.partido}) com ${fmtPct(liderRow.pct)}` : ""
-  }, ${fmtPct(uf.pct_apurado)} apurado`;
+    liderRow
+      ? `, líder: ${liderRow.nome} (${liderRow.partido}) com ${formatPercentTrim(liderRow.pct)}`
+      : ""
+  }, ${formatPercentTrim(uf.pct_apurado)} apurado`;
 
   // Mobile fallback: single-line. Detectado via CSS, não JS — usamos
   // `sm:hidden` / `hidden sm:block` para alternar.
@@ -302,7 +300,7 @@ export function GovernorCard({ uf, candidatos, mode = "expanded" }: GovernorCard
             </span>
           </h3>
           <span className="text-xs tabular-nums" style={{ color: "var(--color-text-muted)" }}>
-            {fmtPct(uf.pct_apurado)} apur
+            {formatPercentTrim(uf.pct_apurado)} apur
           </span>
         </header>
 
@@ -360,7 +358,7 @@ export function GovernorCard({ uf, candidatos, mode = "expanded" }: GovernorCard
                   className="w-10 text-right tabular-nums"
                   style={{ color: "var(--color-text)" }}
                 >
-                  {fmtPct(r.pct)}
+                  {formatPercentTrim(r.pct)}
                 </span>
               </li>
             );

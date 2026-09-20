@@ -42,6 +42,86 @@ export function formatPercent(value: number, decimals = 1): string {
 }
 
 /**
+ * O mesmo percentual de {@link formatPercent}, **sem o `,0` quando o número é
+ * redondo**: `13` → `"13%"`, `17,5` → `"17,5%"`, `54,47` → `"54,5%"`.
+ *
+ * ## Por que existe uma segunda função de percentual
+ *
+ * Não é preferência estética — é orçamento de pixel. A coluna "Apurado" da
+ * `<MunicipioTable>` tem **40px de conteúdo** (`COL_APURADO_PX` menos o
+ * padding), e a maioria esmagadora dos municípios numa noite de apuração
+ * exibe um percentual redondo. Com `formatPercent` todos eles ganhariam dois
+ * caracteres de `,0` que não dizem nada, e a coluna passaria a ser
+ * dimensionada pelo enfeite. Mesma lógica nos rótulos de `<CandidateRow>`,
+ * `<GovernorCard>` e `<MunicipioWaffleGrid>`, que dividem espaço com o nome
+ * do candidato ou do município.
+ *
+ * ## 🔴 O arredondamento é `Math.round`, e continua sendo de propósito
+ *
+ * O valor é arredondado **antes** de chegar ao `Intl`, com exatamente a conta
+ * que as cinco cópias inline usavam até 2026-09-20
+ * (`Math.round(v * 10) / 10`). Isto é conteúdo eleitoral: o recorte daquela
+ * mudança era a **pontuação**, não o número, e a linha explícita é o que
+ * prova que o número não se mexeu.
+ *
+ * Medido em 2026-09-20, e o resultado é honesto sobre o que a linha vale:
+ * varrendo 0–100 em passos de 0,0001 (1.000.001 valores), `Math.round` antes
+ * do `Intl` e o `Intl` sozinho (`maximumFractionDigits: 1`) dão **o mesmo
+ * texto em todos**. Ou seja, hoje ela é redundante — e fica assim mesmo,
+ * porque o custo dela é zero e o que ela compra é que o `roundingMode` do
+ * `Intl` (default `halfExpand`, mas configurável) deixe de ser a única coisa
+ * entre um valor do TSE e o algarismo na tela.
+ *
+ * ## 🔴 Por que `Intl` e não `.toFixed(1).replace(".", ",")`
+ *
+ * Duas razões, e a segunda é a grave.
+ *
+ *   1. `replace` troca o separador decimal e **esquece o de milhar**:
+ *      `1234,5` sairia `"1234,5%"` em vez de `"1.234,5%"`.
+ *   2. **`toFixed` arredonda para BAIXO onde este código arredonda para
+ *      cima.** `toFixed` trabalha sobre o double, e o double mais próximo de
+ *      0,15 é 0,1499999999999999944 — então `(0,15).toFixed(1)` é `"0.1"`,
+ *      contra `"0,2"` aqui. Na mesma varredura de 0–100 em passos de 0,0001
+ *      isso acontece em **400 valores** (0,15 · 0,35 · 0,85 · 0,95 · 1,15 …).
+ *      Cada um deles é um percentual de apuração que um `toFixed` publicaria
+ *      um décimo abaixo do verdadeiro.
+ *
+ * Por isso a troca "é só trocar o ponto pela vírgula, dá na mesma" não dá na
+ * mesma, e há teste nomeado para ela em `tests/unit/lib/format.test.ts`.
+ *
+ * ## Diferenças deliberadas em relação a {@link formatPercent}
+ *
+ *   - **Não clampa** em 0–100. As cópias que ela substitui não clampavam, e
+ *     um percentual fora da faixa é defeito de dado que deve aparecer na
+ *     tela, não ser maquiado para `"100%"`.
+ *   - `NaN` **e** `±Infinity` viram `"—"`. As cópias inline emitiam
+ *     `"NaN%"`; "—" é o que o resto do arquivo (e do produto) usa para
+ *     "não sabemos".
+ *
+ * ## ⚠️ O sinal sai daqui, e não do `Intl` — pelo mesmo motivo de `formatPp`
+ *
+ * `Intl.NumberFormat("pt-BR")` escreve negativo com **HYPHEN-MINUS (U+002D)**,
+ * o hífen do teclado. O projeto usa **MINUS SIGN (U+2212)**: é o que
+ * {@link formatPp} emite desde sempre, e o glifo que
+ * `tests/unit/components/Figure.test.tsx` trava. O hífen é mais estreito,
+ * fica na altura errada ao lado de algarismos `tabular-nums` e, num leitor
+ * de tela, pode ser lido como pontuação em vez de sinal.
+ *
+ * Por isso o valor vai ao `Intl` em **módulo** e o sinal é prefixado aqui —
+ * exatamente a mecânica de {@link formatPp}, para que as duas funções não
+ * possam divergir. `-0` não ganha sinal (`-0 < 0` é falso): `"0%"`, nunca
+ * `"−0%"`.
+ */
+export function formatPercentTrim(value: number, decimals = 1): string {
+  if (!Number.isFinite(value)) return "—";
+  const factor = 10 ** decimals;
+  const rounded = Math.round(value * factor) / factor;
+  const sign = rounded < 0 ? "−" : "";
+  const abs = Math.abs(rounded).toLocaleString(LOCALE, { maximumFractionDigits: decimals });
+  return `${sign}${abs}%`;
+}
+
+/**
  * Formata votos com separador de milhar pt-BR (ex. 79.812.408).
  *
  * Para a home (RF-022) queremos número cheio — não abreviar para "79M".

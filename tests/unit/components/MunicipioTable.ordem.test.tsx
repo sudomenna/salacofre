@@ -222,8 +222,10 @@ describe("<MunicipioTable /> — a ordem que chega à tela", () => {
       "238.276 eleitores",
     );
     // O percentual apurado é COLUNA, não subtítulo — e continua arredondando
-    // para uma casa.
-    expect(doc.body.textContent ?? "").toContain("54.5%");
+    // para uma casa, agora com a VÍRGULA do pt-BR (2026-09-20). O `not` é o
+    // que impede a volta do ponto decimal passar despercebida aqui.
+    expect(doc.body.textContent ?? "").toContain("54,5%");
+    expect(doc.body.textContent ?? "").not.toContain("54.5%");
   });
 
   /**

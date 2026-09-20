@@ -211,6 +211,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/atoms/controls/Button";
+import { formatPercentTrim } from "@/lib/utils/format";
 
 export interface MunicipioRow {
   cod_ibge: string;
@@ -291,9 +292,16 @@ export const COL_MARGEM_PX = 88;
 
 /**
  * Coluna "Apurado". 56px de caixa = 40px de conteúdo, contra 36,88px de
- * `"54.5%"` (o pior caso: `fmtPct` só usa decimal quando o número não é
- * inteiro) e 33,25px de `"100%"`. Era 72px de caixa / 48px de conteúdo —
+ * `"54,5%"` (o pior caso: `formatPercentTrim` só usa decimal quando o número
+ * não é inteiro) e 33,25px de `"100%"`. Era 72px de caixa / 48px de conteúdo —
  * 8px que a coluna não usava.
+ *
+ * ⚠️ O separador virou VÍRGULA em 2026-09-20 (antes era `"54.5%"`, com ponto
+ * decimal — o defeito que o dono relatou). **A medida não mudou**: em Archivo
+ * a vírgula e o ponto têm o mesmo avanço — 3,61px em 400/13px e 3,75px em
+ * 500/13px —, então `"54.5%"` e `"54,5%"` medem idêntico, com ou sem
+ * `tabular-nums`. Idem `"Lula +12,3%"` na coluna de margem. Nenhuma das duas
+ * constantes acima precisou se mexer.
  */
 export const COL_APURADO_PX = 56;
 
@@ -533,11 +541,6 @@ function VotosLinha({ row }: { row: MunicipioRow }) {
   );
 }
 
-function fmtPct(pct: number): string {
-  const r = Math.round(pct * 10) / 10;
-  return Number.isInteger(r) ? `${r}%` : `${r.toFixed(1)}%`;
-}
-
 /**
  * A legenda que explica a ordem. Três textos porque são três situações reais,
  * e colapsá-las mentiria em duas delas (constituição § 8).
@@ -715,13 +718,13 @@ export function MunicipioTable({
                   overflowWrap: "anywhere",
                 }}
               >
-                {m.liderNome} +{fmtPct(m.margemPp)}
+                {m.liderNome} +{formatPercentTrim(m.margemPp)}
               </td>
               <td
                 className="px-2 py-2 text-right text-sm tabular-nums"
                 style={{ color: "var(--color-text-muted)" }}
               >
-                {fmtPct(m.pctApurado)}
+                {formatPercentTrim(m.pctApurado)}
               </td>
             </tr>
           ))}
