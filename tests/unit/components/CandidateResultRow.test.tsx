@@ -184,13 +184,13 @@ describe("altura da barra — dobrada em 2026-09-19", () => {
    * diferente".
    */
   function barra(doc: Document): HTMLElement | null {
-    // A barra é o único bloco com `grid-column:2 / -1` e fundo afundado.
-    return (
-      [...doc.querySelectorAll("div")].find((d) => {
-        const s = d.getAttribute("style") ?? "";
-        return s.includes("grid-column:2 / -1") && s.includes("--surface-sunken");
-      }) ?? null
-    );
+    // 🔴 Por testid, e não por farejar `style`. A busca anterior exigia
+    // `grid-column:2 / -1` **e** `--surface-sunken` no MESMO elemento, o que
+    // amarrava o teste a barra ser uma caixa só — exatamente a forma que o
+    // conserto de 2026-09-20 teve de desfazer (posicionamento fora, recorte
+    // dentro). Um seletor que quebra quando a estrutura é corrigida mede a
+    // estrutura, não o número que ele diz medir.
+    return doc.querySelector<HTMLElement>('[data-testid="result-bar"]');
   }
 
   /** Lê `prop: <n>px` do atributo `style`, sem regex — escape em heredoc mente. */
@@ -217,12 +217,112 @@ describe("altura da barra — dobrada em 2026-09-19", () => {
     // abaixo do preenchimento, e 2px cumprem isso numa barra de 4 ou de 8.
     // Dobrá-lo faria dele um segundo elemento competindo com a barra.
     //
-    // Mutação que morre: escalar a sobra junto com a altura (-4/-4).
+    // Mutação que morre: escalar a sobra junto com a altura (-4/-4), ou zerá-la.
+    //
+    // ⚠️ Este caso mede a INTENÇÃO declarada, e sozinho ele não prova nada
+    // sobre a tela: passou verde entre 08/09 e 20/09 com a sobra recortada e
+    // invisível. Quem prova que ela chega ao vidro é o bloco logo abaixo.
     const doc = parse(<CandidateResultRow {...BASE} />);
-    const marcador = [...doc.querySelectorAll("div")].find((d) =>
-      (d.getAttribute("style") ?? "").includes("--accent-strong"),
+    const marcador = doc.querySelector('[data-testid="result-bar-marker"]');
+    expect(marcador?.getAttribute("style")).toContain("--accent-strong");
+    expect(px(marcador, "top")).toBe(-2);
+    expect(px(marcador, "bottom")).toBe(-2);
+  });
+});
+
+/**
+ * 🔴 2026-09-20 — a sobra do traço era recortada, e a suíte não sabia.
+ *
+ * Defeito medido no Chrome: o contêiner da barra tinha `overflow: hidden` desde
+ * o nascimento do arquivo (`1ac871b`, 08/09) e o traço morava dentro dele. A
+ * caixa de layout do traço media os 12px previstos, mas `elementFromPoint` 1px
+ * acima da barra devolvia o contêiner da LINHA — `overflow: hidden` recorta
+ * pintura e hit-testing. Nas 6 de 7 candidaturas em que a projeção recua, o
+ * traço inteiro caía dentro do preenchimento, entre 1,16:1 e 1,70:1 contra o
+ * piso de 3:1 do SC 1.4.11.
+ *
+ * ⚠️ **Nenhum teste aqui mede pixel pintado, e nenhum poderia**:
+ * `getBoundingClientRect()` devolve zero no happy-dom, armadilha já registrada
+ * neste repositório. O que estes casos travam é a ESTRUTURA que torna o
+ * recorte impossível — a única coisa verificável sem navegador, e a que falha
+ * no instante em que alguém devolver o traço para dentro da caixa recortada.
+ */
+describe("o traço da projeção não pode ser recortado", () => {
+  /** Ancestrais do elemento dentro do fragmento renderizado, do pai para cima. */
+  function ancestrais(el: Element | null): Element[] {
+    const cadeia: Element[] = [];
+    for (let p = el?.parentElement ?? null; p && p.tagName !== "BODY"; p = p.parentElement) {
+      cadeia.push(p);
+    }
+    return cadeia;
+  }
+
+  /**
+   * Recorta? Olha `style` inline E `class`: neste arquivo o recorte é inline,
+   * mas `truncate`/`overflow-hidden` do Tailwind produzem o mesmo efeito e um
+   * teste cego a eles aceitaria a regressão vinda pelo outro caminho.
+   */
+  function recorta(el: Element): boolean {
+    const style = (el.getAttribute("style") ?? "").replace(/\s+/g, "");
+    const classe = el.getAttribute("class") ?? "";
+    return (
+      /overflow(-x|-y)?:(hidden|clip|auto|scroll)/.test(style) ||
+      /(^|\s)(truncate|overflow-(x-|y-)?(hidden|clip|auto|scroll))(\s|$)/.test(classe)
     );
-    expect(px(marcador ?? null, "top")).toBe(-2);
-    expect(px(marcador ?? null, "bottom")).toBe(-2);
+  }
+
+  it("🔴 nenhum ancestral do traço recorta — a sobra chega ao vidro", () => {
+    // Mutação que morre: mover o traço de volta para dentro de
+    // `[data-testid="result-bar-clip"]`, que é onde ele ficou de 08/09 a 20/09.
+    const doc = parse(<CandidateResultRow {...BASE} />);
+    const marcador = doc.querySelector('[data-testid="result-bar-marker"]');
+    expect(marcador).not.toBeNull();
+
+    const culpados = ancestrais(marcador)
+      .filter(recorta)
+      .map((el) => el.getAttribute("data-testid") ?? el.getAttribute("style") ?? el.tagName);
+
+    expect(culpados).toEqual([]);
+  });
+
+  it("🔴 o traço é IRMÃO do recorte, não descendente dele", () => {
+    // O caso acima já pegaria a regressão, mas só pelo efeito. Este nomeia a
+    // estrutura: se um dia o recorte sair do `clip` e for parar em outro lugar,
+    // a resposta certa continua sendo manter o traço fora dele.
+    const doc = parse(<CandidateResultRow {...BASE} />);
+    const clip = doc.querySelector('[data-testid="result-bar-clip"]');
+    const marcador = doc.querySelector('[data-testid="result-bar-marker"]');
+
+    expect(clip?.contains(marcador ?? null)).toBe(false);
+    expect(marcador?.parentElement?.getAttribute("data-testid")).toBe("result-bar");
+  });
+
+  it("🔴 o recorte CONTINUA sobre os preenchimentos — é o canto arredondado", () => {
+    // A tentação óbvia (e errada) é apagar o `overflow: hidden`. Ele existe
+    // para que os preenchimentos `inset: 0` de largura percentual respeitem o
+    // `border-radius` da barra; sem ele a ponta deles vaza o canto.
+    //
+    // Mutação que morre: remover o `overflow`/`border-radius` da caixa interna.
+    const doc = parse(<CandidateResultRow {...BASE} />);
+    const clip = doc.querySelector('[data-testid="result-bar-clip"]');
+    const estilo = (clip?.getAttribute("style") ?? "").replace(/\s+/g, "");
+
+    expect(estilo).toContain("overflow:hidden");
+    expect(estilo).toContain("border-radius:var(--radius-xs)");
+    for (const fill of doc.querySelectorAll("[data-view-only]")) {
+      expect(clip?.contains(fill)).toBe(true);
+    }
+  });
+
+  it("horizontalmente o traço continua contido — 100% não vira rolagem lateral", () => {
+    // Sem recorte, `left: 100%` pintaria 2px FORA da barra, e a barra termina
+    // na borda direita da linha. O teto no `left` mantém o traço dentro e, de
+    // quebra, torna visível o caso que ANTES sumia aparado.
+    const doc = parse(<CandidateResultRow {...BASE} pctAtual={100} pctProjetado={100} />);
+    const estilo = (
+      doc.querySelector('[data-testid="result-bar-marker"]')?.getAttribute("style") ?? ""
+    ).replace(/\s+/g, "");
+
+    expect(estilo).toContain("left:min(100%,calc(100%-2px))");
   });
 });

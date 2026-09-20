@@ -197,11 +197,15 @@ const AVATAR_LINHA_PX = 26;
  * `rowGap` + 8 de barra. Com ~7 candidaturas na tela isso são ~28px a mais de
  * rolagem; o dono viu a barra e pediu o dobro sabendo que ela ocupa espaço.
  *
- * O traço da projeção NÃO dobrou junto: ele continua sobrando 2px para cada
- * lado ({@link MARCADOR_SOBRA_PX}). O que ele precisa é ser visível ACIMA e
- * ABAIXO do preenchimento, e 2px cumprem isso tanto numa barra de 4 quanto
- * numa de 8 — dobrá-lo transformaria um traço discreto num segundo elemento
- * competindo com a barra.
+ * O traço da projeção NÃO dobrou junto: ele sobra 2px para cada lado
+ * ({@link MARCADOR_SOBRA_PX}). O que ele precisa é ser visível ACIMA e ABAIXO
+ * do preenchimento, e 2px cumprem isso tanto numa barra de 4 quanto numa de 8 —
+ * dobrá-lo transformaria um traço discreto num segundo elemento competindo com
+ * a barra.
+ *
+ * ⚠️ Essa sobra só passou a existir NA TELA em 2026-09-20: até lá o recorte da
+ * barra a apagava. Ver {@link MARCADOR_SOBRA_PX}. O conserto não mexeu nesta
+ * altura nem na aritmética da linha.
  */
 const BARRA_ALTURA_PX = 8;
 
@@ -230,13 +234,52 @@ const BARRA_ALTURA_PX = 8;
  * abaixo do preenchimento são a única parte do traço que se enxerga quando a
  * projeção recua.
  *
- * ⚠️ Por isso a sobra NÃO acompanhou a barra quando ela dobrou (4 → 8 em
- * 19/09): 2px continuam sendo 2px de tinta legível. Mas a **fração** visível
- * caiu — antes eram 4px de sobra num traço de 8 (metade), agora são 4px num
- * traço de 12 (um terço). Aumentar a sobra é a alavanca, se um dia o traço
- * ficar difícil de achar.
+ * ## 🔴 2026-09-20 — até esta data essa sobra NÃO EXISTIA NA TELA
+ *
+ * A prosa acima descrevia a intenção e foi lida como descrição da tela. Era
+ * falsa, e desde o **nascimento do arquivo** (`1ac871b`, 2026-09-08): naquele
+ * commit o `top: -2` e um `overflow: "hidden"` no contêiner da barra entraram
+ * juntos, e o recorte apaga a sobra antes de ela virar tinta. Não é sutileza
+ * de pintura — medido no Chrome em 20/09, `elementFromPoint` 1px acima da
+ * barra devolve o contêiner da LINHA, nunca o traço: `overflow: hidden`
+ * recorta pintura **e** hit-testing. A caixa de layout do traço media os 12px
+ * previstos; os 4px das pontas não chegavam ao vidro.
+ *
+ * Consequência: nas 6 de 7 candidaturas em que a projeção recua, o traço
+ * inteiro caía dentro do preenchimento, entre 1,16:1 e 1,70:1 — abaixo do piso
+ * de 3:1 do SC 1.4.11, sem nenhuma parte salva pela sobra. Quem olhava a tela
+ * simplesmente não via traço nenhum naquelas linhas.
+ *
+ * O conserto é estrutural e está no JSX, não neste número: a barra passou a ser
+ * DUAS caixas — uma externa sem recorte, que hospeda o traço, e a recortada por
+ * dentro dela, que segura os preenchimentos no canto arredondado. O `overflow`
+ * continua existindo e continua sendo necessário; o que mudou é o que está
+ * debaixo dele. `tests/unit/components/CandidateResultRow.test.tsx` percorre os
+ * ancestrais do traço e reprova se ele voltar para dentro do recorte.
+ *
+ * ⚠️ A sobra NÃO acompanhou a barra quando ela dobrou (4 → 8 em 19/09): 2px
+ * continuam sendo 2px de tinta legível. Mas a **fração** visível caiu — antes
+ * seriam 4px de sobra num traço de 8 (metade), agora são 4px num traço de 12
+ * (um terço). Aumentar a sobra é a alavanca, se o traço ficar difícil de achar.
  */
 const MARCADOR_SOBRA_PX = 2;
+
+/**
+ * Largura do traço da projeção, em px.
+ *
+ * Constante nomeada porque o número aparece em DOIS lugares que precisam
+ * concordar: a largura do traço e o teto do `left`. Com a caixa externa sem
+ * recorte (ver {@link MARCADOR_SOBRA_PX}), uma projeção de 100% deixaria de ser
+ * aparada e o traço passaria a pintar 2px FORA da barra — e a barra termina na
+ * borda direita da linha, então esses 2px viram rolagem horizontal da página.
+ * Este projeto já perdeu uma tela inteira para 2.424px de rolagem lateral
+ * nascida de um elemento que ninguém achou que pudesse empurrar nada.
+ *
+ * Daí o `min(pct%, calc(100% - largura))`: até 100% o traço encosta na borda
+ * direita e fica inteiro visível, em vez de sumir aparado como sumia antes.
+ * Horizontalmente ele continua contido; a liberdade nova é só vertical.
+ */
+const MARCADOR_LARGURA_PX = 2;
 
 const KICKER: CSSProperties = {
   font: "var(--type-kicker)",
@@ -417,33 +460,63 @@ export function CandidateResultRow({
       {/* Barra: preenchimento exclusivo da base ativa (`data-view-only`), com
           o traço da projeção sempre visível. `aria-hidden` porque o mesmo dado
           já está nos dois números acima, em texto — uma progressbar aqui
-          faria o leitor de tela repetir o percentual três vezes por linha. */}
+          faria o leitor de tela repetir o percentual três vezes por linha.
+
+          🔴 **DUAS caixas, e a separação é o conserto de 2026-09-20.** Até essa
+          data havia uma só, com `overflow: hidden`, e o traço morava dentro
+          dela: a sobra de {@link MARCADOR_SOBRA_PX} era recortada antes de
+          virar tinta, e nas linhas em que a projeção recua (6 de 7 na tela
+          medida) o traço inteiro ficava invisível dentro do preenchimento.
+
+          A externa carrega o POSICIONAMENTO (a faixa do grid, a altura) e não
+          recorta nada — é o que dá ao traço a liberdade de sobrar. A interna
+          carrega o RECORTE, e ele não é dispensável: os dois preenchimentos são
+          `inset: 0` com largura percentual, e é o `overflow: hidden` sobre o
+          `borderRadius` que faz a ponta deles respeitar o canto arredondado.
+          Tirar o recorte consertaria o traço e quebraria a barra.
+
+          A altura da LINHA não muda com isso: a externa mede os mesmos
+          {@link BARRA_ALTURA_PX} de antes e o traço é `position: absolute`,
+          fora do fluxo — a aritmética documentada em {@link AVATAR_LINHA_PX}
+          (16 + 1 + 26 + 8 + 8 = 59px) continua exata. */}
       <div
         aria-hidden="true"
+        data-testid="result-bar"
         style={{
           gridColumn: "2 / -1",
           position: "relative",
           height: BARRA_ALTURA_PX,
-          overflow: "hidden",
-          borderRadius: "var(--radius-xs)",
-          background: "var(--surface-sunken)",
         }}
       >
         <div
-          data-view-only="parcial"
-          style={{ position: "absolute", inset: 0, width: `${atual}%`, background: cor }}
-        />
+          data-testid="result-bar-clip"
+          style={{
+            position: "absolute",
+            inset: 0,
+            overflow: "hidden",
+            borderRadius: "var(--radius-xs)",
+            background: "var(--surface-sunken)",
+          }}
+        >
+          <div
+            data-view-only="parcial"
+            style={{ position: "absolute", inset: 0, width: `${atual}%`, background: cor }}
+          />
+          <div
+            data-view-only="proj"
+            style={{ position: "absolute", inset: 0, width: `${projetado}%`, background: cor }}
+          />
+        </div>
+        {/* Irmão do recorte, nunca filho. Ver {@link MARCADOR_LARGURA_PX} para
+            o porquê do teto no `left`. */}
         <div
-          data-view-only="proj"
-          style={{ position: "absolute", inset: 0, width: `${projetado}%`, background: cor }}
-        />
-        <div
+          data-testid="result-bar-marker"
           style={{
             position: "absolute",
             top: -MARCADOR_SOBRA_PX,
             bottom: -MARCADOR_SOBRA_PX,
-            left: `${projetado}%`,
-            width: 2,
+            left: `min(${projetado}%, calc(100% - ${MARCADOR_LARGURA_PX}px))`,
+            width: MARCADOR_LARGURA_PX,
             background: "var(--accent-strong)",
           }}
         />
