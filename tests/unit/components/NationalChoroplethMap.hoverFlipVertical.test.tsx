@@ -27,12 +27,24 @@
  * ninguém tenha pedido. Um teste que não estube o rect passaria com `flipY`
  * cravado em `true` e não provaria absolutamente nada.
  *
- * Por isso o rect é estubado — e **NÃO-QUADRADO, 800×400**, de propósito:
- * com um rect quadrado, `y > rect.width / 2` (copiar o predicado horizontal,
- * o erro mais provável) daria exatamente a mesma resposta que
+ * Por isso o rect do CONTÊINER é estubado — e **NÃO-QUADRADO, 800×400**, de
+ * propósito: com um rect quadrado, `y > rect.width / 2` (copiar o predicado
+ * horizontal, o erro mais provável) daria exatamente a mesma resposta que
  * `y > rect.height / 2` em todos os casos, e o teste do divisor não
- * discriminaria nada. Com 800×400 e o ponteiro em `y = 300`: o divisor certo
- * (200) responde `true`, o errado (400) responde `false`.
+ * discriminaria nada.
+ *
+ * 🔴 **2026-09-20 — atualizado.** `flip`/`flipY` não vêm mais de
+ * `x/y > metade do contêiner` (ver `lib/utils/hover-card-placement.ts` para
+ * o defeito que esse proxy causava — RS a 1024px de janela). Agora vêm de
+ * "o CARTÃO, do tamanho que ele TEM, cabe daqui até a borda?" — e por isso
+ * o rect do CARTÃO também precisa de estube: sem ele, `getBoundingClientRect`
+ * do nó do `<HoverCard>` também devolve zero, um cartão de 0×0 cabe em
+ * qualquer lugar, e nenhum caso deste arquivo discriminaria nada (o oposto
+ * do defeito de 19/09, mas o mesmo instrumento por trás). O cartão é
+ * estubado em **300×150** (também não-quadrado, e escolhido para reproduzir
+ * exatamente os mesmos cinco resultados que a suíte já travava com o proxy
+ * antigo — a intenção pedagógica de cada caso não mudou, só o mecanismo por
+ * baixo).
  */
 
 import { act } from "react";
@@ -137,8 +149,33 @@ const ROW_RS: EdgeUfRow = {
 const RECT_W = 800;
 const RECT_H = 400;
 
+/** Tamanho estubado do CARTÃO — também não-quadrado. Ver a nota de
+ * 2026-09-20 no cabeçalho do arquivo para os números que cada caso exige. */
+const CARD_W = 300;
+const CARD_H = 150;
+
+function domRect(width: number, height: number): DOMRect {
+  return {
+    x: 0,
+    y: 0,
+    left: 0,
+    top: 0,
+    width,
+    height,
+    right: width,
+    bottom: height,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
+
 /**
- * Monta o mapa e substitui o `getBoundingClientRect` do contêiner real.
+ * Monta o mapa e substitui o `getBoundingClientRect` do contêiner real E,
+ * globalmente, o de QUALQUER elemento (o cartão incluído — ver a nota de
+ * 2026-09-20 no cabeçalho). O estube do contêiner é uma propriedade de
+ * INSTÂNCIA (só naquele nó) e por isso vence o global (propriedade de
+ * protótipo) para o contêiner especificamente; o cartão, criado DEPOIS desta
+ * função (só no primeiro `hover`), nunca ganha estube de instância — fica
+ * com o global, 300×150.
  *
  * Substituir DEPOIS da montagem funciona porque o handler de `mousemove`
  * (nascido dentro de `mount()`) guarda o NÓ por closure e só chama
@@ -162,18 +199,7 @@ function montarComRect() {
 
   const container = host.querySelector('[role="img"]') as HTMLElement;
   expect(container, "contêiner do mapa não encontrado").not.toBeNull();
-  container.getBoundingClientRect = () =>
-    ({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      width: RECT_W,
-      height: RECT_H,
-      right: RECT_W,
-      bottom: RECT_H,
-      toJSON: () => ({}),
-    }) as DOMRect;
+  container.getBoundingClientRect = () => domRect(RECT_W, RECT_H);
 
   // 🔴 Controle do instrumento: se o estube não pegar, o rect volta a ser
   // todo-zero e TODOS os casos abaixo passariam com `flipY` cravado em
@@ -205,15 +231,27 @@ function card(host: HTMLElement): Element | null {
   return host.querySelector('[data-testid="hover-card"]');
 }
 
+/** Original de `HTMLElement.prototype.getBoundingClientRect` — restaurado em
+ * `afterEach` pra não vazar o estube global para outros arquivos de teste. */
+const getBoundingClientRectOriginal = HTMLElement.prototype.getBoundingClientRect;
+
 beforeEach(() => {
   espiao.handlers.clear();
   if (typeof window.matchMedia !== "function") {
     window.matchMedia = (() => ({ matches: false })) as unknown as typeof window.matchMedia;
   }
+  // Estube GLOBAL — cobre o nó do `<HoverCard>`, que só existe depois do 1º
+  // `hover()` e por isso não pode ganhar um estube de instância como o
+  // contêiner ganha em `montarComRect`. Ver a nota de 2026-09-20 no
+  // cabeçalho do arquivo.
+  HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+    return domRect(CARD_W, CARD_H);
+  };
 });
 
 afterEach(() => {
   document.body.innerHTML = "";
+  HTMLElement.prototype.getBoundingClientRect = getBoundingClientRectOriginal;
 });
 
 describe("hover do mapa nacional — o balão vira para cima perto da borda de baixo", () => {

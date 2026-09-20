@@ -19,11 +19,17 @@
  *
  * ## 🔴 ARMADILHAS DE INSTRUMENTO — leia antes de mexer
  *
- * **(1) `getBoundingClientRect()` devolve TUDO ZERO no happy-dom.** Sem
- * estube, `rect.height / 2 === 0` e todo `flipY` sai `true` sem que ninguém
- * tenha pedido. O rect é estubado em **800×400, NÃO-QUADRADO de propósito**:
- * com rect quadrado, copiar o predicado horizontal (`flipY: y > rect.width/2`)
- * daria a mesma resposta que o certo e o teste não discriminaria nada.
+ * **(1) `getBoundingClientRect()` devolve TUDO ZERO no happy-dom.** O rect do
+ * CONTÊINER é estubado em **800×400, NÃO-QUADRADO de propósito**.
+ *
+ * 🔴 **2026-09-20 — atualizado.** `flip`/`flipY` não vêm mais de "o ponteiro
+ * passou da metade do contêiner?" — vêm de "o CARTÃO, do tamanho que ele TEM,
+ * cabe daqui até a borda?" (`lib/utils/hover-card-placement.ts`). Por isso o
+ * cartão TAMBÉM é estubado (globalmente, `beforeEach` — só existe depois do
+ * 1º foco/hover, tarde demais para um estube de instância): **300×150**,
+ * mesmos números de `NationalChoroplethMap.hoverFlipVertical.test.tsx`,
+ * escolhidos para reproduzir exatamente a mesma tabela de `flip`/`flipY` que
+ * esta suíte já travava com o proxy antigo.
  *
  * **(2) O `project()` do mapa é um ESTUBE LINEAR, não o Mercator real.**
  * `x = (lng + 74) × 16`, `y = (5 − lat) × 16` — escolhido para que três UFs
@@ -256,6 +262,12 @@ function hoverMouse(sigla: string, clientX: number, clientY: number) {
   });
 }
 
+/** Tamanho estubado do CARTÃO — ver a nota de 2026-09-20 no cabeçalho. */
+const CARD_W = 300;
+const CARD_H = 150;
+
+const getBoundingClientRectOriginal = HTMLElement.prototype.getBoundingClientRect;
+
 beforeEach(() => {
   espiao.handlers.clear();
   espiao.projectArgs.length = 0;
@@ -264,11 +276,25 @@ beforeEach(() => {
   if (typeof window.matchMedia !== "function") {
     window.matchMedia = (() => ({ matches: false })) as unknown as typeof window.matchMedia;
   }
+  HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+    return {
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: CARD_W,
+      height: CARD_H,
+      right: CARD_W,
+      bottom: CARD_H,
+      toJSON: () => ({}),
+    } as DOMRect;
+  };
 });
 
 afterEach(() => {
   useHoverStore.getState().clear();
   document.body.innerHTML = "";
+  HTMLElement.prototype.getBoundingClientRect = getBoundingClientRectOriginal;
 });
 
 describe("foco de teclado na tabela abre o balão do mapa (SC 1.4.13)", () => {

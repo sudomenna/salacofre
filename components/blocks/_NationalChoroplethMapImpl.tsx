@@ -75,7 +75,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 // módulo só existe atrás de `next/dynamic({ ssr: false })`, então este hook
 // nunca é avaliado num render de servidor.
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { MapView } from "@/components/atoms/controls/MapViewToggle";
 import {
@@ -105,6 +105,15 @@ import {
   resolveCandHex,
   strongForRank,
 } from "@/lib/utils/cand-color";
+// 🔴 2026-09-20 — `computeHoverCardPlacement` substitui o proxy
+// `x > rect.width / 2` (ver a docstring do módulo). Continua puro/sem DOM;
+// quem MEDE o cartão de verdade é este arquivo (`cardSizeRef` +
+// `useLayoutEffect` abaixo), nunca o `<HoverCard>` — ver
+// `lib/utils/hover-card-placement.ts` § "Onde a medição mora".
+import {
+  computeHoverCardPlacement,
+  HOVER_CARD_FALLBACK_SIZE,
+} from "@/lib/utils/hover-card-placement";
 import { ariaRessalvaVagas, margemSegundaVaga } from "@/lib/utils/margem-senado";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import {
@@ -754,6 +763,32 @@ export function NationalChoroplethMapImpl({
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
   /**
+   * 🔴 **2026-09-20** — envolve o `<HoverCard>` renderizado, só para o
+   * `useLayoutEffect` abaixo conseguir medi-lo de verdade
+   * (`getBoundingClientRect`). `display: "contents"` faz este `<div>` não
+   * gerar caixa própria nenhuma — não participa do layout, não desloca nada
+   * — só existe como um lugar de onde pegar `firstElementChild`. O
+   * `<HoverCard>` em si não ganhou `ref`/`"use client"`/`useLayoutEffect`
+   * nenhum: ver `lib/utils/hover-card-placement.ts` § "Onde a medição mora".
+   */
+  const hoverCardBoxRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Último tamanho REAL conhecido do cartão — atualizado só pelo
+   * `useLayoutEffect` de medição (quando o CONTEÚDO do balão muda), nunca a
+   * cada `mousemove`. `onMouseMove`/o efeito de foco da tabela leem este
+   * `ref` para decidir `flip`/`flipY` em aritmética pura (sem tocar o DOM) a
+   * cada movimento — é o que mantém os 60Hz do `mousemove` sem nenhum
+   * `getBoundingClientRect` novo por frame.
+   *
+   * Nasce no fallback documentado (`HOVER_CARD_FALLBACK_SIZE`): o 1º hover
+   * de cada sessão decide com uma estimativa, e o mesmo `useLayoutEffect` a
+   * corrige ANTES do navegador pintar (mesmo frame) se tiver errado — ver a
+   * docstring de `computeHoverCardPlacement`.
+   */
+  const cardSizeRef = useRef<{ width: number; height: number }>(HOVER_CARD_FALLBACK_SIZE);
+
+  /**
    * 🔴 **Quem abriu o balão que está na tela** — `"map"` (ponteiro) ou
    * `"table"` (foco de teclado numa célula de `<StateGroupedTable>`).
    *
@@ -992,35 +1027,28 @@ export function NationalChoroplethMapImpl({
             const rect = container.getBoundingClientRect();
             const x = e.originalEvent.clientX - rect.left;
             const y = e.originalEvent.clientY - rect.top;
-            setTooltip({
+            // 🔴 2026-09-20 — `computeHoverCardPlacement` troca o proxy
+            // "passou da metade do contêiner?" por "o cartão, do tamanho que
+            // ele TEM (`cardSizeRef`, medido de verdade pelo
+            // `useLayoutEffect` abaixo — nunca o `<HoverCard>` se
+            // medindo), cabe daqui até a borda?". Aritmética pura, sem
+            // `getBoundingClientRect` do cartão neste handler — só do
+            // `container`, que já era lido aqui antes. Ver
+            // `lib/utils/hover-card-placement.ts` para o defeito medido (RS
+            // a 1024px de janela) que este cálculo substitui.
+            const placement = computeHoverCardPlacement({
               x,
               y,
-              // Vira o cartão pra esquerda perto da borda direita do mapa.
-              flip: x > rect.width / 2,
-              // 🔴 Vira pra CIMA na metade de baixo (2026-09-19 — queixa do
-              // dono: hover em RS/SC abria o cartão para baixo e a moldura
-              // do mapa, que é `overflow: hidden`, o cortava). Simétrico ao
-              // horizontal, e **calculado aqui**, no mapa, nunca no átomo:
-              //   (a) `<HoverCard>` é Server Component e medir a própria
-              //       altura exigiria `"use client"` + `useLayoutEffect`
-              //       nele, o que o joga para dentro DESTE chunk — o de
-              //       menor folga do projeto (RNF-007b, 14,7 KiB medidos em
-              //       18/09) — para decidir 12px;
-              //   (b) `mousemove` é throttled a 16ms: medir-e-reposicionar a
-              //       ~60Hz faria o cartão tremer no meio da tela;
-              //   (c) `HoverCard.test.tsx` renderiza por
-              //       `renderToStaticMarkup`, onde `useLayoutEffect` nunca
-              //       roda — os testes do átomo passariam a exercitar só o
-              //       ramo NÃO-medido.
-              //
-              // ⚠️ **Limite conhecido do proxy**: `rect.height / 2` só é
-              // seguro enquanto o cartão couber na metade do contêiner. Com a
-              // linha "Outros" ele vai a ~6 linhas (~190px) contra o `height`
-              // default de 420 — a folga caiu de ~70px para ~20px. Um cartão
-              // mais alto que isso (uma 7ª linha, ou um mapa em moldura baixa)
-              // volta a poder encostar na borda, e aí o remédio é medir de
-              // verdade, não mexer no divisor.
-              flipY: y > rect.height / 2,
+              containerWidth: rect.width,
+              containerHeight: rect.height,
+              cardWidth: cardSizeRef.current.width,
+              cardHeight: cardSizeRef.current.height,
+            });
+            setTooltip({
+              x: placement.x,
+              y: placement.y,
+              flip: placement.flip,
+              flipY: placement.flipY,
               sigla,
               row,
             });
@@ -1213,15 +1241,84 @@ export function NationalChoroplethMapImpl({
     if (map.isStyleLoaded()) {
       map.setFilter("ufs-stroke-hover", ["==", "SIGLA_UF", siglaFocoTabela]);
     }
-    setTooltip({
+    // Mesmo cálculo do `onMouseMove` (ver a nota lá) — o caminho de teclado
+    // não pode ter um limite diferente do caminho do mouse para o MESMO
+    // defeito (RS a 1024px de janela também é alcançável tabulando até a
+    // célula de RS na tabela).
+    const placement = computeHoverCardPlacement({
       x: ponto.x,
       y: ponto.y,
-      flip: ponto.x > rect.width / 2,
-      flipY: ponto.y > rect.height / 2,
+      containerWidth: rect.width,
+      containerHeight: rect.height,
+      cardWidth: cardSizeRef.current.width,
+      cardHeight: cardSizeRef.current.height,
+    });
+    setTooltip({
+      x: placement.x,
+      y: placement.y,
+      flip: placement.flip,
+      flipY: placement.flipY,
       sigla: siglaFocoTabela,
       row,
     });
   }, [siglaFocoTabela, rows]);
+
+  /**
+   * 🔴 **2026-09-20 — mede o `<HoverCard>` DE VERDADE e corrige a estimativa,
+   * antes do navegador pintar.** `onMouseMove`/o efeito de foco acima decidem
+   * `flip`/`flipY` com o ÚLTIMO tamanho conhecido (`cardSizeRef`), sem tocar o
+   * DOM — este efeito é quem MANTÉM `cardSizeRef` correto, e só ele lê
+   * `getBoundingClientRect()` do cartão.
+   *
+   * **Depende só de `tooltip?.row`, nunca de `tooltip?.x`/`tooltip?.y`.** É a
+   * peça central de não tremer a 60Hz (`mousemove` é throttled a 16ms, ver a
+   * nota em `lib/utils/hover-card-placement.ts`): `row` é a MESMA referência
+   * (vem de `rowsMapRef.current.get(sigla)`) enquanto o ponteiro continua
+   * sobre a MESMA UF — só muda quando a UF hoverada troca, ou quando `rows`
+   * é substituído (revalidação de dado, não movimento do mouse). Sem `x`/`y`
+   * nas deps, mover o mouse dentro do mesmo estado NUNCA reexecuta este
+   * efeito — só o `setTooltip` de cima roda, com aritmética pura.
+   *
+   * **`useLayoutEffect`, não `useEffect`**: dispara sincronamente depois do
+   * `<HoverCard>` ter comitado ao DOM e ANTES do navegador pintar. Se a
+   * estimativa usada no `setTooltip` de cima estava errada (1ª vez que este
+   * conteúdo aparece — `cardSizeRef` ainda no fallback, ou o conteúdo mudou
+   * de tamanho desde a última medição), o `setTooltip` daqui troca de commit
+   * no MESMO frame — o usuário nunca vê o cartão no lugar errado, só no
+   * corrigido.
+   *
+   * Como o `<HoverCard>` nunca ganhou `ref`/`"use client"`/`useLayoutEffect"
+   * (ver `lib/utils/hover-card-placement.ts` § "Onde a medição mora"), este
+   * efeito lê o nó real através do wrapper `display:contents`
+   * (`hoverCardBoxRef.current.firstElementChild`) — o próprio `<HoverCard>`
+   * continua sem saber que está sendo medido. Deps de propósito incompletas
+   * (sem `tooltip` inteiro/`x`/`y`/`flip`/`flipY`) — ver o parágrafo acima.
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: de propósito — ver a docstring acima
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const cardEl = hoverCardBoxRef.current?.firstElementChild as HTMLElement | null;
+    if (!tooltip || !container || !cardEl) return;
+    const cardRect = cardEl.getBoundingClientRect();
+    cardSizeRef.current = { width: cardRect.width, height: cardRect.height };
+    const containerRect = container.getBoundingClientRect();
+    const placement = computeHoverCardPlacement({
+      x: tooltip.x,
+      y: tooltip.y,
+      containerWidth: containerRect.width,
+      containerHeight: containerRect.height,
+      cardWidth: cardRect.width,
+      cardHeight: cardRect.height,
+    });
+    if (
+      placement.flip !== tooltip.flip ||
+      placement.flipY !== tooltip.flipY ||
+      placement.x !== tooltip.x ||
+      placement.y !== tooltip.y
+    ) {
+      setTooltip((prev) => (prev ? { ...prev, ...placement } : prev));
+    }
+  }, [tooltip?.row, tooltip?.sigla]);
 
   return (
     // `height` também aqui, e não só no container do MapLibre: com a moldura
@@ -1313,18 +1410,22 @@ export function NationalChoroplethMapImpl({
         }
         style={{ width: "100%", height }}
       />
-      {/* HoverCard RF-030.3 — design system Atlas Menna (S07/Bloco 1) */}
+      {/* HoverCard RF-030.3 — design system Atlas Menna (S07/Bloco 1).
+          `display: "contents"` — wrapper de medição, ver `hoverCardBoxRef`
+          acima; não gera caixa própria nem afeta o layout do cartão. */}
       {tooltip && (
-        <HoverCard
-          x={tooltip.x}
-          y={tooltip.y}
-          flip={tooltip.flip}
-          flipY={tooltip.flipY}
-          title={ufTitleFor(tooltip.sigla)}
-          kicker={tooltip.row.chamada ? "Chamada" : undefined}
-          apurado={tooltip.row.pct_apurado}
-          rows={buildHoverRows(tooltip.row, candidatosById, effectiveRankByLider)}
-        />
+        <div ref={hoverCardBoxRef} style={{ display: "contents" }}>
+          <HoverCard
+            x={tooltip.x}
+            y={tooltip.y}
+            flip={tooltip.flip}
+            flipY={tooltip.flipY}
+            title={ufTitleFor(tooltip.sigla)}
+            kicker={tooltip.row.chamada ? "Chamada" : undefined}
+            apurado={tooltip.row.pct_apurado}
+            rows={buildHoverRows(tooltip.row, candidatosById, effectiveRankByLider)}
+          />
+        </div>
       )}
     </div>
   );

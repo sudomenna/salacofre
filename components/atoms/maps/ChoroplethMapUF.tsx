@@ -41,7 +41,7 @@
 
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   registerPmtilesProtocolOnce,
@@ -53,6 +53,12 @@ import { useMunicipioSheetStore } from "@/components/shared/municipio-sheet-stor
 import { CODIGOS_IBGE_NAO_MUNICIPIO } from "@/lib/config/malha-ibge";
 import type { EdgeUfCandidate, EdgeUfMunicipio } from "@/lib/edge-config/types";
 import { useHoverStore } from "@/lib/state/hover-store";
+// 🔴 2026-09-20 — mesmo remédio do mapa nacional, ver
+// `_NationalChoroplethMapImpl.tsx` e `lib/utils/hover-card-placement.ts`.
+import {
+  computeHoverCardPlacement,
+  HOVER_CARD_FALLBACK_SIZE,
+} from "@/lib/utils/hover-card-placement";
 import { votosPorCandidatoMunicipio } from "@/lib/utils/municipio-votos";
 import { normalizePartySlug, PARTY_FALLBACK_SLUG, textForParty } from "@/lib/utils/party-color";
 
@@ -332,6 +338,16 @@ export function ChoroplethMapUF({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const municipiosRef = useRef(municipios);
 
+  /**
+   * Wrapper de medição do `<HoverCard>` + cache do último tamanho REAL
+   * conhecido — mesmo par do mapa nacional (`_NationalChoroplethMapImpl.tsx`),
+   * mesma razão: ver `lib/utils/hover-card-placement.ts` § "Onde a medição
+   * mora". `display: "contents"` no wrapper, nenhum `ref`/`"use
+   * client"`/`useLayoutEffect` no `<HoverCard>`.
+   */
+  const hoverCardBoxRef = useRef<HTMLDivElement>(null);
+  const cardSizeRef = useRef<{ width: number; height: number }>(HOVER_CARD_FALLBACK_SIZE);
+
   useEffect(() => {
     municipiosRef.current = municipios;
   }, [municipios]);
@@ -583,24 +599,24 @@ export function ChoroplethMapUF({
           const rect = container.getBoundingClientRect();
           const x = e.originalEvent.clientX - rect.left;
           const y = e.originalEvent.clientY - rect.top;
-          setTooltip({
+          // 🔴 2026-09-20 — mesmo remédio do mapa nacional: `flip`/`flipY`
+          // saem de "o cartão, do tamanho que ele TEM (`cardSizeRef`, medido
+          // de verdade pelo `useLayoutEffect` abaixo), cabe daqui até a
+          // borda?" — não mais do proxy "passou da metade do contêiner?".
+          // Ver `lib/utils/hover-card-placement.ts`.
+          const placement = computeHoverCardPlacement({
             x,
             y,
-            // Vira o cartão pra esquerda perto da borda direita do mapa
-            // (mesma regra de `_NationalChoroplethMapImpl.tsx`).
-            flip: x > rect.width / 2,
-            // 🔴 E pra CIMA perto da borda de baixo (2026-09-19) — simétrico,
-            // e pelo mesmo caminho: quem mede o contêiner é o MAPA, o
-            // `<HoverCard>` nunca se mede (ele é Server Component; a versão
-            // longa do argumento está em `_NationalChoroplethMapImpl.tsx`,
-            // no `setTooltip` de lá).
-            //
-            // ⚠️ Mesmo limite conhecido: `rect.height / 2` só é seguro
-            // enquanto o cartão couber na metade do contêiner. O balão
-            // municipal também foi a ~6 linhas com a linha "Outros", e aqui
-            // o `height` default é 360 (não 420) — a folga é ainda menor que
-            // a do mapa nacional.
-            flipY: y > rect.height / 2,
+            containerWidth: rect.width,
+            containerHeight: rect.height,
+            cardWidth: cardSizeRef.current.width,
+            cardHeight: cardSizeRef.current.height,
+          });
+          setTooltip({
+            x: placement.x,
+            y: placement.y,
+            flip: placement.flip,
+            flipY: placement.flipY,
             codIbge,
           });
         },
@@ -686,6 +702,42 @@ export function ChoroplethMapUF({
       ? `Mapa de estimativa por município — ${ufSigla}`
       : `Mapa de líder por município — ${ufSigla}`;
 
+  /**
+   * Mede o `<HoverCard>` de verdade e corrige `flip`/`flipY`/`x`/`y` antes do
+   * navegador pintar — mesmo mecanismo, mesma docstring longa, do mapa
+   * nacional (`_NationalChoroplethMapImpl.tsx`). Dependência em
+   * `municipioTooltip?.municipio` (não em `tooltip` inteiro, e não em
+   * `pos.x`/`pos.y`): é a MESMA referência enquanto o ponteiro continua sobre
+   * o MESMO município — só muda quando o município hoverado troca, ou
+   * `detalhe` é substituído (busca assíncrona, não movimento do mouse).
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: de propósito — ver a docstring acima
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const cardEl = hoverCardBoxRef.current?.firstElementChild as HTMLElement | null;
+    if (!municipioTooltip || !container || !cardEl) return;
+    const cardRect = cardEl.getBoundingClientRect();
+    cardSizeRef.current = { width: cardRect.width, height: cardRect.height };
+    const containerRect = container.getBoundingClientRect();
+    const { pos } = municipioTooltip;
+    const placement = computeHoverCardPlacement({
+      x: pos.x,
+      y: pos.y,
+      containerWidth: containerRect.width,
+      containerHeight: containerRect.height,
+      cardWidth: cardRect.width,
+      cardHeight: cardRect.height,
+    });
+    if (
+      placement.flip !== pos.flip ||
+      placement.flipY !== pos.flipY ||
+      placement.x !== pos.x ||
+      placement.y !== pos.y
+    ) {
+      setTooltip((prev) => (prev ? { ...prev, ...placement } : prev));
+    }
+  }, [municipioTooltip?.municipio]);
+
   return (
     <div style={{ position: "relative", height }}>
       <div ref={containerRef} role="img" aria-label={label} style={{ width: "100%", height }} />
@@ -694,33 +746,37 @@ export function ChoroplethMapUF({
           `municipioTooltip` (não `tooltip` sozinho) é a condição: sem
           `detalhe` resolvendo este `codIbge` (ainda não chegou, ou o
           município não está no payload), NENHUM cartão aparece — degradação
-          honesta em vez de um balão pela metade. */}
+          honesta em vez de um balão pela metade.
+          `display: "contents"` — wrapper de medição, ver `hoverCardBoxRef`
+          acima. */}
       {municipioTooltip ? (
-        <HoverCard
-          x={municipioTooltip.pos.x}
-          y={municipioTooltip.pos.y}
-          flip={municipioTooltip.pos.flip}
-          flipY={municipioTooltip.pos.flipY}
-          // Sem sufixo de UF (ao contrário do balão nacional, que escreve
-          // "Minas Gerais (MG)"): ali a ambiguidade é real — o mapa cobre as
-          // 27 UFs ao mesmo tempo. Aqui o mapa já está dentro de UMA UF
-          // (`/uf/[sigla]`), o mesmo escopo em que a folha do clique
-          // (`MunicipioExplorer`) também titula só pelo nome do município e
-          // deixa a UF no kicker ("Município · SP") — repetir a UF no título
-          // do balão seria ruído que a tela já resolveu de outro jeito.
-          title={municipioTooltip.municipio.nome}
-          // "Capital" no lugar de um "% apurado" redundante com o cabeçalho
-          // abaixo — mesmo dado que o kicker da folha já mostra
-          // (`MunicipioExplorer`, `Município · UF · capital`).
-          kicker={municipioTooltip.municipio.capital ? "Capital" : undefined}
-          // `pct_apurado` do MUNICÍPIO é a média ponderada pelo eleitorado
-          // dos pares (município, zona) que caem nele — não um percentual
-          // que o TSE publique pronto por município (ver
-          // `fetch_municipio_aggregates`, `api/model/project.py`, e a nota
-          // idêntica na folha, `MunicipioExplorer.tsx`).
-          apurado={municipioTooltip.municipio.pct_apurado}
-          rows={buildMunicipioHoverRows(municipioTooltip.municipio, candidatosAtuais)}
-        />
+        <div ref={hoverCardBoxRef} style={{ display: "contents" }}>
+          <HoverCard
+            x={municipioTooltip.pos.x}
+            y={municipioTooltip.pos.y}
+            flip={municipioTooltip.pos.flip}
+            flipY={municipioTooltip.pos.flipY}
+            // Sem sufixo de UF (ao contrário do balão nacional, que escreve
+            // "Minas Gerais (MG)"): ali a ambiguidade é real — o mapa cobre as
+            // 27 UFs ao mesmo tempo. Aqui o mapa já está dentro de UMA UF
+            // (`/uf/[sigla]`), o mesmo escopo em que a folha do clique
+            // (`MunicipioExplorer`) também titula só pelo nome do município e
+            // deixa a UF no kicker ("Município · SP") — repetir a UF no título
+            // do balão seria ruído que a tela já resolveu de outro jeito.
+            title={municipioTooltip.municipio.nome}
+            // "Capital" no lugar de um "% apurado" redundante com o cabeçalho
+            // abaixo — mesmo dado que o kicker da folha já mostra
+            // (`MunicipioExplorer`, `Município · UF · capital`).
+            kicker={municipioTooltip.municipio.capital ? "Capital" : undefined}
+            // `pct_apurado` do MUNICÍPIO é a média ponderada pelo eleitorado
+            // dos pares (município, zona) que caem nele — não um percentual
+            // que o TSE publique pronto por município (ver
+            // `fetch_municipio_aggregates`, `api/model/project.py`, e a nota
+            // idêntica na folha, `MunicipioExplorer.tsx`).
+            apurado={municipioTooltip.municipio.pct_apurado}
+            rows={buildMunicipioHoverRows(municipioTooltip.municipio, candidatosAtuais)}
+          />
+        </div>
       ) : null}
     </div>
   );

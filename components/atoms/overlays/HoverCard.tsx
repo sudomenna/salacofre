@@ -61,9 +61,12 @@
  *      ternário de `transform`: só existia flip horizontal, e passar o mouse
  *      em RS/SC (o pé do mapa) abria o cartão para baixo, onde a moldura
  *      (`PersistentMapFrame`, `overflow: hidden`) o cortava. Como no eixo
- *      horizontal, quem DECIDE é o mapa (`flipY: y > rect.height / 2`) e o
- *      átomo só obedece — ver a nota nos dois mapas sobre por que a altura
- *      real do cartão não é medida.
+ *      horizontal, quem DECIDE é o mapa, nunca o átomo — 2026-09-19 decidia
+ *      por um proxy (`y > rect.height / 2`); 2026-09-20 passou a medir o
+ *      cartão de verdade (`lib/utils/hover-card-placement.ts`) porque aquele
+ *      proxy cortava o balão em janelas estreitas. As três razões de o
+ *      átomo nunca se medir continuam as mesmas — ver a nota nos dois
+ *      mapas.
  */
 
 import type { CSSProperties } from "react";

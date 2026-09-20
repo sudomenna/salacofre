@@ -360,16 +360,51 @@ describe("<ChoroplethMapUF /> — balão do hover (mesmo átomo do mapa nacional
  * `tests/unit/components/NationalChoroplethMap.hoverFlipVertical.test.tsx`.
  *
  * 🔴 **A mesma armadilha de instrumento vale aqui**: no happy-dom
- * `getBoundingClientRect()` devolve tudo zero, `rect.height / 2` vira `0`, e
- * qualquer `clientY` positivo satisfaz `y > 0` — todos os casos (a)-(h) acima
- * já flipam para cima sem que nada os tenha pedido. Um teste que não estube o
- * rect passaria com `flipY` cravado em `true`. O estube é **não-quadrado
- * (800×400)** para que `y > rect.width / 2` (copiar o predicado horizontal)
- * responda diferente de `y > rect.height / 2`.
+ * `getBoundingClientRect()` devolve tudo zero. O estube do contêiner é
+ * **não-quadrado (800×400)**.
+ *
+ * 🔴 **2026-09-20 — atualizado.** `flip`/`flipY` não vêm mais do proxy
+ * `x/y > metade do contêiner` — vêm de "o CARTÃO, do tamanho que ele TEM,
+ * cabe daqui até a borda?" (`lib/utils/hover-card-placement.ts`). Por isso o
+ * cartão TAMBÉM precisa de um estube de tamanho — sem ele, um cartão 0×0
+ * cabe em qualquer lugar e os dois casos abaixo não discriminariam nada. O
+ * cartão é estubado em 300×150 (mesmos números de
+ * `NationalChoroplethMap.hoverFlipVertical.test.tsx`, escolhidos para
+ * reproduzir os mesmos resultados que esta suíte já travava).
  */
 describe("<ChoroplethMapUF /> — o balão vira para cima perto da borda de baixo", () => {
   const RECT_W = 800;
   const RECT_H = 400;
+  const CARD_W = 300;
+  const CARD_H = 150;
+
+  function domRect(width: number, height: number): DOMRect {
+    return {
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width,
+      height,
+      right: width,
+      bottom: height,
+      toJSON: () => ({}),
+    } as DOMRect;
+  }
+
+  const getBoundingClientRectOriginal = HTMLElement.prototype.getBoundingClientRect;
+
+  beforeEach(() => {
+    // Estube GLOBAL — cobre o nó do `<HoverCard>`, criado só depois do 1º
+    // `hover()` (não dá pra estubar por instância como o contêiner, abaixo).
+    HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      return domRect(CARD_W, CARD_H);
+    };
+  });
+
+  afterEach(() => {
+    HTMLElement.prototype.getBoundingClientRect = getBoundingClientRectOriginal;
+  });
 
   function montarComRect() {
     const { host, root } = montar({
@@ -378,18 +413,7 @@ describe("<ChoroplethMapUF /> — o balão vira para cima perto da borda de baix
     });
     const container = host.querySelector('[role="img"]') as HTMLElement;
     expect(container, "contêiner do mapa não encontrado").not.toBeNull();
-    container.getBoundingClientRect = () =>
-      ({
-        x: 0,
-        y: 0,
-        left: 0,
-        top: 0,
-        width: RECT_W,
-        height: RECT_H,
-        right: RECT_W,
-        bottom: RECT_H,
-        toJSON: () => ({}),
-      }) as DOMRect;
+    container.getBoundingClientRect = () => domRect(RECT_W, RECT_H);
     // Controle do instrumento — sem ele, todo caso abaixo passa de graça.
     expect(container.getBoundingClientRect().height).toBe(RECT_H);
     return { host, root };
