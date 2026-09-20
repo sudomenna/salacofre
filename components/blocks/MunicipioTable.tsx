@@ -3,37 +3,120 @@
 /**
  * components/blocks/MunicipioTable.tsx
  *
- * RF-037 — Tabela de municípios paginada/virtualizada.
+ * RF-037 — a lista de municípios de uma UF: **ordenada por eleitorado** e
+ * **paginada**. Começa com os 20 maiores colégios eleitorais e acrescenta 40 a
+ * cada toque em "mostrar mais", até chegar aos 645 de São Paulo.
  *
- * Por que virtualização DIY (window slicing) e NÃO `@tanstack/react-virtual`?
- *   - Bundle above-the-fold da UF precisa ficar <150KB (RNF-007a). Cada dep
- *     adicional pesa. A solução abaixo é ~60 linhas, zero deps, e cobre o
- *     caso de uso (lista plana, altura uniforme, ordem estável).
- *   - Spec 004 design.md § Performance permite "Tanstack Virtual ou solução
- *     custom".
+ * ## 2026-09-20 — um modo só, no lugar de dois
  *
- * Mecânica:
- *   1. Mantém `scrollTop` e `clientHeight` em state.
- *   2. Calcula `startIndex` e `endIndex` da janela visível + overscan.
- *   3. Renderiza apenas as linhas da janela; espaços acima/abaixo são
- *      "spacers" com height = (skippedCount * rowHeight).
+ * Até hoje este arquivo respondia de duas formas incompatíveis:
  *
- * Performance:
- *   - Para SP (645 municípios) com rowHeight=40 e viewport=600: render
- *     ~20 linhas em vez de 645 → INP estável <200ms.
- *   - `style={{ contain: 'strict' }}` ajuda o browser a isolar reflow.
+ *   - `mode="default"` (rota presidencial): **todos** os municípios, numa
+ *     janela de rolagem virtualizada de 480px — `rows.slice(startIndex,
+ *     endIndex)` com spacers de altura fixa, ~24 linhas no DOM de cada vez,
+ *     em ordem de PAYLOAD (que não é ordem nenhuma que o leitor reconheça).
+ *   - `mode="top-by-eleitorado"` (rota de governador): **8** municípios, corte
+ *     duro por `.slice(0, topN)`, ordenados com a capital forçada ao topo.
  *
- * A11y:
- *   - `<table>` semântico (não `<div>` grid). Screen reader navega normal.
- *   - `aria-rowcount` com o total, `aria-rowindex` em cada linha visível.
+ * O dono pediu a mesma lista nas três rotas de estado (Presidente, Governador
+ * e Senador). Os dois modos foram SUBSTITUÍDOS por este, e não somados a ele,
+ * por três razões:
  *
- * Limitações conscientes:
- *   - Altura de linha fixa (rowHeight prop). Heterogeneidade exige outra
- *     abordagem (measuring) — fora de escopo v1.
- *   - Sem ordenação interativa (out of scope; vem em spec 008 brushing).
+ *   1. **Virtualização e paginação não convivem.** As duas fatiam o mesmo
+ *      array e as duas mandam na altura do contêiner. Juntas, a mesma tela
+ *      responderia de três jeitos à mesma pergunta ("quantos municípios
+ *      existem e quais eu estou vendo?").
+ *   2. **A coluna "Δ vs 2022" do modo antigo nunca teve dado.** Nenhum dos
+ *      dois `toMunicipioRows` (rota presidencial e de governador) preenchia
+ *      `deltaVs2022` — o campo era opcional e ninguém o escrevia, então a
+ *      coluna renderizava "—" em 100% das linhas em produção. Saiu junto com
+ *      o modo.
+ *   3. **A rolagem interna era um poço no celular.** `height: 480` +
+ *      `contain: strict` cria uma área rolável dentro de uma página rolável:
+ *      no toque, o dedo escolhe entre as duas por acidente. Sem virtualização
+ *      não há contêiner rolável, e a página inteira rola como o leitor espera.
+ *
+ * ## A ordem mudou: eleitorado puro, e a capital perdeu o privilégio
+ *
+ * 🔴 **A regra "capital sempre em primeiro" (decisão E4 do plano de 11/09) foi
+ * REVOGADA aqui, de propósito.** O pedido do dono, em 2026-09-20, é literal:
+ * "os 20 maiores municípios em número de eleitores". Uma capital pequena
+ * empurrada ao topo faria a primeira linha desmentir o título da lista. A
+ * capital continua marcada com o kicker `· capital` ao lado do nome — o que
+ * ela perdeu foi a posição, não a identidade. Quem for "consertar" isto de
+ * volta: leia este parágrafo antes, é uma troca deliberada.
+ *
+ * ## Município nunca some por falta de eleitorado
+ *
+ * `EdgeUfMunicipio.eleitores` é **opcional** (ADR-0035 D2): um payload gravado
+ * antes da migration 0006 é legítimo e não traz o campo. O modo antigo fazia
+ * `filter(r => r.eleitorado != null)` e, com isso, transformava "todos os
+ * municípios" em "nenhum município" diante de um payload legado. Aqui o filtro
+ * não existe:
+ *
+ *   - quem tem eleitorado é ordenado por ele, do maior para o menor;
+ *   - quem não tem vai para o FIM da lista, na ordem de entrada;
+ *   - se NINGUÉM tiver, a lista degrada para a ordem de origem — estável,
+ *     completa, e com a legenda dizendo por que a ordem é essa
+ *     (constituição § 8: o leitor precisa saber o que está vendo).
+ *
+ * Em nenhum desses estados a lista fica vazia.
+ *
+ * ## Por que remover nós do DOM é permitido AQUI
+ *
+ * O [ADR-0017](../../docs/architecture/adrs/0017-transparencia-total-3-camadas.md)
+ * exige que as três camadas visuais estejam "sempre presentes no DOM (sem
+ * `display:none`, sem `hidden`, sem `<details>`)", e o
+ * [ADR-0034](../../docs/architecture/adrs/0034-resultpanel-colapso-visual-corte-fora-do-kit.md)
+ * (D21) generaliza a MECÂNICA de colapso. Os
+ * dois falam de **candidaturas**: a palavra "município" não aparece uma vez no
+ * ADR-0017, e o que ele protege é que nenhuma candidatura desapareça da
+ * narrativa de quem usa leitor de tela ou a busca da página.
+ *
+ * A lista de municípios nunca esteve sob essa regra, e na prática já removia
+ * nós antes desta mudança, nos DOIS modos (`slice` da virtualização e `slice`
+ * do topN) — sem ADR, porque ninguém entendeu que a proibição a alcançava. O
+ * que esta implementação garante no lugar:
+ *
+ *   - `aria-rowcount` é o **total real** de municípios, não o carregado;
+ *   - o rótulo do botão diz quantos faltam, em número;
+ *   - a linha de status declara "mostrando N de M" e é uma região viva.
+ *
+ * Assim, quem não vê a tela sabe o tamanho da lista e sabe que há mais.
+ *
+ * ## O que saiu de cada linha
+ *
+ * As colunas são três, e isso é um corte consciente: a largura útil no celular
+ * a 360px é ~328px, e as quatro colunas do modo antigo reservavam 264px fixos,
+ * sobrando ~64px para o NOME — "São Bernardo do Campo" cabia como "São Be…".
+ *
+ *   - **Eleitorado** virou subtítulo sob o nome (era coluna no modo de
+ *     governador). Ele é a chave da ordenação e por isso precisa estar visível
+ *     — uma lista ordenada por um número invisível parece aleatória.
+ *   - **Votos** saiu da tabela (era coluna no modo presidencial). O número por
+ *     candidatura está a um toque de distância, na folha do município
+ *     (`<MunicipioExplorer>`), e também no balão do mapa ao lado.
+ *   - **Δ vs 2022** saiu: nunca teve produtor (ver acima).
+ *
+ * ## Foco depois de "mostrar mais"
+ *
+ * Enquanto sobram municípios, o botão NÃO é desmontado — só o rótulo muda —,
+ * então o foco do teclado fica onde estava, no próprio botão. No clique que
+ * esgota a lista o botão sai do DOM, e aí o foco iria para o `<body>`: por
+ * isso, e só nesse caso, ele é movido para a linha de status, que acabou de
+ * anunciar "Mostrando 645 de 645 municípios".
+ *
+ * ## A11y
+ *   - `<table>` semântico. `aria-rowcount` com o total, `aria-rowindex` em
+ *     cada linha (1-based, cabeçalho é 1).
+ *   - Nenhum `sr-only` numa `<table>` — ver
+ *     `tests/unit/design-system/sr-only-tabela.test.ts`.
+ *   - O nome vira `<button>` de altura `--tap-min` quando há `onSelect`.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+
+import { Button } from "@/components/atoms/controls/Button";
 
 export interface MunicipioRow {
   cod_ibge: string;
@@ -48,66 +131,88 @@ export interface MunicipioRow {
   margemPp: number;
   /** % apurado 0–100. */
   pctApurado: number;
-  /** Votos totais reportados no município. */
-  votosReportados: number;
   /**
-   * Total de eleitores (não confundir com `votosReportados`). Necessário
-   * apenas em `mode="top-by-eleitorado"` (S06/F4d). Opcional — caller que
-   * usa apenas o modo default pode omitir.
+   * Votos totais reportados no município.
+   *
+   * ⚠️ **Não é renderizado por esta tabela desde 2026-09-20** — ver "O que saiu
+   * de cada linha" no cabeçalho. Segue no tipo porque os dois adaptadores
+   * `toMunicipioRows` continuam produzindo o número e porque ele é o candidato
+   * natural a uma quarta coluna no desktop, se o dono pedir de volta. Opcional
+   * para que nenhum caller seja obrigado a computá-lo só para preencher.
+   */
+  votosReportados?: number;
+  /**
+   * Total de eleitores do município (não confundir com `votosReportados`).
+   * **É a chave de ordenação da lista.** Opcional de propósito: payload
+   * gravado antes da migration 0006 é legítimo e não traz o campo — nesse
+   * caso o município vai para o fim da lista, nunca para fora dela.
    */
   eleitorado?: number;
-  /**
-   * Delta vs eleição 2022 em pp (positivo = ganho do líder atual sobre o
-   * líder de 2022 no mesmo município). Opcional. Usado apenas em
-   * `mode="top-by-eleitorado"` (S06/F4d).
-   */
-  deltaVs2022?: number | null;
   /**
    * `true` quando o município é a capital da UF. Vem de
    * `EdgeUfMunicipio.capital` (ADR-0035 D2), que é emitido **só quando
    * verdadeiro** — ausência significa "não é capital", não "desconhecido".
    *
-   * Usado apenas em `mode="top-by-eleitorado"`: a capital vai para o topo do
-   * painel "Maiores colégios eleitorais" (decisão E4 do plano de 11/09) e
-   * ganha o kicker `· capital` ao lado do nome, como no protótipo do kit
-   * (`ui_kits/atlas-menna/App.jsx:131,140`).
+   * Desde 2026-09-20 é **puramente informativo**: rende o kicker `· capital`
+   * ao lado do nome e nada mais. A regra que a punha em primeiro lugar foi
+   * revogada — ver o cabeçalho.
    */
   capital?: boolean;
 }
 
+/** Quantos municípios a lista mostra antes do primeiro "mostrar mais". */
+export const MUNICIPIOS_PRIMEIRA_LEVA = 20;
+/** Quantos municípios cada "mostrar mais" acrescenta. */
+export const MUNICIPIOS_POR_LOTE = 40;
+
 export interface MunicipioTableProps {
   rows: MunicipioRow[];
-  /** Altura do viewport rolável (px). Default 480. */
-  height?: number;
-  /** Altura de cada linha (px). Default 40. */
-  rowHeight?: number;
-  /** Linhas extras renderizadas fora da viewport (suaviza scroll). Default 6. */
-  overscan?: number;
+  /** Tamanho da primeira leva. Default {@link MUNICIPIOS_PRIMEIRA_LEVA}. */
+  inicial?: number;
+  /** Tamanho de cada leva seguinte. Default {@link MUNICIPIOS_POR_LOTE}. */
+  lote?: number;
   /**
-   * Modo de exibição. Default `"default"` preserva comportamento S04.
+   * Quando presente, o nome do município vira um `<button>` que devolve o
+   * `cod_ibge` ao caller (tipicamente `<MunicipioExplorer>`, que abre a folha
+   * do município no `<Sheet>`).
    *
-   * - `"default"`: tabela virtualizada padrão (Município, Margem, % apurado, Votos).
-   * - `"top-by-eleitorado"` (S06/F4d): renderiza apenas os `topN` municípios
-   *   ordenados por `eleitorado` desc, sem virtualização (lista curta).
-   *   Substitui a coluna "Votos" por "Δ vs 2022".
-   */
-  mode?: "default" | "top-by-eleitorado";
-  /** Quantos municípios mostrar em `mode="top-by-eleitorado"`. Default 15. */
-  topN?: number;
-  /**
-   * S07/Bloco 2 — quando presente, o nome do município vira um `<button>` que
-   * devolve o `cod_ibge` ao caller (tipicamente `<MunicipioExplorer>`, que
-   * abre a folha do município no `<Sheet>`).
-   *
-   * Ausente, a tabela renderiza exatamente como em S04/S06 — texto puro, sem
-   * nenhum nó interativo a mais. As duas formas coexistem de propósito: nem
-   * toda superfície que mostra a tabela precisa da folha.
-   *
-   * O botão tem altura `--tap-min` (44px), e no modo virtualizado a altura de
-   * linha sobe de 40 para 44 quando `onSelect` existe — abaixo disso o alvo de
-   * toque ficaria menor que o mínimo que o design system fixou.
+   * Ausente, a tabela renderiza texto puro, sem nenhum nó interativo a mais.
+   * As duas formas coexistem de propósito: nem toda superfície que mostra a
+   * tabela precisa da folha.
    */
   onSelect?: (codIbge: string) => void;
+}
+
+function temEleitorado(r: MunicipioRow): r is MunicipioRow & { eleitorado: number } {
+  return typeof r.eleitorado === "number" && Number.isFinite(r.eleitorado);
+}
+
+/**
+ * Ordena por eleitorado **decrescente**, sem perder ninguém.
+ *
+ * Exportada para teste direto: é a regra que o dono pediu por escrito, e a
+ * mutação que a troca por ordem alfabética precisa morrer em algum lugar
+ * nomeado.
+ *
+ * Contrato:
+ *   - quem tem eleitorado vem primeiro, do maior para o menor;
+ *   - empate preserva a ordem de entrada (`Array.prototype.sort` é estável
+ *     desde ES2019);
+ *   - quem não tem eleitorado vai para o fim, na ordem de entrada;
+ *   - `rows` nunca encolhe: `saída.length === entrada.length`, sempre.
+ */
+export function ordenarPorEleitorado(rows: readonly MunicipioRow[]): MunicipioRow[] {
+  // `com` carrega a narrowing do type guard: sem isso o `sort` abaixo
+  // precisaria de `?? 0`, e um `?? 0` é exatamente o tipo de default silencioso
+  // que já mordeu este projeto três vezes.
+  const com: Array<MunicipioRow & { eleitorado: number }> = [];
+  const sem: MunicipioRow[] = [];
+  for (const r of rows) {
+    if (temEleitorado(r)) com.push(r);
+    else sem.push(r);
+  }
+  com.sort((a, b) => b.eleitorado - a.eleitorado);
+  return [...com, ...sem];
 }
 
 /**
@@ -201,89 +306,106 @@ function fmtPct(pct: number): string {
   return Number.isInteger(r) ? `${r}%` : `${r.toFixed(1)}%`;
 }
 
-function fmtDelta(d: number | null | undefined): string {
-  if (d == null || !Number.isFinite(d)) return "—";
-  const sign = d > 0 ? "+" : "";
-  const r = Math.round(d * 10) / 10;
-  return `${sign}${r}pp`;
+/**
+ * A legenda que explica a ordem. Três textos porque são três situações reais,
+ * e colapsá-las mentiria em duas delas (constituição § 8).
+ */
+function textoDaOrdem(comEleitorado: number, total: number): string {
+  if (total === 0) return "Nenhum município apurado até agora nesta corrida.";
+  if (comEleitorado === 0) {
+    return "Esta corrida não publica o eleitorado por município, então a lista segue a ordem em que o payload chega — nenhum município fica de fora.";
+  }
+  if (comEleitorado < total) {
+    return "Ordenados pelo eleitorado do município, do maior para o menor. Os municípios cujo eleitorado o payload não publica ficam no fim da lista.";
+  }
+  return "Ordenados pelo eleitorado do município, do maior para o menor.";
 }
 
-function TopByEleitoradoTable({
+export function MunicipioTable({
   rows,
-  topN,
+  inicial = MUNICIPIOS_PRIMEIRA_LEVA,
+  lote = MUNICIPIOS_POR_LOTE,
   onSelect,
-}: {
-  rows: MunicipioRow[];
-  topN: number;
-  onSelect?: (codIbge: string) => void;
-}) {
-  // Ordem do protótipo (decisão E4): **capital sempre em primeiro**, depois
-  // eleitorado desc.
-  //
-  // O kit faz isso com um bônus numérico — `(b.capital ? 1e12 : 0) + b.eleitores`
-  // (`ui_kits/atlas-menna/App.jsx:131`) — e este componente NÃO copia o truque:
-  // somar 1e12 ao eleitorado funde duas grandezas num único número e só está
-  // correto enquanto nenhum eleitorado chegar perto do bônus. A chave composta
-  // abaixo é equivalente, legível e não tem teto.
-  //
-  // `Array.prototype.sort` é estável (ES2019+), então empate em eleitorado
-  // preserva a ordem de entrada — é o que o teste de empate fixa.
-  const top = [...rows]
-    .filter((r) => r.eleitorado != null)
-    .sort((a, b) => {
-      const capA = a.capital === true ? 1 : 0;
-      const capB = b.capital === true ? 1 : 0;
-      if (capA !== capB) return capB - capA;
-      return (b.eleitorado ?? 0) - (a.eleitorado ?? 0);
-    })
-    .slice(0, topN);
+}: MunicipioTableProps) {
+  const [carregados, setCarregados] = useState(inicial);
 
-  // Nenhuma linha traz `eleitorado`. Era o caso REAL em produção até 11/09: o
-  // payload de UF não publicava eleitorado por município, e os dois adaptadores
-  // que montam estas linhas (`toMunicipioRows` em `app/(pres)/uf/[sigla]/page.tsx`
-  // e em `app/(gov)/uf/[sigla]/governador/page.tsx`) não tinham de onde tirá-lo —
-  // o filtro acima descartava tudo e a tabela saía com cabeçalho, contagem "(0)"
-  // e `<tbody>` vazio, sem dizer ao leitor por quê.
-  //
-  // `EdgeUfMunicipio.eleitores` passou a existir (ADR-0035 D2), mas é OPCIONAL:
-  // payloads e Blobs gravados antes da migration 0006 seguem válidos sem ele. O
-  // ramo continua, então, alcançável — e continua declarando a ausência em texto
-  // em vez de desenhar uma tabela sem conteúdo (constituição § 8 — o leitor
-  // precisa saber que é dado indisponível, não "nenhum município").
-  if (top.length === 0) {
-    return (
-      <section aria-labelledby="municipios-top-heading" data-testid="municipios-top-empty">
-        <h3
-          id="municipios-top-heading"
-          className="mb-2 text-lg"
-          style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
-        >
-          Maiores municípios por eleitorado
-        </h3>
-        <p style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-muted)" }}>
-          O eleitorado por município ainda não é publicado no payload desta corrida, então não há
-          como ordenar os maiores colégios eleitorais. Os municípios apurados continuam listados nos
-          outros blocos desta página.
-        </p>
-      </section>
-    );
+  // Ajuste de estado durante o render — o idioma do React para "prop mudou,
+  // estado derivado precisa voltar ao começo". Sem isto, ir de `/uf/SP` para
+  // `/uf/MG` (mesmo componente de página, árvore preservada pelo App Router)
+  // chegaria em MG já com os 60 de SP carregados. Não é `useEffect` de
+  // propósito: um efeito pintaria a tela errada uma vez antes de corrigir.
+  const [rowsAnteriores, setRowsAnteriores] = useState(rows);
+  if (rowsAnteriores !== rows) {
+    setRowsAnteriores(rows);
+    setCarregados(inicial);
+  }
+
+  const ordenadas = useMemo(() => ordenarPorEleitorado(rows), [rows]);
+  const comEleitorado = useMemo(() => rows.filter(temEleitorado).length, [rows]);
+
+  const tabelaId = useId();
+  const statusRef = useRef<HTMLParagraphElement | null>(null);
+  // Só o clique que ESGOTA a lista move o foco — ver "Foco depois de
+  // 'mostrar mais'" no cabeçalho.
+  const moverFoco = useRef(false);
+
+  // `carregados` não é LIDO no corpo — é o GATILHO. O efeito precisa rodar
+  // depois do render que desmontou o botão, e é essa a única coisa que muda
+  // entre os dois renders. Sem a dependência o efeito rodaria só na montagem e
+  // o foco nunca se moveria: a regra do linter aponta para um `useRef` que o
+  // React não sabe observar, não para uma dependência sobrando. Mesma forma do
+  // `ufSigla` em `MunicipioExplorer.tsx`.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: carregados é gatilho, não leitura — ver acima
+  useEffect(() => {
+    if (!moverFoco.current) return;
+    moverFoco.current = false;
+    statusRef.current?.focus();
+  }, [carregados]);
+
+  const total = ordenadas.length;
+  const visiveis = Math.min(carregados, total);
+  const lista = ordenadas.slice(0, visiveis);
+  const restantes = total - visiveis;
+  const proximoLote = Math.min(lote, restantes);
+
+  function carregarMais() {
+    const proximo = Math.min(total, visiveis + lote);
+    moverFoco.current = proximo >= total;
+    setCarregados(proximo);
   }
 
   return (
-    <section aria-labelledby="municipios-top-heading" data-testid="municipios-top-table">
+    <section aria-labelledby="municipios-heading" data-testid="municipios-lista">
       <h3
-        id="municipios-top-heading"
+        id="municipios-heading"
         className="mb-2 text-lg"
         style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
       >
-        Maiores municípios por eleitorado ({top.length.toLocaleString("pt-BR")})
+        Municípios ({total.toLocaleString("pt-BR")})
       </h3>
-      <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+
+      <p
+        data-testid="municipios-ordem"
+        style={{
+          margin: "0 0 var(--space-3)",
+          font: "var(--type-body-sm)",
+          fontSize: "var(--text-xs)",
+          color: "var(--text-muted)",
+        }}
+      >
+        {textoDaOrdem(comEleitorado, total)}
+      </p>
+
+      <table
+        aria-rowcount={total}
+        className="w-full border-collapse"
+        id={tabelaId}
+        style={{ tableLayout: "fixed" }}
+      >
         <colgroup>
           <col />
           <col style={{ width: "6rem" }} />
-          <col style={{ width: "5.5rem" }} />
-          <col style={{ width: "5.5rem" }} />
+          <col style={{ width: "4.5rem" }} />
         </colgroup>
         <thead
           style={{
@@ -303,25 +425,24 @@ function TopByEleitoradoTable({
               scope="col"
               className="px-3 py-2 text-right text-xs uppercase tracking-wide font-normal"
             >
-              Eleitorado
-            </th>
-            <th
-              scope="col"
-              className="px-3 py-2 text-right text-xs uppercase tracking-wide font-normal"
-            >
               Margem
             </th>
             <th
               scope="col"
               className="px-3 py-2 text-right text-xs uppercase tracking-wide font-normal"
             >
-              Δ vs 2022
+              Apurado
             </th>
           </tr>
         </thead>
         <tbody>
-          {top.map((m) => (
-            <tr key={m.cod_ibge} style={{ borderBottom: "1px solid var(--color-border)" }}>
+          {lista.map((m, i) => (
+            <tr
+              key={m.cod_ibge}
+              // 1-based, e o cabeçalho é o índice 1.
+              aria-rowindex={i + 2}
+              style={{ borderBottom: "1px solid var(--color-border)" }}
+            >
               <td className="px-3 py-2 text-sm" style={{ color: "var(--color-text)" }}>
                 <NomeCell
                   nome={m.nome}
@@ -329,23 +450,19 @@ function TopByEleitoradoTable({
                   capital={m.capital}
                   onSelect={onSelect}
                 />
-                {/* Subtítulo do protótipo (`App.jsx:140`). O `% apurado` só
-                    existe aqui neste modo — a coluna dedicada é do modo
-                    default —, então a linha carrega informação que nenhuma
-                    outra célula da tabela repete. */}
-                <span
-                  data-testid="municipio-top-sub"
-                  className="block"
-                  style={{ font: "var(--type-data)", color: "var(--text-muted)" }}
-                >
-                  {fmtVotos(m.eleitorado ?? 0)} eleitores · {fmtPct(m.pctApurado)} apurado
-                </span>
-              </td>
-              <td
-                className="px-3 py-2 text-right text-sm tabular-nums"
-                style={{ color: "var(--color-text)" }}
-              >
-                {fmtVotos(m.eleitorado ?? 0)}
+                {/* O eleitorado é a chave da ordem: sem ele à vista, a lista
+                    parece embaralhada. Ausente, a linha simplesmente não tem
+                    subtítulo — inventar "0 eleitores" seria afirmar um número
+                    que ninguém mediu (constituição § 8). */}
+                {temEleitorado(m) ? (
+                  <span
+                    data-testid="municipio-sub"
+                    className="block"
+                    style={{ font: "var(--type-data)", color: "var(--text-muted)" }}
+                  >
+                    {fmtVotos(m.eleitorado)} eleitores
+                  </span>
+                ) : null}
               </td>
               <td
                 className="px-3 py-2 text-right text-sm tabular-nums"
@@ -357,191 +474,44 @@ function TopByEleitoradoTable({
                 className="px-3 py-2 text-right text-sm tabular-nums"
                 style={{ color: "var(--color-text-muted)" }}
               >
-                {fmtDelta(m.deltaVs2022)}
+                {fmtPct(m.pctApurado)}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-    </section>
-  );
-}
 
-function MunicipioTableDefault({
-  rows,
-  height = 480,
-  rowHeight: rowHeightProp,
-  overscan = 6,
-  onSelect,
-}: Omit<MunicipioTableProps, "mode" | "topN">) {
-  // 44 quando a linha é clicável: o botão do nome tem `--tap-min` (44px) e
-  // uma linha de 40 o cortaria. Sem `onSelect`, segue 40 como em S04.
-  const rowHeight = rowHeightProp ?? (onSelect ? 44 : 40);
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [clientHeight, setClientHeight] = useState(height);
-
-  useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    setClientHeight(el.clientHeight);
-    const onScroll = () => setScrollTop(el.scrollTop);
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const total = rows.length;
-  const visibleCount = Math.ceil(clientHeight / rowHeight) + overscan * 2;
-  const startIndexRaw = Math.floor(scrollTop / rowHeight) - overscan;
-  const startIndex = Math.max(0, startIndexRaw);
-  const endIndex = Math.min(total, startIndex + visibleCount);
-  const slice = rows.slice(startIndex, endIndex);
-  const padTop = startIndex * rowHeight;
-  const padBottom = (total - endIndex) * rowHeight;
-
-  return (
-    <section aria-labelledby="municipios-heading">
-      <h3
-        id="municipios-heading"
-        className="mb-2 text-lg"
-        style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
-      >
-        Municípios ({total.toLocaleString("pt-BR")})
-      </h3>
-
-      <div
-        ref={scrollerRef}
-        // biome-ignore lint/a11y/noNoninteractiveTabindex: scroller precisa de foco via teclado para acessibilidade
-        tabIndex={0}
-        className="overflow-y-auto"
+      {/* Região viva E alvo de foco. Ver "Foco depois de 'mostrar mais'". */}
+      <p
+        data-testid="municipios-status"
+        ref={statusRef}
+        role="status"
+        tabIndex={-1}
         style={{
-          height,
-          contain: "strict",
-          borderBottom: "1px solid var(--color-border)",
+          margin: "var(--space-3) 0 0",
+          font: "var(--type-data)",
+          color: "var(--text-muted)",
         }}
       >
-        <table
-          aria-rowcount={total}
-          className="w-full border-collapse"
-          style={{ tableLayout: "fixed" }}
-        >
-          <colgroup>
-            <col />
-            <col style={{ width: "5.5rem" }} />
-            <col style={{ width: "5rem" }} />
-            <col style={{ width: "6rem" }} />
-          </colgroup>
-          <thead
-            style={{
-              backgroundColor: "var(--color-bg-muted)",
-              color: "var(--color-text-muted)",
-              borderBottom: "1px solid var(--color-border)",
-            }}
-          >
-            <tr>
-              <th
-                scope="col"
-                className="px-3 py-2 text-left text-xs uppercase tracking-wide font-normal"
-              >
-                Município
-              </th>
-              <th
-                scope="col"
-                className="px-3 py-2 text-right text-xs uppercase tracking-wide font-normal"
-              >
-                Margem
-              </th>
-              <th
-                scope="col"
-                className="px-3 py-2 text-right text-xs uppercase tracking-wide font-normal"
-              >
-                % apurado
-              </th>
-              <th
-                scope="col"
-                className="px-3 py-2 text-right text-xs uppercase tracking-wide font-normal"
-              >
-                Votos
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {padTop > 0 && (
-              <tr style={{ height: padTop }}>
-                <td colSpan={4} />
-              </tr>
-            )}
-            {slice.map((m, i) => {
-              const rowIndex = startIndex + i + 2; // aria-rowindex 1-based, header é índice 1
-              return (
-                <tr
-                  key={m.cod_ibge}
-                  aria-rowindex={rowIndex}
-                  style={{
-                    height: rowHeight,
-                    borderBottom: "1px solid var(--color-border)",
-                  }}
-                >
-                  <td className="truncate px-3 text-sm" style={{ color: "var(--color-text)" }}>
-                    <NomeCell nome={m.nome} codIbge={m.cod_ibge} onSelect={onSelect} />
-                  </td>
-                  <td
-                    className="px-3 text-right text-sm tabular-nums"
-                    style={{ color: m.liderCor, fontWeight: 500 }}
-                  >
-                    {m.liderNome} +{fmtPct(m.margemPp)}
-                  </td>
-                  <td
-                    className="px-3 text-right text-sm tabular-nums"
-                    style={{ color: "var(--color-text-muted)" }}
-                  >
-                    {fmtPct(m.pctApurado)}
-                  </td>
-                  <td
-                    className="px-3 text-right text-sm tabular-nums"
-                    style={{ color: "var(--color-text)" }}
-                  >
-                    {fmtVotos(m.votosReportados)}
-                  </td>
-                </tr>
-              );
-            })}
-            {padBottom > 0 && (
-              <tr style={{ height: padBottom }}>
-                <td colSpan={4} />
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
+        Mostrando {visiveis.toLocaleString("pt-BR")} de {total.toLocaleString("pt-BR")}{" "}
+        {total === 1 ? "município" : "municípios"}.
+      </p>
 
-/**
- * Wrapper exportado: dispatcher entre os modos. Separar em sub-componentes
- * evita violação de Rules-of-Hooks (cada modo tem seu próprio set de hooks
- * ou nenhum) e mantém o modo default 100% retro-compatível com S04.
- */
-export function MunicipioTable({
-  rows,
-  height,
-  rowHeight,
-  overscan,
-  mode = "default",
-  topN = 15,
-  onSelect,
-}: MunicipioTableProps) {
-  if (mode === "top-by-eleitorado") {
-    return <TopByEleitoradoTable rows={rows} topN={topN} onSelect={onSelect} />;
-  }
-  return (
-    <MunicipioTableDefault
-      rows={rows}
-      height={height}
-      rowHeight={rowHeight}
-      overscan={overscan}
-      onSelect={onSelect}
-    />
+      {restantes > 0 ? (
+        <Button
+          aria-controls={tabelaId}
+          data-testid="municipios-carregar-mais"
+          full
+          onClick={carregarMais}
+          // `md` = 44px (`--tap-min`): é alvo primário de toque no celular.
+          size="md"
+          style={{ marginTop: "var(--space-2)" }}
+          variant="secondary"
+        >
+          Mostrar mais {proximoLote.toLocaleString("pt-BR")} · faltam{" "}
+          {restantes.toLocaleString("pt-BR")}
+        </Button>
+      ) : null}
+    </section>
   );
 }

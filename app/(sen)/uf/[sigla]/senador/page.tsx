@@ -10,23 +10,31 @@
  *      1º e 2º, os dois são senadores —, troca a margem exibida para a do 2º
  *      sobre o 3º (RF-104) e larga a barra de maioria, cujo marcador de 50%
  *      não corta nada nesta corrida.
- *   2. **Sem mapa municipal nesta janela.** O cargo 5 passou a ser ingerido em
- *      granularidade ZONA em 2026-09-11, então o dado existe — mas as telas de
- *      mapa e "maiores colégios" ficaram fora do escopo antes de 15/09
- *      (spec 016 § Escopo/Fora). Historicamente, o cargo era ingerido por UF
- *      (ADR-0026 item 1): existe um boletim por estado, nenhum por
- *      município. Não há tabela de "maiores colégios" nem coroplético
- *      municipal porque não há dado — e um bloco vazio afirmando
- *      indisponibilidade sugeriria que o dado existe e não chegou.
+ *   2. **O municipal chegou tarde, e em duas etapas.** O cargo 5 era ingerido
+ *      em granularidade UF (ADR-0026 item 1): existia um boletim por estado e
+ *      nenhum por município, e por isso nem mapa municipal nem lista de
+ *      municípios existiam aqui. A ingestão passou a ser por ZONA em
+ *      2026-09-11 (emenda (b) do ADR-0026), o mapa municipal desta rota entrou
+ *      em 2026-09-19, e a **lista de municípios em 2026-09-20**, a pedido do
+ *      dono — a mesma `<MunicipioTable>` paginada das outras duas rotas de
+ *      estado, com a mesma folha de município no `<Sheet>`.
+ *
+ *      Até 20/09 esta era a única rota de UF cujo `useMunicipioSheetStore`
+ *      tinha escritor (o clique no mapa) e **nenhum leitor**: tocar num
+ *      município aqui gravava no store e não abria nada, porque
+ *      `<MunicipioExplorer>` — que é quem desenha o `<Sheet>` — não era
+ *      montado. Montá-lo resolveu a lista e a gaveta de uma vez.
+ *
+ *      ⚠️ `spec 016 § Escopo/Fora` ainda diz por escrito que Senador não tem
+ *      dado municipal. A spec precisa de emenda.
  *
  *      🔴 **2026-09-18** — esta rota passou a viver dentro de
  *      `app/(sen)/layout.tsx`/`<PersistentMapFrame cargo="sen">` (a mesma
  *      moldura que Presidente/Governador têm, pedido do dono). No nível
  *      BRASIL (`/senador`) a moldura mostra o coroplético por UF; no nível
- *      desta própria página (UF), ela mostra um painel textual em vez de
- *      mapa — o motivo continua sendo a ausência de dado municipal acima,
- *      inalterada por esta mudança. Ver `PersistentMapFrame.tsx`, ramo
- *      `cargo === "sen"` com `sigla` presente.
+ *      desta própria página (UF), ela mostra o coroplético municipal desde
+ *      19/09. Ver `PersistentMapFrame.tsx`, ramo `cargo === "sen"` com
+ *      `sigla` presente.
  *   3. **Sem 2º turno.** `temSegundoTurno: false` na tabela canônica; a
  *      página não monta `<TurnoBadge>` nem alterna turno.
  *
@@ -59,22 +67,31 @@ import { notFound } from "next/navigation";
 
 import { SerieApuracaoChart } from "@/components/atoms/charts/SerieApuracaoChart";
 import {
+  DetailFreshness,
   DetailUnavailable,
   type DetailUnavailableReason,
 } from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
+import { candidateColor as candidateColorDoPartido } from "@/components/blocks/_candidateColor";
 import { CandidaturasAguardando } from "@/components/blocks/CandidaturasAguardando";
 import { ChancesPanel } from "@/components/blocks/ChancesPanel";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
+import { MunicipioExplorer } from "@/components/blocks/MunicipioExplorer";
+import type { MunicipioRow } from "@/components/blocks/MunicipioTable";
 import { ResultPanel } from "@/components/blocks/ResultPanel";
 import { Footer } from "@/components/layout/Footer";
-import { readUfDetail, seriePorCandidatoFrom, type UfDetailResult } from "@/lib/blob/uf-detail";
+import {
+  municipiosFrom,
+  readUfDetail,
+  seriePorCandidatoFrom,
+  type UfDetailResult,
+} from "@/lib/blob/uf-detail";
 import { cargoInfo } from "@/lib/config/cargos";
 import { isPreEleicao } from "@/lib/config/fase";
 import { simulacaoLigada, simulacaoMunicipiosUf, simulacaoSenadorUf } from "@/lib/dev/simulacao";
 import { readProjection, readUfProjection } from "@/lib/edge-config/reader";
-import type { EdgePayloadUf, EdgeUfCandidate } from "@/lib/edge-config/types";
-import { nomeExibicao } from "@/lib/utils/nome-candidato";
+import type { EdgePayloadUf, EdgeUfCandidate, EdgeUfMunicipio } from "@/lib/edge-config/types";
+import { nomeExibicao, primeiroNomeExibicao } from "@/lib/utils/nome-candidato";
 import { rankByParcial } from "@/lib/utils/rank-parcial";
 import senUfFixture from "@/tests/fixtures/edge-config/sen-uf.json" with { type: "json" };
 
@@ -194,6 +211,51 @@ function ResultTitle({ sigla }: { sigla: string }) {
  */
 function temIncertezaMedida(candidatos: readonly EdgeUfCandidate[]): boolean {
   return candidatos.some((c) => c.ci95.upper - c.ci95.lower > 0);
+}
+
+/**
+ * Motivo a exibir no estado "detalhe indisponível" da seção de municípios, ou
+ * `null` quando há detalhe para mostrar. Gêmeo dos das rotas presidencial e de
+ * governador — a justificativa longa está na presidencial.
+ */
+function municipioDetailReason(
+  result: UfDetailResult,
+  quantidade: number,
+): "not_configured" | "not_found" | "fetch_error" | "invalid" | "empty" | null {
+  if (result.status !== "ok") return result.reason;
+  return quantidade === 0 ? "empty" : null;
+}
+
+/**
+ * Converte municípios do payload (`EdgeUfMunicipio`) em linhas da tabela.
+ * Terceiro gêmeo dos adaptadores das rotas presidencial e de governador — a
+ * corrida muda, o shape do município não.
+ *
+ * `eleitores` e `capital` são OPCIONAIS no payload e seguem opcionais aqui: um
+ * Blob gravado antes da migration 0006 continua válido, e `<MunicipioTable>`
+ * manda o município sem eleitorado para o fim da lista em vez de descartá-lo.
+ */
+function toMunicipioRows(
+  municipios: EdgeUfMunicipio[],
+  candidateColor: Record<number, string>,
+  candidateShortName: Record<number, string>,
+): MunicipioRow[] {
+  return municipios.map((m) => {
+    const liderId = m.lider.candidato_id;
+    const totalVotos = Object.values(m.votos_reportados).reduce((a, b) => a + b, 0);
+    return {
+      cod_ibge: m.cod_ibge,
+      nome: m.nome,
+      lider: liderId,
+      liderCor: candidateColor[liderId] ?? "var(--color-text)",
+      liderNome: candidateShortName[liderId] ?? `#${liderId}`,
+      margemPp: m.lider.margem_pp,
+      pctApurado: m.pct_apurado,
+      votosReportados: totalVotos,
+      eleitorado: m.eleitores,
+      capital: m.capital,
+    };
+  });
 }
 
 /**
@@ -387,6 +449,30 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
       pctProjetado: c.pct_projetado,
     }));
 
+  // Maps de id → cor / nome curto para a tabela de municípios e para a folha.
+  // 🔴 A cor sai da SIGLA (ADR-0024), não de `c.cor` — a paleta por COLOCAÇÃO
+  // do ADR-0013 parou de ser emitida em 19/09. O mesmo mapa alimenta o
+  // coroplético municipal da moldura ao lado: com a cor de rank, o mesmo
+  // partido sairia de uma cor no mapa e de outra na coluna de margem.
+  //
+  // 2º argumento é o ÍNDICE + 1: `EdgeUfCandidate` não carrega `rank` (o array
+  // já chega ordenado pela corrida da UF, ADR-0012), e ele só entra no fallback
+  // de sigla fora da paleta editorial.
+  const candidateColor: Record<number, string> = {};
+  const candidateShortName: Record<number, string> = {};
+  payload.candidatos.forEach((c, i) => {
+    candidateColor[c.id] = candidateColorDoPartido(c.partido, i + 1);
+    // Primeiro nome do nome de EXIBIÇÃO — cortar o cru poria "RONALDO" na
+    // tabela e outro nome no painel da mesma página.
+    candidateShortName[c.id] = primeiroNomeExibicao(c.nome, c.sqcand);
+  });
+
+  // Detalhe municipal, do MESMO `readUfDetail` que já trouxe a série lá em
+  // cima: nenhuma leitura nova entra no read path (RNF-002).
+  const municipios = municipiosFrom(detalhe);
+  const municipioReason = municipioDetailReason(detalhe, municipios.length);
+  const municipioRows = toMunicipioRows(municipios, candidateColor, candidateShortName);
+
   return (
     <main
       data-trilha="sen"
@@ -473,6 +559,38 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
           />
         ) : (
           <DetailUnavailable label="A evolução da apuração" reason={motivoSerie} />
+        )}
+      </Panel>
+
+      {/* Seção 2c — os municípios (2026-09-20, pedido do dono). A MESMA
+          `<MunicipioTable>` paginada das rotas presidencial e de governador:
+          20 maiores colégios eleitorais, +40 por toque.
+
+          Esta seção traz junto a **folha do município** (`<Sheet>`), que é
+          desenhada por `<MunicipioExplorer>`. Até hoje o clique num município
+          do mapa da moldura ao lado escrevia em `useMunicipioSheetStore` e
+          **nada acontecia**, porque nesta rota — só nela — o leitor daquele
+          store não era montado. Montar o explorer fecha as duas pontas de uma
+          vez.
+
+          O `<Panel>` não some quando não há município: a fonte é o Vercel Blob
+          (ADR-0032), que falha independentemente do resumo, e um bloco ausente
+          diria "não existe" onde a verdade é "não chegou" (ADR-0017). */}
+      <Panel kicker="Municípios">
+        {municipioReason === null ? (
+          <div className="flex flex-col" style={{ gap: "var(--space-3)" }}>
+            {detalhe.status === "ok" && (
+              <DetailFreshness ts={detalhe.detail.ts} resumoTs={payload.ts} />
+            )}
+            <MunicipioExplorer
+              ufSigla={sigla}
+              municipios={municipios}
+              rows={municipioRows}
+              candidatos={payload.candidatos}
+            />
+          </div>
+        ) : (
+          <DetailUnavailable label="O detalhe por município" reason={municipioReason} />
         )}
       </Panel>
 

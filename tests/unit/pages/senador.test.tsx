@@ -28,6 +28,7 @@ import type {
   EdgePayloadUf,
   EdgeSeriePorCandidato,
   EdgeUfCandidate,
+  EdgeUfMunicipio,
   EdgeUfRow,
 } from "@/lib/edge-config/types";
 
@@ -771,7 +772,11 @@ describe("/uf/[sigla]/senador (T-10)", () => {
 
     expect(paineis[0]?.getAttribute("aria-labelledby")).toBe("resultado-heading");
     expect(kickers[iSerie - 1]).toBe("Modelo Atlas Menna");
-    expect(kickers[iSerie + 1]).toBe("Metodologia");
+    // 2026-09-20: o painel de municípios entrou ENTRE a série e a metodologia,
+    // que é a ordem das outras duas rotas de estado (resultado → série →
+    // municípios → metodologia). A série não se moveu.
+    expect(kickers[iSerie + 1]).toBe("Municípios");
+    expect(kickers[iSerie + 2]).toBe("Metodologia");
     expect(iSerie).toBe(2);
 
     // Sem série no Blob deste caso: nenhum traçado.
@@ -1083,5 +1088,117 @@ describe("/uf/[sigla]/senador — os dois ramos de borda", () => {
     expect(botao?.getAttribute("aria-controls")).toBeTruthy();
     // Mesmo colapsada, as duas linhas de vaga permanecem no DOM (ADR-0017).
     expect(doc.querySelectorAll("[data-testid='result-vaga-marker']")).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2026-09-20 — a lista de municípios (e, com ela, a folha do município)
+// chegaram a esta rota. Até aqui `/uf/[sigla]/senador` era a única das três
+// rotas de estado sem nenhuma das duas: o clique num município do mapa da
+// moldura escrevia em `useMunicipioSheetStore` e **nada acontecia**, porque
+// `<MunicipioExplorer>` — o leitor daquele store — não era montado.
+// ---------------------------------------------------------------------------
+
+/** Municípios de SP para o Blob desta corrida, em eleitorado decrescente. */
+function municipiosSen(n: number): EdgeUfMunicipio[] {
+  return Array.from({ length: n }, (_, i) => ({
+    cod_ibge: `35${String(i).padStart(5, "0")}`,
+    nome: `Município ${i + 1}`,
+    pct_apurado: 60,
+    lider: {
+      candidato_id: i % 2 === 0 ? 1 : 2,
+      partido: i % 2 === 0 ? "PT" : "PL",
+      votos: 10_000 + i,
+      margem_pp: 7,
+    },
+    votos_reportados: { 1: 10_000, 2: 8_000 },
+    eleitores: 9_000_000 - i * 1_000,
+    ...(i === 0 ? { capital: true as const } : {}),
+  }));
+}
+
+function blobSenadorComMunicipios(municipios: EdgeUfMunicipio[]): UfDetailResult {
+  return {
+    status: "ok",
+    url: "https://exemplo.test/municipios/uf/SP/sen/t1.json",
+    detail: {
+      ts: "2026-10-04T20:10:00-03:00",
+      uf: "SP",
+      cargo: "sen",
+      turno: 1,
+      municipios,
+      series_temporais: null,
+    },
+  };
+}
+
+describe("/uf/[sigla]/senador — os municípios (2026-09-20)", () => {
+  beforeEach(() => {
+    readUfProjectionMock.mockResolvedValue(ufPayload());
+  });
+
+  it("(v) 🔴 a lista existe nesta rota, com a mesma primeira leva de 20", async () => {
+    readUfDetailMock.mockResolvedValueOnce(blobSenadorComMunicipios(municipiosSen(645)));
+    const doc = await render(UFSenadorPage(PARAMS_SP));
+
+    expect(doc.querySelector("[data-testid='municipios-lista']")).not.toBeNull();
+    expect(doc.querySelector("#municipios-heading")?.textContent).toContain("Municípios (645)");
+    expect(doc.querySelectorAll("[data-testid='municipios-lista'] tbody tr")).toHaveLength(20);
+    expect(doc.querySelector("table[aria-rowcount='645']")).not.toBeNull();
+    expect(doc.querySelector("[data-testid='municipios-carregar-mais']")?.textContent).toContain(
+      "625",
+    );
+  });
+
+  it("(w) 🔴 cada município é um botão — é o gatilho da folha que faltava aqui", async () => {
+    readUfDetailMock.mockResolvedValueOnce(blobSenadorComMunicipios(municipiosSen(30)));
+    const doc = await render(UFSenadorPage(PARAMS_SP));
+
+    // 20 botões = a primeira leva. Antes desta data eram ZERO nesta rota.
+    expect(doc.querySelectorAll("[data-testid='municipio-open']")).toHaveLength(20);
+    // A folha começa fechada; abri-la é interação (e2e / MunicipioExplorer).
+    expect(doc.querySelector("[data-testid='sheet']")).toBeNull();
+  });
+
+  it("(x) sem município no Blob, o painel fica no DOM e diz por quê (ADR-0017)", async () => {
+    readUfDetailMock.mockResolvedValueOnce(blobSenadorComMunicipios([]));
+    const doc = await render(UFSenadorPage(PARAMS_SP));
+
+    const kickers = [...doc.querySelectorAll("[data-testid='panel-kicker']")].map(
+      (k) => k.textContent,
+    );
+    expect(kickers).toContain("Municípios");
+    const estados = [...doc.querySelectorAll("[data-testid='detail-unavailable']")].map((e) =>
+      e.getAttribute("data-reason"),
+    );
+    expect(estados).toContain("empty");
+    expect(doc.querySelector("[data-testid='municipios-lista']")).toBeNull();
+  });
+
+  it("(y) Blob indisponível: o motivo da fonte, não 'vazio' — e a página não cai", async () => {
+    readUfDetailMock.mockResolvedValueOnce({
+      status: "unavailable",
+      reason: "not_found",
+      url: "https://exemplo.test/municipios/uf/SP/sen/t1.json",
+    });
+    const doc = await render(UFSenadorPage(PARAMS_SP));
+
+    const estados = [...doc.querySelectorAll("[data-testid='detail-unavailable']")].map((e) =>
+      e.getAttribute("data-reason"),
+    );
+    expect(estados).toContain("not_found");
+    // O resumo vem da OUTRA fonte e segue inteiro (ADR-0032 item 3).
+    expect(doc.querySelectorAll("[data-testid='candidate-result-row']").length).toBeGreaterThan(0);
+  });
+
+  it("(z) a lista NÃO lê nada além do que a série já leu — um só `readUfDetail`", async () => {
+    // RNF-002: a seção de municípios reaproveita o MESMO resultado do Blob que
+    // o gráfico de evolução consome. Uma segunda leitura aqui somaria uma ida
+    // à rede ao caminho crítico da rota de maior tráfego.
+    readUfDetailMock.mockClear();
+    readUfDetailMock.mockResolvedValueOnce(blobSenadorComMunicipios(municipiosSen(5)));
+    await render(UFSenadorPage(PARAMS_SP));
+
+    expect(readUfDetailMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -99,9 +99,12 @@ export interface MunicipioExplorerProps {
   rows: MunicipioRow[];
   /** Candidatos da corrida na UF — dá nome, partido e cor a cada linha da folha. */
   candidatos: EdgeUfCandidate[];
-  /** Modo da tabela. Mesma semântica de `<MunicipioTable>`. */
-  tableMode?: "default" | "top-by-eleitorado";
-  topN?: number;
+  /**
+   * 🔴 `tableMode` / `topN` saíram em 2026-09-20. `<MunicipioTable>` tem UM
+   * modo — lista ordenada por eleitorado e paginada (20 + 40 por vez) — e as
+   * três rotas de estado o consomem igual. Ver o cabeçalho daquele arquivo
+   * para o porquê de a substituição não ser adição.
+   */
   /**
    * Quando presente, a grade de quadrados aparece acima da tabela e também
    * abre a folha. É o shape que `<MunicipioWaffleGrid>` pede (`EdgeCandidate`,
@@ -200,8 +203,6 @@ export function MunicipioExplorer({
   municipios,
   rows,
   candidatos,
-  tableMode = "default",
-  topN,
   waffleCandidatos,
 }: MunicipioExplorerProps) {
   // Qual município está aberto vive FORA deste componente desde 2026-09-10:
@@ -269,7 +270,7 @@ export function MunicipioExplorer({
         />
       ) : null}
 
-      <MunicipioTable rows={rows} mode={tableMode} topN={topN} onSelect={abrir} />
+      <MunicipioTable rows={rows} onSelect={abrir} />
 
       {municipio ? (
         <Sheet

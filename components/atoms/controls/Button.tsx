@@ -57,6 +57,17 @@ export interface ButtonProps {
   "aria-expanded"?: boolean;
   /** `id` do elemento cujo estado este botão controla. */
   "aria-controls"?: string;
+  /**
+   * Sobrescreve o `data-testid` do átomo (default `"button"`).
+   *
+   * Existe pelo mesmo motivo do passthrough de `aria-*` logo acima: a
+   * interface deste átomo é fechada, e uma página pode ter vários botões do
+   * design system. Quando o teste precisa apontar para UM deles — o "mostrar
+   * mais" da lista de municípios, por exemplo — contar `[data-testid="button"]`
+   * numa página inteira é um seletor que quebra no dia em que alguém
+   * acrescentar outro botão em qualquer lugar acima.
+   */
+  "data-testid"?: string;
   className?: string;
   style?: CSSProperties;
 }
@@ -104,6 +115,7 @@ export function Button({
   "aria-label": ariaLabel,
   "aria-expanded": ariaExpanded,
   "aria-controls": ariaControls,
+  "data-testid": testId = "button",
   className,
   style,
 }: ButtonProps) {
@@ -115,7 +127,7 @@ export function Button({
       aria-label={ariaLabel}
       aria-expanded={ariaExpanded}
       aria-controls={ariaControls}
-      data-testid="button"
+      data-testid={testId}
       data-variant={variant}
       data-size={size}
       className={[

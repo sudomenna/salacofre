@@ -1,20 +1,40 @@
 // @vitest-environment happy-dom
 /**
- * Unit tests do <MunicipioTable /> (RF-037).
+ * tests/unit/components/MunicipioTable.test.tsx
  *
- * Foco em virtualização: com 645 linhas e viewport 480px, devemos renderizar
- * só ~20 linhas, NÃO as 645.
+ * RF-037 — a **paginação** da lista de municípios (2026-09-20, pedido do dono:
+ * "os 20 maiores municípios em número de eleitores e depois disso abre de 40 em
+ * 40 tocando em carregar mais").
+ *
+ * A **ordem** — a outra metade do pedido — está em `MunicipioTable.ordem.test.tsx`.
+ *
+ * ## Por que metade deste arquivo monta de verdade
+ *
+ * "Carregar mais" é estado de cliente. `renderToStaticMarkup` só alcança o
+ * primeiro quadro (que é o que o leitor recebe do servidor, e por isso os casos
+ * de leva inicial ficam nele, mais baratos); o clique, o rótulo que muda e o
+ * foco depois do último lote exigem `createRoot` + `act`, como em
+ * `MunicipioExplorer.test.tsx`.
+ *
+ * ⚠️ `getBoundingClientRect()` devolve ZERO no happy-dom: nada aqui finge medir
+ * layout. O que se mede é contagem de nós e texto.
  */
 
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { type MunicipioRow, MunicipioTable } from "@/components/blocks/MunicipioTable";
+
+// biome-ignore lint/suspicious/noExplicitAny: flag global do ambiente de `act`
+(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
 function parse(node: React.ReactElement): Document {
   return new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
 }
 
+/** Eleitorado decrescente garantido: i=0 é o maior. */
 function makeRows(n: number): MunicipioRow[] {
   return Array.from({ length: n }, (_, i) => ({
     cod_ibge: `35${String(i).padStart(5, "0")}`,
@@ -25,75 +45,229 @@ function makeRows(n: number): MunicipioRow[] {
     margemPp: 5 + (i % 10),
     pctApurado: 100,
     votosReportados: 10_000 + i * 137,
+    eleitorado: 9_000_000 - i * 1_000,
   }));
 }
 
-describe("<MunicipioTable />", () => {
-  it("(a) renderiza header com total de municípios", () => {
+function linhas(doc: Document | HTMLElement): number {
+  return doc.querySelectorAll("tbody tr").length;
+}
+
+describe("<MunicipioTable /> — primeiro quadro, do servidor", () => {
+  it("(a) o cabeçalho traz o total REAL, não o carregado", () => {
     const doc = parse(<MunicipioTable rows={makeRows(645)} />);
-    const heading = doc.querySelector("h3");
-    expect(heading?.textContent).toContain("645");
+    expect(doc.querySelector("h3")?.textContent).toContain("645");
   });
 
-  it("(b) no SSR inicial, virtualização limita render ao overscan inicial — não renderiza 645 rows", () => {
+  it("(b) 🔴 a primeira leva é de 20 municípios — nem 19, nem 21, nem 645", () => {
+    // Mutação que morre aqui: trocar `MUNICIPIOS_PRIMEIRA_LEVA` (20) por
+    // qualquer outro número. É o número que o dono pediu por escrito.
     const doc = parse(<MunicipioTable rows={makeRows(645)} />);
-    // tbody data rows: excluímos thead row (1 só)
-    const dataRows = doc.querySelectorAll("tbody tr[aria-rowindex]");
-    expect(dataRows.length).toBeLessThan(50);
-    expect(dataRows.length).toBeGreaterThan(0);
+    expect(linhas(doc)).toBe(20);
   });
 
-  it("(c) aria-rowcount no <table> reflete total absoluto", () => {
+  it("(c) 🔴 `aria-rowcount` é o total da UF, não o que está carregado", () => {
+    // Mutação que morre aqui: `aria-rowcount={visiveis}`. Quem usa leitor de
+    // tela precisa saber que a lista tem 645, mesmo vendo 20.
     const doc = parse(<MunicipioTable rows={makeRows(645)} />);
-    const table = doc.querySelector("table");
-    expect(table?.getAttribute("aria-rowcount")).toBe("645");
+    expect(doc.querySelector("table")?.getAttribute("aria-rowcount")).toBe("645");
+    expect(linhas(doc)).toBe(20);
   });
 
-  it("(d) cada row de dado renderizada tem aria-rowindex", () => {
-    const doc = parse(<MunicipioTable rows={makeRows(10)} rowHeight={40} height={400} />);
-    const rows = Array.from(doc.querySelectorAll("tbody tr[aria-rowindex]"));
-    expect(rows.length).toBeGreaterThan(0);
-    rows.forEach((r) => {
-      expect(r.getAttribute("aria-rowindex")).toBeTruthy();
-    });
+  it("(d) `aria-rowindex` é 1-based com o cabeçalho ocupando o índice 1", () => {
+    const doc = parse(<MunicipioTable rows={makeRows(645)} />);
+    const idx = [...doc.querySelectorAll("tbody tr")].map((tr) => tr.getAttribute("aria-rowindex"));
+    expect(idx[0]).toBe("2");
+    expect(idx[19]).toBe("21");
   });
 
-  it("(e) formata votos em pt-BR e percentual com casa decimal opcional", () => {
+  it("(e) 🔴 o botão diz quantos faltam, em número", () => {
+    // Mutação que morre aqui: rótulo genérico ("Carregar mais") ou lote
+    // trocado. 645 − 20 = 625 restantes, e o próximo lote é 40.
+    const doc = parse(<MunicipioTable rows={makeRows(645)} />);
+    const botao = doc.querySelector('[data-testid="municipios-carregar-mais"]');
+    expect(botao?.textContent).toContain("40");
+    expect(botao?.textContent).toContain("625");
+  });
+
+  it("(f) a linha de status declara carregados e total", () => {
+    const doc = parse(<MunicipioTable rows={makeRows(645)} />);
+    expect(doc.querySelector('[data-testid="municipios-status"]')?.textContent).toBe(
+      "Mostrando 20 de 645 municípios.",
+    );
+  });
+
+  it("(g) lista menor que a primeira leva não ganha botão nenhum", () => {
     const doc = parse(<MunicipioTable rows={makeRows(5)} />);
-    const text = doc.body.textContent ?? "";
-    expect(text).toContain("10.000"); // primeira linha: 10000
-    expect(text).toContain("100%");
+    expect(linhas(doc)).toBe(5);
+    expect(doc.querySelector('[data-testid="municipios-carregar-mais"]')).toBeNull();
+    expect(doc.querySelector('[data-testid="municipios-status"]')?.textContent).toBe(
+      "Mostrando 5 de 5 municípios.",
+    );
   });
 
-  it("(f) lista vazia ainda renderiza header e 0", () => {
+  it("(h) exatamente 20 municípios: mostra os 20 e não oferece 'mostrar mais'", () => {
+    const doc = parse(<MunicipioTable rows={makeRows(20)} />);
+    expect(linhas(doc)).toBe(20);
+    expect(doc.querySelector('[data-testid="municipios-carregar-mais"]')).toBeNull();
+  });
+
+  it("(i) lista vazia: cabeçalho com 0, nenhuma linha, nenhum botão", () => {
     const doc = parse(<MunicipioTable rows={[]} />);
-    const heading = doc.querySelector("h3");
-    expect(heading?.textContent).toContain("0");
+    expect(doc.querySelector("h3")?.textContent).toContain("0");
+    expect(linhas(doc)).toBe(0);
+    expect(doc.querySelector('[data-testid="municipios-carregar-mais"]')).toBeNull();
   });
 
-  it("(g) S04/F2: exibe margem e votos reais (antes era placeholder de 5pp/0 votos)", () => {
-    // Linhas com campos derivados do payload UF enriquecido: o page faz
-    // `m.lider.margem_pp` + `sum(votos_reportados)`. Esta tabela espera
-    // os mesmos campos já transformados pelo caller.
-    const rows: MunicipioRow[] = [
-      {
-        cod_ibge: "3550308",
-        nome: "São Paulo",
-        lider: 13,
-        liderCor: "var(--color-pt)",
-        liderNome: "Lula",
-        margemPp: 8.2,
-        pctApurado: 100,
-        votosReportados: 4_213_847,
-      },
-    ];
-    const doc = parse(<MunicipioTable rows={rows} />);
-    const text = doc.body.textContent ?? "";
-    // Margem real, não placeholder de 5pp.
-    expect(text).toContain("8.2%");
-    // Votos formatados pt-BR.
-    expect(text).toContain("4.213.847");
-    // Nome do líder na coluna de margem.
-    expect(text).toContain("Lula");
+  it("(j) `inicial` e `lote` são do call site quando ele os declara", () => {
+    const doc = parse(<MunicipioTable rows={makeRows(100)} inicial={5} lote={7} />);
+    expect(linhas(doc)).toBe(5);
+    const botao = doc.querySelector('[data-testid="municipios-carregar-mais"]');
+    expect(botao?.textContent).toContain("7");
+    expect(botao?.textContent).toContain("95");
+  });
+
+  it("(k) formata margem e percentual em pt-BR", () => {
+    const doc = parse(<MunicipioTable rows={makeRows(3)} />);
+    const texto = doc.body.textContent ?? "";
+    expect(texto).toContain("Lula");
+    expect(texto).toContain("100%");
+    expect(texto).toContain("9.000.000 eleitores");
+  });
+
+  it("(l) sem `onSelect` não existe nó interativo de município", () => {
+    const doc = parse(<MunicipioTable rows={makeRows(30)} />);
+    expect(doc.querySelectorAll('[data-testid="municipio-open"]').length).toBe(0);
+  });
+
+  it("(m) com `onSelect` cada linha carregada vira um botão — 20, não 645", () => {
+    const doc = parse(<MunicipioTable rows={makeRows(645)} onSelect={() => {}} />);
+    expect(doc.querySelectorAll('[data-testid="municipio-open"]').length).toBe(20);
+  });
+
+  /**
+   * O pedido do dono tinha duas metades, e esta é a de CARREGAMENTO. O número
+   * abaixo é a linha de base medida em 2026-09-20 com 645 municípios (SP) e
+   * `onSelect` presente, que é o call site real das três rotas de estado.
+   *
+   * Não é um teste de layout (o happy-dom não faz layout): é contagem de
+   * elementos no HTML que o servidor manda, que é o que o navegador tem de
+   * construir antes de pintar a primeira tela.
+   */
+  it("(n) o HTML inicial de SP cabe num orçamento de nós", () => {
+    const doc = parse(<MunicipioTable rows={makeRows(645)} onSelect={() => {}} />);
+    const elementos = doc.body.querySelectorAll("*").length;
+    expect(elementos).toBeLessThanOrEqual(180);
+    expect(linhas(doc)).toBe(20);
+  });
+});
+
+describe("<MunicipioTable /> — 'mostrar mais', no cliente", () => {
+  let container: HTMLElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  function montar(rows: MunicipioRow[], props: { inicial?: number; lote?: number } = {}) {
+    act(() => {
+      root.render(<MunicipioTable rows={rows} {...props} />);
+    });
+  }
+
+  function botao() {
+    return container.querySelector<HTMLButtonElement>('[data-testid="municipios-carregar-mais"]');
+  }
+
+  function clicar() {
+    act(() => {
+      botao()?.click();
+    });
+  }
+
+  function status() {
+    return container.querySelector<HTMLElement>('[data-testid="municipios-status"]');
+  }
+
+  it("(o) 🔴 cada toque acrescenta 40 — 20 → 60 → 100", () => {
+    // Mutação que morre aqui: `MUNICIPIOS_POR_LOTE` de 40 para qualquer outro
+    // número, ou `visiveis + lote` virando `visiveis + inicial`.
+    montar(makeRows(645));
+    expect(linhas(container)).toBe(20);
+    clicar();
+    expect(linhas(container)).toBe(60);
+    clicar();
+    expect(linhas(container)).toBe(100);
+  });
+
+  it("(p) o rótulo do botão recalcula quantos faltam a cada toque", () => {
+    montar(makeRows(645));
+    expect(botao()?.textContent).toContain("625");
+    clicar();
+    expect(botao()?.textContent).toContain("585");
+    expect(status()?.textContent).toBe("Mostrando 60 de 645 municípios.");
+  });
+
+  it("(q) o último toque traz o RESTO (menos que um lote cheio) e o botão some", () => {
+    // 65 municípios: 20 + 40 = 60, e sobram 5 — o último lote é parcial.
+    montar(makeRows(65));
+    clicar();
+    expect(linhas(container)).toBe(60);
+    expect(botao()?.textContent).toContain("Mostrar mais 5");
+    expect(botao()?.textContent).toContain("faltam 5");
+    clicar();
+    expect(linhas(container)).toBe(65);
+    expect(botao()).toBeNull();
+    expect(status()?.textContent).toBe("Mostrando 65 de 65 municípios.");
+  });
+
+  it("(r) `aria-rowcount` continua sendo o total em TODOS os estados da paginação", () => {
+    montar(makeRows(65));
+    const rowcount = () => container.querySelector("table")?.getAttribute("aria-rowcount");
+    expect(rowcount()).toBe("65");
+    clicar();
+    expect(rowcount()).toBe("65");
+    clicar();
+    expect(rowcount()).toBe("65");
+  });
+
+  it("(s) enquanto sobram municípios, o foco fica no próprio botão", () => {
+    montar(makeRows(645));
+    act(() => botao()?.focus());
+    clicar();
+    // O botão não é desmontado — só o rótulo muda —, então o foco não se move.
+    expect(document.activeElement).toBe(botao());
+  });
+
+  it("(t) no toque que esgota a lista, o foco vai para a linha de status", () => {
+    // Sem isto o foco cairia no `<body>`: o botão sai do DOM justamente no
+    // clique que o usuário acabou de dar.
+    montar(makeRows(30));
+    act(() => botao()?.focus());
+    clicar();
+    expect(botao()).toBeNull();
+    expect(document.activeElement).toBe(status());
+    expect(status()?.textContent).toBe("Mostrando 30 de 30 municípios.");
+  });
+
+  it("(u) trocar de UF devolve a lista à primeira leva", () => {
+    // O App Router preserva a árvore entre `/uf/SP` e `/uf/MG`: sem o reajuste
+    // de estado, MG abriria já com os 60 que o leitor carregou em SP.
+    const sp = makeRows(645);
+    const mg = makeRows(853).map((r) => ({ ...r, cod_ibge: `31${r.cod_ibge.slice(2)}` }));
+    montar(sp);
+    clicar();
+    expect(linhas(container)).toBe(60);
+    montar(mg);
+    expect(linhas(container)).toBe(20);
+    expect(container.querySelector("h3")?.textContent).toContain("853");
   });
 });

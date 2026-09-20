@@ -67,7 +67,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-005.1 | K-1 disclaimer adaptativo | M | [005](../specs/005-pagina-uf-governador/) | `<K1Banner />` | unit |
 | RF-005.2 | Waffle de municípios | M | [005](../specs/005-pagina-uf-governador/) | `<MunicipioWaffleGrid />` | unit |
 | RF-005.3 | Apuração por mesorregião | M | [005](../specs/005-pagina-uf-governador/) | (tabela condicional) | unit |
-| RF-005.4 | Maiores colégios eleitorais (8 municípios, capital primeiro, eleitorado + % apurado em S07, ADR-0035 D2) | M | [005](../specs/005-pagina-uf-governador/) | `<MunicipioTable mode="top-by-eleitorado" />` | unit (`MunicipioTable.topByEleitorado.test.tsx` em S07) |
+| RF-005.4 | Municípios por eleitorado. **2026-09-20**: deixou de ser um corte de 8 com a capital forçada ao topo — virou a lista completa, ordenada por eleitorado decrescente e paginada (20 + 40 por toque), igual nas três rotas de estado | M | [005](../specs/005-pagina-uf-governador/) | `<MunicipioTable />` | unit (`MunicipioTable.ordem.test.tsx`) |
 | RF-006.1 | Header com contagem de chamadas | M | [006](../specs/006-grid-governadores/) | `<RaceStatsCards />` | unit |
 | RF-006.2 | Filtros por status | M | [006](../specs/006-grid-governadores/) | `<FilterBar />` | unit |
 | RF-006.3 | Mapa coroplético nacional por líder de UF | M | [006](../specs/006-grid-governadores/) | `<NationalMapBlock>`, `<NationalChoroplethMap>` | integration (`governador-page.test.tsx`); `<HexCartogramBrasil />` preservado sem uso |
@@ -91,7 +91,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-034 | Mapa estado choropleth (município) | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<ChoroplethMapUF />` | ⚠️ **sem cobertura** — nenhum teste importa o componente (verificado 05/09); e2e deferido |
 | RF-035 | Mapa votos reportados (bubbles) | M | ~~[004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/)~~ | ⚠️ **sem cobertura** — removido em 08/09 (ADR-0033, D1); nenhum teste, nenhuma rota | — |
 | RF-036 | Mapa estimativa do que falta | M | ~~[004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/)~~ | ⚠️ **sem cobertura** — removido em 08/09 (ADR-0033, D1); nenhum teste, nenhuma rota | — |
-| RF-037 | Tabela municípios virtualizada | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<MunicipioTable />` | unit |
+| RF-037 | Tabela de municípios. **Virtualizada até 2026-09-20; paginada desde então** (20 na primeira leva, +40 por toque) e presente também em `/uf/[sigla]/senador` | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [016](../specs/016-senador/) | `<MunicipioTable />` | unit (`MunicipioTable.test.tsx`) |
 | RF-038 | Mapa swing vs 2022 | S | ~~[004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/)~~ | ⚠️ **sem cobertura** — removido em 08/09 (ADR-0033, D1); nenhum teste, nenhuma rota | — |
 | RF-039 | Agulha estadual + margem | M | ~~[004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/)~~ | ⚠️ **sem cobertura** — removido em 08/09 (ADR-0033, D1); nenhuma rota | — |
 | RF-040 | Margem ao longo do tempo | S | ~~[004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/)~~ | ⚠️ **sem cobertura** — removido em 08/09 (ADR-0033, D1); nenhuma rota | — |

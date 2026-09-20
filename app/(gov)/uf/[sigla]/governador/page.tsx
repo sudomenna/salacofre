@@ -616,17 +616,26 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
         )}
       </Panel>
 
-      {/* Seção 2 — maiores municípios, ligados à folha do município
-          (`<Sheet>`). É o `BiggestPanel` do protótipo (`App.jsx:353`).
+      {/* Seção 2 — os municípios, ligados à folha do município (`<Sheet>`).
+          Era o `BiggestPanel` do protótipo (`App.jsx:353`).
 
           A grade de quadrados (`<MunicipioWaffleGrid>` via `waffleCandidatos`)
           saiu em 2026-09-08: não existe no protótipo. A tabela permanece — e
           era ela, não a grade, o caminho acessível para abrir cada município.
 
+          🔴 **2026-09-20** — o título "Maiores colégios eleitorais" e o
+          `tableMode="top-by-eleitorado" topN={8}` saíram JUNTOS, e é a mesma
+          mudança: a lista deixou de ser um corte de 8 e passou a ser a lista
+          inteira, paginada (20 + 40 por toque), ordenada por eleitorado. Ela
+          ainda ABRE pelos maiores colégios — mas não termina neles, e um
+          título afirmando o contrário passaria a mentir a partir do primeiro
+          "mostrar mais". O `<h3>` da própria tabela ("Municípios (645)") é
+          agora o único cabeçalho da seção, igual nas três rotas de estado.
+
           O `<Panel>` não some quando não há município: a fonte é o Vercel Blob
           (ADR-0032), que falha independentemente do resumo, e um bloco ausente
           diria "não existe" onde a verdade é "não chegou". */}
-      <Panel kicker="Municípios" title="Maiores colégios eleitorais" titleId="municipios-heading">
+      <Panel kicker="Municípios">
         {municipioReason === null ? (
           <div className="flex flex-col" style={{ gap: "var(--space-3)" }}>
             {detalhe.status === "ok" && (
@@ -637,12 +646,6 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
               municipios={municipios}
               rows={municipioRows}
               candidatos={payload.candidatos}
-              tableMode="top-by-eleitorado"
-              // 8, não 15: é o corte do protótipo (`ui_kits/atlas-menna/App.jsx:131`,
-              // `.slice(0, 8)`) e a decisão E4 do plano de 11/09. O default do
-              // componente segue 15 — quem manda é este call site, que é o único
-              // uso real do modo.
-              topN={8}
             />
           </div>
         ) : (

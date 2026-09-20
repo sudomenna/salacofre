@@ -46,9 +46,13 @@ function makeMunicipio(i: number): EdgeUfMunicipio {
       2: liderId === 2 ? 15000 : 8000,
     },
     // 2026-09-11 (ADR-0035 D2): o payload publica eleitorado por município.
-    // Decrescente com `i`, e o índice 0 é a capital — é o que o painel
-    // "Maiores colégios eleitorais" desta rota ordena (capital primeiro,
-    // depois eleitorado desc; decisão E4).
+    // Decrescente com `i`, e o índice 0 é a capital.
+    //
+    // ⚠️ 2026-09-20: a capital deixou de ir para o topo por ser capital — a
+    // lista ordena por eleitorado puro. Aqui os dois coincidem (o índice 0 é o
+    // maior eleitorado E a capital), então nada neste arquivo distingue as duas
+    // regras; quem as distingue é `MunicipioTable.ordem.test.tsx` (g), com uma
+    // UF em que elas discordam.
     eleitores: 1_000_000 - i * 1000,
     ...(i === 0 ? { capital: true as const } : {}),
   };
@@ -336,13 +340,19 @@ describe("UFGovernadorPage (integration / smoke)", () => {
     expect(html).not.toContain('data-testid="mesorregioes-table"');
   });
 
-  it("(e) MunicipioTable mode='top-by-eleitorado' renderiza (header)", async () => {
+  it("(e) a lista paginada de municípios renderiza nesta rota", async () => {
+    // 2026-09-20: o `mode="top-by-eleitorado"` (8 linhas, corte duro) saiu.
+    // Esta rota passou a montar a MESMA lista das outras duas de estado —
+    // ordenada por eleitorado, paginada em 20 + 40.
     mockUf({ municipios: 20, withMesorregioes: false });
     const node = await UFGovernadorPage({ params: Promise.resolve({ sigla: "SP" }) });
-    const html = renderToStaticMarkup(node);
-    // O modo top-by-eleitorado renderiza o header customizado; sem eleitorado
-    // populado, a lista filtra todos e fica 0 — mas o título aparece.
-    expect(html).toContain("Maiores municípios por eleitorado");
+    const doc = new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
+
+    expect(doc.querySelector('[data-testid="municipios-lista"]')).not.toBeNull();
+    expect(doc.querySelector("#municipios-heading")?.textContent).toContain("Municípios (20)");
+    // O título antigo do painel não pode voltar: ele afirmaria "maiores
+    // colégios" numa lista que o leitor pode expandir até o último município.
+    expect(renderToStaticMarkup(node)).not.toContain("Maiores colégios eleitorais");
   });
 
   it("(f) NÃO existe mais disclaimer de K-1, nem com model_fallback_tier >= 2", async () => {
@@ -495,7 +505,7 @@ describe("UFGovernadorPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
     expect(linhas[0]?.querySelector('[data-view-cell="proj"]')).not.toBeNull();
   });
 
-  it("(p) sem a grade, a tabela lista os maiores colégios e é o caminho de teclado", async () => {
+  it("(p) sem a grade, a tabela lista os municípios e é o caminho de teclado", async () => {
     const doc = await renderGov();
 
     // 2026-09-08 — a grade de quadrados saiu (não está no protótipo). Ela era
@@ -503,30 +513,31 @@ describe("UFGovernadorPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
     // foi a tabela, que permanece.
     expect(doc.querySelector('[data-testid="waffle-svg"]')).toBeNull();
 
-    // ACHADO PRÉ-EXISTENTE, RESOLVIDO EM 2026-09-11: a tabela desta rota é
-    // `mode="top-by-eleitorado"`, que filtra `eleitorado != null`. Enquanto
+    // ACHADO PRÉ-EXISTENTE, RESOLVIDO EM 2026-09-11: a tabela desta rota era
+    // `mode="top-by-eleitorado"`, que filtrava `eleitorado != null`. Enquanto
     // `EdgeUfMunicipio` não publicava o campo, ela renderizava ZERO linhas e
-    // esta rota (só ela) não tinha botão de município nenhum — este teste
-    // documentava aquele estado. `eleitores` existe desde a migration 0006
-    // (ADR-0035 D2) e os dois adaptadores `toMunicipioRows` o repassam, então
-    // a tabela lista de verdade e o caminho de teclado volta a existir aqui.
-    const linhas = doc.querySelectorAll('[data-testid="municipios-top-table"] tbody tr');
-    expect(linhas.length).toBeGreaterThan(0);
-    // `topN={8}` no call site (decisão E4) — o corte do protótipo, não o
-    // default 15 do componente.
-    expect(linhas.length).toBe(8);
-    expect(doc.querySelector('[data-testid="municipios-top-empty"]')).toBeNull();
+    // esta rota (só ela) não tinha botão de município nenhum. `eleitores`
+    // existe desde a migration 0006 (ADR-0035 D2), e desde 2026-09-20 o filtro
+    // que sumia com a linha não existe mais em modo nenhum.
+    //
+    // `renderGov` monta 12 municípios — menos que a primeira leva de 20 —,
+    // então todos aparecem e não há "mostrar mais".
+    const linhas = doc.querySelectorAll('[data-testid="municipios-lista"] tbody tr');
+    expect(linhas.length).toBe(12);
+    expect(doc.querySelector('[data-testid="municipios-carregar-mais"]')).toBeNull();
+    expect(doc.querySelector('[data-testid="municipios-status"]')?.textContent).toBe(
+      "Mostrando 12 de 12 municípios.",
+    );
 
     // Cada linha abre a folha por teclado: o nome é um `<button>`.
-    const botoes = doc.querySelectorAll('[data-testid="municipio-open"]');
-    expect(botoes.length).toBe(8);
+    expect(doc.querySelectorAll('[data-testid="municipio-open"]').length).toBe(12);
 
-    // Capital em primeiro (E4) e subtítulo do protótipo em cada linha.
+    // A capital está na 1ª linha porque é o MAIOR eleitorado desta fixture, e
+    // não por ser capital (ver a nota em `makeMunicipio`). O kicker permanece.
     expect(linhas[0]?.textContent).toContain("· capital");
-    expect(doc.querySelectorAll('[data-testid="municipio-top-sub"]').length).toBe(8);
-    expect(doc.querySelector('[data-testid="municipio-top-sub"]')?.textContent).toContain(
-      "eleitores ·",
-    );
+    // Subtítulo do eleitorado em cada linha — é a chave da ordenação.
+    expect(doc.querySelectorAll('[data-testid="municipio-sub"]').length).toBe(12);
+    expect(doc.querySelector('[data-testid="municipio-sub"]')?.textContent).toContain("eleitores");
 
     // O sheet começa fechado — abrir é interação, coberta em e2e.
     expect(doc.querySelector('[data-testid="sheet"]')).toBeNull();
@@ -549,7 +560,10 @@ describe("UFGovernadorPage — recomposição S07/Bloco 2 (ADR-0029)", () => {
   // fixa o CORTE, mais o que a constituição obriga a manter.
   it("(r) sobraram maiores municípios e metodologia; mesorregiões, waffle, agulha e séries saíram", async () => {
     const texto = (await renderGov()).body.textContent ?? "";
-    expect(texto).toContain("Maiores municípios por eleitorado");
+    // 2026-09-20: o painel "Maiores colégios eleitorais" virou a lista
+    // completa de municípios, paginada e ordenada por eleitorado.
+    expect(texto).toContain("Municípios (12)");
+    expect(texto).toContain("Ordenados pelo eleitorado do município");
     // Constituição § 8 — o bloco de transparência fica em toda página com
     // projeção, esteja ou não no protótipo.
     expect(texto).toContain("O que está movendo o forecast");
@@ -695,11 +709,15 @@ describe("UFGovernadorPage — degradação do detalhe municipal (ADR-0032)", ()
       url: "https://exemplo.test/municipios/uf/SP/gov/t1.json",
     });
 
-    // `#waffle-heading` virou `#municipios-heading` quando a grade saiu
-    // (2026-09-08) e o painel passou a se chamar "Maiores colégios
-    // eleitorais".
-    const painelMunicipios = doc.querySelector("#municipios-heading");
-    expect(painelMunicipios).not.toBeNull();
+    // O painel de municípios continua no DOM mesmo sem detalhe. O ÂNCORA
+    // mudou em 2026-09-20: o `<Panel>` desta rota perdeu o título "Maiores
+    // colégios eleitorais" (e com ele o `#municipios-heading`, que agora é do
+    // `<h3>` da própria tabela — e a tabela não existe neste ramo). O que
+    // prova a presença do painel é o kicker, que é o mesmo nas três rotas.
+    const kickers = [...doc.querySelectorAll('[data-testid="panel-kicker"]')].map(
+      (k) => k.textContent,
+    );
+    expect(kickers).toContain("Municípios");
     const estados = [...doc.querySelectorAll('[data-testid="detail-unavailable"]')];
     expect(estados.map((e) => e.getAttribute("data-reason"))).toContain("not_found");
     expect(doc.body.textContent).toContain("O detalhe por município está indisponível");

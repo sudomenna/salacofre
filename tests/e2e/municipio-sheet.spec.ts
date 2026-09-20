@@ -34,7 +34,12 @@ test.describe("folha do município", () => {
     test.skip(total === 0, "payload sem municípios nesta UF — não há folha a abrir");
 
     const primeiro = botoes.first();
-    const nome = (await primeiro.textContent())?.trim();
+    // 🔴 Só o NOME, sem o kicker. Desde 2026-09-20 a lista ordena por
+    // eleitorado em todas as rotas de estado, então o primeiro botão de SP é
+    // a capital — e o rótulo do botão passou a ser "São Paulo · capital", que
+    // é uma string que a folha não contém em nenhum lugar (ela imprime
+    // "Município · SP · capital" no kicker e "São Paulo" no título).
+    const nome = (await primeiro.textContent())?.split("·")[0]?.trim();
     await primeiro.click();
 
     // Abriu, é um diálogo nomeado pelo município, e o foco entrou nele.
