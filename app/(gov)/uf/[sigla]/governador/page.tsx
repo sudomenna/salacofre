@@ -131,7 +131,6 @@ import type {
   EdgeUfMunicipio,
 } from "@/lib/edge-config/types";
 import { primeiroNomeExibicao } from "@/lib/utils/nome-candidato";
-import { rankByParcial } from "@/lib/utils/rank-parcial";
 import govFixture from "@/tests/fixtures/edge-config/gov-current.json" with { type: "json" };
 
 export const revalidate = 60;
@@ -489,9 +488,6 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
     );
   }
 
-  // A ordem deste array é o rank exibido — ver `lib/utils/rank-parcial.ts`.
-  const rankedCandidatos = rankByParcial(payload.candidatos);
-
   // ADR-0038 D4 — frescor do DADO desta UF, do servidor, a partir do `dado_ts`
   // que já veio no payload. Cargo do payload, não literal: o limiar é por
   // cargo (D3) — aqui, os mesmos 180 s do Presidente, porque Governador
@@ -576,7 +572,11 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
             navegador do leitor, sem nenhum erro do lado do servidor. */}
       <ResultPanel
         action={<TurnoBadge turno={payload.turno} />}
-        candidatos={rankedCandidatos}
+        // 🔴 Sem `rankByParcial` aqui desde 2026-09-20: o `<ResultPanel>`
+        // deriva as DUAS ordens (parcial e projeção) e a cascata escolhe a da
+        // base ativa. Entregar uma ordem só voltaria a congelar a lista numa
+        // base — que é o defeito que a mudança corrigiu.
+        candidatos={payload.candidatos}
         headingLevel={1}
         kicker="Projeção Atlas Menna · não oficial"
         note="Projeção por regra de três: votos apurados ÷ % apurado em cada município, somados na UF."

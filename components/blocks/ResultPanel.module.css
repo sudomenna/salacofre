@@ -1,9 +1,10 @@
 /**
  * components/blocks/ResultPanel.module.css
  *
- * A única coisa que este módulo existe para resolver é o colapso da lista de
- * candidatos do `<ResultPanel>` (decisão D21 do usuário, 2026-09-09) SEM tirar
- * um único candidato do DOM.
+ * A `<ol>` da lista de candidatos do `<ResultPanel>`: o container do colapso
+ * (decisão D21 do usuário, 2026-09-09) e, desde 2026-09-20, o container de
+ * grade que faz `order` valer entre as linhas. O clip em si mudou de arquivo —
+ * ver a nota no fim deste módulo.
  *
  * ## Por que um arquivo de CSS e não `style` inline
  *
@@ -32,6 +33,11 @@
  * quebra em duas linhas.
  */
 
+/* 🔴 `display: grid` não é só reset de lista: é o que torna as linhas ITENS de
+ * um container, e portanto o que faz `order` valer entre elas. É por `order`
+ * que a lista passou a reordenar com a base ativa em 2026-09-20 (ver o bloco
+ * correspondente em `app/globals.css`). Trocar para `display: block` aqui
+ * congelaria a lista na ordem da projeção sem quebrar nada visivelmente. */
 .list {
   list-style: none;
   margin: 0;
@@ -39,9 +45,16 @@
   display: grid;
 }
 
-/* Cada linha é um `<li>`; a linha em si (borda inferior inclusive) mora no
- * filho, então o clip apaga também o filete — sem sobrar régua órfã. */
-.list[data-collapsed="true"] > .extra {
-  height: 0;
-  overflow: hidden;
-}
+/* ⚠️ O CLIP DAS LINHAS EXCEDENTES MUDOU DE ARQUIVO em 2026-09-20.
+ *
+ * Ele morava aqui como `.list[data-collapsed="true"] > .extra`, uma regra que
+ * não dependia de nada fora do painel. Com a lista reordenando por base, quais
+ * linhas são "excedentes" passou a depender de `data-view`, que vive no
+ * `<html>` — fora do alcance de um módulo CSS sem `:global`. A regra foi para
+ * `app/globals.css`, ao lado do resto da cascata de `data-view`, e passou a
+ * ler `[data-extra-row~="parcial"]` / `[data-extra-row~="proj"]` no lugar da
+ * classe.
+ *
+ * A mecânica não mudou: `height: 0; overflow: hidden`, nunca `display: none` —
+ * o conteúdo continua com layout próprio e portanto continua exposto à árvore
+ * de acessibilidade e à busca da página (ADR-0017 / decisão D21). */

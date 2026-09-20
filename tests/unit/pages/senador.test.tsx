@@ -999,10 +999,20 @@ describe("/uf/[sigla]/senador (T-10)", () => {
     expect(semNada.querySelectorAll("h1").length).toBe(1);
   });
 
-  it("(w) a ordem exibida é a do apurado, com a projeção como desempate", async () => {
-    // Espelho de `rankByParcial` nas outras rotas: é o apurado que o leitor
-    // confere contra o boletim do TSE. Aqui o 3º tem o MAIOR `pct_atual`, e
-    // por isso ele é quem ocupa a 1ª linha — e uma das vagas.
+  it("(w) a ordem exibida acompanha a base ativa — nas duas bases", async () => {
+    // 🔴 Reescrito em 2026-09-20. Até aqui este teste afirmava que a ordem
+    // exibida era SEMPRE a do apurado — que é metade da verdade nova: o
+    // apurado manda quando o leitor está em "Parcial", e a projeção quando
+    // está em "Projeção" (decisão do dono, "tudo acompanha a base ativa").
+    //
+    // A fixture inverte as duas ordens de ponta a ponta:
+    //   por `pct_atual`     → Célia (60) · Bruno (20) · Ana (10)
+    //   por `pct_projetado` → Ana (40)   · Bruno (30) · Célia (29)
+    //
+    // A ordem do DOM é a da PROJEÇÃO; a da parcial vem de `order`, que o
+    // happy-dom não resolve (ele não faz layout). Por isso o que se afirma
+    // aqui é o CONTRATO que a cascata lê: `--ord-parcial` / `--ord-proj` por
+    // linha, mais os dois números e o marcador de vaga de cada base.
     const invertido = ufPayload({
       candidatos: [
         ufCand(1, "Ana Lima", "PT", 40, { pct_atual: 10, p_eleito: 0.5 }),
@@ -1014,9 +1024,31 @@ describe("/uf/[sigla]/senador (T-10)", () => {
     const doc = await render(UFSenadorPage(PARAMS_SP));
     const linhas = [...doc.querySelectorAll("ol > li")];
 
-    expect(linhas[0]?.textContent).toContain("Célia Mota");
-    expect(linhas[0]?.getAttribute("data-vaga")).toBe("true");
-    expect(linhas[2]?.getAttribute("data-vaga")).toBeNull();
+    // DOM = projeção, e o atributo declara isso.
+    expect(linhas[0]?.textContent).toContain("Ana Lima");
+    expect(linhas[2]?.textContent).toContain("Célia Mota");
+    expect(linhas[0]?.getAttribute("data-ord")).toBe("proj");
+
+    const ord = (li: Element | undefined) => li?.getAttribute("style") ?? "";
+    // Ana: 1ª na projeção, 3ª na parcial. Célia: o inverso.
+    expect(ord(linhas[0])).toContain("--ord-proj:0");
+    expect(ord(linhas[0])).toContain("--ord-parcial:2");
+    expect(ord(linhas[2])).toContain("--ord-proj:2");
+    expect(ord(linhas[2])).toContain("--ord-parcial:0");
+
+    // 🔴 A ocupação de vaga acompanha a base — e é isto que faz a tela dizer
+    // coisas diferentes sobre quem se elege em cada visualização. Com 2 vagas,
+    // na projeção entram Ana e Bruno; na parcial, Célia e Bruno. Bruno é o
+    // único que entra nas duas.
+    expect(linhas[0]?.getAttribute("data-vaga")).toBe("proj");
+    expect(linhas[1]?.getAttribute("data-vaga")).toBe("true");
+    expect(linhas[2]?.getAttribute("data-vaga")).toBe("parcial");
+
+    // E o RÓTULO concorda com a base que está na tela: quem só ocupa na
+    // parcial não pode ser anunciado como "projetada".
+    const marcadorCelia = linhas[2]?.querySelector("[data-testid='result-vaga-marker']");
+    expect(marcadorCelia?.textContent?.toLowerCase()).toContain("parcial");
+    expect(marcadorCelia?.textContent?.toLowerCase()).not.toContain("projetada");
   });
 });
 

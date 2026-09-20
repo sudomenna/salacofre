@@ -62,8 +62,27 @@ import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 export interface CandidateResultRowProps {
-  /** Posição exibida à esquerda. Normalmente `candidato.rank`. */
+  /**
+   * Posição exibida à esquerda **na base parcial**. Normalmente
+   * `candidato.rank` nas listas de uma base só.
+   */
   rank: number;
+  /**
+   * Posição exibida à esquerda **na base projeção** (2026-09-20).
+   *
+   * Omitida — o caso das listas que não reordenam (`<CandidateRanking>`,
+   * `<MinorCandidatesList>`) — o mesmo número vale nas duas bases e sai um
+   * nó só. Presente e IGUAL a {@link rank}, idem: a linha não paga nada
+   * quando as duas ordens concordam, que é o caso da maioria das linhas na
+   * maior parte da noite.
+   *
+   * Presente e diferente, saem os DOIS números, cada um sob `data-view-only`
+   * — a mesma ferramenta que a `<Figure>` de margem e a `<VoteBar>` já usam.
+   * Sem isso, a lista reordenada pela cascata (ver `<ResultPanel>`) mostraria
+   * "2, 1, 3" de cima para baixo: o texto do número viria do servidor, fixo,
+   * enquanto a POSIÇÃO da linha mudaria com o controle.
+   */
+  rankProj?: number;
   nome: string;
   partido: string;
   /**
@@ -404,6 +423,7 @@ function deltaGlyph(delta: number): string {
 
 export function CandidateResultRow({
   rank,
+  rankProj,
   nome,
   partido,
   cor,
@@ -446,8 +466,20 @@ export function CandidateResultRow({
         borderBottom: "1px solid var(--border-hairline)",
       }}
     >
+      {/* O número da esquerda. Um nó quando as duas bases dão a mesma posição
+          (o normal), dois quando divergem — ver {@link CandidateResultRowProps.rankProj}.
+          O `<span>` externo é o item da grade nos dois casos: pôr os dois
+          filhos direto na grade os transformaria em duas colunas e quebraria o
+          `gridTemplateColumns` de quatro faixas. */}
       <span aria-hidden="true" style={{ font: "var(--type-data)", color: "var(--text-muted)" }}>
-        {rank}
+        {rankProj == null || rankProj === rank ? (
+          rank
+        ) : (
+          <>
+            <span data-view-only="parcial">{rank}</span>
+            <span data-view-only="proj">{rankProj}</span>
+          </>
+        )}
       </span>
 
       {/* O avatar é irmão do EMPILHADO nome+votos, não do nome: centrado contra

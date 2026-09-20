@@ -26,6 +26,13 @@
  *      payload inteiro ficam fora do bundle do cliente. O que vai para o
  *      cliente é este arquivo mais o `<Button>`.
  *
+ * ## A lista também reordena (2026-09-20)
+ *
+ * As linhas chegam na ordem da PROJEÇÃO e a cascata de `app/globals.css` as
+ * reposiciona com `order` quando a base ativa é "Parcial". Este componente não
+ * participa disso — mas o `data-collapsed` que ele escreve é metade do
+ * seletor que decide quais 6 linhas ficam visíveis EM CADA BASE.
+ *
  * ## `aria-expanded` num conteúdo que nunca some
  *
  * O estado ainda é real e ainda merece ser anunciado: colapsada, a lista
@@ -45,16 +52,15 @@ import styles from "./ResultPanel.module.css";
 export interface CandidateListCollapseProps {
   /**
    * TODAS as linhas, já renderizadas no servidor, como `<li>`. As excedentes
-   * precisam carregar `className={resultPanelExtraRowClass}` — quem monta a
-   * lista é o `<ResultPanel>`, que conhece o `limit`.
+   * precisam carregar `data-extra-row` com as bases em que elas caem fora do
+   * `limit` — quem monta a lista é o `<ResultPanel>`, que conhece o `limit` e
+   * as duas ordens. Quem clipa é a cascata de `app/globals.css`, que é a única
+   * que enxerga o `data-view` do `<html>`.
    */
   children: React.ReactNode;
   /** Quantidade total de candidatos — entra no rótulo do botão. */
   total: number;
 }
-
-/** Classe que marca uma linha como excedente. Exportada para o `<ResultPanel>`. */
-export const resultPanelExtraRowClass = styles.extra;
 
 /** Chevron do kit (`App.jsx:16`), decorativo — o rótulo já diz o estado. */
 function Chevron({ dir }: { dir: "up" | "down" }) {

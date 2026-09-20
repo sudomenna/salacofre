@@ -52,12 +52,35 @@
  *     num `<span>`/`<div>` externo e **nunca** na `<Figure>` (que declara
  *     `display: grid` inline, e inline vence folha de autor).
  *     Em ambos os casos o número da outra base continua legível na `note`.
+ *   - `order` (2026-09-20) — a POSIÇÃO da linha na lista. Ver abaixo.
  *
  * Nenhum candidato é escondido em nenhum estado — ver `CandidateListCollapse`
  * e `ResultPanel.module.css` para o colapso da lista (decisão D21).
+ *
+ * ===========================================================================
+ * 2026-09-20 — "tudo acompanha a base ativa"
+ * ===========================================================================
+ *
+ * Decisão do dono, textual, depois de perguntado o que deveria acompanhar a
+ * troca: **lista, numeração, destaque de margem e ocupação de vaga**. Antes
+ * disso a home ordenava por projeção e as três rotas de UF por parcial, e
+ * nenhuma das duas reagia ao controle.
+ *
+ * Seis coisas passaram a ser por base, e cada uma está comentada no ponto de
+ * uso: a ordem das linhas (`order`), o número à esquerda (`rank`/`rankProj`),
+ * o valor E O RÓTULO da figura de margem, o par que a `<VoteBar>` desenha,
+ * quem ocupa vaga (e o texto do marcador), e quais linhas o colapso clipa.
+ *
+ * Duas coisas deliberadamente NÃO seguem a base, e as duas por escrito:
+ *
+ *   - a **cor** (`corRankDe`) — constituição § 2: estável a noite inteira,
+ *     "não muda por rank". Uma candidatura sem partido mapeado trocaria de
+ *     tinta a cada toque no botão;
+ *   - a **densidade** (`compact`) — não está na lista do dono, e faria a
+ *     altura das linhas saltar ao alternar.
  */
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { VoteBar, type VoteBarSegment } from "@/components/atoms/bars/VoteBar";
 import { CandidateAvatar } from "@/components/atoms/data/CandidateAvatar";
@@ -69,14 +92,12 @@ import {
   candidateResultRowProps,
 } from "@/components/atoms/tables/CandidateResultRow";
 import { candidateColor } from "@/components/blocks/_candidateColor";
-import {
-  CandidateListCollapse,
-  resultPanelExtraRowClass,
-} from "@/components/blocks/CandidateListCollapse";
+import { CandidateListCollapse } from "@/components/blocks/CandidateListCollapse";
 import { candidatoFotoUrl } from "@/lib/blob/paths";
 import type { EdgeCandidate } from "@/lib/edge-config/types";
 import { formatPp, formatVotesCompact } from "@/lib/utils/format";
 import { nomeExibicao, primeiroNomeExibicao } from "@/lib/utils/nome-candidato";
+import { ordensPorBase } from "@/lib/utils/rank-parcial";
 
 /**
  * O que o painel lê de um candidato — o subconjunto comum a `EdgeCandidate`
@@ -89,9 +110,10 @@ import { nomeExibicao, primeiroNomeExibicao } from "@/lib/utils/nome-candidato";
  * alternativa seria uma segunda variante do painel para UF — que é exatamente
  * o que não se quer.
  *
- * Consequência para quem chama: com `rank` ausente, o rank exibido é o índice
- * do array + 1. A ORDEM que o caller passa É o ranking; ver o comentário de
- * `candidatos` abaixo.
+ * Consequência de `rank` ser opcional, depois de 2026-09-20: ele deixou de
+ * decidir o número exibido (o painel deriva as duas posições e passa as duas à
+ * linha) e passou a ter UM papel só — ser a base estável que resolve a COR
+ * quando a sigla não tem token próprio. Ver `corRankDe`.
  */
 export type ResultPanelCandidate = Pick<
   EdgeCandidate,
@@ -110,12 +132,19 @@ export type ResultPanelCandidate = Pick<
 
 export interface ResultPanelProps {
   /**
-   * Candidatos do escopo, **na ordem do ranking**.
+   * Candidatos do escopo, **em qualquer ordem** (`variant="medicao"`).
    *
-   * O payload nacional já vem assim e ainda carrega `rank` explícito. O
-   * payload de UF não tem `rank`: lá a ordem deste array é a única fonte do
-   * número exibido na linha, e também de quem é o líder e o 2º colocado nas
-   * derivações de margem e da barra de maioria (`candidatos[0]`/`[1]`).
+   * 🔴 Mudou em 2026-09-20. Até então a ordem deste array ERA o ranking, e
+   * cada rota entregava a sua: a home passava o array do payload (ordem do
+   * produtor, projeção) e as três rotas de UF passavam `rankByParcial(...)`.
+   * Com a decisão do dono de fazer tudo acompanhar a base ativa, uma ordem só
+   * deixou de bastar — **o painel deriva as duas** (`ordensPorBase`) e a
+   * cascata escolhe qual delas o leitor vê. Passar a lista já ordenada é
+   * inofensivo e inútil.
+   *
+   * Em `variant="identidade"` continua valendo o oposto, e é requisito:
+   * a ordem é a de quem chama (o número na urna, RF-161) e o painel não
+   * reordena nada.
    */
   candidatos: ResultPanelCandidate[];
   /** `pct_apurado_total` do escopo (0–100). */
@@ -252,11 +281,23 @@ function ppSemUnidade(valor: number): string {
   return formatPp(valor).replace(" pp", "");
 }
 
-/** Três segmentos: líder · Outros · 2º, na base pedida. */
+/**
+ * Três segmentos: líder · Outros · 2º, na base pedida.
+ *
+ * 🔴 `corDe` vem de FORA desde 2026-09-20, e não é refactor gratuito: com a
+ * lista reordenando por base, "o líder" é uma pessoa diferente em cada barra, e
+ * o fallback de rank que esta função usava (`lider.rank ?? 1`) daria a
+ * QUALQUER UM que liderasse a base o rank 1 — e portanto a cor 1. Numa
+ * candidatura sem partido mapeado, apertar o botão de visualização trocaria a
+ * cor dela, que é exatamente o que a constituição § 2 proíbe ("estável durante
+ * toda a noite", "não muda por rank"). Quem chama resolve a cor por uma base
+ * ESTÁVEL e a entrega pronta.
+ */
 function segmentos(
   lider: ResultPanelCandidate,
   segundo: ResultPanelCandidate,
   base: "atual" | "projetado",
+  corDe: (c: ResultPanelCandidate) => string,
 ): VoteBarSegment[] {
   const a = base === "atual" ? lider.pct_atual : lider.pct_projetado;
   const b = base === "atual" ? segundo.pct_atual : segundo.pct_projetado;
@@ -275,7 +316,7 @@ function segmentos(
       // Segmento do `<VoteBar>`: preenchimento com extensão ⇒ cor-base do
       // partido. `lider.cor` é a paleta por COLOCAÇÃO — e este arquivo já
       // avisava disso no chip, 140 linhas abaixo, sem aplicar aqui.
-      color: candidateColor(lider.partido, lider.rank ?? 1),
+      color: corDe(lider),
     },
     // Sem `color`: o `<VoteBar>` cai em `--party-outros`, que é exatamente o
     // token que o kit usa aqui (`App.jsx:26`).
@@ -284,7 +325,7 @@ function segmentos(
       id: segundo.id,
       label: primeiroNomeExibicao(segundo.nome, segundo.sqcand),
       pct: b,
-      color: candidateColor(segundo.partido, segundo.rank ?? 2),
+      color: corDe(segundo),
     },
   ];
 }
@@ -300,13 +341,26 @@ function segmentos(
  * "projetada" não é ornamento: enquanto a apuração corre, esta é a leitura do
  * modelo, não uma proclamação (constituição § 1 — nada aqui é oficial).
  *
+ * 🔴 **E por isso o rótulo mudou de ser fixo em 2026-09-20.** Desde que a
+ * ocupação de vaga passou a acompanhar a base ativa (decisão do dono, "tudo
+ * acompanha a base ativa"), o marcador pode estar descrevendo a leitura do
+ * MODELO ou a contagem PARCIAL do TSE, e são afirmações diferentes. Um
+ * "Vaga projetada" ao lado de números parciais seria pior que o defeito que a
+ * mudança corrige: diria que o modelo projeta uma coisa quando quem diz é o
+ * boletim. A `base` escolhe o texto, e `"ambas"` põe os dois no DOM sob
+ * `data-view-only` — que é o caso comum, porque quase sempre as duas bases
+ * elegem as mesmas pessoas.
+ *
  * Exportado desde 2026-09-18 (3ª rodada): `StateResultSheet.tsx` (a ficha que
  * o mapa nacional abre) é o SEGUNDO consumidor de RF-105 — reaproveita este
  * marcador em vez de desenhar um segundo badge com texto/estilo próprios, que
  * é exatamente o tipo de duplicação que já atrasou a correção de RF-104 por
- * uma rodada inteira.
+ * uma rodada inteira. Ele não tem controle de base e continua chamando sem
+ * argumento; o default `"proj"` preserva o texto que ele já mostrava.
  */
-export function VagaBadge() {
+const VAGA_LABEL = { parcial: "Vaga na parcial", proj: "Vaga projetada" } as const;
+
+export function VagaBadge({ base = "proj" }: { base?: "parcial" | "proj" | "ambas" } = {}) {
   return (
     <span
       data-testid="result-vaga-marker"
@@ -323,7 +377,14 @@ export function VagaBadge() {
         textTransform: "uppercase",
       }}
     >
-      Vaga projetada
+      {base === "ambas" ? (
+        <>
+          <span data-view-only="parcial">{VAGA_LABEL.parcial}</span>
+          <span data-view-only="proj">{VAGA_LABEL.proj}</span>
+        </>
+      ) : (
+        VAGA_LABEL[base]
+      )}
     </span>
   );
 }
@@ -472,14 +533,75 @@ export function ResultPanel({
   // contradição, não uma configuração.
   const mostrarPoles = identidade ? false : (poles ?? !multiVaga);
 
-  const lider = candidatos[0];
-  const segundo = candidatos[1];
+  /* =========================================================================
+   * AS DUAS ORDENS (2026-09-20) — "tudo acompanha a base ativa"
+   *
+   * Decisão do dono, textual. Até aqui a home usava `national.candidatos` como
+   * veio (ordem do produtor: projeção) e as três rotas de UF ordenavam por
+   * parcial — e nenhuma das duas reagia ao controle "Parcial / Projeção".
+   * Agora as quatro telas seguem a base que está na tela: a ordem da lista, o
+   * número à esquerda, o destaque de margem e a ocupação de vaga no Senado.
+   *
+   * 🔴 **O painel ordena sozinho.** Quem chama não precisa mais entregar a
+   * lista ranqueada — e não adianta, porque uma ordem só não resolve o
+   * problema. `ordensPorBase` é o ponto único das duas
+   * (`lib/utils/rank-parcial.ts`), e o produtor Python porta o comparador de
+   * parcial; um teste compara os dois lados.
+   *
+   * **A ordem do DOM é a da PROJEÇÃO**, e a razão está no bloco de `order` de
+   * `app/globals.css`: é a base default, é a que o servidor escreve no
+   * `<html>`, e portanto é a ordem em que a página abre para todo mundo antes
+   * de qualquer hidratação.
+   *
+   * Em `identidade` NÃO se ordena nada: ali a lista não é ranking, a ordem é a
+   * do número na urna e quem a fixa é quem chama (RF-161). Reordenar aqui
+   * reintroduziria o falso favoritismo estável que aquele RF existe para não
+   * haver.
+   * ====================================================================== */
+  const ordens = identidade ? null : ordensPorBase(candidatos);
+  const naOrdemDoDom = ordens ? ordens.proj : candidatos;
+  const porParcial = ordens ? ordens.parcial : candidatos;
+  const porProj = ordens ? ordens.proj : candidatos;
 
-  // RF-104 — os dois lados da margem que de fato decide a eleição.
-  // Vaga única: 1º vs 2º (o que o painel sempre fez). Duas vagas: o último
-  // a entrar (índice `nVagas - 1`) vs o primeiro a ficar de fora (`nVagas`).
-  const dentro = candidatos[nVagas - 1];
-  const fora = candidatos[nVagas];
+  /**
+   * O rank que resolve a COR — e ele é o mesmo nas duas bases, de propósito.
+   *
+   * `candidateColor` cai em `colorForRank` quando a sigla não tem token
+   * próprio (ausente, desconhecida, federação). Se esse rank passasse a ser a
+   * posição CORRENTE, apertar o botão de visualização trocaria a cor dessas
+   * candidaturas — e a constituição § 2 exige que a cor seja estável durante
+   * toda a noite e "não mude por rank" (o argumento inteiro está em
+   * `candidateResultRowProps`, que o descobriu em 19/09).
+   *
+   * A base escolhida é exatamente o valor que este painel já usava antes de
+   * haver duas ordens: o `rank` do payload quando ele existe (home), e a
+   * posição na ordenação por PARCIAL quando não existe (as três rotas de UF,
+   * que passavam `i + 1` sobre o array já ordenado por `rankByParcial`). Ou
+   * seja: nenhuma cor muda hoje, e nenhuma pode mudar ao alternar.
+   */
+  const corRankDe = (c: ResultPanelCandidate): number =>
+    c.rank ?? (ordens ? (ordens.posParcial.get(c.id) ?? 0) + 1 : 1);
+  const corDe = (c: ResultPanelCandidate): string => candidateColor(c.partido, corRankDe(c));
+
+  // RF-104 — os dois lados da margem que de fato decide a eleição, EM CADA
+  // BASE. Vaga única: 1º vs 2º (o que o painel sempre fez). Duas vagas: o
+  // último a entrar (índice `nVagas - 1`) vs o primeiro a ficar de fora
+  // (`nVagas`). As duas listas são permutações do mesmo array, então "existe
+  // duelo" é a mesma resposta nas duas — mas QUEM está dos dois lados não é.
+  const dentroParcial = porParcial[nVagas - 1];
+  const foraParcial = porParcial[nVagas];
+  const dentroProj = porProj[nVagas - 1];
+  const foraProj = porProj[nVagas];
+
+  // O par líder+2º de cada base, para a barra de maioria. Uma tupla em vez de
+  // dois índices soltos porque as duas barras só existem juntas: se uma base
+  // não tem dois candidatos, nenhuma tem (são permutações do mesmo array).
+  const par = (
+    lista: ResultPanelCandidate[],
+  ): [ResultPanelCandidate, ResultPanelCandidate] | null =>
+    lista[0] != null && lista[1] != null ? [lista[0], lista[1]] : null;
+  const duploParcial = par(porParcial);
+  const duploProj = par(porProj);
 
   // DERIVAÇÃO 1 — o payload não traz "votos apurados" agregados; some-se os
   // dos candidatos. Brancos e nulos não entram (não são voto em candidato).
@@ -498,17 +620,24 @@ export function ResultPanel({
 
   // DERIVAÇÃO 3 — a margem que decide a corrida, nas duas bases. O payload
   // nacional não tem margem agregada pronta.
-  const temDuelo = dentro != null && fora != null;
-  const margemParcial = temDuelo ? dentro.pct_atual - fora.pct_atual : 0;
-  const margemProj = temDuelo ? dentro.pct_projetado - fora.pct_projetado : 0;
-  const rotuloMargem = !temDuelo
-    ? "Margem"
-    : multiVaga
-      ? // RF-104 — o rótulo precisa dizer QUAL margem é esta. "Margem
-        // <líder>" num painel de duas vagas seria lido como a distância do
-        // 1º para o 2º, que é justamente a que não importa.
-        `Margem para a ${nVagas}ª vaga`
-      : `Margem ${primeiroNomeExibicao(dentro.nome, dentro.sqcand)}`;
+  //
+  // 🔴 Cada margem sai do PAR DAQUELA BASE, e desde 2026-09-20 o rótulo
+  // também. Antes o par vinha de uma ordenação só: a figura de projeção
+  // mostrava o número projetado sob o nome de quem liderava a PARCIAL — dois
+  // fatos verdadeiros costurados numa frase falsa.
+  const temDuelo = dentroParcial != null && foraParcial != null;
+  const margemParcial = temDuelo ? dentroParcial.pct_atual - foraParcial.pct_atual : 0;
+  const margemProj =
+    dentroProj != null && foraProj != null ? dentroProj.pct_projetado - foraProj.pct_projetado : 0;
+  const rotuloMargem = (dentro: ResultPanelCandidate | undefined): string =>
+    dentro == null
+      ? "Margem"
+      : multiVaga
+        ? // RF-104 — o rótulo precisa dizer QUAL margem é esta. "Margem
+          // <líder>" num painel de duas vagas seria lido como a distância do
+          // 1º para o 2º, que é justamente a que não importa.
+          `Margem para a ${nVagas}ª vaga`
+        : `Margem ${primeiroNomeExibicao(dentro.nome, dentro.sqcand)}`;
 
   const excedentes = Math.max(0, candidatos.length - limit);
 
@@ -518,17 +647,79 @@ export function ResultPanel({
           <CandidaturaIdentidadeRow candidato={c} ufDaFoto={ufDaFoto} />
         </li>
       ))
-    : candidatos.map((c, i) => {
-        const props = candidateResultRowProps(c, i + 1, i >= 2 && c.pct_atual < 3);
-        const ocupaVaga = multiVaga && i < nVagas;
+    : naOrdemDoDom.map((c, i) => {
+        // A posição desta linha em cada base. `i` é a posição no DOM, que é a
+        // da projeção — usada só para o que é do DOM (as fotos `eager`).
+        const iParcial = ordens?.posParcial.get(c.id) ?? i;
+        const iProj = ordens?.posProj.get(c.id) ?? i;
+
+        /*
+         * DENSIDADE — e ela NÃO acompanha a base, de propósito.
+         *
+         * `compact` é a linha reduzida das candidaturas pequenas, não uma
+         * afirmação sobre a corrida: o dono listou quatro coisas que seguem a
+         * base (lista, numeração, margem, vaga) e densidade não é nenhuma
+         * delas. Se seguisse, a ALTURA das linhas mudaria ao alternar e a
+         * página saltaria sob o dedo do leitor — e, pior, a linha precisaria
+         * existir duas vezes no DOM, que é o custo que `order` evita.
+         *
+         * O critério antigo (`índice >= 2`) era de uma ordem só. Aqui a linha
+         * só é compacta se estiver fora do pódio NAS DUAS bases: assim ela
+         * nunca aparece encolhida no topo da tela por ser pequena na outra
+         * base. É estritamente mais conservador — só deixa de comprimir.
+         */
+        const compact = c.pct_atual < 3 && iParcial >= 2 && iProj >= 2;
+
+        // 🔴 `iParcial + 1` como `fallbackRank`, e não a posição do DOM: é o
+        // valor que resolve a COR, e ele tem de ser o mesmo nas duas bases
+        // (ver `corRankDe`). O número EXIBIDO vem depois, explícito.
+        const props = candidateResultRowProps(c, iParcial + 1, compact);
+
+        // RF-105 — a ocupação de vaga acompanha a base. Consequência que o
+        // dono aceitou explicitamente: trocar a visualização muda quem a tela
+        // diz que está ocupando vaga. É por isso que o RÓTULO do marcador
+        // também muda (ver `<VagaBadge>`) — a tela nunca diz "projetada" sob
+        // números parciais.
+        const ocupaParcial = multiVaga && iParcial < nVagas;
+        const ocupaProj = multiVaga && iProj < nVagas;
+
+        // Quais bases clipam esta linha no colapso. Em cada base o número de
+        // linhas clipadas é o mesmo (`total - limit`); quais linhas, não.
+        const extras: string[] = [];
+        if (iParcial >= limit) extras.push("parcial");
+        if (iProj >= limit) extras.push("proj");
+
         return (
           <li
-            className={i >= limit ? resultPanelExtraRowClass : undefined}
-            data-extra-row={i >= limit ? "true" : undefined}
-            data-vaga={ocupaVaga ? "true" : undefined}
+            data-extra-row={extras.length > 0 ? extras.join(" ") : undefined}
+            // Gancho do seletor de `order` em `app/globals.css`. O valor diz
+            // qual base a ordem do DOM segue — é contrato, não decoração: um
+            // teste o afirma, porque tudo o que depende de ordem de DOM
+            // (leitor de tela, `Ctrl+F`, as fotos `eager`) depende dele.
+            data-ord="proj"
+            data-vaga={
+              ocupaParcial && ocupaProj
+                ? "true"
+                : ocupaParcial
+                  ? "parcial"
+                  : ocupaProj
+                    ? "proj"
+                    : undefined
+            }
             key={c.id}
+            style={{ "--ord-parcial": iParcial, "--ord-proj": iProj } as CSSProperties}
           >
-            {ocupaVaga ? <VagaBadge /> : null}
+            {ocupaParcial && ocupaProj ? (
+              <VagaBadge base="ambas" />
+            ) : ocupaParcial ? (
+              <span data-view-only="parcial">
+                <VagaBadge base="parcial" />
+              </span>
+            ) : ocupaProj ? (
+              <span data-view-only="proj">
+                <VagaBadge base="proj" />
+              </span>
+            ) : null}
             {/* A MESMA foto da tela de espera, no placar (pedido do dono,
                 14/09). O `avatar` vai sempre presente: é a coluna que existe,
                 não a foto. **Em toda linha, inclusive a compacta** — o dono viu
@@ -546,8 +737,18 @@ export function ResultPanel({
               {...props}
               avatar={{
                 fotoUrl: candidatoFotoUrl(ufDaFoto, c.sqcand),
+                // `i`, a posição no DOM (= projeção), e não `iParcial`: o corte
+                // é ditado pela DOBRA, e a dobra é a da base em que a página
+                // abre. Ver `AVATARES_EAGER`.
                 eager: i < AVATARES_EAGER,
               }}
+              // 🔴 Os dois números da esquerda, explícitos, sobrescrevendo o
+              // `rank` que `candidateResultRowProps` derivou. Sem isso a home
+              // imprimiria o `rank` do payload (que é o da projeção) ao lado de
+              // uma linha reposicionada pela cascata — e a lista sairia
+              // "2, 1, 3" de cima para baixo na base parcial.
+              rank={iParcial + 1}
+              rankProj={iProj + 1}
               variant="kit"
             />
           </li>
@@ -589,7 +790,7 @@ export function ResultPanel({
             <>
               <span data-testid="result-margem-parcial" data-view-only="parcial">
                 <Figure
-                  label={rotuloMargem}
+                  label={rotuloMargem(dentroParcial)}
                   note={`projeção ${formatPp(margemProj)}`}
                   size="lg"
                   unit="pp"
@@ -598,7 +799,7 @@ export function ResultPanel({
               </span>
               <span data-testid="result-margem-proj" data-view-only="proj">
                 <Figure
-                  label={rotuloMargem}
+                  label={rotuloMargem(dentroProj)}
                   note={`parcial ${formatPp(margemParcial)}`}
                   size="lg"
                   unit="pp"
@@ -611,14 +812,26 @@ export function ResultPanel({
       )}
 
       {/* Barra de maioria. Duas, uma por base, pelo mesmo motivo da margem:
-          dois preenchimentos sobrepostos na mesma barra são ilegíveis. */}
-      {mostrarPoles && lider != null && segundo != null ? (
+          dois preenchimentos sobrepostos na mesma barra são ilegíveis.
+
+          🔴 Cada barra desenha o líder e o 2º DAQUELA BASE (2026-09-20). Antes
+          as duas desenhavam o mesmo par, e a barra de projeção podia estar
+          rotulada com quem liderava a parcial. A COR de cada segmento, porém,
+          sai de `corDe` — presa a uma base estável —, então a mesma pessoa tem
+          a mesma tinta nas duas barras. */}
+      {mostrarPoles && duploParcial != null && duploProj != null ? (
         <div style={{ marginBottom: "var(--space-3)" }}>
           <div data-view-only="parcial">
-            <VoteBar marker={50} segments={segmentos(lider, segundo, "atual")} />
+            <VoteBar
+              marker={50}
+              segments={segmentos(duploParcial[0], duploParcial[1], "atual", corDe)}
+            />
           </div>
           <div data-view-only="proj">
-            <VoteBar marker={50} segments={segmentos(lider, segundo, "projetado")} />
+            <VoteBar
+              marker={50}
+              segments={segmentos(duploProj[0], duploProj[1], "projetado", corDe)}
+            />
           </div>
         </div>
       ) : null}

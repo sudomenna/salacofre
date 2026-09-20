@@ -745,6 +745,69 @@ a:hover {
   display: revert;
 }
 
+/* ----------------------------------------------------------------------------
+ * A ORDEM da lista de candidatos acompanha a base ativa (2026-09-20)
+ *
+ * Decisão do dono: "tudo acompanha a base ativa" — lista, numeração, destaque
+ * de margem e ocupação de vaga. Até aqui a home ordenava por projeção (a ordem
+ * que o produtor publica) e as três rotas de UF ordenavam por parcial, e
+ * NENHUMA das duas reagia ao controle.
+ *
+ * ## Por que `order` e não duas listas
+ *
+ * `data-view` é estado de CLIENTE (`lib/state/view-mode.ts`) e a home mais as
+ * 54 rotas de UF são pré-renderizadas ESTÁTICAS (ADR-0025 §§ 2 e 5). O
+ * servidor não sabe em qual base o leitor está, então ou ele emite as duas
+ * versões e a cascata escolhe, ou o painel vira Client Component.
+ *
+ * Emitir as duas LISTAS foi medido: a lista de 13 linhas do `<ResultPanel>`
+ * são 312 dos 367 nós do painel, e a home inteira tem 831 nós de elemento —
+ * duplicá-la custaria +312 nós (+38% da página) e ~42 KB de HTML acima da
+ * dobra. `order` custa, por linha, **zero** quando as duas bases dão a mesma
+ * posição e **dois nós** quando divergem (os dois algarismos do número à
+ * esquerda). Numa noite em que as duas ordens concordam, o custo é zero.
+ *
+ * Client Component custaria bundle acima da dobra, que é o teto que o
+ * RNF-007a guarda — e arrastaria `<CandidateResultRow>`, `<PartyTag>` e o
+ * payload inteiro para o cliente, que é exatamente o que
+ * `<CandidateListCollapse>` existe para evitar.
+ *
+ * ## O que isto custa, e o que compensa
+ *
+ * `order` desacopla a ordem VISUAL da ordem do DOM. Por isso a ordem do DOM é
+ * a da PROJEÇÃO: é a base default (`VIEW_MODE_DEFAULT`), é a que o servidor
+ * escreve no `<html>`, é a ordem em que o produtor já publica
+ * `EdgeNational.candidatos`, e portanto é a ordem em que a página abre para
+ * todo mundo — leitor de tela inclusive — antes de qualquer hidratação. Só
+ * quem TROCA para "Parcial" passa a ver uma ordem visual diferente da do DOM,
+ * e nesse estado cada linha carrega o próprio número de posição.
+ *
+ * `order` só vale entre irmãos de um container flex/grid: a `<ol>` da lista é
+ * `display: grid` (`ResultPanel.module.css`), e é isso que faz a regra pegar.
+ * ------------------------------------------------------------------------- */
+:root[data-view="parcial"] [data-ord] {
+  order: var(--ord-parcial);
+}
+
+:root[data-view="proj"] [data-ord] {
+  order: var(--ord-proj);
+}
+
+/* O colapso da lista (decisão D21) TAMBÉM é por base: as 6 linhas visíveis são
+ * as 6 primeiras DA BASE ATIVA, não as 6 primeiras do DOM. Sem isto, trocar
+ * para "Parcial" deixaria buracos — uma linha na 3ª posição visual clipada
+ * porque é a 9ª do DOM.
+ *
+ * A mecânica é a mesma do módulo: `height: 0; overflow: hidden` e NUNCA
+ * `display: none`, para que nenhum candidato saia da árvore de acessibilidade
+ * nem da busca da página (ADR-0017). `data-collapsed` só é escrito por
+ * `<CandidateListCollapse>`, então o seletor não alcança mais nada. */
+:root[data-view="parcial"] [data-collapsed="true"] > [data-extra-row~="parcial"],
+:root[data-view="proj"] [data-collapsed="true"] > [data-extra-row~="proj"] {
+  height: 0;
+  overflow: hidden;
+}
+
 /* ============================================================================
  * ADR-0029 § 3 — folga para a barra de cargos fixa no rodapé (mobile)
  *

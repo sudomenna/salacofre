@@ -183,13 +183,19 @@ describe("<ResultPanel />", () => {
     expect(renderToStaticMarkup(render())).not.toMatch(/display\s*:\s*none/);
 
     // As excedentes são marcadas — quem as clipa é a cascata de
-    // `ResultPanel.module.css` (`height: 0; overflow: hidden`), que preserva o
-    // layout do conteúdo e portanto a exposição a leitor de tela.
-    const extras = [...doc.querySelectorAll("[data-extra-row]")];
-    expect(extras).toHaveLength(ONZE.length - 6);
-    for (const li of extras) {
-      expect(li.getAttribute("class")).toBeTruthy();
-      expect(li.getAttribute("style") ?? "").not.toMatch(/display/);
+    // `app/globals.css` (`height: 0; overflow: hidden`), que preserva o layout
+    // do conteúdo e portanto a exposição a leitor de tela.
+    //
+    // A marca passou a ser POR BASE em 2026-09-20 (antes era uma classe do
+    // módulo): em cada base o colapso clipa `total - limit` linhas, mas QUAIS
+    // linhas depende da ordem daquela base. Contar `[data-extra-row]` sem
+    // qualificar a base voltaria a passar com o clip preso a uma ordem só.
+    for (const base of ["parcial", "proj"]) {
+      const extras = [...doc.querySelectorAll(`[data-extra-row~="${base}"]`)];
+      expect(extras).toHaveLength(ONZE.length - 6);
+      for (const li of extras) {
+        expect(li.getAttribute("style") ?? "").not.toMatch(/display/);
+      }
     }
   });
 

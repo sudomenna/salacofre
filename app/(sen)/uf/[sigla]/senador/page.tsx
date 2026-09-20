@@ -431,6 +431,12 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
   // `lib/config/cargos.ts`); o default cobre payloads gravados antes da spec
   // 016, que não têm a chave.
   const vagas = payload.vagas ?? VAGAS_PADRAO;
+  // 🔴 Este `rankeados` NÃO alimenta mais o `<ResultPanel>` (2026-09-20): o
+  // painel deriva as duas ordens sozinho e a cascata escolhe a da base ativa.
+  // O que sobrou aqui é o recorte do `<ChancesPanel>` — que continua na ordem
+  // do APURADO, de propósito: ele lista medidores de `p_eleito`, não um
+  // ranking, e trocar o elenco dele a cada toque no botão de visualização
+  // seria mudar um bloco que o dono não pediu para mudar.
   const rankeados = rankByParcial(payload.candidatos);
   const incertezaMedida = temIncertezaMedida(payload.candidatos);
 
@@ -488,7 +494,7 @@ export default async function UFSenadorPage({ params }: UFSenadorPageProps) {
             aqui montaria uma URL sintaticamente válida que devolve 404 no
             navegador do leitor, sem nenhum erro do lado do servidor. */}
       <ResultPanel
-        candidatos={rankeados}
+        candidatos={payload.candidatos}
         headingLevel={1}
         kicker="Projeção Atlas Menna · não oficial"
         note={`${vagas} vagas por estado, em turno único — as ${vagas} candidaturas mais votadas se elegem, sem diferença entre elas. A margem acima é a distância da ${vagas}ª vaga para a primeira candidatura fora dela. Projeção por regra de três sobre o boletim do estado.`}

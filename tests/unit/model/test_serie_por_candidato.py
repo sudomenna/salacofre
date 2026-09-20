@@ -276,6 +276,22 @@ def test_ausencia_de_pct_atual_nao_desordena() -> None:
     assert [c["id"] for c in ordenar_por_parcial(com_buraco)] == [8, 7]
 
 
+def _criterios_do_comparador_ts(nome: str) -> list[tuple[str, str, str, str]]:
+    """Os `return a.x - b.y;` do corpo de UMA função de `rank-parcial.ts`.
+
+    🔴 O corte no próximo `export` não é zelo: até 2026-09-20 este teste fazia
+    `split(nome)[1]` e lia o resto do ARQUIVO. Enquanto houve uma função só,
+    dava no mesmo. No dia em que `rankByProjecao` entrou logo abaixo, a lista
+    de critérios de `rankByParcial` passou a incluir os dela — o guarda
+    reprovaria uma mudança que não houve, e (pior) deixaria de discriminar
+    qual dos dois comparadores mudou.
+    """
+    fonte = (RAIZ / "lib" / "utils" / "rank-parcial.ts").read_text(encoding="utf-8")
+    depois = fonte.split(f"export function {nome}")[1]
+    corpo = re.split(r"\nexport ", depois)[0]
+    return re.findall(r"return\s+([ab])\.(\w+)\s*-\s*([ab])\.(\w+);", corpo)
+
+
 def test_comparador_python_tem_paridade_com_o_typescript() -> None:
     """O porte e o original têm de mudar no MESMO commit (ADR-0046 D4).
 
@@ -286,14 +302,69 @@ def test_comparador_python_tem_paridade_com_o_typescript() -> None:
     mata: mudar o critério de um lado só — que não quebraria nada, e faria o
     gráfico mostrar um conjunto diferente do que a tabela ranqueia logo acima.
     """
-    fonte = (RAIZ / "lib" / "utils" / "rank-parcial.ts").read_text(encoding="utf-8")
-    corpo = fonte.split("export function rankByParcial")[1]
-    comparacoes = re.findall(r"return\s+([ab])\.(\w+)\s*-\s*([ab])\.(\w+);", corpo)
-    assert comparacoes == [
+    assert _criterios_do_comparador_ts("rankByParcial") == [
         ("b", "pct_atual", "a", "pct_atual"),  # desc
         ("b", "pct_projetado", "a", "pct_projetado"),  # desc
         ("a", "id", "b", "id"),  # asc
     ], "critério de `rankByParcial` mudou no TypeScript e não aqui"
+
+
+def test_comparador_de_projecao_ts_e_o_do_produtor() -> None:
+    """`rankByProjecao` (2026-09-20) tem de ser a ordem que ESTE arquivo grava.
+
+    A tela passou a reordenar a lista quando o leitor troca para "Projeção", e
+    o comparador que ela usa vive ao lado do de parcial. O gêmeo dele não é uma
+    função nova: é a ordenação que `compute_national_projection` já usa para
+    numerar `EdgeCandidate.rank` — `sorted(..., key=(-pct_projetado, id))`.
+
+    Dois critérios, e a ausência do terceiro é o ponto. Um desempate por
+    `pct_atual` no TypeScript faria, num empate de projeção, a POSIÇÃO da linha
+    discordar do NÚMERO que veio no payload, na mesma tela. Mutação que este
+    teste mata: acrescentar (ou inverter) um critério só do lado da tela.
+    """
+    assert _criterios_do_comparador_ts("rankByProjecao") == [
+        ("b", "pct_projetado", "a", "pct_projetado"),  # desc
+        ("a", "id", "b", "id"),  # asc
+    ], "critério de `rankByProjecao` mudou no TypeScript e não aqui"
+
+
+def test_ordem_do_payload_nacional_e_pct_projetado_depois_id() -> None:
+    """O lado Python da paridade, medido no PAYLOAD — não no texto do código.
+
+    `build_edge_payload` é quem grava `national.candidatos`, e é essa ordem que
+    a tela reproduz quando o leitor está em "Projeção". A fixture é construída
+    para que os dois desempates possíveis DISCORDEM: 2 e 5 empatam em projeção
+    (30,0) e o 5 tem `pct_atual` muito maior. Se o produtor desempatasse por
+    apurado, a ordem seria [9, 5, 2]; por `id`, é [9, 2, 5].
+
+    Mutação que ele mata: alinhar o produtor ao "espelho simétrico" do
+    comparador de parcial — que é exatamente a mudança tentadora de fazer no
+    TypeScript e replicar aqui.
+    """
+    uf_rows = [
+        _uf_row("SP", 9, 4_000_000, 40.0, 40.0),
+        _uf_row("SP", 2, 3_000_000, 10.0, 30.0),
+        _uf_row("SP", 5, 3_000_000, 90.0, 30.0),
+    ]
+    # 🔴 `pct_atual` EXPLÍCITO nas linhas nacionais, e não só nas de UF: é a
+    # chave que o desempate errado leria, e `_national_row` não a traz. Sem
+    # isto o teste passa com o produtor mutado — medido em 2026-09-20, e é
+    # exatamente a armadilha do "teste que não discrimina".
+    national_rows = [
+        {**_national_row(5, 30.0, 3), "pct_atual": 90.0},
+        {**_national_row(2, 30.0, 2), "pct_atual": 10.0},
+        {**_national_row(9, 40.0, 1), "pct_atual": 0.0},
+    ]
+    payload = build_edge_payload(
+        cargo=1,
+        turno=1,
+        ts_iso=BOLETIM.isoformat(),
+        uf_rows=uf_rows,
+        national_rows=national_rows,
+        eleitorado_total_by_uf={"SP": 34_000_000},
+    )
+
+    assert [c["id"] for c in payload["national"]["candidatos"]] == [9, 2, 5]
 
 
 # ===========================================================================
