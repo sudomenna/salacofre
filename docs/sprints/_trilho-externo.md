@@ -195,7 +195,28 @@ Corolário operacional: **`ok: true` não é evidência de nada.** Confira o log
       [`../operations/pre-prod-checklist.md`](../operations/pre-prod-checklist.md) marcado.
 - [ ] Lag `tse.lag_seconds` < 90 s, ou o desvio registrado em
       [`../reference/risks.md`](../reference/risks.md) com o número real.
-- [ ] Payload nacional < 75 KB, medido no **pior caso de cada campo** — não em amostra.
+- [x] ~~Payload nacional < 75 KB~~ — **MEDIDO em 2026-09-19, e o limiar estava errado.**
+      Os 75 KB foram calibrados para "11 candidatos + `cenarios_2t`" (está escrito no
+      `writer.ts`). Aplicá-los ao **Senado**, que junta 27 corridas de 2 vagas num payload
+      só — **285 candidaturas** —, fazia o alarme tocar por o cargo existir: 98,8 KiB
+      medidos, e **94,3 KiB já antes** daquela sessão. O limiar passou a acompanhar o
+      elenco (`limiarNacionalBytes`, `lib/edge-config/writer.ts`): piso de 75 KB no ponto
+      de calibração, mais 512 B por candidatura acima de 12 — ~1,8× o custo marginal
+      **medido** de 281 B, que é constante nos dois cargos de 27 corridas.
+
+      | cargo | limiar | payload real | folga |
+      |---|---|---|---|
+      | Presidente (12) | 75 KiB | 26,7 KiB | 2,8× |
+      | Governador (180) | 159 KiB | 70,0 KiB | 2,3× |
+      | Senador (285) | 215 KiB | 98,8 KiB | 2,2× |
+
+      A parede de verdade não mudou: 1 MB de store, aviso em 780 KB, erro em 940 KB — e o
+      store inteiro está em ~410 KB. Travado por `tests/unit/edge-config/limiar-nacional.test.ts`,
+      que mede contra os payloads REAIS.
+
+      ⚠️ **O que continua a vigiar é o CRESCIMENTO, e o gatilho é o Item 3 desta página**:
+      a reimportação do cadastro em 02–03/10 pode aumentar o número de candidaturas, e este
+      payload cresce junto. **Remedir depois dela.**
 - [ ] As 4 rotas do preview renderizando 1º turno com dado do simulado: `/`, `/uf/SP`, `/governador`,
       `/uf/SP/governador`.
 
@@ -325,6 +346,17 @@ aparecendo no placar ao vivo.
       não com 446.
 - [ ] Deployment de produção **posterior** ao passo 3.
 - [ ] `curl` na página pública `/candidatos` mostrando um nome que **mudou** nesta reimportação.
+- [ ] 🔴 **Payload do Senado remedido** (acrescentado em 2026-09-19). Ele é o maior dos
+      quatro — **98,8 KiB** com 285 candidaturas —, e esta reimportação é o único evento
+      previsto que pode aumentar o elenco. O limiar acompanha o elenco desde 19/09
+      (`limiarNacionalBytes`), então o alarme por chave não vai tocar à toa; o que pode
+      apertar é o **store inteiro**, hoje em ~410 KB de 1 MB (aviso em 780 KB, erro em
+      940 KB). Medir com:
+      ```bash
+      node -e "const d=require('./tests/fixtures/simulacao/senador.json');console.log((Buffer.byteLength(JSON.stringify(d))/1024).toFixed(1)+' KiB',(d.national?.candidatos||[]).length+' candidaturas')"
+      ```
+      Se o número saltar muito, o caminho NÃO é afrouxar o limiar — é encolher o payload
+      (ver a discussão em `docs/_meta/handoff-2026-09-19-ajustes-ui.md` § Aberto).
       Teste verde e deploy verde não provam que o dado chegou à tela: em 17/09 um bloco inteiro
       passou nos testes e **não existia em produção**. Depois de publicar, confira no site.
 
