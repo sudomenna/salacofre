@@ -79,7 +79,7 @@ import { useCallback, useEffect, useMemo } from "react";
 
 import { Figure } from "@/components/atoms/data/Figure";
 import { Sheet } from "@/components/atoms/overlays/Sheet";
-import { candidateColor } from "@/components/blocks/_candidateColor";
+import { candidateColor, DATA_FILL_STROKE } from "@/components/blocks/_candidateColor";
 import { type MunicipioRow, MunicipioTable } from "@/components/blocks/MunicipioTable";
 import { MunicipioWaffleGrid } from "@/components/blocks/MunicipioWaffleGrid";
 import { useMunicipioSheetStore } from "@/components/shared/municipio-sheet-store";
@@ -168,14 +168,31 @@ function FolhaLinha({ row, rank }: { row: FolhaRow; rank: number }) {
           {formatVotes(row.votos)} votos
         </div>
       </div>
-      {/* Barra decorativa: o percentual já está em texto acima. */}
+      {/* Barra decorativa: o percentual já está em texto acima.
+
+          🔴 2026-09-20 — a CALHA ganhou o contorno que faltava desde que a
+          barra existe. `DATA_FILL_STROKE` é obrigatório em toda superfície
+          colorida por partido (`_candidateColor.ts`), e aqui ele nunca foi
+          posto: medido contra `--surface-sunken` no tema claro, o
+          preenchimento dava PSOL 1,92:1 · PSB 2,02 · "outros" (o destino de
+          toda FEDERAÇÃO) 2,21 · NOVO 2,50, todos abaixo do piso de 3:1 do
+          RNF-035 / WCAG SC 1.4.11. Sem fronteira, a barra clara encosta na
+          calha clara e o leitor perde ONDE o dado acaba — que é a única
+          informação que uma barra carrega.
+
+          A forma é a de `<VoteBar>`, `<RemainingPanel>` e `<StrongholdsPanel>`:
+          contorno na CALHA (uma linha, os 31 tokens de uma vez), não no
+          preenchimento. A altura subiu de 4 para 6 junto, que é a altura dos
+          dois irmãos mais próximos: com `box-sizing: border-box`, 1px de borda
+          em cima e embaixo de uma calha de 4px deixaria 2px de miolo. */}
       <div
         aria-hidden="true"
         style={{
           gridColumn: "2 / -1",
-          height: 4,
+          height: 6,
           borderRadius: "var(--radius-xs)",
           background: "var(--surface-sunken)",
+          border: DATA_FILL_STROKE,
           overflow: "hidden",
         }}
       >
@@ -186,11 +203,16 @@ function FolhaLinha({ row, rank }: { row: FolhaRow; rank: number }) {
             // Barra da folha do município: preenchimento com extensão ⇒
             // cor-base do partido. `row.cor` vinha da paleta por COLOCAÇÃO.
             //
-            // O `rank` é o da PROP (posição nesta folha, `i + 1`), não um campo
-            // de `MunicipioVotoCandidato` — que não tem rank, e nem deveria: a
-            // ordem aqui é a deste município, não a da corrida. Ele só entra no
-            // fallback de sigla fora da paleta editorial.
-            background: candidateColor(row.partido, rank),
+            // 🔴 O 2º argumento (`rank`) saiu em 2026-09-20. Desde `19c2ae2`
+            // ele é IGNORADO por `candidateColor` — federação e sigla ausente
+            // resolvem para `--party-outros`, e não há mais fallback por
+            // colocação a alimentar. Passá-lo continuava anunciando na
+            // chamada uma influência que a função não tem: a próxima pessoa a
+            // ler esta linha concluiria que a cor daqui depende da posição na
+            // folha, que é exatamente o que a constituição § 2 proíbe. O
+            // `rank` da prop segue em uso — ele é o número "1, 2, 3…" impresso
+            // na primeira coluna da linha.
+            background: candidateColor(row.partido),
           }}
         />
       </div>

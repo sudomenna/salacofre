@@ -102,7 +102,7 @@ import {
   type DetailUnavailableReason,
 } from "@/components/atoms/surfaces/DetailUnavailable";
 import { Panel } from "@/components/atoms/surfaces/Panel";
-import { candidateColor as candidateColorDoPartido } from "@/components/blocks/_candidateColor";
+import { candidateMarkerColor } from "@/components/blocks/_candidateColor";
 import { CandidaturasAguardando } from "@/components/blocks/CandidaturasAguardando";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { MunicipioExplorer } from "@/components/blocks/MunicipioExplorer";
@@ -495,17 +495,26 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
   const frescorDado = avaliarFrescorDado(payload.dado_ts, payload.cargo);
 
   // 🔴 A cor sai da SIGLA (ADR-0024), não de `c.cor` — a paleta por COLOCAÇÃO
-  // do ADR-0013, que o produtor parou de emitir em 19/09. Este mapa alimenta o
-  // coroplético municipal e a coluna de margem da tabela: com a cor de rank, o
-  // mesmo partido saía de uma cor no mapa e de outra na legenda ao lado.
+  // do ADR-0013, que o produtor parou de emitir em 19/09.
   //
-  // 2º argumento é o ÍNDICE + 1: `EdgeUfCandidate` não carrega `rank` (o array
-  // já chega ordenado pela corrida da UF, ADR-0012), e ele só entra no fallback
-  // de sigla fora da paleta editorial.
+  // 🔴 **`candidateMarkerColor`, nunca `candidateColor`** — este mapa tem UM
+  // destino, e ele é TEXTO: `MunicipioRow.liderCor`, que `<MunicipioTable>`
+  // usa como `color:` da coluna "Margem" ("PT +12,3%"). Ver a nota do campo
+  // em `components/blocks/MunicipioTable.tsx`. A variante de preenchimento
+  // reprovava o piso de 4,5:1 da constituição § 4 / RNF-022 em 14 das 31
+  // siglas — pior caso PSOL 2,08:1 sobre a página, e "outros" (o destino de
+  // toda FEDERAÇÃO) 2,39:1. Gate executável:
+  // `tests/unit/design-system/municipio-contraste.test.tsx`.
+  //
+  // O coroplético municipal NÃO lê este mapa — ele monta o seu em
+  // `components/layout/PersistentMapFrame.tsx` (preenchimento de polígono ⇒
+  // cor-base) e pinta o balão com `textForParty`. As duas superfícies seguem
+  // coerentes porque a MATIZ é a mesma; só a luminância muda, que é
+  // exatamente o que o § 2 permite variar.
   const candidateColor: Record<number, string> = {};
   const candidateShortName: Record<number, string> = {};
-  payload.candidatos.forEach((c, i) => {
-    candidateColor[c.id] = candidateColorDoPartido(c.partido, i + 1);
+  payload.candidatos.forEach((c) => {
+    candidateColor[c.id] = candidateMarkerColor(c.partido);
     // Primeiro nome do nome de EXIBIÇÃO. Este mapa alimenta a coluna
     // "margem" da tabela de municípios e o rótulo curto do mapa; cortar o cru
     // poria "RONALDO" na tabela e "CAIADO" no painel da mesma página.

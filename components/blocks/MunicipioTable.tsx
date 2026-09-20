@@ -218,7 +218,29 @@ export interface MunicipioRow {
   nome: string;
   /** ID do candidato líder no município. */
   lider: number;
-  /** Cor do líder (token CSS). */
+  /**
+   * Cor do líder (token CSS) — **cor de TEXTO, não de preenchimento**.
+   *
+   * 🔴 Este campo tem um único consumidor, a coluna "Margem" (`color:` de
+   * `"{liderNome} +{margemPp}"`), e por isso o caller tem de montá-lo com
+   * `candidateMarkerColor` (`--party-<slug>-text`), nunca com
+   * `candidateColor` (`--party-<slug>`, que é preenchimento COM extensão —
+   * barra, polígono, `<rect>`). A distinção é a de `_candidateColor.ts`:
+   * preenchimento se conserta com contorno (`DATA_FILL_STROKE`), texto não
+   * tem contorno a ganhar e se conserta com a variante escurecida.
+   *
+   * O defeito que motiva esta nota é medido, não teórico: com a variante de
+   * preenchimento, 14 das 31 siglas ficavam abaixo do piso de 4,5:1 da
+   * constituição § 4 / RNF-022 (PSOL 2,08:1 · "outros" — o destino de toda
+   * FEDERAÇÃO — 2,39:1 · NOVO 2,72:1, tema claro, sobre `--surface-page`).
+   * Foi registrado no handoff de 19/09 e sobreviveu à reescrita deste arquivo
+   * em 20/09. O gate que impede a terceira reincidência é
+   * `tests/unit/design-system/municipio-contraste.test.tsx`.
+   *
+   * ⚠️ Se um dia alguém precisar da cor de PREENCHIMENTO do líder aqui (uma
+   * barrinha na linha, um quadrado), o caminho é um SEGUNDO campo com nome
+   * próprio — não reaproveitar este.
+   */
   liderCor: string;
   /** Sigla curta do líder pra exibir na coluna "margem". */
   liderNome: string;
