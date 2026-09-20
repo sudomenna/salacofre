@@ -87,16 +87,110 @@
  * ## O que saiu de cada linha
  *
  * As colunas são três, e isso é um corte consciente: a largura útil no celular
- * a 360px é ~328px, e as quatro colunas do modo antigo reservavam 264px fixos,
+ * a 360px é ~326px, e as quatro colunas do modo antigo reservavam 264px fixos,
  * sobrando ~64px para o NOME — "São Bernardo do Campo" cabia como "São Be…".
  *
  *   - **Eleitorado** virou subtítulo sob o nome (era coluna no modo de
  *     governador). Ele é a chave da ordenação e por isso precisa estar visível
  *     — uma lista ordenada por um número invisível parece aleatória.
- *   - **Votos** saiu da tabela (era coluna no modo presidencial). O número por
- *     candidatura está a um toque de distância, na folha do município
- *     (`<MunicipioExplorer>`), e também no balão do mapa ao lado.
+ *   - **Votos** viraram a SEGUNDA linha do subtítulo em 2026-09-20 (ver o
+ *     bloco seguinte). Entre 20/09 03h05 e 20/09 06h30 eles não estavam em
+ *     lugar nenhum da tabela, o que não tinha sido pedido por ninguém.
  *   - **Δ vs 2022** saiu: nunca teve produtor (ver acima).
+ *
+ * ## Os votos voltam — e por que NÃO como quarta coluna
+ *
+ * 2026-09-20, pedido do dono: "tente achar um jeito de mostrar os votos da
+ * melhor forma". A direção proposta era progressive disclosure por largura —
+ * coluna de votos no desktop, subtítulo no celular. **A medição desmentiu a
+ * premissa da direção**, e o que está implementado é o que os números
+ * permitem. Tudo abaixo foi medido no Chromium com as fontes REAIS do projeto
+ * (Archivo/JetBrains Mono, os `.woff2` que o `next/font` self-hospeda), com
+ * `Range.selectNodeContents()` — a caixa do elemento não é o texto.
+ *
+ * ### 1. Nesta aplicação, tela maior NÃO dá mais largura à tabela
+ *
+ * As três rotas de estado vivem dentro do `<AppShellSplit>` (ADR-0033 § 1),
+ * onde a coluna de painéis é `--container-sidebar` = **400px fixos** no
+ * desktop e a moldura mobile é `--container-mobile` = **430px**. Descontando
+ * o `px-4`/`md:px-6` do `<main>` e a barra de rolagem da coluna, a largura
+ * REAL da tabela é:
+ *
+ * | viewport | ramo do shell | tabela |
+ * |---|---|---|
+ * | 360px  | mobile (body 360)   | **326px** |
+ * | 430px  | mobile (body 430)   | **396px** ← o máximo que a tabela alcança |
+ * | 768px  | mobile + `md:px-6`  | **380px** |
+ * | 1440px | desktop (coluna 400)| **352px** (368px sem barra de rolagem) |
+ *
+ * A função não é monotônica: ela cresce até 430px de viewport e **encolhe**
+ * depois. Uma `@media (min-width: …)` ligaria a coluna extra exatamente onde
+ * há MENOS espaço. Se um dia alguém quiser a quarta coluna, o instrumento é
+ * `@container` sobre a caixa da tabela — nunca a largura da janela.
+ *
+ * ### 2. A quarta coluna não cabe em largura nenhuma que esta aplicação tenha
+ *
+ * Medido: `"São Bernardo do Campo"` = **143,81px** em Archivo 13px, e a
+ * **capital** — que está no topo da lista de toda UF — pede **149,83px**
+ * ("Campo Grande" + o kicker `· capital`). Uma coluna de votos custa 75,42px
+ * (o número `"9.322.444"`, 59,42px em JetBrains Mono 11px, mais o padding).
+ * Descontada essa coluna, o nome cabe **numa única** das quatro larguras da
+ * tabela acima: a de 396px, o celular de 430. Trunca no celular de 360, no
+ * tablet de 768 (que passa raspando em São Bernardo e reprova na capital) e
+ * no desktop de 1440. Uma apresentação que aparece num aparelho e some no
+ * menor E nos dois maiores não é progressive disclosure, é defeito
+ * intermitente. Por isso a coluna não existe, em largura nenhuma. A conta
+ * está no teste (q) de `MunicipioTable.votos.test.tsx`, executável — se o
+ * shell alargar `--container-sidebar`, ela reabre a decisão sozinha.
+ *
+ * ### 3. Os votos são a SEGUNDA linha do subtítulo, sempre
+ *
+ * `"587.412 eleitores"` / `"213.008 votos"`, uma linha cada, `nowrap`. Duas
+ * linhas fixas — e não uma linha que quebra quando não cabe — porque o
+ * comprimento do número varia de linha para linha: com quebra automática, São
+ * Paulo (9 dígitos) quebraria e Sorocaba (6 dígitos) não, e a mesma lista
+ * sairia com alturas de linha diferentes a esmo. Medido: as duas cabem sem
+ * truncar já a 326px (o pior caso, `"9.322.444 eleitores"`, mede 125,42px
+ * contra 166px de espaço).
+ *
+ * ### 4. Nada é abreviado — e isso é medição, não preferência
+ *
+ * O subtítulo é `--type-data`, que é **JetBrains Mono**: nela a largura é
+ * função pura da CONTAGEM DE CARACTERES. `"238.276"` e `"238 mil"` têm sete
+ * caracteres cada — a abreviação de milhares economiza **zero pixel**. Ela só
+ * ganharia algo acima de 1.000.000 (`"4.132.887"` → `"4,1 mi"`, 3 caracteres
+ * ≈ 20px), e o preço seria uma faixa de 100 mil votos escondida sob o mesmo
+ * rótulo, em noite de apuração, exatamente nos municípios cujo número mais
+ * pesa. Como a economia é nula onde não faz diferença e cara onde faria, o
+ * número vai **exato**, em pt-BR, e continua exato no `textContent` (portanto
+ * na busca da página e no leitor de tela). O detalhe por candidatura segue na
+ * folha do município (`<MunicipioExplorer>`).
+ *
+ * ### 5. O orçamento de largura virou número, e o número virou teste
+ *
+ * Antes desta mudança a tabela reservava 96px + 72px para as duas colunas
+ * numéricas com `px-3`, sobrando **134px** de conteúdo para o nome a 326px —
+ * menos que os 143,81px de "São Bernardo do Campo". **O nome que o dono deu
+ * como caso de teste já truncava**, e com ele 340 dos 5.570 municípios do
+ * IBGE e 5 das 27 capitais. Quem media a `<td>` via 158px e concluía que
+ * cabia: 158px é a CAIXA, 134px é o texto.
+ *
+ * O orçamento novo ({@link COL_MARGEM_PX}, {@link COL_APURADO_PX},
+ * {@link CELULA_PAD_X_PX}) devolve **166px** ao nome a 326px sem tirar nada
+ * das outras duas colunas (a de margem fica com os mesmos 72px de conteúdo de
+ * antes; a de apurado desce para 40px, contra 36,88px de `"54.5%"`). Resultado
+ * medido a 326px: os dois casos de teste do dono passam, as 27 capitais
+ * passam, e sobram 30 municípios cujo nome ainda trunca — todos com 26
+ * caracteres ou mais, nenhum deles alcançável sem vários "mostrar mais".
+ * Truncar zero dos 5.570 a 326px é impossível numa tabela de três colunas:
+ * o recordista ("Vila Bela da Santíssima Trindade") sozinho pede 191px.
+ *
+ * As medidas estão em **px**, não em `rem`, de propósito: toda a escala
+ * tipográfica do projeto é px (`--text-sm: 13px`), então um orçamento em `rem`
+ * mentiria assim que o leitor mudasse o tamanho de fonte padrão do navegador —
+ * as colunas cresceriam e o texto não. `larguraDoNome()` existe para que essa
+ * aritmética seja testável sem layout (o happy-dom devolve zero em
+ * `getBoundingClientRect`).
  *
  * ## Foco depois de "mostrar mais"
  *
@@ -132,13 +226,16 @@ export interface MunicipioRow {
   /** % apurado 0–100. */
   pctApurado: number;
   /**
-   * Votos totais reportados no município.
+   * Votos totais reportados no município — `Σ votos_reportados`, a mesma soma
+   * que `votosPorCandidatoMunicipio()` usa como denominador na folha e no
+   * balão do mapa (`lib/utils/municipio-votos.ts`). Base "votáveis"
+   * (ADR-0020), nunca comparecimento.
    *
-   * ⚠️ **Não é renderizado por esta tabela desde 2026-09-20** — ver "O que saiu
-   * de cada linha" no cabeçalho. Segue no tipo porque os dois adaptadores
-   * `toMunicipioRows` continuam produzindo o número e porque ele é o candidato
-   * natural a uma quarta coluna no desktop, se o dono pedir de volta. Opcional
-   * para que nenhum caller seja obrigado a computá-lo só para preencher.
+   * Renderizado na segunda linha do subtítulo desde 2026-09-20. Segue
+   * **opcional** para que nenhum caller seja obrigado a computá-lo só para
+   * preencher: ausente, a linha simplesmente não existe — ver
+   * {@link estadoDosVotos}, que separa "ninguém publicou este número" de
+   * "ninguém apurou ainda" de "apurou e deu zero".
    */
   votosReportados?: number;
   /**
@@ -164,6 +261,53 @@ export interface MunicipioRow {
 export const MUNICIPIOS_PRIMEIRA_LEVA = 20;
 /** Quantos municípios cada "mostrar mais" acrescenta. */
 export const MUNICIPIOS_POR_LOTE = 40;
+
+/* ---------------------------------------------------------------------------
+ * O orçamento de largura da linha — ver § 5 do cabeçalho.
+ *
+ * Em **px** porque a escala tipográfica do projeto é px; em constantes
+ * exportadas porque `larguraDoNome()` precisa ser testável sem layout; e com o
+ * valor medido de cada consumidor ao lado, porque a única defesa contra alguém
+ * "arredondar para 6rem" de novo é o número que justifica o atual.
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Padding lateral de toda célula (`px-2`). Era `px-3` (12px) até 2026-09-20;
+ * os 4px devolvidos por lado, vezes as três colunas, são 24px que foram
+ * inteiros para o nome.
+ */
+export const CELULA_PAD_X_PX = 8;
+
+/**
+ * Coluna "Margem". 88px de caixa = **72px de conteúdo**, exatamente o que a
+ * coluna tinha antes (96px de caixa − 24px de `px-3`): a redução da caixa
+ * paga o padding, não o conteúdo. Cabe `"Lula +12,3%"` (72,66px em Archivo
+ * 13px/500 — encosta, e encostava igual antes). Primeiro nome mais longo entre
+ * os medidos, `"Washington"`, mede 68,19px e continua cabendo inteiro numa
+ * linha própria quando a célula quebra em duas — que é o comportamento de
+ * hoje, preservado.
+ */
+export const COL_MARGEM_PX = 88;
+
+/**
+ * Coluna "Apurado". 56px de caixa = 40px de conteúdo, contra 36,88px de
+ * `"54.5%"` (o pior caso: `fmtPct` só usa decimal quando o número não é
+ * inteiro) e 33,25px de `"100%"`. Era 72px de caixa / 48px de conteúdo —
+ * 8px que a coluna não usava.
+ */
+export const COL_APURADO_PX = 56;
+
+/**
+ * Quanto sobra para o TEXTO do nome, dada a largura da tabela. É a conta do
+ * § 5 do cabeçalho, isolada para que um teste possa executá-la — o happy-dom
+ * não faz layout, mas faz aritmética.
+ *
+ * O consumidor desta conta é o teste, não o render: o CSS chega ao mesmo
+ * resultado sozinho, porque a coluna do nome é a única sem largura declarada.
+ */
+export function larguraDoNome(larguraDaTabelaPx: number): number {
+  return larguraDaTabelaPx - COL_MARGEM_PX - COL_APURADO_PX - 2 * CELULA_PAD_X_PX;
+}
 
 export interface MunicipioTableProps {
   rows: MunicipioRow[];
@@ -301,6 +445,94 @@ function fmtVotos(v: number): string {
   return new Intl.NumberFormat("pt-BR").format(v);
 }
 
+/**
+ * Os três estados possíveis do número de votos de um município.
+ *
+ * São TRÊS de propósito, e colapsá-los em dois é o defeito que esta união
+ * existe para impedir — a mesma regra que a decisão do dono de 2026-09-14
+ * fixou para a página inteira ("não começou" / "não sabemos" / "apurando"):
+ * **a tela nunca afirma uma medição que não fez, e nunca fabrica zero.**
+ *
+ *   - `desconhecido` — o caller não publica o número. Não é "zero votos", é
+ *     "ninguém contou isso aqui". A linha não é renderizada: um `"0 votos"`
+ *     nessa posição seria um número inventado com a autoridade da marca.
+ *   - `sem_apuracao` — o número existe, vale 0, e `pct_apurado` também é 0.
+ *     Os dois juntos dizem uma coisa só: nenhum boletim deste município
+ *     chegou. A tela fala do NOSSO estado ("aguardando boletim"), não do
+ *     mundo.
+ *   - `medido` — há apuração. `votos` pode ser 0 **e isso é um fato**: um
+ *     boletim com apenas brancos e nulos zera `Σ votos_reportados` sem zerar
+ *     `pct_apurado`. É o único caminho pelo qual `"0 votos"` chega à tela, e
+ *     ele é honesto.
+ *
+ * ⚠️ A guarda de `desconhecido` é `typeof === "number" && Number.isFinite`, e
+ * não `if (votosReportados)`: `0` é falsy, e um `if` truthy mandaria todo
+ * município de zero votos para o balde errado — o mesmo erro que o teste (e)
+ * de `MunicipioTable.ordem.test.tsx` já trava para o eleitorado.
+ */
+export type EstadoDosVotos =
+  | { tipo: "desconhecido" }
+  | { tipo: "sem_apuracao" }
+  | { tipo: "medido"; votos: number };
+
+export function estadoDosVotos(
+  row: Pick<MunicipioRow, "votosReportados" | "pctApurado">,
+): EstadoDosVotos {
+  const v = row.votosReportados;
+  if (typeof v !== "number" || !Number.isFinite(v)) return { tipo: "desconhecido" };
+  if (v === 0 && !(row.pctApurado > 0)) return { tipo: "sem_apuracao" };
+  return { tipo: "medido", votos: v };
+}
+
+/**
+ * O texto da segunda linha do subtítulo, ou `null` quando não há linha.
+ *
+ * Exportada para que a mutação "trocar `aguardando boletim` por `0 votos`"
+ * morra num teste nomeado, sem precisar montar a tabela inteira.
+ */
+export function textoDosVotos(estado: EstadoDosVotos): string | null {
+  switch (estado.tipo) {
+    case "desconhecido":
+      return null;
+    case "sem_apuracao":
+      return "aguardando boletim";
+    case "medido":
+      return `${fmtVotos(estado.votos)} ${estado.votos === 1 ? "voto" : "votos"}`;
+  }
+}
+
+/**
+ * As duas linhas do subtítulo compartilham o estilo — e compartilham por
+ * motivo, não por economia: são dois fatos do mesmo nível (contexto do
+ * município), e dar destaque a um deles sugeriria uma hierarquia que não
+ * existe. O que os distingue é a PALAVRA que cada um carrega
+ * ("eleitores"/"votos"), não a tinta.
+ *
+ * `nowrap` + reticências: a medição diz que as duas cabem a partir de 326px
+ * (pior caso 125,42px contra 166px), então a reticência é rede de segurança
+ * para uma largura que ninguém previu — nunca o plano. Sem ela, um contêiner
+ * mais estreito quebraria a linha e a altura da linha da tabela passaria a
+ * variar de município para município.
+ */
+const SUBTITULO_STYLE = {
+  font: "var(--type-data)",
+  color: "var(--text-muted)",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+} as const;
+
+/** A segunda linha do subtítulo. Ausente quando não há número a declarar. */
+function VotosLinha({ row }: { row: MunicipioRow }) {
+  const texto = textoDosVotos(estadoDosVotos(row));
+  if (texto === null) return null;
+  return (
+    <span data-testid="municipio-votos" className="block" style={SUBTITULO_STYLE}>
+      {texto}
+    </span>
+  );
+}
+
 function fmtPct(pct: number): string {
   const r = Math.round(pct * 10) / 10;
   return Number.isInteger(r) ? `${r}%` : `${r.toFixed(1)}%`;
@@ -402,10 +634,12 @@ export function MunicipioTable({
         id={tabelaId}
         style={{ tableLayout: "fixed" }}
       >
+        {/* Só as duas colunas numéricas declaram largura; a do nome é o resto.
+            Os números vêm de `larguraDoNome()` — ver § 5 do cabeçalho. */}
         <colgroup>
           <col />
-          <col style={{ width: "6rem" }} />
-          <col style={{ width: "4.5rem" }} />
+          <col style={{ width: COL_MARGEM_PX }} />
+          <col style={{ width: COL_APURADO_PX }} />
         </colgroup>
         <thead
           style={{
@@ -414,22 +648,23 @@ export function MunicipioTable({
             borderBottom: "1px solid var(--color-border)",
           }}
         >
+          {/* `px-2`, não `px-3`: ver {@link CELULA_PAD_X_PX}. */}
           <tr>
             <th
               scope="col"
-              className="px-3 py-2 text-left text-xs uppercase tracking-wide font-normal"
+              className="px-2 py-2 text-left text-xs uppercase tracking-wide font-normal"
             >
               Município
             </th>
             <th
               scope="col"
-              className="px-3 py-2 text-right text-xs uppercase tracking-wide font-normal"
+              className="px-2 py-2 text-right text-xs uppercase tracking-wide font-normal"
             >
               Margem
             </th>
             <th
               scope="col"
-              className="px-3 py-2 text-right text-xs uppercase tracking-wide font-normal"
+              className="px-2 py-2 text-right text-xs uppercase tracking-wide font-normal"
             >
               Apurado
             </th>
@@ -443,7 +678,7 @@ export function MunicipioTable({
               aria-rowindex={i + 2}
               style={{ borderBottom: "1px solid var(--color-border)" }}
             >
-              <td className="px-3 py-2 text-sm" style={{ color: "var(--color-text)" }}>
+              <td className="px-2 py-2 text-sm" style={{ color: "var(--color-text)" }}>
                 <NomeCell
                   nome={m.nome}
                   codIbge={m.cod_ibge}
@@ -455,23 +690,35 @@ export function MunicipioTable({
                     subtítulo — inventar "0 eleitores" seria afirmar um número
                     que ninguém mediu (constituição § 8). */}
                 {temEleitorado(m) ? (
-                  <span
-                    data-testid="municipio-sub"
-                    className="block"
-                    style={{ font: "var(--type-data)", color: "var(--text-muted)" }}
-                  >
+                  <span data-testid="municipio-sub" className="block" style={SUBTITULO_STYLE}>
                     {fmtVotos(m.eleitorado)} eleitores
                   </span>
                 ) : null}
+                {/* Os votos, segunda linha — ver §§ 3 e 4 do cabeçalho. Linha
+                    própria e `nowrap` para que a altura da linha da tabela não
+                    dependa de quantos dígitos o município tem. */}
+                <VotosLinha row={m} />
               </td>
               <td
-                className="px-3 py-2 text-right text-sm tabular-nums"
-                style={{ color: m.liderCor, fontWeight: 500 }}
+                className="px-2 py-2 text-right text-sm tabular-nums"
+                style={{
+                  color: m.liderCor,
+                  fontWeight: 500,
+                  // `liderNome` é o primeiro nome da candidatura, e nada limita
+                  // o comprimento dele: `"Washington"` mede 68,19px contra 72px
+                  // de conteúdo, e um primeiro nome mais longo que isso seria
+                  // uma palavra sem ponto de quebra vazando para fora da célula
+                  // — que é como nasce rolagem horizontal numa tabela de
+                  // `table-layout: fixed`. Com `anywhere` a palavra quebra em
+                  // vez de vazar; no caso normal (quebra no espaço antes do
+                  // `+N%`) nada muda.
+                  overflowWrap: "anywhere",
+                }}
               >
                 {m.liderNome} +{fmtPct(m.margemPp)}
               </td>
               <td
-                className="px-3 py-2 text-right text-sm tabular-nums"
+                className="px-2 py-2 text-right text-sm tabular-nums"
                 style={{ color: "var(--color-text-muted)" }}
               >
                 {fmtPct(m.pctApurado)}

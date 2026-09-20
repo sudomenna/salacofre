@@ -153,6 +153,13 @@ describe("<MunicipioTable /> — primeiro quadro, do servidor", () => {
    * Não é um teste de layout (o happy-dom não faz layout): é contagem de
    * elementos no HTML que o servidor manda, que é o que o navegador tem de
    * construir antes de pintar a primeira tela.
+   *
+   * ⚠️ Contagem real em 2026-09-20, depois da volta dos votos: **176** contra
+   * o teto de 180. Eram 156 antes — a segunda linha do subtítulo custa um nó
+   * por município (`MunicipioTable.votos.test.tsx`). **Sobram 4.** Quem for
+   * acrescentar mais um elemento por linha vai estourar aqui, e deve subir o
+   * teto de propósito e com motivo, não por reflexo: o orçamento existe porque
+   * a primeira tela é o que o leitor espera na noite da apuração.
    */
   it("(n) o HTML inicial de SP cabe num orçamento de nós", () => {
     const doc = parse(<MunicipioTable rows={makeRows(645)} onSelect={() => {}} />);
