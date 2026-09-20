@@ -37,6 +37,19 @@
  * `undefined` em `buildMunicipioHoverRows`, e a coluna some sozinha (mesma
  * degradação de "Partido"/"Votos"/"Parcial", ver `hasColumn` em
  * `HoverCard.tsx`).
+ *
+ * 2026-09-20 (pedido do dono — "no toque só a gaveta") — o `mousemove`
+ * abaixo passa a checar `useHasFinePointer()` (`lib/utils/use-has-fine-pointer.ts`)
+ * antes de abrir o balão. O comentário do handler de `click` deste arquivo
+ * afirmava "[o clique] é o que serve o tap-to-select do mobile, onde não há
+ * mousemove" — **falso**: Safari e Chrome em toque disparam um `mousemove`
+ * sintético imediatamente antes do `click`, e sem guarda ele abria o mesmo
+ * `<HoverCard>` que o mouse abre, sem jeito de fechar (`mouseleave` não
+ * dispara em toque) — preso na tela por cima da folha do município que o
+ * clique abre. Mesmo remédio do mapa NACIONAL
+ * (`_NationalChoroplethMapImpl.tsx`), sem prop: este átomo não tem um
+ * wrapper que resolva a media query por ele, então chama o hook direto —
+ * mesmo padrão que já usa para `prefers-reduced-motion` mais abaixo.
  */
 
 import maplibregl from "maplibre-gl";
@@ -61,6 +74,7 @@ import {
 } from "@/lib/utils/hover-card-placement";
 import { votosPorCandidatoMunicipio } from "@/lib/utils/municipio-votos";
 import { normalizePartySlug, PARTY_FALLBACK_SLUG, textForParty } from "@/lib/utils/party-color";
+import { useHasFinePointer } from "@/lib/utils/use-has-fine-pointer";
 
 const PMTILES_BASE = "https://jbtu251tioj3y57z.public.blob.vercel-storage.com";
 
@@ -339,6 +353,21 @@ export function ChoroplethMapUF({
   const municipiosRef = useRef(municipios);
 
   /**
+   * 2026-09-20 — "no toque só a gaveta" (pedido do dono). O `mount()` abaixo
+   * roda uma vez (deps `[ufSigla, mode]`, ver o efeito) e fecha sobre uma
+   * REF, nunca sobre `temPonteiroFino` direto: o valor nasce `true`
+   * (`useHasFinePointer`, ver a docstring de lá) e um aparelho de toque real
+   * só corrige isso um tick depois do `useEffect` do `matchMedia` — uma
+   * closure congelaria o valor de montagem. Mesmo padrão de
+   * `navegarNoCliqueRef` em `_NationalChoroplethMapImpl.tsx`.
+   */
+  const temPonteiroFino = useHasFinePointer();
+  const bloqueiaBalaoNoToqueRef = useRef(!temPonteiroFino);
+  useEffect(() => {
+    bloqueiaBalaoNoToqueRef.current = !temPonteiroFino;
+  }, [temPonteiroFino]);
+
+  /**
    * Wrapper de medição do `<HoverCard>` + cache do último tamanho REAL
    * conhecido — mesmo par do mapa nacional (`_NationalChoroplethMapImpl.tsx`),
    * mesma razão: ver `lib/utils/hover-card-placement.ts` § "Onde a medição
@@ -581,8 +610,17 @@ export function ChoroplethMapUF({
       // Sem `detalhe`/`candidatos`, o balão simplesmente não aparece (`
       // municipioTooltip` fica `undefined` no render) — hover-store e traço
       // continuam funcionando normalmente de qualquer jeito.
+      //
+      // 🔴 2026-09-20 — `bloqueiaBalaoNoToqueRef` é a PRIMEIRA linha. Sem
+      // ponteiro fino, NADA abaixo roda (nem hover-store, nem o filtro de
+      // traço, nem o balão): Safari/Chrome em toque disparam este
+      // `mousemove` sintético ANTES do `click`, e como `mouseleave` nunca
+      // dispara num tap, deixar o filtro de traço rodar aqui acenderia o
+      // contorno do município tocado E NUNCA O APAGARIA — ficaria aceso por
+      // baixo da folha que o `click` abre. Ver a docstring do topo do arquivo.
       const onMouseMove = throttle(
         (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+          if (bloqueiaBalaoNoToqueRef.current) return;
           const feature = e.features?.[0];
           if (!feature) return;
           const codIbge = feature.properties?.CD_MUN as string | undefined;
@@ -633,9 +671,18 @@ export function ChoroplethMapUF({
       });
 
       // Clique no município: realça (era o único efeito até 2026-09-10, e é o
-      // que serve o tap-to-select do mobile, onde não há `mousemove`) E abre a
-      // folha do município — o `MunSheet` do protótipo, aberto a partir do
-      // mapa (`ui_kits/atlas-menna/App.jsx:311`).
+      // que serve o tap-to-select do mobile) E abre a folha do município — o
+      // `MunSheet` do protótipo, aberto a partir do mapa
+      // (`ui_kits/atlas-menna/App.jsx:311`).
+      //
+      // 🔴 2026-09-20 — correção de premissa: este comentário dizia "onde não
+      // há `mousemove`" sobre o mobile. É FALSO (ver a docstring do topo do
+      // arquivo) — Safari/Chrome disparam um `mousemove` sintético antes do
+      // `click` em qualquer toque; a guarda `bloqueiaBalaoNoToqueRef` no
+      // handler de `mousemove` acima é quem trata isso, não uma ausência de
+      // evento. O clique em si sempre foi, e continua sendo, o único caminho
+      // que ABRE a folha (o handler de `mousemove` nunca chamou
+      // `useMunicipioSheetStore`).
       //
       // A folha em si é a que já existe, desenhada pelo `<MunicipioExplorer>`
       // da página de UF; aqui só se escreve o `cod_ibge` no store compartilhado

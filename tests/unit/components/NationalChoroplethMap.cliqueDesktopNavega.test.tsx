@@ -3,10 +3,24 @@
  * tests/unit/components/NationalChoroplethMap.cliqueDesktopNavega.test.tsx
  *
  * 2026-09-19 (decisão do dono): clicar numa UF do mapa nacional volta a
- * NAVEGAR para a página daquele estado — **no desktop**. No mobile continua
- * abrindo a `<StateResultSheet>`, como decidido em 08/09. Vale nos três mapas
- * nacionais: Presidente (`/`), Governador (`/governador`) e Senador
- * (`/senador`).
+ * NAVEGAR para a página daquele estado — **com ponteiro fino (mouse)**. Sem
+ * ele (toque) continua abrindo a `<StateResultSheet>`, como decidido em
+ * 08/09. Vale nos três mapas nacionais: Presidente (`/`), Governador
+ * (`/governador`) e Senador (`/senador`).
+ *
+ * 🔴 **2026-09-20 — o predicado mudou, o comportamento não.** Até aqui este
+ * arquivo controlava um `matchMedia` de LARGURA (`min-width: 960px`,
+ * "desktop"). O dono pediu (pedido separado, "no toque só a gaveta") que um
+ * aparelho de TOQUE nunca navegue sozinho, mesmo largo — um iPad Pro a
+ * 1024px casava com `min-width: 960px` e por isso NAVEGAVA ao toque, o
+ * oposto do pedido. O predicado agora é `(hover: hover) and (pointer:
+ * fine)` (`useHasFinePointer`, `lib/utils/use-has-fine-pointer.ts`) — "este
+ * aparelho tem mouse?", não "a tela é larga?". O mock abaixo passou a
+ * controlar ESSA query (`FINE_POINTER_QUERY`); a de largura
+ * (`WIDTH_QUERY`) continua existindo só porque `Sheet.side` (forma da
+ * folha: cartão lateral vs. modal) ainda depende dela — e é justamente por
+ * ISSO que o caso do iPad Pro (largo + toque) abaixo prova o ponto: as duas
+ * queries podem discordar.
  *
  * Este arquivo cobre o comportamento inteiro, fim a fim dentro do componente:
  * monta o WRAPPER público (`<NationalChoroplethMap>`, que é quem resolve a
@@ -20,21 +34,25 @@
  *      qualquer template escrito à mão sem o sufixo de rota. 🔴 **Um cargo só
  *      não bastaria**: com `cargo` ignorado, o caso de Presidente passa (o
  *      sufixo dele é ""), e só gov/sen denunciam.
- *   2. Mobile — mata "navegar sempre".
- *   3. 🔴 A media query virando MOBILE **depois da montagem** — mata capturar
+ *   2. Mobile (sem ponteiro fino, estreito) — mata "navegar sempre".
+ *   3. 🔴 A media query virando TOQUE **depois da montagem** — mata capturar
  *      `navegarNoClique` numa closure do `mount()`. É o defeito mais provável
  *      desta mudança, porque o valor NASCE `false` (o `matchMedia` do wrapper
  *      só resolve no `useEffect`) e vira `true` um tick depois: uma closure
- *      congelaria o `false` e o desktop nunca navegaria. O caso abaixo testa
- *      a direção inversa (true → false) porque ela é a que discrimina: com
- *      closure, o mapa montado em desktop continuaria navegando depois de
- *      virar mobile.
- *   4. Desktop usa `router.push`, não navegação dura — mata `<a href>` /
- *      `location.assign` / `location.href =`, que remontariam a instância
+ *      congelaria o `false` e o ponteiro fino nunca navegaria. O caso abaixo
+ *      testa a direção inversa (fino → toque) porque ela é a que discrimina:
+ *      com closure, o mapa montado com ponteiro fino continuaria navegando
+ *      depois de virar toque.
+ *   4. Ponteiro fino usa `router.push`, não navegação dura — mata `<a href>`
+ *      / `location.assign` / `location.href =`, que remontariam a instância
  *      MapLibre da moldura persistente (o defeito que o ADR-0033 § 1 existe
  *      para evitar).
- *   5. Desktop não abre a folha — mata "navega E abre", que deixaria a ficha
- *      piscando por cima da transição de rota.
+ *   5. Ponteiro fino não abre a folha — mata "navega E abre", que deixaria a
+ *      ficha piscando por cima da transição de rota.
+ *   6. 🔴 **NOVO 2026-09-20** — aparelho de TOQUE largo (≥960px, tipo iPad
+ *      Pro): mata voltar a decidir por LARGURA. Sem esta correção, este caso
+ *      navegaria (a largura sozinha diz "desktop") quando o pedido do dono é
+ *      que o toque nunca navegue sozinho.
  *
  * ## Harness
  *
@@ -125,33 +143,47 @@ import { NationalChoroplethMap } from "@/components/blocks/NationalChoroplethMap
 import { type UfPickerCargo, ufHref } from "@/lib/utils/uf-href";
 
 // ---------------------------------------------------------------------------
-// `window.matchMedia` controlável
+// `window.matchMedia` controlável — DUAS queries independentes
 // ---------------------------------------------------------------------------
 
-/** Mesmo valor de `DESKTOP_QUERY` em `NationalChoroplethMap.tsx` (ADR-0029). */
-const DESKTOP_QUERY = "(min-width: 960px)";
+/**
+ * `useHasFinePointer()` (`lib/utils/use-has-fine-pointer.ts`) — decide se o
+ * clique NAVEGA. É a query que este arquivo testa de verdade.
+ */
+const FINE_POINTER_QUERY = "(hover: hover) and (pointer: fine)";
+
+/**
+ * `useIsDesktop()` (`NationalChoroplethMap.tsx`) — decide só a FORMA da
+ * folha (`Sheet.side`), não mais a navegação. Controlável em separado do
+ * ponteiro justamente para provar que as duas podem discordar (caso do iPad
+ * Pro, abaixo): largo (esta query casa) e sem mouse (`FINE_POINTER_QUERY`
+ * não casa).
+ */
+const WIDTH_QUERY = "(min-width: 960px)";
 
 type MqlListener = (e: MediaQueryListEvent) => void;
 
-let desktop = false;
-const ouvintes = new Set<MqlListener>();
+let temPonteiroFino = false;
+let larguraDesktop = false;
+const ouvintesPonteiro = new Set<MqlListener>();
 
 function instalaMatchMedia() {
   window.matchMedia = ((query: string) => {
-    // 🔴 `matches: true` SÓ para a query de desktop. O impl também consulta
-    // `(prefers-reduced-motion: reduce)` na montagem; um `matches: true`
-    // indiscriminado responderia "sim" às duas e o teste passaria a afirmar
-    // algo sobre a query errada.
-    const eDesktop = query === DESKTOP_QUERY;
+    const eFino = query === FINE_POINTER_QUERY;
+    const eLargo = query === WIDTH_QUERY;
+    // 🔴 `matches: true` SÓ para as duas queries que este harness conhece. O
+    // impl também consulta `(prefers-reduced-motion: reduce)` na montagem;
+    // um `matches: true` indiscriminado responderia "sim" a ela também e o
+    // teste passaria a afirmar algo sobre a query errada.
     return {
       media: query,
-      matches: eDesktop ? desktop : false,
+      matches: eFino ? temPonteiroFino : eLargo ? larguraDesktop : false,
       onchange: null,
       addEventListener: (_tipo: string, cb: MqlListener) => {
-        if (eDesktop) ouvintes.add(cb);
+        if (eFino) ouvintesPonteiro.add(cb);
       },
       removeEventListener: (_tipo: string, cb: MqlListener) => {
-        ouvintes.delete(cb);
+        ouvintesPonteiro.delete(cb);
       },
       addListener: () => {},
       removeListener: () => {},
@@ -160,11 +192,11 @@ function instalaMatchMedia() {
   }) as unknown as typeof window.matchMedia;
 }
 
-/** Dispara o evento `change` real do `matchMedia`, como o browser faria. */
-function viraViewport(paraDesktop: boolean) {
-  desktop = paraDesktop;
+/** Dispara o evento `change` real do `matchMedia` de ponteiro, como o browser faria. */
+function viraViewport(paraFino: boolean) {
+  temPonteiroFino = paraFino;
   act(() => {
-    for (const cb of ouvintes) cb({ matches: paraDesktop } as MediaQueryListEvent);
+    for (const cb of ouvintesPonteiro) cb({ matches: paraFino } as MediaQueryListEvent);
   });
 }
 
@@ -220,8 +252,9 @@ function desmonta(host: HTMLElement, root: Root) {
 beforeEach(() => {
   espiao.handlers.clear();
   espiao.push.mockClear();
-  ouvintes.clear();
-  desktop = false;
+  ouvintesPonteiro.clear();
+  temPonteiroFino = false;
+  larguraDesktop = false;
   instalaMatchMedia();
 });
 
@@ -231,13 +264,14 @@ afterEach(() => {
 
 // ---------------------------------------------------------------------------
 
-describe("clique numa UF do mapa nacional (RF-030.3, decisão 2026-09-19)", () => {
+describe("clique numa UF do mapa nacional (RF-030.3, decisão 2026-09-19/20)", () => {
   it.each([
     ["pres" as const, "/uf/SP"],
     ["gov" as const, "/uf/SP/governador"],
     ["sen" as const, "/uf/SP/senador"],
-  ])("desktop, cargo=%s → navega para %s", (cargo, destino) => {
-    desktop = true;
+  ])("ponteiro fino, cargo=%s → navega para %s", (cargo, destino) => {
+    temPonteiroFino = true;
+    larguraDesktop = true;
     const { host, root } = montar(cargo);
     clicaEmSp();
 
@@ -250,8 +284,9 @@ describe("clique numa UF do mapa nacional (RF-030.3, decisão 2026-09-19)", () =
     desmonta(host, root);
   });
 
-  it("mobile → NÃO navega; abre a folha do estado", () => {
-    desktop = false;
+  it("mobile (sem ponteiro fino, estreito) → NÃO navega; abre a folha do estado", () => {
+    temPonteiroFino = false;
+    larguraDesktop = false;
     const { host, root } = montar("gov");
     clicaEmSp();
 
@@ -263,11 +298,35 @@ describe("clique numa UF do mapa nacional (RF-030.3, decisão 2026-09-19)", () =
     desmonta(host, root);
   });
 
-  it("🔴 media query vira MOBILE depois da montagem → o clique volta a abrir a folha", () => {
+  it("🔴 aparelho de TOQUE largo (≥960px, tipo iPad Pro) → NÃO navega, abre a gaveta [mutação: voltar o predicado a `useIsDesktop`/largura]", () => {
+    // O caso que este teste existe para provar: largura sozinha diria
+    // "desktop" (`larguraDesktop = true`), mas SEM ponteiro fino o clique
+    // não pode navegar — é exatamente o defeito relatado pelo dono (um iPad
+    // Pro a 1024px navegava antes desta correção).
+    temPonteiroFino = false;
+    larguraDesktop = true;
+    const { host, root } = montar("pres");
+    clicaEmSp();
+
+    expect(
+      espiao.push,
+      "navegou usando LARGURA em vez de capacidade de ponteiro",
+    ).not.toHaveBeenCalled();
+    expect(
+      host.querySelector('[data-testid="sheet"]'),
+      "a gaveta não abriu no toque largo",
+    ).not.toBeNull();
+    expect(host.querySelector('[data-testid="state-sheet-cta"]')).not.toBeNull();
+
+    desmonta(host, root);
+  });
+
+  it("🔴 media query vira TOQUE depois da montagem → o clique volta a abrir a folha", () => {
     // Com `navegarNoClique` capturado numa closure do `mount()` (o efeito que
     // registra o handler roda UMA vez), este caso continuaria navegando — o
     // handler ainda enxergaria o `true` da montagem.
-    desktop = true;
+    temPonteiroFino = true;
+    larguraDesktop = true;
     const { host, root } = montar("sen");
 
     viraViewport(false);
@@ -279,14 +338,15 @@ describe("clique numa UF do mapa nacional (RF-030.3, decisão 2026-09-19)", () =
     desmonta(host, root);
   });
 
-  it("desktop → navegação SOFT (`router.push`), nunca dura", () => {
+  it("ponteiro fino → navegação SOFT (`router.push`), nunca dura", () => {
     // Um `<a href>` cru ou `location.assign` remontaria a instância MapLibre
     // da moldura persistente — ADR-0033 § 1. `/` e `/uf/[sigla]` são irmãos
     // sob o MESMO `layout.tsx` de grupo; só `router.push` preserva o mapa.
     const assign = vi.spyOn(window.location, "assign").mockImplementation(() => {});
     const hrefAntes = window.location.href;
 
-    desktop = true;
+    temPonteiroFino = true;
+    larguraDesktop = true;
     const { host, root } = montar("pres");
     clicaEmSp();
 
@@ -298,8 +358,9 @@ describe("clique numa UF do mapa nacional (RF-030.3, decisão 2026-09-19)", () =
     desmonta(host, root);
   });
 
-  it("desktop → a folha NÃO abre junto com a navegação", () => {
-    desktop = true;
+  it("ponteiro fino → a folha NÃO abre junto com a navegação", () => {
+    temPonteiroFino = true;
+    larguraDesktop = true;
     const { host, root } = montar("gov");
     clicaEmSp();
 

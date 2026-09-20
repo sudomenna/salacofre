@@ -66,6 +66,25 @@
  * Isto devolve o código ao que `docs/specs/003-home-nacional/spec.md:139-142`
  * (RF-030.3) sempre disse — aquela linha nunca foi emendada em 08/09. A
  * ressalva desktop/mobile entra na spec num passo separado.
+ *
+ * **2026-09-20 (decisão do usuário — corrige o predicado de 19/09, não o
+ * comportamento; e fecha um defeito adjacente no toque)**: duas mudanças.
+ *
+ *   1. `navegarNoClique` deixa de vir de "a tela é larga?" (`useIsDesktop`,
+ *      `min-width: 960px`) e passa a vir de "este aparelho tem mouse?"
+ *      (`useHasFinePointer`, `(hover: hover) and (pointer: fine)`,
+ *      `lib/utils/use-has-fine-pointer.ts`). Um iPad Pro a 1024px casava com
+ *      a largura de desktop e por isso NAVEGAVA no toque — o oposto do
+ *      pedido do dono ("no toque só a gaveta"). O nome da prop e o
+ *      comportamento por trás dela (navega com ponteiro fino, abre a folha
+ *      sem ele) não mudaram — só a PERGUNTA que decide qual dos dois é.
+ *   2. Nova prop `bloqueiaBalaoNoToque` (ver a interface abaixo) fecha um
+ *      defeito que já existia mesmo sem a troca de predicado acima: Safari e
+ *      Chrome em toque disparam um `mousemove` SINTÉTICO antes do `click`, e
+ *      nada neste arquivo distinguia esse sintético de um mouse de verdade —
+ *      o balão (`<HoverCard>`) abria no toque, e como não existe
+ *      `mouseleave` de um tap, ficava preso na tela por cima da folha que o
+ *      `click` seguinte abre.
  */
 
 import maplibregl from "maplibre-gl";
@@ -204,6 +223,40 @@ export interface NationalChoroplethMapImplProps {
    * closure congelaria esse `false` inicial e o desktop nunca navegaria.
    */
   navegarNoClique?: boolean;
+  /**
+   * Bloqueia o balão do `mousemove` (2026-09-20, pedido do dono: "no toque só
+   * a gaveta"). **Default `false` de propósito**: preserva o comportamento
+   * histórico (balão sempre abre no `mousemove`) para todo caller que não
+   * conhece esta prop — em especial os testes que montam este impl
+   * DIRETAMENTE (sem passar pelo wrapper), que são a maioria da suíte de
+   * hover deste arquivo.
+   *
+   * Quem liga é `NationalChoroplethMap.tsx`, e só quando
+   * `useHasFinePointer()` resolve `false` — ou seja, exatamente quando o
+   * aparelho NÃO tem mouse/trackpad, largura da tela à parte (ver a
+   * docstring de `useHasFinePointer`, `lib/utils/use-has-fine-pointer.ts`,
+   * para o argumento completo de por que largura era o predicado errado).
+   *
+   * **Por que existe**: Safari e Chrome em aparelhos de toque emitem um
+   * `mousemove` SINTÉTICO imediatamente ANTES do `click` — a premissa
+   * contrária ("em touch não há mousemove antes do tap") estava cravada no
+   * comentário do handler de clique logo abaixo, e era falsa. Sem esta
+   * guarda, esse `mousemove` sintético chamava `setTooltip` e abria o
+   * `<HoverCard>`; como `mouseleave` nunca dispara em toque (não existe
+   * "sair" de um tap), o balão ficava preso na tela, por cima da
+   * `<StateResultSheet>` que o `click` seguinte abre via `onSelectUf`.
+   *
+   * **O que NÃO bloqueia**: o caminho de TECLADO (`siglaFocoTabela`, efeito
+   * abaixo) — foco não é toque, e WCAG SC 1.4.13 (entregue 2026-09-20, ver a
+   * docstring daquele efeito) exige que o balão continue alcançável sem
+   * ponteiro nenhum. Esta prop só existe dentro do `onMouseMove`.
+   *
+   * Lida de uma REF, nunca de closure — mesmo motivo de `navegarNoCliqueRef`
+   * logo abaixo: o handler é registrado uma vez, na montagem, e o wrapper
+   * pode ligar/desligar isto depois (media query mudando de `pointer: fine`
+   * para `pointer: coarse` num aparelho híbrido).
+   */
+  bloqueiaBalaoNoToque?: boolean;
   /**
    * Qual corrida este mapa mostra (2026-09-18; estendido a `"sen"` em
    * 2026-09-18) — hoje só decide o alvo do `aria-describedby` (ver o atributo
@@ -741,6 +794,7 @@ export function NationalChoroplethMapImpl({
   height = 420,
   onSelectUf,
   navegarNoClique = false,
+  bloqueiaBalaoNoToque = false,
   cargo = "pres",
 }: NationalChoroplethMapImplProps) {
   const router = useRouter();
@@ -1011,8 +1065,17 @@ export function NationalChoroplethMapImpl({
 
       // Hover: highlight + tooltip (RF-030.3) + brushing (hover-store producer,
       // `type: "uf"` — S07/Bloco 1). Throttle: mesmo padrão de ChoroplethMapUF.tsx.
+      //
+      // 🔴 2026-09-20 — `bloqueiaBalaoNoToqueRef` é a PRIMEIRA linha, de
+      // propósito: Safari/Chrome em toque emitem este `mousemove` sintético
+      // ANTES do `click`, e nada aqui embaixo (hover-store, filtro de traço,
+      // `setTooltip`, cursor) deve rodar nesse caminho — ver a docstring da
+      // prop `bloqueiaBalaoNoToque` na interface acima para o porquê completo
+      // (inclui por que `mouseleave`, mais abaixo, NUNCA limparia isto
+      // sozinho em toque).
       const onMouseMove = throttle(
         (e: maplibregl.MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
+          if (bloqueiaBalaoNoToqueRef.current) return;
           const feature = e.features?.[0];
           if (!feature) return;
           const sigla = feature.properties?.SIGLA_UF as string | undefined;
@@ -1068,18 +1131,28 @@ export function NationalChoroplethMapImpl({
       });
 
       // Click (RF-030.3) — dois destinos, ver a docstring do topo do arquivo:
-      // no DESKTOP navega para a página do estado (decisão 2026-09-19); no
-      // mobile abre a folha de resumo via `onSelectUf` (decisão 2026-09-08).
-      // Emite pro hover-store nos dois casos (mesmo padrão de tap-to-select do
-      // ChoroplethMapUF.tsx) — em touch não há mousemove antes do tap, e no
-      // desktop o mousemove já deixou a mesma UF ali; em nenhum dos dois a
-      // emissão afirma algo diferente do que está sob o ponteiro.
+      // com PONTEIRO FINO navega para a página do estado (decisão
+      // 2026-09-19, predicado corrigido 2026-09-20); sem ele (toque) abre a
+      // folha de resumo via `onSelectUf` (decisão 2026-09-08). Emite pro
+      // hover-store nos dois casos (mesmo padrão de tap-to-select do
+      // ChoroplethMapUF.tsx).
+      //
+      // 🔴 2026-09-20 — correção de premissa: este comentário afirmava "em
+      // touch não há mousemove antes do tap". É FALSO — Safari e Chrome
+      // disparam um `mousemove` sintético imediatamente antes do `click` em
+      // qualquer aparelho de toque (é esse sintético que abria o balão por
+      // cima da gaveta antes da guarda `bloqueiaBalaoNoToque`, acima). O que
+      // é verdade, e o que de fato importa aqui, é mais simples: com ou sem
+      // esse sintético, a UF sob o dedo/ponteiro no momento do `click` é a
+      // mesma que este handler lê de `e.features` — a emissão ao hover-store
+      // não depende de o `mousemove` ter rodado antes.
       //
       // 🔴 TUDO que este handler lê vem de REF, nunca de closure: este efeito
       // roda só na montagem. `navegarNoCliqueRef` em especial — ele NASCE
-      // `false` no wrapper e só vira `true` depois do `useEffect` do
-      // `matchMedia`; uma closure congelaria o `false` e o desktop nunca
-      // navegaria. Mesmo motivo de `onSelectUfRef`, `cargoRef` e `routerRef`.
+      // `false` no wrapper e só vira o valor real depois do `useEffect` do
+      // `matchMedia`; uma closure congelaria o `false` e o ponteiro fino
+      // nunca navegaria. Mesmo motivo de `onSelectUfRef`, `cargoRef` e
+      // `routerRef`.
       map.on("click", "ufs-fill", (e) => {
         const sigla = e.features?.[0]?.properties?.SIGLA_UF as string | undefined;
         if (!sigla) return;
@@ -1135,6 +1208,15 @@ export function NationalChoroplethMapImpl({
     routerRef.current = router;
     navegarNoCliqueRef.current = navegarNoClique;
   }, [router, navegarNoClique]);
+
+  // 2026-09-20 — mesma razão de `navegarNoCliqueRef` acima: o handler de
+  // `mousemove` é registrado uma vez, na montagem, e o wrapper pode ligar
+  // isto depois de resolver `useHasFinePointer()`. Ver a docstring da prop
+  // `bloqueiaBalaoNoToque` na interface.
+  const bloqueiaBalaoNoToqueRef = useRef(bloqueiaBalaoNoToque);
+  useEffect(() => {
+    bloqueiaBalaoNoToqueRef.current = bloqueiaBalaoNoToque;
+  }, [bloqueiaBalaoNoToque]);
 
   // Refs for view/rankByLider/candidatosById used in load handler
   const viewRef = useRef(view);

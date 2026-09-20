@@ -165,11 +165,31 @@ function disparaMouseLeave() {
   });
 }
 
+/**
+ * 2026-09-20 — `ChoroplethMapUF` passou a consultar TAMBÉM
+ * `(hover: hover) and (pointer: fine)` (`useHasFinePointer`,
+ * `lib/utils/use-has-fine-pointer.ts`) para decidir se o `mousemove` abre o
+ * balão ("no toque só a gaveta", pedido do dono — ver
+ * `ChoroplethMapUF.toqueNaoAbreBalao.test.tsx`). Este arquivo testa hover de
+ * MOUSE: o estube precisa responder `matches: true` a essa query
+ * especificamente, senão TODO hover destes testes seria tratado como toque e
+ * nenhum balão abriria. `prefers-reduced-motion` (a outra query que o
+ * componente consulta) continua caindo em `false` — irrelevante aqui.
+ */
+const FINE_POINTER_QUERY = "(hover: hover) and (pointer: fine)";
+
 beforeEach(() => {
   espiao.handlers.clear();
-  if (typeof window.matchMedia !== "function") {
-    window.matchMedia = (() => ({ matches: false })) as unknown as typeof window.matchMedia;
-  }
+  window.matchMedia = ((query: string) => ({
+    matches: query === FINE_POINTER_QUERY,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
 });
 
 afterEach(() => {

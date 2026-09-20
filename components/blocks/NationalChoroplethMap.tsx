@@ -64,6 +64,20 @@
  * folha como "única saída" de quem depende de cor nos mapas de Governador e
  * Senador (que não têm legenda). Essa linha foi atualizada no mesmo commit —
  * o `<HoverCard>` carrega a coluna "Part." por candidato desde 18/09.
+ *
+ * **2026-09-20 (decisão do usuário — corrige o predicado de 19/09, não o
+ * comportamento)**: `navegarNoClique` deixa de vir de `useIsDesktop()`
+ * (largura) e passa a vir de `useHasFinePointer()` (`lib/utils/use-has-fine-pointer.ts`,
+ * `(hover: hover) and (pointer: fine)`). Motivo: largura mede o TAMANHO da
+ * tela, não se ela tem mouse — um iPad Pro a 1024px casava com
+ * `min-width: 960px` e por isso NAVEGAVA no toque, quando o pedido é
+ * justamente o oposto ("no toque só a gaveta"). `useIsDesktop()` não morreu:
+ * segue sendo lido logo abaixo, agora só para a FORMA da folha (`side`,
+ * cartão lateral vs. modal de baixo) — uma decisão de espaço disponível, que
+ * continua fazendo sentido por largura. Ver a docstring de
+ * `useHasFinePointer` para o argumento completo, e
+ * `_NationalChoroplethMapImpl.tsx` para a mesma correção do lado do balão
+ * (`bloqueiaBalaoNoToque`).
  */
 
 import dynamic from "next/dynamic";
@@ -82,6 +96,7 @@ import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import type { ViewMode } from "@/lib/state/view-mode";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import { intensityForParty, type PartyIntensity } from "@/lib/utils/party-color";
+import { useHasFinePointer } from "@/lib/utils/use-has-fine-pointer";
 
 /**
  * Breakpoint desktop — mesmo valor de `ADR-0029` (mobile <960px).
@@ -97,10 +112,14 @@ const DESKTOP_QUERY = "(min-width: 960px)";
  *
  * Chamava-se `useIsDesktopSheet` até 2026-09-19, quando governava uma coisa só
  * — a FORMA da folha (`Sheet.side`: cartão lateral no desktop, scrim modal no
- * mobile). Desde a decisão do clique-navega ele governa DUAS, e a segunda é a
- * mais importante das duas: se a folha abre (mobile) ou se o clique navega
- * para a página do estado (desktop). O nome perdeu o sufixo porque ele afirmava
- * um escopo que deixou de ser verdade.
+ * mobile). Entre 19/09 e 20/09 também decidiu se o clique navegava — mas
+ * largura estava respondendo a pergunta errada para isso (ver
+ * `useHasFinePointer`, `lib/utils/use-has-fine-pointer.ts`): um iPad Pro
+ * largo e sensível a toque navegava quando deveria abrir a gaveta. Desde
+ * 2026-09-20 este hook voltou a governar UMA coisa só — de novo a forma da
+ * folha —, e é por isso que o nome sem sufixo ficou, mesmo tendo perdido o
+ * segundo uso: continua sendo o predicado certo para "há espaço pra um
+ * cartão lateral", só não é mais o predicado certo para "há mouse".
  *
  * 🔴 Começa `false` em TODO viewport e só vira `true` depois do `useEffect`
  * — `window.matchMedia` não existe no render de servidor. Quem consome o valor
@@ -412,6 +431,9 @@ export function NationalChoroplethMap({
   const legendEntries = preEleicao ? null : buildCandidateLegendEntries(candidatos, view, cargo);
   const [selectedSigla, setSelectedSigla] = useState<string | null>(null);
   const isDesktop = useIsDesktop();
+  // 2026-09-20 — fonte do clique-navega E da guarda do balão no toque. Ver a
+  // docstring do topo do arquivo e `lib/utils/use-has-fine-pointer.ts`.
+  const temPonteiroFino = useHasFinePointer();
   const selectedRow = selectedSigla ? (rows.find((r) => r.sigla === selectedSigla) ?? null) : null;
 
   return (
@@ -451,10 +473,19 @@ export function NationalChoroplethMap({
         height={height}
         // 🔴 Os dois juntos, e não um OU outro: `navegarNoClique` decide qual
         // dos dois caminhos o impl toma, e `onSelectUf` continua sendo o
-        // caminho de MOBILE (quando `isDesktop` é falso). Remover `onSelectUf`
-        // "porque o desktop navega" mataria a folha no telefone, que é onde a
-        // decisão de 08/09 continua valendo inteira.
-        navegarNoClique={isDesktop}
+        // caminho de TOQUE/mobile (quando `temPonteiroFino` é falso). Remover
+        // `onSelectUf` "porque o mouse navega" mataria a gaveta no toque, que
+        // é onde a decisão de 08/09 continua valendo inteira.
+        //
+        // 2026-09-20 — `temPonteiroFino` (capacidade de ponteiro), não mais
+        // `isDesktop` (largura): ver a docstring do topo do arquivo.
+        navegarNoClique={temPonteiroFino}
+        // 2026-09-20 — o balão do `mousemove` só é permitido com ponteiro
+        // fino. Sem isto, o `mousemove` sintético que Safari/Chrome disparam
+        // ANTES do `click` em qualquer toque abriria o balão por cima da
+        // gaveta que o clique seguinte abre (`mouseleave`, que fecharia o
+        // balão, nunca dispara em toque). Ver `_NationalChoroplethMapImpl.tsx`.
+        bloqueiaBalaoNoToque={!temPonteiroFino}
         onSelectUf={setSelectedSigla}
         cargo={cargo}
       />
