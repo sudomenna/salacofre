@@ -11,7 +11,8 @@
  *     vem de `colorForRank(rank)`. Esperado típico em 1T BR: 2-3 colunas
  *     concentrando a maioria das UFs (top-2 dominante) + 1 "Em disputa".
  *
- * Server Component puro. Sem hooks.
+ * Server Component. O único pedaço client é `<UfHoverLink>` (a célula de UF),
+ * que precisa de handlers de foco — ver a nota de 2026-09-20 abaixo.
  *
  * A11y
  *   - `<table>` semântico, com `<caption>` + `<thead>` + `<tbody>`.
@@ -24,10 +25,22 @@
  * (`<HoverCard>`, `aria-hidden` por construção) mostra sobre uma UF e não
  * existe aqui é informação que a rota `/` simplesmente não entrega a leitor
  * de tela — e o balão ganhou naquele dia uma 5ª linha, "Outros (N)", com a
- * cauda de candidaturas fora das quatro primeiras. Ver a nota de `<CelulaUf>`
- * mais abaixo para o que entrou, e o relatório da rodada para o que ficou de
- * fora (o balão nomeia 4 candidaturas por UF; esta tabela nomeia só o líder,
- * e só no cabeçalho da coluna).
+ * cauda de candidaturas fora das quatro primeiras.
+ *
+ * 🔴 **2026-09-20 — a distância que o ajuste anterior abriu, fechada.** Até
+ * aqui o balão nomeava 4 candidaturas por UF e esta tabela nomeava **uma** (o
+ * líder, e só no cabeçalho da coluna): quem usa mouse alcançava quatro nomes
+ * por estado, quem usa teclado ou leitor de tela alcançava um. Entraram duas
+ * emendas, ambas na célula (`<CelulaUf>`, abaixo):
+ *
+ *   (a) **o foco abre o balão** — `<UfHoverLink>` emite para o `useHoverStore`
+ *       com `source: "table"` e o mapa obedece (WCAG SC 1.4.13);
+ *   (b) **as 4 candidaturas viram texto** — um bloco `sr-only` por célula,
+ *       ligado ao link por `aria-describedby`, montado por
+ *       `descricaoCandidaturasUf` (`lib/utils/uf-descricao-candidaturas.ts`).
+ *
+ * O `<HoverCard>` continua `aria-hidden`, e isso é de propósito: fazê-lo falar
+ * duplicaria o que a descrição já diz.
  *
  * As células de UF eram `<a href>` cru até 2026-09-08 e passaram a `<Link>`
  * (ADR-0033 § 1). Um `<a href>` recarrega o documento, e com a moldura
@@ -37,11 +50,12 @@
  * indexável; muda só o handler que o App Router acopla.
  */
 
-import Link from "next/link";
+import { UfHoverLink } from "@/components/atoms/tables/UfHoverLink";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent, formatPp } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
+import { descricaoCandidaturasUf } from "@/lib/utils/uf-descricao-candidaturas";
 
 export type StateGroupedTableMode = "binary" | "multi-1t";
 
@@ -139,32 +153,71 @@ function bucketFor(
  */
 function CelulaUf({ row }: { row: EdgeUfRow }) {
   const outros = row.outros;
+  /**
+   * 🔴 2026-09-20 — a descrição acessível com as 4 candidaturas + "Outros".
+   *
+   * **Descrição, e não conteúdo visível da célula, de propósito.** São 27
+   * células; quatro nomes despejados no fluxo de leitura de cada uma tornariam
+   * a tabela impraticável para quem a varre de cima a baixo. Como
+   * `aria-describedby`, o texto é falado quando a pessoa **para naquele
+   * estado** — que é exatamente o momento em que o balão abre para quem usa
+   * mouse.
+   *
+   * **`<span>`, nunca uma `<table>` com `sr-only`** (regra de 2026-09-19,
+   * travada por `tests/unit/design-system/sr-only-tabela.test.ts`): o recorte
+   * depende de `width: 1px` e o layout de tabela lê largura como MÍNIMO —
+   * medido na home a 360px, uma `<table class="sr-only">` saiu com 2.768px e
+   * criou 2.424px de rolagem horizontal. Aqui não há tabela escondida
+   * nenhuma; o texto é uma frase.
+   *
+   * **Fora do `<Link>`, não dentro.** O nome acessível de um link é computado
+   * a partir do seu conteúdo: um `sr-only` aqui dentro faria o link se chamar
+   * "SP −10,0 pp 30% Outros (7) 8,1% Primeiras candidaturas, por projeção:
+   * …" — a lista inteira lida duas vezes, uma como nome e outra como
+   * descrição. Como irmão, o link continua se chamando "SP …" e a descrição
+   * vem depois.
+   *
+   * Texto vazio (payload sem `top_candidatos` e sem `outros`) ⇒ nem o `<span>`
+   * nem o atributo — `aria-describedby` apontando para um elemento vazio
+   * anuncia uma descrição que não existe.
+   */
+  const descricao = descricaoCandidaturasUf(row);
+  const descId = descricao ? `uf-cand-${row.sigla}` : undefined;
   return (
-    <Link
-      href={`/uf/${row.sigla}`}
-      className="flex flex-col gap-0.5"
-      style={{ color: "var(--color-text)" }}
-    >
-      <span className="flex items-baseline justify-between gap-2">
-        <span className="font-medium tabular-nums">{row.sigla}</span>
-        <span className="text-xs tabular-nums" style={{ color: "var(--color-text-muted)" }}>
-          {formatPp(row.margem_projetada)} · {formatPercent(row.pct_apurado, 0)}
+    <>
+      <UfHoverLink
+        sigla={row.sigla}
+        href={`/uf/${row.sigla}`}
+        describedById={descId}
+        className="flex flex-col gap-0.5"
+        style={{ color: "var(--color-text)" }}
+      >
+        <span className="flex items-baseline justify-between gap-2">
+          <span className="font-medium tabular-nums">{row.sigla}</span>
+          <span className="text-xs tabular-nums" style={{ color: "var(--color-text-muted)" }}>
+            {formatPp(row.margem_projetada)} · {formatPercent(row.pct_apurado, 0)}
+          </span>
         </span>
-      </span>
-      {outros ? (
-        <span
-          className="flex items-baseline justify-between gap-2 text-xs"
-          style={{ color: "var(--color-text-muted)" }}
-        >
-          {/* `n_candidatos` é a razão de este agregado não caber dentro de
-              `top_candidatos[]` — candidatura nenhuma tem esse campo — e é o
-              que impede o rótulo de mentir por omissão: "Outros" sozinho não
-              diz se é gente ou arredondamento. */}
-          <span className="truncate">Outros ({outros.n_candidatos})</span>
-          <span className="tabular-nums">{formatPercent(outros.pct, 1)}</span>
+        {outros ? (
+          <span
+            className="flex items-baseline justify-between gap-2 text-xs"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            {/* `n_candidatos` é a razão de este agregado não caber dentro de
+                `top_candidatos[]` — candidatura nenhuma tem esse campo — e é o
+                que impede o rótulo de mentir por omissão: "Outros" sozinho não
+                diz se é gente ou arredondamento. */}
+            <span className="truncate">Outros ({outros.n_candidatos})</span>
+            <span className="tabular-nums">{formatPercent(outros.pct, 1)}</span>
+          </span>
+        ) : null}
+      </UfHoverLink>
+      {descId ? (
+        <span id={descId} className="sr-only">
+          {descricao}
         </span>
       ) : null}
-    </Link>
+    </>
   );
 }
 

@@ -82,7 +82,7 @@ import {
   registerPmtilesProtocolOnce,
   resetPmtilesProtocol,
 } from "@/components/atoms/maps/_pmtiles-protocol";
-import { UF_NOMES } from "@/components/atoms/maps/_shared";
+import { UF_BBOX, UF_NOMES } from "@/components/atoms/maps/_shared";
 import { HoverCard, type HoverCardRow } from "@/components/atoms/overlays/HoverCard";
 import { FILL_OPACITY, fillOpacityExpression, swingToColor } from "@/components/blocks/_swingRamp";
 // 🔴 `ariaRessalvaVagas`/`margemSegundaVaga` vêm de `lib/utils/margem-senado`,
@@ -753,6 +753,40 @@ export function NationalChoroplethMapImpl({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
+  /**
+   * 🔴 **Quem abriu o balão que está na tela** — `"map"` (ponteiro) ou
+   * `"table"` (foco de teclado numa célula de `<StateGroupedTable>`).
+   *
+   * Existe por uma razão só, e ela é uma corrida real: o efeito de foco
+   * (abaixo) fecha o balão quando a store deixa de apontar para uma UF vinda
+   * da tabela. Sem esta marca, sair do foco da tabela **enquanto o ponteiro já
+   * está sobre o mapa** apagaria o balão que o `mousemove` acabou de abrir —
+   * o `mousemove` escreve `source: "map"` na store, o selector abaixo resolve
+   * para `null`, e o efeito interpretaria isso como "a tabela pediu para
+   * fechar". Com a marca, o efeito só fecha o que ele mesmo abriu.
+   *
+   * Ref e não estado: ninguém renderiza a partir daqui, e um `useState` extra
+   * faria o componente re-renderizar a cada `mousemove` (throttled a 16ms).
+   */
+  const origemTooltipRef = useRef<"map" | "table" | null>(null);
+
+  /**
+   * A UF que a TABELA pediu para destacar, ou `null`.
+   *
+   * 🔴 **Selector fino, devolvendo uma string** — a regra do topo de
+   * `lib/state/hover-store.ts`. Um selector que devolvesse `s.hovered` inteiro
+   * re-renderizaria o mapa a cada emissão de qualquer entidade; este resolve
+   * para o MESMO `null` durante todo o hover de ponteiro (`source === "map"`),
+   * então o caminho do mouse não ganha nenhum render novo.
+   *
+   * O filtro por `source` também é o que impede o laço: este componente é
+   * PRODUTOR da store (`setHovered(..., "map")` no `mousemove`). Consumir as
+   * próprias emissões seria realimentação.
+   */
+  const siglaFocoTabela = useHoverStore((s) =>
+    s.source === "table" && s.hovered?.type === "uf" ? s.hovered.sigla : null,
+  );
+
   // Keep rows lookup fresh for tooltip without remounting map
   const rowsMapRef = useRef<Map<string, EdgeUfRow>>(new Map());
   useEffect(() => {
@@ -953,6 +987,8 @@ export function NationalChoroplethMapImpl({
           map.setFilter("ufs-stroke-hover", ["==", "SIGLA_UF", sigla]);
           const row = rowsMapRef.current.get(sigla);
           if (row) {
+            // Quem abriu o balão que está na tela agora. Ver `origemTooltipRef`.
+            origemTooltipRef.current = "map";
             const rect = container.getBoundingClientRect();
             const x = e.originalEvent.clientX - rect.left;
             const y = e.originalEvent.clientY - rect.top;
@@ -998,6 +1034,7 @@ export function NationalChoroplethMapImpl({
       map.on("mouseleave", "ufs-fill", () => {
         useHoverStore.getState().clear();
         map.setFilter("ufs-stroke-hover", ["==", "SIGLA_UF", ""]);
+        origemTooltipRef.current = null;
         setTooltip(null);
         map.getCanvas().style.cursor = "";
       });
@@ -1100,6 +1137,92 @@ export function NationalChoroplethMapImpl({
     applyColors(map, rows, view, effectiveRankByLider, candidatosById, viewMode, preEleicao, cargo);
   }, [view, viewMode, rows, effectiveRankByLider, candidatosById, preEleicao, cargo]);
 
+  /**
+   * 🔴 **2026-09-20 — WCAG SC 1.4.13: o balão também abre no FOCO.**
+   *
+   * Tabular até uma célula de UF na `<StateGroupedTable>` acende o estado e
+   * abre o mesmo `<HoverCard>` que o ponteiro abre. Quem emite é
+   * `<UfHoverLink>` (`components/atoms/tables/UfHoverLink.tsx`), com
+   * `source: "table"`; aqui só obedecemos.
+   *
+   * **O mapa continua SEM `tabIndex`, e isso é decisão, não esquecimento**:
+   * tornar as 27 UFs focáveis duplicaria as 27 paradas de tabulação que a
+   * tabela já oferece. O desenho fica como está — o mapa é `role="img"`
+   * descrito pela tabela, e a tabela é quem tem o foco.
+   *
+   * ## O posicionamento, que é o ponto difícil
+   *
+   * O caminho do mouse ancora o cartão no PONTEIRO (`clientX/clientY` menos o
+   * retângulo do contêiner). Vindo da tabela não há ponteiro — ela fica do
+   * outro lado da tela. Ancorar no canto, ou na última posição conhecida do
+   * cursor, apontaria para o estado errado.
+   *
+   * A âncora certa é o próprio estado no mapa, e o mapa sabe convertê-la:
+   * `map.project(lngLat)` devolve pixel NO MESMO referencial do contêiner que
+   * o caminho do mouse usa — as duas origens produzem o mesmo tipo de
+   * coordenada, e `flip`/`flipY` continuam saindo do mesmo predicado
+   * (metade direita ⇒ vira de lado; metade de baixo ⇒ vira para cima).
+   *
+   * O `lngLat` sai do centro de `UF_BBOX[sigla]`
+   * (`components/atoms/maps/_shared.ts`) — a MESMA tabela que enquadra os
+   * mapas estaduais, já importada por este arquivo (`UF_NOMES` é a vizinha
+   * dela) e server-safe. Deliberadamente NÃO usamos
+   * `querySourceFeatures`/`queryRenderedFeatures` para achar a geometria: a
+   * feature de uma UF chega recortada e repetida por tile, o resultado depende
+   * de quais tiles já carregaram, e uma UF fora do viewport não retorna nada —
+   * três formas de o balão abrir no lugar errado, ou não abrir, sem sintoma.
+   * O centro do bbox é aproximado (é o centro do RETÂNGULO, não o centroide do
+   * polígono) e isso basta: o cartão tem 12px de deslocamento e ~220px de
+   * largura, não é uma ponta de seta.
+   *
+   * ## Por que a ref de "anterior", e não um `if` simples
+   *
+   * Este efeito roda em TODA mudança de `siglaFocoTabela` — inclusive na
+   * montagem, quando ele já nasce `null`. Fechar incondicionalmente no ramo
+   * `null` apagaria o balão do mouse a cada render. Só a TRANSIÇÃO
+   * não-nulo → nulo é um pedido de fechar, e mesmo ela só vale se o balão na
+   * tela for o nosso (`origemTooltipRef`).
+   */
+  const focoAnteriorRef = useRef<string | null>(null);
+  useEffect(() => {
+    const anterior = focoAnteriorRef.current;
+    focoAnteriorRef.current = siglaFocoTabela;
+    const map = mapRef.current;
+
+    if (siglaFocoTabela === null) {
+      // Nunca houve foco de tabela, ou o balão da tela é do ponteiro: não é
+      // conosco. Ver a docstring acima.
+      if (anterior === null || origemTooltipRef.current !== "table") return;
+      origemTooltipRef.current = null;
+      setTooltip(null);
+      if (map?.isStyleLoaded()) map.setFilter("ufs-stroke-hover", ["==", "SIGLA_UF", ""]);
+      return;
+    }
+
+    const row = rows.find((r) => r.sigla === siglaFocoTabela);
+    const bbox = UF_BBOX[siglaFocoTabela];
+    const container = containerRef.current;
+    // Sem mapa montado, sem linha para aquela UF ou sem bbox conhecido, não há
+    // balão honesto a mostrar — e o destaque de contorno sozinho apontaria
+    // para um estado sem dizer nada sobre ele.
+    if (!map || !row || !bbox || !container) return;
+
+    const ponto = map.project([(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2]);
+    const rect = container.getBoundingClientRect();
+    origemTooltipRef.current = "table";
+    if (map.isStyleLoaded()) {
+      map.setFilter("ufs-stroke-hover", ["==", "SIGLA_UF", siglaFocoTabela]);
+    }
+    setTooltip({
+      x: ponto.x,
+      y: ponto.y,
+      flip: ponto.x > rect.width / 2,
+      flipY: ponto.y > rect.height / 2,
+      sigla: siglaFocoTabela,
+      row,
+    });
+  }, [siglaFocoTabela, rows]);
+
   return (
     // `height` também aqui, e não só no container do MapLibre: com a moldura
     // persistente (ADR-0033 § 1) o mapa recebe `height="100%"`, e 100% de um
@@ -1109,11 +1232,18 @@ export function NationalChoroplethMapImpl({
     <div style={{ position: "relative", height }}>
       <div
         ref={containerRef}
+        // 🔴 2026-09-20 — este `role="img"` continua SEM `tabIndex`, e por
+        // decisão: 27 UFs focáveis duplicariam as 27 paradas de tabulação que
+        // a `<StateGroupedTable>` já oferece. O que mudou naquele dia é que o
+        // foco naquelas células passou a ABRIR O BALÃO daqui (WCAG SC 1.4.13)
+        // — ver o efeito `siglaFocoTabela` acima. O caminho de teclado segue
+        // sendo a tabela e o `<UfPicker>`, não o canvas.
+        //
         // 🔴 2026-09-19 — trocar o clique→folha por clique→navegação no
         // desktop NÃO é regressão de acessibilidade, e isto foi CONFERIDO no
-        // código, não presumido: este `role="img"` não tem `tabIndex` e não há
-        // um único handler de teclado neste arquivo (`grep tabIndex|onKeyDown|
-        // keydown` = zero linhas). O canvas do MapLibre nunca esteve na ordem
+        // código, não presumido: este `role="img"` não tem `tabIndex`, e na
+        // data em que a nota foi escrita não havia handler de teclado nenhum
+        // neste arquivo. O canvas do MapLibre nunca esteve na ordem
         // de tabulação, logo a `<StateResultSheet>` que o clique abria também
         // nunca foi alcançável por teclado — não se perde um caminho que não
         // existia. O caminho de teclado para chegar a um estado é, e continua
