@@ -13,8 +13,9 @@
  *     polo direito = "Decide 1T (<lider>)". Arcos do fundo usam tokens neutros
  *     (`--color-band-tossup`, `--color-band-lean`, `--color-band-likely`,
  *     `--color-band-very_likely`) — não usa cores partidárias/por-rank.
- *   - `national-2t`: duelo binário A×B (P(A>B)). Arcos usam tokens dos top-2
- *     ranks (`colorForRank(1)` à direita, `colorForRank(2)` à esquerda).
+ *   - `national-2t`: duelo binário A×B (P(A>B)). Arcos usam a cor da SIGLA de
+ *     cada lado (`partidoA` à direita, `partidoB` à esquerda) — nunca a
+ *     colocação; ver a nota de 2026-09-20 no corpo.
  *   - `uf`: idem `national-2t` mas com label "Forecast estadual".
  *
  * `needlePosition` é o output canônico do modelo, em [-1, 1]:
@@ -33,13 +34,13 @@
  */
 
 import type { NeedleBand } from "@/lib/edge-config/types";
-import { colorForRank } from "@/lib/utils/cand-color";
+import { colorForParty, intensityForParty } from "@/lib/utils/party-color";
 
 /**
  * Variantes semânticas:
  *   - `"national-1t"`: medidor P(decisão no 1T) — arcos neutros, polos
  *     "2º turno" / "Decide 1T (<lider>)".
- *   - `"national-2t"`: duelo binário top-2 — arcos por rank.
+ *   - `"national-2t"`: duelo binário top-2 — arcos pela SIGLA de cada lado.
  *   - `"uf"`: idêntico a `national-2t` mas com label "Forecast estadual".
  *   - `"national"` (legacy alias S04, removido em S05/F4): mantido aqui só
  *     pra retrocompat — comporta-se como `national-2t`.
@@ -57,6 +58,16 @@ export interface NeedleProps {
   candidatoA: string;
   /** Nome do candidato B. Em national-1t, este label é trocado por "2º turno". */
   candidatoB: string;
+  /**
+   * Sigla do partido de A — pinta o arco DIREITO em `national-2t` / `uf`.
+   * Ignorada em `national-1t`, onde os arcos são neutros por construção.
+   *
+   * Ausente ⇒ `--party-outros`. Ver a nota de 2026-09-20 no corpo para por que
+   * o fallback é o cinza e não "vermelho porque é o de cima".
+   */
+  partidoA?: string;
+  /** Sigla do partido de B — pinta o arco ESQUERDO. Idem `partidoA`. */
+  partidoB?: string;
   /** Variante visual + semântica. Default `"national-2t"` (S05+). */
   variant?: NeedleVariant;
   /** Largura do SVG (px). Default 400; mobile pode passar 320. */
@@ -78,6 +89,8 @@ export function Needle({
   pVitoria,
   candidatoA,
   candidatoB,
+  partidoA,
+  partidoB,
   variant = "national-2t",
   width = 400,
 }: NeedleProps) {
@@ -86,14 +99,46 @@ export function Needle({
 
   // Variantes:
   //   national-1t → arcos neutros (P(decisão no 1T)), labels "2º turno" / "Decide 1T (lider)"
-  //   national-2t / uf / national (legacy) → arcos por rank top-2, labels = nomes
+  //   national-2t / uf / national (legacy) → arcos pela sigla de cada lado, labels = nomes
   const isMulti1T = variant === "national-1t";
-  // Cor por rank (top-2). `colorForRank(1)` é o líder (lado direito), `colorForRank(2)` é o segundo (lado esquerdo).
-  const rightColor = isMulti1T ? "var(--color-band-very_likely)" : colorForRank(1);
-  const leftColor = isMulti1T ? "var(--color-band-very_likely)" : colorForRank(2);
-  // Bandas intermediárias — em multi-1t, gradiente neutro; em duelo, "band" do rank.
-  const rightBandColor = isMulti1T ? "var(--color-band-likely)" : "var(--color-cand-band-1)";
-  const leftBandColor = isMulti1T ? "var(--color-band-likely)" : "var(--color-cand-band-2)";
+  // 🔴 **2026-09-20 — o veredicto sobre esta agulha: NÃO era exceção.**
+  //
+  // Era: `colorForRank(1)` à direita e `colorForRank(2)` à esquerda, com
+  // `--color-cand-band-1/2` nas bandas do meio. A defesa plausível é que o 1/2
+  // aqui seria "o eixo do widget" — direita e esquerda —, e não identidade de
+  // candidatura. Ela não sobrevive a olhar o que está desenhado DEBAIXO dos
+  // arcos: nas variantes `national-2t` e `uf`, os rótulos laterais são
+  // `candidatoA` e `candidatoB`, dois nomes de gente. O arco vermelho é o arco
+  // DAQUELA pessoa.
+  //
+  // E o lado não é estável. `<NationalNeedle>` resolve A por
+  // `national.candidato_a_id`, que o tipo define como "o líder semântico
+  // (rank == 1)" e que o orquestrador **recalcula do zero a cada ciclo**
+  // (`api/model/project.py`; ver a nota em `lib/utils/cand-color.ts`). Numa
+  // ultrapassagem ao vivo, a pessoa muda de lado E o lado mantém a cor: quem
+  // era vermelho à direita reaparece azul à esquerda entre duas atualizações
+  // da página. É a definição literal do que a constituição § 2 proíbe — "não
+  // muda por rank, por ordem de apuração, por margem ou por qualquer evento da
+  // corrida" —, e na mesma tela o painel ao lado já pintava as duas pela sigla.
+  //
+  // O que É legítimo aqui, e fica: a **geometria**. Direita = A, esquerda = B,
+  // agulha varrendo de −1 a +1. Isso é o eixo do widget, não tinta.
+  //
+  // `national-1t` continua com os arcos neutros (`--color-band-*`) e ignora as
+  // siglas — e ali a defesa do "eixo" é verdadeira, porque os polos são
+  // "2º turno" e "Decide 1T": dois RESULTADOS, não duas candidaturas.
+  //
+  // Sem sigla, os dois lados caem em `--party-outros` (o mesmo cinza dos dois
+  // lados). É deliberadamente pior de ler que o vermelho-contra-azul de antes,
+  // e é o ponto: "não sei de quem é este arco" é a resposta honesta, enquanto
+  // "vermelho porque é o de cima" é uma resposta inventada. O único caller
+  // (`<NationalNeedle>`) sempre passa as duas.
+  const rightColor = isMulti1T ? "var(--color-band-very_likely)" : colorForParty(partidoA);
+  const leftColor = isMulti1T ? "var(--color-band-very_likely)" : colorForParty(partidoB);
+  // Bandas intermediárias — em multi-1t, gradiente neutro; em duelo, o degrau
+  // mais claro da rampa do PRÓPRIO partido (mesma matiz, § 2 v1.3).
+  const rightBandColor = isMulti1T ? "var(--color-band-likely)" : intensityForParty(partidoA, 1);
+  const leftBandColor = isMulti1T ? "var(--color-band-likely)" : intensityForParty(partidoB, 1);
   const tossupColor = isMulti1T ? "var(--color-band-tossup)" : "var(--color-tossup)";
 
   // Labels laterais
@@ -156,7 +201,8 @@ export function Needle({
 
       {/* Arcos das 7 bandas — esquerda (B/2T) → direita (A/1T fechado).
           national-1t: bandas neutras (band-tossup/lean/likely/very_likely).
-          national-2t/uf: bandas por rank — cor sólida nas pontas, band clara nos meios. */}
+          national-2t/uf: bandas pela SIGLA de cada lado — cor-base nas pontas,
+          degrau claro da mesma rampa nos meios. */}
       {arc(0.0, 0.05, leftColor, "vlb")}
       {arc(0.05, 0.25, leftBandColor, "lb1")}
       {arc(0.25, 0.4, leftBandColor, "lb2")}

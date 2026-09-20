@@ -84,15 +84,107 @@ describe("<Needle />", () => {
     expect(paths.every((s) => !s?.includes("--color-cand-1"))).toBe(true);
   });
 
-  it("(g) variant='uf' usa cores binárias top-2 (cand-1 / cand-2)", () => {
+  const strokes = (doc: Document) =>
+    Array.from(doc.querySelectorAll("path")).map((p) => p.getAttribute("stroke"));
+
+  // 🔴 2026-09-20 — este caso testava o CONTRÁRIO até hoje. Chamava-se
+  // "variant='uf' usa cores binárias top-2 (cand-1 / cand-2)" e EXIGIA
+  // `--color-cand-1` à direita e `--color-cand-2` à esquerda.
+  //
+  // A defesa do widget era que o 1/2 seria o eixo (direita/esquerda), não
+  // identidade — e ela não sobrevive ao que está desenhado debaixo dos arcos:
+  // em `national-2t` e `uf` os rótulos laterais são `candidatoA` e
+  // `candidatoB`, dois nomes de gente. Como A é `candidato_a_id` (= o líder,
+  // recalculado a cada ciclo), uma ultrapassagem fazia a pessoa mudar de lado
+  // e o lado manter a cor: vermelho à direita, azul à esquerda, mesma pessoa.
+  // Invertido.
+  it("(g) variant='uf' pinta os arcos pela SIGLA de cada lado", () => {
+    const doc = parse(
+      <Needle
+        needlePosition={0.4}
+        pVitoria={0.7}
+        candidatoA="A"
+        candidatoB="B"
+        partidoA="PT"
+        partidoB="PL"
+        variant="uf"
+      />,
+    );
+    expect(strokes(doc).some((s) => s?.includes("--party-pt"))).toBe(true);
+    expect(strokes(doc).some((s) => s?.includes("--party-pl"))).toBe(true);
+    // Nenhum arco na paleta por colocação.
+    expect(strokes(doc).every((s) => !s?.includes("--color-cand-"))).toBe(true);
+    // E NÃO usa as bandas neutras de national-1t.
+    expect(strokes(doc).every((s) => !s?.includes("--color-band-very_likely"))).toBe(true);
+  });
+
+  // O caso que DISCRIMINA: a MESMA candidatura, vista dos dois lados da
+  // agulha, tem de sair com a mesma tinta. É a ultrapassagem da noite,
+  // reproduzida — `<NationalNeedle>` inverte quem é A e quem é B quando o
+  // líder muda, e nada mais muda.
+  it("(g2) trocar os lados troca a POSIÇÃO das cores, nunca a cor de cada sigla", () => {
+    const antes = parse(
+      <Needle
+        needlePosition={0.4}
+        pVitoria={0.7}
+        candidatoA="Fulana"
+        candidatoB="Beltrano"
+        partidoA="PSD"
+        partidoB="PSB"
+        variant="national-2t"
+      />,
+    );
+    const depois = parse(
+      <Needle
+        needlePosition={-0.4}
+        pVitoria={0.7}
+        candidatoA="Beltrano"
+        candidatoB="Fulana"
+        partidoA="PSB"
+        partidoB="PSD"
+        variant="national-2t"
+      />,
+    );
+    // PSD e PSB continuam na tela nos dois cenários…
+    for (const doc of [antes, depois]) {
+      expect(strokes(doc).some((s) => s?.includes("--party-psd"))).toBe(true);
+      expect(strokes(doc).some((s) => s?.includes("--party-psb"))).toBe(true);
+    }
+    // …e o arco da PONTA direita (o último desenhado, `vla`) segue a sigla de
+    // A, que é justamente quem trocou de lado.
+    const pontaDireita = (doc: Document) => strokes(doc).at(-1);
+    expect(pontaDireita(antes)).toContain("--party-psd");
+    expect(pontaDireita(depois)).toContain("--party-psb");
+  });
+
+  // Sem sigla, cinza dos dois lados — deliberadamente pior de ler que o
+  // vermelho-contra-azul de antes. "Não sei de quem é este arco" é honesto;
+  // "vermelho porque é o de cima" era inventado.
+  it("(g3) sem sigla, os arcos caem em `outros` — nunca no token do rank 1", () => {
     const doc = parse(
       <Needle needlePosition={0.4} pVitoria={0.7} candidatoA="A" candidatoB="B" variant="uf" />,
     );
-    // Pelo menos um arco usa cor por rank
-    const paths = Array.from(doc.querySelectorAll("path")).map((p) => p.getAttribute("stroke"));
-    expect(paths.some((s) => s?.includes("--color-cand-1"))).toBe(true);
-    expect(paths.some((s) => s?.includes("--color-cand-2"))).toBe(true);
-    // E NÃO usa as bandas neutras de national-1t
-    expect(paths.every((s) => !s?.includes("--color-band-very_likely"))).toBe(true);
+    expect(strokes(doc).some((s) => s?.includes("--party-outros"))).toBe(true);
+    expect(strokes(doc).every((s) => !s?.includes("--color-cand-"))).toBe(true);
+  });
+
+  // A exceção que FICA: em `national-1t` os polos são "2º turno" e "Decide
+  // 1T" — dois RESULTADOS, não duas candidaturas. Ali o eixo é mesmo eixo, os
+  // arcos são neutros, e a sigla é ignorada de propósito.
+  it("(g4) national-1t ignora as siglas: os polos são resultados, não gente", () => {
+    const doc = parse(
+      <Needle
+        needlePosition={0.2}
+        pVitoria={0.6}
+        candidatoA="A"
+        candidatoB="B"
+        partidoA="PT"
+        partidoB="PL"
+        variant="national-1t"
+      />,
+    );
+    expect(strokes(doc).every((s) => !s?.includes("--party-pt"))).toBe(true);
+    expect(strokes(doc).every((s) => !s?.includes("--party-pl"))).toBe(true);
+    expect(strokes(doc).some((s) => s?.includes("--color-band-very_likely"))).toBe(true);
   });
 });

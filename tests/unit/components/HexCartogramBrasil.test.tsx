@@ -121,6 +121,55 @@ describe("<HexCartogramBrasil />", () => {
     expect(text.includes("PT") || text.includes("PL")).toBe(true);
   });
 
+  // 🔴 2026-09-20 — o preenchimento já vinha da sigla; a TINTA do texto ainda
+  // vinha da colocação, e era o pior dos dois.
+  //
+  // O hexágono tem ~34px de largura útil e carrega DUAS linhas de texto por
+  // cima (a UF e a sigla do partido). A escolha da tinta era
+  // `[1, 2, 5, 6].includes(rank) ? "#ffffff" : "var(--color-text)"` — a lista
+  // dos ranks cujo token era escuro **na paleta por colocação**. Depois que o
+  // fundo migrou para a sigla, aquela lista deixou de descrever o pixel de
+  // baixo: partido de fundo claro em rank 1 recebia texto BRANCO sobre
+  // amarelo. Não é troca-de-cor (§ 2), é texto ilegível (§ 4 / WCAG 1.4.3), e
+  // chegava pelo resíduo de rank que ninguém tinha tirado.
+  // Todo fundo e toda tinta desenhados, em ordem de documento — não amostra.
+  const retratoDeCores = (doc: Document) => ({
+    fundos: Array.from(doc.querySelectorAll("polygon")).map((p) => p.getAttribute("fill") ?? ""),
+    tintas: Array.from(doc.querySelectorAll("text")).map((t) => t.getAttribute("fill") ?? ""),
+  });
+
+  it("(h) fundo e tinta do hexágono são o PAR medido da sigla, nunca do rank", () => {
+    const doc = parse(<HexCartogramBrasil rows={mkRows()} candidatos={candidatos} />);
+    const fills = Array.from(doc.querySelectorAll("polygon")).map(
+      (p) => p.getAttribute("fill") ?? "",
+    );
+    const tintas = Array.from(doc.querySelectorAll("text"))
+      .map((t) => t.getAttribute("fill") ?? "")
+      .filter(Boolean);
+    // Nenhuma tinta branca cravada — a tinta sai de `--party-<slug>-ink`.
+    expect(tintas.every((t) => t !== "#ffffff")).toBe(true);
+    expect(fills.some((f) => f.includes("--party-pt-chip"))).toBe(true);
+    expect(fills.some((f) => f.includes("--party-pl-chip"))).toBe(true);
+    expect(tintas.some((t) => t.includes("--party-pt-ink"))).toBe(true);
+    // `--color-cand-other` continua legítimo: é o bucket "indefinido", onde
+    // não há candidatura a identificar.
+    expect(fills.some((f) => f === "var(--color-cand-other)")).toBe(true);
+    // E nenhuma cor de COLOCAÇÃO.
+    expect(fills.every((f) => !/--color-cand-[0-9]/.test(f))).toBe(true);
+  });
+
+  // O caso que DISCRIMINA: trocar as colocações dos dois candidatos não pode
+  // mover um pixel — nem o fundo, nem a tinta.
+  it("(h2) trocar as colocações não muda fundo nem tinta de hexágono nenhum", () => {
+    const retrato = (cands: EdgeCandidate[]) =>
+      retratoDeCores(parse(<HexCartogramBrasil rows={mkRows()} candidatos={cands} />));
+    const invertidos = candidatos.map((c) => ({ ...c, rank: c.rank === 1 ? 2 : 1 }));
+    expect(retrato(invertidos)).toEqual(retrato(candidatos));
+    // E o retrato não é vazio — senão a igualdade acima seria vácua.
+    expect(retrato(candidatos).fundos).toHaveLength(27);
+    expect(retrato(candidatos).tintas.length).toBeGreaterThan(27);
+  });
+
   it("(g) rows vazias degradam para hexágonos cinzas, mantém 27", () => {
     const doc = parse(<HexCartogramBrasil rows={[]} candidatos={candidatos} />);
     const polys = doc.querySelectorAll("polygon");

@@ -102,11 +102,22 @@ describe("<MinorCandidatesList />", () => {
     const html = renderToStaticMarkup(<MinorCandidatesList candidatos={cands} />);
     const doc = parse(<MinorCandidatesList candidatos={cands} />);
 
-    // O token aparece — como `background`, nunca como `color`. Quatro bases da
-    // paleta de partido reprovam contraste em texto, e o token
-    // `--party-<slug>-text` ainda não existe.
-    expect(html).toContain("var(--color-cand-other)");
-    expect(html).not.toMatch(/color\s*:\s*var\(--color-cand-/);
+    // `makeCand` usa `partido: "P"`, que não está na paleta editorial. Desde
+    // 2026-09-20 isso resolve para `--party-outros` — o token estável do
+    // fallback — e NÃO mais para `--color-cand-other`, que vinha do `rank: 7`.
+    // A cor da candidatura não pode sair da posição na lista (constituição
+    // § 2); ver o topo de `components/blocks/_candidateColor.ts`.
+    expect(html).toContain("var(--party-outros)");
+    // A paleta por colocação não aparece em lugar nenhum desta linha — nem
+    // como fundo, nem como texto. O payload do fixture ainda TRAZ
+    // `cor: "var(--color-cand-other)"`, então esta asserção também vigia o
+    // campo do payload não voltar a vazar para a tela.
+    expect(html).not.toMatch(/var\(--color-cand-/);
+    // O token aparece como `background`, nunca como `color`. Quatro bases da
+    // paleta de partido reprovam contraste em texto, e para texto existe a
+    // variante `--party-<slug>-text`.
+    // (`(?<![-\w])` para não confundir `background-color:` com `color:`.)
+    expect(html).not.toMatch(/(?<![-\w])color\s*:\s*var\(--party-/);
 
     // 🔴 Escopado ao recorte da barra desde 2026-09-20. `data-view-only` é o
     // mecanismo de exclusividade do shell, e naquele dia os TRAÇOS da linha
@@ -120,7 +131,7 @@ describe("<MinorCandidatesList />", () => {
     // único, exatamente para não virarem um segundo lugar onde a cor do
     // candidato possa divergir.
     for (const fill of fills) {
-      expect(fill.getAttribute("style")).toContain("background:var(--color-cand-other)");
+      expect(fill.getAttribute("style")).toContain("background:var(--party-outros)");
     }
   });
 

@@ -12,24 +12,25 @@
  *   - Números em tabular-nums (CSS global).
  */
 
-import { colorForRank } from "@/lib/utils/cand-color";
 import { formatCI, formatPercent, formatVotes } from "@/lib/utils/format";
+import { colorForParty } from "@/lib/utils/party-color";
 import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 export interface CandidateBarProps {
   nome: string;
   partido: string;
   /**
-   * Cor token (var(--color-cand-N) / var(--color-pt) etc). NUNCA hex
-   * partidário direto. Quando ausente e `rank` é passado, derivamos via
-   * `colorForRank(rank)` (paleta neutra por rank — S05/F3B, ADR-0013).
+   * Cor token (`var(--party-<slug>)` etc). NUNCA hex partidário direto.
+   * Quando ausente, derivamos de `partido` via `colorForParty` — ver a nota
+   * de 2026-09-20 em {@link CandidateBar}.
    */
   cor?: string;
   /**
-   * Rank semântico do candidato (1 = líder). Usado como fallback de cor
-   * quando `cor` não vier no payload (ex.: fixtures antigos pré-S05) e
-   * para garantir paleta neutra dinâmica. Quando ambos `cor` e `rank`
-   * são passados, `cor` tem prioridade — payload é fonte de verdade.
+   * Rank semântico do candidato (1 = líder).
+   *
+   * 🔴 **Não escolhe mais cor desde 2026-09-20** (ver {@link CandidateBar}).
+   * Continua na assinatura porque as chamadas existentes o passam; hoje não
+   * influencia pixel nenhum deste componente.
    */
   rank?: number;
   /** Percentual projetado (0-100). */
@@ -49,7 +50,7 @@ export function CandidateBar({
   nome,
   partido,
   cor,
-  rank,
+  rank: _rank,
   pctProjetado,
   pctLower,
   pctUpper,
@@ -57,11 +58,26 @@ export function CandidateBar({
   alignRight = false,
   className,
 }: CandidateBarProps) {
-  // Resolução de cor: payload tem prioridade; sem payload, derivamos por rank;
-  // sem nenhum dos dois, caímos no token de fallback neutro (cand-1 = mesmo
-  // hex de --color-pt). Constituição § 2 — sempre token, nunca hex literal.
-  const corResolvida: string =
-    cor ?? (typeof rank === "number" ? colorForRank(rank) : "var(--color-cand-1)");
+  // 🔴 2026-09-20 — o fallback deixa de ser a colocação e passa a ser a sigla.
+  //
+  // Era: `cor ?? (typeof rank === "number" ? colorForRank(rank) : "var(--color-cand-1)")`.
+  // Os dois ramos do fallback derivavam de posição — o segundo de forma ainda
+  // mais crua, cravando `--color-cand-1` (vermelho) em QUALQUER candidatura
+  // sem cor nem rank. `partido` é prop OBRIGATÓRIA deste átomo, então a sigla
+  // sempre esteve à mão; nada precisava ser costurado pela cadeia de props.
+  //
+  // Em produção o ramo não dispara (o único caller, `<HeadlineScore>`, passa
+  // `cor={candidateColor(partido, rank)}`), e é exatamente por isso que ele
+  // sobreviveu doze dias ao ADR-0024: um fallback que ninguém vê é um fallback
+  // que ninguém corrige. Ele dispara em fixture antiga e em teste — e o dia em
+  // que um caller novo esquecer `cor` é o dia em que a home pintaria alguém
+  // pela colocação de novo.
+  //
+  // `colorForParty` (e não `candidateColor`) porque este é um ÁTOMO:
+  // `components/atoms/` não importa de `components/blocks/` — a mesma regra
+  // que `ChoroplethMapUF.tsx` declara. As duas funções devolvem o mesmo token;
+  // `candidateColor` é a fachada de `blocks/`.
+  const corResolvida: string = cor ?? colorForParty(partido);
   const pctSafe = Number.isFinite(pctProjetado) ? Math.max(0, Math.min(100, pctProjetado)) : 0;
   const ariaLabel = `${nome} (${partido}): ${formatPercent(pctSafe)} projetado${
     typeof pctLower === "number" && typeof pctUpper === "number"

@@ -150,16 +150,52 @@ describe("<ProjectionThermometer />", () => {
     expect(instalados.body.textContent ?? "").toContain("% dos eleitores das seções instaladas");
   });
 
-  it("(e) sem `cor`, deriva a cor do rank (ADR-0013)", () => {
-    const doc = render({ cor: undefined, corBand: undefined, rank: 3 });
+  // 🔴 2026-09-20 — este caso testava o CONTRÁRIO até hoje. Chamava-se "sem
+  // `cor`, deriva a cor do rank (ADR-0013)" e exigia `--color-cand-3` no tick
+  // e `--color-cand-band-3` na faixa. Invertido.
+  it("(e) sem `cor`, tick e faixa saem da SIGLA — nunca da colocação", () => {
+    const doc = render({ cor: undefined, corBand: undefined, rank: 3, partido: "MDB" });
     const tick = doc.querySelector('[data-testid="thermometer-tick"]');
-    expect(tick?.getAttribute("style") ?? "").toContain("var(--color-cand-3)");
-    expect(band(doc)?.getAttribute("style") ?? "").toContain("var(--color-cand-band-3)");
+    expect(tick?.getAttribute("style") ?? "").toContain("var(--party-mdb)");
+    // A faixa é o degrau 1 da rampa do PRÓPRIO partido — mesma matiz.
+    expect(band(doc)?.getAttribute("style") ?? "").toContain("var(--party-mdb-1)");
+    expect(`${tick?.getAttribute("style")}${band(doc)?.getAttribute("style")}`).not.toContain(
+      "--color-cand-",
+    );
 
-    // Sem cor e sem rank → token neutro, nunca hex partidário (constituição § 2).
-    const semRank = render({ cor: undefined, corBand: undefined });
-    const tickNeutro = semRank.querySelector('[data-testid="thermometer-tick"]');
-    expect(tickNeutro?.getAttribute("style") ?? "").toContain("var(--color-cand-other)");
+    // Sem cor e sem sigla → token de `outros`, nunca hex partidário
+    // (constituição § 2) e nunca a cor de uma posição.
+    const semSigla = render({ cor: undefined, corBand: undefined });
+    const tickNeutro = semSigla.querySelector('[data-testid="thermometer-tick"]');
+    expect(tickNeutro?.getAttribute("style") ?? "").toContain("var(--party-outros)");
+  });
+
+  // O caso que DISCRIMINA: um termômetro tem TRÊS superfícies coloridas — o
+  // tick (projeção), a faixa (IC95) e o número grande —, e até 2026-09-20 elas
+  // vinham de três cadeias diferentes quando o caller passava `rank` e não
+  // passava `partido`: tick pela sigla, faixa por `bandForRank`, número por
+  // `strongForRank`. Mesma pessoa, três tintas, no mesmo widget.
+  it("(e1) as três superfícies do mesmo termômetro concordam na sigla", () => {
+    const doc = render({ cor: undefined, corBand: undefined, rank: 3, partido: "PSOL" });
+    const estilo = (sel: string) => doc.querySelector(sel)?.getAttribute("style") ?? "";
+    expect(estilo('[data-testid="thermometer-tick"]')).toContain("var(--party-psol)");
+    expect(band(doc)?.getAttribute("style") ?? "").toContain("var(--party-psol-1)");
+    // O número é TEXTO: a variante legível da mesma matiz (PSOL base mede
+    // 2,08:1 sobre o papel; `-text`, 4,51:1). Mesma sigla, superfície
+    // diferente — não é outra cadeia, é a mesma com o remédio de contraste.
+    expect(estilo('[data-testid="thermometer-numero"]')).toContain("var(--party-psol-text)");
+  });
+
+  it("(e1b) a MESMA sigla em colocações diferentes recebe as MESMAS três cores", () => {
+    const retrato = (rank: number | undefined) => {
+      const doc = render({ cor: undefined, corBand: undefined, rank, partido: "PSD" });
+      return [
+        doc.querySelector('[data-testid="thermometer-tick"]')?.getAttribute("style"),
+        band(doc)?.getAttribute("style"),
+        doc.querySelector('[data-testid="thermometer-numero"]')?.getAttribute("style"),
+      ].join("|");
+    };
+    expect(new Set([1, 2, 3, 7, undefined].map(retrato)).size).toBe(1);
   });
 
   it("(e2) o número NUNCA usa a cor de preenchimento, nem quando só `cor` vem", () => {
@@ -176,14 +212,23 @@ describe("<ProjectionThermometer />", () => {
     const numero = (doc: Document) =>
       doc.querySelector('[data-testid="thermometer-numero"]')?.getAttribute("style") ?? "";
 
-    const comRank = render({ cor: "var(--color-cand-3)", corBand: undefined, rank: 3 });
-    expect(numero(comRank)).toContain("var(--color-cand-3-strong)");
-    expect(numero(comRank)).not.toContain("color:var(--color-cand-3)");
+    // 🔴 2026-09-20 — as três formas continuam cobertas, mas o destino mudou:
+    // era `strongForRank(rank)` (a paleta por COLOCAÇÃO na variante escura) e
+    // passa a ser `textForParty(sigla)`. O degrau do rank ficava ANTES do da
+    // sigla na cadeia, então vencia sempre que o caller passasse `rank` — e
+    // `<ProjectionThermometers />` passa.
+    const comSigla = render({ cor: "var(--party-mdb)", corBand: undefined, partido: "MDB" });
+    expect(numero(comSigla)).toContain("var(--party-mdb-text)");
+    expect(numero(comSigla)).not.toContain("color:var(--party-mdb)");
 
-    // Só `cor`: o rank é recuperado de dentro da própria string do payload
-    // (`rankFromColorVar`), então nem esse caller cai no preenchimento.
-    const soCor = render({ cor: "var(--color-cand-3)", corBand: undefined });
-    expect(numero(soCor)).toContain("var(--color-cand-3-strong)");
+    // Passar `rank` não muda mais nada — nem aqui, nem em lugar nenhum.
+    const comRank = render({
+      cor: "var(--party-mdb)",
+      corBand: undefined,
+      partido: "MDB",
+      rank: 3,
+    });
+    expect(numero(comRank)).toBe(numero(comSigla));
 
     // Sem nada: neutro medido (#6e6e6e, 4,63:1 sobre --surface-page).
     const semNada = render({ cor: undefined, corBand: undefined });
@@ -192,23 +237,32 @@ describe("<ProjectionThermometer />", () => {
     // O preenchimento continua sendo `cor` — a correção é no texto, não na
     // identidade visual da faixa/tick.
     expect(
-      comRank.querySelector('[data-testid="thermometer-tick"]')?.getAttribute("style"),
-    ).toContain("var(--color-cand-3)");
+      comSigla.querySelector('[data-testid="thermometer-tick"]')?.getAttribute("style"),
+    ).toContain("var(--party-mdb)");
   });
 
-  it("(e3) o caso do axe: rank 3 sem `cor` no payload resolve para a variante -strong", () => {
-    // `<ProjectionThermometers />` passa `cor={c.cor ?? colorForRank(rank)}`;
-    // quando o payload vem sem `cor`, é este o caminho.
-    const doc = render({ cor: undefined, corBand: undefined, rank: 3, pctProjetado: 4.5 });
+  it("(e3) o caso do axe, hoje: sem `cor` no payload, o número sai na variante legível da sigla", () => {
+    // `--color-cand-3` (#c97c1f) media 2,99:1 sobre `--surface-page` e era o
+    // caso concreto que o axe reprovou. O sucessor pela sigla tem o mesmo
+    // risco se alguém usar a base como tinta — daí a variante `-text`, medida
+    // em ≥ 4,5:1 nos 31 slugs.
+    const doc = render({
+      cor: undefined,
+      corBand: undefined,
+      partido: "PSOL",
+      pctProjetado: 4.5,
+    });
     const style =
       doc.querySelector('[data-testid="thermometer-numero"]')?.getAttribute("style") ?? "";
-    expect(style).toContain("var(--color-cand-3-strong)");
+    expect(style).toContain("var(--party-psol-text)");
+    // E NÃO a base: `--party-psol` (#d6a400) mede 2,08:1 como tinta.
+    expect(style).not.toContain("color:var(--party-psol)");
     expect(doc.body.textContent ?? "").toContain("4,5%");
   });
 
   it("(e4) corTexto explícito vence, e a sigla do partido é o fallback do ADR-0024", () => {
     const explicito = render({
-      cor: "var(--color-cand-2)",
+      cor: "var(--party-pl)",
       rank: 2,
       corTexto: "var(--color-text)",
     });
@@ -216,8 +270,8 @@ describe("<ProjectionThermometer />", () => {
       explicito.querySelector('[data-testid="thermometer-numero"]')?.getAttribute("style") ?? "",
     ).toContain("var(--color-text)");
 
-    // Sem rank e sem corTexto, a sigla resolve pela paleta de partido — que tem
-    // token de texto próprio, medido em ≥ 4,5:1 sobre o papel.
+    // Sem corTexto, a sigla resolve pela paleta de partido — que tem token de
+    // texto próprio, medido em ≥ 4,5:1 sobre o papel.
     const porPartido = render({ cor: undefined, corBand: undefined, partido: "PSOL" });
     expect(
       porPartido.querySelector('[data-testid="thermometer-numero"]')?.getAttribute("style") ?? "",

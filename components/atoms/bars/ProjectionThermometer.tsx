@@ -45,11 +45,11 @@
  *
  *   Correção: `cor` segue pintando faixa e tick (área e traço, onde WCAG pede
  *   3:1 de não-texto) e o número passa a usar `corTexto`. Quando o caller não
- *   passa `corTexto`, o componente **deriva** uma cor medida — `strongForRank`
- *   pelo rank (ADR-0013), `textForParty` pela sigla (ADR-0024), e o neutro
- *   `--color-cand-other` em último caso. Nenhum caminho devolve a cor de
- *   preenchimento, então nenhum caller consegue reintroduzir o defeito por
- *   omissão.
+ *   passa `corTexto`, o componente **deriva** uma cor medida — `textForParty`
+ *   pela sigla (ADR-0024) e o neutro `--color-cand-other` em último caso.
+ *   Nenhum caminho devolve a cor de preenchimento, então nenhum caller
+ *   consegue reintroduzir o defeito por omissão. (O degrau `strongForRank`
+ *   que ficava no topo dessa cadeia saiu em 2026-09-20 — ver o corpo.)
  *
  * Server Component puro — sem `"use client"`, sem state, sem hooks e sem
  * `framer-motion` (RNF-007a: este bloco é above-the-fold). Qualquer
@@ -110,10 +110,9 @@
 
 import { VoteBar } from "@/components/atoms/bars/VoteBar";
 import { Figure } from "@/components/atoms/data/Figure";
-import { bandForRank, colorForRank, rankFromColorVar, strongForRank } from "@/lib/utils/cand-color";
 import { formatCI, formatPercent } from "@/lib/utils/format";
 import { denominadorFrase, denominadorLabel } from "@/lib/utils/participacao";
-import { textForParty } from "@/lib/utils/party-color";
+import { colorForParty, intensityForParty, textForParty } from "@/lib/utils/party-color";
 
 /** Rótulos dos segmentos do `VoteBar` — âncoras estáveis para os testes. */
 const SEG_OFFSET = "antes do intervalo";
@@ -136,30 +135,39 @@ export interface ProjectionThermometerProps {
   /** Denominador da métrica — dirige o rótulo do rodapé e do aria-label. */
   base: ThermometerBase;
   /**
-   * Cor de **preenchimento** (`var(--color-cand-N)`,
+   * Cor de **preenchimento** (`var(--party-<slug>)`,
    * `var(--color-part-abstencao)`...) — pinta a faixa de IC e o tick, que são
    * área/traço, nunca texto. Opcional: quando ausente cai em
-   * `colorForRank(rank)` (ADR-0013). Constituição § 2 — nunca hex partidário
-   * literal.
+   * `colorForParty(partido)` (ADR-0024). Constituição § 2 — nunca hex
+   * partidário literal, e nunca derivada de colocação.
    *
    * **Não** é usada no número grande: ver `corTexto`.
    */
   cor?: string;
-  /** Cor clara da faixa de IC. Default: `bandForRank(rank)`. */
+  /**
+   * Cor clara da faixa de IC. Default: `intensityForParty(partido, 1)` — o
+   * degrau mais claro da rampa do próprio partido (ADR-0024).
+   */
   corBand?: string;
   /**
    * Cor do **número grande**, que é texto e por isso precisa de ≥ 4,5:1 sobre o
    * papel (constituição § 4). Só passe um token medido como tinta: os
-   * `--color-cand-N-strong`, os `--party-<slug>-text`, ou os neutros de
-   * participação (`--color-part-*`, medidos em 6,67:1 e 8,19:1 sobre
-   * `--surface-page`). Passar aqui a mesma cor de `cor` reintroduz o defeito
-   * que esta prop existe para impedir.
+   * `--party-<slug>-text`, ou os neutros de participação (`--color-part-*`,
+   * medidos em 6,67:1 e 8,19:1 sobre `--surface-page`). Passar aqui a mesma
+   * cor de `cor` reintroduz o defeito que esta prop existe para impedir.
    *
    * Ausente, o componente **deriva** uma cor segura (ver `corTextoResolvida`) —
    * nunca cai em `cor`.
    */
   corTexto?: string;
-  /** Rank semântico, usado só como fallback de cor. */
+  /**
+   * Rank semântico.
+   *
+   * 🔴 **Não escolhe mais cor nenhuma desde 2026-09-20** — nem de
+   * preenchimento, nem de faixa, nem de texto. Continua na assinatura porque
+   * as chamadas existentes o passam; hoje não influencia pixel algum deste
+   * componente. Ver `corTextoResolvida` no corpo.
+   */
   rank?: number;
   /**
    * Sigla do partido, usada só como fallback de `corTexto` pelo eixo do
@@ -215,7 +223,7 @@ export function ProjectionThermometer({
   cor,
   corBand,
   corTexto,
-  rank,
+  rank: _rank,
   partido,
   pctProjetado,
   pctLower,
@@ -228,12 +236,17 @@ export function ProjectionThermometer({
 }: ProjectionThermometerProps) {
   const escala = Number.isFinite(scaleMax) && scaleMax > 0 ? scaleMax : 100;
 
-  // Cor de PREENCHIMENTO (faixa + tick): payload tem prioridade; sem payload,
-  // deriva do rank (ADR-0013); sem nenhum dos dois, token neutro de fallback.
-  const corResolvida =
-    cor ?? (typeof rank === "number" ? colorForRank(rank) : "var(--color-cand-other)");
-  const corBandResolvida =
-    corBand ?? (typeof rank === "number" ? bandForRank(rank) : "var(--color-cand-band-other)");
+  // 🔴 2026-09-20 — os dois fallbacks de preenchimento saem da SIGLA, não da
+  // colocação. Eram `colorForRank(rank)` e `bandForRank(rank)`: a paleta por
+  // COLOCAÇÃO do ADR-0013, aposentada pelo ADR-0024 em 2026-09-07.
+  //
+  // `intensityForParty(partido, 1)` é o degrau mais CLARO da rampa do próprio
+  // partido — o análogo exato de `--color-cand-band-N`, com a matiz intacta
+  // (constituição § 2 v1.3: "só a intensidade varia, nunca a matiz"). Sem
+  // sigla, os dois caem na rampa/base de `outros`, que a paleta define para
+  // esse caso.
+  const corResolvida = cor ?? colorForParty(partido);
+  const corBandResolvida = corBand ?? intensityForParty(partido, 1);
 
   // Cor de TEXTO do número grande — deliberadamente derivada de outra cadeia
   // que `corResolvida`, e nunca dela.
@@ -247,26 +260,28 @@ export function ProjectionThermometer({
   //
   // A cadeia, em ordem:
   //   1. `corTexto` — o caller mediu e decidiu (participação usa isto);
-  //   2. o rank, via `strongForRank` — os seis `--color-cand-N-strong` medem de
-  //      4,83:1 (rank 3) a 10,25:1 sobre `--surface-page`. O rank vem da prop
-  //      ou, quando ela falta, de dentro do próprio `cor` do payload via
-  //      `rankFromColorVar` — é assim que um caller que só repassa
-  //      `c.cor = "var(--color-cand-3)"` ainda acerta;
-  //   3. a sigla do partido, via `textForParty` (ADR-0024);
-  //   4. `--color-cand-other` (#6e6e6e) — o único token desta paleta que serve
-  //      às duas coisas, e por medição: 4,63:1 sobre `--surface-page` e 4,93:1
-  //      sobre `--surface-card`.
+  //   2. a sigla do partido, via `textForParty` (ADR-0024). Passa 4,5:1 nas
+  //      quatro superfícies e nos dois temas para os 31 slugs, e em 17 deles
+  //      ELA É a cor base;
+  //   3. `--color-cand-other` (#6e6e6e) — para quem não tem sigla nenhuma
+  //      (participação, "Outros candidatos"). É o único token daquela paleta
+  //      que serve às duas coisas, e por medição: 4,63:1 sobre
+  //      `--surface-page` e 4,93:1 sobre `--surface-card`.
+  //
+  // 🔴 **2026-09-20 — o degrau do RANK saiu da cadeia, e ele era o primeiro.**
+  // Era: `rank` (da prop, ou extraído de dentro do próprio `cor` por
+  // `rankFromColorVar`) → `strongForRank(rank)` → só então `textForParty`.
+  // Como o degrau do rank vinha ANTES, ele vencia sempre que o caller passasse
+  // `rank` — e `<ProjectionThermometers>` passa. O resultado, na `/uf/[sigla]`
+  // depois que o preenchimento migrou para a sigla: o mesmo termômetro com a
+  // faixa na cor do PARTIDO e o número grande na cor da COLOCAÇÃO, lado a
+  // lado, e o número trocando de tinta a cada ultrapassagem. Mesma pessoa,
+  // duas tintas, no mesmo widget.
   //
   // Nenhum ramo devolve `corResolvida`: é isso que impede um caller de cair na
   // cor de preenchimento por acidente.
-  const rankParaTexto = typeof rank === "number" ? rank : rankFromColorVar(cor);
   const corTextoResolvida =
-    corTexto ??
-    (rankParaTexto !== undefined
-      ? strongForRank(rankParaTexto)
-      : partido
-        ? textForParty(partido)
-        : "var(--color-cand-other)");
+    corTexto ?? (partido ? textForParty(partido) : "var(--color-cand-other)");
 
   const projetado = clamp(pctProjetado, escala);
   // Ordena o par para tolerar payload com lower > upper (defensivo).

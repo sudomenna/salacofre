@@ -8,8 +8,10 @@
  *     Comportamento S04 preservado — usado em 2T e em 1T com 2 candidatos.
  *   - `mode="multi-1t"`: 1 coluna por candidato com >= 1 UF liderando + 1
  *     coluna "Em disputa" (UFs com tossup ou margem < 2pp). Cor do header
- *     vem de `colorForRank(rank)`. Esperado típico em 1T BR: 2-3 colunas
- *     concentrando a maioria das UFs (top-2 dominante) + 1 "Em disputa".
+ *     vem da SIGLA do candidato (`candidateMarkerColor`, ADR-0024) — nunca da
+ *     colocação; ver a nota de 2026-09-20 em `MultiTable`. Esperado típico em
+ *     1T BR: 2-3 colunas concentrando a maioria das UFs (top-2 dominante) + 1
+ *     "Em disputa".
  *
  * Server Component. O único pedaço client é `<UfHoverLink>` (a célula de UF),
  * que precisa de handlers de foco — ver a nota de 2026-09-20 abaixo.
@@ -51,8 +53,8 @@
  */
 
 import { UfHoverLink } from "@/components/atoms/tables/UfHoverLink";
+import { candidateMarkerColor } from "@/components/blocks/_candidateColor";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
-import { colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent, formatPp } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import { descricaoCandidaturasUf } from "@/lib/utils/uf-descricao-candidaturas";
@@ -78,7 +80,19 @@ export interface StateGroupedTableProps {
   candidatoAName?: string;
   /** Usado em mode="binary". S05+: prefira passar `candidatos`. */
   candidatoBName?: string;
+  /**
+   * Cor das duas faixas do lado A em `mode="binary"`. O caller resolve pela
+   * SIGLA (`candidateColor`) — ver `app/(pres)/page.tsx`.
+   *
+   * 🔴 O default era `"var(--color-cand-1)"` até 2026-09-20: a ponta da paleta
+   * por COLOCAÇÃO cravada no LADO. Quem omitisse a prop ganhava vermelho para
+   * "A" e azul para "B" independentemente de quem fosse — e A e B são o líder
+   * e o segundo, que trocam de lugar durante a noite. Hoje o default é o
+   * cinza de sigla desconhecida: "não me disseram de quem é esta faixa" é
+   * verdade, "vermelho porque é o de cima" não era.
+   */
   corA?: string;
+  /** Idem `corA`, lado B. */
   corB?: string;
   /** Limites em pp. Default: comfortable >= 10, tossup < 3. */
   comfortableThreshold?: number;
@@ -228,8 +242,8 @@ export function StateGroupedTable({
   candidatoAId,
   candidatoAName = "Líder A",
   candidatoBName = "Líder B",
-  corA = "var(--color-cand-1)",
-  corB = "var(--color-cand-2)",
+  corA = "var(--party-outros)",
+  corB = "var(--party-outros)",
   comfortableThreshold = 10,
   tossupThreshold = 3,
   multiDisputaThreshold = 2,
@@ -399,7 +413,27 @@ function MultiTable({ rows, candidatos, multiDisputaThreshold, className }: Mult
       return {
         key: `cand-${liderId}`,
         label: nome,
-        color: colorForRank(rank),
+        // 🔴 2026-09-20 — a cor sai da SIGLA, não da colocação.
+        //
+        // `color` aqui vira um quadradinho de 8×8 (`h-2 w-2`) ao lado do nome
+        // no cabeçalho da coluna: MARCADOR sem extensão ⇒
+        // `candidateMarkerColor` (a variante `-text`, legível), a mesma regra
+        // do ponto do `<HoverCard>` e da lista de candidatos. Era
+        // `colorForRank(rank)` — a paleta por COLOCAÇÃO do ADR-0013, que o
+        // ADR-0024 aposentou em 2026-09-07.
+        //
+        // **Este era o pior dos pontos que sobraram.** Esta tabela fica na
+        // HOME, ao lado do mapa, e o mapa já resolvia pela sigla: uma
+        // candidatura sem token próprio (federação — "PSDB/CIDADANIA",
+        // "FEDERACAO BRASIL DA ESPERANCA" — ou sigla ausente) saía aqui na
+        // cor da sua posição e, a dois palmos de distância, no cinza de
+        // reserva. Mesma pessoa, duas tintas, na mesma tela — o defeito que o
+        // dono reportou em 19/09 com CAIADO/PSD.
+        //
+        // `rank` continua vindo do candidato, mas só para ORDENAR as colunas
+        // (rank 1 primeiro, logo abaixo). Ordenar por posição é legítimo;
+        // pintar por posição não é.
+        color: candidateMarkerColor(cand?.partido),
         ufs,
         rank,
       };

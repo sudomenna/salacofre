@@ -38,7 +38,7 @@
  */
 
 import { CandidateAvatar } from "@/components/atoms/data/CandidateAvatar";
-import { rankFromColorVar, strongForRank } from "@/lib/utils/cand-color";
+import { partyChipInk } from "@/lib/utils/party-color";
 import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 export interface CandidateRowProps {
@@ -70,12 +70,30 @@ export function CandidateRow({ nome, partido, cor, votos, pct, iniciais }: Candi
   const safePct = Math.max(0, Math.min(100, pct));
 
   // O avatar é o único lugar deste componente com texto **sobre** a cor do
-  // candidato. `--color-cand-3` (âmbar) e `--color-cand-5` (lilás) contra branco
-  // ficavam em ~3:1, falhando WCAG 1.4.3 / RNF-022 (a11y-perf-auditor,
-  // 2026-09-05). Usamos a variante `-strong` só aqui; a barra e o resto seguem
-  // com a cor de identidade de `colorForRank` (ADR-0013, intocado).
-  const rank = rankFromColorVar(cor);
-  const avatarBackground = rank === undefined ? cor : strongForRank(rank);
+  // candidato — as iniciais, escritas dentro do círculo de 36px.
+  //
+  // 🔴 **2026-09-20 — o par sai da SIGLA, e o `#ffffff` cravado foi junto.**
+  // Era: `rankFromColorVar(cor)` para extrair a COLOCAÇÃO de dentro da string
+  // do payload (`"var(--color-cand-3)"` → 3) e `strongForRank(rank)` para o
+  // fundo, com tinta branca fixa. Duas coisas quebraram nisso quando a cor
+  // passou a vir da sigla (ADR-0024):
+  //
+  //   1. `rankFromColorVar("var(--party-psd)")` devolve `undefined` — o regex
+  //      só conhece `--color-cand-N` —, então o ramo caía em `cor` cru: a
+  //      cor-BASE do partido com texto branco por cima. Das 31 bases, 19
+  //      pedem tinta escura (`partyChipInk`); PSOL (#d6a400) com branco é o
+  //      caso extremo, e é o mesmo partido que o kit já cita como o pior.
+  //   2. Quando o regex ACERTAVA (fixture antiga, payload pré-19/09), o fundo
+  //      saía da colocação — trocando a cada ultrapassagem, contra § 2.
+  //
+  // `partyChipInk` resolve os dois de uma vez: é o par fundo+tinta MEDIDO
+  // (≥ 4,5:1 nos 31 slugs, inclusive no de `outros`, que cobre sigla ausente,
+  // desconhecida e de federação). Os dois tokens andam juntos — usar este
+  // `background` com uma tinta de outro lugar desfaz a garantia.
+  //
+  // A barra de progresso continua com `cor`, a prop que o caller resolve: ali
+  // é preenchimento com extensão, sem texto por cima.
+  const { background: avatarBackground, ink: avatarInk } = partyChipInk(partido);
 
   const barFillStyle = {
     width: `${safePct}%`,
@@ -97,7 +115,7 @@ export function CandidateRow({ nome, partido, cor, votos, pct, iniciais }: Candi
         responsive={false}
         rounded
         background={avatarBackground}
-        ink="#ffffff"
+        ink={avatarInk}
         style={{ font: "var(--type-kicker)", fontSize: "var(--text-xs)", fontWeight: 600 }}
       />
 

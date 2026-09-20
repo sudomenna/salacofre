@@ -19,6 +19,7 @@
 
 import type { EdgeUfCandidate, EdgeUfMunicipio } from "@/lib/edge-config/types";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
+import { colorForParty } from "@/lib/utils/party-color";
 
 export interface MunicipioVotoCandidato {
   id: number;
@@ -38,6 +39,28 @@ export interface MunicipioVotoCandidato {
    * (`row.partido ?? "—"`), não no dado.
    */
   partido?: string;
+  /**
+   * Cor de **preenchimento** da candidatura, derivada da SIGLA
+   * (`colorForParty`, ADR-0024).
+   *
+   * 🔴 **2026-09-20 — era `c?.cor ?? "var(--color-cand-other)"`: o campo `cor`
+   * do payload, copiado literalmente.** Aquele campo carrega
+   * `var(--color-cand-{rank})` — a paleta por COLOCAÇÃO do ADR-0013, que o
+   * ADR-0024 aposentou em 2026-09-07 e que
+   * `tests/unit/components/cor-nunca-do-payload.test.ts` bane de `components/`
+   * e `app/` desde 19/09. Só que a varredura escolhia onde olhar, e `lib/`
+   * ficou de fora: esta linha era a porta pela qual o campo banido voltava à
+   * tela, por dentro de um utilitário. Os dois consumidores já tinham saído
+   * dela por conta própria (o balão do mapa municipal em `ChoroplethMapUF` e a
+   * barra da folha em `MunicipioExplorer` resolvem pela sigla), então o campo
+   * estava **morto e errado ao mesmo tempo** — a pior combinação, porque nada
+   * na tela denunciava.
+   *
+   * Sigla ausente, desconhecida ou de federação → `var(--party-outros)`.
+   *
+   * ⚠️ Preenchimento COM extensão. Para MARCADOR sem extensão (ponto de 8×8),
+   * use `textForParty(row.partido)` no consumidor — é o que o balão faz.
+   */
   cor: string;
   votos: number;
   /**
@@ -110,7 +133,8 @@ export function votosPorCandidatoMunicipio(
         id,
         nome: c ? nomeExibicao(c.nome, c.sqcand) : `Candidato ${id}`,
         partido: c?.partido,
-        cor: c?.cor ?? "var(--color-cand-other)",
+        // Ver a docstring do campo: a cor sai da SIGLA, nunca de `c.cor`.
+        cor: colorForParty(c?.partido),
         votos: v,
         pct: total > 0 ? (v / total) * 100 : 0,
       };

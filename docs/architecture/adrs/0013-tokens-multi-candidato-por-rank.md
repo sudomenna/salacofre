@@ -19,6 +19,42 @@ fallback até depois do 2º turno (25/10/2026), para o caso de `partido` ausente
 a remoção é limpeza pós-D2. Enquanto isso, o conteúdo abaixo descreve o mecanismo antigo e deve
 ser lido como histórico, não como regra vigente.
 
+> **🔴 Nota 2026-09-20 — o "color lock" descrito na seção "Decisão" NUNCA FOI IMPLEMENTADO, e o
+> fallback de rank saiu da UI hoje.**
+>
+> **O fato.** A "Decisão" abaixo afirma que "o color lock congela o rank de cada candidato no
+> momento em que `pct_apurado >= 1%`" e que "após o lock, o rank não muda mesmo se a ordem de votos
+> flutuar durante a apuração". Isso não corresponde ao código: `api/model/project.py` recomputa
+> `rank_by_cand` **do zero a cada ciclo** (`{cand: i + 1 for i, cand in enumerate(ordered)}`, com
+> `ordered` por `(-point, id)`), e nada o sobrescreve. Não há congelamento em nenhum ponto do
+> pipeline — nem gravado no payload, nem lido de um snapshot anterior. O prior de pesquisa
+> pré-eleitoral mencionado no texto também não existe no produtor. O docstring de
+> `lib/utils/cand-color.ts` repetia a mesma afirmação e foi corrigido na mesma data.
+>
+> **Por que isso importou.** Enquanto alguma superfície pintava por rank, ela pintava por um número
+> que muda entre dois ciclos — e, desde `290b8de` ("tudo acompanha a base ativa"), entre as duas
+> bases que o leitor alterna no botão Parcial/Projeção. É exatamente o que a constituição § 2 proíbe
+> ("não muda por rank, por ordem de apuração, por qualquer evento da corrida"), e o mecanismo que o
+> ADR-0013 oferecia como garantia contra isso não estava lá.
+>
+> **O que mudou hoje.** O último caminho de cor por rank saiu da UI. `candidateColor`,
+> `candidateMarkerColor` e `candidateColorByMargin`
+> (`components/blocks/_candidateColor.ts`) e as quatro views de `resolveColor` /
+> `buildHoverRows` (`components/blocks/_NationalChoroplethMapImpl.tsx`,
+> `components/atoms/maps/ChoroplethMapUF.tsx`) resolvem a cor **só pela sigla**. O caso que ainda
+> caía no rank era **federação** ("PSDB/CIDADANIA", "PSOL/REDE", "FEDERACAO BRASIL DA ESPERANCA"),
+> que não é partido único e não tem token próprio; hoje ela recebe `--party-outros`, estável.
+>
+> **Consequência para este ADR.** A ausência do color lock deixa de ter efeito sobre cor, porque
+> cor não depende mais de rank. O `rank` segue sendo dado legítimo e visível — é o número da posição
+> na coluna da esquerda e o critério de ordenação das listas —, e para esses usos a recomputação a
+> cada ciclo é o comportamento correto, não um defeito. **O que este ADR ainda afirma de falso é o
+> mecanismo, não a decisão**; a decisão já estava superseded pelo ADR-0024 desde 07/09.
+>
+> Trava: `tests/unit/components/candidate-color.test.ts` (a mesma sigla em qualquer posição recebe
+> a mesma cor, e nunca um token `--color-cand-*`), mais a varredura de fonte no mesmo arquivo, que
+> reprova a volta do import de `cand-color` em `_candidateColor.ts`.
+
 ## Contexto
 
 A constituição § 2 proíbe o uso de cores oficiais de partido como identidade visual de candidatos na plataforma. No escopo binário original (presidencial 2022-proxy, dois candidatos em foco), a solução adotada foi criar dois tokens `--color-pt` e `--color-pl` com paleta neutra distinta das cores partidárias oficiais. Essa abordagem não escala para o 1T 2026, onde até 11 candidatos com representatividade eleitoral devem ser exibidos simultaneamente.

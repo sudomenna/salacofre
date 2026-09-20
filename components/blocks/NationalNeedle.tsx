@@ -121,6 +121,20 @@ export function NationalNeedle({
       pVitoria={pVitoria}
       candidatoA={nomeExibicao(a.nome, a.sqcand)}
       candidatoB={b ? nomeExibicao(b.nome, b.sqcand) : "—"}
+      // 🔴 2026-09-20 — as siglas passam a viajar até o átomo, e é aqui que a
+      // cadeia começa. Até hoje o `<Needle>` pintava o arco direito com
+      // `colorForRank(1)` e o esquerdo com `colorForRank(2)` — as duas pontas
+      // da paleta por COLOCAÇÃO, cravadas no LADO. Como `a` e `b` saem de
+      // `candidato_a_id`/`candidato_b_id`, que são "líder" e "segundo"
+      // recalculados a cada ciclo, uma ultrapassagem trocava a cor das duas
+      // candidaturas ao mesmo tempo (ver a nota no corpo do átomo).
+      //
+      // `EdgeCandidate.partido` é `string` obrigatório, então este caller
+      // nunca cai no `--party-outros` do átomo por omissão — só quando `b`
+      // não existe (corrida de um candidato só), e aí não há arco esquerdo a
+      // identificar.
+      partidoA={a.partido}
+      partidoB={b?.partido}
       variant={variant}
       width={width ?? 320}
     />

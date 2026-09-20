@@ -172,6 +172,47 @@ describe("<RunoffScenarios />", () => {
     expect(firstLi?.getAttribute("aria-label")).toContain("Bolsonaro");
   });
 
+  // 🔴 2026-09-20 — cores pela SIGLA, e DUAS por candidatura.
+  //
+  // Era `colorForRank(s.a.rank)` para tudo. Num bloco cuja razão de existir é
+  // "quem enfrenta quem", a cor por posição é especialmente traiçoeira: o par
+  // (3º, 4º) e o par (1º, 2º) do mesmo cenário trocavam de tinta a cada
+  // ultrapassagem, e um deles era sempre vermelho por ser o de cima.
+  const pontos = (doc: Document) =>
+    Array.from(doc.querySelectorAll("li span[aria-hidden]")).map(
+      (e) => e.getAttribute("style") ?? "",
+    );
+  const barras = (doc: Document) =>
+    Array.from(doc.querySelectorAll('[role="meter"] > div')).map(
+      (e) => e.getAttribute("style") ?? "",
+    );
+
+  it("(j) ponto e barra saem da SIGLA — marcador na variante legível, barra na base", () => {
+    const doc = parse(<RunoffScenarios national={makeNational({})} candidatos={candidatos} />);
+    // Bolinha de 8×8 = MARCADOR sem extensão ⇒ `-text`.
+    expect(pontos(doc)[0]).toContain("var(--party-pt-text)");
+    expect(pontos(doc)[1]).toContain("var(--party-pl-text)");
+    // Barra = preenchimento COM extensão ⇒ cor-base.
+    expect(barras(doc)[0]).toContain("var(--party-pt)");
+    expect(barras(doc)[0]).toContain("var(--party-pl)");
+    expect([...pontos(doc), ...barras(doc)].every((c) => !c.includes("--color-cand-"))).toBe(true);
+  });
+
+  // O caso que DISCRIMINA: as MESMAS quatro candidaturas com os ranks
+  // embaralhados (a noite inteira é isso) devolvem as mesmas tintas.
+  it("(j2) embaralhar as colocações não muda tinta nenhuma", () => {
+    const original = parse(<RunoffScenarios national={makeNational({})} candidatos={candidatos} />);
+    const embaralhados = candidatos.map((c, i) => ({ ...c, rank: candidatos.length - i }));
+    const virado = parse(
+      <RunoffScenarios
+        national={makeNational({ candidatos: embaralhados })}
+        candidatos={embaralhados}
+      />,
+    );
+    expect(pontos(virado)).toEqual(pontos(original));
+    expect(barras(virado)).toEqual(barras(original));
+  });
+
   it("(i) a11y: barra de probabilidade é meter com aria-valuenow", () => {
     const doc = parse(<RunoffScenarios national={makeNational({})} candidatos={candidatos} />);
     const meter = doc.querySelector('[role="meter"]');

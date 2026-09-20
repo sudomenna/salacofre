@@ -158,7 +158,7 @@ describe("strongholdsFor()", () => {
 });
 
 describe("<StrongholdsPanel />", () => {
-  it("(f) cor vem do partido (ADR-0024); sem sigla mapeada cai no rank (ADR-0013)", () => {
+  it("(f) cor vem do partido (ADR-0024); sem sigla mapeada, o token estável de `outros`", () => {
     // A tabela visível é a do candidato selecionado — por default o primeiro
     // da lista. Então cada asserção renderiza com o candidato que interessa
     // na cabeça da lista, em vez de procurar três tabelas na mesma árvore.
@@ -173,8 +173,13 @@ describe("<StrongholdsPanel />", () => {
 
     expect(tagStyle([pt, pl], "PT")).toContain("var(--party-pt)");
     expect(tagStyle([pl, pt], "PL")).toContain("var(--party-pl)");
-    // `partido: ""` não tem token — usa o rank 3 do fallback, não `--party-outros`.
-    expect(tagStyle([semPartido], "")).toContain("var(--color-cand-3)");
+    // 🔴 Mudou em 2026-09-20. `partido: ""` não tem token próprio e caía no
+    // rank 3 do fallback — a última porta por onde a POSIÇÃO pintava alguém.
+    // Agora é `--party-outros`, estável (constituição § 2, que proíbe a cor
+    // mudar "por rank, por ordem de apuração"); ver o topo de
+    // `components/blocks/_candidateColor.ts`.
+    expect(tagStyle([semPartido], "")).toContain("var(--party-outros)");
+    expect(tagStyle([semPartido], "")).not.toContain("var(--color-cand-");
   });
 
   it("(g) UMA <table> por vez — a do candidato selecionado — com <caption> e cabeçalhos (RNF-023)", () => {

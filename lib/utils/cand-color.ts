@@ -3,16 +3,39 @@
  *
  * Helper canônico para resolver cor de candidato por rank.
  *
+ * 🔴 **2026-09-20 — DUAS correções de fato, nesta ordem de importância.**
+ *
+ * **(1) O "color lock" do ADR-0013 nunca existiu.** A versão anterior deste
+ * bloco afirmava que "o orchestrator Python congela rank quando `pct_apurado`
+ * cruza 1% para evitar troca de cor durante a noite". Isso está escrito no
+ * ADR-0013 e era falso no código: `api/model/project.py` recalcula
+ * `rank_by_cand` **do zero a cada ciclo**, ordenando por `(-point, id)`, e nada
+ * o sobrescreve. Não há congelamento em lugar nenhum do pipeline. Qualquer cor
+ * derivada de `rank` é, portanto, instável entre dois ciclos — e, desde
+ * `290b8de` ("tudo acompanha a base ativa"), instável também entre as duas
+ * bases que o leitor alterna no botão Parcial/Projeção.
+ *
+ * **(2) Nenhuma cor de candidatura deriva mais de rank**, o que torna (1)
+ * inofensivo para a cor. Desde 2026-09-20 a identidade vem só da sigla
+ * (`lib/utils/party-color.ts`, ADR-0024), inclusive nos casos que ainda caíam
+ * aqui — federação, sigla ausente, sigla desconhecida —, que agora resolvem em
+ * `--party-outros`. Ver o topo de `components/blocks/_candidateColor.ts`.
+ *
+ * O `rank` continua sendo dado legítimo e continua na tela: é o **número da
+ * posição** exibido na coluna da esquerda, e é o que ordena as listas. O que
+ * ele deixou de fazer é escolher tinta.
+ *
  * Princípios
  *   - Constituição § 2 (neutralidade): cores via tokens, nunca oficiais
- *     partidárias. Mapping é por **rank** projetado, não por sigla.
- *   - ADR-0013: paleta neutra de 6 cores principais cobre top-6
- *     candidatos com pct_apurado ≥ 1%; rank 7+ (ou pct < 1%) cai em
- *     `--color-cand-other` (cinza). Orchestrator Python congela rank
- *     ("color lock") quando pct_apurado cruza 1% para evitar troca de
- *     cor durante a noite.
+ *     partidárias. Este módulo mapeia por **rank**; é o mecanismo pré-ADR-0024
+ *     e **não deve ser usado para pintar candidatura** em código novo.
+ *   - ADR-0013 (superseded pelo ADR-0024): paleta neutra de 6 cores principais
+ *     cobre top-6 candidatos com pct_apurado ≥ 1%; rank 7+ (ou pct < 1%) cai em
+ *     `--color-cand-other` (cinza). ⚠️ O "color lock" descrito naquele ADR
+ *     **não foi implementado** — ver a nota acima.
  *   - Determinismo (constituição § 6): mesmo rank → mesmo token. Sem
- *     `Math.random()`, sem mutação global.
+ *     `Math.random()`, sem mutação global. (Determinismo do MAPEAMENTO; o rank
+ *     de entrada é que não é estável entre ciclos.)
  *
  * Quem usa
  *   - **Front-end (componentes UI)** — overrides defensivos quando o

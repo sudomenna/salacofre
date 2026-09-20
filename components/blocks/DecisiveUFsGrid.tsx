@@ -5,7 +5,9 @@
  *
  * Cada card mostra:
  *   - Sigla da UF
- *   - Líder atual + margem projetada (com sinal) — barra pintada com `colorForRank()`
+ *   - Líder atual + margem projetada (com sinal) — barra pintada com a cor da
+ *     SIGLA do líder daquela UF (`candidateColor`, ADR-0024), nunca da
+ *     colocação; ver `partidoDoLider` abaixo
  *   - Mini-bar (margem projetada visualizada como faixa)
  *   - Swing vs 2022 (pp) — **comparação descritiva**, não insumo da projeção
  *     (ADR-0021 / constituição § 8 v1.2). `null` quando não há número de 2022
@@ -31,31 +33,65 @@
  *   - Cada card é `<a>` (navegável por teclado, anunciado como link).
  */
 
+import { candidateColor } from "@/components/blocks/_candidateColor";
 import type { EdgeUfRow } from "@/lib/edge-config/types";
-import { colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent, formatPp } from "@/lib/utils/format";
 
 export interface DecisiveUFsGridProps {
   rows: EdgeUfRow[];
   /**
-   * Mapping `candidato_id → rank nacional` (S05/F3B). Habilita paleta N-way
-   * por líder local: UF com líder rank 3 → barra âmbar. Quando omitido, o
-   * componente degrada para "líder = rank 1 (vermelho)" usando `candidatoAId`
-   * (back-compat S04). Calculado em `app/page.tsx`.
+   * Mapping `candidato_id → rank nacional` (S05/F3B).
+   *
+   * 🔴 **Não pinta mais nada desde 2026-09-20** — ver
+   * {@link partidoDoLider}. Continua na assinatura porque as chamadas
+   * existentes o passam, e porque é dado legítimo (é a colocação nacional do
+   * líder local); simplesmente não escolhe tinta.
    */
   rankByLider?: Record<number, number>;
   /**
-   * ID do candidato A (líder global). Mantido para back-compat S04 — quando
-   * `rankByLider` é omitido, usado pra resolver "isA → corA, senão corB".
+   * ID do candidato A (líder global). Mantido para back-compat S04.
+   *
+   * 🔴 Idem `rankByLider`: não escolhe mais cor.
    */
   candidatoAId: number | null;
-  /** Cor token do candidato A (default cand-1 = vermelho). Usado só em modo back-compat. */
+  /**
+   * @deprecated Ignorado desde 2026-09-20 — ver {@link partidoDoLider}. A cor
+   *   da barra sai da sigla do líder DAQUELA UF, e um token fixo por "lado A"
+   *   é justamente a cor por posição que o ADR-0024 aposentou.
+   */
   corA?: string;
-  /** Cor token do candidato B (default cand-2 = azul). Usado só em modo back-compat. */
+  /** @deprecated Ignorado desde 2026-09-20 — ver `corA`. */
   corB?: string;
   className?: string;
   /** Quantos cards mostrar. Default 6. */
   top?: number;
+}
+
+/**
+ * Sigla do partido do líder **daquela UF**, lida de `row.top_candidatos`.
+ *
+ * 🔴 **2026-09-20 — por que daqui, e não de uma lista nacional.** Até hoje a
+ * barra de margem de cada card era pintada por `colorForRank(rankByLider[…])`
+ * — a paleta por COLOCAÇÃO do ADR-0013, aposentada pelo ADR-0024 em
+ * 2026-09-07 — com um fallback ainda pior (`corA`/`corB` fixos por "lado"),
+ * herdado do duelo binário da S04. Os dois derivam tinta de posição: o líder
+ * que cai de 2º para 3º entre dois ciclos troca de cor no card, e a
+ * constituição § 2 exige o contrário ("não muda por rank, por ordem de
+ * apuração, por margem ou por qualquer evento da corrida").
+ *
+ * A sigla vem de `EdgeUfRow.top_candidatos`, e não de um cruzamento contra
+ * `national.candidatos`, porque é o que o **ADR-0042 item 3** manda: em cargo
+ * 3 (Governador) e 5 (Senador) o bloco nacional é a união de 27 corridas sob o
+ * mesmo espaço de `id`, então `id === 13` ali não é uma pessoa — é "o número
+ * 13 nalguma UF". A linha da UF já sabe de que UF é.
+ *
+ * `top_candidatos` ausente (payload pré-S05), vazio, ou sem entrada para
+ * `row.lider` ⇒ `undefined` ⇒ `candidateColor` resolve em `--party-outros`,
+ * o token que a paleta define para sigla ausente. Cinza é a resposta honesta
+ * para "não sei de quem é"; a cor da colocação era uma resposta inventada.
+ */
+function partidoDoLider(row: EdgeUfRow): string | undefined {
+  return row.top_candidatos?.find((tc) => tc.id === row.lider)?.partido;
 }
 
 /**
@@ -75,10 +111,12 @@ function decisiveScore(row: EdgeUfRow): number {
 
 export function DecisiveUFsGrid({
   rows,
-  rankByLider,
-  candidatoAId,
-  corA = "var(--color-cand-1)",
-  corB = "var(--color-cand-2)",
+  // `rankByLider`, `candidatoAId`, `corA` e `corB` seguem aceitos e ignorados
+  // desde 2026-09-20 — ver `partidoDoLider` e as props acima.
+  rankByLider: _rankByLider,
+  candidatoAId: _candidatoAId,
+  corA: _corA,
+  corB: _corB,
   className,
   top = 6,
 }: DecisiveUFsGridProps) {
@@ -108,14 +146,10 @@ export function DecisiveUFsGrid({
         aria-label="Lista de UFs decisivas"
       >
         {sorted.map((row) => {
-          // Cor por rank quando temos `rankByLider`; fallback S04 quando não.
-          const rankDoLider = rankByLider?.[row.lider];
-          const cor =
-            typeof rankDoLider === "number"
-              ? colorForRank(rankDoLider)
-              : row.lider === candidatoAId
-                ? corA
-                : corB;
+          // Barra de margem = preenchimento COM extensão ⇒ cor-base da sigla
+          // (`candidateColor`). Ver `partidoDoLider` para por que a sigla vem
+          // da linha da UF e não de um índice nacional.
+          const cor = candidateColor(partidoDoLider(row));
           const margemSafe = Math.max(0, Math.min(100, Math.abs(row.margem_projetada)));
           return (
             <li

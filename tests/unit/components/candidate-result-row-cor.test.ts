@@ -78,17 +78,61 @@ describe("CandidateResultRow — a cor sai do partido", () => {
     );
   });
 
-  it("sigla fora da paleta editorial cai no rank — o fallback legítimo", () => {
+  it("sigla fora da paleta editorial fica no token estável, nunca no de rank", () => {
+    // 🔴 Mudou em 2026-09-20. Até então este caso caía em `colorForRank` — o
+    // último caminho do produto em que a POSIÇÃO pintava alguém. Quem cai aqui
+    // de verdade é **federação** ("PSDB/CIDADANIA"), que não é partido único e
+    // não tem token próprio; e como o rank não é congelado em lugar nenhum, a
+    // federação que subisse um lugar trocava de cor entre duas atualizações da
+    // página. Agora é `--party-outros`, que é o que a paleta define para sigla
+    // ausente, desconhecida ou de federação.
     const props = candidateResultRowProps(candidato({ partido: "SIGLA-QUE-NAO-EXISTE" }), 7);
-    expect(props.cor).toBe(colorForRank(3)); // usa o `rank` do candidato, 3
+    expect(props.cor).toBe(colorForParty("SIGLA-QUE-NAO-EXISTE"));
+    expect(props.cor).toBe("var(--party-outros)");
+    expect(props.cor).not.toBe(colorForRank(3));
   });
 
-  it("sem `rank` no candidato, usa o `fallbackRank` do caller", () => {
-    const props = candidateResultRowProps(
+  it("federação: a MESMA sigla em posições diferentes recebe a MESMA cor", () => {
+    // O caso que o defeito de 2026-09-20 produzia na noite da apuração. Os dois
+    // ranks têm de bater — e nenhum dos dois pode ser um token de colocação.
+    const terceiro = candidateResultRowProps(candidato({ partido: "PSDB/CIDADANIA", rank: 3 }), 3);
+    const quinto = candidateResultRowProps(candidato({ partido: "PSDB/CIDADANIA", rank: 5 }), 5);
+
+    expect(terceiro.cor).toBe(quinto.cor);
+    expect(terceiro.cor).not.toBe(colorForRank(3));
+    expect(quinto.cor).not.toBe(colorForRank(5));
+    expect(terceiro.cor).toBe(colorForParty("PSDB/CIDADANIA"));
+  });
+
+  it("sem `rank` no candidato, o `fallbackRank` do caller também não pinta", () => {
+    // O `fallbackRank` continua existindo — é o número EXIBIDO na coluna de
+    // posição — mas parou de escolher tinta. Dois callers com fallbacks
+    // diferentes têm de produzir a mesma cor para a mesma sigla.
+    const comCinco = candidateResultRowProps(
       candidato({ partido: "SIGLA-QUE-NAO-EXISTE", rank: undefined }),
       5,
     );
-    expect(props.cor).toBe(colorForRank(5));
+    const comDois = candidateResultRowProps(
+      candidato({ partido: "SIGLA-QUE-NAO-EXISTE", rank: undefined }),
+      2,
+    );
+
+    expect(comCinco.cor).toBe(comDois.cor);
+    expect(comCinco.cor).not.toBe(colorForRank(5));
+    // E o `rank` exibido continua vindo do fallback — a mudança é só na cor.
+    expect(comCinco.rank).toBe(5);
+    expect(comDois.rank).toBe(2);
+  });
+
+  it("candidatura SEM sigla nenhuma também não é pintada pela posição", () => {
+    // Sigla ausente é erro de dado, não identidade. A resposta honesta é o
+    // token neutro — e ele tem de ser o mesmo nas duas posições.
+    const um = candidateResultRowProps(candidato({ partido: "", rank: 1 }), 1);
+    const quatro = candidateResultRowProps(candidato({ partido: "", rank: 4 }), 4);
+
+    expect(um.cor).toBe(quatro.cor);
+    expect(um.cor).toBe("var(--party-outros)");
+    expect(um.cor).not.toBe(colorForRank(1));
   });
 
   it("dois candidatos do MESMO partido recebem a MESMA cor, em ranks diferentes", () => {

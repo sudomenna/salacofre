@@ -57,6 +57,50 @@
  *     (que exigiria um `pctAtual` por candidato que não existe aqui — usá-lo
  *     forçaria `0,0%` onde o dado está ausente).
  *
+ * ## 🔴 A ficha NÃO acompanha o controle "Parcial / Projeção" — e diz isso
+ *
+ * Desde 2026-09-20 (commit `290b8de`, "tudo acompanha a base ativa") a lista
+ * principal das telas troca de número E de ordem conforme o segmentado do
+ * cabeçalho (`<ViewModeSwitch>`, `app/globals.css` bloco "ADR-0029 § 2").
+ * Esta ficha **não pode** acompanhar: não existe o outro número para ela
+ * mostrar — é o limite de dado descrito no parágrafo acima, não uma escolha
+ * de desenho. O dono decidiu em 2026-09-20 NÃO engordar o payload com parcial
+ * por candidatura (teto de 1 MB do Edge Config; a tela de Senador já usa
+ * 98,8 KB e cresce quando o TSE reimportar as candidaturas em 02–03/10);
+ * medir e reconsiderar fica para depois dessa data.
+ *
+ * A consequência a tratar era de HONESTIDADE: com o leitor na base "Parcial",
+ * a ficha seguia exibindo projeção — números e ordem — sem nada avisar, e
+ * parecia estar discordando da tela atrás dela. O remédio é o rótulo
+ * `state-sheet-base-label`, logo acima do ranking:
+ *
+ *   - **é incondicional de propósito.** Não leva `data-view-only` nem
+ *     `data-view-cell` (os dois únicos contratos de `app/globals.css` que
+ *     escondem ou recuam algo conforme `data-view`) — justamente porque o que
+ *     ele afirma vale nas DUAS bases. Um rótulo que sumisse na base "Projeção"
+ *     deixaria de cobrir o único caso em que a ficha diverge da tela.
+ *   - **fica acima do `<ul>`, nunca acima das `<Figure>`.** As figuras não são
+ *     projeção: "Apurado" é `pct_apurado`, parcial de verdade. Um rótulo mais
+ *     acima transformaria um aviso correto numa afirmação falsa sobre o
+ *     número ao lado.
+ *   - **é texto visível e não-`aria-hidden`**, então serve às duas audiências
+ *     com um elemento só (duplicar em `sr-only` faria o leitor de tela ouvir a
+ *     mesma frase duas vezes). O `aria-label` do `<ul>` carrega a mesma
+ *     palavra — "por projeção", a formulação já usada em
+ *     `lib/utils/uf-descricao-candidaturas.ts:112` — para quem salta direto
+ *     para a lista e nunca passa pelo rótulo em ordem de leitura. E o
+ *     `sr-only` por linha (" projeção", ao lado de cada percentual) continua:
+ *     é ele que descreve o número para quem navega item a item, sem cabeçalho
+ *     nem nome de lista no caminho.
+ *
+ * ## Cor
+ *
+ * A ficha **não decide cor**: os dois pontos de 8×8 (líder e linhas do
+ * ranking) chamam `candidateMarkerColor` (`_candidateColor.ts`), o mesmo
+ * helper do balão dos mapas e da lista. Ver o bloco 🔴 logo antes de
+ * `resolveIdentidade` para a guarda duplicada que morava aqui até
+ * 2026-09-20 e pintava federação pela colocação.
+ *
  * A11y: o diálogo é o `<Sheet>` (aria-modal, Esc, foco preso/devolvido —
  * ver `components/atoms/overlays/Sheet.tsx`). O botão "Ver detalhes" é um
  * `<Link>` real (`<a href>`), não um `onClick` — funciona por teclado, com
@@ -71,6 +115,7 @@ import Link from "next/link";
 
 import { Figure } from "@/components/atoms/data/Figure";
 import { Sheet } from "@/components/atoms/overlays/Sheet";
+import { candidateMarkerColor } from "@/components/blocks/_candidateColor";
 import { VagaBadge } from "@/components/blocks/ResultPanel";
 import {
   margemLabel,
@@ -80,10 +125,8 @@ import {
   vagasPorCargo,
 } from "@/components/layout/UfPicker";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
-import { colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent, formatPp } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
-import { normalizePartySlug, PARTY_FALLBACK_SLUG, textForParty } from "@/lib/utils/party-color";
 import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 /** Mesma tabela de `GovernorCard.tsx` — sem módulo compartilhado em `lib/utils/**`
@@ -141,37 +184,36 @@ export interface StateResultSheetProps {
   cargo: UfPickerCargo;
 }
 
-/** `partido` tem token próprio (ADR-0024)? Mesma lógica de `partidoIsMapped`
- * em `_NationalChoroplethMapImpl.tsx` — duplicada aqui porque é local/não
- * exportada lá. */
-function partidoIsMapped(partido: string | null | undefined): partido is string {
-  if (!partido) return false;
-  return normalizePartySlug(partido) !== PARTY_FALLBACK_SLUG;
-}
-
 /**
- * Cor do ponto de 8×8 que identifica a candidatura (linhas do líder e do
- * ranking).
+ * 🔴 **2026-09-20 — a ficha deixou de ter cor própria.**
  *
- * RNF-035 / WCAG SC 1.4.11 — **`textForParty`, não `colorForParty`**. O ponto é
- * marcador de IDENTIDADE: não tem extensão a perder, então o remédio é a
- * variante legível, não o contorno de `DATA_FILL_STROKE` (que é para
- * preenchimento com extensão — barra, segmento, região).
+ * Até hoje este arquivo carregava DUAS coisas que não deviam existir aqui: uma
+ * cópia local de `partidoIsMapped` e um `dotColor` que, quando a resposta era
+ * não, desviava para `colorForRank(rank ?? 99)`. O caso em que a resposta é não
+ * é, na prática, **federação** ("PSDB/CIDADANIA", "PSOL/REDE", "FEDERACAO
+ * BRASIL DA ESPERANCA") e candidatura sem sigla — exatamente as candidaturas
+ * cuja cor passava a depender da COLOCAÇÃO, que a constituição § 2 proíbe
+ * ("não muda por rank, por ordem de apuração, por margem ou por qualquer
+ * evento da corrida"). Ver o topo de `_candidateColor.ts` para o defeito
+ * medido e para por que o destino certo é `--party-outros`.
  *
- * Medido em 18/09, tema claro: PSOL 2,08 · PSB 2,19 · outros 2,39 · NOVO 2,72
- * contra o piso de 3:1. No escuro as quatro passam de 9:1 — **o problema é só
- * do claro**, e medir um tema só engana.
+ * O ponto de 8×8 do líder e o de cada linha do ranking agora chamam
+ * {@link candidateMarkerColor} direto — o MESMO helper que o balão dos mapas
+ * (`_NationalChoroplethMapImpl.tsx`, `ChoroplethMapUF.tsx`) e a lista usam. É
+ * de propósito que não sobrou nenhuma função de cor neste arquivo: a ficha é
+ * aberta PELO mapa, por cima da lista, e guarda duplicada é literalmente o que
+ * produziu o defeito de 2026-09-19 (CAIADO/PSD laranja na lista e verde na
+ * legenda, mesma tela). Enquanto a cor da ficha for a chamada e não uma cópia
+ * da regra, as três superfícies não têm como divergir.
  *
- * Recebe `partido`/`rank` já resolvidos (não mais um `EdgeCandidate` inteiro)
- * porque, desde 2026-09-18 (2ª rodada), a identidade de nome/partido pode vir
- * de `EdgeUfRow.top_candidatos` — que não tem `rank` (esse campo só existe em
- * `national.candidatos`, o array nacional). `rank` continua vindo de lá
- * quando disponível; sem ele, `colorForRank` cai no fallback "other" já
- * documentado (`cand-color.ts`).
+ * Por que `candidateMarkerColor` e não `candidateColor`: RNF-035 / WCAG SC
+ * 1.4.11. O ponto é marcador de IDENTIDADE **sem extensão a perder**, então o
+ * remédio é a variante legível (`--party-<slug>-text`), não o contorno de
+ * `DATA_FILL_STROKE` — que serve a preenchimento COM extensão (barra,
+ * segmento, região). Medido em 18/09, tema claro: PSOL 2,08 · PSB 2,19 ·
+ * outros 2,39 · NOVO 2,72 contra o piso de 3:1. No escuro as quatro passam de
+ * 9:1 — o problema é só do claro, e medir um tema só engana.
  */
-function dotColor(partido: string | null | undefined, rank: number | undefined): string {
-  return partidoIsMapped(partido) ? textForParty(partido) : colorForRank(rank ?? 99);
-}
 
 /**
  * 🔴 **Identidade PRIMEIRO da própria linha da UF, nunca do array nacional
@@ -184,9 +226,18 @@ function dotColor(partido: string | null | undefined, rank: number | undefined):
  * sob o mesmo espaço de `id`, e `api/model/project.py` grava um PLACEHOLDER
  * (`"Candidato {id}"`) em `national.candidatos[].nome` fora do cargo 1.
  *
- * `cand` (de `candidatosById`) entra só como FALLBACK — payloads pré-ADR-0042
- * (`top_candidatos` sem `nome`/`partido`) e para o `rank`, que só existe no
- * array nacional (ver `dotColor` acima).
+ * `cand` (de `candidatosById`) entra só como FALLBACK — payloads pré-ADR-0042,
+ * cujo `top_candidatos` vinha sem `nome`/`partido`.
+ *
+ * 🔴 **`rank` saiu do retorno em 2026-09-20, e a ausência é o conserto.** Ele
+ * existia por um motivo só: alimentar o antigo `dotColor`, que pintava pela
+ * COLOCAÇÃO quando a sigla não tinha token próprio (federação, sigla ausente).
+ * Removido o desvio, um campo `rank` sobrando aqui seria uma arma carregada —
+ * o dado a um `??` de distância de voltar a escolher tinta. Agora a ficha
+ * **não tem** a colocação em mãos no ponto em que pinta: reintroduzir o defeito
+ * exige re-plumbar o campo, não esquecer de uma linha. O número da posição na
+ * tela (`1.`, `2.`, …) continua vindo do índice do array, que é ordem de
+ * leitura, não identidade.
  */
 function resolveIdentidade(
   tc: { id: number; nome?: string; partido?: string; sqcand?: string } | undefined,
@@ -195,13 +246,11 @@ function resolveIdentidade(
   nomeBruto: string | undefined;
   partido: string | undefined;
   sqcand: string | undefined;
-  rank: number | undefined;
 } {
   return {
     nomeBruto: tc?.nome ?? cand?.nome,
     partido: tc?.partido ?? cand?.partido,
     sqcand: tc?.sqcand ?? cand?.sqcand,
-    rank: cand?.rank,
   };
 }
 
@@ -298,14 +347,17 @@ export function StateResultSheet({
                 margin: "0 0 var(--space-3)",
               }}
             >
+              {/* Cor pela SIGLA, via o helper compartilhado — nunca pela
+                  colocação. Ver o bloco 🔴 acima de `resolveIdentidade`. */}
               <span
                 aria-hidden="true"
+                data-testid="state-sheet-lider-dot"
                 style={{
                   width: 8,
                   height: 8,
                   flex: "none",
                   borderRadius: "var(--radius-xs)",
-                  background: dotColor(liderIdentidade.partido, liderIdentidade.rank),
+                  background: candidateMarkerColor(liderIdentidade.partido),
                 }}
               />
               Líder: {nomeExibicao(liderIdentidade.nomeBruto, liderIdentidade.sqcand)}
@@ -315,9 +367,37 @@ export function StateResultSheet({
             </p>
           ) : null}
 
+          {/* 🔴 O rótulo da base. Ver "A ficha NÃO acompanha o controle
+              'Parcial / Projeção'" na docstring do arquivo: os números abaixo
+              são sempre `pct_projetado`, nas duas bases, porque a parcial por
+              candidatura não existe neste recorte do payload. Sem esta linha,
+              o leitor na base "Parcial" via a ficha contradizer a tela sem
+              nenhum aviso.
+
+              Sem `data-view-only`/`data-view-cell` DE PROPÓSITO: o aviso vale
+              nas duas bases, e sumir na base "Projeção" o tiraria justamente
+              de metade dos casos. Posição também é de propósito — acima do
+              `<ul>` e ABAIXO das `<Figure>`, porque "Apurado" é parcial de
+              verdade e este rótulo mentiria sobre ele. */}
+          <p
+            data-testid="state-sheet-base-label"
+            style={{
+              margin: "0 0 var(--space-2)",
+              font: "var(--type-body-sm)",
+              fontSize: "var(--text-xs)",
+              color: "var(--text-muted)",
+            }}
+          >
+            Percentuais de projeção
+          </p>
+
           <ul
             data-testid="state-sheet-candidatos"
-            aria-label={`Candidatos projetados em ${nomeUf}`}
+            /* "por projeção" — a MESMA formulação de
+               `descricaoCandidaturasUf` (`lib/utils/uf-descricao-candidaturas.ts:112`),
+               não um sinônimo novo. Está no nome acessível porque quem navega
+               por lista salta o rótulo visível acima. */
+            aria-label={`Candidatos em ${nomeUf}, por projeção`}
             style={{ listStyle: "none", margin: 0, padding: 0 }}
           >
             {row.top_candidatos.map((tc, index) => {
@@ -366,14 +446,21 @@ export function StateResultSheet({
                     style={{ gap: "var(--space-3)" }}
                   >
                     <span className="flex min-w-0 items-center" style={{ gap: "var(--space-2)" }}>
+                      {/* 🔴 A cor sai da SIGLA e só dela. `index` está bem
+                          aqui ao lado e é a tentação: usá-lo para pintar
+                          (`colorForRank(index + 1)`) devolveria o defeito que
+                          2026-09-20 fechou — e devolveria já na forma pior,
+                          porque desde `290b8de` a posição depende da base que
+                          o leitor escolhe no botão Parcial/Projeção. */}
                       <span
                         aria-hidden="true"
+                        data-testid="state-sheet-cand-dot"
                         style={{
                           width: 8,
                           height: 8,
                           flex: "none",
                           borderRadius: "var(--radius-xs)",
-                          background: dotColor(identidade.partido, identidade.rank),
+                          background: candidateMarkerColor(identidade.partido),
                         }}
                       />
                       <span aria-hidden="true" style={{ color: "var(--text-muted)" }}>

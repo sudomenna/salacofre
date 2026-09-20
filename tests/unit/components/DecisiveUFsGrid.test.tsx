@@ -17,7 +17,13 @@ function parse(node: React.ReactElement): Document {
   return new DOMParser().parseFromString(renderToStaticMarkup(node), "text/html");
 }
 
-const mkRow = (sigla: string, margem: number, pctApurado: number, lider = 13): EdgeUfRow => ({
+const mkRow = (
+  sigla: string,
+  margem: number,
+  pctApurado: number,
+  lider = 13,
+  partidoDoLider?: string,
+): EdgeUfRow => ({
   sigla,
   pct_apurado: pctApurado,
   lider,
@@ -27,7 +33,7 @@ const mkRow = (sigla: string, margem: number, pctApurado: number, lider = 13): E
   chamada: false,
   swing_vs_2022: 0,
   top_candidatos: [
-    { id: lider, pct: 50 + margem / 2 },
+    { id: lider, pct: 50 + margem / 2, partido: partidoDoLider },
     { id: lider === 13 ? 22 : 13, pct: 50 - margem / 2 },
   ],
   vai_a_2t: null,
@@ -80,22 +86,75 @@ describe("<DecisiveUFsGrid />", () => {
     expect(doc.querySelector("h2")?.textContent).toContain("UFs decisivas");
   });
 
-  it("(f) rankByLider: UF com líder rank 3 (âmbar) → card colorido com cand-3", () => {
-    // UF com líder 99 (que não é candidatoAId), rankByLider mapeia 99 → 3
-    const row = mkRow("AM", 5, 30, 99);
+  // 🔴 2026-09-20 — este caso testava o CONTRÁRIO até hoje. Chamava-se
+  // "rankByLider: UF com líder rank 3 (âmbar) → card colorido com cand-3" e
+  // exigia `var(--color-cand-3)` na barra: cravava como contrato o defeito que
+  // o ADR-0024 aposentou em 07/09. Invertido.
+  const estilosDoCard = (doc: Document) =>
+    Array.from(doc.querySelectorAll("li div[style]"))
+      .map((d) => d.getAttribute("style") ?? "")
+      .join(" ");
+
+  it("(f) a barra de margem sai da SIGLA do líder DAQUELA UF, não da colocação", () => {
     const doc = parse(
       <DecisiveUFsGrid
-        rows={[row]}
+        rows={[mkRow("AM", 5, 30, 99, "PSD")]}
         candidatoAId={13}
         rankByLider={{ 13: 1, 22: 2, 99: 3 }}
         top={1}
       />,
     );
-    // O fill da barrinha de margem usa colorForRank(3) = "var(--color-cand-3)"
-    const liStyles = Array.from(doc.querySelectorAll("li div[style]"))
-      .map((d) => d.getAttribute("style") ?? "")
-      .join(" ");
-    expect(liStyles).toContain("var(--color-cand-3)");
+    expect(estilosDoCard(doc)).toContain("var(--party-psd)");
+    expect(estilosDoCard(doc)).not.toContain("--color-cand-");
+  });
+
+  // O caso que DISCRIMINA: o mesmo partido liderando, com a colocação
+  // nacional variando entre 1, 3 e ausente, tem de dar a MESMA tinta. É o
+  // cenário literal da noite — o líder local que sobe ou desce no agregado
+  // nacional entre dois ciclos.
+  it("(f2) a mesma sigla em colocações diferentes recebe a MESMA cor", () => {
+    const cores = [{ 99: 1 }, { 99: 3 }, { 99: 9 }, undefined].map((rankByLider) =>
+      estilosDoCard(
+        parse(
+          <DecisiveUFsGrid
+            rows={[mkRow("AM", 5, 30, 99, "PSD")]}
+            candidatoAId={13}
+            rankByLider={rankByLider}
+            top={1}
+          />,
+        ),
+      ),
+    );
+    expect(new Set(cores).size).toBe(1);
+    expect(cores[0]).toContain("var(--party-psd)");
+  });
+
+  // E siglas diferentes não colapsam — senão devolver uma constante passaria
+  // em (f2).
+  it("(f3) siglas diferentes recebem cores diferentes", () => {
+    const cor = (partido: string) =>
+      estilosDoCard(
+        parse(
+          <DecisiveUFsGrid rows={[mkRow("AM", 5, 30, 99, partido)]} candidatoAId={13} top={1} />,
+        ),
+      );
+    expect(cor("PT")).not.toBe(cor("PL"));
+  });
+
+  // Sem sigla na linha da UF (payload pré-S05, ou `top_candidatos` sem o
+  // líder) a resposta honesta é o cinza de `outros` — nunca "vermelho porque
+  // é o de cima", que era o fallback `corA`/`corB` herdado do duelo binário.
+  it("(f4) sem sigla na linha da UF, cai em `outros` — não no token do lado A", () => {
+    const doc = parse(
+      <DecisiveUFsGrid
+        rows={[mkRow("AM", 5, 30, 13)]}
+        candidatoAId={13}
+        corA="var(--color-cand-1)"
+        top={1}
+      />,
+    );
+    expect(estilosDoCard(doc)).toContain("var(--party-outros)");
+    expect(estilosDoCard(doc)).not.toContain("--color-cand-1");
   });
 
   it("(g) score dinâmico ordena UFs com margens menores primeiro (apurado constante)", () => {

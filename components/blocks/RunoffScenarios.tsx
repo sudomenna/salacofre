@@ -23,11 +23,11 @@
  *   Aqui pegamos os 3 primeiros e renderizamos na mesma ordem.
  *
  * Cores
- *   Cada par mostra os dois candidatos com `colorForRank()` baseado no
- *   `rank` do `EdgeCandidate`. Lookup é por `id` no array `candidatos`
- *   passado pelo caller. Pares com candidato ausente são silenciosamente
- *   descartados (orchestrator não deveria emitir pares com id inválido,
- *   mas defendemos contra regressão).
+ *   Cada par mostra os dois candidatos com a cor da SIGLA (ADR-0024), nunca
+ *   da colocação — ver a nota de 2026-09-20 no corpo. Lookup é por `id` no
+ *   array `candidatos` passado pelo caller. Pares com candidato ausente são
+ *   silenciosamente descartados (orchestrator não deveria emitir pares com id
+ *   inválido, mas defendemos contra regressão).
  *
  * A11y
  *   - `<section aria-labelledby>` com heading h2 semântico.
@@ -36,8 +36,8 @@
  *   - Barra de probabilidade com `role="meter"` em [0, 100].
  */
 
+import { candidateColor, candidateMarkerColor } from "@/components/blocks/_candidateColor";
 import type { EdgeCandidate, EdgeNational } from "@/lib/edge-config/types";
-import { colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import { siglaExibicao } from "@/lib/utils/sigla-partido";
@@ -140,8 +140,25 @@ export function RunoffScenarios({
         {cenarios.map((s, idx) => {
           const probPct = Math.round(s.prob * 100);
           const probLabel = formatPercent(s.prob * 100, 0);
-          const corA = colorForRank(s.a.rank);
-          const corB = colorForRank(s.b.rank);
+          // 🔴 2026-09-20 — cor da SIGLA, e DOIS tokens por candidatura, não
+          // um. Era `colorForRank(s.a.rank)` para tudo: a paleta por
+          // COLOCAÇÃO do ADR-0013, aposentada pelo ADR-0024. Num bloco cuja
+          // razão de existir é "quem enfrenta quem no 2º turno", a cor por
+          // posição é especialmente traiçoeira — o par (3º, 4º) e o par (1º,
+          // 2º) do mesmo cenário mudam de tinta a cada ultrapassagem, e um
+          // deles é sempre vermelho por ser o de cima.
+          //
+          // Dois tokens porque as duas superfícies deste `<li>` são de
+          // naturezas diferentes, e a regra do kit distingue:
+          //   • `ponto*` — bolinha de 8×8 (`h-2 w-2`), MARCADOR sem extensão
+          //     ⇒ `candidateMarkerColor` (variante `-text`, legível sobre o
+          //     papel: PSOL sai de 2,08:1 para 4,51:1);
+          //   • `barra*` — as duas metades da barra de probabilidade,
+          //     preenchimento COM extensão ⇒ `candidateColor` (cor-base).
+          const pontoA = candidateMarkerColor(s.a.partido);
+          const pontoB = candidateMarkerColor(s.b.partido);
+          const barraA = candidateColor(s.a.partido);
+          const barraB = candidateColor(s.b.partido);
           const nomeA = nomeExibicao(s.a.nome, s.a.sqcand);
           const nomeB = nomeExibicao(s.b.nome, s.b.sqcand);
           const ariaLabel = `Cenário ${idx + 1}: ${nomeA} versus ${nomeB}, ${probLabel} de probabilidade.`;
@@ -153,7 +170,7 @@ export function RunoffScenarios({
                   <span
                     aria-hidden="true"
                     className="inline-block h-2 w-2 shrink-0 rounded-full"
-                    style={{ background: corA }}
+                    style={{ background: pontoA }}
                   />
                   <span className="truncate text-sm font-medium">
                     {nomeA}{" "}
@@ -170,7 +187,7 @@ export function RunoffScenarios({
                   <span
                     aria-hidden="true"
                     className="inline-block h-2 w-2 shrink-0 rounded-full"
-                    style={{ background: corB }}
+                    style={{ background: pontoB }}
                   />
                   <span className="truncate text-sm font-medium">
                     {nomeB} {/* Idem — ver a sigla do candidato A logo acima. */}
@@ -197,7 +214,7 @@ export function RunoffScenarios({
                   className="absolute inset-y-0 left-0"
                   style={{
                     width: `${probPct}%`,
-                    background: `linear-gradient(to right, ${corA} 0%, ${corA} 50%, ${corB} 50%, ${corB} 100%)`,
+                    background: `linear-gradient(to right, ${barraA} 0%, ${barraA} 50%, ${barraB} 50%, ${barraB} 100%)`,
                   }}
                 />
               </div>

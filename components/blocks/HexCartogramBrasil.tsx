@@ -5,7 +5,8 @@
  *
  * SVG inline (sem MapLibre, sem PMTiles) — atende RNF-007a (bundle
  * above-the-fold) e mantém o componente "free of heavy deps". Cada hex
- * é pintado pela cor do líder via `colorForRank(rank do líder)`. Quando
+ * é pintado pela SIGLA do líder, com o par fundo+tinta medido de
+ * `partyChipInk` (ADR-0024) — nunca pela colocação; ver `pintaHex`. Quando
  * `bucket === "indefinido"` (apuração baixa), usa fill cinza neutro.
  *
  * Server Component — link via `<a href>` (sem onClick), permitindo
@@ -22,10 +23,10 @@
  */
 
 import Link from "next/link";
-import { candidateColor } from "@/components/blocks/_candidateColor";
 import { gridBounds, hexCenter, hexPoints, UF_HEX_POSITIONS } from "@/lib/data/uf-hex-layout";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
+import { partyChipInk } from "@/lib/utils/party-color";
 import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 export interface HexCartogramBrasilProps {
@@ -35,19 +36,58 @@ export interface HexCartogramBrasilProps {
   hexRadius?: number;
 }
 
-function fillFor(uf: EdgeUfRow, candIndex: Map<number, EdgeCandidate>): string {
+/**
+ * O par (fundo, tinta) de um hexágono — **os dois juntos**, nunca um de cada
+ * cadeia.
+ *
+ * 🔴 **2026-09-20 — o fundo já vinha da sigla; a TINTA ainda vinha da
+ * colocação, e era o pior dos dois.** O hexágono não é só uma área pintada:
+ * ele carrega duas linhas de texto por cima (a sigla da UF e a do partido do
+ * líder). A versão anterior pintava o fundo com `candidateColor(partido)` —
+ * correto — e escolhia a tinta assim:
+ *
+ *     const rank = lider?.rank ?? 99;
+ *     const isDarkBg = uf?.bucket !== "indefinido" && [1, 2, 5, 6].includes(rank);
+ *
+ * Aquela lista `[1, 2, 5, 6]` é a dos ranks cujo token era escuro **na paleta
+ * por COLOCAÇÃO** (`--color-cand-N`, ADR-0013). Depois que o fundo passou a
+ * sair da sigla, ela deixou de descrever coisa alguma sobre o pixel de baixo:
+ * o líder de um partido de fundo CLARO em rank 1 recebia texto **branco sobre
+ * amarelo**, e o de um partido de fundo escuro em rank 3 recebia texto escuro
+ * sobre escuro. Não é a troca-de-cor da constituição § 2 — é pior, é texto
+ * ilegível (§ 4 / WCAG 1.4.3), e chegava justamente pelo resíduo de rank que
+ * ninguém tinha tirado.
+ *
+ * `partyChipInk` é o par que o gerador MEDE para exatamente este caso —
+ * superfície sólida com rótulo em cima, ≥ 4,5:1 nos 31 slugs, inclusive no
+ * par de `outros` (sigla ausente, desconhecida ou de federação). Em 29 dos 31
+ * partidos o `-chip` **é** a cor-base, então o fundo não muda um pixel; MDB e
+ * Rede (dois verdes de meio-tom que reprovam com as DUAS tintas do kit)
+ * recebem a base escurecida na mesma matiz, o que o § 2 v1.3 permite.
+ *
+ * `bucket === "indefinido"` (apuração baixa) continua no cinza neutro com
+ * tinta escura: ali não há candidatura a identificar, e o cinza não é uma
+ * posição — é a ausência de resposta.
+ *
+ * ⚠️ Este componente é o EXEMPLO que o ADR-0024 usa para aposentar a cor por
+ * rank: 27 hexágonos liderados por partidos diferentes saíam todos na cor de
+ * rank 1. Ele segue sem uso em `/governador` desde o ADR-0048 (o coroplético o
+ * substituiu), preservado por decisão do dono — e por isso mesmo é onde o
+ * defeito sobreviveria mais tempo sem ninguém ver.
+ */
+function pintaHex(
+  uf: EdgeUfRow | undefined,
+  candIndex: Map<number, EdgeCandidate>,
+): { fill: string; ink: string } {
+  if (!uf) {
+    return { fill: "var(--color-bg-muted)", ink: "var(--color-text)" };
+  }
   if (uf.bucket === "indefinido") {
-    return "var(--color-cand-other)";
+    return { fill: "var(--color-cand-other)", ink: "var(--color-text)" };
   }
   const lider = candIndex.get(uf.lider);
-  // Hexágono = preenchimento com extensão ⇒ cor-base do partido.
-  //
-  // ⚠️ Este componente é o EXEMPLO que o ADR-0024 usa para aposentar a cor
-  // por rank: 27 hexágonos liderados por partidos diferentes saíam todos na
-  // cor de rank 1. Ele segue sem uso em `/governador` desde o ADR-0048 (o
-  // coroplético o substituiu), preservado por decisão do dono — e por isso
-  // mesmo é onde o defeito sobreviveria mais tempo sem ninguém ver.
-  return candidateColor(lider?.partido, lider?.rank ?? 1);
+  const { background, ink } = partyChipInk(lider?.partido);
+  return { fill: background, ink };
 }
 
 export function HexCartogramBrasil({ rows, candidatos, hexRadius = 26 }: HexCartogramBrasilProps) {
@@ -88,7 +128,7 @@ export function HexCartogramBrasil({ rows, candidatos, hexRadius = 26 }: HexCart
           const uf = rowsBySigla.get(sigla);
           const { x, y } = hexCenter(pos, hexRadius);
           const pts = hexPoints(x, y, hexRadius);
-          const fill = uf ? fillFor(uf, candIndex) : "var(--color-bg-muted)";
+          const { fill, ink: textFill } = pintaHex(uf, candIndex);
           const lider = uf ? candIndex.get(uf.lider) : undefined;
           // 2026-09-19 — o hexágono tem ~34 px de largura útil e já carrega a
           // sigla da UF por cima; a do partido é a segunda linha de texto
@@ -107,12 +147,9 @@ export function HexCartogramBrasil({ rows, candidatos, hexRadius = 26 }: HexCart
             ? `${sigla}${lider ? `, líder ${nomeExibicao(lider.nome, lider.sqcand)} (${lider.partido})` : ""}`
             : `${sigla}, sem dados`;
           const href = `/uf/${sigla.toLowerCase()}/governador`;
-          // Cor do texto via luminância do fundo: ranks com fundo escuro
-          // (1, 2, 5, 6 nas paletas atuais) recebem branco; demais recebem
-          // texto escuro. Bucket "indefinido" sempre escuro (cinza claro).
-          const rank = lider?.rank ?? 99;
-          const isDarkBg = uf?.bucket !== "indefinido" && [1, 2, 5, 6].includes(rank);
-          const textFill = isDarkBg ? "#ffffff" : "var(--color-text)";
+          // `textFill` sai de `pintaHex` junto com o `fill` — o par medido de
+          // `partyChipInk`, nunca a luminância presumida de um rank. Ver a
+          // docstring daquela função.
 
           return (
             <g key={sigla}>

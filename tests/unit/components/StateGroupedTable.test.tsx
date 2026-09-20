@@ -13,10 +13,12 @@ import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
  * Helper pra montar EdgeCandidate sintético nos tests sem repetir o shape
  * completo. Em mode="multi-1t" só `id`, `nome` e `rank` importam pro componente.
  */
-const mkCand = (id: number, nome: string, rank: number): EdgeCandidate => ({
+const mkCand = (id: number, nome: string, rank: number, partido = "X"): EdgeCandidate => ({
   id,
   nome,
-  partido: "X",
+  partido,
+  // ⚠️ O campo `cor` do payload é de propósito a paleta por COLOCAÇÃO: é o que
+  // o produtor gravava, e é o que o componente tem de IGNORAR. Ver (i).
   cor: `var(--color-cand-${rank})`,
   votos_atuais: 0,
   votos_projetados: 0,
@@ -245,6 +247,84 @@ describe("<StateGroupedTable />", () => {
 
     expect(celula).toContain("Outros (5)");
     expect(celula).toContain("9,4%");
+  });
+
+  // 🔴 2026-09-20 — o cabeçalho de coluna era o PIOR dos pontos que sobraram.
+  //
+  // Esta tabela fica na HOME, ao lado do mapa, e o mapa já resolvia pela
+  // sigla. Enquanto o quadradinho de 8×8 do cabeçalho saía de
+  // `colorForRank(rank)`, uma candidatura sem token próprio — federação
+  // ("PSDB/CIDADANIA"), sigla ausente, ou uma das 10 candidaturas sem partido
+  // que aparecem em fixtures que imitam produção — ganhava a cor da sua
+  // COLOCAÇÃO aqui e o cinza de reserva a dois palmos de distância. Mesma
+  // pessoa, duas tintas, na mesma tela: o defeito que o dono reportou em 19/09
+  // com CAIADO/PSD.
+  const coresDoCabecalho = (doc: Document) =>
+    Array.from(doc.querySelectorAll("thead th span[aria-hidden]")).map(
+      (e) => e.getAttribute("style") ?? "",
+    );
+
+  it("(i) mode='multi-1t': o marcador do cabeçalho sai da SIGLA, não da colocação", () => {
+    const candidatos = [mkCand(13, "P1", 1, "PT"), mkCand(22, "P2", 2, "PL")];
+    const doc = parse(
+      <StateGroupedTable
+        rows={[mkRow("XX", 13, 10), mkRow("YY", 22, 10)]}
+        candidatoAId={13}
+        candidatos={candidatos}
+        mode="multi-1t"
+      />,
+    );
+    const cores = coresDoCabecalho(doc);
+    // Marcador de 8×8 = sem extensão ⇒ a variante legível (`-text`).
+    expect(cores[0]).toContain("var(--party-pt-text)");
+    expect(cores[1]).toContain("var(--party-pl-text)");
+    expect(cores.every((c) => !c.includes("--color-cand-"))).toBe(true);
+  });
+
+  // O caso que DISCRIMINA: a mesma dupla de candidaturas, com as colocações
+  // TROCADAS (a ultrapassagem da noite), tem de sair com as mesmas tintas nas
+  // mesmas siglas — só a ORDEM das colunas muda.
+  it("(i2) uma ultrapassagem troca a ordem das colunas, nunca a cor de cada sigla", () => {
+    const monta = (rankPt: number, rankPl: number) =>
+      parse(
+        <StateGroupedTable
+          rows={[mkRow("XX", 13, 10), mkRow("YY", 22, 10)]}
+          candidatoAId={13}
+          candidatos={[mkCand(13, "P1", rankPt, "PT"), mkCand(22, "P2", rankPl, "PL")]}
+          mode="multi-1t"
+        />,
+      );
+    const nomesECores = (doc: Document) =>
+      Array.from(doc.querySelectorAll("thead th")).map((th) => [
+        th.textContent?.trim(),
+        th.querySelector("span[aria-hidden]")?.getAttribute("style") ?? "",
+      ]);
+
+    const antes = nomesECores(monta(1, 2));
+    const depois = nomesECores(monta(2, 1));
+    // A ordem mudou…
+    expect(antes.map(([n]) => n)).not.toEqual(depois.map(([n]) => n));
+    // …e o par (nome, cor) de cada candidatura é idêntico nos dois.
+    expect(new Map(antes as [string, string][])).toEqual(new Map(depois as [string, string][]));
+  });
+
+  // Federação: uma cor estável, e a MESMA de qualquer outra sigla fora da
+  // paleta editorial. É a limitação assumida em `_candidateColor.ts` — e é
+  // muito melhor que a alternativa, que era a cor da posição.
+  it("(i3) federação recebe o token de `outros`, estável entre colocações", () => {
+    const cor = (rank: number) =>
+      coresDoCabecalho(
+        parse(
+          <StateGroupedTable
+            rows={[mkRow("XX", 13, 10)]}
+            candidatoAId={13}
+            candidatos={[mkCand(13, "P1", rank, "PSDB/CIDADANIA")]}
+            mode="multi-1t"
+          />,
+        ),
+      )[0];
+    expect(cor(1)).toContain("var(--party-outros-text)");
+    expect(cor(1)).toBe(cor(4));
   });
 
   it("(h) mode='multi-1t': 'Em disputa' agrupa UFs tossup independente do líder", () => {

@@ -75,10 +75,49 @@ describe("<CandidateBar />", () => {
     expect(doc.body.textContent).not.toContain("CI95");
   });
 
-  it("(e) sem `cor`, `rank=3` resolve cor via colorForRank (S05/F3B)", () => {
+  // 🔴 2026-09-20 — este caso testava o CONTRÁRIO até hoje. Ele se chamava
+  // "sem `cor`, `rank=3` resolve cor via colorForRank" e exigia
+  // `var(--color-cand-3)`: cravava a paleta por COLOCAÇÃO como contrato do
+  // átomo, doze dias depois de o ADR-0024 tê-la aposentado. Invertido.
+  it("(e) sem `cor`, o fallback sai da SIGLA — nunca da colocação", () => {
     const doc = parse(<CandidateBar nome="X" partido="MDB" pctProjetado={4.5} rank={3} />);
     const fill = doc.querySelector('[role="meter"] > div');
-    // colorForRank(3) === "var(--color-cand-3)"
-    expect(fill?.getAttribute("style")).toContain("var(--color-cand-3)");
+    expect(fill?.getAttribute("style")).toContain("var(--party-mdb)");
+    expect(fill?.getAttribute("style")).not.toContain("--color-cand-");
+  });
+
+  // O caso que DISCRIMINA. Sem ele, um `colorForParty` trocado de volta por
+  // `colorForRank` ainda passaria em (e) caso alguém alinhasse os números por
+  // acaso — e, mais importante, este é o defeito que o dono viu: a mesma
+  // pessoa mudando de tinta ao mudar de lugar.
+  it("(e2) a MESMA sigla em posições diferentes recebe a MESMA cor", () => {
+    const cores = [1, 2, 3, 7, undefined].map((rank) => {
+      const doc = parse(<CandidateBar nome="X" partido="PSD" pctProjetado={20} rank={rank} />);
+      return doc.querySelector('[role="meter"] > div')?.getAttribute("style") ?? "";
+    });
+    expect(new Set(cores).size).toBe(1);
+    expect(cores[0]).toContain("var(--party-psd)");
+  });
+
+  // E siglas diferentes NÃO colapsam: sem isto, devolver uma constante para
+  // tudo passaria em (e2).
+  it("(e3) siglas diferentes recebem cores diferentes", () => {
+    const cor = (partido: string) =>
+      parse(<CandidateBar nome="X" partido={partido} pctProjetado={20} />)
+        .querySelector('[role="meter"] > div')
+        ?.getAttribute("style") ?? "";
+    expect(cor("PT")).not.toBe(cor("PL"));
+  });
+
+  // Federação e sigla ausente caem no fallback ESTÁVEL da paleta, não na cor
+  // da posição — é o caso concreto medido em 20/09: o PTB aparece nas fixtures
+  // sem token próprio, e há 10 candidaturas sem partido em arquivos que
+  // imitam produção. Qualquer uma delas trocando de lugar trocava de cor.
+  it("(e4) federação e sigla ausente caem em `outros`, não na cor do rank", () => {
+    for (const partido of ["PSDB/CIDADANIA", "FEDERACAO BRASIL DA ESPERANCA", ""]) {
+      const doc = parse(<CandidateBar nome="X" partido={partido} pctProjetado={9} rank={1} />);
+      const estilo = doc.querySelector('[role="meter"] > div')?.getAttribute("style") ?? "";
+      expect(estilo).toContain("var(--party-outros)");
+    }
   });
 });

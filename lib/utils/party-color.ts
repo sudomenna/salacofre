@@ -97,6 +97,7 @@ export const KNOWN_PARTY_SLUGS = new Set([
   "pv",
   "solidariedade",
   "mobiliza",
+  "ptb",
   "outros",
 ]);
 

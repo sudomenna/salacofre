@@ -101,6 +101,11 @@ const TOKENS: Record<string, string> = {
   // pra um teste que confunda os dois níveis não passar por acaso.
   "--party-pt-1": "#f2d7d5",
   "--party-pt-4": "#c0392b",
+  // Idem para o fallback `outros`, que desde 2026-09-20 é quem atende sigla
+  // ausente, desconhecida ou de FEDERAÇÃO — antes esse caso ia para a paleta
+  // por colocação (`marginToRankColor`).
+  "--party-outros-1": "#e6e8ea",
+  "--party-outros-4": "#6b7178",
 };
 
 /** RF-104 (aceitação literal): 1º=40, 2º=30, 3º=29. */
@@ -241,20 +246,38 @@ describe("RF-104 — intensidade da cor do mapa por margem de 2ª vaga (Senado)"
     expect(pintar(ROW_SP_2_CANDIDATOS, "sen")).toBe(TOKENS["--party-pt-1"]);
   });
 
-  it('cargo="sen", partido SEM token próprio (fallback de rank) — NaN cai em tossup, não na banda de "quase decidido"', () => {
-    // Sem partido mapeado, `resolveColor` usa `marginToRankColor` em vez de
-    // `intensityLevelForMargin`/`resolvePartyHex`. Antes da guarda de `NaN`
-    // (`!Number.isFinite`) nesta função, `Math.abs(NaN) < 2` é `false` (toda
-    // comparação com NaN é falsa) e o código caía direto no ramo de banda —
-    // pintando uma UF SEM margem medida com a mesma cor de uma UF com margem
-    // média. Mutação: remover `if (!Number.isFinite(margin)) return
-    // getCssVar("--color-tossup");` de `marginToRankColor` faz este teste
-    // falhar.
+  it('cargo="sen", partido SEM token próprio — NaN fica no nível 1, não na banda de "quase decidido"', () => {
+    // 🔴 Reescrito em 2026-09-20. Este caminho usava `marginToRankColor`, que
+    // pintava a UF pela COLOCAÇÃO do líder — e caiu junto com o resto do
+    // fallback de rank (constituição § 2: a cor "não muda por rank, por ordem
+    // de apuração"). Sem partido mapeado a UF agora entra na rampa de
+    // `outros`, e a guarda de `NaN` que este caso protege mudou de casa: está
+    // em `intensityLevelForMargin` (`lib/utils/party-color.ts`), que devolve 1
+    // para margem não finita.
+    //
+    // A propriedade medida é a MESMA de antes, e é a que importa: uma UF SEM
+    // margem medida nunca pode sair com a cor de uma UF decidida.
+    //
+    // Mutação: trocar `if (!Number.isFinite(margemPp)) return 1;` por
+    // `return 5` (ou remover a guarda, deixando `Math.abs(NaN) < 2 === false`
+    // cair até o último `return 5`) faz este teste falhar.
     expect(
       pintar(ROW_SP_2_CANDIDATOS, "sen", {
         candidatos: CANDIDATOS_SEM_PARTIDO,
         rankByLider: RANK_BY_LIDER,
       }),
-    ).toBe(TOKENS["--color-tossup"]);
+    ).toBe(TOKENS["--party-outros-1"]);
+  });
+
+  it('cargo="sen", partido SEM token próprio — a cor NÃO depende da colocação do líder', () => {
+    // O defeito de 2026-09-20 visto pelo mapa: com `marginToRankColor`, mudar
+    // `rankByLider` mudava o hex do estado sem que um voto mudasse. Duas
+    // colocações, o mesmo dado, o mesmo pixel.
+    const comum = { candidatos: CANDIDATOS_SEM_PARTIDO } as const;
+    const lider1 = pintar(ROW_SP, "sen", { ...comum, rankByLider: { 1: 1 } });
+    const lider5 = pintar(ROW_SP, "sen", { ...comum, rankByLider: { 1: 5 } });
+
+    expect(lider1).toBe(lider5);
+    expect(lider1).toBe(TOKENS["--party-outros-1"]); // margem 2º−3º = 1pp
   });
 });

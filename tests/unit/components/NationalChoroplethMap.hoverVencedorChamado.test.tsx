@@ -14,9 +14,15 @@
  *     mesmo que o candidato tenha um partido mapeado (`PT`) e seja o líder;
  *   - `chamada: true` mostra o ✓ na linha 0 (a líder) e SÓ nela — os 2º/3º
  *     colocados de uma UF chamada não são "vencedores" também;
- *   - o tratamento cobre o fallback de partido não mapeado (`strongForRank`)
- *     tanto quanto o de partido mapeado (`partyChipInk`) — os dois caminhos
- *     de `buildHoverRows`.
+ *   - o tratamento cobre partido não mapeado (sigla desconhecida e federação)
+ *     tanto quanto partido com token próprio.
+ *
+ * 🔴 2026-09-20 — o "fallback por rank" (`strongForRank` + `--text-inverse`)
+ * que este arquivo cobria no caso não mapeado **deixou de existir**: o par
+ * agora é `partyChipInk(partido)` para todo mundo, porque ele já resolve sigla
+ * ausente, desconhecida ou de federação no par medido de `outros`. A cor de
+ * uma candidatura não pode derivar da colocação (constituição § 2) — ver o topo
+ * de `components/blocks/_candidateColor.ts`.
  *
  * Harness idêntico a `NationalChoroplethMap.hoverIdentidadePorUf.test.tsx`.
  */
@@ -192,23 +198,43 @@ describe("hover do mapa nacional — fundo cheio + ✓ só quando EdgeUfRow.cham
     host.remove();
   });
 
-  it("chamada: true + partido NÃO mapeado — cai no fallback por rank (strongForRank + --text-inverse), nunca some o ✓", () => {
+  it("chamada: true + partido NÃO mapeado — usa o par medido de `outros`, nunca o rank, e nunca some o ✓", () => {
     // "ZZZ" não é sigla conhecida nem federação — `normalizePartySlug` cai no
-    // fallback "outros", e `partidoIsMapped` trata "outros" como "não
-    // mapeado" (ver o comentário da função em `_NationalChoroplethMapImpl`).
-    // `undefined` não serviria aqui: `buildHoverRows` cairia no FALLBACK de
-    // `candidatosById` (`tc.partido ?? cand?.partido`), que na fixture
-    // nacional tem partido "PT" — testaria o caminho errado.
+    // fallback "outros". `undefined` não serviria aqui: `buildHoverRows` cairia
+    // no FALLBACK de `candidatosById` (`tc.partido ?? cand?.partido`), que na
+    // fixture nacional tem partido "PT" — testaria o caminho errado.
+    //
+    // 🔴 Mudou em 2026-09-20. Até então este ramo caía em
+    // `strongForRank(rank)` + `--text-inverse` — um par escolhido pela
+    // COLOCAÇÃO, e cujo contraste ninguém mediu para este caso. Agora é o par
+    // `--party-outros-chip` / `--party-outros-ink`, que o gerador mede como
+    // mede os outros 30. Ver o topo de `components/blocks/_candidateColor.ts`.
     const { host, root } = montar(rowSp(true, "ZZZ"));
     disparaHoverEmSp();
 
     const card = host.querySelector('[data-testid="hover-card"]');
     expect(card?.textContent).toContain("✓");
-    expect(card?.innerHTML).toContain("--color-cand-1-strong");
-    expect(card?.innerHTML).toContain("--text-inverse");
+    expect(card?.innerHTML).toContain("--party-outros-chip");
+    expect(card?.innerHTML).toContain("--party-outros-ink");
+    expect(card?.innerHTML).not.toContain("--color-cand-");
 
     act(() => root.unmount());
     host.remove();
+  });
+
+  it("chamada: true + FEDERAÇÃO — mesma cor em qualquer colocação do líder", () => {
+    // O caso que motivou a correção: "PSDB/CIDADANIA" não é partido único e
+    // não tem token próprio. Com o desvio de rank, o mesmo estado saía de uma
+    // cor no balão e de outra na lista ao lado — e trocava entre dois ciclos.
+    const primeiro = montar(rowSp(true, "PSDB/CIDADANIA"));
+    disparaHoverEmSp();
+    const html = primeiro.host.querySelector('[data-testid="hover-card"]')?.innerHTML ?? "";
+
+    expect(html).toContain("--party-outros-chip");
+    expect(html).not.toContain("--color-cand-");
+
+    act(() => primeiro.root.unmount());
+    primeiro.host.remove();
   });
 
   it("chamada: true — o ✓ aparece EXATAMENTE uma vez (só a linha 0, líder — 2º e 3º não são 'vencedores')", () => {

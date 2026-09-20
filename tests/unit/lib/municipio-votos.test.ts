@@ -29,7 +29,10 @@ function cand(over: Partial<EdgeUfCandidate>): EdgeUfCandidate {
     id: 0,
     nome: "",
     partido: "",
-    cor: "var(--color-cand-other)",
+    // 🔴 Deliberadamente a paleta por COLOCAÇÃO, e deliberadamente um valor
+    // que NENHUMA saída legítima pode ter: é assim que (f) prova que a função
+    // ignora este campo em vez de copiá-lo. Ver o teste.
+    cor: "var(--color-cand-4)",
     votos_atuais: 0,
     votos_projetados: 0,
     pct_atual: 0,
@@ -51,8 +54,11 @@ function municipio(over: Partial<EdgeUfMunicipio>): EdgeUfMunicipio {
 }
 
 const CANDIDATOS: EdgeUfCandidate[] = [
-  cand({ id: 13, nome: "FERNANDA DA SILVA", partido: "PT", cor: "var(--party-pt)" }),
-  cand({ id: 22, nome: "JOÃO DE SOUZA", partido: "PL", cor: "var(--party-pl)" }),
+  // ⚠️ O campo `cor` da ENTRADA é de propósito a paleta por COLOCAÇÃO
+  // (`--color-cand-N`): é o que o produtor gravava, e é o que a função tem de
+  // IGNORAR. Ver (f).
+  cand({ id: 13, nome: "FERNANDA DA SILVA", partido: "PT", cor: "var(--color-cand-1)" }),
+  cand({ id: 22, nome: "JOÃO DE SOUZA", partido: "PL", cor: "var(--color-cand-2)" }),
 ];
 
 describe("votosPorCandidatoMunicipio", () => {
@@ -78,7 +84,7 @@ describe("votosPorCandidatoMunicipio", () => {
     expect(rows.map((r) => r.id)).toEqual([99, 13, 22]);
   });
 
-  it("(d) candidato sem match na lista degrada para 'Candidato {id}', partido undefined, cor de fallback — nunca quebra [mutação: remover o `?? \"var(--color-cand-other)\"` faria a cor sair `undefined` em vez do token de fallback]", () => {
+  it("(d) candidato sem match na lista degrada para 'Candidato {id}', partido undefined, cor de fallback — nunca quebra [mutação: trocar `colorForParty(c?.partido)` por `c?.cor` devolveria a paleta por COLOCAÇÃO do payload, que o ADR-0024 aposentou]", () => {
     const rows = votosPorCandidatoMunicipio(
       municipio({ votos_reportados: { 999: 100 } }),
       CANDIDATOS,
@@ -88,11 +94,55 @@ describe("votosPorCandidatoMunicipio", () => {
         id: 999,
         nome: "Candidato 999",
         partido: undefined,
-        cor: "var(--color-cand-other)",
+        cor: "var(--party-outros)",
         votos: 100,
         pct: 100,
       },
     ]);
+  });
+
+  // 🔴 2026-09-20 — o caso que fecha a fuga por `lib/`.
+  //
+  // Até hoje esta função fazia `cor: c?.cor ?? "var(--color-cand-other)"`,
+  // copiando literalmente o campo `cor` do payload — a paleta por COLOCAÇÃO
+  // que o ADR-0024 aposentou em 07/09 e que
+  // `tests/unit/components/cor-nunca-do-payload.test.ts` bane de `components/`
+  // e `app/` desde 19/09. A varredura não olhava `lib/`, então este era o
+  // caminho pelo qual o campo banido voltava à tela: dois componentes
+  // (`<MunicipioExplorer>` e o balão de `<ChoroplethMapUF>`) consomem daqui.
+  //
+  // O fixture acima entrega `--color-cand-1` / `--color-cand-2` de propósito.
+  // Se alguém reverter para `c?.cor`, a saída passa a conter esses tokens e
+  // este teste morre.
+  it("(f) a cor sai da SIGLA e IGNORA o campo `cor` do payload", () => {
+    const rows = votosPorCandidatoMunicipio(
+      municipio({ votos_reportados: { 13: 60, 22: 40 } }),
+      CANDIDATOS,
+    );
+    expect(rows.map((r) => r.cor)).toEqual(["var(--party-pt)", "var(--party-pl)"]);
+    expect(rows.every((r) => !r.cor.includes("--color-cand-"))).toBe(true);
+  });
+
+  // Federação: o caso medido em 20/09 que a paleta resolve em `outros` — e que
+  // antes caía no campo do payload, isto é, na colocação.
+  //
+  // 🔴 "XYZ" (não PTB) é a sigla-exemplo de "fora da paleta": o PTB GANHOU
+  // token próprio (`--party-ptb`) em 2026-09-20 (ver
+  // `docs/design-system/tokens.md` — o PTB aparecia nas fixtures e caía neste
+  // MESMO cinza, que é justamente o defeito que motivou dar cor a ele; usar
+  // PTB aqui como exemplo passou a testar o caso errado). "XYZ" é o
+  // placeholder já usado em `tests/unit/utils/party-color.test.ts` para sigla
+  // desconhecida.
+  it("(f2) federação e sigla fora da paleta caem em `outros`, não na colocação", () => {
+    const federados: EdgeUfCandidate[] = [
+      cand({ id: 40, nome: "ALGUEM", partido: "PSDB/CIDADANIA", cor: "var(--color-cand-3)" }),
+      cand({ id: 50, nome: "OUTREM", partido: "XYZ", cor: "var(--color-cand-4)" }),
+    ];
+    const rows = votosPorCandidatoMunicipio(
+      municipio({ votos_reportados: { 40: 10, 50: 5 } }),
+      federados,
+    );
+    expect(rows.map((r) => r.cor)).toEqual(["var(--party-outros)", "var(--party-outros)"]);
   });
 
   it("(e) identidade vem da lista DE CANDIDATOS PASSADA, não de um índice fixo — o mesmo id resolve para pessoas diferentes conforme a lista [mutação: trocar `porId.get(id)` por uma busca hardcoded em CANDIDATOS_A faria este teste ver o nome errado quando chamado com CANDIDATOS_B]", () => {

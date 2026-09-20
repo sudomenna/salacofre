@@ -38,11 +38,14 @@ export interface TwoRoundIndicatorProps {
   /** Nome do líder (usado no caption "Líder atual: <nome>"). */
   liderNome: string;
   /**
-   * Cor do líder no thermometer fill — CSS var literal vinda do payload
-   * (ex: "var(--color-cand-1)"). Default = "var(--color-cand-1)" (rank 1
-   * por convenção). Necessário pra constituição § 2: não pintar sempre
-   * rank-1 quando líder pode ser rank 2/3+ (corrige constitution-guard
-   * MEDIUM P4 da S05).
+   * Cor do líder no fill do mini-termômetro. O caller resolve pela SIGLA
+   * (`candidateColor`, ADR-0024) — preenchimento com extensão.
+   *
+   * 🔴 **2026-09-20 — o default era `"var(--color-cand-1)"`, e a docstring
+   * antiga dizia que isso servia à constituição § 2.** Dizia o contrário do
+   * que fazia: reconhecia que "o líder pode ser rank 2/3+" e mesmo assim
+   * cravava o token do rank 1 para quem omitisse a prop. Default hoje é o
+   * cinza de sigla desconhecida.
    */
   liderCor?: string;
   className?: string;
@@ -52,7 +55,7 @@ export function TwoRoundIndicator({
   pSegundoTurno,
   liderPct,
   liderNome,
-  liderCor = "var(--color-cand-1)",
+  liderCor = "var(--party-outros)",
   className,
 }: TwoRoundIndicatorProps) {
   // Gate 1: sem dado disponível

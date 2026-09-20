@@ -118,12 +118,9 @@ import type { UfPickerCargo } from "@/components/layout/UfPicker";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { useHoverStore } from "@/lib/state/hover-store";
 import type { ViewMode } from "@/lib/state/view-mode";
-import {
-  colorForRank,
-  resolveBandHex,
-  resolveCandHex,
-  strongForRank,
-} from "@/lib/utils/cand-color";
+// (Nada de `@/lib/utils/cand-color` aqui desde 2026-09-20: nenhuma cor deste
+// mapa deriva mais da COLOCAÇÃO do líder — ver `resolveColor` e
+// `buildHoverRows` abaixo, e o topo de `components/blocks/_candidateColor.ts`.)
 // 🔴 2026-09-20 — `computeHoverCardPlacement` substitui o proxy
 // `x > rect.width / 2` (ver a docstring do módulo). Continua puro/sem DOM;
 // quem MEDE o cartão de verdade é este arquivo (`cardSizeRef` +
@@ -137,8 +134,6 @@ import { ariaRessalvaVagas, margemSegundaVaga } from "@/lib/utils/margem-senado"
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import {
   intensityLevelForMargin,
-  normalizePartySlug,
-  PARTY_FALLBACK_SLUG,
   partyChipInk,
   resolvePartyHex,
   textForParty,
@@ -304,51 +299,6 @@ function throttle<T extends (...args: Parameters<T>) => void>(fn: T, ms: number)
 }
 
 /**
- * `partido` tem token próprio (ADR-0024)? `normalizePartySlug` já cai em
- * `PARTY_FALLBACK_SLUG` ("outros") pra sigla ausente, desconhecida ou de
- * federação — aqui tratamos "outros" como "não mapeado" de propósito: o
- * objetivo desta função é decidir entre cor-por-partido e o fallback de
- * rank, não pintar tudo que não é PT/PL de cinza-partido.
- */
-function partidoIsMapped(partido: string | null | undefined): partido is string {
-  if (!partido) return false;
-  return normalizePartySlug(partido) !== PARTY_FALLBACK_SLUG;
-}
-
-/**
- * Fallback pré-ADR-0024 (rank, `cand-color.ts`) para a view "margin" — usado
- * quando o `partido` do líder é desconhecido. `margin` decide intensidade:
- * alta → cor sólida (cand-N), média → versão band (cand-band-N), baixa →
- * tossup neutro.
- *
- * 🔴 2026-09-18 (RF-104, 3ª rodada) — guarda explícita de `NaN` no topo.
- * `margin` passou a poder chegar `NaN` (Senado com menos de 3 candidatos no
- * top-3, ver `margemSegundaVaga`): sem esta guarda, `Math.abs(NaN) < 2` é
- * `false` (toda comparação com `NaN` é `false`), e a função cairia direto no
- * ramo de banda/sólido — pintando uma UF sem margem MEDIDA com a MESMA cor
- * de uma UF decidida. `intensityLevelForMargin` (usado no ramo `useParty`)
- * já tinha esta guarda; esta é a irmã dela no fallback de rank.
- */
-function marginToRankColor(margin: number, rank: number): string {
-  if (!Number.isFinite(margin)) return getCssVar("--color-tossup");
-  const abs = Math.abs(margin);
-  if (abs < 2) return getCssVar("--color-tossup");
-  return abs >= 15 ? resolveCandHex(rank) : resolveBandHex(rank);
-}
-
-/**
- * Fallback pré-ADR-0024 (rank) para a view "turnout" — paleta neutra/única
- * dimensão: o "líder" da UF pinta com sua cor sólida (top apurado) ou band
- * (baixo apurado). Não tem cor partidária natural — semântica é "quanto já
- * apurou". Mantemos o uso do rank pra dar continuidade visual entre views.
- */
-function turnoutToRankColor(pct: number, rank: number): string {
-  if (pct === 0) return getCssVar("--color-tossup");
-  if (pct >= 80) return resolveCandHex(rank);
-  return resolveBandHex(rank);
-}
-
-/**
  * "Nome por extenso (SIGLA)" para o título do `<HoverCard>` (2026-09-18,
  * pedido do dono — coluna 1 das sete: "Nome do Estado (Sigla)"). `UF_NOMES`
  * vem de `components/atoms/maps/_shared.ts` — a MESMA tabela que
@@ -363,23 +313,25 @@ function ufTitleFor(sigla: string): string {
   return nome ? `${nome} (${sigla})` : sigla;
 }
 
-function rankFor(id: number, rankByLider: Record<number, number> | undefined): number {
-  // Fallback: sem rankByLider → rank 99 (→ cor "other" cinza). Pré-S05 e
-  // testes legados usam isso.
-  return rankByLider?.[id] ?? 99;
-}
-
 /**
  * Resolve a cor de uma UF por view. S07/Bloco 1 (ADR-0024): quando o
  * `partido` do líder tem token próprio (`partidoIsMapped`), a identidade
  * vem do partido (`resolvePartyHex`) nas views "quem lidera"
- * (winner/margin/turnout) — nunca deixa a UF sem cor: sem `partido`
- * mapeado, cai no mecanismo de rank pré-existente (`cand-color.ts`).
+ * (winner/margin/turnout) — e desde 2026-09-20 vem SÓ do partido: sem sigla
+ * mapeada (o caso real é federação) a UF recebe `PARTY_FALLBACK_HEX`, estável,
+ * em vez do desvio antigo para `cand-color.ts`, que a pintava pela COLOCAÇÃO
+ * do líder e a fazia trocar de cor a cada ciclo (constituição § 2).
+ *
+ * ⚠️ `_rankByLider` ficou **vestigial** aqui e em {@link buildHoverRows}: nada
+ * mais deriva cor de rank neste arquivo. A `prop` pública `rankByLider` (e a
+ * cadeia de refs que a acompanha) só não foi removida junto porque isso muda a
+ * API de `<NationalChoroplethMap>` e dos seus callers — limpeza recomendada,
+ * fora do escopo desta correção.
  */
 function resolveColor(
   row: EdgeUfRow,
   view: MapView,
-  rankByLider: Record<number, number> | undefined,
+  _rankByLider: Record<number, number> | undefined,
   candidatosById: Map<number, EdgeCandidate>,
   viewMode: ViewMode = "proj",
   preEleicao = false,
@@ -423,19 +375,43 @@ function resolveColor(
   // `NaN` como "sem margem confiável", nunca como zero.
   const margem =
     cargo === "sen" ? margemSegundaVaga(row) : parcial ? row.margem_atual : row.margem_projetada;
-  const rank = rankFor(liderId, rankByLider);
   const partido = candidatosById.get(liderId)?.partido;
-  const useParty = partidoIsMapped(partido);
   switch (view) {
     case "winner":
       // Identidade pura (sem gradiente de margem) — `resolvePartyHex` sem
       // `nivel` resolve `--party-<slug>`, que por construção do gerador
       // (scripts/gen-party-scale.ts) é o mesmo hex do nível 4.
-      return useParty ? resolvePartyHex(partido) : resolveCandHex(rank);
+      //
+      // 🔴 2026-09-20 — sem desvio de rank. `resolvePartyHex` já devolve
+      // `PARTY_FALLBACK_HEX` para sigla ausente, desconhecida ou de FEDERAÇÃO,
+      // que é o caso real deste caminho. O desvio antigo
+      // (`useParty ? … : resolveCandHex(rank)`) pintava a UF pela COLOCAÇÃO do
+      // líder — e como o rank não é congelado em lugar nenhum, uma federação
+      // que subisse um lugar trocava a cor do estado entre dois ciclos
+      // (constituição § 2). Mesma correção de `_candidateColor.ts`; manter as
+      // duas em pé é o que impede o estado de sair de uma cor no mapa e de
+      // outra na lista ao lado — o defeito CAIADO de 19/09.
+      return resolvePartyHex(partido);
     case "margin":
-      return useParty
-        ? resolvePartyHex(partido, intensityLevelForMargin(margem))
-        : marginToRankColor(margem, rank);
+      // ⚠️ **Achado medido em 2026-09-20, NÃO consertado aqui** — o nível 1
+      // desta rampa colide com `--map-uncounted` (#e1e4e8), que é a cor de
+      // "sem dado" nesta MESMA view. Medido em ΔE76 no tema claro:
+      // `--party-outros-1` (#e2e2e2) fica a **2,39** do neutro de ausência —
+      // abaixo do limiar de percepção —, e **15 dos 31** tokens de nível 1
+      // ficam abaixo de 10 (o pior partido real é `--party-dc-1`, a 7,44).
+      // Ou seja: uma UF em empate técnico e uma UF que não publicou nada
+      // podem sair do mesmo tom, e a decisão do dono de 14/09 ("não começou /
+      // não sabemos / apurando são TRÊS estados") pede que não saiam.
+      //
+      // Não é regressão desta correção em geral — a colisão já valia para
+      // metade da paleta —, mas o caso `outros` PIOROU: antes ele não entrava
+      // na rampa, caía em `--color-tossup` (#d9d9d9), a 4,43 do neutro. A
+      // saída não é escolher outro cinza por conta própria: o piso de
+      // separação é gate do ADR-0031 (`PARTY_SEPARATION_FLOOR = 12`), que hoje
+      // mede a paleta contra ela mesma e **não** contra `--map-uncounted`.
+      // Estender esse gate — ou resolver por ausência de preenchimento, como
+      // o case "swing" logo abaixo já faz — é trabalho de `map-builder`.
+      return resolvePartyHex(partido, intensityLevelForMargin(margem));
     case "swing":
       // 🔴 O `?? 0` daqui pintava "SEM COMPARAÇÃO" com a cor de "NÃO MUDOU".
       // Enquanto `swing_vs_2022` era `None` em toda UF isso era inofensivo —
@@ -454,9 +430,10 @@ function resolveColor(
         : swingToColor(row.swing_vs_2022, getCssVar);
     case "turnout":
       if (row.pct_apurado === 0) return getCssVar("--color-tossup");
-      return useParty
-        ? resolvePartyHex(partido, row.pct_apurado >= 80 ? 5 : 2)
-        : turnoutToRankColor(row.pct_apurado, rank);
+      // 🔴 2026-09-20 — idem. A intensidade continua vindo do apurado (é a
+      // semântica desta view), mas a matiz vem da sigla nos dois casos, e não
+      // do rank no caso não mapeado.
+      return resolvePartyHex(partido, row.pct_apurado >= 80 ? 5 : 2);
   }
 }
 
@@ -547,27 +524,28 @@ function applyColors(
  * pintaria as TRÊS linhas com fundo cheio — a constituição § 1 proíbe
  * publicar como decidido o que não foi (aqui, os 2º e 3º colocados). O par
  * (fundo, tinta) é resolvido AQUI, não em `<HoverCard>`: o átomo não conhece
- * partido (teste (h) de `HoverCard.test.tsx`) — `partyChipInk`/`strongForRank`
- * já vêm com o contraste medido (≥4,5:1, docstring de cada um).
+ * partido (teste (h) de `HoverCard.test.tsx`) — `partyChipInk` já vem com o
+ * contraste medido (≥4,5:1, docstring dele), inclusive para o par de `outros`.
+ *
+ * ⚠️ `_rankByLider` é vestigial — ver {@link resolveColor}.
  */
 function buildHoverRows(
   row: EdgeUfRow,
   candidatosById: Map<number, EdgeCandidate>,
-  rankByLider: Record<number, number> | undefined,
+  _rankByLider: Record<number, number> | undefined,
 ): HoverCardRow[] {
   const linhas: HoverCardRow[] = row.top_candidatos.map((tc, index) => {
     const cand = candidatosById.get(tc.id);
     const nomeBruto = tc.nome ?? cand?.nome;
     const partido = tc.partido ?? cand?.partido;
     const sqcand = tc.sqcand ?? cand?.sqcand;
-    const rank = rankFor(tc.id, rankByLider);
-    const useParty = partidoIsMapped(partido);
     const isCalledWinner = index === 0 && row.chamada === true;
-    const winnerPair = isCalledWinner
-      ? useParty
-        ? partyChipInk(partido)
-        : { background: strongForRank(rank), ink: "var(--text-inverse)" as const }
-      : undefined;
+    // 🔴 2026-09-20 — `partyChipInk` sem desvio de rank. Ele já devolve o par
+    // MEDIDO de `outros` (`--party-outros-chip` / `--party-outros-ink`) para
+    // sigla ausente, desconhecida ou de federação; o desvio antigo caía em
+    // `strongForRank(rank)` + `--text-inverse`, um par escolhido pela COLOCAÇÃO
+    // e cujo contraste ninguém mediu para este caso.
+    const winnerPair = isCalledWinner ? partyChipInk(partido) : undefined;
     return {
       // `HoverCardRow.name` é string e o tooltip não tem como voltar ao
       // candidato: o nome de exibição sai daqui, senão o balão do mapa diria
@@ -585,7 +563,14 @@ function buildHoverRows(
       // NOVO 2,72 contra o piso de 3:1. A variante `-text` passa nas 4
       // superfícies e nos 2 temas para os 31 partidos, e em 17 deles ELA É a
       // cor base — a maioria dos estados não muda um pixel.
-      color: useParty ? textForParty(partido) : colorForRank(rank),
+      //
+      // 🔴 2026-09-20 — sem desvio de rank: `textForParty` já resolve sigla
+      // ausente, desconhecida ou de federação para `--party-outros-text`. É a
+      // MESMA regra de `candidateMarkerColor` em `_candidateColor.ts`, e é o
+      // que mantém o ponto do balão igual ao ponto da lista para a mesma
+      // candidatura — inclusive federação, que era justamente quem caía no
+      // rank e trocava de cor entre dois ciclos.
+      color: textForParty(partido),
       // % de votos válidos APURADOS deste candidato — real desde 2026-09-18
       // (ver docstring acima). Ausente ⇒ `<HoverCard>` mostra "—", nunca 0.
       pct: tc.pct_atual,

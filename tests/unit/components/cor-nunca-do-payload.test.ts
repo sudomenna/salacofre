@@ -29,7 +29,7 @@
  * ## O que a regra proíbe
  *
  * Ler `.cor` de um objeto de candidato/líder vindo do payload dentro de
- * `components/`. O certo é `candidateColor` (preenchimento com extensão) ou
+ * `components/`, `app/` ou `lib/`. O certo é `candidateColor` (preenchimento com extensão) ou
  * `candidateMarkerColor` (marcador sem extensão), de
  * `components/blocks/_candidateColor.ts`.
  *
@@ -55,9 +55,27 @@ import { describe, expect, it } from "vitest";
 // opcional no contrato. Uma varredura que escolhe onde olhar herda o ponto cego
 // de quem a escreveu — e o ponto cego foi supor que "tela" mora em
 // `components/`.
+//
+// 🔴 **`lib/` entrou em 2026-09-20, e a razão é a MESMA lição, de novo.**
+//
+// Com `app/` dentro, a varredura seguia verde enquanto
+// `lib/utils/municipio-votos.ts:113` fazia `cor: c?.cor ?? "var(--color-cand-other)"`
+// — copiando o campo banido para dentro de um utilitário que DOIS componentes
+// consomem (`<MunicipioExplorer>` e o balão de `<ChoroplethMapUF>`). A cor
+// entrava na tela por baixo da fronteira que a varredura vigiava: nenhum
+// arquivo de `components/` lia `.cor`, e o valor chegava lá mesmo assim.
+//
+// Pior: quando alguém foi olhar, os dois consumidores já tinham migrado para a
+// sigla por conta própria. O campo estava **morto e errado ao mesmo tempo** —
+// a combinação que nada na tela denuncia, e que espera a próxima pessoa que
+// resolva usá-lo.
+//
+// Duas ampliações, duas vezes o mesmo erro de origem: supor que "tela" mora em
+// `components/`. `lib/` fica.
 const RAIZES = [
   { dir: resolve(process.cwd(), "components"), rotulo: "components" },
   { dir: resolve(process.cwd(), "app"), rotulo: "app" },
+  { dir: resolve(process.cwd(), "lib"), rotulo: "lib" },
 ] as const;
 
 /**
@@ -113,7 +131,7 @@ function linhasSuspeitas(fonte: string): Array<{ n: number; texto: string }> {
 }
 
 describe("nenhum componente pinta com a `cor` do payload", () => {
-  it("varre components/ E app/ — os dois lugares onde mora tela", () => {
+  it("varre components/, app/ E lib/ — tela, e o que alimenta a tela", () => {
     const infratores: string[] = [];
     for (const { caminho, rel } of RAIZES.flatMap((r) =>
       arquivosDe(r.dir).map((caminho) => ({

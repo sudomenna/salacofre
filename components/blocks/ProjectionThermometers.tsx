@@ -67,7 +67,6 @@ import type {
   EdgeParticipacaoMetric,
   EdgeUfCandidate,
 } from "@/lib/edge-config/types";
-import { bandForRank } from "@/lib/utils/cand-color";
 import { formatPercent } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import {
@@ -76,6 +75,7 @@ import {
   outrosFallback,
   type ProjectionBase,
 } from "@/lib/utils/participacao";
+import { intensityForParty } from "@/lib/utils/party-color";
 import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 const HEADING_ID = "projecao-termometros-heading";
@@ -335,24 +335,36 @@ export function ProjectionThermometers({
               titulo={nomeExibicao(c.nome, c.sqcand)}
               // Desenhado ⇒ abreviado (2026-09-19). `subtitulo` é a linha de
               // apoio do termômetro, e três deles dividem a largura da coluna.
-              // 🔴 SÓ aqui: `candidateColor(c.partido, …)` abaixo continua
+              // 🔴 SÓ aqui: `candidateColor(c.partido)` abaixo continua
               // recebendo a sigla INTEIRA, porque cor é sempre da sigla
               // completa (ADR-0024 / constituição § 2). O `aria-label` do átomo
               // é montado só do `titulo`, então nada do que é lido muda.
               subtitulo={siglaExibicao(c.partido)}
               base={base}
               // `cor` é preenchimento (faixa + tick). O número grande NÃO usa
-              // esta cor: o átomo deriva a tinta de texto do `rank` via
-              // `strongForRank` (ver o docblock de `<ProjectionThermometer />`).
+              // esta cor: o átomo deriva a tinta de texto da SIGLA via
+              // `textForParty` (ver o docblock de `<ProjectionThermometer />`).
               // Era daqui que vinha a violação `serious` do axe de 2026-09-07 —
               // `c.cor` do payload chega como `var(--color-cand-3)`, 2,99:1.
               //
               // ⚠️ 2026-09-19: aquele comentário nomeava o sintoma e deixava a
               // CAUSA no ar — o payload seguia sendo lido. Agora a cor sai da
               // SIGLA (ADR-0024), e `c.cor` não é mais consultada aqui.
-              cor={candidateColor(c.partido, rank)}
-              corBand={bandForRank(rank)}
-              rank={rank}
+              //
+              // 🔴 **2026-09-20 — faltavam DOIS dos três.** O preenchimento já
+              // vinha da sigla desde 19/09, mas a faixa de IC seguia na paleta
+              // por COLOCAÇÃO e a tinta do número grande caía nela também,
+              // dentro do átomo, porque este caller passava `rank` e NÃO
+              // passava `partido`. O mesmo termômetro saía com o tick na cor
+              // do partido, o intervalo de confiança na cor da colocação e o
+              // número grande numa terceira — três cadeias, uma candidatura, e
+              // duas delas trocando de tinta a cada ultrapassagem.
+              // `intensityForParty(sigla, 1)` é o degrau mais claro da rampa do
+              // PRÓPRIO partido: mesma matiz, que é o que o § 2 v1.3 autoriza
+              // variar.
+              cor={candidateColor(c.partido)}
+              corBand={intensityForParty(c.partido, 1)}
+              partido={c.partido}
               pctProjetado={m?.pct ?? 0}
               pctLower={m?.lower ?? 0}
               pctUpper={m?.upper ?? 0}

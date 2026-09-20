@@ -73,7 +73,7 @@ import {
   HOVER_CARD_FALLBACK_SIZE,
 } from "@/lib/utils/hover-card-placement";
 import { votosPorCandidatoMunicipio } from "@/lib/utils/municipio-votos";
-import { normalizePartySlug, PARTY_FALLBACK_SLUG, textForParty } from "@/lib/utils/party-color";
+import { textForParty } from "@/lib/utils/party-color";
 import { useHasFinePointer } from "@/lib/utils/use-has-fine-pointer";
 
 const PMTILES_BASE = "https://jbtu251tioj3y57z.public.blob.vercel-storage.com";
@@ -128,18 +128,6 @@ export interface ChoroplethMapUFProps {
 }
 
 /**
- * `partido` tem token próprio (ADR-0024)? Mesma checagem de
- * `_NationalChoroplethMapImpl.partidoIsMapped` — duplicada aqui (não
- * exportada de lá) de propósito: aquele arquivo é o chunk lazy do mapa
- * NACIONAL (RNF-007b, orçamento de bundle medido pelo `a11y-perf-auditor`) e
- * importar dele juntaria os dois mapas municipal/nacional num único chunk.
- */
-function partidoIsMapped(partido: string | null | undefined): partido is string {
-  if (!partido) return false;
-  return normalizePartySlug(partido) !== PARTY_FALLBACK_SLUG;
-}
-
-/**
  * Quantas candidaturas o balão do município nomeia antes de agregar o resto
  * na linha "Outros" (2026-09-19, pedido do dono — era 3, sem agregado).
  *
@@ -186,7 +174,8 @@ const MUNICIPIO_TOP_N = 4;
  *     docstring dela diz literalmente "Sem corte: o CALLER decide";
  *   - soma a cauda ele mesmo (ver {@link MUNICIPIO_TOP_N});
  *   - resolve a COR pelo padrão de acessibilidade do `<HoverCard>`
- *     (RNF-035/SC 1.4.11: `textForParty` quando o partido tem token próprio,
+ *     (RNF-035/SC 1.4.11: `textForParty` para TODA sigla — inclusive ausente,
+ *     desconhecida ou de federação, que ele resolve em `--party-outros-text`,
  *     mesma variante legível que o balão NACIONAL usa para o mesmo ponto de
  *     8×8) — a folha usa `MunicipioVotoCandidato.cor` direto porque ali é
  *     uma barra decorativa, não um ponto de 8×8 isolado sobre fundo claro;
@@ -203,10 +192,16 @@ function buildMunicipioHoverRows(
 ): HoverCardRow[] {
   const todos = votosPorCandidatoMunicipio(municipio, candidatos);
   const linhas: HoverCardRow[] = todos.slice(0, MUNICIPIO_TOP_N).map((v) => {
-    const useParty = partidoIsMapped(v.partido);
     return {
       name: v.nome,
-      color: useParty ? textForParty(v.partido) : v.cor,
+      // 🔴 2026-09-20 — sem desvio: `textForParty` já resolve sigla ausente,
+      // desconhecida ou de FEDERAÇÃO para `--party-outros-text`. O ramo antigo
+      // caía em `v.cor`, que `lib/utils/municipio-votos.ts:113` copia do campo
+      // `cor` do payload — e o produtor grava ali `var(--color-cand-N)`, a
+      // paleta por COLOCAÇÃO. Era a porta pela qual o campo do payload, banido
+      // de `components/` pela varredura de `cor-nunca-do-payload.test.ts`,
+      // voltava à tela por dentro de `lib/`.
+      color: textForParty(v.partido),
       partido: v.partido,
       votos: v.votos,
       pct: v.pct,

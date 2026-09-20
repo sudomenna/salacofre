@@ -277,30 +277,48 @@ describe("<ResultPanel vagas={2} /> — a ocupação de vaga acompanha a base", 
 
 describe("<ResultPanel /> — a COR não acompanha a base (constituição § 2)", () => {
   /**
-   * Siglas fora da paleta editorial do ADR-0024, para forçar o caminho de
-   * fallback de `candidateColor` — `colorForRank`. É o único caminho em que a
-   * cor depende de posição, e por isso o único em que a troca de base poderia
-   * trocar a tinta de alguém no meio da noite.
+   * Siglas fora da paleta editorial do ADR-0024 — o caminho em que
+   * `candidateColor` não encontra token próprio. Até 2026-09-20 ele desviava
+   * para `colorForRank`, e era o único lugar do produto em que a POSIÇÃO
+   * pintava alguém: trocar de base (ou o 3º ultrapassar o 2º ao vivo) trocava
+   * a tinta no meio da noite. Hoje as três caem no mesmo token estável.
+   *
+   * Quem cai aqui na vida real é **federação** — "PSDB/CIDADANIA",
+   * "PSOL/REDE" —, por isso uma das três usa a forma de barra.
    */
   const SEM_PARTIDO_MAPEADO: ResultPanelCandidate[] = [
-    cand(1, "Ana Lima", "ZZZ", 10, 40),
+    cand(1, "Ana Lima", "PSDB/CIDADANIA", 10, 40),
     cand(2, "Bruno Reis", "YYY", 20, 30),
     cand(3, "Célia Mota", "WWW", 60, 29),
   ];
 
-  /** Toda cor `--color-cand-N` que o painel atribuiu a esta candidatura. */
+  /** Trio com token próprio — o caso em que as tintas SÃO distintas. */
+  const COM_PARTIDO_MAPEADO: ResultPanelCandidate[] = [
+    cand(1, "Ana Lima", "PT", 10, 40),
+    cand(2, "Bruno Reis", "PSD", 20, 30),
+    cand(3, "Célia Mota", "MDB", 60, 29),
+  ];
+
+  /**
+   * Toda cor de identidade que o painel atribuiu a esta candidatura — nas DUAS
+   * famílias de token. O recorte em `--color-cand-` sozinho deixaria este
+   * arquivo passar vazio depois da correção de 2026-09-20 (nenhum daqueles
+   * tokens chega mais à tela), e um teste que não encontra nada não prova
+   * nada.
+   */
   function coresDe(doc: Document, primeiroNome: string, nomeCompleto: string): Set<string> {
+    const TOKEN = /var\(--(?:color-cand|party)-[\w-]+\)/g;
     const achadas = new Set<string>();
     const linha = [...doc.querySelectorAll("li[data-ord]")].find((li) =>
       li.textContent?.includes(nomeCompleto),
     );
-    for (const m of (linha?.innerHTML ?? "").matchAll(/var\(--color-cand-[\w-]+\)/g)) {
+    for (const m of (linha?.innerHTML ?? "").matchAll(TOKEN)) {
       achadas.add(m[0]);
     }
     for (const seg of doc.querySelectorAll(
       `[data-testid="vote-bar-segment"][data-label="${primeiroNome}"]`,
     )) {
-      for (const m of (seg.getAttribute("style") ?? "").matchAll(/var\(--color-cand-[\w-]+\)/g)) {
+      for (const m of (seg.getAttribute("style") ?? "").matchAll(TOKEN)) {
         achadas.add(m[0]);
       }
     }
@@ -324,22 +342,51 @@ describe("<ResultPanel /> — a COR não acompanha a base (constituição § 2)"
     expect(celia.size).toBe(1);
     expect(bruno.size).toBe(1);
 
-    // E as três tintas são distintas entre si: ninguém herda a cor de outro ao
-    // trocar de base.
-    expect(new Set([...ana, ...celia, ...bruno]).size).toBe(3);
+    // 🔴 E a tinta das três é o token ESTÁVEL do fallback, nunca um token de
+    // colocação. É esta asserção — e não a contagem acima — que morre se
+    // alguém devolver `colorForRank` ao caminho de federação: com o rank de
+    // volta, cada uma recebe um `--color-cand-N` diferente e as três contagens
+    // continuariam valendo 1.
+    for (const cor of [...ana, ...celia, ...bruno]) {
+      expect(cor).toBe("var(--party-outros)");
+    }
+
+    // ⚠️ Consequência assumida: as três ficam com a MESMA cor. Duas federações
+    // na mesma corrida são indistinguíveis por tinta — limitação registrada em
+    // `components/blocks/_candidateColor.ts`, onde também está por que a
+    // alternativa (cor própria por federação) é decisão de constituição, não
+    // de código. A distinção fica por conta do nome e da sigla na linha.
+    expect(new Set([...ana, ...celia, ...bruno]).size).toBe(1);
   });
 
-  it("(n) a cor da candidatura NÃO muda quando a corrida vira do avesso", () => {
-    // Mesmíssimas pessoas, mesmo apurado, projeção invertida. A cor é presa a
-    // uma base estável (o `rank` do payload quando existe; a posição no
-    // apurado quando não), então ela não pode se mexer por causa da projeção.
-    const projInvertida = SEM_PARTIDO_MAPEADO.map((c) => ({
-      ...c,
-      pct_projetado: 100 - c.pct_projetado,
-    }));
-    const antes = parse(
-      <ResultPanel candidatos={SEM_PARTIDO_MAPEADO} pctApurado={62} title="SP" titleId="t" />,
+  it("(m2) com token próprio, as três tintas são distintas — e continuam do partido", () => {
+    // O contrapeso de (m): a perda de distinção é EXCLUSIVA de quem não tem
+    // token. Sem este caso, uma regressão que pintasse o produto inteiro de
+    // `--party-outros` passaria em (m) sem um arranhão.
+    const doc = parse(
+      <ResultPanel candidatos={COM_PARTIDO_MAPEADO} pctApurado={62} title="SP" titleId="t" />,
     );
+    const ana = coresDe(doc, "Ana", "Ana Lima");
+    const celia = coresDe(doc, "Célia", "Célia Mota");
+    const bruno = coresDe(doc, "Bruno", "Bruno Reis");
+
+    expect([...ana]).toEqual(["var(--party-pt)"]);
+    expect([...bruno]).toEqual(["var(--party-psd)"]);
+    expect([...celia]).toEqual(["var(--party-mdb)"]);
+  });
+
+  it.each([
+    ["sem token próprio", SEM_PARTIDO_MAPEADO],
+    ["com token próprio", COM_PARTIDO_MAPEADO],
+  ])("(n) a cor da candidatura NÃO muda quando a corrida vira do avesso — %s", (_rotulo, base) => {
+    // Mesmíssimas pessoas, mesmo apurado, projeção invertida. Desde
+    // 2026-09-20 a cor é função só da SIGLA, que não se mexe — então inverter
+    // a projeção (e com ela toda a ordem da lista) não pode trocar tinta
+    // nenhuma. As DUAS bases entram: o caso "com token" é o que denuncia uma
+    // regressão que uniformizasse tudo em `--party-outros`, porque ali as três
+    // cores precisam ser diferentes entre si E iguais a si mesmas.
+    const projInvertida = base.map((c) => ({ ...c, pct_projetado: 100 - c.pct_projetado }));
+    const antes = parse(<ResultPanel candidatos={base} pctApurado={62} title="SP" titleId="t" />);
     const depois = parse(
       <ResultPanel candidatos={projInvertida} pctApurado={62} title="SP" titleId="t" />,
     );
@@ -349,7 +396,11 @@ describe("<ResultPanel /> — a COR não acompanha a base (constituição § 2)"
       ["Bruno", "Bruno Reis"],
       ["Célia", "Célia Mota"],
     ] as const) {
-      expect([...coresDe(depois, curto, completo)]).toEqual([...coresDe(antes, curto, completo)]);
+      const cores = coresDe(antes, curto, completo);
+      expect(cores.size).toBe(1);
+      expect([...coresDe(depois, curto, completo)]).toEqual([...cores]);
+      // Nenhum token de colocação, em base nenhuma.
+      for (const cor of cores) expect(cor).not.toMatch(/--color-cand-/);
     }
   });
 });
