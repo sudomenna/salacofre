@@ -48,50 +48,130 @@
  *     candidaturas, e `EdgeUfRow.outros` é um agregado sem `id` de urna e sem
  *     `sqcand` (ver a docstring do campo). Quem quiser a cauda aqui adiciona
  *     um bloco próprio, não um elemento do ranking.
- *     Esse `pct` é
- *     `pct_projetado`, NÃO parcial por candidato — o payload só tem parcial
- *     agregada por UF (`pct_apurado`), nunca por candidato (mesma
- *     observação já documentada em `buildHoverRows`,
- *     `_NationalChoroplethMapImpl.tsx`). Por isso as linhas mostram um único
- *     número "Projeção", não o par parcial+projeção do `CandidateResultRow`
- *     (que exigiria um `pctAtual` por candidato que não existe aqui — usá-lo
- *     forçaria `0,0%` onde o dado está ausente).
  *
- * ## 🔴 A ficha NÃO acompanha o controle "Parcial / Projeção" — e diz isso
+ * ## 🔴 2026-09-20 — a ficha mostra os DOIS números, e a docstring que dizia
+ * ## o contrário estava VENCIDA
+ *
+ * Até esta data o bloco acima afirmava que "o payload só tem parcial agregada
+ * por UF (`pct_apurado`), nunca por candidato". **Era falso desde
+ * 2026-09-19.** `EdgeUfRow.top_candidatos[]` carrega, além de `pct`
+ * (= `pct_projetado`), os campos `pct_atual` e `votos_atuais`
+ * (`lib/edge-config/types.ts`), e o produtor os emite —
+ * `api/model/project.py`, no bloco que monta `item_top`. A frase vencida foi
+ * lida como descrição do dado e produziu, no mesmo dia, uma afirmação errada
+ * ao dono ("a ficha não consegue acompanhar a base"). Ela sai daqui inteira;
+ * o que fica é o contrato real, com a armadilha que ele traz junto.
+ *
+ * Decisão do dono, 2026-09-20: **a ficha do mapa mostra apurado e projetado;
+ * as fichas MUNICIPAIS só mostram o apurado.** A segunda metade não custa
+ * código — não existe projeção municipal, o modelo projeta por zona e agrega
+ * para a UF (ADR-0021).
+ *
+ * ### 🔴 `pct_atual` é OPCIONAL, e a ausência NÃO é zero
+ *
+ * O campo falta em três situações legítimas, todas documentadas no tipo:
+ * payload gravado antes de 2026-09-19; `model_fallback_tier`; e — mesmo em
+ * payload novo — UF sem NENHUMA zona apurada em cargo 1, onde o número da UF
+ * vem de `impute_uf_from_national` e "qual fração é desta candidatura" nunca
+ * foi medido.
+ *
+ * Nesses casos a linha mostra **só a projeção**. Não há `?? 0` neste arquivo,
+ * e não pode haver: "não temos o apurado desta candidatura" e "esta
+ * candidatura teve 0%" são estados diferentes (decisão do dono de 14/09 —
+ * não começou / não sabemos / apurando), e publicar `0,0%` no lugar do
+ * primeiro é fabricar resultado eleitoral. O payload em TRANSIÇÃO produz o
+ * caso misto (algumas candidaturas com o campo, outras sem) e a ficha
+ * renderiza cada linha pelo que ela própria tem.
+ *
+ * ⚠️ As fixtures mentem em direções opostas e é fácil se enganar com elas:
+ * `tests/fixtures/simulacao/governador.json` tem `pct_atual` em **106 de 106**
+ * `top_candidatos`, enquanto `tests/fixtures/edge-config/projection-current.
+ * json` e `gov-current.json` têm em **0 de 81** (foram capturadas antes de
+ * 19/09). Ver a lição "fixture do simulado é mais rica que produção": passar
+ * no simulado não prova o caminho da ausência, e passar nas de produção não
+ * prova o caminho do par.
+ *
+ * ## 🔴 O que a ficha continua NÃO acompanhando: a ORDEM
  *
  * Desde 2026-09-20 (commit `290b8de`, "tudo acompanha a base ativa") a lista
  * principal das telas troca de número E de ordem conforme o segmentado do
  * cabeçalho (`<ViewModeSwitch>`, `app/globals.css` bloco "ADR-0029 § 2").
- * Esta ficha **não pode** acompanhar: não existe o outro número para ela
- * mostrar — é o limite de dado descrito no parágrafo acima, não uma escolha
- * de desenho. O dono decidiu em 2026-09-20 NÃO engordar o payload com parcial
- * por candidatura (teto de 1 MB do Edge Config; a tela de Senador já usa
- * 98,8 KB e cresce quando o TSE reimportar as candidaturas em 02–03/10);
- * medir e reconsiderar fica para depois dessa data.
+ * Agora que os dois números existem aqui, o NÚMERO deixou de ser o problema —
+ * os dois estão sempre na tela, lado a lado, nas duas bases. Sobrou a
+ * **ordem**: `top_candidatos[]` chega ordenado por `pct_projetado` desc e esta
+ * ficha não o reordena. Em Senador isso alcança também o `<VagaBadge>`, que
+ * marca as duas primeiras linhas DESSA ordem. Reordenar por base é decisão do
+ * dono e ele não pediu — ver o relatório de 2026-09-20 para viabilidade e
+ * custo.
  *
- * A consequência a tratar era de HONESTIDADE: com o leitor na base "Parcial",
- * a ficha seguia exibindo projeção — números e ordem — sem nada avisar, e
- * parecia estar discordando da tela atrás dela. O remédio é o rótulo
- * `state-sheet-base-label`, logo acima do ranking:
+ * Por isso o rótulo `state-sheet-base-label` **mudou de afirmação** nesta
+ * data. Ele dizia "Percentuais de projeção", que com os dois números na tela
+ * passou a ser falso — e falso sobre o número, que é a pior metade. Agora ele
+ * qualifica o que de fato é projeção e só isso: a ORDEM. As três propriedades
+ * que o mantinham honesto continuam valendo, com a razão atualizada:
  *
  *   - **é incondicional de propósito.** Não leva `data-view-only` nem
  *     `data-view-cell` (os dois únicos contratos de `app/globals.css` que
- *     escondem ou recuam algo conforme `data-view`) — justamente porque o que
- *     ele afirma vale nas DUAS bases. Um rótulo que sumisse na base "Projeção"
- *     deixaria de cobrir o único caso em que a ficha diverge da tela.
+ *     escondem ou recuam algo conforme `data-view`) — a ordem é por projeção
+ *     nas DUAS bases, então o aviso vale nas duas. Um rótulo que sumisse na
+ *     base "Projeção" deixaria de cobrir justamente o caso em que a ficha
+ *     diverge da tela atrás dela.
  *   - **fica acima do `<ul>`, nunca acima das `<Figure>`.** As figuras não são
- *     projeção: "Apurado" é `pct_apurado`, parcial de verdade. Um rótulo mais
- *     acima transformaria um aviso correto numa afirmação falsa sobre o
- *     número ao lado.
+ *     ordenadas por nada — são dois números soltos —, e um rótulo mais acima
+ *     pareceria qualificá-las.
  *   - **é texto visível e não-`aria-hidden`**, então serve às duas audiências
  *     com um elemento só (duplicar em `sr-only` faria o leitor de tela ouvir a
  *     mesma frase duas vezes). O `aria-label` do `<ul>` carrega a mesma
- *     palavra — "por projeção", a formulação já usada em
- *     `lib/utils/uf-descricao-candidaturas.ts:112` — para quem salta direto
- *     para a lista e nunca passa pelo rótulo em ordem de leitura. E o
- *     `sr-only` por linha (" projeção", ao lado de cada percentual) continua:
- *     é ele que descreve o número para quem navega item a item, sem cabeçalho
- *     nem nome de lista no caminho.
+ *     formulação, para quem salta direto para a lista e nunca passa pelo
+ *     rótulo em ordem de leitura. E cada número segue auto-descrito na própria
+ *     linha ("parcial" / "projeção"), que é o que descreve o dado para quem
+ *     navega item a item, sem cabeçalho nem nome de lista no caminho.
+ *
+ * ## Largura medida a 360px
+ *
+ * Medido no Chromium headless em 2026-09-20, viewport 360×800, com o
+ * `app/globals.css` COMPILADO (tokens de verdade) e as fontes reais do site
+ * (Archivo / JetBrains Mono, `document.fonts.check` verde nas duas) — não com
+ * a fonte padrão do navegador, que mediria outra tela. `getBoundingClientRect`
+ * mede a CAIXA; os glifos foram medidos à parte com `Range.selectNodeContents`,
+ * que é a única leitura que não confunde texto com padding.
+ *
+ * A ficha tem **360px** nas duas montagens (`Sheet.tsx`: no celular é
+ * `left:0; right:0`, no desktop é `SIDE_BOX.width = 360`), e a coluna de
+ * conteúdo mede **326px** (360 − 2×`--space-4` − 2×1px de filete).
+ *
+ * Fixture de pior caso real, tirada de `tests/fixtures/simulacao/governador.
+ * json` (os nomes exibidos mais longos das 106 candidaturas, com as siglas que
+ * NÃO abreviam):
+ *
+ * | layout | altura/linha | nomes truncados (de 4) | rolagem horizontal |
+ * |---|---|---|---|
+ * | antes (1 número à direita) | 38,75px | **1** | não |
+ * | 2 números à direita | 43,00px | **3** | não |
+ * | **atual** (números na própria linha) | 55,75px | **0** | não |
+ *
+ * Ou seja: a truncagem **já existia** antes desta mudança — "VALMIR DE
+ * FRANCISQUINHO" pede 209,69px de glifos e recebia uma caixa de 173px —, e
+ * dois números à direita a teriam levado de 1 para 3 de 4. Com a identidade
+ * ocupando a linha inteira (326px), o mesmo nome cabe com folga e nenhum dos
+ * quatro corta.
+ *
+ * O custo é altura: **+17px por linha** (38,75 → 55,75), ou +68px nas quatro
+ * candidaturas; em Senador as duas linhas com `<VagaBadge>` vão de 68,75 para
+ * 81,5px. A ficha já rola por dentro (`Sheet.tsx`, `overflow-y: auto`,
+ * `maxHeight: 82vh`), então a altura extra não empurra a página.
+ *
+ * A linha dos números usa 84–92px (parcial) + 16px de `gap` + 70–78px
+ * (projeção) = **170–186px dos 326** — sobra confortável, e é por isso que os
+ * dois números cabem lado a lado ali embora não coubessem ao lado do nome.
+ *
+ * Rolagem horizontal: `documentElement.scrollWidth` = 360 = viewport nos seis
+ * cenários medidos (pres/sen × completo/ausente/misto, mais o cartão lateral a
+ * 1280px), e **zero** elementos com borda direita além do viewport. Inclusive
+ * no caso patológico de um nome de 39 caracteres sem espaço: ele **quebra** —
+ * a linha vai a 77,5px — em vez de cortar ou empurrar a página. Este projeto
+ * já perdeu uma tela para 2.424px de rolagem lateral; a medida é a prova, não
+ * a intenção.
  *
  * ## Cor
  *
@@ -112,6 +192,7 @@
  */
 
 import Link from "next/link";
+import type { CSSProperties } from "react";
 
 import { Figure } from "@/components/atoms/data/Figure";
 import { Sheet } from "@/components/atoms/overlays/Sheet";
@@ -239,6 +320,49 @@ export interface StateResultSheetProps {
  * tela (`1.`, `2.`, …) continua vindo do índice do array, que é ordem de
  * leitura, não identidade.
  */
+/** Uma entrada de `EdgeUfRow.top_candidatos[]`, nomeada para o guarda abaixo. */
+type TopCandidato = EdgeUfRow["top_candidatos"][number];
+
+/**
+ * 🔴 **O único ponto em que a ficha decide se TEM o apurado da candidatura.**
+ *
+ * `pct_atual` é opcional no contrato (`lib/edge-config/types.ts`) e falta em
+ * três situações legítimas — payload pré-2026-09-19, `model_fallback_tier`, e
+ * UF sem nenhuma zona apurada em cargo 1, onde o número vem de
+ * `impute_uf_from_national` e a fração por candidatura nunca foi medida. Num
+ * payload em transição as três convivem com o caso completo na MESMA lista.
+ *
+ * É um guarda de tipo, e não um `?? 0` na hora de formatar, porque a diferença
+ * entre os dois é a diferença entre omitir e **inventar**: `formatPercent(0, 1)`
+ * devolve `"0,0%"`, e `"0,0%"` ao lado do rótulo "parcial" afirma que a
+ * candidatura teve zero voto apurado — um dos três estados que o dono separou
+ * em 14/09 (não começou / não sabemos / apurando). A ausência do campo é o
+ * segundo estado; publicá-la como o terceiro é fabricar resultado eleitoral.
+ *
+ * `typeof === "number"` e não `Number.isFinite`: um `NaN` que chegasse aqui é
+ * literalmente "não sabemos", e {@link formatPercent} já o desenha como "—"
+ * ao lado do rótulo — que é a leitura certa. Excluí-lo faria a linha perder o
+ * rótulo "parcial" e ficar indistinguível da linha que nunca teve o campo.
+ */
+function temParcialMedida(tc: TopCandidato): tc is TopCandidato & { pct_atual: number } {
+  return typeof tc.pct_atual === "number";
+}
+
+/**
+ * O rótulo colado em cada número ("parcial", "proj.").
+ *
+ * Mesmo vocabulário e mesma tipografia de `<CandidateResultRow>` — as palavras
+ * do produto, não sinônimos novos. `marginLeft` em vez de `gap` porque os dois
+ * são texto inline dentro do mesmo bloco: o rótulo precisa quebrar linha JUNTO
+ * com o número se um dia quebrar, e um contêiner flex os separaria em caixas.
+ */
+const KICKER_NUMERO: CSSProperties = {
+  font: "var(--type-kicker)",
+  letterSpacing: "var(--tracking-caps)",
+  textTransform: "uppercase",
+  marginLeft: "var(--space-1)",
+};
+
 function resolveIdentidade(
   tc: { id: number; nome?: string; partido?: string; sqcand?: string } | undefined,
   cand: EdgeCandidate | undefined,
@@ -367,18 +491,28 @@ export function StateResultSheet({
             </p>
           ) : null}
 
-          {/* 🔴 O rótulo da base. Ver "A ficha NÃO acompanha o controle
-              'Parcial / Projeção'" na docstring do arquivo: os números abaixo
-              são sempre `pct_projetado`, nas duas bases, porque a parcial por
-              candidatura não existe neste recorte do payload. Sem esta linha,
-              o leitor na base "Parcial" via a ficha contradizer a tela sem
-              nenhum aviso.
+          {/* 🔴 O rótulo da base — e ele mudou de AFIRMAÇÃO em 2026-09-20.
+              Ver "O que a ficha continua NÃO acompanhando: a ORDEM" na
+              docstring do arquivo.
 
-              Sem `data-view-only`/`data-view-cell` DE PROPÓSITO: o aviso vale
-              nas duas bases, e sumir na base "Projeção" o tiraria justamente
-              de metade dos casos. Posição também é de propósito — acima do
-              `<ul>` e ABAIXO das `<Figure>`, porque "Apurado" é parcial de
-              verdade e este rótulo mentiria sobre ele. */}
+              Dizia "Percentuais de projeção". Com `pct_atual` na tela ao lado
+              de `pct`, essa frase virou falsa — e falsa sobre o NÚMERO, que é
+              a metade que o leitor usa para decidir o que está acontecendo. O
+              que continua sendo só projeção é a ORDEM das linhas (e, em
+              Senador, o `<VagaBadge>` que marca as duas primeiras DESSA
+              ordem), então é a ordem que o rótulo qualifica.
+
+              Não é um rótulo a menos: é o mesmo elemento com o único trabalho
+              que ainda lhe cabe. Cada NÚMERO passou a carregar o próprio
+              rótulo na própria linha ("parcial" / "proj."), que é uma
+              qualificação mais forte que uma frase geral no topo — ela viaja
+              junto com o dado.
+
+              Sem `data-view-only`/`data-view-cell` DE PROPÓSITO: a ordem é por
+              projeção nas duas bases, e sumir na base "Projeção" tiraria o
+              aviso justamente de metade dos casos. Posição também é de
+              propósito — acima do `<ul>` e ABAIXO das `<Figure>`, que não são
+              ordenadas por nada e pareceriam qualificadas por ele. */}
           <p
             data-testid="state-sheet-base-label"
             style={{
@@ -388,16 +522,16 @@ export function StateResultSheet({
               color: "var(--text-muted)",
             }}
           >
-            Percentuais de projeção
+            Em ordem de projeção
           </p>
 
           <ul
             data-testid="state-sheet-candidatos"
-            /* "por projeção" — a MESMA formulação de
-               `descricaoCandidaturasUf` (`lib/utils/uf-descricao-candidaturas.ts:112`),
-               não um sinônimo novo. Está no nome acessível porque quem navega
-               por lista salta o rótulo visível acima. */
-            aria-label={`Candidatos em ${nomeUf}, por projeção`}
+            /* A MESMA formulação do rótulo visível acima, não um sinônimo —
+               "projeção" é a palavra do produto (`ViewModeSwitch.tsx:28`,
+               `lib/utils/uf-descricao-candidaturas.ts:112`). Está no nome
+               acessível porque quem navega por lista salta o rótulo visível. */
+            aria-label={`Candidatos em ${nomeUf}, em ordem de projeção`}
             style={{ listStyle: "none", margin: 0, padding: 0 }}
           >
             {row.top_candidatos.map((tc, index) => {
@@ -441,54 +575,122 @@ export function StateResultSheet({
                       <VagaBadge />
                     </div>
                   ) : null}
+                  {/* 🔴 A identidade ocupa a LINHA INTEIRA, e os números vêm
+                      abaixo. Até 2026-09-20 os dois dividiam uma linha só
+                      (`justify-between`), o que bastava para UM número; com
+                      dois, medido no Chrome a 360px, o nome perdia 37px e
+                      **três de quatro candidaturas reais truncavam** — ver a
+                      seção "Largura medida a 360px" na docstring do arquivo.
+
+                      A regra de prioridade é a que `<CandidateResultRow>` já
+                      registra e o dono já decidiu em 14/09: entre linha mais
+                      alta e nome cortado, **o nome ganha**. Uma ficha que
+                      escreve "WELLINGT…" identifica menos a pessoa do que
+                      qualquer economia de altura compra. */}
                   <div
-                    className="flex items-center justify-between"
-                    style={{ gap: "var(--space-3)" }}
+                    data-testid="state-sheet-cand-identidade"
+                    className="flex min-w-0 items-center"
+                    style={{ gap: "var(--space-2)" }}
                   >
-                    <span className="flex min-w-0 items-center" style={{ gap: "var(--space-2)" }}>
-                      {/* 🔴 A cor sai da SIGLA e só dela. `index` está bem
-                          aqui ao lado e é a tentação: usá-lo para pintar
-                          (`colorForRank(index + 1)`) devolveria o defeito que
-                          2026-09-20 fechou — e devolveria já na forma pior,
-                          porque desde `290b8de` a posição depende da base que
-                          o leitor escolhe no botão Parcial/Projeção. */}
-                      <span
-                        aria-hidden="true"
-                        data-testid="state-sheet-cand-dot"
-                        style={{
-                          width: 8,
-                          height: 8,
-                          flex: "none",
-                          borderRadius: "var(--radius-xs)",
-                          background: candidateMarkerColor(identidade.partido),
-                        }}
-                      />
-                      <span aria-hidden="true" style={{ color: "var(--text-muted)" }}>
-                        {index + 1}.
-                      </span>
-                      <span className="truncate" style={{ font: "var(--type-body)" }}>
-                        {nome}
-                      </span>
-                      {partido ? (
-                        <span
-                          className="flex-none"
-                          style={{
-                            font: "var(--type-kicker)",
-                            letterSpacing: "var(--tracking-caps)",
-                            textTransform: "uppercase",
-                            color: "var(--text-secondary)",
-                          }}
-                        >
-                          {/* Desenhado ⇒ abreviado (2026-09-19). */}
-                          {siglaExibicao(partido)}
-                        </span>
-                      ) : null}
-                    </span>
+                    {/* 🔴 A cor sai da SIGLA e só dela. `index` está bem
+                        aqui ao lado e é a tentação: usá-lo para pintar
+                        (`colorForRank(index + 1)`) devolveria o defeito que
+                        2026-09-20 fechou — e devolveria já na forma pior,
+                        porque desde `290b8de` a posição depende da base que
+                        o leitor escolhe no botão Parcial/Projeção. */}
                     <span
-                      className="flex-none text-right"
-                      style={{ font: "var(--type-figure-sm)", color: "var(--accent-text)" }}
+                      aria-hidden="true"
+                      data-testid="state-sheet-cand-dot"
+                      style={{
+                        width: 8,
+                        height: 8,
+                        flex: "none",
+                        borderRadius: "var(--radius-xs)",
+                        background: candidateMarkerColor(identidade.partido),
+                      }}
+                    />
+                    <span aria-hidden="true" style={{ color: "var(--text-muted)" }}>
+                      {index + 1}.
+                    </span>
+                    {/* 🔴 Sem `truncate`: o nome QUEBRA em vez de cortar.
+                        `minWidth: 0` porque, sem `overflow: hidden`, o
+                        `min-width: auto` do item flex passa a valer a MAIOR
+                        palavra e voltaria a empurrar a linha; `break-word` é o
+                        último recurso para um token único maior que a coluna —
+                        quebrar no meio da palavra ainda mostra o nome inteiro, e
+                        reticências não. Mesma solução e mesma razão do ramo com
+                        avatar de `<CandidateResultRow>`. */}
+                    <span
+                      data-testid="state-sheet-cand-nome"
+                      className="min-w-0"
+                      style={{
+                        font: "var(--type-body)",
+                        minWidth: 0,
+                        overflowWrap: "break-word",
+                      }}
+                    >
+                      {nome}
+                    </span>
+                    {partido ? (
+                      <span
+                        className="flex-none"
+                        style={{
+                          font: "var(--type-kicker)",
+                          letterSpacing: "var(--tracking-caps)",
+                          textTransform: "uppercase",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        {/* Desenhado ⇒ abreviado (2026-09-19). */}
+                        {siglaExibicao(partido)}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {/* 🔴 Os DOIS números, na própria linha — e o da esquerda só
+                      existe quando o dado existe. Ver {@link temParcialMedida}
+                      para por que a ausência não vira `0,0%`, e o bloco
+                      "`pct_atual` é OPCIONAL" na docstring do arquivo para as
+                      três situações legítimas em que ela acontece.
+
+                      Mesma ordem de leitura de `<CandidateResultRow>` — parcial
+                      à esquerda, projeção à direita —, para que as duas
+                      superfícies não ensinem gramáticas diferentes. */}
+                  <div
+                    data-testid="state-sheet-cand-numeros"
+                    className="flex items-baseline justify-end"
+                    style={{
+                      gap: "var(--space-4)",
+                      marginTop: "var(--space-1)",
+                      font: "var(--type-figure-sm)",
+                    }}
+                  >
+                    {temParcialMedida(tc) ? (
+                      <span
+                        data-testid="state-sheet-cand-parcial"
+                        className="flex-none"
+                        style={{ color: "var(--text-primary)", whiteSpace: "nowrap" }}
+                      >
+                        {formatPercent(tc.pct_atual, 1)}
+                        <span style={{ ...KICKER_NUMERO, color: "var(--text-muted)" }}>
+                          parcial
+                        </span>
+                      </span>
+                    ) : null}
+                    <span
+                      data-testid="state-sheet-cand-proj"
+                      className="flex-none"
+                      style={{ color: "var(--accent-text)", whiteSpace: "nowrap" }}
                     >
                       {formatPercent(tc.pct, 1)}
+                      {/* Abreviado na tela (a linha é estreita), por extenso
+                          para quem ouve. `aria-hidden` no desenhado + `sr-only`
+                          com a palavra inteira, nunca os dois audíveis — senão o
+                          leitor de tela ouve "proj. projeção". A parcial não
+                          precisa do par: a palavra desenhada já é a inteira. */}
+                      <span aria-hidden="true" style={KICKER_NUMERO}>
+                        proj.
+                      </span>
                       <span className="sr-only"> projeção</span>
                     </span>
                   </div>

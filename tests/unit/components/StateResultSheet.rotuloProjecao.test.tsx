@@ -4,29 +4,44 @@
  *
  * 2026-09-20 — o rótulo de base da ficha de UF (`state-sheet-base-label`).
  *
- * ## O defeito que este arquivo tranca
+ * ## ⚠️ Este cabeçalho foi REESCRITO no mesmo dia, e a razão importa
  *
- * No commit `290b8de` do mesmo dia a lista principal das telas passou a
- * **acompanhar a base ativa** do segmentado "Parcial / Projeção" — número e
- * ordem. `<StateResultSheet>` não consegue acompanhar: `EdgeUfRow.
- * top_candidatos[]` traz um `pct` só, e ele é `pct_projetado` (o payload não
- * tem parcial por candidatura nesse nível, só `pct_apurado` agregado da UF).
- * Com o leitor na base "Parcial", portanto, a ficha seguia exibindo projeção —
- * e a ordem dela podia divergir da lista atrás — sem nada avisar.
+ * A versão da manhã dizia que `EdgeUfRow.top_candidatos[]` "traz um `pct` só"
+ * e que "o payload não tem parcial por candidatura nesse nível". **Era falso
+ * desde 2026-09-19**: o array carrega `pct_atual` e `votos_atuais`
+ * (`lib/edge-config/types.ts`), e `api/model/project.py` os emite. Sobre essa
+ * premissa errada nasceram o rótulo "Percentuais de projeção" e uma afirmação
+ * errada ao dono. A ficha passou a mostrar os DOIS números na tarde do mesmo
+ * dia (ver `StateResultSheet.parcialEProjecao.test.tsx`), e este arquivo
+ * acompanhou — sem afrouxar nada: os casos ficaram mais exigentes, não menos.
  *
- * O dono escolheu o rótulo em vez de engordar o payload (teto de 1 MB do Edge
- * Config). Logo: o que estes testes protegem **não é um caminho de dado, é uma
- * afirmação na tela**, e ela precisa valer nas duas bases.
+ * ## O defeito que este arquivo tranca AGORA
+ *
+ * No commit `290b8de` a lista principal das telas passou a **acompanhar a base
+ * ativa** do segmentado "Parcial / Projeção" — número e ordem. Com os dois
+ * números na ficha, o NÚMERO deixou de divergir. Sobrou a **ordem**:
+ * `top_candidatos[]` chega ordenado por `pct_projetado` desc e a ficha não o
+ * reordena (reordenar é decisão do dono, não pedida). Em Senador isso alcança
+ * também o `<VagaBadge>`, que marca as duas primeiras DESSA ordem.
+ *
+ * Logo o rótulo mudou de AFIRMAÇÃO: ele qualificava os percentuais — o que com
+ * os dois na tela virou mentira, e mentira sobre o número — e agora qualifica
+ * a ordem, que é o que de fato continua sendo só projeção. O que estes testes
+ * protegem **não é um caminho de dado, é uma afirmação na tela**, e ela precisa
+ * ser verdadeira nas duas bases.
  *
  * ## Por que os casos são estes
  *
- * "O rótulo existe" sozinho não discrimina o defeito real. Um rótulo que
- * aparecesse só na base "Projeção" passaria nesse caso e falharia justamente
- * no único cenário que motivou o trabalho — por isso o bloco "incondicional",
- * que afirma a AUSÊNCIA dos dois contratos de `app/globals.css` (`data-view-
- * only`, `data-view-cell`) que escondem ou recuam algo conforme `data-view`.
- * São os únicos dois mecanismos do projeto com esse efeito; qualquer um deles
- * no caminho do rótulo o tornaria condicional.
+ * "O rótulo existe" sozinho não discrimina o defeito real, e "o rótulo contém
+ * a palavra projeção" discrimina menos ainda — o rótulo ANTIGO, hoje falso,
+ * passa nos dois. Por isso o bloco 3 afirma o ESCOPO da frase (ela fala de
+ * ordem) e a ausência de uma reivindicação sobre os números.
+ *
+ * E o bloco "incondicional" afirma a AUSÊNCIA dos dois contratos de
+ * `app/globals.css` (`data-view-only`, `data-view-cell`) que escondem ou
+ * recuam algo conforme `data-view`. São os únicos dois mecanismos do projeto
+ * com esse efeito; qualquer um deles no caminho do rótulo o tornaria
+ * condicional, e a ordem é por projeção nas DUAS bases.
  */
 
 import { renderToStaticMarkup } from "react-dom/server";
@@ -67,10 +82,15 @@ const ROW: EdgeUfRow = {
   margem_projetada_ci: [8, 12],
   chamada: false,
   swing_vs_2022: null,
+  // 🔴 COM `pct_atual` de propósito (2026-09-20, tarde). O rótulo antigo
+  // ("Percentuais de projeção") só é FALSO quando a parcial está na tela ao
+  // lado: numa fixture sem o campo ele continuaria tecnicamente verdadeiro, e
+  // os casos do bloco 2 passariam a proteger nada. A base de teste tem de ser
+  // o estado em que a afirmação pode mentir.
   top_candidatos: [
-    { id: 13, pct: 40, nome: "FERNANDA DA SILVA", partido: "PT", sqcand: "1" },
-    { id: 22, pct: 30, nome: "MARCOS DE OLIVEIRA", partido: "PL", sqcand: "2" },
-    { id: 99, pct: 29, nome: "TERCEIRO COLOCADO", partido: "PSOL", sqcand: "3" },
+    { id: 13, pct: 40, pct_atual: 37.4, nome: "FERNANDA DA SILVA", partido: "PT", sqcand: "1" },
+    { id: 22, pct: 30, pct_atual: 32.1, nome: "MARCOS DE OLIVEIRA", partido: "PL", sqcand: "2" },
+    { id: 99, pct: 29, pct_atual: 26.8, nome: "TERCEIRO COLOCADO", partido: "PSOL", sqcand: "3" },
   ],
   vai_a_2t: null,
   bucket: "indefinido",
@@ -99,7 +119,7 @@ function comAncestrais(el: Element): Element[] {
   return cadeia;
 }
 
-describe("<StateResultSheet /> — rótulo de base: os números são projeção, e a ficha diz isso", () => {
+describe("<StateResultSheet /> — rótulo de base: a ORDEM é projeção, e a ficha diz isso", () => {
   // -------------------------------------------------------------------
   // 1. O rótulo existe — em TODO cargo que abre esta ficha
   // -------------------------------------------------------------------
@@ -119,6 +139,35 @@ describe("<StateResultSheet /> — rótulo de base: os números são projeção,
     expect(texto.toLowerCase()).toContain("projeção");
   });
 
+  // -------------------------------------------------------------------
+  // 3. 🔴 Ele qualifica a ORDEM, não os números — com os dois na tela,
+  //    uma frase sobre "os percentuais" é falsa
+  // -------------------------------------------------------------------
+
+  it.each(CARGOS)('cargo="%s" — o rótulo fala de ORDEM', (cargo) => {
+    // 🔴 MUTAÇÃO ALVO (3 do briefing): devolver o texto "Percentuais de
+    // projeção". Ele contém "projeção" e passaria em todo o bloco 1; morre
+    // aqui, porque não diz nada sobre ordem.
+    const texto = (rotulo(parse(cargo))?.textContent ?? "").toLowerCase();
+    expect(texto).toMatch(/ordem|ordenad/);
+  });
+
+  it("🔴 o rótulo NÃO reivindica os percentuais — eles são dois, e só um é projeção", () => {
+    // O gatilho é a tela, não a redação: SE a ficha desenha uma célula de
+    // parcial, ENTÃO nenhuma frase geral no topo pode qualificar "os
+    // percentuais"/"os números", porque metade deles não é projeção. É esta
+    // implicação que mata o rótulo antigo — e ela é mais forte que comparar
+    // com a string nova, que passaria em qualquer texto que eu escrevesse.
+    const doc = parse("pres");
+    const temParcialNaTela = doc.querySelector("[data-testid='state-sheet-cand-parcial']");
+    expect(temParcialNaTela, "a fixture precisa ter parcial na tela").not.toBeNull();
+
+    const texto = (rotulo(doc)?.textContent ?? "").toLowerCase();
+    for (const reivindicacao of ["percentua", "número", "numero", "valores"]) {
+      expect(texto).not.toContain(reivindicacao);
+    }
+  });
+
   it("não inventa vocabulário: nada de estimativa/previsão/prognóstico/simulação", () => {
     // O produto já diz "Projeção" no segmentado do cabeçalho
     // (`ViewModeSwitch.tsx:28`) e "por projeção" na descrição acessível do
@@ -131,14 +180,19 @@ describe("<StateResultSheet /> — rótulo de base: os números são projeção,
     }
   });
 
-  it("o rótulo NÃO promete parcial — a ficha não tem esse número por candidatura", () => {
-    // Um rótulo do tipo "Parcial e projeção" seria pior que nenhum: afirmaria
-    // um dado que `EdgeUfRow.top_candidatos[]` não carrega.
+  it("o rótulo NÃO promete parcial — a ORDEM não é a da parcial", () => {
+    // ⚠️ A razão deste caso MUDOU em 2026-09-20 e a asserção não: antes ele
+    // dizia que o dado não existia (o que era falso já naquela manhã); agora
+    // diz o que continua verdadeiro — a ficha ordena por PROJEÇÃO e só por
+    // ela. Um rótulo do tipo "Em ordem de parcial e projeção" prometeria uma
+    // ordenação dupla que a ficha não faz, e um "por parcial" prometeria a
+    // ordem errada. Manter a asserção com a razão vencida seria pior que
+    // apagá-la: um teste verde por acidente.
     expect((rotulo(parse("pres"))?.textContent ?? "").toLowerCase()).not.toContain("parcial");
   });
 
   // -------------------------------------------------------------------
-  // 3. Alcançável por quem não enxerga
+  // 4. Alcançável por quem não enxerga
   // -------------------------------------------------------------------
 
   it("o rótulo está na árvore de acessibilidade (nem ele nem ancestral com aria-hidden)", () => {
@@ -166,30 +220,42 @@ describe("<StateResultSheet /> — rótulo de base: os números são projeção,
     expect(precede).toBeTruthy();
   });
 
-  it('o nome acessível da lista carrega a mesma palavra ("por projeção")', () => {
+  it("o nome acessível da lista carrega a MESMA afirmação do rótulo visível", () => {
     // Quem navega POR LISTA salta o rótulo visível: o nome do bloco é o
-    // segundo caminho até a mesma informação.
+    // segundo caminho até a mesma informação. "Mesma" é literal — se o nome
+    // acessível dissesse só "por projeção" enquanto o rótulo fala de ordem, o
+    // leitor de tela ouviria a afirmação ANTIGA, a que virou falsa.
     const doc = parse("pres");
-    const rotuloLista = doc
-      .querySelector("[data-testid='state-sheet-candidatos']")
-      ?.getAttribute("aria-label");
-    expect(rotuloLista?.toLowerCase()).toContain("projeção");
+    const rotuloLista = (
+      doc.querySelector("[data-testid='state-sheet-candidatos']")?.getAttribute("aria-label") ?? ""
+    ).toLowerCase();
+    expect(rotuloLista).toContain("projeção");
+    expect(rotuloLista).toMatch(/ordem|ordenad/);
+    for (const reivindicacao of ["percentua", "número", "numero"]) {
+      expect(rotuloLista).not.toContain(reivindicacao);
+    }
   });
 
   it("cada percentual continua auto-descrito para quem navega item a item", () => {
     // Não é duplicação inútil: um leitor que entra no `<li>` direto não passa
-    // nem pelo rótulo nem pelo nome da lista.
+    // nem pelo rótulo nem pelo nome da lista. Com DOIS números por linha isso
+    // deixou de ser conforto e virou requisito: "37,4% 40,0%" sem rótulo é
+    // indistinguível de um número e o seu intervalo de confiança.
     const doc = parse("pres");
     const linhas = Array.from(
       doc.querySelectorAll<HTMLElement>("[data-testid='state-sheet-candidatos'] > li"),
     );
     expect(linhas.length).toBeGreaterThan(0);
     for (const li of linhas) {
+      const audivel = (li.textContent ?? "").toLowerCase();
+      // A projeção chega pelo `sr-only` (o desenhado, "proj.", é aria-hidden).
       const srOnly = Array.from(li.querySelectorAll(".sr-only"))
         .map((n) => n.textContent ?? "")
         .join(" ")
         .toLowerCase();
       expect(srOnly).toContain("projeção");
+      // A parcial chega pela própria palavra desenhada, que já é a inteira.
+      expect(audivel).toContain("parcial");
     }
   });
 
@@ -202,7 +268,7 @@ describe("<StateResultSheet /> — rótulo de base: os números são projeção,
   });
 
   // -------------------------------------------------------------------
-  // 4. 🔴 Incondicional: o rótulo não some com a base ativa
+  // 5. 🔴 Incondicional: o rótulo não some com a base ativa
   // -------------------------------------------------------------------
 
   it("o rótulo não carrega os contratos de `data-view` — nem ele, nem seus ancestrais", () => {
@@ -247,7 +313,7 @@ describe("<StateResultSheet /> — rótulo de base: os números são projeção,
   });
 
   // -------------------------------------------------------------------
-  // 5. Não regride o que já estava certo
+  // 6. Não regride o que já estava certo
   // -------------------------------------------------------------------
 
   it('o rótulo fica ABAIXO das <Figure> — "Apurado" é parcial de verdade e não pode ser rotulado de projeção', () => {

@@ -121,7 +121,14 @@ describe("<StateResultSheet /> — RF-030.3 (folha de UF)", () => {
     expect(lider?.textContent).toContain("REP");
   });
 
-  it("(f) lista os top_candidatos com nome, partido e % projetado — sem parcial por candidato", () => {
+  it("(f) lista os top_candidatos com nome, partido e % projetado — e, SEM `pct_atual`, só isso", () => {
+    // ⚠️ A razão deste caso mudou em 2026-09-20. Ele dizia "o payload não tem
+    // esse dado por candidato", o que era falso desde 19/09 —
+    // `EdgeUfRow.top_candidatos[].pct_atual` existe. A fixture `row` deste
+    // arquivo é que NÃO o traz (payload pré-19/09, que continua legítimo), e
+    // por isso o caso permanece válido com outro nome: **sem o campo, nenhuma
+    // parcial na tela e nenhum zero no lugar dela**. O caminho do par está em
+    // `StateResultSheet.parcialEProjecao.test.tsx`.
     const doc = parse(
       <StateResultSheet open onClose={() => {}} row={row} candidatos={candidatos} cargo="pres" />,
     );
@@ -132,8 +139,9 @@ describe("<StateResultSheet /> — RF-030.3 (folha de UF)", () => {
     expect(list?.textContent).toContain("44,6%");
     expect(list?.textContent).toContain("31,2%");
     expect(list?.textContent).toContain("12,0%");
-    // Nenhum rótulo "parcial" nesta lista — o payload não tem esse dado por candidato.
     expect(list?.textContent?.toLowerCase()).not.toContain("parcial");
+    // 🔴 E nada de `0,0%`: a ausência do campo não é um zero apurado.
+    expect(list?.textContent).not.toContain("0,0%");
   });
 
   it("(g) candidato sem metadados (id ausente em `candidatos`) degrada para #id, não quebra", () => {
