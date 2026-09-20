@@ -43,14 +43,33 @@
  * "diferença" na linha de quem lidera — misturar as duas fontes produziria
  * dois números levemente diferentes para a mesma coisa na mesma tabela.
  *
- * ===== Limite conhecido do payload =====
- * `top_candidatos` guarda **no máximo 3 candidatos por UF**. Um candidato que
- * esteja em 4º naquela UF simplesmente não aparece na linha, e não há campo no
- * payload de onde derivar o percentual dele ali. Consequência: a lista de um
- * candidato de rank 3 pode ser mais curta que a dos dois primeiros — e a
- * pílula do 4º ou 5º colocado nacional pode abrir uma tabela vazia. Preferimos
- * a lista curta (e o estado vazio explícito, ADR-0017) a um número sintético;
- * a legenda de cada tabela mostra o denominador real.
+ * ===== O corte é DESTE componente, e vale 4 desde 2026-09-19 =====
+ * Até 19/09 o limite era do payload: `api/model/project.py` emitia no máximo
+ * 3 candidatos por UF em `top_candidatos`, e este arquivo apenas herdava o
+ * número — o 3 daqui não era escolha de ninguém, era o que chegava.
+ *
+ * O produtor passou a emitir **4** (pedido do dono — o balão do mapa mostra 4
+ * + "Outros"), e com isso o número virou decisão que este arquivo tem de
+ * tomar e declarar: `strongholdsFor` corta em {@link STRONGHOLD_POSICAO_MAX}.
+ *
+ * **O valor é 4, e isso corrige um defeito que este próprio bloco descrevia.**
+ * A versão anterior deste parágrafo LAMENTAVA o limite: dizia que a lista de
+ * um candidato de rank 3 sai mais curta que a dos dois primeiros, e que a
+ * pílula do 4º colocado nacional pode abrir uma tabela vazia. Não era um
+ * limite desejado — era um limite sofrido, e a única razão de não corrigi-lo
+ * era que o payload não tinha o 4º. Agora tem, e o `pct_projetado` dele é
+ * medido exatamente como o dos outros três: não há número sintético nenhum
+ * nesta mudança, só uma linha que antes não existia e passou a existir.
+ *
+ * ⚠️ Consequência visível a esperar: as tabelas ficam mais longas em UFs
+ * disputadas, e a pílula do 4º colocado nacional — que antes abria vazia em
+ * boa parte dos estados — passa a listar UFs. Isso é o conserto, não um
+ * efeito colateral.
+ *
+ * O que continua valendo do texto antigo: preferimos a lista curta (e o
+ * estado vazio explícito, ADR-0017) a um número sintético — um candidato de
+ * rank 5 numa UF segue **sem** linha ali, e a tabela vazia continua sendo uma
+ * resposta legítima; a legenda de cada tabela mostra o denominador real.
  *
  * ===== Cor =====
  * Identidade pelo partido (ADR-0024), intensidade pela margem local
@@ -89,6 +108,7 @@ import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { formatPercent, formatPp } from "@/lib/utils/format";
 import { nomeExibicao, primeiroNomeExibicao } from "@/lib/utils/nome-candidato";
 import { partyChipInk } from "@/lib/utils/party-color";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 import {
   candidateColor,
   candidateColorByMargin,
@@ -108,10 +128,24 @@ export interface StrongholdsPanelProps {
   className?: string;
 }
 
+/**
+ * Quantas colocações deste painel contam como "reduto".
+ *
+ * Constante nomeada porque o número deixou de ser herdado do produtor em
+ * 2026-09-19 — ver "O corte é DESTE componente" no topo do arquivo. Hoje ela
+ * coincide com `TOP_CANDIDATOS_POR_UF` de `api/model/project.py`, e a
+ * coincidência é intencional mas **não é um acoplamento**: se o produtor
+ * emitir 5 um dia, este painel só passa a mostrar 5 quando alguém mudar
+ * ESTE número, de propósito. Foi exatamente essa distinção que faltou até
+ * 19/09, quando o 3 daqui era herança invisível e ninguém sabia que estava
+ * decidindo algo ao mexer no produtor.
+ */
+export const STRONGHOLD_POSICAO_MAX = 4;
+
 /** Uma UF na lista de um candidato. */
 export interface StrongholdRow {
   sigla: string;
-  /** Posição do candidato entre os `top_candidatos` daquela UF (1..3). */
+  /** Posição do candidato entre os `top_candidatos` daquela UF (1..{@link STRONGHOLD_POSICAO_MAX}). */
   posicao: number;
   /** `pct_projetado` do candidato na UF (0–100). */
   pct: number;
@@ -134,7 +168,12 @@ export function strongholdsFor(
   const out: StrongholdRow[] = [];
 
   for (const row of rows) {
-    const top = row.top_candidatos ?? [];
+    // 🔴 `.slice()` EXPLÍCITO, mesmo quando o número coincide com o que o
+    // produtor emite — ver "O corte é DESTE componente" no topo. Sem ele, o
+    // dia em que `TOP_CANDIDATOS_POR_UF` subir para 5 mudaria o conteúdo
+    // desta tabela sem uma linha de diff neste arquivo, que é como o 3 antigo
+    // virou premissa silenciosa de seis consumidores.
+    const top = (row.top_candidatos ?? []).slice(0, STRONGHOLD_POSICAO_MAX);
     const i = top.findIndex((t) => t.id === candidatoId);
     if (i < 0) continue;
     const me = top[i];
@@ -208,8 +247,16 @@ export function chipLabels(
   return candidatos.map((c, i) => {
     const p = primeiros[i] as string;
     if ((contagem.get(p) ?? 0) < 2) return p;
+    // 2026-09-19 — a sigla entra aqui como DESEMPATE dentro de uma pílula que
+    // já existe porque o espaço é curto; abreviá-la é o mesmo movimento. O
+    // canal `sr-only` do botão (mais abaixo) continua dizendo a sigla inteira.
+    //
+    // A WCAG 2.5.3 segue satisfeita sem truque: o nome acessível deste botão é
+    // calculado do CONTEÚDO (não há `aria-label` sobrescrevendo), então o texto
+    // visível — "Tarcísio REP" — já está dentro do nome, seguido da expansão
+    // "— TARCÍSIO GOMES DE FREITAS, REPUBLICANOS".
     const sigla = c.partido?.trim();
-    return sigla ? `${p} ${sigla}` : nomeExibicao(c.nome, c.sqcand);
+    return sigla ? `${p} ${siglaExibicao(sigla)}` : nomeExibicao(c.nome, c.sqcand);
   });
 }
 

@@ -399,3 +399,63 @@ describe("<StrongholdsPanel /> — a pílula filtra", () => {
     );
   });
 });
+
+describe("STRONGHOLD_POSICAO_MAX — o 4º colocado conta como reduto (2026-09-19)", () => {
+  /**
+   * 🔴 **Este bloco existe porque a suíte inteira era CEGA ao número.**
+   *
+   * Em 19/09 `STRONGHOLD_POSICAO_MAX` passou de 3 para 4 (pedido do dono, depois
+   * de o produtor subir `TOP_CANDIDATOS_POR_UF` para 4). Aplicando a mutação de
+   * volta para 3, os **21 testes existentes continuavam verdes** — nenhuma
+   * fixture daqui tinha mais de 3 candidatos por UF, então o corte nunca era
+   * exercido. Um teste que passa com o defeito aplicado não protege nada, e a
+   * regra da casa é aplicar a mutação em vez de confiar no verde.
+   *
+   * As fixtures abaixo têm **5** candidatos por UF de propósito: é o mínimo para
+   * distinguir três comportamentos ao mesmo tempo — o 4º entra, o 5º não entra,
+   * e a posição é contada do topo.
+   */
+  const quarto = makeCand({ id: 40, nome: "Candidato 4º", partido: "PSD", rank: 4 });
+  const quinto = makeCand({ id: 50, nome: "Candidato 5º", partido: "PP", rank: 5 });
+  const byId5 = new Map([...candidatos, quarto, quinto].map((c) => [c.id, c]));
+
+  /** Uma UF com 5 candidaturas — o alvo (40) em 4º, e um 5º logo atrás. */
+  const rowsCinco: EdgeUfRow[] = [
+    makeRow("SP", [
+      { id: 13, pct: 40 },
+      { id: 22, pct: 30 },
+      { id: 99, pct: 18 },
+      { id: 40, pct: 8 },
+      { id: 50, pct: 4 },
+    ]),
+  ];
+
+  it("o 4º colocado de uma UF ENTRA na lista de redutos dele", () => {
+    // Mutação que morre: `STRONGHOLD_POSICAO_MAX = 3`. Com 3, o candidato 40 é
+    // cortado antes do `findIndex` e a lista sai vazia — que era exatamente o
+    // defeito que a docstring deste arquivo lamentava ("a pílula do 4º colocado
+    // nacional pode abrir uma tabela vazia").
+    const lista = strongholdsFor(40, rowsCinco, byId5);
+    expect(lista.map((l) => l.sigla)).toEqual(["SP"]);
+    expect(lista[0]?.pct).toBe(8);
+  });
+
+  it("a posição do 4º é 4, contada do TOPO", () => {
+    // Mutação que morre: contar a posição a partir do fim (`top.length - i`),
+    // que daria 2 aqui e passaria despercebido numa fixture de 4 linhas.
+    expect(strongholdsFor(40, rowsCinco, byId5)[0]?.posicao).toBe(4);
+  });
+
+  it("🔴 o 5º colocado continua FORA — o corte subiu, não sumiu", () => {
+    // Mutação que morre: trocar o `.slice()` por nada, ou pôr um número grande.
+    // Sem este caso, `STRONGHOLD_POSICAO_MAX = 99` passaria nos dois testes
+    // acima, e o painel deixaria de ter corte nenhum sem ninguém notar.
+    expect(strongholdsFor(50, rowsCinco, byId5)).toEqual([]);
+  });
+
+  it("a diferença do 4º é medida contra o LÍDER, não contra o 3º", () => {
+    // O 4º não lidera, então a régua é o 1º colocado (40 − 8 = 32pp negativos).
+    // Mutação que morre: comparar com o vizinho de cima (18 − 8 = 10pp).
+    expect(strongholdsFor(40, rowsCinco, byId5)[0]?.diff).toBe(-32);
+  });
+});

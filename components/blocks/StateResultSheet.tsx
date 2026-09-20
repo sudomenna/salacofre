@@ -36,7 +36,19 @@
  *     (`<VagaBadge>`, reaproveitado de `ResultPanel.tsx`), sem que nenhuma
  *     vire um parágrafo isolado — o resultado não tem hierarquia entre 1º e
  *     2º, e a UI parou de inventar uma.
- *   - Candidatos: `row.top_candidatos` (id + `pct`). Esse `pct` é
+ *   - Candidatos: `row.top_candidatos` (id + `pct`), INTEIRO, sem `.slice()` —
+ *     por isso a ficha passou de 3 para 4 linhas em 2026-09-19 sem nenhuma
+ *     mudança de código: o dono decidiu naquele dia que as três telas de
+ *     resumo de UF mostram quatro candidaturas, e o produtor passou a emitir
+ *     quatro (`TOP_CANDIDATOS_POR_UF = 4`, `api/model/project.py`). A ausência
+ *     de corte aqui é deliberada e continua: o contrato do campo não promete
+ *     comprimento (`lib/edge-config/types.ts`), e um payload gravado antes
+ *     dessa data traz 3 — a ficha renderiza o que houver.
+ *     ⚠️ Esta ficha **não** tem a linha "Outros" do balão dos mapas: ela lista
+ *     candidaturas, e `EdgeUfRow.outros` é um agregado sem `id` de urna e sem
+ *     `sqcand` (ver a docstring do campo). Quem quiser a cauda aqui adiciona
+ *     um bloco próprio, não um elemento do ranking.
+ *     Esse `pct` é
  *     `pct_projetado`, NÃO parcial por candidato — o payload só tem parcial
  *     agregada por UF (`pct_apurado`), nunca por candidato (mesma
  *     observação já documentada em `buildHoverRows`,
@@ -72,6 +84,7 @@ import { colorForRank } from "@/lib/utils/cand-color";
 import { formatPercent, formatPp } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import { normalizePartySlug, PARTY_FALLBACK_SLUG, textForParty } from "@/lib/utils/party-color";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 /** Mesma tabela de `GovernorCard.tsx` — sem módulo compartilhado em `lib/utils/**`
  * pra este propósito, então repetida aqui (padrão já existente no repo). */
@@ -296,7 +309,9 @@ export function StateResultSheet({
                 }}
               />
               Líder: {nomeExibicao(liderIdentidade.nomeBruto, liderIdentidade.sqcand)}
-              {liderIdentidade.partido ? ` (${liderIdentidade.partido})` : ""}
+              {/* Texto desenhado ⇒ sigla abreviada (2026-09-19). A ficha é uma
+                  coluna estreita ao lado do mapa. */}
+              {liderIdentidade.partido ? ` (${siglaExibicao(liderIdentidade.partido)})` : ""}
             </p>
           ) : null}
 
@@ -325,6 +340,13 @@ export function StateResultSheet({
               // `ResultPanel.tsx`). Não é "o 1º e o 2º": é "os dois
               // ocupantes", sem que nenhum dos dois vire um parágrafo à
               // parte (era isso que a antiga linha "Líder:" fazia).
+              //
+              // 🔴 O marcador é contado do TOPO, nunca do fim do array — por
+              // isso a ficha passar de 3 para 4 linhas em 2026-09-19 não mexeu
+              // nele: continuam marcadas a 1ª e a 2ª, e agora ficam DUAS de
+              // fora em vez de uma. Uma regra escrita como "todas menos a
+              // última" teria virado "as três primeiras" em silêncio no dia em
+              // que o produtor passou a emitir quatro candidaturas.
               const ocupaVaga = multiVaga && index < vagas;
               return (
                 <li
@@ -370,7 +392,8 @@ export function StateResultSheet({
                             color: "var(--text-secondary)",
                           }}
                         >
-                          {partido}
+                          {/* Desenhado ⇒ abreviado (2026-09-19). */}
+                          {siglaExibicao(partido)}
                         </span>
                       ) : null}
                     </span>

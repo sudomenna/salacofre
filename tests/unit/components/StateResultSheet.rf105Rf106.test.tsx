@@ -67,15 +67,34 @@ const ROW_3_CANDIDATOS: EdgeUfRow = {
   bucket: "indefinido",
 };
 
-function render(cargo: "pres" | "gov" | "sen"): Document {
+/**
+ * A MESMA UF num payload de 2026-09-19 em diante: `top_candidatos` passou de 3
+ * para 4 entradas (`TOP_CANDIDATOS_POR_UF = 4`, `api/model/project.py`, por
+ * decisão do dono de mostrar quatro candidaturas nas telas de resumo de UF).
+ *
+ * 🔴 Esta fixture existe porque `ROW_3_CANDIDATOS` **não discrimina a
+ * mudança**: com três itens de entrada, `toHaveLength(3)` continua verde tanto
+ * com a ficha cortando em 3 quanto sem corte nenhum. Só uma fixture de 4
+ * distingue os dois comportamentos — e a ficha nunca teve `.slice()`, então
+ * sem este caso a cobertura descreveria um produto que não existe mais.
+ */
+const ROW_4_CANDIDATOS: EdgeUfRow = {
+  ...ROW_3_CANDIDATOS,
+  top_candidatos: [
+    ...ROW_3_CANDIDATOS.top_candidatos,
+    { id: 44, pct: 1, nome: "QUARTO COLOCADO", partido: "NOVO", sqcand: "4" },
+  ],
+};
+
+function render(cargo: "pres" | "gov" | "sen", row: EdgeUfRow = ROW_3_CANDIDATOS): Document {
   return parse(
-    <StateResultSheet
-      open
-      onClose={() => {}}
-      row={ROW_3_CANDIDATOS}
-      candidatos={CANDIDATOS}
-      cargo={cargo}
-    />,
+    <StateResultSheet open onClose={() => {}} row={row} candidatos={CANDIDATOS} cargo={cargo} />,
+  );
+}
+
+function linhasDoRanking(doc: Document): HTMLElement[] {
+  return Array.from(
+    doc.querySelectorAll<HTMLElement>("[data-testid='state-sheet-candidatos'] > li"),
   );
 }
 
@@ -90,9 +109,7 @@ describe("<StateResultSheet /> — RF-105: marcador de vaga sem hierarquia entre
 
   it('cargo="sen" — as vagas marcadas são a 1ª e a 2ª linha do ranking, não a 2ª e a 3ª', () => {
     const doc = render("sen");
-    const linhas = Array.from(
-      doc.querySelectorAll<HTMLElement>("[data-testid='state-sheet-candidatos'] > li"),
-    );
+    const linhas = linhasDoRanking(doc);
     expect(linhas).toHaveLength(3);
     expect(linhas[0]?.querySelector('[data-testid="result-vaga-marker"]')).not.toBeNull();
     expect(linhas[1]?.querySelector('[data-testid="result-vaga-marker"]')).not.toBeNull();
@@ -115,6 +132,46 @@ describe("<StateResultSheet /> — RF-105: marcador de vaga sem hierarquia entre
     for (const cargo of ["pres", "gov"] as const) {
       const doc = render(cargo);
       expect(doc.querySelector('[data-testid="state-sheet-lider"]')).not.toBeNull();
+    }
+  });
+
+  // -------------------------------------------------------------------
+  // 2026-09-19 — payload com QUATRO candidaturas por UF (decisão do dono).
+  //
+  // A ficha nunca cortou o array (`row.top_candidatos.map(...)`, sem
+  // `.slice()`), então as quatro linhas saem "de graça". O que NÃO sai de
+  // graça é a prova: os casos acima rodam sobre uma fixture de 3 e ficariam
+  // verdes tanto com corte quanto sem.
+  // -------------------------------------------------------------------
+
+  it("payload com 4 candidaturas → a gaveta renderiza as QUATRO linhas", () => {
+    // Mutação alvo: introduzir `.slice(0, 3)` (ou qualquer corte) no
+    // `row.top_candidatos.map(...)` de `StateResultSheet.tsx`.
+    const doc = render("sen", ROW_4_CANDIDATOS);
+    expect(linhasDoRanking(doc)).toHaveLength(4);
+    expect(doc.body.textContent ?? "").toContain("QUARTO COLOCADO");
+  });
+
+  it('cargo="sen" com 4 candidaturas → ainda EXATAMENTE 2 marcadores, e nas duas primeiras linhas', () => {
+    // O marcador é contado do TOPO (`index < vagas`). Mutação alvo: trocar por
+    // uma regra escrita de trás para frente ("todas menos a última"), que com
+    // três entradas produzia o mesmo resultado e com quatro marcaria três
+    // ocupantes para duas cadeiras.
+    const doc = render("sen", ROW_4_CANDIDATOS);
+    const linhas = linhasDoRanking(doc);
+
+    expect(doc.querySelectorAll('[data-testid="result-vaga-marker"]')).toHaveLength(2);
+    expect(linhas[0]?.querySelector('[data-testid="result-vaga-marker"]')).not.toBeNull();
+    expect(linhas[1]?.querySelector('[data-testid="result-vaga-marker"]')).not.toBeNull();
+    expect(linhas[2]?.querySelector('[data-testid="result-vaga-marker"]')).toBeNull();
+    expect(linhas[3]?.querySelector('[data-testid="result-vaga-marker"]')).toBeNull();
+  });
+
+  it('cargo="pres" e "gov" com 4 candidaturas → ZERO marcadores (1 vaga não tem "ocupantes")', () => {
+    for (const cargo of ["pres", "gov"] as const) {
+      const doc = render(cargo, ROW_4_CANDIDATOS);
+      expect(linhasDoRanking(doc)).toHaveLength(4);
+      expect(doc.querySelectorAll('[data-testid="result-vaga-marker"]')).toHaveLength(0);
     }
   });
 });

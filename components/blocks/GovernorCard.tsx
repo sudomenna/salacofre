@@ -4,16 +4,22 @@
  * S06/F4d (Fase 3) — card individual de UF na grid `/governador`.
  * Layout opção (b) decidida no plan S06:
  *   - Header: "Nome do estado · SIGLA    pct% apur"
- *   - Top-3 candidatos com nome + partido + barra colorida via colorForRank
- *   - 4ª linha "Outros" agregando o restante
+ *   - Top-4 candidatos com nome + partido + barra colorida pela SIGLA
+ *   - 5ª linha "Outros" agregando o restante
  *   - Chip de status à direita do líder (● ELEITO / VAI A 2T / EM APURAÇÃO)
+ *
+ * **Eram 3 candidatos + "Outros" até 2026-09-19.** O dono decidiu naquele dia
+ * que as três telas de resumo de UF (esta, a ficha `<StateResultSheet>` e a
+ * lista de `/senador`) passam a trabalhar com QUATRO candidaturas; o produtor
+ * acompanhou na mesma data (`TOP_CANDIDATOS_POR_UF = 4`, `api/model/project.py`)
+ * e passou a emitir o irmão {@link EdgeUfRow.outros} com a cauda já somada.
  *
  * Server Component puro. Mobile (< 640px) degrada para single-line.
  *
  * Cobertura
  *   - Spec 005 (página `/governador`) — RFs governador grid.
- *   - ADR-0017 (transparência total: mostra top-3 + outros, não só líder).
- *   - ADR-0013 (paleta por rank via colorForRank).
+ *   - ADR-0017 (transparência total: mostra top-4 + outros, não só líder).
+ *   - ADR-0024 (cor pela SIGLA do partido, não por colocação — ADR-0013 §Status).
  *   - Constituição § 2 (cores via tokens; nunca partidária oficial).
  *
  * A11y
@@ -24,6 +30,7 @@
 import { candidateColor } from "@/components/blocks/_candidateColor";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 /**
  * Nome longo da UF para o header. Sigla curta vai à direita.
@@ -136,8 +143,18 @@ export function GovernorCard({ uf, candidatos, mode = "expanded" }: GovernorCard
   const nomeUf = UF_NAMES[uf.sigla] ?? uf.sigla;
   const candIndex = new Map(candidatos.map((c) => [c.id, c] as const));
 
-  // Top-3 derivados de uf.top_candidatos (ordenado por pct desc — orchestrator garante)
-  const top = (uf.top_candidatos ?? []).slice(0, 3).map<Row>((t, i) => {
+  // Top-4 derivados de uf.top_candidatos (ordenado por pct desc — orchestrator
+  // garante). **Era `.slice(0, 3)` até 2026-09-19** — ver o cabeçalho do
+  // arquivo: decisão do dono, com o produtor já emitindo 4 entradas
+  // (`TOP_CANDIDATOS_POR_UF`, `api/model/project.py`).
+  //
+  // O `.slice()` FICA de propósito, não vira `.map()` direto: o contrato de
+  // `top_candidatos` não promete comprimento nenhum (docstring do campo em
+  // `lib/edge-config/types.ts`), e um payload gravado antes desta data traz 3
+  // entradas e nenhum `outros` — legítimo, e a tela tem de continuar
+  // renderizando. O corte é o que amarra ESTA superfície ao número que o dono
+  // pediu, em vez de deixá-la crescer com o que o produtor resolver emitir.
+  const top = (uf.top_candidatos ?? []).slice(0, 4).map<Row>((t, i) => {
     const meta = candIndex.get(t.id);
     return {
       id: t.id,
@@ -171,17 +188,47 @@ export function GovernorCard({ uf, candidatos, mode = "expanded" }: GovernorCard
     };
   });
 
-  const sumTop = top.reduce((acc, r) => acc + r.pct, 0);
-  const outrosPct = Math.max(0, 100 - sumTop);
-  const showOutros = (uf.top_candidatos?.length ?? 0) > 3 && outrosPct > 0.5;
-  const rows: Row[] = showOutros
+  // 🔴 A linha "Outros" vem do CAMPO `uf.outros` (2026-09-19), nunca mais de
+  // `100 − Σ(top)`.
+  //
+  // O que havia aqui até esta data:
+  //
+  //     const outrosPct  = Math.max(0, 100 - sumTop);
+  //     const showOutros = (uf.top_candidatos?.length ?? 0) > 3 && outrosPct > 0.5;
+  //
+  // Era **código morto**: o produtor cortava o array em 3, então `length > 3`
+  // nunca era verdade e a subtração nunca aparecia na tela. No dia em que o
+  // corte virou 4, o mesmo gatilho passaria a disparar SEMPRE — e com o 4º
+  // colocado agora DENTRO de `top`, "Outros" publicaria a diferença de
+  // fechamento como se fosse voto de alguém, além de somar 100 na cara do
+  // leitor. Continuaria compilando e continuaria verde nos testes de então:
+  // exatamente a regressão silenciosa que a migração evita.
+  //
+  // Por que a soma do produtor e não a subtração: os quatro pontos de uma UF
+  // são médias de bootstraps independentes e não fecham em 100 exatamente. A
+  // subtração empurra esse resíduo para dentro de "Outros"; a soma candidato a
+  // candidato, não. Ver a docstring de `EdgeUfRow.outros`
+  // (`lib/edge-config/types.ts`) e `tests/unit/model/test_uf_outros.py`, cuja
+  // fixture soma 99,1 DE PROPÓSITO para que as duas contas divirjam.
+  //
+  // ⚠️ `Σ(top 4) + outros.pct` **não fecha exatamente em 100** — e não
+  // normalizamos. Normalizar fabricaria o fechamento, que é a mesma classe de
+  // erro da subtração (decisão registrada com a do dono, 19/09).
+  //
+  // Gatilho = a EXISTÊNCIA do campo. Cauda vazia (UF com ≤ 4 candidaturas no
+  // cargo) ⇒ o produtor OMITE `outros` e aqui não há linha nenhuma. Ele nunca
+  // emite `{ pct: 0 }`: "não há mais ninguém" e "os demais somam 0%" são
+  // estados diferentes (decisão do dono, 14/09) e um zero escreveria "Outros
+  // 0,0%" numa corrida de três.
+  const outros = uf.outros;
+  const rows: Row[] = outros
     ? [
         ...top,
         {
           id: null,
           nome: "Outros",
           partido: "",
-          pct: outrosPct,
+          pct: outros.pct,
           corResolvida: "var(--color-cand-other)",
           rank: 99,
         },
@@ -189,6 +236,9 @@ export function GovernorCard({ uf, candidatos, mode = "expanded" }: GovernorCard
     : top;
 
   const liderRow = top[0];
+  // 🔊 `aria-label` — sigla INTEIRA, de propósito (2026-09-19). A abreviação
+  // resolve largura, e aqui não há largura: "REPUBLICANOS" dito por inteiro é
+  // exatamente o que o TSE publica. A regra está em `lib/utils/sigla-partido.ts`.
   const ariaLabel = `${nomeUf}, ${chip.ariaText}${
     liderRow ? `, líder: ${liderRow.nome} (${liderRow.partido}) com ${fmtPct(liderRow.pct)}` : ""
   }, ${fmtPct(uf.pct_apurado)} apurado`;
@@ -215,7 +265,9 @@ export function GovernorCard({ uf, candidatos, mode = "expanded" }: GovernorCard
               ·
             </span>
             <span>
-              {liderRow.nome} ({liderRow.partido})
+              {/* Linha única de mobile — o lugar mais estreito do cartão.
+                  Desenhado ⇒ abreviado (2026-09-19). */}
+              {liderRow.nome} ({siglaExibicao(liderRow.partido)})
             </span>
           </>
         )}
@@ -272,7 +324,9 @@ export function GovernorCard({ uf, candidatos, mode = "expanded" }: GovernorCard
                   {r.nome}
                   {r.partido && (
                     <span className="ml-1" style={{ color: "var(--color-text-muted)" }}>
-                      {r.partido}
+                      {/* Desenhado ⇒ abreviado (2026-09-19). A linha tem
+                          `truncate`: sem a abreviação é o NOME que some. */}
+                      {siglaExibicao(r.partido)}
                     </span>
                   )}
                   {isLider && (

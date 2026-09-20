@@ -28,6 +28,7 @@ import type {
   EdgePayloadUf,
   EdgeSeriePorCandidato,
   EdgeUfCandidate,
+  EdgeUfRow,
 } from "@/lib/edge-config/types";
 
 const readProjectionMock = vi.fn();
@@ -80,6 +81,15 @@ vi.mock("@/lib/blob/uf-detail", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/blob/uf-detail")>()),
   readUfDetail: () => readUfDetailMock(),
 }));
+
+/**
+ * Duas vagas por estado — a regra da eleição (RF-106), escrita aqui como
+ * LITERAL de propósito. A página lê o número de `lib/config/cargos.ts`; se o
+ * teste lesse de lá também, os dois mudariam juntos e uma alteração daquela
+ * tabela passaria sem ninguém reclamar. O que este arquivo mede é a regra, não
+ * a coerência do código consigo mesmo.
+ */
+const VAGAS_SENADO = 2;
 
 function parse(markup: string): Document {
   return new DOMParser().parseFromString(markup, "text/html");
@@ -320,14 +330,35 @@ describe("/senador (T-09)", () => {
   });
 
   it("(g) cada estado nomeia os DOIS que ocupam vaga, sem ordinal", async () => {
+    // 🔴 2026-09-19 — o ESCOPO desta asserção mudou, o que ela protege não.
+    //
+    // Até esta data o alvo era o `textContent` da LINHA INTEIRA
+    // (`[data-uf='SP']`), com o comentário "o 3º não pode aparecer como se
+    // ocupasse". A intenção sempre foi essa — "como se ocupasse" — mas a
+    // medição era mais larga que a intenção: proibia o nome do 3º em qualquer
+    // lugar da linha. Naquele dia a linha ganhou uma SEGUNDA linha, "Fora das
+    // vagas", onde o 3º e o 4º aparecem sob rótulo próprio e com percentual
+    // (ver "(g4)"), e a asserção larga passou a barrar exatamente a correção
+    // de acessibilidade que o balão de hover (`aria-hidden`) exigia.
+    //
+    // Por isso o alvo virou `[data-testid='corrida-ocupantes']`, e o caso
+    // ficou MAIS forte, não mais fraco: além do 3º ausente dali, conta-se o
+    // número de nomes. A mutação que este caso mata é a que o comentário do
+    // componente descreve — trocar `top.slice(0, VAGAS)` por `top` (ou por
+    // `slice(0, 4)`) e fazer quatro nomes dizerem que quatro pessoas ocupam
+    // duas vagas.
     readProjectionMock.mockResolvedValue(nacional());
     const doc = await render(SenadoPage());
-    const sp = doc.querySelector("[data-uf='SP']")?.textContent ?? "";
+    const ocupantes =
+      doc.querySelector("[data-uf='SP'] [data-testid='corrida-ocupantes']")?.textContent ?? "";
 
-    expect(sp).toContain("Ana Lima");
-    expect(sp).toContain("Bruno Reis");
-    // O 3º não ocupa vaga — não pode aparecer como se ocupasse.
-    expect(sp).not.toContain("Célia Mota");
+    expect(ocupantes).toContain("Ana Lima");
+    expect(ocupantes).toContain("Bruno Reis");
+    // O 3º não ocupa vaga — não pode aparecer nesta linha.
+    expect(ocupantes).not.toContain("Célia Mota");
+    // Exatamente DOIS nomes, separados por " · ": um terceiro separador
+    // significa um terceiro ocupante.
+    expect(ocupantes.split("·")).toHaveLength(VAGAS_SENADO);
   });
 
   it("(g2) payload PRÉ-018 (sem `nome` em top_candidatos) → placeholder, nunca o nome do índice nacional", async () => {
@@ -380,6 +411,91 @@ describe("/senador (T-09)", () => {
     expect(sp).not.toContain("Eva Prado");
     expect(rj).toContain("Eva Prado");
     expect(rj).not.toContain("Helena de SP");
+  });
+
+  // --- 2026-09-19: a segunda linha, "Fora das vagas" ----------------------
+  //
+  // O balão de hover dos mapas (`<HoverCard>`) mostra quatro candidaturas por
+  // UF mais a cauda somada, e é `aria-hidden` por construção — ele espelha o
+  // que um ponteiro revelou, e quem navega por teclado não tem ponteiro. Esta
+  // lista é o alvo do `aria-describedby` do mapa nacional de Senador, então o
+  // que ela cala não existe para leitor de tela nenhum.
+
+  /** A fixture nacional com a cauda somada na linha de SP. */
+  function comCaudaEmSP(over: Partial<NonNullable<EdgeUfRow["outros"]>> = {}) {
+    const base = nacional();
+    return {
+      ...base,
+      por_uf: base.por_uf.map((uf) =>
+        uf.sigla === "SP"
+          ? {
+              ...uf,
+              outros: { pct: 8.1, pct_atual: 6.4, votos_atuais: 12_345, n_candidatos: 7, ...over },
+            }
+          : uf,
+      ),
+    };
+  }
+
+  it("(g4) a linha de baixo nomeia quem ficou de fora e soma a cauda", async () => {
+    // Mutações que este caso mata:
+    //   1. não renderizar a segunda linha (volta ao estado em que "2,3% p/ 2ª
+    //      vaga" era uma margem contra um adversário anônimo);
+    //   2. cortar `top.slice(VAGAS)` em 0 e imprimir só "Outros" — o 3º e o 4º
+    //      não estão na cauda, e some a partição;
+    //   3. trocar `outros.pct` por `100 − Σ(top)`: a fixture de SP soma
+    //      40 + 30 + 29 = 99, então a subtração daria 1,0% e não 8,1%.
+    readProjectionMock.mockResolvedValue(comCaudaEmSP());
+    const doc = await render(SenadoPage());
+    const fora =
+      doc.querySelector("[data-uf='SP'] [data-testid='corrida-fora']")?.textContent ?? "";
+
+    expect(fora).toMatch(/fora das vagas/i);
+    expect(fora).toContain("Célia Mota (MDB) 29,0%");
+    expect(fora).toContain("Outros (7)");
+    expect(fora).toContain("8,1%");
+    expect(fora).not.toContain("1,0%");
+    // O 3º está na linha de baixo — e continua fora da de cima ("(g)").
+    expect(fora).toContain("apurado 6,4%");
+  });
+
+  it("(g5) `outros.pct_atual` ausente ⇒ 'parcial —', nunca 0", async () => {
+    // Mutação alvo: `outros.pct_atual ?? 0`, que escreveria "parcial 0,0%".
+    // O campo é TUDO-OU-NADA e some por UF inteira quando nenhuma zona foi
+    // apurada (docstring de `EdgeUfRow.outros`): "não medimos" e "medimos
+    // zero" são estados diferentes — decisão do dono de 14/09. A projeção
+    // (`pct`) continua na tela ao lado, então o caso também prova que o traço
+    // não engole a linha inteira.
+    const payload = comCaudaEmSP();
+    for (const uf of payload.por_uf) {
+      if (uf.sigla === "SP" && uf.outros) delete uf.outros.pct_atual;
+    }
+    readProjectionMock.mockResolvedValue(payload);
+    const doc = await render(SenadoPage());
+    const fora =
+      doc.querySelector("[data-uf='SP'] [data-testid='corrida-fora']")?.textContent ?? "";
+
+    expect(fora).toContain("apurado —");
+    expect(fora).not.toContain("apurado 0");
+    expect(fora).toContain("8,1%");
+  });
+
+  it("(g6) cauda AUSENTE ⇒ nenhuma linha de 'Outros' — e a linha de fora sobrevive", async () => {
+    // Mutação alvo: renderizar o agregado incondicionalmente. Campo ausente
+    // significa "não há mais ninguém" (UF com ≤ 4 candidaturas no cargo), não
+    // "os demais somam zero": um objeto zerado escreveria "Outros (0) 0,0%"
+    // numa corrida de três.
+    //
+    // A fixture não tem `outros` em nenhuma UF, e o 3º colocado continua
+    // sendo nomeado — a segunda linha não depende da cauda para existir.
+    readProjectionMock.mockResolvedValue(nacional());
+    const doc = await render(SenadoPage());
+    const fora =
+      doc.querySelector("[data-uf='SP'] [data-testid='corrida-fora']")?.textContent ?? "";
+
+    expect(fora).toContain("Célia Mota");
+    expect(fora).not.toContain("Outros");
+    expect(fora).not.toContain("0,0%");
   });
 
   it("(h) RF-108: cadência em texto, e SEM a afirmação de nível de estado", async () => {

@@ -58,6 +58,7 @@ import { candidateColor } from "@/components/blocks/_candidateColor";
 import type { EdgeCandidate } from "@/lib/edge-config/types";
 import { formatPercent, formatVotes, formatVotesCompact } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
 export interface CandidateResultRowProps {
   /** Posição exibida à esquerda. Normalmente `candidato.rank`. */
@@ -146,11 +147,17 @@ export interface CandidateResultRowProps {
  *
  * Até 14/09 ela não recebia, e a razão registrada aqui era boa: na compacta o
  * problema não é altura, é LARGURA. O avatar cabe na altura (a 1ª faixa do grid
- * da linha compacta mede **26px exatos** — 55px de linha menos 16 de `padding`,
- * 1 de filete, 8 de `rowGap` e 4 de barra —, então os 26px do avatar não
+ * da linha compacta mede **26px exatos** — 59px de linha menos 16 de `padding`,
+ * 1 de filete, 8 de `rowGap` e 8 de barra —, então os 26px do avatar não
  * esticam nada por si). O que estoura é a horizontal: `diâmetro + afastamento`
  * come 34px dos 171,2px da célula, e o `flex-wrap` empurra o selo do partido
- * para uma segunda linha. **55px viram 77,6px.**
+ * para uma segunda linha. **59px viram 81,6px.**
+ *
+ * ⚠️ Os números desta conta eram 55px e 77,6px até 2026-09-19, quando a barra
+ * dobrou de 4 para 8px a pedido do dono (ver {@link BARRA_ALTURA_PX}). A
+ * aritmética foi refeita junto **de propósito**: uma conta documentada que não
+ * acompanha a mudança que a invalidou é pior que conta nenhuma, porque quem
+ * lê confia nela.
  *
  * O dono viu a tela, pediu foto em todas as linhas e **aceitou esse custo**. O
  * comentário fica porque a medida continua verdadeira; o que mudou foi a
@@ -174,6 +181,62 @@ export interface CandidateResultRowProps {
  * exatamente como estavam.
  */
 const AVATAR_LINHA_PX = 26;
+
+/**
+ * Altura da barra de preenchimento, em px.
+ *
+ * **Dobrou de 4 para 8 em 2026-09-19, a pedido do dono** ("exatamente o dobro
+ * do que são hoje"). Constante nomeada — e não literal no `style` — porque o
+ * número entra na aritmética de altura da linha documentada no topo do
+ * arquivo: mudá-lo num lugar só faria a prosa mentir sobre a tela.
+ *
+ * ⚠️ **Consequência medida, e ela é real:** a linha inteira cresce 4px. A
+ * faixa do avatar segue em {@link AVATAR_LINHA_PX} (26px) e nada a comprime —
+ * a altura é dirigida pelo conteúdo, não fixa —, então a linha compacta passa
+ * de **55px para 59px**: 16 de `padding` + 1 de filete + 26 de avatar + 8 de
+ * `rowGap` + 8 de barra. Com ~7 candidaturas na tela isso são ~28px a mais de
+ * rolagem; o dono viu a barra e pediu o dobro sabendo que ela ocupa espaço.
+ *
+ * O traço da projeção NÃO dobrou junto: ele continua sobrando 2px para cada
+ * lado ({@link MARCADOR_SOBRA_PX}). O que ele precisa é ser visível ACIMA e
+ * ABAIXO do preenchimento, e 2px cumprem isso tanto numa barra de 4 quanto
+ * numa de 8 — dobrá-lo transformaria um traço discreto num segundo elemento
+ * competindo com a barra.
+ */
+const BARRA_ALTURA_PX = 8;
+
+/**
+ * Quanto o traço da projeção sobra além da barra, em cada ponta.
+ *
+ * 🔴 **Isto é o que torna o traço legível, e não é folga estética.** Pergunta
+ * do dono em 2026-09-19: "e se a projeção for negativa?" — que levou à
+ * medição abaixo.
+ *
+ * A barra é **fração dos votos**, não pilha de votos: a pilha só cresce, a
+ * fração pode cair. Quando a projeção fica ABAIXO da parcial, o traço cai
+ * DENTRO do preenchimento colorido. Não é caso de borda: medido na tela em
+ * 19/09, **6 das 7 candidaturas** estavam nessa situação.
+ *
+ * E dentro do preenchimento o traço some. Contraste de `--accent-strong`
+ * (#9e6a1c) sobre a cor do partido, medido:
+ *
+ * | PT | PL | PSD | NOVO | UP | PCB | PSTU |
+ * |---|---|---|---|---|---|---|
+ * | 1,17 | 1,07 | 1,70 | **1,07** | 1,69 | 1,25 | 1,72 |
+ *
+ * Todos abaixo do piso de 3:1 do SC 1.4.11, e o NOVO é o pior — laranja sobre
+ * laranja. O que salva é a sobra: sobre `--surface-page` o mesmo traço mede
+ * **4,21:1**, e sobre o trilho vazio **3,88:1**. Os 2px que aparecem acima e
+ * abaixo do preenchimento são a única parte do traço que se enxerga quando a
+ * projeção recua.
+ *
+ * ⚠️ Por isso a sobra NÃO acompanhou a barra quando ela dobrou (4 → 8 em
+ * 19/09): 2px continuam sendo 2px de tinta legível. Mas a **fração** visível
+ * caiu — antes eram 4px de sobra num traço de 8 (metade), agora são 4px num
+ * traço de 12 (um terço). Aumentar a sobra é a alavanca, se um dia o traço
+ * ficar difícil de achar.
+ */
+const MARCADOR_SOBRA_PX = 2;
 
 const KICKER: CSSProperties = {
   font: "var(--type-kicker)",
@@ -310,7 +373,11 @@ export function CandidateResultRow({
               </span>
             ) : (
               <span className="flex-none" style={{ ...KICKER, color: "var(--text-secondary)" }}>
-                {partido}
+                {/* Desenhado ⇒ abreviado (2026-09-19). Este é o ramo SEM
+                    `<PartyTag>` — o do kit já abrevia dentro do átomo —, e é
+                    exatamente a linha cujo estouro de largura (medido logo
+                    acima: 174 px pedidos, 49 px dados) motivou a abreviação. */}
+                {siglaExibicao(partido)}
               </span>
             )}
           </div>
@@ -356,7 +423,7 @@ export function CandidateResultRow({
         style={{
           gridColumn: "2 / -1",
           position: "relative",
-          height: 4,
+          height: BARRA_ALTURA_PX,
           overflow: "hidden",
           borderRadius: "var(--radius-xs)",
           background: "var(--surface-sunken)",
@@ -373,8 +440,8 @@ export function CandidateResultRow({
         <div
           style={{
             position: "absolute",
-            top: -2,
-            bottom: -2,
+            top: -MARCADOR_SOBRA_PX,
+            bottom: -MARCADOR_SOBRA_PX,
             left: `${projetado}%`,
             width: 2,
             background: "var(--accent-strong)",

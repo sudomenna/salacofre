@@ -172,3 +172,57 @@ describe("<CandidateResultRow />", () => {
     ).not.toContain("font-size:18px");
   });
 });
+
+describe("altura da barra — dobrada em 2026-09-19", () => {
+  /**
+   * O dono pediu "exatamente o dobro do que são hoje", e "hoje" eram 4px.
+   *
+   * 🔴 Este bloco existe porque a suíte era CEGA ao número: aplicando a
+   * mutação (voltar `BARRA_ALTURA_PX` para 4), os 15 casos existentes
+   * continuavam verdes. Altura de barra é exatamente o tipo de valor que
+   * ninguém percebe regredir — some 4px por linha e a tela só fica "um pouco
+   * diferente".
+   */
+  function barra(doc: Document): HTMLElement | null {
+    // A barra é o único bloco com `grid-column:2 / -1` e fundo afundado.
+    return (
+      [...doc.querySelectorAll("div")].find((d) => {
+        const s = d.getAttribute("style") ?? "";
+        return s.includes("grid-column:2 / -1") && s.includes("--surface-sunken");
+      }) ?? null
+    );
+  }
+
+  /** Lê `prop: <n>px` do atributo `style`, sem regex — escape em heredoc mente. */
+  function px(el: Element | null, prop: string): number | null {
+    for (const decl of (el?.getAttribute("style") ?? "").split(";")) {
+      const [chave, valor] = decl.split(":");
+      if (chave?.trim() !== prop) continue;
+      const n = Number.parseFloat((valor ?? "").trim());
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  }
+
+  it("🔴 a barra tem 8px — o dobro dos 4px que tinha", () => {
+    // Mutação que morre: qualquer valor que não seja 8. O número é literal de
+    // propósito: importar `BARRA_ALTURA_PX` e comparar com ele mesmo seria a
+    // tautologia que este repositório já registrou como "teste que não
+    // discrimina" — passaria com 4, com 8 e com 40.
+    expect(px(barra(parse(<CandidateResultRow {...BASE} />)), "height")).toBe(8);
+  });
+
+  it("o traço da projeção NÃO dobrou junto — segue sobrando 2px de cada lado", () => {
+    // Decisão registrada no componente: o traço precisa ser visível acima e
+    // abaixo do preenchimento, e 2px cumprem isso numa barra de 4 ou de 8.
+    // Dobrá-lo faria dele um segundo elemento competindo com a barra.
+    //
+    // Mutação que morre: escalar a sobra junto com a altura (-4/-4).
+    const doc = parse(<CandidateResultRow {...BASE} />);
+    const marcador = [...doc.querySelectorAll("div")].find((d) =>
+      (d.getAttribute("style") ?? "").includes("--accent-strong"),
+    );
+    expect(px(marcador ?? null, "top")).toBe(-2);
+    expect(px(marcador ?? null, "bottom")).toBe(-2);
+  });
+});

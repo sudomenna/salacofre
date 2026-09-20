@@ -65,6 +65,34 @@ const candidatos: EdgeCandidate[] = [
   mkCand(4, "Datena", "PSDB", 4),
 ];
 
+/**
+ * A cauda somada pelo produtor (`EdgeUfRow.outros`, 2026-09-19).
+ *
+ * 🔴 Os números são escolhidos para DISCRIMINAR, não para fechar bonito. O
+ * top-4 da fixture soma 91,1 — logo `100 − Σtop` daria **8,9%**, e a soma real
+ * da cauda é **7,3%**. São dois textos diferentes na tela ("8.9%" vs "7.3%"),
+ * então qualquer volta à subtração é visível num `toContain`. E `91,1 + 7,3 =
+ * 98,4`: a fixture NÃO fecha em 100 de propósito, para que uma normalização
+ * introduzida no componente também apareça.
+ */
+const OUTROS_SP: NonNullable<EdgeUfRow["outros"]> = { pct: 7.3, n_candidatos: 5 };
+
+/** As `li` do ranking (o bloco mobile é `div`/`span`, não produz `li`). */
+function linhas(doc: Document): HTMLElement[] {
+  return Array.from(doc.querySelectorAll<HTMLElement>("li"));
+}
+
+/**
+ * O percentual de cada linha — `lastElementChild`, o último `<span>` da `li`.
+ *
+ * Deliberadamente NÃO um `toContain` sobre o texto da linha inteira: "8%" é
+ * substring de "27.8%" e de "48%", então a asserção frouxa passa com a linha
+ * errada e com o número errado.
+ */
+function pctsExibidos(doc: Document): string[] {
+  return linhas(doc).map((li) => li.lastElementChild?.textContent ?? "");
+}
+
 describe("<GovernorCard />", () => {
   it("(a) bucket=chamada → chip ● ELEITO no líder", () => {
     const uf = mkUf({ sigla: "SP", bucket: "chamada" });
@@ -92,17 +120,23 @@ describe("<GovernorCard />", () => {
     expect(doc.body.textContent ?? "").toContain("EM APURAÇÃO");
   });
 
-  it("(e) renderiza top-3 + linha Outros quando há 4+ candidatos", () => {
-    const uf = mkUf({ sigla: "SP", bucket: "chamada" });
+  it("(e) renderiza as QUATRO candidaturas + a linha Outros quando o payload traz o campo", () => {
+    // 2026-09-19 — eram três até esta data. Mutação alvo: voltar o
+    // `.slice(0, 4)` de `GovernorCard.tsx` para `.slice(0, 3)` derruba a
+    // asserção de "Datena" (o 4º da fixture).
+    const uf = mkUf({ sigla: "SP", bucket: "chamada", outros: OUTROS_SP });
     const doc = parse(<GovernorCard uf={uf} candidatos={candidatos} />);
     const text = doc.body.textContent ?? "";
     expect(text).toContain("Tarcísio");
     expect(text).toContain("Boulos");
     expect(text).toContain("Márcio França");
+    expect(text).toContain("Datena");
     expect(text).toContain("Outros");
+    // Cinco linhas no ranking: as 4 candidaturas + o agregado.
+    expect(linhas(doc)).toHaveLength(5);
   });
 
-  it("(f) sem 4º candidato → não exibe 'Outros'", () => {
+  it("(f) três candidaturas e nenhum campo `outros` → não exibe 'Outros'", () => {
     const uf = mkUf({
       sigla: "SP",
       bucket: "chamada",
@@ -202,5 +236,65 @@ describe("<GovernorCard />", () => {
 
     expect(text).toContain("Alguém");
     expect(text).not.toContain("REP");
+  });
+
+  // -------------------------------------------------------------------
+  // 2026-09-19 — de 3 para 4 candidaturas, e "Outros" migrado para o
+  // campo `uf.outros` (decisão do dono; produtor em
+  // `TOP_CANDIDATOS_POR_UF = 4`, `api/model/project.py`).
+  //
+  // O gatilho antigo era `top_candidatos.length > 3 && (100 − Σtop) > 0.5`.
+  // Com o array em 3 ele nunca disparava — código morto. Com o array em 4 ele
+  // dispararia SEMPRE, e a subtração devolveria o 4º colocado + o resíduo de
+  // fechamento dentro de "Outros". Os três casos abaixo existem para que essa
+  // volta não passe em silêncio.
+  // -------------------------------------------------------------------
+
+  it("(m) o 4º colocado é LINHA PRÓPRIA e não é absorvido por 'Outros'", () => {
+    // Mata as duas mutações de uma vez:
+    //   1. `.slice(0, 4)` → `.slice(0, 3)`: "Datena" some da tela.
+    //   2. `showOutros = length > 3 && (100 − Σtop) > 0.5`: "Datena" continua
+    //      na tela, mas "Outros" vira 8.9% (100 − 91.1) em vez de 7.3%.
+    const uf = mkUf({ sigla: "SP", bucket: "chamada", outros: OUTROS_SP });
+    const doc = parse(<GovernorCard uf={uf} candidatos={candidatos} />);
+    const rows = linhas(doc);
+
+    // 4ª linha = a candidatura, com seu próprio percentual.
+    expect(rows[3]?.textContent ?? "").toContain("Datena");
+    expect(rows[3]?.lastElementChild?.textContent).toBe("8%");
+
+    // 5ª linha = o agregado, com o número que o PRODUTOR somou.
+    expect(rows[4]?.textContent ?? "").toContain("Outros");
+    expect(rows[4]?.lastElementChild?.textContent).toBe("7.3%");
+    // 🔴 O número da subtração não pode aparecer em lugar nenhum do card.
+    expect(doc.body.textContent ?? "").not.toContain("8.9%");
+  });
+
+  it("(n) quatro candidaturas e `outros` AUSENTE → nenhuma linha 'Outros'", () => {
+    // Este é o caso que o teste (f) NÃO cobre: com 4 no array, o gatilho
+    // antigo (`length > 3`) dispararia e inventaria a linha. Cauda vazia é o
+    // estado normal de uma corrida com ≤ 4 candidaturas — o produtor OMITE o
+    // campo em vez de emitir `{ pct: 0 }` (decisão do dono, 14/09: "não há
+    // mais ninguém" ≠ "os demais somam 0%").
+    const uf = mkUf({ sigla: "SP", bucket: "chamada" }); // base: 4 cands, sem `outros`
+    const doc = parse(<GovernorCard uf={uf} candidatos={candidatos} />);
+
+    expect(uf.outros).toBeUndefined();
+    expect(doc.body.textContent ?? "").toContain("Datena");
+    expect(doc.body.textContent ?? "").not.toContain("Outros");
+    expect(linhas(doc)).toHaveLength(4);
+  });
+
+  it("(o) não normaliza: Σ(top 4) + Outros fica em 98,4 e a tela publica isso", () => {
+    // Normalizar fabricaria o fechamento em 100 — mesma classe de erro da
+    // subtração. Mutação alvo: qualquer reescala de `pct` (por exemplo
+    // `pct * 100 / (sumTop + outros.pct)`) muda os cinco números exibidos.
+    const uf = mkUf({ sigla: "SP", bucket: "chamada", outros: OUTROS_SP });
+    const doc = parse(<GovernorCard uf={uf} candidatos={candidatos} />);
+    // Linha a linha, e não num `textContent` do card inteiro: "8%" é
+    // substring de "27.8%", então um `toContain` global passaria mesmo com a
+    // 4ª linha ausente. (Foi o primeiro jeito que escrevi este teste — não
+    // discriminava nada.)
+    expect(pctsExibidos(doc)).toEqual(["41.2%", "27.8%", "14.1%", "8%", "7.3%"]);
   });
 });

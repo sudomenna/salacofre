@@ -70,6 +70,7 @@ import { readProjection } from "@/lib/edge-config/reader";
 import type { EdgePayload, EdgeUfRow } from "@/lib/edge-config/types";
 import { formatPercent } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
+import { siglaExibicao } from "@/lib/utils/sigla-partido";
 import senFixture from "@/tests/fixtures/edge-config/sen-current.json" with { type: "json" };
 
 /** Código TSE do cargo desta rota. A granularidade e as vagas saem da tabela
@@ -194,11 +195,21 @@ function AguardandoSenado() {
 }
 
 /**
- * Os `VAGAS + 1` primeiros candidatos de uma UF, na ordem da projeção.
+ * Os candidatos de uma UF, na ordem da projeção.
  *
- * `EdgeUfRow.top_candidatos` já vem ordenado por `pct_projetado` desc e
- * cortado em 3 pelo orchestrator — que é exatamente o que esta tela precisa
- * com duas vagas: os dois que entram e o primeiro que fica de fora.
+ * `EdgeUfRow.top_candidatos` já vem ordenado por `pct_projetado` desc. **Vinha
+ * cortado em 3 pelo orchestrator; desde 2026-09-19 vêm 4** — decisão do dono
+ * de mostrar quatro candidaturas nas telas de resumo de UF, acompanhada pelo
+ * produtor (`TOP_CANDIDATOS_POR_UF = 4`, `api/model/project.py`). Com duas
+ * vagas, o que esta tela precisa continua vindo de graça: os dois que entram e
+ * — agora — os dois primeiros que ficam de fora.
+ *
+ * Esta função NÃO corta nada: quem consome escolhe. A lista estado a estado
+ * imprime `slice(0, VAGAS)` (os dois ocupantes, sem ordinal) e mede a margem
+ * da 2ª vaga entre `[VAGAS - 1]` e `[VAGAS]` — o 2º e o 3º. Os dois acessos
+ * são por índice contado do TOPO, então a 4ª entrada entrou sem deslocar
+ * nenhum deles. Payload gravado antes de 19/09 traz 3 entradas e segue
+ * correto pela mesma razão.
  *
  * **Spec 018 / ADR-0042 — nome e partido vêm da própria linha da UF.** Até a
  * spec 018 esta função os buscava em `national.candidatos` indexado por `id`,
@@ -209,8 +220,6 @@ function AguardandoSenado() {
  * país concorre sob o 13, e o índice entregava o candidato de um estado
  * arbitrário para os outros 26. `uf.top_candidatos[]` é resolvido pelo par
  * `(uf, numero)` no orchestrator e já sabe de que estado é.
- *
- * `porId` fica só para `cor`, que é função do RANK e não da identidade.
  */
 // ⚠️ `porId: Map<number, EdgeCandidate>` saiu em 2026-09-19: ele existia só para
 // buscar `c.cor`, a paleta por COLOCAÇÃO que o payload deixou de emitir. A cor
@@ -404,7 +413,14 @@ export default async function SenadoPage() {
                   style={{ gap: "var(--space-2)", font: "var(--type-body-sm)" }}
                 >
                   <span style={{ font: "var(--type-figure-sm)" }}>{p.vagas}</span>
-                  <span style={{ color: "var(--text-secondary)" }}>{p.partido}</span>
+                  {/* Desenhado ⇒ abreviado (2026-09-19). Oito ou mais partidos
+                      numa fileira `flex-wrap`; o `ariaLabel` do `<VoteBar>`
+                      logo acima segue com as siglas inteiras.
+                      🔴 Esta é a composição do SENADO, não a bancada da Câmara:
+                      a exceção do dono ("home de Deputados não abrevia") é da
+                      rota `/deputado-federal`, não de toda tela que lista
+                      partido. */}
+                  <span style={{ color: "var(--text-secondary)" }}>{siglaExibicao(p.partido)}</span>
                 </li>
               ))}
               {aguardando > 0 ? (
@@ -473,54 +489,190 @@ export default async function SenadoPage() {
             <UfLinksGrid cargo={CARGO_SENADOR} />
           </div>
         ) : payload.por_uf.length > 0 ? (
-          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>
-            {payload.por_uf.map((uf) => {
-              const top = topDaUf(uf);
-              const dentro = top[VAGAS - 1];
-              const fora = top[VAGAS];
-              const margem = dentro && fora ? dentro.pct - fora.pct : null;
-              return (
-                <li key={uf.sigla} style={{ borderBottom: "1px solid var(--border-hairline)" }}>
-                  <a
-                    href={`/uf/${uf.sigla}/senador`}
-                    data-testid="corrida-uf"
-                    data-uf={uf.sigla}
-                    className="grid items-center"
-                    style={{
-                      gridTemplateColumns: "2.5rem minmax(0, 1fr) auto",
-                      columnGap: "var(--space-3)",
-                      minHeight: "var(--tap-min)",
-                      padding: "var(--space-3) 0",
-                      color: "inherit",
-                      textDecoration: "none",
-                    }}
-                  >
-                    <span style={{ font: "var(--type-figure-sm)" }}>{uf.sigla}</span>
-                    <span
-                      className="min-w-0 truncate"
-                      style={{ font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
+          <div className="flex flex-col" style={{ gap: "var(--space-3)" }}>
+            {/* 🔴 A legenda é o que impede a segunda linha de mentir por
+                omissão. "Outros (7)" logo depois de dois nomes seria lido como
+                "e mais sete" — quando há também o 3º e o 4º, que estão na
+                mesma linha e fora da cauda. Dizer de onde a cauda começa é o
+                que mantém a partição legível: ocupantes + de fora + Outros =
+                todas as candidaturas do estado. A frase do traço existe pela
+                mesma razão: sem ela, um "—" no meio de números vira erro de
+                renderização aos olhos do leitor, em vez do fato que é. */}
+            <p
+              className="max-w-prose"
+              style={{ margin: 0, font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
+            >
+              Cada linha traz os dois que ficam com as vagas e, abaixo, quem ficou de fora: as
+              demais candidaturas com a projeção de cada uma e <strong>Outros</strong>, a soma das
+              que estão fora das quatro primeiras daquele estado — com quantas são entre parênteses.
+              Onde o TSE ainda não apurou nada no estado, o valor apurado aparece como um traço,
+              porque não foi medido — não é zero.
+            </p>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>
+              {payload.por_uf.map((uf) => {
+                const top = topDaUf(uf);
+                const dentro = top[VAGAS - 1];
+                const fora = top[VAGAS];
+                const margem = dentro && fora ? dentro.pct - fora.pct : null;
+
+                // 🔴 2026-09-19 — a SEGUNDA linha, "quem ficou de fora".
+                //
+                // Motivo: o balão de hover dos mapas (`<HoverCard>`) mostra
+                // quatro candidaturas por UF mais a cauda somada, e é
+                // `aria-hidden` por construção — ele espelha em pixels o que um
+                // ponteiro revelou, e quem navega por teclado não tem ponteiro
+                // (docstring do átomo). Esta lista é o alvo do
+                // `aria-describedby` do mapa nacional de Senador
+                // (`_NationalChoroplethMapImpl.tsx`, ramo `cargo === "sen"` →
+                // `"corridas-heading"`), então tudo que o balão diz e esta lista
+                // cala é informação que a rota não entrega a leitor de tela. Até
+                // aqui ela calava TRÊS coisas: o 3º, o 4º e a cauda.
+                //
+                // ⚠️ A linha de cima NÃO mudou e não pode mudar: ela é "quem
+                // fica com as duas cadeiras", e quatro nomes ali diriam que
+                // quatro pessoas ocupam duas vagas (ver o comentário dela).
+                // Estes nomes vêm numa linha PRÓPRIA e sob o rótulo "Fora das
+                // vagas", que é a frase que impede a leitura errada.
+                //
+                // Por que os de fora ganham percentual e os ocupantes não: a
+                // divisão editorial é identidade × magnitude. Entre o 1º e o 2º
+                // não há hierarquia — os dois se elegem igual, e numerá-los ou
+                // ranqueá-los por número inventaria uma. Entre o 2º e o 3º há
+                // exatamente uma diferença que importa, e a coluna da direita já
+                // a publica ("X p/ 2ª vaga"): esta linha é quem dá NOME ao lado
+                // de lá dessa margem, que até hoje era um número contra um
+                // adversário anônimo.
+                //
+                // `slice(VAGAS)` sem teto superior, ao contrário do
+                // `slice(0, 4)` de `<GovernorCard>`: aqui o trabalho da linha é
+                // FECHAR a partição (ocupantes + de fora + cauda = todo mundo).
+                // `uf.outros` é o complemento de `top_candidatos` seja qual for
+                // o comprimento dele, então um teto de 4 cravado aqui faria a 5ª
+                // entrada sumir da tela sem entrar na cauda no dia em que o
+                // produtor subir `TOP_CANDIDATOS_POR_UF` — e sumiria calada.
+                const deFora = top.slice(VAGAS);
+                const outros = uf.outros;
+                // 🔴 `pct_atual` é TUDO-OU-NADA e **ausente, nunca `0`** (ver a
+                // docstring de `EdgeUfRow.outros` em `lib/edge-config/types.ts`):
+                // some por UF inteira quando nenhuma zona foi apurada. Um
+                // `?? 0` aqui escreveria "0,0% apurado" — "medimos zero" no
+                // lugar de "não sabemos", que são estados diferentes (decisão do
+                // dono, 14/09). Por isso o teste explícito de tipo, e não um
+                // coalesce.
+                const pctAtualOutros = outros?.pct_atual;
+                const parcialOutros =
+                  typeof pctAtualOutros === "number" && Number.isFinite(pctAtualOutros)
+                    ? formatPercent(pctAtualOutros, 1)
+                    : "—";
+                // 🔴 Cauda AUSENTE ⇒ nenhum pedaço de texto. Campo faltando
+                // significa "não há mais ninguém" (UF com ≤ 4 candidaturas), não
+                // "os demais somam zero": renderizar incondicionalmente
+                // escreveria "Outros 0,0%" numa corrida de três.
+                //
+                // E `outros.pct` vem do CAMPO, somado candidato a candidato no
+                // produtor — nunca `100 − Σ(top)`. Os pontos de uma UF não fecham
+                // em 100 de propósito (cada um é a média de um bootstrap
+                // próprio); a subtração empurraria o resíduo de fechamento para
+                // dentro de "Outros" e o publicaria como voto de alguém.
+                const partesFora = [
+                  // Desenhado ⇒ abreviado (2026-09-19). Esta cauda é texto
+                  // VISÍVEL (ver o comentário três blocos abaixo), espremida na
+                  // coluna do meio de uma linha de 3 colunas.
+                  ...deFora.map(
+                    (c) => `${c.nome} (${siglaExibicao(c.partido)}) ${formatPercent(c.pct, 1)}`,
+                  ),
+                  // ⚠️ Rótulo ANTES do número nos dois valores da cauda, e não
+                  // "8,1% · parcial 6,4%": o separador da lista é " · ", então
+                  // um "·" dentro de um item faria a cauda parecer DOIS itens
+                  // ("… · Outros (7) 8,1%" + "parcial 6,4%") — a linha passaria
+                  // a listar uma candidatura fantasma. Com o rótulo na frente,
+                  // o traço de "apurado —" também cai num lugar em que se lê
+                  // como valor ausente, não como travessão de pontuação.
+                  ...(outros
+                    ? [
+                        `Outros (${outros.n_candidatos}) projetado ${formatPercent(outros.pct, 1)}, apurado ${parcialOutros}`,
+                      ]
+                    : []),
+                ];
+                return (
+                  <li key={uf.sigla} style={{ borderBottom: "1px solid var(--border-hairline)" }}>
+                    <a
+                      href={`/uf/${uf.sigla}/senador`}
+                      data-testid="corrida-uf"
+                      data-uf={uf.sigla}
+                      className="grid items-center"
+                      style={{
+                        gridTemplateColumns: "2.5rem minmax(0, 1fr) auto",
+                        columnGap: "var(--space-3)",
+                        minHeight: "var(--tap-min)",
+                        padding: "var(--space-3) 0",
+                        color: "inherit",
+                        textDecoration: "none",
+                      }}
                     >
-                      {/* Os `VAGAS` primeiros, sem ordinal: numerá-los
-                          reintroduziria a hierarquia que o resultado não tem. */}
-                      {top.slice(0, VAGAS).length > 0
-                        ? top
-                            .slice(0, VAGAS)
-                            .map((c) => `${c.nome} (${c.partido})`)
-                            .join(" · ")
-                        : "aguardando apuração"}
-                    </span>
-                    <span
-                      className="text-right"
-                      data-testid="corrida-margem"
-                      style={{ font: "var(--type-data)", color: "var(--text-muted)" }}
-                    >
-                      {margem === null ? "—" : `${formatPercent(Math.abs(margem), 1)} p/ 2ª vaga`}
-                    </span>
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
+                      <span style={{ font: "var(--type-figure-sm)" }}>{uf.sigla}</span>
+                      <span className="min-w-0 flex flex-col" style={{ gap: "var(--space-1)" }}>
+                        <span
+                          className="truncate"
+                          // 2026-09-19 — `data-testid` novo, e ele existe para
+                          // uma asserção NEGATIVA: o teste "(g)" precisa provar
+                          // que o 3º colocado não aparece AQUI. Até esta data a
+                          // prova era sobre o `textContent` da linha inteira,
+                          // o que passou a ser forte demais — o 3º agora tem
+                          // lugar legítimo na linha de baixo, sob rótulo
+                          // próprio. Sem um alvo para o escopo, a única saída
+                          // seria afrouxar a asserção, e afrouxar é como a
+                          // regra "quatro nomes diriam que quatro pessoas
+                          // ocupam duas vagas" morre em silêncio.
+                          data-testid="corrida-ocupantes"
+                          style={{ font: "var(--type-body-sm)", color: "var(--text-secondary)" }}
+                        >
+                          {/* Os `VAGAS` primeiros, sem ordinal: numerá-los
+                          reintroduziria a hierarquia que o resultado não tem.
+
+                          🔴 Continua `VAGAS` (2) mesmo com `topDaUf` devolvendo
+                          4 desde 19/09 — e isso NÃO é uma pendência. Esta linha
+                          não é "o top da UF": é "quem fica com as duas
+                          cadeiras". Imprimir quatro nomes num lugar que o
+                          leitor lê como os ocupantes diria que quatro pessoas
+                          ocupam duas vagas. O que os dois nomes extras fazem
+                          aqui é alimentar a margem à direita (2º−3º). */}
+                          {top.slice(0, VAGAS).length > 0
+                            ? top
+                                .slice(0, VAGAS)
+                                // Desenhado ⇒ abreviado (2026-09-19): dois
+                                // nomes + duas siglas num `truncate`.
+                                .map((c) => `${c.nome} (${siglaExibicao(c.partido)})`)
+                                .join(" · ")
+                            : "aguardando apuração"}
+                        </span>
+                        {/* Visível, não `sr-only`. Texto escondido é uma segunda
+                          verdade que ninguém revisa e que apodrece — e este
+                          conteúdo não é muleta de acessibilidade: quem enxerga
+                          também lia "2,3% p/ 2ª vaga" sem nunca saber contra
+                          QUEM eram os 2,3%. */}
+                        {partesFora.length > 0 ? (
+                          <span
+                            data-testid="corrida-fora"
+                            style={{ font: "var(--type-body-sm)", color: "var(--text-muted)" }}
+                          >
+                            Fora das vagas: {partesFora.join(" · ")}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span
+                        className="text-right"
+                        data-testid="corrida-margem"
+                        style={{ font: "var(--type-data)", color: "var(--text-muted)" }}
+                      >
+                        {margem === null ? "—" : `${formatPercent(Math.abs(margem), 1)} p/ 2ª vaga`}
+                      </span>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         ) : (
           <p
             className="max-w-prose"
