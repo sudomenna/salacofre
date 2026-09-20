@@ -138,9 +138,8 @@ WHEN o usuário interage com `<MapViewToggle />`, the system SHALL alternar a co
 
 **RF-030.3 — Hover/tap em UF abre tooltip e click navega (desktop) ou abre gaveta (mobile)**
 
-WHEN o usuário passa o mouse (desktop) ou toca (mobile) em uma UF, the system SHALL exibir tooltip com `{votos, %, contribuição ao swing}`.
-WHEN o usuário clica em uma UF **no desktop** (`viewport ≥ 960px`), the system SHALL navegar para `/uf/[sigla]`.
-WHERE `viewport < 960px`, WHEN o usuário clica em uma UF, the system SHALL exibir `<StateResultSheet>` (folha de resumo) com opção "Ver detalhes do estado" para navegação (ADR-0050).
+WHERE usuário tem ponteiro fino E suporta hover (`(hover: hover) and (pointer: fine)`) — i.e., desktop com mouse — WHEN passa o mouse em uma UF, the system SHALL exibir balão com votos, %, e link clicável `/uf/[sigla]` (ADR-0050).
+WHERE usuário toca (mobile ou sem suporte a hover), WHEN toca em uma UF, the system SHALL exibir gaveta `<StateResultSheet>` com resumo do estado e opção "Ver detalhes" navegando para `/uf/[sigla]` (ADR-0050, 2026-09-20).
 
 **RF-030.4 — Hachura/pattern em UFs que viraram (Should)**
 

@@ -163,9 +163,9 @@ como risco residual de falha silenciosa em call site novo sem cargo explícito.
   folga de ~14,7 KiB (RNF-007b) que antes só precisava acomodar crescimento de Presidente agora é
   disputada por Presidente, Governador e Senador — quem crescer o MapLibre, o `party-color.ts` ou
   `margem-senado.ts` a partir daqui quebra três telas, não uma.
-- **Senador não tem mapa municipal no nível UF** — a fonte não tem o dado (spec 016 § Escopo/Fora).
-  O painel textual (`PersistentMapFrame.tsx:519-571`) nomeia a ausência, mas é uma lacuna de
-  paridade visível frente a Presidente/Governador, que têm coroplético municipal completo.
+- **Senador ganhou mapa municipal no nível UF em 2026-09-20** (commits `d5765c4`, `bdf6804`, 
+  `6b40f8b`). Rota `/uf/[sigla]/senador` exibe: coroplético municipal (mapa), lista paginada 
+  (20 + 40), gaveta ao toque. Especificado em spec 016 como fora de escopo até essa data.
 - **Este ADR contraria RF-006.3 no texto da spec 006, sem emendá-la.** A spec `shipped` continua
   normatizando `<HexCartogramBrasil />` como o componente do grid nacional de Governador até o
   `spec-syncer` propagar a correção — risco de leitura futura, se alguém consultar a spec sem saber

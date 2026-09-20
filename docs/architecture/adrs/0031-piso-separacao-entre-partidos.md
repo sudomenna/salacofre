@@ -26,7 +26,8 @@ os 31 tokens de partido **entre si**. O kit Atlas Menna (`docs/design-system/atl
 colors.css`) foi construído medindo cada cor contra a marca do respectivo partido, uma de cada vez;
 nunca contra as outras 30 cores da própria paleta.
 
-Medido em 2026-09-08 sobre os 465 pares das 31 bases (30 partidos + o fallback `outros`), cinco
+Medido em 2026-09-08 sobre os 465 pares das 31 bases (30 partidos + o fallback `outros`); 
+em 2026-09-20 estendido para 496 pares (32 partidos + fallback, após PTB entrar), cinco
 pares ficavam perceptualmente indistinguíveis:
 
 | Par | ΔE76 |
@@ -61,13 +62,40 @@ oficiais, o ΔE76 **entre cada par de partidos diferentes**, e falha a geração
 **O gate.** `PARTY_SEPARATION_FLOOR = 12`. Medidos os três papéis que **identificam** um partido
 sem rótulo que os desambigue — `--party-<slug>` (base: contorno, ponto, preenchimento),
 `--party-<slug>-chip` (fundo do chip sólido) e `--party-<slug>-text` (a cor como tinta sobre
-papel) — para os 465 pares de 31 partidos, dá 1.395 medições. `--party-<slug>-ink` fica fora: é
+papel) — para os 496 pares de 32 partidos (2026-09-20: PTB adicionado), dá **1.488 medições**
+(era 1.395 com 31 partidos). `--party-<slug>-ink` fica fora: é
 preto ou branco fixo do kit, não cor de partido: duas siglas com a mesma tinta é o esperado, não um
 defeito. O gerador refaz a conta e falha a geração se algo violar; `tests/unit/design-system/
 party-separation.test.ts` refaz a mesma conta, com colorimetria **reimplementada** (não importada
 do gerador), sobre o CSS commitado (`app/tokens-party.css`), a cada `pnpm test` — um teste que
 importasse a função que quer verificar não verificaria nada. O par mais apertado hoje, depois da
 correção, é `--party-democrata-text` (`#4b5563`) × `--party-outros-text` (`#6b7078`), a **12,09**.
+
+**Emenda 2026-09-20 — o gate ganhou um SEGUNDO alvo e um SEGUNDO piso.** A conta acima mede
+a paleta **contra ela mesma**, e só. Foi essa lacuna que deixou passar uma colisão real: quando a
+cor de candidatura deixou de vir da posição na lista (ADR-0013, emenda de 2026-09-20), toda sigla
+sem token próprio passou a usar a família `--party-outros` — e o nível 1 dela ficou a **ΔE76 2,39**
+de `--map-uncounted`, o neutro de "sem apuração". Na view "margem" do mapa, um estado quase
+empatado ficava indistinguível de um estado onde ninguém apurou nada, o que colide com a decisão
+do dono de 2026-09-14 (não começou / não sabemos / apurando são TRÊS estados).
+
+`tests/unit/design-system/party-separation.test.ts` passou a medir também o bloco `MAP_PAIRS`:
+**101 medições por tema** contra `--map-uncounted` — `--party-outros` em 3 papéis mais os 5 níveis
+da rampa, e os outros 32 partidos em 3 papéis —, com piso
+**`MAP_UNCOUNTED_SEPARATION_FLOOR = 10`**, mais um teste de cobertura que trava o total (sem ele,
+apagar metade do laço não reprovaria nada).
+
+**Por que 10 e não 12 neste segundo alvo.** O piso de 12 carrega 2 unidades de folga específicas
+contra *revisão de hex oficial de terceiro* — um partido pode mudar a própria cor e nos obrigar a
+remedir. `--map-uncounted` é token nosso e não muda sozinho, então a folga não se aplica. O 10
+reusa o `PISO_DELTA_E` que `components/blocks/_swingRamp.ts` (2026-09-18) já aplicava à mesma
+pergunta, contra o mesmo `--map-uncounted`.
+
+⚠️ **O que este gate NÃO fecha, e é dívida aberta:** ele mede os 32 partidos reais só nos três
+papéis de identidade, **não nos níveis da rampa**. Medido em 2026-09-20: `--party-<slug>-1` de
+**15 dos 32** partidos fica abaixo de 10 contra `--map-uncounted` no tema claro (4 no escuro), pior
+real `--party-dc-1` a 7,44 — e o PTB, acrescentado no mesmo dia, nasceu a 7,56. É redesenho da
+rampa inteira, não conserto pontual. Ver `docs/reference/dividas-tecnicas.md`.
 
 **Por que o piso é 12, e não outro número.** É deliberadamente o mesmo `DELTA_E_FLOOR` que o
 repositório já opera contra os hexes oficiais — a mesma pergunta perceptual ("estas duas cores são
@@ -98,8 +126,8 @@ intensidade (`--party-<slug>-1..5`) são alvos **absolutos** de L\*/C\* iguais p
 partidos (`RAMP_L = [90, 76, 58, 42, 29]`, `RAMP_C = [10, 26, 48, 66, 53]`) — é literalmente o que
 o § 2 v1.3 exige ("apenas a intensidade pode variar, nunca a matiz"). Isso significa que o nível 1
 de todo partido mora no mesmo círculo, L\* 90 / C\* 10, variando só em ângulo (matiz). Distribuídos
-31 pontos nesse círculo, a menor distância possível no melhor arranjo geométrico é
-`2 · 10 · sen(180°/31) ≈ 2,02` de ΔE76 — abaixo de qualquer piso razoável, e **matematicamente
+32 pontos nesse círculo (2026-09-20: com PTB), a menor distância possível no melhor arranjo geométrico é
+`2 · 10 · sen(180°/32) ≈ 1,96` de ΔE76 — abaixo de qualquer piso razoável, e **matematicamente
 abaixo de 12 por construção**, não por falha de escolha de hex. Exigir 12 ali seria exigir o
 impossível. E é desnecessário: o nível comunica **margem** (1 = disputa apertada, 5 = decisivo),
 não identidade — quem responde "qual partido" são a base, o chip e a tinta, os três papéis que o

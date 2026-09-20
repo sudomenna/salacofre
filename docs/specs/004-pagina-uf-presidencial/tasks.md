@@ -23,10 +23,10 @@ Plano bottom-up: atoms → table virtualizada → mapas (delegação `map-builde
 - [x] T06. `components/atoms/needle/Needle.tsx` — atom genérico reusable (variação UF)
 - [x] T07. `components/atoms/banners/NewsClippingPlaceholder.tsx` (slot "Repercussão na imprensa", sem RF formal — decisão kickoff S04)
 
-## Fase C — Tabela virtualizada (RF-037)
+## Fase C — Tabela paginada (RF-037, refator 2026-09-20)
 
-- [x] T08. `components/blocks/MunicipioTable.tsx` com virtualização DIY (windowing por scroll position; sem @tanstack/react-virtual pra não inflar bundle) + test cobrindo 645 linhas
-- [x] T09. Test smoke: virtualizar render apenas slice visível
+- [x] T08. `components/blocks/MunicipioTable.tsx` **paginada com 20 + 40 por toque** (removida virtualização em 09/20; ADR-0034 D21)
+- [x] T09. Test de ordenação (`MunicipioTable.ordem.test.tsx`): segue eleitorado decrescente; numeração e margem consistentes
 
 ## Fase D — Mapas (delegar `map-builder` — bloqueante de Fase G)
 

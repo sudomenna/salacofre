@@ -966,8 +966,8 @@ Verificar na resposta: `rateLimited` (retry de 429 funcionou), `changed > 0`, `n
 > Carregar `.env.local` antes da suíte completa — 8 arquivos de teste dependem do Neon:
 > ```bash
 > set -a; . ./.env.local; set +a
-> pnpm test                             # vitest — 2.606 verdes em 17/09
-> .venv-model/bin/python3.14 -m pytest  # 501 verdes em 17/09
+> pnpm test                             # vitest — 3.492 verdes em 20/09
+> .venv-model/bin/python3.14 -m pytest  # 626 verdes em 20/09
 > ```
 > ⚠️ Duas ressalvas de 17/09, as duas medidas:
 > 1. **`pnpm test:py` está quebrado** — o script é `python -m pytest`, pega o `python` do PATH

@@ -75,7 +75,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-006.5 | Tabs cargo com disabled | M | [006](../specs/006-grid-governadores/) | `<Tabs disabled />` | unit |
 | RF-030.1 | Mapa coroplético hero | M | [003](../specs/003-home-nacional/) | `<NationalChoroplethMap />` | unit (SSR shell) + e2e (deferred S05) |
 | RF-030.2 | Toggles de visualização | M | [003](../specs/003-home-nacional/) | `<MapViewToggle />` | unit |
-| RF-030.3 | Hover/tap em UF + tooltip + click navega | M | [003](../specs/003-home-nacional/), [008](../specs/008-interatividade-brushing/) | `<NationalChoroplethMap />`, `<HoverTooltip />` | unit (contrato semântico) + e2e (deferred S05) |
+| RF-030.3 | Interação com UF por capacidade de ponteiro (desktop mouse → balão+link, mobile/toque → gaveta) | M | [003](../specs/003-home-nacional/), [008](../specs/008-interatividade-brushing/) | `<NationalChoroplethMap />`, `<HoverCard />`, `<StateResultSheet />`, `<UfHoverLink />` | unit (contrato semântico) + e2e (deferred S05) |
 | RF-030.4 | Hachura UFs que viraram | S | [003](../specs/003-home-nacional/) | `<NationalChoroplethMap />` | deferred S05 |
 | RF-030.5 | Scoreboard com gatilho 50%+1 | M | [003](../specs/003-home-nacional/) | `<HeadlineScore />` | unit |
 | RF-030.6 | Tabela agrupada por margem | M | [003](../specs/003-home-nacional/) | `<StateGroupedTable />` | unit |
@@ -377,6 +377,39 @@ de cada um. Specs referenciam ADRs aplicáveis no frontmatter.
   no corpo desta matriz por RF-168, RF-169 e RF-171.
 
 Spec 016 (Senador) — `draft`, implementada em S07. Spec 017 (Deputado Federal) — **`shipped` em 13/09**, com os 4 gates aprovados: `rf-coverage-checker` PASS (12 RFs), `constitution-guard` PASS **na reexecução** (a primeira rodada reprovou — `<DeputadoMetodologia>` afirmava ao leitor uma granularidade que o ADR-0036 tinha acabado de inverter; corrigido em `8cd955f`), `a11y-perf-auditor` PASS (Lighthouse a11y 100/100, axe 0 violações em 12 combinações, bundle idêntico byte a byte), e `spec-syncer` executado. RF-127 completo desde `2bcee57` — o intervalo de cadeiras existe, e a marcação de cadeira indefinida **coexiste** com ele.
+
+## RFs adicionados pelas specs
+
+Além dos 66 RFs do PRD (RF-001..RF-060 + RF-030.1..RF-030.6), as specs adicionaram 88 RFs próprios.
+Vide frontmatters de cada spec (`requirements:` no YAML). Soma global: 154 RFs únicos.
+
+---
+
+## Comportamentos entregues sem RF formal (2026-09-19/20)
+
+Estes 15 itens existem em código desde 2026-09-19 (6 itens) e 2026-09-20 (9 itens), mas não 
+têm RF correspondente. Registrados aqui para visibilidade — **cada um é uma dívida de especificação** 
+(falta RF ou RF é genérico demais) ou um **padrão novo que merece formalização**.
+
+### De 2026-09-19 (balão do mapa, hemiciclo)
+
+1. Balão do mapa com 4 candidatos + linha "Outros" (compos `top_candidatos[0..3]` + `others_count`)
+2. Balão com flip vertical quando próximo à borda (prevenção de clip)
+3. Mapa municipal de Senador no nível UF (coroplético + lista)
+
+### De 2026-09-20 (paginação, ordem, marca)
+
+4. Traço de comparação marca sempre a **outra base** (apurado ↔ projeção)
+5. Lista de candidatos reordena ao trocar base ativa (Parcial ↔ Projeção)
+6. Tabela de municípios paginada (20 inicial + 40 por toque) vs virtualizada antes
+7. Ordem da tabela segue eleitorado decrescente, com numeração sequencial e margem consistentes
+8. `VagaBadge` (Senador) mostra dois textos: ocupante + estado (eleito/indefinido)
+9. Painel de chances por base (aparece/desaparece conforme composição muda)
+10. Ficha do mapa mostra apurado E projetado com rótulo "Em ordem de projeção"
+11. Seletor Parcial/Projeção renderizado **dentro da tela** de conteúdo (não em overlay/drawer)
+12. Critério de interação é capacidade de ponteiro (`pointer: fine + hover: hover`), não viewport
+
+---
 
 ## Como manter atualizado
 

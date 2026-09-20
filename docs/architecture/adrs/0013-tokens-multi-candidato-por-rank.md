@@ -41,9 +41,9 @@ ser lido como histórico, não como regra vigente.
 > `candidateMarkerColor` e `candidateColorByMargin`
 > (`components/blocks/_candidateColor.ts`) e as quatro views de `resolveColor` /
 > `buildHoverRows` (`components/blocks/_NationalChoroplethMapImpl.tsx`,
-> `components/atoms/maps/ChoroplethMapUF.tsx`) resolvem a cor **só pela sigla**. O caso que ainda
-> caía no rank era **federação** ("PSDB/CIDADANIA", "PSOL/REDE", "FEDERACAO BRASIL DA ESPERANCA"),
-> que não é partido único e não tem token próprio; hoje ela recebe `--party-outros`, estável.
+> `components/atoms/maps/ChoroplethMapUF.tsx`) resolvem a cor **só pela sigla**. Os casos que
+> caíam no rank (sinalizados pelo teste de varredura) eram **PTB e 10 candidaturas sem sigla de
+> partido registrada**; hoje ambos recebem `--party-outros`, estável.
 >
 > **Consequência para este ADR.** A ausência do color lock deixa de ter efeito sobre cor, porque
 > cor não depende mais de rank. O `rank` segue sendo dado legítimo e visível — é o número da posição
@@ -51,9 +51,9 @@ ser lido como histórico, não como regra vigente.
 > cada ciclo é o comportamento correto, não um defeito. **O que este ADR ainda afirma de falso é o
 > mecanismo, não a decisão**; a decisão já estava superseded pelo ADR-0024 desde 07/09.
 >
-> Trava: `tests/unit/components/candidate-color.test.ts` (a mesma sigla em qualquer posição recebe
-> a mesma cor, e nunca um token `--color-cand-*`), mais a varredura de fonte no mesmo arquivo, que
-> reprova a volta do import de `cand-color` em `_candidateColor.ts`.
+> Trava: `tests/unit/components/cor-nunca-da-posicao.test.ts` (a mesma sigla em qualquer posição
+> recebe a mesma cor, e nunca um token `--color-cand-*` por rank; 6 funções de resoluçãode cor
+> cobertas + varredura literal de `--color-cand-<dígito>` com 2 permitidos por motivo escrito).
 
 ## Contexto
 

@@ -146,12 +146,13 @@ existir da escala (constituição § 2: "só a intensidade varia com a margem").
 **A decisão: HALO, duas linhas.** Técnica cartográfica padrão para traço sobre
 fundo variável — uma linha clara por baixo (`--map-stroke`, mais larga) e uma
 escura por cima (`--map-stroke-focus`, mais fina; o mesmo token que já
-existia só para o traço de hover). Medido contra as **186 combinações reais**
-de preenchimento que o mapa pode pintar (33 cores-base + 155 níveis de
-margem, dois temas) mais `--map-uncounted`, `--color-tossup` e os tokens de
-fallback por rank (`--color-cand-*`/`--color-cand-band-*`): **zero ficam
-abaixo de 3:1 contra as DUAS linhas ao mesmo tempo** — sempre uma das duas
-alcança o piso, qualquer que seja a cor do lado. `--party-tie` também está
+existia só para o traço de hover). Medido contra as **combinações reais**
+de preenchimento que o mapa pode pintar (**32 cores de partido + 1 fallback 
+`--party-outros`**, níveis 1–5 de margem, dois temas) mais `--map-uncounted`: 
+**zero ficam abaixo de 3:1 contra as DUAS linhas ao mesmo tempo** — sempre uma 
+das duas alcança o piso, qualquer que seja a cor do lado. Nota 2026-09-20: tokens 
+legados de rank (`--color-cand-*`/`--color-cand-band-*`) foram removidos da UI 
+(commit `19c2ae2`); mapa só pinta cores de partido. `--party-tie` também está
 coberto (1,84:1 contra `--map-stroke` no claro, mas 9,44:1 contra
 `--map-stroke-focus`), embora ele não seja hoje uma cor que o mapa de fato
 pinta (`resolvePartyHex` nunca resolve para "tie"; o token só aparecia na

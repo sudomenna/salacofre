@@ -215,6 +215,8 @@ Intoduzidos em 2026-09-07 para o redesign Atlas Menna (paleta por partido, tipog
 |---|---|---|---|---|---|
 | `<HoverCard />` | atom | ✅ | Card flutuante que segue mouse ou se ancora a um trigger. Conteúdo renderizado sob demanda (lazy). Sem dependência de `framer-motion`. | `components/atoms/overlays/HoverCard.tsx` | Client (useEffect posicionamento) |
 | `<Sheet />` | atom | ✅ | Bottom/side sheet (drawer) com backdrop, animação em CSS puro. Fecha em ESC ou clique no backdrop. | `components/atoms/overlays/Sheet.tsx` | Client (@react-dialog ou sem deps) |
+| `<StateResultSheet />` | block | ✅ S08 | Folha de resumo de estado (UF) acionada por toque no mapa nacional (mobile/sem-hover) ou desktop com ADR-0050. Mostra ranking de candidatos, margem, e botão "Ver detalhes" navegando para `/uf/[sigla]`. | `components/blocks/StateResultSheet.tsx` | Client (folha aberta/fechada) |
+| `<UfHoverLink />` | atom | ✅ S08 | Link aninhado num container hover-state (balão do mapa). Navega para `/uf/[sigla]`, preservando cargo e base ativa (ADR-0050). | `components/atoms/overlays/UfHoverLink.tsx` | Client (router) |
 
 ### Layout
 

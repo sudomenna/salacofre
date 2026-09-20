@@ -27,7 +27,7 @@ status: draft
     <BubbleMap />
     <ChoroplethMap />
   </UFMapDuo>
-  <MunicipioTable />           // RF-037 (virtualizado)
+  <MunicipioTable />           // RF-037 (paginada: 20 + 40)
   <SwingArrowMap />            // RF-038
   <StateNeedle />              // RF-039 (Needle)
   <TimeSeriesChart />          // RF-040

@@ -36,7 +36,7 @@ Estrutura de 3 camadas visuais, todas **sempre presentes no DOM** (sem `display:
 
 **Camada 1 — hero scoreboard** (top-2 do momento): componente `<HeadlineScore />` existente, dimensionamento grande, exibe pct apurado + IC + probabilidade. Ocupa a faixa superior da tela.
 
-**Camada 2 — ranking compacto** (rank 3 a 6): componente `<CandidateRanking />`, linhas de altura média com paleta `colorForRank()` (ADR-0013). Exibe nome, pct, IC em formato comprimido. Omitida se apenas 2 candidatos existirem (contexto 2T).
+**Camada 2 — ranking compacto** (rank 3 a 6): componente `<CandidateRanking />`, linhas de altura média com paleta `colorForParty(sigla)` (ADR-0024, 2026-09-07 — cor editorial por partido, não por rank). Exibe nome, pct, IC em formato comprimido. Omitida se apenas 2 candidatos existirem (contexto 2T).
 
 **Camada 3 — outros** (rank 7+ ou pct apurado < 1%): componente `<MinorCandidatesList />`, lista horizontal compacta em desktop ("Tebet 4.2% · Ciro 3.1% · ...") e lista vertical compacta em mobile (375px). Fonte menor, sem IC exibido individualmente — apenas pct.
 
@@ -60,7 +60,8 @@ A densidade mobile é resolvida via tipografia: Camada 3 usa `font-size: 0.75rem
 ## Cross-refs
 
 - ADR-0018 (seis termômetros como Camada 1 em `multi-1t` — supera parcialmente este ADR nesse modo específico): [0018-termometros-hero-1t.md](0018-termometros-hero-1t.md)
-- ADR-0013 (tokens por rank — paleta usada pelas 3 camadas): [0013-tokens-multi-candidato-por-rank.md](0013-tokens-multi-candidato-por-rank.md)
+- ADR-0013 (tokens legados — superseded por ADR-0024): [0013-tokens-multi-candidato-por-rank.md](0013-tokens-multi-candidato-por-rank.md)
+- ADR-0024 (cor editorial por partido, agora padrão): [0024-paleta-editorial-por-partido.md](0024-paleta-editorial-por-partido.md)
 - ADR-0014 (p_segundo_turno — Camada 1 pode exibir `<TwoRoundIndicator />`): [0014-p-segundo-turno-primeira-classe.md](0014-p-segundo-turno-primeira-classe.md)
 - Spec afetada: `docs/specs/003-home-nacional/spec.md` (seção de candidatos, componente `HeadlineScore`)
 - Spec afetada: `docs/specs/004-pagina-uf-presidencial/spec.md` (componente `CandidateRow` evolui para as 3 camadas)

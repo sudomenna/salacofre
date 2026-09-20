@@ -125,9 +125,9 @@ WHEN a página renderiza, the system SHALL exibir mapa com bubbles proporcionais
 
 WHEN a página renderiza, the system SHALL exibir mapa choropleth da estimativa do resultado nos municípios ainda não apurados.
 
-**RF-037 — Tabela de municípios paginada/virtualizada**
+**RF-037 — Tabela de municípios**
 
-WHEN a página renderiza, the system SHALL exibir tabela de municípios (até 645 em SP) com virtualização para performance.
+WHEN a página renderiza, the system SHALL exibir tabela de municípios ordenada por eleitorado decrescente, **paginada com 20 itens na primeira leva + 40 adicionais por toque** (removida virtualização em 2026-09-20; ADR-0034 D21).
 
 **RF-038 — Mapa de swing vs 2022 com setas/indicadores (Should)**
 

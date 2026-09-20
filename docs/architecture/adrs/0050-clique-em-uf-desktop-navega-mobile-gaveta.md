@@ -23,12 +23,10 @@ um todo continua majoritariamente vigente; só a fração afetada é narrada aqu
 próprio ADR-0033.
 
 **Emenda pendente, fora deste documento**: `docs/specs/003-home-nacional/spec.md:139-142` (RF-030.3)
-ainda diz "WHEN o usuário clica em uma UF, the system SHALL navegar para `/uf/[sigla]`" — sem
-qualificar desktop/mobile. Esta decisão não contraria esse texto (devolve o código a ele); o que falta
-é uma cláusula `WHERE viewport ≥ 960px` diferenciando do comportamento mobile. RF-030.3 continuou
-sendo a fonte de verdade da spec durante os 11 dias em que o código divergiu dela — sob a hierarquia
-constituição > ADRs > NFRs > specs > código, quem estava fora de conformidade era o código, não a
-spec. A emenda ao texto do RF é trabalho do `spec-syncer`, não deste ADR.
+ainda dizia "WHEN o usuário clica em uma UF, the system SHALL navegar para `/uf/[sigla]`" em 2026-09-19.
+**Esta foi emendada em 2026-09-20** (`spec-syncer`) para refletir o critério `pointer: fine` +
+`hover: hover`, não viewport. O texto agora qualifica: desktop com mouse → navega; mobile ou sem 
+fine pointer → gaveta. A emenda sincronizou spec com código.
 
 ## Contexto
 
@@ -76,16 +74,18 @@ Clicar numa UF no mapa nacional volta a **navegar** para `/uf/[sigla]` (Presiden
 `/uf/[sigla]/governador` (Governador) ou `/uf/[sigla]/senador` (Senador) — mas só no **desktop**. No
 mobile, o clique/toque continua abrindo a `<StateResultSheet>` exatamente como hoje.
 
-**1. Divisão por superfície.** O ponto de corte é `min-width: 960px` — o `DESKTOP_QUERY` que já existe
-em `components/blocks/NationalChoroplethMap.tsx:93` e alimenta `useIsDesktop()` (`:110`)
-para decidir se a `<StateResultSheet>` renderiza como cartão lateral (`side`) ou bottom sheet.
+**1. Divisão por superfície.** O critério é **capacidade de ponteiro fino E suporte a hover**: 
+`(hover: hover) and (pointer: fine)` (Media Query, `lib/utils/use-has-fine-pointer.ts`, commit `683ddf8`).
+Usada em `useHoverStore` para decidir se a `<StateResultSheet>` renderiza como cartão lateral (`side`) 
+ou bottom sheet. Viewport **não** é mais o critério — um iPad a 1024px tem fine pointer e abre a 
+gaveta; um mouse a 500px navega direto.
 
 > ⚠️ O hook chamava-se `useIsDesktopSheet()` até esta mudança. Foi renomeado no mesmo
 > commit porque deixou de governar só a FORMA da folha e passou a governar também SE o
 > clique navega — um nome que descreve metade do que a função decide é a próxima linha
 > de documentação a vencer. Este ADR
-reaproveita o mesmo booleano para uma segunda decisão: acima de 960px, o clique no mapa navega; abaixo,
-abre a folha. Nada no `<Sheet>` muda — `BOTTOM_BOX` (`components/atoms/overlays/Sheet.tsx:56-65`)
+reaproveita o mesmo booleano para uma segunda decisão: com ponteiro fino (mouse), o clique navega; 
+sem (toque), abre a folha. Nada no `<Sheet>` muda — `BOTTOM_BOX` (`components/atoms/overlays/Sheet.tsx:56-65`)
 continua sendo a variante mobile, com o mesmo `tap-to-select` que já emite para o `useHoverStore`
 (`_NationalChoroplethMapImpl.tsx:951-956`). O usuário nomeou isso de forma direta: "no mobile continua
 abrindo a gaveta".

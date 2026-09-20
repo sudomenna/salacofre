@@ -230,9 +230,10 @@ site.
   por associação de conteúdo, 0022 e 0029) deixam de contradizer silenciosamente o código — a
   próxima sessão que ler `docs/architecture/adrs/` antes do código não vai mais desfazer o trabalho
   de 08–09/09.
-- A distinção formal entre "ocultar" e "colapsar visualmente" (D21) é reutilizável: qualquer
-  colapso futuro no produto (não só de candidatos) tem agora um precedente escrito de qual mecânica
-  é aceitável e qual não é, sem precisar reabrir o debate do ADR-0017 do zero.
+- A distinção formal entre "ocultar" e "colapsar visualmente" (D21) é reutilizável **só para
+  listagens sem alteração de contagem**. Desde 2026-09-20 (`d5765c4`), `MunicipioTable` pagina
+  REMOVENDO nós da DOM (20 + 40, não colapso visual) — um padrão diferente que não reutiliza esta
+  decisão. Prioridade de futuro: formalizar quando remover é preferível a colapsar.
 - Fecha explicitamente a pendência que o ADR-0033 nomeou como aberta (D17) — a próxima leitura do
   ADR-0029 não encontra mais uma tensão sem resposta na própria nota de Status.
 - A tabela de D23 dá a qualquer agente futuro uma fonte única de "o que saiu de onde e por quê",

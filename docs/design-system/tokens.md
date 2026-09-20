@@ -3,7 +3,7 @@ title: Design Tokens
 description: Design system Atlas Menna — tipografia (Spectral/Archivo/JetBrains Mono), primitivos do kit (papel/tinta), accent ocre, cores de status, cores de partido/federação (paleta editorial), espaçamento, layout
 status: stable
 source: Bloco 1 do redesign (ADR-0024, ADR-0025)
-last_updated: 2026-09-08
+last_updated: 2026-09-20
 ---
 
 # Design Tokens
@@ -120,15 +120,17 @@ Cores base, contrastes medidos em 2026-09-07:
    * specs afirmavam cor por posição, o que contradizia a norma desde 07/09, e foram
    * corrigidas. O único uso vivo destes tokens hoje é FALLBACK de sigla sem token
    * próprio, dentro de candidateColor/candidateMarkerColor. Nenhum componente os lê
-   * direto: tests/unit/components/cor-nunca-do-payload.test.ts varre components/ e
-   * reprova. Remoção é limpeza pós-2º turno (ADR-0013 § Status). */
+   * direto: tests/unit/components/cor-nunca-da-posicao.test.ts (não por-payload)
+   * varre components/ + app/ + lib/ e reprova. Remoção é limpeza pós-2º turno
+   * (ADR-0013 § Status). */
   --color-pt: #d33732;  /* rank 1 — alias de --party-pt-3 */
   --color-pl: #2a52be;  /* rank 2 — alias de --party-pl-3 */
   --color-tossup: #d9d9d9;
   --color-pt-band: #c8d4ed;  /* banda clara de rank 1 — **note: invertida historicamente** */
   --color-pl-band: #f0c9c8;  /* banda clara de rank 2 — **note: invertida historicamente** */
 
-  /* Multi-candidato (ADR-0013, S05/F2) — ver § "Paleta multi-candidato" */
+  /* Multi-candidato (ADR-0013, S05/F2) — LEGADO por backward compat 003/004, substituído
+   * por --party-* em specs novas (constituição § 2). Ver § "Paleta multi-candidato" */
   --color-cand-1: #d33732;   /* mesmo hex de --color-pt */
   --color-cand-2: #2a52be;   /* mesmo hex de --color-pl */
   --color-cand-3: #c97c1f;
@@ -567,16 +569,18 @@ O ADR-0013 permanece documentado aqui por referência histórica de specs 003/00
 usando os tokens `--color-cand-*` legados via backward compat). Para specs novas (Senador,
 Deputado, etc.) usar `--party-{sigla}-{nível}` em vez de rank-based.
 
-### Regra
+### Regra — **LEGADO, não mais válido**
 
+Esta seção descreve o comportamento pre-2026-09-07 e é **referência histórica para specs
+003/004 que usam os tokens `--color-cand-*`**. Para specs novas (016+), usar `--party-*`
+(§ acima, ADR-0024).
+
+**Comportamento superseded em 2026-09-07:**
 - Cores via tokens, **nunca** oficiais partidárias (constituição § 2).
-- Mapping é por **rank no payload publicado**, não por sigla. Top-6
-  candidatos com `pct_apurado_ou_projetado ≥ 1%` recebem cores 1..6.
-  Rank 7+ ou pct < 1% caem em `--color-cand-other` (cinza neutro).
-- **Color lock**: o orchestrator congela o rank de cada candidato no
-  primeiro snapshot em que `pct_apurado ≥ 1%`. Antes disso, rank é
-  ordenado pelo prior de pesquisa (último Datafolha + Quaest). Isso
-  evita troca de cor na tela durante a noite.
+- ~~Mapping é por **rank no payload publicado**, não por sigla~~. **2026-09-20: cor vem da
+  sigla via `--party-*`, e rang não é mais usado** — validado por
+  `tests/unit/components/cor-nunca-da-posicao.test.ts`.
+- ~~**Color lock**: o orchestrator congela o rank~~. Substituído por cor fixa por sigla.
 
 ### Tabela de tokens
 

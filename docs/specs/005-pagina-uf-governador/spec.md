@@ -55,15 +55,15 @@ WHEN `payload.model_fallback_tier >= 2`, the system SHALL exibir banner sobre o 
 
 **RF-005.2 — Waffle de municípios** (Print 3 NYT)
 
-WHEN `payload.municipios.length > 0`, the system SHALL renderizar `<MunicipioWaffleGrid />` com 1 quadrado por município, colorido por líder via `colorForRank()`.
+WHEN `payload.municipios.length > 0`, the system SHALL renderizar `<MunicipioWaffleGrid />` com 1 quadrado por município, colorido por líder via `colorForParty(sigla)` (constituição § 2 — cor é editorial por partido, não por rank).
 
 **RF-005.3 — Apuração por mesorregião** (degrade gracioso, Fase 2 S06)
 
 WHEN `payload.mesorregioes?.length > 0`, the system SHALL renderizar tabela `(nome, % apurado, líder, margem, Δ vs 2022)` ordenada por `cod` ASC. WHEN ausente ou vazia, the system SHALL omitir a seção inteira (sem título sem conteúdo).
 
-**RF-005.4 — Maiores municípios** (S06/F4d refator MunicipioTable)
+**RF-005.4 — Municípios por eleitorado** (S06/F4d refator MunicipioTable; 2026-09-20: paginação)
 
-WHEN ao final da composição, the system SHALL renderizar `<MunicipioTable mode="top-by-eleitorado" topN={15} />` exibindo os 15 maiores municípios por eleitorado com coluna Δ vs 2022.
+WHEN ao final da composição, the system SHALL renderizar `<MunicipioTable />` exibindo a lista **completa** de municípios da UF, ordenada por eleitorado decrescente, **paginada com 20 itens na primeira leva + 40 adicionais por toque** (ADR-0034 D21; igual nas três rotas: Presidente, Governador, Senador).
 
 ### Open question resolvida (kickoff S06)
 

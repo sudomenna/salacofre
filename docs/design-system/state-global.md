@@ -23,12 +23,24 @@ interface HoverState {
   clear: () => void;
 }
 
-export const useHoverStore = create<HoverState>((set) => ({
-  hovered: null,
-  source: null,
-  setHovered: (entity, source) => set({ hovered: entity, source }),
-  clear: () => set({ hovered: null, source: null }),
-}));
+// ⚠️ PADRÃO SUPERSEDED em 2026-09-20 (commit 55c6c04). Não copie este bloco.
+// Use storeUnicaPorPagina() em vez disso:
+export function useHoverStore() {
+  if (typeof window === 'undefined') return createServerFallback();
+  const sym = Symbol.for('hoverStore');
+  if (!globalThis[sym]) {
+    globalThis[sym] = create<HoverState>((set) => ({
+      hovered: null,
+      source: null,
+      setHovered: (entity, source) => set({ hovered: entity, source }),
+      clear: () => set({ hovered: null, source: null }),
+    }));
+  }
+  return globalThis[sym];
+}
+// Nota: no servidor, globalThis é compartilhado entre visitantes. O Symbol garante
+// isolamento por chave, não por visitante. Em produção (Vercel) a instância é descartada
+// a cada request, mas em dev com HMR a assimetria é real e visível.
 ```
 
 ## Selectors finos
