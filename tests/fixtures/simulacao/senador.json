@@ -4634,8 +4634,23 @@
           "sqcand": "10002533895",
           "votos_atuais": 12822,
           "pct_atual": 25.07
+        },
+        {
+          "id": 1003,
+          "pct": 6.2,
+          "nome": "PETECÃO",
+          "partido": "PSD",
+          "sqcand": "10002535804",
+          "votos_atuais": 3517,
+          "pct_atual": 6.88
         }
       ],
+      "outros": {
+        "pct": 7.2,
+        "pct_atual": 7.14,
+        "votos_atuais": 3652,
+        "n_candidatos": 4
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -4716,8 +4731,23 @@
           "sqcand": "40002531447",
           "votos_atuais": 62859,
           "pct_atual": 26.35
+        },
+        {
+          "id": 3003,
+          "pct": 6.2,
+          "nome": "PLINIO VALÉRIO",
+          "partido": "PSDB",
+          "sqcand": "40002537344",
+          "votos_atuais": 14598,
+          "pct_atual": 6.12
         }
       ],
+      "outros": {
+        "pct": 7.18,
+        "pct_atual": 7.47,
+        "votos_atuais": 17813,
+        "n_candidatos": 5
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -4757,8 +4787,23 @@
           "sqcand": "30002549911",
           "votos_atuais": 5560,
           "pct_atual": 11.09
+        },
+        {
+          "id": 4003,
+          "pct": 4,
+          "nome": "LUCAS BARRETO",
+          "partido": "PSD",
+          "sqcand": "30002530069",
+          "votos_atuais": 2251,
+          "pct_atual": 4.49
         }
       ],
+      "outros": {
+        "pct": 3.51,
+        "pct_atual": 3.58,
+        "votos_atuais": 1793,
+        "n_candidatos": 5
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -4798,8 +4843,23 @@
           "sqcand": "50002533123",
           "votos_atuais": 271044,
           "pct_atual": 27.74
+        },
+        {
+          "id": 5003,
+          "pct": 6.2,
+          "nome": "ANGELO CORONEL",
+          "partido": "REPUBLICANOS",
+          "sqcand": "50002533124",
+          "votos_atuais": 59135,
+          "pct_atual": 6.05
         }
       ],
+      "outros": {
+        "pct": 7.19,
+        "pct_atual": 6.83,
+        "votos_atuais": 66712,
+        "n_candidatos": 6
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -4839,8 +4899,23 @@
           "sqcand": "60002539687",
           "votos_atuais": 91309,
           "pct_atual": 14.5
+        },
+        {
+          "id": 6003,
+          "pct": 4.5,
+          "nome": "CID GOMES",
+          "partido": "PSB",
+          "sqcand": "60002542479",
+          "votos_atuais": 34443,
+          "pct_atual": 5.47
         }
       ],
+      "outros": {
+        "pct": 6.0,
+        "pct_atual": 5.87,
+        "votos_atuais": 36884,
+        "n_candidatos": 4
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -4880,8 +4955,23 @@
           "sqcand": "70002552934",
           "votos_atuais": 68498,
           "pct_atual": 10.5
+        },
+        {
+          "id": 7003,
+          "pct": 4,
+          "nome": "RONALDO FONSECA",
+          "partido": "PSD",
+          "sqcand": "70002553751",
+          "votos_atuais": 23189,
+          "pct_atual": 3.56
         }
       ],
+      "outros": {
+        "pct": 3.49,
+        "pct_atual": 3.47,
+        "votos_atuais": 22669,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "chamada"
     },
@@ -4921,8 +5011,23 @@
           "sqcand": "80002553265",
           "votos_atuais": 107119,
           "pct_atual": 15.02
+        },
+        {
+          "id": 8003,
+          "pct": 4.5,
+          "nome": "ROSE DE FREITAS",
+          "partido": "MDB",
+          "sqcand": "80002551368",
+          "votos_atuais": 26718,
+          "pct_atual": 3.75
         }
       ],
+      "outros": {
+        "pct": 6.0,
+        "pct_atual": 5.25,
+        "votos_atuais": 37448,
+        "n_candidatos": 7
+      },
       "vai_a_2t": null,
       "bucket": "chamada"
     },
@@ -4962,8 +5067,23 @@
           "sqcand": "90002540997",
           "votos_atuais": 157110,
           "pct_atual": 13.81
+        },
+        {
+          "id": 9003,
+          "pct": 4.5,
+          "nome": "DR. ZACHARIAS CALIL",
+          "partido": "MDB",
+          "sqcand": "90002546974",
+          "votos_atuais": 48058,
+          "pct_atual": 4.22
         }
       ],
+      "outros": {
+        "pct": 6.0,
+        "pct_atual": 6.34,
+        "votos_atuais": 72067,
+        "n_candidatos": 7
+      },
       "vai_a_2t": null,
       "bucket": "chamada"
     },
@@ -5003,8 +5123,23 @@
           "sqcand": "100002549583",
           "votos_atuais": 115117,
           "pct_atual": 26.24
+        },
+        {
+          "id": 10003,
+          "pct": 6.2,
+          "nome": "LAHESIO BONFIM",
+          "partido": "NOVO",
+          "sqcand": "100002548011",
+          "votos_atuais": 28175,
+          "pct_atual": 6.42
         }
       ],
+      "outros": {
+        "pct": 7.19,
+        "pct_atual": 7.36,
+        "votos_atuais": 32345,
+        "n_candidatos": 6
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -5044,8 +5179,23 @@
           "sqcand": "130002552299",
           "votos_atuais": 1003789,
           "pct_atual": 25.78
+        },
+        {
+          "id": 11003,
+          "pct": 6.2,
+          "nome": "ARCANJO PIMENTA",
+          "partido": "MDB",
+          "sqcand": "130002552302",
+          "votos_atuais": 212520,
+          "pct_atual": 5.46
         }
       ],
+      "outros": {
+        "pct": 7.19,
+        "pct_atual": 6.87,
+        "votos_atuais": 267725,
+        "n_candidatos": 12
+      },
       "vai_a_2t": null,
       "bucket": "chamada"
     },
@@ -5085,8 +5235,23 @@
           "sqcand": "120002535764",
           "votos_atuais": 77701,
           "pct_atual": 13.12
+        },
+        {
+          "id": 12003,
+          "pct": 4,
+          "nome": "ROBERTO OSHIRO",
+          "partido": "NOVO",
+          "sqcand": "120002552115",
+          "votos_atuais": 21888,
+          "pct_atual": 3.7
         }
       ],
+      "outros": {
+        "pct": 3.5,
+        "pct_atual": 3.29,
+        "votos_atuais": 19473,
+        "n_candidatos": 6
+      },
       "vai_a_2t": null,
       "bucket": "chamada"
     },
@@ -5126,8 +5291,23 @@
           "sqcand": "110002552698",
           "votos_atuais": 85065,
           "pct_atual": 16.78
+        },
+        {
+          "id": 13003,
+          "pct": 4.5,
+          "nome": "FÁVARO",
+          "partido": "PSD",
+          "sqcand": "110002544986",
+          "votos_atuais": 20303,
+          "pct_atual": 4.01
         }
       ],
+      "outros": {
+        "pct": 6.0,
+        "pct_atual": 6.04,
+        "votos_atuais": 30598,
+        "n_candidatos": 5
+      },
       "vai_a_2t": null,
       "bucket": "chamada"
     },
@@ -5167,8 +5347,23 @@
           "sqcand": "140002538404",
           "votos_atuais": 62958,
           "pct_atual": 11.6
+        },
+        {
+          "id": 14003,
+          "pct": 4,
+          "nome": "ZEQUINHA MARINHO",
+          "partido": "PODE",
+          "sqcand": "140002542691",
+          "votos_atuais": 25663,
+          "pct_atual": 4.73
         }
       ],
+      "outros": {
+        "pct": 3.51,
+        "pct_atual": 3.36,
+        "votos_atuais": 18233,
+        "n_candidatos": 4
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -5208,8 +5403,23 @@
           "sqcand": "150002544909",
           "votos_atuais": 29339,
           "pct_atual": 10.44
+        },
+        {
+          "id": 15003,
+          "pct": 4,
+          "nome": "VENEZIANO",
+          "partido": "MDB",
+          "sqcand": "150002544905",
+          "votos_atuais": 13001,
+          "pct_atual": 4.63
         }
       ],
+      "outros": {
+        "pct": 3.5,
+        "pct_atual": 3.45,
+        "votos_atuais": 9715,
+        "n_candidatos": 6
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -5249,8 +5459,23 @@
           "sqcand": "170002552097",
           "votos_atuais": 146486,
           "pct_atual": 23.16
+        },
+        {
+          "id": 16003,
+          "pct": 6.2,
+          "nome": "CARLOS SANT ANNA",
+          "partido": "NOVO",
+          "sqcand": "170002530097",
+          "votos_atuais": 44993,
+          "pct_atual": 7.11
         }
       ],
+      "outros": {
+        "pct": 7.2,
+        "pct_atual": 7.95,
+        "votos_atuais": 50236,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -5290,8 +5515,23 @@
           "sqcand": "180002533964",
           "votos_atuais": 25634,
           "pct_atual": 10.81
+        },
+        {
+          "id": 17003,
+          "pct": 4,
+          "nome": "JORGE LOPES",
+          "partido": "PSDB",
+          "sqcand": "180002548568",
+          "votos_atuais": 9316,
+          "pct_atual": 3.93
         }
       ],
+      "outros": {
+        "pct": 3.49,
+        "pct_atual": 3.46,
+        "votos_atuais": 8219,
+        "n_candidatos": 14
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -5331,6 +5571,15 @@
           "sqcand": "160002551043",
           "votos_atuais": 246258,
           "pct_atual": 10.81
+        },
+        {
+          "id": 18003,
+          "pct": 4.15,
+          "nome": "KAREN GUERREIRO",
+          "partido": "MISSÃO",
+          "sqcand": "160002551121",
+          "votos_atuais": 86812,
+          "pct_atual": 3.81
         }
       ],
       "vai_a_2t": null,
@@ -5372,8 +5621,23 @@
           "sqcand": "190002535142",
           "votos_atuais": 442336,
           "pct_atual": 15.29
+        },
+        {
+          "id": 19003,
+          "pct": 4.5,
+          "nome": "MARCELO CRIVELLA",
+          "partido": "REPUBLICANOS",
+          "sqcand": "190002550184",
+          "votos_atuais": 122809,
+          "pct_atual": 4.24
         }
       ],
+      "outros": {
+        "pct": 5.98,
+        "pct_atual": 5.92,
+        "votos_atuais": 171301,
+        "n_candidatos": 9
+      },
       "vai_a_2t": null,
       "bucket": "chamada"
     },
@@ -5413,8 +5677,23 @@
           "sqcand": "200002535511",
           "votos_atuais": 64445,
           "pct_atual": 27.68
+        },
+        {
+          "id": 20003,
+          "pct": 6.2,
+          "nome": "ZENAIDE MAIA",
+          "partido": "PSD",
+          "sqcand": "200002535507",
+          "votos_atuais": 13748,
+          "pct_atual": 5.9
         }
       ],
+      "outros": {
+        "pct": 7.22,
+        "pct_atual": 7.7,
+        "votos_atuais": 17925,
+        "n_candidatos": 10
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -5454,8 +5733,23 @@
           "sqcand": "220002539995",
           "votos_atuais": 17561,
           "pct_atual": 16.76
+        },
+        {
+          "id": 21003,
+          "pct": 4.5,
+          "nome": "MARIANA CARVALHO",
+          "partido": "REPUBLICANOS",
+          "sqcand": "220002547310",
+          "votos_atuais": 4869,
+          "pct_atual": 4.65
         }
       ],
+      "outros": {
+        "pct": 6.0,
+        "pct_atual": 5.97,
+        "votos_atuais": 6260,
+        "n_candidatos": 5
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -5495,8 +5789,23 @@
           "sqcand": "230002553010",
           "votos_atuais": 3501,
           "pct_atual": 10.12
+        },
+        {
+          "id": 22003,
+          "pct": 4,
+          "nome": "TERESA SURITA",
+          "partido": "MDB",
+          "sqcand": "230002553006",
+          "votos_atuais": 1391,
+          "pct_atual": 4.02
         }
       ],
+      "outros": {
+        "pct": 3.5,
+        "pct_atual": 3.39,
+        "votos_atuais": 1170,
+        "n_candidatos": 9
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -5536,8 +5845,23 @@
           "sqcand": "210002543863",
           "votos_atuais": 464175,
           "pct_atual": 25.43
+        },
+        {
+          "id": 23003,
+          "pct": 6.2,
+          "nome": "FREDERICO ANTUNES",
+          "partido": "PSD",
+          "sqcand": "210002543865",
+          "votos_atuais": 114942,
+          "pct_atual": 6.3
         }
       ],
+      "outros": {
+        "pct": 7.2,
+        "pct_atual": 7.26,
+        "votos_atuais": 132419,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -5577,8 +5901,23 @@
           "sqcand": "240002541935",
           "votos_atuais": 289801,
           "pct_atual": 27.88
+        },
+        {
+          "id": 24003,
+          "pct": 6.2,
+          "nome": "LUNELLI",
+          "partido": "MDB",
+          "sqcand": "240002548630",
+          "votos_atuais": 71659,
+          "pct_atual": 6.89
         }
       ],
+      "outros": {
+        "pct": 7.18,
+        "pct_atual": 6.64,
+        "votos_atuais": 69004,
+        "n_candidatos": 5
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -5618,8 +5957,23 @@
           "sqcand": "260002551362",
           "votos_atuais": 26049,
           "pct_atual": 17.29
+        },
+        {
+          "id": 25003,
+          "pct": 4.5,
+          "nome": "ANDRÉ MOURA",
+          "partido": "UNIÃO",
+          "sqcand": "260002547290",
+          "votos_atuais": 7687,
+          "pct_atual": 5.1
         }
       ],
+      "outros": {
+        "pct": 6.0,
+        "pct_atual": 6.14,
+        "votos_atuais": 9261,
+        "n_candidatos": 5
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -5659,8 +6013,23 @@
           "sqcand": "250002551502",
           "votos_atuais": 1413654,
           "pct_atual": 15.74
+        },
+        {
+          "id": 26003,
+          "pct": 4.5,
+          "nome": "GUILHERME DERRITE",
+          "partido": "PP",
+          "sqcand": "250002541312",
+          "votos_atuais": 431868,
+          "pct_atual": 4.81
         }
       ],
+      "outros": {
+        "pct": 6.0,
+        "pct_atual": 6.31,
+        "votos_atuais": 566894,
+        "n_candidatos": 11
+      },
       "vai_a_2t": null,
       "bucket": "chamada"
     },
@@ -5700,8 +6069,23 @@
           "sqcand": "270002548231",
           "votos_atuais": 16037,
           "pct_atual": 16.04
+        },
+        {
+          "id": 27003,
+          "pct": 4.5,
+          "nome": "ELI BORGES",
+          "partido": "REPUBLICANOS",
+          "sqcand": "270002548409",
+          "votos_atuais": 4054,
+          "pct_atual": 4.06
         }
       ],
+      "outros": {
+        "pct": 5.98,
+        "pct_atual": 5.59,
+        "votos_atuais": 5605,
+        "n_candidatos": 9
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     }

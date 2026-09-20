@@ -295,8 +295,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 7323,
           "pct_atual": 14.32
+        },
+        {
+          "id": 30,
+          "pct": 2.69,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 1095,
+          "pct_atual": 2.14
         }
       ],
+      "outros": {
+        "pct": 3.84,
+        "pct_atual": 3.69,
+        "votos_atuais": 1877,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -336,8 +351,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 37662,
           "pct_atual": 18.83
+        },
+        {
+          "id": 30,
+          "pct": 2.35,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 4217,
+          "pct_atual": 2.11
         }
       ],
+      "outros": {
+        "pct": 4.88,
+        "pct_atual": 4.97,
+        "votos_atuais": 9892,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -377,8 +407,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 41849,
           "pct_atual": 17.54
+        },
+        {
+          "id": 30,
+          "pct": 4.39,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 10443,
+          "pct_atual": 4.38
         }
       ],
+      "outros": {
+        "pct": 4.69,
+        "pct_atual": 4.77,
+        "votos_atuais": 11384,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -418,8 +463,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 11058,
           "pct_atual": 22.06
+        },
+        {
+          "id": 30,
+          "pct": 4.56,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 2782,
+          "pct_atual": 5.55
         }
       ],
+      "outros": {
+        "pct": 5.07,
+        "pct_atual": 5.04,
+        "votos_atuais": 2527,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -459,8 +519,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 175042,
           "pct_atual": 17.91
+        },
+        {
+          "id": 30,
+          "pct": 2.34,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 21307,
+          "pct_atual": 2.18
         }
       ],
+      "outros": {
+        "pct": 3.83,
+        "pct_atual": 3.52,
+        "votos_atuais": 34408,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -500,8 +575,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 105610,
           "pct_atual": 16.77
+        },
+        {
+          "id": 30,
+          "pct": 2.34,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 14801,
+          "pct_atual": 2.35
         }
       ],
+      "outros": {
+        "pct": 3.79,
+        "pct_atual": 3.52,
+        "votos_atuais": 22211,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -541,8 +631,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 101231,
           "pct_atual": 15.52
+        },
+        {
+          "id": 30,
+          "pct": 9.1,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 59573,
+          "pct_atual": 9.13
         }
       ],
+      "outros": {
+        "pct": 8.17,
+        "pct_atual": 7.76,
+        "votos_atuais": 50547,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -582,8 +687,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 137871,
           "pct_atual": 19.34
+        },
+        {
+          "id": 30,
+          "pct": 5.23,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 39775,
+          "pct_atual": 5.58
         }
       ],
+      "outros": {
+        "pct": 4.43,
+        "pct_atual": 4.64,
+        "votos_atuais": 33068,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -623,8 +743,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 167379,
           "pct_atual": 14.71
+        },
+        {
+          "id": 30,
+          "pct": 5.33,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 63903,
+          "pct_atual": 5.62
         }
       ],
+      "outros": {
+        "pct": 4.57,
+        "pct_atual": 4.55,
+        "votos_atuais": 51766,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -664,8 +799,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 72522,
           "pct_atual": 16.53
+        },
+        {
+          "id": 30,
+          "pct": 1.81,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 9181,
+          "pct_atual": 2.09
         }
       ],
+      "outros": {
+        "pct": 3.71,
+        "pct_atual": 3.7,
+        "votos_atuais": 16196,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -705,8 +855,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 606284,
           "pct_atual": 15.57
+        },
+        {
+          "id": 30,
+          "pct": 13.6,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 509381,
+          "pct_atual": 13.08
         }
       ],
+      "outros": {
+        "pct": 5.32,
+        "pct_atual": 5.41,
+        "votos_atuais": 210868,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -746,8 +911,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 98366,
           "pct_atual": 16.61
+        },
+        {
+          "id": 30,
+          "pct": 5.2,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 31448,
+          "pct_atual": 5.31
         }
       ],
+      "outros": {
+        "pct": 3.89,
+        "pct_atual": 4.15,
+        "votos_atuais": 24616,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -787,8 +967,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 86355,
           "pct_atual": 17.04
+        },
+        {
+          "id": 30,
+          "pct": 4.08,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 19688,
+          "pct_atual": 3.88
         }
       ],
+      "outros": {
+        "pct": 3.76,
+        "pct_atual": 3.94,
+        "votos_atuais": 19992,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -828,8 +1023,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 94156,
           "pct_atual": 17.34
+        },
+        {
+          "id": 30,
+          "pct": 2.11,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 11084,
+          "pct_atual": 2.04
         }
       ],
+      "outros": {
+        "pct": 3.53,
+        "pct_atual": 3.47,
+        "votos_atuais": 18827,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -869,8 +1079,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 57228,
           "pct_atual": 20.37
+        },
+        {
+          "id": 30,
+          "pct": 2.5,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 7820,
+          "pct_atual": 2.78
         }
       ],
+      "outros": {
+        "pct": 4.23,
+        "pct_atual": 4.03,
+        "votos_atuais": 11346,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -910,8 +1135,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 92616,
           "pct_atual": 14.64
+        },
+        {
+          "id": 30,
+          "pct": 2.92,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 18148,
+          "pct_atual": 2.87
         }
       ],
+      "outros": {
+        "pct": 3.99,
+        "pct_atual": 3.91,
+        "votos_atuais": 24782,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -951,8 +1191,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 44617,
           "pct_atual": 18.81
+        },
+        {
+          "id": 30,
+          "pct": 2.28,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 5302,
+          "pct_atual": 2.24
         }
       ],
+      "outros": {
+        "pct": 3.46,
+        "pct_atual": 3.48,
+        "votos_atuais": 8280,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -992,8 +1247,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 317435,
           "pct_atual": 13.93
+        },
+        {
+          "id": 30,
+          "pct": 7.65,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 182554,
+          "pct_atual": 8.01
         }
       ],
+      "outros": {
+        "pct": 4.96,
+        "pct_atual": 4.86,
+        "votos_atuais": 110553,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -1033,8 +1303,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 446691,
           "pct_atual": 15.44
+        },
+        {
+          "id": 30,
+          "pct": 7.16,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 212985,
+          "pct_atual": 7.36
         }
       ],
+      "outros": {
+        "pct": 8.6,
+        "pct_atual": 7.99,
+        "votos_atuais": 231077,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -1074,8 +1359,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 33905,
           "pct_atual": 14.56
+        },
+        {
+          "id": 30,
+          "pct": 2.2,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 5408,
+          "pct_atual": 2.32
         }
       ],
+      "outros": {
+        "pct": 4.71,
+        "pct_atual": 4.67,
+        "votos_atuais": 10848,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -1115,8 +1415,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 17828,
           "pct_atual": 17.02
+        },
+        {
+          "id": 30,
+          "pct": 4.25,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 4262,
+          "pct_atual": 4.07
         }
       ],
+      "outros": {
+        "pct": 4.18,
+        "pct_atual": 4.1,
+        "votos_atuais": 4300,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -1156,8 +1471,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 5653,
           "pct_atual": 16.33
+        },
+        {
+          "id": 30,
+          "pct": 4.39,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 1487,
+          "pct_atual": 4.3
         }
       ],
+      "outros": {
+        "pct": 4.05,
+        "pct_atual": 4.05,
+        "votos_atuais": 1404,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -1197,8 +1527,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 318587,
           "pct_atual": 17.45
+        },
+        {
+          "id": 30,
+          "pct": 8.87,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 175390,
+          "pct_atual": 9.61
         }
       ],
+      "outros": {
+        "pct": 5.07,
+        "pct_atual": 5.28,
+        "votos_atuais": 96207,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -1238,8 +1583,23 @@
           "sqcand": "280002539826",
           "votos_atuais": 187251,
           "pct_atual": 18.01
+        },
+        {
+          "id": 55,
+          "pct": 14.99,
+          "nome": "RONALDO CAIADO",
+          "partido": "PSD",
+          "sqcand": "280002551932",
+          "votos_atuais": 144245,
+          "pct_atual": 13.88
         }
       ],
+      "outros": {
+        "pct": 4.98,
+        "pct_atual": 4.83,
+        "votos_atuais": 50162,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -1279,8 +1639,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 27939,
           "pct_atual": 18.55
+        },
+        {
+          "id": 30,
+          "pct": 2.72,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 4590,
+          "pct_atual": 3.05
         }
       ],
+      "outros": {
+        "pct": 5.99,
+        "pct_atual": 5.7,
+        "votos_atuais": 8593,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -1320,8 +1695,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 1562732,
           "pct_atual": 17.4
+        },
+        {
+          "id": 30,
+          "pct": 11.74,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 1078044,
+          "pct_atual": 12.01
         }
       ],
+      "outros": {
+        "pct": 9.8,
+        "pct_atual": 10.32,
+        "votos_atuais": 925326,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     },
@@ -1361,8 +1751,23 @@
           "sqcand": "280002551932",
           "votos_atuais": 18052,
           "pct_atual": 18.06
+        },
+        {
+          "id": 30,
+          "pct": 2.56,
+          "nome": "ZEMA",
+          "partido": "NOVO",
+          "sqcand": "280002539826",
+          "votos_atuais": 2282,
+          "pct_atual": 2.28
         }
       ],
+      "outros": {
+        "pct": 2.96,
+        "pct_atual": 2.86,
+        "votos_atuais": 2859,
+        "n_candidatos": 8
+      },
       "vai_a_2t": null,
       "bucket": "indefinido"
     }

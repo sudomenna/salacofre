@@ -145,6 +145,29 @@ def _log(level: str, msg: str, **ctx: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Forma do payload por UF — constantes
+# ---------------------------------------------------------------------------
+
+#: Quantas candidaturas entram em `EdgeUfRow.top_candidatos[]` (2026-09-19,
+#: pedido do dono — o balão de hover dos mapas passa de 3 para 4 linhas + uma
+#: linha "Outros").
+#:
+#: **Por que é uma constante e não um `4` literal.** O número é lido em DOIS
+#: lugares que TÊM de concordar: o corte (`ordered[:TOP_CANDIDATOS_POR_UF]`) e
+#: a cauda que vira o agregado `outros` (`ordered[TOP_CANDIDATOS_POR_UF:]`).
+#: Dois literais divergem em silêncio — um `[:4]` com um `[5:]` republicaria a
+#: 5ª candidatura duas vezes (uma como linha própria, outra dentro de
+#: "Outros"), e a soma `Σtop + outros` passaria de 100% sem nenhuma exceção
+#: ser levantada. Um único nome torna a divergência impossível de escrever.
+#:
+#: NÃO confundir com `SERIE_ELENCO` (também 4): aquele é quantas candidaturas
+#: entram no GRÁFICO de evolução (ADR-0046 D4), uma decisão de densidade de
+#: traço; este é quantas linhas o BALÃO mostra. Coincidem hoje por acaso e
+#: podem divergir amanhã sem que nada quebre.
+TOP_CANDIDATOS_POR_UF = 4
+
+
+# ---------------------------------------------------------------------------
 # Pydantic schemas — contrato do endpoint
 # ---------------------------------------------------------------------------
 
@@ -5026,7 +5049,9 @@ def build_edge_payload(
                     composicao_por_partido.get(sigla_partido, 0) + 1
                 )
 
-        # S05/F4c (ADR-0017) — top-3 candidatos da UF, tie-break por id ASC.
+        # S05/F4c (ADR-0017) — top-N candidatos da UF, tie-break por id ASC.
+        # `N` era 3 até 2026-09-19; virou `TOP_CANDIDATOS_POR_UF` (= 4) a
+        # pedido do dono, junto com a linha "Outros" logo abaixo.
         #
         # Spec 018 / RF-144 + ADR-0042 item 3: a linha da UF passa a carregar
         # a própria identidade (`nome`/`partido`/`sqcand`) em vez de obrigar o
@@ -5053,7 +5078,7 @@ def build_edge_payload(
         # estados diferentes (decisão do dono, 14/09; ver `swing_vs_2022`
         # alguns campos acima pela mesma regra).
         top_candidatos: list[dict[str, Any]] = []
-        for r in ordered[:3]:
+        for r in ordered[:TOP_CANDIDATOS_POR_UF]:
             cid_top = int(r["candidato_id"])
             item_top: dict[str, Any] = {
                 "id": cid_top,
@@ -5077,6 +5102,146 @@ def build_edge_payload(
                 item_top["pct_atual"] = float(pct_atual_top)
             top_candidatos.append(item_top)
 
+        # ── "Outros" — o que sobra depois do corte ─────────────────────────
+        #
+        # 2026-09-19 (pedido do dono): o balão de hover dos mapas mostra 4
+        # candidaturas + uma linha "Outros" com o quanto TODOS os demais
+        # somados representam. `cauda` é literalmente o complemento de
+        # `ordered[:TOP_CANDIDATOS_POR_UF]` sobre a MESMA lista já ordenada —
+        # por isso o mesmo nome nos dois fatiamentos (ver a docstring da
+        # constante): top e cauda particionam `ordered`, sem sobra nem
+        # sobreposição, por construção.
+        #
+        # 🔴 (a) SOMA CANDIDATO A CANDIDATO, NUNCA `100 - Σ(top 4)`.
+        #
+        # As duas contas parecem equivalentes e não são. `pct_projetado` é um
+        # PONTO por candidatura (mean dos resamples do bootstrap, base
+        # votáveis) e a soma de todos os pontos de uma UF não fecha em 100
+        # exatamente — fecha em 100 ± um resíduo de fechamento, porque cada
+        # média foi tirada separadamente. A subtração jogaria esse resíduo
+        # inteiro dentro de "Outros", isto é, transformaria erro de fechamento
+        # em "voto de alguém": um número inventado com cara de aritmética, que
+        # cresce justamente quando a apuração está baixa e o resíduo é maior.
+        # A soma direta não tem esse defeito — ela mede a cauda, não o que
+        # falta para o topo.
+        #
+        # Não é regra nova neste arquivo: `compute_outros_estimates` (acima)
+        # soma os resamples da cauda pela MESMA razão, e o teste
+        # `tests/unit/model/test_outros.py::
+        # test_5_candidatos_soma_rank_4_e_5_por_resample` trava a soma
+        # elementwise contra exatamente esta mutação. A diferença é que lá a
+        # soma preserva o IC95; aqui não há IC nenhum a preservar (são pontos),
+        # e a razão para somar é a outra metade do mesmo argumento.
+        #
+        # 🔴 (b) `pct_atual` É TUDO-OU-NADA.
+        #
+        # Somar só os membros da cauda que têm `pct_atual` publicaria "os
+        # demais somam 3,1%" quando 3,1% é o que UM deles tem e dos outros não
+        # sabemos nada — medição servindo de capa para ausência. Decisão
+        # durável do dono (14/09): "não começou", "não sabemos" e "apurando"
+        # são TRÊS estados distintos, e nenhum deles se escreve como um número
+        # menor.
+        #
+        # Na prática a condição é por UF INTEIRA, não por candidato: quem anula
+        # `pct_atual` é `impute_uf_from_national` (`api/model/extrapolation.py`,
+        # ~:551), que monta `pct_atual_votaveis: None` para TODOS os candidatos
+        # da UF de uma vez — é o caso "a UF não tem nenhuma zona apurada e o
+        # share veio do agregado nacional" (cargo 1, RF-017 2º nível). Ou seja:
+        # em produção o `all(...)` abaixo é sempre 27-de-27 ou 0-de-27. Ele
+        # está escrito por candidato mesmo assim porque é a condição CORRETA
+        # se algum dia a imputação virar parcial — e porque um `all()` explícito
+        # é o que discrimina a mutação, enquanto um `if pct_atual_do_primeiro`
+        # passaria hoje por coincidência.
+        #
+        # `votos_atuais` NÃO segue a sorte do `pct_atual`: na linha imputada ele
+        # vale `0`, e `0` ali é um FATO — zero boletim chegado — não ausência.
+        # Omiti-lo junto com `pct_atual` apagaria um dado medido por causa de
+        # outro que falta.
+        #
+        # ⚠️ **Desvio deliberado do plano de 2026-09-19**, que escrevia
+        # `int(sum(int(rc.get("votos_atuais") or 0) ...))` incondicionalmente.
+        # Em produção dá no mesmo (`_uf_projection_row` sempre grava o `int`),
+        # mas em caller LEGADO — `uf_rows` sem a chave, caso real exercido por
+        # `tests/unit/model/test_sqcand_string.py` e por
+        # `test_top_candidatos_votos_pct_atual.py::
+        # test_linha_sem_as_chaves_nenhuma_regressao_de_keyerror` — o `or 0`
+        # publicaria `"votos_atuais": 0` para a cauda no MESMO payload em que
+        # os `top_candidatos[]` omitem o campo por não o terem. Duas respostas
+        # diferentes para a mesma ausência, e a de "Outros" seria a afirmação
+        # falsa "a cauda não recebeu nenhum voto". A condição abaixo é a mesma
+        # de `pct_atual` — tudo-ou-nada sobre a PRESENÇA da chave —, com a
+        # diferença que importa: um `0` presente é publicado como `0`.
+        #
+        # ── O denominador: as duas pontas usam a MESMA base (verificado) ────
+        #
+        # "Outros = X% dos votos" só é somável com as 4 linhas de cima se o
+        # denominador for o mesmo, e é:
+        #
+        #   - Aqui/nacional: `pct_atual` desta linha é `pct_atual_votaveis` de
+        #     `CandidatoEstimate` (`_uf_projection_row`, ~:2266), que vale
+        #     `Σ vap_c / Σ vvc` (`api/model/extrapolation.py:344`,
+        #     `pct_atual_v = sum_vap / sum_vvc`). `vvc` = EA20 `v.vvc`, "votos
+        #     a votáveis concorrentes" — a soma dos votos de TODOS os
+        #     concorrentes da zona. O denominador JÁ INCLUI a cauda: top-4 e
+        #     cauda são frações do mesmo total, e somá-las é legítimo.
+        #     `pct_projetado` é `pct_projetado_votaveis`, o análogo projetado
+        #     sobre `Σ B_v` — mesma base, mesma propriedade.
+        #   - Municipal: `pct = v / Σ votos_reportados`
+        #     (`lib/utils/municipio-votos.ts:118`), e a docstring :80-96 desse
+        #     arquivo já demonstra ser a MESMA identidade sobre um subconjunto
+        #     de zonas (o município em vez da UF) — `votos_reportados` é a soma
+        #     de `cand[].vap` candidato a candidato, que é a segunda forma de
+        #     escrever `vvc`. Batem.
+        #
+        # ⚠️ RÓTULO: a base é "votáveis" (`vvc`), NUNCA "válidos" (`vv`) —
+        # ADR-0018 e o EA20 são explícitos que os dois campos são diferentes.
+        # O pedido do dono fala em "% de votos válidos" e a UI usa esse rótulo;
+        # a conta abaixo é a mesma que o resto do produto já publica sob esse
+        # nome, então "Outros" não introduz inconsistência nova — mas o
+        # vocabulário correto em código é "votáveis".
+        #
+        # ⚠️ SENADO (cargo 5, 2 vagas): cada eleitor vota em DUAS
+        # candidaturas, então `Σ vvc` da zona vale ~2× o comparecimento. Isso
+        # não quebra nada aqui: numerador e denominador saem do MESMO `vvc`, a
+        # identidade `Σ_c pct_atual(c) = 100%` continua exata, e o que o número
+        # significa é "% dos VOTOS", não "% dos eleitores" — que é exatamente
+        # como o TSE divulga o cargo. A única leitura proibida é somar essas
+        # frações com uma métrica de comparecimento (ADR-0020: as duas bases
+        # não são intercambiáveis), e "Outros" não faz isso.
+        #
+        # ⚠️ `round(..., 5)` sobre a SOMA — segundo desvio deliberado do plano,
+        # que escrevia `float(sum(...))` cru. As parcelas já saem de
+        # `_frac_to_pct` com 5 casas (precisão de `NUMERIC(8,5)`), mas somar
+        # floats de 5 casas ressuscita o ruído binário: `2.69 + 1.15` vale
+        # `3.8400000000000003` em Python, e é ASSIM que iria para o JSON —
+        # 18 caracteres de um número que só tem 3 dígitos significativos,
+        # no meio de um payload cujo teto é de 1 MB. Arredondar na mesma
+        # precisão das parcelas é o que `_outros_metric_payload` já faz com o
+        # agregado irmão de `participacao` (ele publica via `_frac_to_pct`), e
+        # não muda nenhum dígito que alguém leia. NÃO confundir com a
+        # subtração proibida acima: o que está vedado é trocar a soma pelo
+        # complemento, não dar à soma a precisão que as parcelas têm.
+        # A ordem das chaves segue a declaração de `EdgeUfRow.outros` em
+        # `lib/edge-config/types.ts` e a de `outrosDaCauda` no gerador de
+        # simulação. Ordem de chave não muda semântica de JSON nenhuma — muda o
+        # DIFF entre um payload de produção e uma fixture, que é onde alguém vai
+        # comparar os dois a olho.
+        cauda = ordered[TOP_CANDIDATOS_POR_UF:]
+        outros_top: dict[str, Any] | None = None
+        if cauda:
+            outros_top = {
+                "pct": round(
+                    sum(float(rc.get("pct_projetado") or 0.0) for rc in cauda), 5
+                )
+            }
+            pcts_cauda = [rc.get("pct_atual") for rc in cauda]
+            if all(p is not None for p in pcts_cauda):
+                outros_top["pct_atual"] = round(sum(float(p) for p in pcts_cauda), 5)
+            votos_cauda = [rc.get("votos_atuais") for rc in cauda]
+            if all(v is not None for v in votos_cauda):
+                outros_top["votos_atuais"] = int(sum(int(v) for v in votos_cauda))
+            outros_top["n_candidatos"] = len(cauda)
+
         # vai_a_2t: aplicável apenas a governador 1T (cargo=3, turno=1).
         # Para presidente, a decisão de 2T é NACIONAL — null por UF.
         if int(cargo) == 3 and int(turno) == 1:
@@ -5095,38 +5260,45 @@ def build_edge_payload(
         else:
             bucket = "indefinido"
 
-        por_uf.append(
-            {
-                "sigla": sigla,
-                "pct_apurado": float(top.get("pct_apurado") or 0.0),
-                "lider": int(top["candidato_id"]),
-                "margem_atual": float(margem),
-                "margem_projetada": float(margem),
-                "margem_projetada_ci": [float(ci_lower), float(ci_upper)],
-                # Placeholder v1: regra simples até spec de "chamada" definitiva.
-                "chamada": chamada,
-                # `None`, nunca 0.0. Sob a constituição 1.2 (§ 8) a comparação
-                # com 2022 é um FATO OBSERVADO exibido ao leitor, não um
-                # insumo interno do modelo — e `0.0` em toda UF afirmaria na
-                # tela que "nenhuma UF mudou desde 2022", que é falso. O tipo
-                # `EdgeUfRow.swing_vs_2022` já é `number | null` e a UI já
-                # renderiza "—" para null. Achado HIGH do `constitution-guard`
-                # em 2026-09-05.
-                #
-                # Fase 5 (2026-09-18): o valor real passou a existir —
-                # `compute_swing_descritivo` (E1 do plano § B) o calcula a
-                # partir de `historical_results.votos`. Quem NÃO tem número de
-                # 2022 continua saindo `None` por este mesmo `.get`, que é o
-                # ponto: o default do dict ausente é `None`, não `0.0`, e
-                # continuará sendo mesmo que `swing_by_uf` não seja passado
-                # (caller legado, replay, fixture).
-                "swing_vs_2022": (swing_by_uf or {}).get(sigla),
-                # S05/F4c — multi-candidato (ADR-0017).
-                "top_candidatos": top_candidatos,
-                "vai_a_2t": vai_a_2t,
-                "bucket": bucket,
-            }
-        )
+        linha_uf: dict[str, Any] = {
+            "sigla": sigla,
+            "pct_apurado": float(top.get("pct_apurado") or 0.0),
+            "lider": int(top["candidato_id"]),
+            "margem_atual": float(margem),
+            "margem_projetada": float(margem),
+            "margem_projetada_ci": [float(ci_lower), float(ci_upper)],
+            # Placeholder v1: regra simples até spec de "chamada" definitiva.
+            "chamada": chamada,
+            # `None`, nunca 0.0. Sob a constituição 1.2 (§ 8) a comparação
+            # com 2022 é um FATO OBSERVADO exibido ao leitor, não um
+            # insumo interno do modelo — e `0.0` em toda UF afirmaria na
+            # tela que "nenhuma UF mudou desde 2022", que é falso. O tipo
+            # `EdgeUfRow.swing_vs_2022` já é `number | null` e a UI já
+            # renderiza "—" para null. Achado HIGH do `constitution-guard`
+            # em 2026-09-05.
+            #
+            # Fase 5 (2026-09-18): o valor real passou a existir —
+            # `compute_swing_descritivo` (E1 do plano § B) o calcula a
+            # partir de `historical_results.votos`. Quem NÃO tem número de
+            # 2022 continua saindo `None` por este mesmo `.get`, que é o
+            # ponto: o default do dict ausente é `None`, não `0.0`, e
+            # continuará sendo mesmo que `swing_by_uf` não seja passado
+            # (caller legado, replay, fixture).
+            "swing_vs_2022": (swing_by_uf or {}).get(sigla),
+            # S05/F4c — multi-candidato (ADR-0017).
+            "top_candidatos": top_candidatos,
+            "vai_a_2t": vai_a_2t,
+            "bucket": bucket,
+        }
+        # Chave AUSENTE, nunca `None`. `EdgeUfRow.outros` é OPCIONAL no
+        # contrato TS; publicar `"outros": null` obrigaria todo consumidor a
+        # distinguir "não há cauda" de "há cauda e não sabemos nada dela" —
+        # dois estados que este payload nunca produz (sem cauda ⇒ nada a dizer;
+        # com cauda ⇒ `pct` e `n_candidatos` SEMPRE existem). Mesma regra dos
+        # campos condicionais de `top_candidatos[]` logo acima.
+        if outros_top is not None:
+            linha_uf["outros"] = outros_top
+        por_uf.append(linha_uf)
 
     # S05/F4c (ADR-0014) — em 2T, métricas multi-candidato degeneram:
     #   p_segundo_turno_overall = None (já estamos no 2T)

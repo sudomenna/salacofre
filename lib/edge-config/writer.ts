@@ -420,7 +420,69 @@ const EDGE_CONFIG_SIZE_WARN_BYTES = 450 * 1024;
  *     algo voltou a inflar o resumo — que é exatamente o que o aviso deve
  *     pegar.
  */
-const EDGE_CONFIG_NATIONAL_WARN_BYTES = 75 * 1024;
+const EDGE_CONFIG_NATIONAL_WARN_BASE_BYTES = 75 * 1024;
+
+/**
+ * Elenco para o qual o piso de 75 KB foi calibrado (ADR-0014, S05): o
+ * presidencial cheio. Abaixo disso o limiar não encolhe — o piso é piso.
+ */
+const EDGE_CONFIG_WARN_ELENCO_BASE = 12;
+
+/**
+ * Folga por candidatura ACIMA do elenco base.
+ *
+ * Medido em 2026-09-19 sobre os payloads reais, e a medição é o ponto:
+ *
+ * | cargo | candidaturas | payload | por candidatura |
+ * |---|---|---|---|
+ * | Presidente | 12 | 26,7 KiB | — |
+ * | Governador | 180 | 70,0 KiB | **281 B** |
+ * | Senador | 285 | 98,8 KiB | **281 B** |
+ *
+ * O custo marginal é **constante** nos dois cargos de 27 corridas — o que
+ * varia é quanta gente concorre. 512 B é ~1,8× o medido: uma candidatura
+ * ficar duas vezes mais cara continua sendo blow-up e continua acendendo a
+ * luz; um cargo legitimamente disputado, não.
+ */
+const EDGE_CONFIG_WARN_BYTES_POR_CANDIDATURA = 512;
+
+/**
+ * Limiar de aviso do payload nacional, **em função do elenco**.
+ *
+ * 🔴 **Correção de 2026-09-19 — o limiar fixo media a coisa errada.** Os 75 KB
+ * foram calibrados para "11 candidatos + `cenarios_2t`", e o comentário acima
+ * diz isso por escrito. Aplicá-los ao Senado — que junta 27 corridas de 2
+ * vagas num payload só, **285 candidaturas** — é comparar coisas diferentes: o
+ * alarme tocava em 98,8 KiB por motivo nenhum, e tocava **desde antes** desta
+ * rodada (94,3 KiB medidos no payload anterior). Um alarme que toca sempre é
+ * um alarme que ninguém escuta, e este estava marcado como "nunca medido" no
+ * planejamento da sprint — ou seja, ninguém nunca tinha olhado.
+ *
+ * O que o aviso existe para pegar continua igual: **blow-up estrutural**
+ * (`cenarios_2t` virando top-50, candidatos duplicados sem dedup, `por_uf`
+ * ganhando municípios). Nenhuma dessas coisas escala com o elenco — todas
+ * escalam com o BYTE POR CANDIDATURA, que é justamente o que este limiar
+ * agora mede.
+ *
+ * Resultado contra os payloads reais (folga de ~2,2× a 2,8× em todos):
+ *
+ * | cargo | limiar | payload real |
+ * |---|---|---|
+ * | Presidente (12) | 75 KiB | 26,7 KiB |
+ * | Governador (180) | 159 KiB | 70,0 KiB |
+ * | Senador (285) | 215 KiB | 98,8 KiB |
+ *
+ * ⚠️ Isto NÃO afrouxa o teto de verdade. A parede é o store inteiro — 1 MB de
+ * plataforma, com aviso em {@link GLOBAL_CONFIG_STORE_WARN_BYTES} e erro em
+ * {@link GLOBAL_CONFIG_STORE_CRITICAL_BYTES} —, e ela não mudou. Continua de pé
+ * também {@link EDGE_CONFIG_SIZE_WARN_BYTES} (450 KiB), que pega "uma chave só
+ * ocupando 45% do store" independentemente de quantas candidaturas ela tenha.
+ */
+export function limiarNacionalBytes(nCandidaturas: number): number {
+  const excedente = Math.max(0, nCandidaturas - EDGE_CONFIG_WARN_ELENCO_BASE);
+  return EDGE_CONFIG_NATIONAL_WARN_BASE_BYTES + excedente * EDGE_CONFIG_WARN_BYTES_POR_CANDIDATURA;
+}
+
 const EDGE_CONFIG_UF_WARN_BYTES = 20 * 1024;
 
 // ---------------------------------------------------------------------------
@@ -898,13 +960,16 @@ export async function writeProjection(
   // vai re-stringify; o custo é negligível (<1 ms p/ ~30 KB típico).
   const nationalJson = JSON.stringify(payload);
 
-  // Warn dedicado multi-candidato (ADR-0014): 75KB é o sweet spot pro
-  // payload nacional cheio (11 cands + cenarios_2t).
-  if (nationalJson.length > EDGE_CONFIG_NATIONAL_WARN_BYTES) {
+  // Warn dedicado multi-candidato (ADR-0014), com o limiar em função do
+  // ELENCO desde 2026-09-19 — ver `limiarNacionalBytes`. O número fixo de
+  // 75 KB fazia o Senado (285 candidaturas) acender a luz por existir.
+  const limiarNacional = limiarNacionalBytes(payload.national?.candidatos?.length ?? 0);
+  if (nationalJson.length > limiarNacional) {
     logWarn("global-config national payload oversize (S05 budget)", {
       key: namedNationalKey,
       bytes: nationalJson.length,
-      threshold: EDGE_CONFIG_NATIONAL_WARN_BYTES,
+      threshold: limiarNacional,
+      candidaturas: payload.national?.candidatos?.length ?? 0,
       storeLimit: GLOBAL_CONFIG_STORE_LIMIT_BYTES,
     });
   }
@@ -1203,11 +1268,18 @@ export async function writeDeputadoProjection(
   const nationalKey = currentProjectionKey(cargoToken(6), 1);
   const nationalJson = JSON.stringify(payload);
 
-  if (nationalJson.length > EDGE_CONFIG_NATIONAL_WARN_BYTES) {
+  // Deputado usa o PISO de `limiarNacionalBytes`, sem excedente, e o zero é
+  // deliberado: este payload não tem elenco nacional para escalar por. Ele
+  // carrega `bancada`/`composition`/`por_uf` (agregados por PARTIDO), não uma
+  // lista de candidaturas — medido em 19/09: 11,1 KiB contra 75 KiB de piso.
+  // Escrever `0` aqui em vez de reaproveitar uma contagem de outro cargo é o
+  // que impede o limiar deste payload de flutuar por um número que não é dele.
+  const limiarDeputado = limiarNacionalBytes(0);
+  if (nationalJson.length > limiarDeputado) {
     logWarn("global-config national payload oversize (S05 budget)", {
       key: nationalKey,
       bytes: nationalJson.length,
-      threshold: EDGE_CONFIG_NATIONAL_WARN_BYTES,
+      threshold: limiarDeputado,
       storeLimit: GLOBAL_CONFIG_STORE_LIMIT_BYTES,
     });
   }

@@ -495,11 +495,20 @@ export interface EdgeUfRow {
    */
   swing_vs_2022: number | null;
   /**
-   * Top-3 candidatos da UF por `pct_projetado` desc. Adicionado em S05/F4c
+   * Top-N candidatos da UF por `pct_projetado` desc. Adicionado em S05/F4c
    * (ADR-0017 — transparência total): a página de UF mostra TODOS os
    * candidatos visíveis, mas a home / mapa precisa de um resumo compacto
-   * com no máximo 3 para chips e tooltips. `pct` é 0–100. Tie-breaker
-   * estável por candidato_id ASC.
+   * para chips e tooltips. `pct` é 0–100. Tie-breaker estável por
+   * candidato_id ASC.
+   *
+   * **N era 3 e virou 4 em 2026-09-19** (pedido do dono — o balão de hover
+   * dos mapas mostra 4 candidaturas + a linha "Outros"). O número mora em
+   * `TOP_CANDIDATOS_POR_UF`, em `api/model/project.py`, e é o MESMO que
+   * define a cauda que vira {@link EdgeUfRow.outros} — top e cauda
+   * particionam a lista ordenada. Consumidor que quiser menos de 4 corta
+   * com `.slice()`; quem ler pelo índice 0/1/2 continua correto. Payload
+   * gravado antes desta data tem 3 entradas e nenhum `outros`, e isso é
+   * legítimo — nada aqui promete um comprimento fixo.
    *
    * Pré-S05 ausente → consumidor coalesce para `[]` e UI degrada para
    * só `lider` + `margem_*` (comportamento S04).
@@ -568,6 +577,81 @@ export interface EdgeUfRow {
      */
     pct_atual?: number;
   }>;
+  /**
+   * Agregado de TODAS as candidaturas que ficaram FORA de `top_candidatos`
+   * — a linha "Outros" do balão de hover dos mapas (2026-09-19, pedido do
+   * dono: o balão passou de 3 para 4 linhas + esta).
+   *
+   * **É irmão de `top_candidatos`, não um elemento dele.** `top_candidatos`
+   * tem contrato documentado de *candidaturas* (ver o bloco logo acima, e
+   * spec 018 / ADR-0042): cada entrada tem um `id` de urna e um `sqcand` que
+   * endereça a foto (ADR-0041). Este agregado não tem nem um nem outro — não
+   * existe "o número da urna de Outros" — e precisa de `n_candidatos`, que
+   * candidatura nenhuma tem. Enfiá-lo no mesmo array exigiria inventar um
+   * `id` sentinela (`0`, `-1`, `999`), e um `id` sentinela num espaço de ids
+   * de urna é exatamente como nasce o bug "o 13 de Alagoas" que o ADR-0042
+   * existe para prevenir: alguém cruza esse id contra outra lista e recebe
+   * uma pessoa de verdade. Por isso: campo próprio, shape próprio.
+   *
+   * **Vocabulário igual ao de `EdgeParticipacao.outros` (ver ~:195-206),
+   * shape deliberadamente DIFERENTE.** Aquele é um `EdgeParticipacaoMetric`
+   * e carrega IC95 vindo do MESMO array de resamples do bootstrap
+   * (`compute_outros_estimates` soma resample a resample justamente para
+   * preservar a faixa). Este **não tem IC nenhum**: é uma soma de PONTOS
+   * (`Σ pct_projetado` da cauda), e ponto somado com ponto não produz
+   * intervalo. Herdar `EdgeParticipacaoMetric` aqui prometeria uma faixa de
+   * incerteza que ninguém calculou — a mesma classe de erro da emenda de
+   * 17/09 ao ADR-0046 (número estimado exibido com cara de número medido).
+   * Se um dia o balão quiser IC para "Outros", o caminho é o de lá
+   * (`compute_outros_estimates` por UF), não alargar este tipo.
+   *
+   * **Ausente quando a cauda é vazia** — UF com `≤ 4` candidaturas no cargo.
+   * Nunca um objeto zerado: "não há mais ninguém" e "os demais somam 0%" são
+   * estados diferentes, e um `{ pct: 0 }` faria a tela escrever "Outros
+   * 0,0%" numa corrida de três, que é uma linha falsa. Consumidor: campo
+   * ausente ⇒ NÃO renderize a linha.
+   */
+  outros?: {
+    /**
+     * Σ `pct_projetado` da cauda, 0–100, base **votáveis** (`v.vvc` do EA20 —
+     * ADR-0018: nunca "válidos", que é `v.vv`). MESMO denominador de
+     * `top_candidatos[].pct`, por isso as cinco linhas do balão são somáveis.
+     *
+     * 🔴 É uma SOMA candidato a candidato, **nunca `100 − Σ(top 4)`**. Os
+     * pontos de uma UF não fecham em 100 exatamente (cada um é a média de um
+     * bootstrap próprio); a subtração empurraria esse resíduo de fechamento
+     * para dentro de "Outros" e o publicaria como se fosse voto de alguém.
+     * Quem alterar `api/model/project.py` aqui é pego por
+     * `tests/unit/model/test_uf_outros.py`, cuja fixture soma 99,1 DE
+     * PROPÓSITO para que as duas contas divirjam.
+     */
+    pct: number;
+    /**
+     * Σ `pct_atual` da cauda, 0–100, mesma base.
+     *
+     * **TUDO-OU-NADA**: presente só quando TODA candidatura da cauda foi
+     * medida. Uma soma parcial diria "os demais somam 3,1%" quando 3,1% é o
+     * que UM deles tem e dos outros não se sabe nada — medição servindo de
+     * capa para ausência. Na prática some por UF inteira, porque é
+     * `impute_uf_from_national` (cargo 1, UF sem nenhuma zona apurada) que
+     * anula `pct_atual` de todos de uma vez. **Ausente ⇒ "—", nunca `0`.**
+     */
+    pct_atual?: number;
+    /**
+     * Σ `votos_atuais` da cauda. `0` é um **FATO** (zero boletim chegado para
+     * todos os demais), não ausência — e por isso este campo pode existir com
+     * valor `0` no mesmo objeto em que `pct_atual` está ausente. Só falta em
+     * payload legado, cujas linhas de origem não carregavam o campo.
+     */
+    votos_atuais?: number;
+    /**
+     * Quantas candidaturas o agregado representa. `>= 1` sempre que `outros`
+     * existe (é a própria condição de existência do campo). Serve o rótulo
+     * "Outros (7)" e é a razão de este objeto não caber no shape de
+     * `top_candidatos[]`.
+     */
+    n_candidatos: number;
+  };
   /**
    * Para corridas de GOVERNADOR no 1T (cargo=3): `true` se o líder
    * projetado tem `pct_projetado >= 50%+1` (decide no 1T); `false` se
