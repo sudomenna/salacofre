@@ -3,7 +3,8 @@ id: handoff-2026-09-19-ajustes-ui
 title: Handoff 19/09 (2ª sessão) — nove ajustes de interface pedidos pelo dono
 date: 2026-09-19
 supersede: handoff-2026-09-19.md
-status: current
+status: superseded
+superseded_by: handoff-2026-09-20.md
 baselines:
   vitest: 3020
   pytest: 624
