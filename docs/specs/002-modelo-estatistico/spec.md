@@ -239,7 +239,24 @@ Nenhum item foi removido do frontmatter nesta passagem: retirar bloqueador é at
 
 ## Requisitos Não-Funcionais aplicáveis
 
-- Defasagem total <30s — [RNF-006](../../nfr/performance.md). Componente: `model.compute_duration_ms` p95 <2000ms.
+- **Defasagem TSE → tela do usuário <90s** — [RNF-006](../../nfr/performance.md) (linha 17).
+  Verificável em tempo real pelo `dado_ts` do payload
+  ([ADR-0038 D1](../../architecture/adrs/0038-dado-ts-hora-do-dado-nao-hora-do-calculo.md)).
+  O componente deste requisito que cabe ao modelo é o tempo de cálculo de
+  `api/model/project.py`, cujo teto **duro** é o `maxDuration: 60` declarado em
+  [`vercel.ts:256-262`](../../../vercel.ts) — mesmo budget do ciclo de ingestão.
+  Referência medida ali: bootstrap n=1000 × ~150 zonas em <5s.
+
+> ⚠️ **Correção de 2026-09-21.** Até esta data esta seção dizia *"Defasagem
+> total <30s — RNF-006. Componente: `model.compute_duration_ms` p95 <2000ms"*.
+> **Os dois números eram inventados**: o RNF-006 real é 90s, não 30s
+> (`docs/nfr/performance.md:17`), e `grep -rn "2000" docs/nfr/*.md` não
+> devolve nada — nunca existiu requisito de 2000ms em lugar nenhum do
+> repositório. A suspeita já estava registrada em
+> [`docs/sprints/2026-S07-f6-simulado-hero-1t.md:985-990`](../../sprints/2026-S07-f6-simulado-hero-1t.md)
+> ("nenhum dos dois limiares tem requisito por trás") e foi confirmada em
+> auditoria de 2026-09-21. Uma sessão que fosse otimizar desempenho contra
+> "2000ms" estaria mirando num alvo que ninguém escreveu.
 
 ## Open questions
 

@@ -24,8 +24,12 @@
  *     município no payload nacional hoje, ver `docs/_meta/plano-redesign-
  *     2026-09-08.md` § "BiggestPanel"). Omitido, não inventado.
  *   - Líder: só existe como linha à parte em Presidente/Governador (1 vaga).
- *     `row.lider` é só o ID — a IDENTIDADE (nome/partido/sqcand) vem PRIMEIRO
- *     de `row.top_candidatos.find(tc => tc.id === row.lider)`, e só cai para
+ *     ⚠️ **Desde 2026-09-21 quem é o líder sai de `liderIdPorBase(row,
+ *     viewMode)`, NÃO de `row.lider`** — aquele campo carrega projeção apesar
+ *     do nome (ver o cabeçalho de `lib/utils/lider-por-base.ts`), e usá-lo
+ *     aqui destacaria, na base "Parcial", alguém que não é a primeira linha da
+ *     própria lista desta folha. Resolvido o ID, a IDENTIDADE (nome/partido/
+ *     sqcand) vem PRIMEIRO da linha da UF, e só cai para
  *     `candidatos[]` (nacional) como fallback. Mesma regra para cada linha do
  *     ranking. Ver "🔴 identidade" logo abaixo do componente para o porquê —
  *     é o mesmo defeito de RF-144/RF-145 que `buildHoverRows`
@@ -91,18 +95,36 @@
  * no simulado não prova o caminho da ausência, e passar nas de produção não
  * prova o caminho do par.
  *
- * ## 🔴 O que a ficha continua NÃO acompanhando: a ORDEM
+ * ## ✅ A ficha acompanha a base ativa — inclusive a ORDEM (2026-09-21)
+ *
+ * ⚠️ **Este § dizia o oposto até 2026-09-21** ("O que a ficha continua NÃO
+ * acompanhando: a ORDEM"). Ele descrevia corretamente o estado de então e o
+ * dono decidiu fechá-lo; o texto antigo fica citado aqui porque foi ele que
+ * documentou o defeito, não para descrever o código de hoje.
  *
  * Desde 2026-09-20 (commit `290b8de`, "tudo acompanha a base ativa") a lista
  * principal das telas troca de número E de ordem conforme o segmentado do
  * cabeçalho (`<ViewModeSwitch>`, `app/globals.css` bloco "ADR-0029 § 2").
- * Agora que os dois números existem aqui, o NÚMERO deixou de ser o problema —
- * os dois estão sempre na tela, lado a lado, nas duas bases. Sobrou a
- * **ordem**: `top_candidatos[]` chega ordenado por `pct_projetado` desc e esta
- * ficha não o reordena. Em Senador isso alcança também o `<VagaBadge>`, que
- * marca as duas primeiras linhas DESSA ordem. Reordenar por base é decisão do
- * dono e ele não pediu — ver o relatório de 2026-09-20 para viabilidade e
- * custo.
+ * Esta ficha ficou de fora por um dia, e isso tinha uma consequência concreta
+ * em **Senador**, que elege DUAS cadeiras: a página da UF listava a dupla por
+ * uma base e esta folha listava por outra, com o `<VagaBadge>` nas duas
+ * primeiras linhas da SUA ordem. Com o seletor em "Parcial", as duas
+ * superfícies do mesmo site **nomeavam duplas diferentes de eleitos** —
+ * medido em 1 de 27 UFs na fixture do simulado a 25% apurado (SC: projeção
+ * `CAROL DE TONI + DÉCIO LIMA`, apurado `CAROL DE TONI + CARLOS BOLSONARO`).
+ *
+ * **Decisão do dono, 2026-09-21** (dívida 2): a folha reordena, e o
+ * `<VagaBadge>` **segue a base ativa** — em "Parcial" marca os dois mais
+ * votados nos boletins chegados; em "Projeção", os dois da projeção. As duas
+ * alternativas descartadas estão registradas na dívida: prender o selinho à
+ * projeção (a ordem da lista deixaria de significar "quem se elege") e não ter
+ * selinho em "Parcial" (a vista perderia quantas cadeiras estão em jogo).
+ *
+ * A reordenação usa `ordenarTopCandidatosPorBase`/`liderIdPorBase`
+ * (`lib/utils/lider-por-base.ts`) — o MESMO ponto único do coroplético, que
+ * por sua vez reaproveita os comparadores de `lib/utils/rank-parcial.ts` que
+ * `<ResultPanel>` usa. Uma derivação governa ordem, cor e destaque nas três
+ * superfícies: condição (b) da constituição § 2 v1.5.
  *
  * Por isso o rótulo `state-sheet-base-label` **mudou de afirmação** nesta
  * data. Ele dizia "Percentuais de projeção", que com os dois números na tela
@@ -112,10 +134,14 @@
  *
  *   - **é incondicional de propósito.** Não leva `data-view-only` nem
  *     `data-view-cell` (os dois únicos contratos de `app/globals.css` que
- *     escondem ou recuam algo conforme `data-view`) — a ordem é por projeção
- *     nas DUAS bases, então o aviso vale nas duas. Um rótulo que sumisse na
- *     base "Projeção" deixaria de cobrir justamente o caso em que a ficha
- *     diverge da tela atrás dela.
+ *     escondem ou recuam algo conforme `data-view`). ⚠️ A razão MUDOU em
+ *     2026-09-21: era "a ordem é por projeção nas DUAS bases, então o aviso
+ *     vale nas duas" — frase que morreu junto com o defeito. Agora o rótulo
+ *     **nomeia** a base que a lista usou, então ele informa nas duas em vez de
+ *     avisar sobre uma. E o que ele nomeia é `usouParcial`, não `viewMode`:
+ *     com `pct_atual` ausente no corte, a ordem degrada para projeção mesmo
+ *     com o seletor em "Parcial", e o rótulo tem de dizer a verdade sobre a
+ *     lista que está na tela, não sobre o botão que foi apertado.
  *   - **fica acima do `<ul>`, nunca acima das `<Figure>`.** As figuras não são
  *     ordenadas por nada — são dois números soltos —, e um rótulo mais acima
  *     pareceria qualificá-las.
@@ -206,7 +232,9 @@ import {
   vagasPorCargo,
 } from "@/components/layout/UfPicker";
 import type { EdgeCandidate, EdgeUfRow } from "@/lib/edge-config/types";
+import type { ViewMode } from "@/lib/state/view-mode";
 import { formatPercent, formatPp } from "@/lib/utils/format";
+import { liderIdPorBase, ordenarTopCandidatosPorBase } from "@/lib/utils/lider-por-base";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import { siglaExibicao } from "@/lib/utils/sigla-partido";
 
@@ -263,6 +291,17 @@ export interface StateResultSheetProps {
    * silenciosos.
    */
   cargo: UfPickerCargo;
+  /**
+   * Base ativa do seletor Parcial/Projeção (2026-09-21) — decide a ORDEM da
+   * lista, quem é "o líder" fora de `multiVaga` e quais linhas ganham o
+   * `<VagaBadge>` em Senador.
+   *
+   * Default `"proj"`, o MESMO default de `NationalChoroplethMap.tsx:420`, que
+   * é quem renderiza esta folha. Opcional (e não obrigatória) porque a folha
+   * é montada em telas que ainda não têm seletor; `"proj"` preserva byte a
+   * byte o comportamento anterior a esta data.
+   */
+  viewMode?: ViewMode;
 }
 
 /**
@@ -385,9 +424,40 @@ export function StateResultSheet({
   candidatos,
   side = false,
   cargo,
+  viewMode = "proj",
 }: StateResultSheetProps) {
   const candidatosById = new Map(candidatos.map((c) => [c.id, c]));
   const nomeUf = row ? (UF_NAMES[row.sigla] ?? row.sigla) : "Estado";
+  // 🔴 2026-09-21 — a ficha passou a REORDENAR pela base ativa, e o dono
+  // decidiu que o `<VagaBadge>` **segue a base** (dívida 2).
+  //
+  // O que isso conserta: Senador elege DUAS cadeiras, e até hoje esta folha
+  // listava sempre em ordem de projeção enquanto a página da UF
+  // (`<ResultPanel>`) já reordenava pela base ativa desde `290b8de`. Com o
+  // seletor em "Parcial", as duas superfícies nomeavam **duplas diferentes de
+  // eleitos**. Não era hipótese: medido em 1 de 27 UFs na fixture do simulado
+  // a 25% apurado — em SC a projeção dava `CAROL DE TONI + DÉCIO LIMA` e o
+  // apurado dava `CAROL DE TONI + CARLOS BOLSONARO`.
+  //
+  // `ordenarTopCandidatosPorBase` é o MESMO ponto único que o coroplético
+  // usa para a cor e para a ordem do balão (`lib/utils/lider-por-base.ts`), e
+  // ele reaproveita os comparadores de `lib/utils/rank-parcial.ts` — os
+  // mesmos que `<ResultPanel>` usa. Uma derivação governa ordem, cor e
+  // destaque nas três superfícies: é a condição (b) da constituição § 2 v1.5.
+  //
+  // Quando falta `pct_atual` em alguém do corte, a função devolve a ordem de
+  // projeção INTEIRA — nunca trata ausência como zero (decisão do dono,
+  // 14/09).
+  //
+  // 🔴 `usouParcial` (e NÃO `viewMode === "parcial"`) é o que rotula a lista.
+  // Os dois divergem exatamente no caso que mais importa para o rótulo: base
+  // "Parcial" pedida, mas `pct_atual` ausente em alguém do corte — a função
+  // degrada para a ordem de PROJEÇÃO inteira, e um rótulo que lesse `viewMode`
+  // afirmaria "ordem de apuração" sobre uma lista ordenada por projeção.
+  const { ordenados: topPorBase, usouParcial } = row
+    ? ordenarTopCandidatosPorBase(row.top_candidatos, viewMode)
+    : { ordenados: [] as EdgeUfRow["top_candidatos"], usouParcial: false };
+  const ordemLabel = usouParcial ? "votos apurados" : "projeção";
   // RF-105 — Senado é a única corrida desta ficha com mais de uma vaga por
   // UF. `vagasPorCargo` lê a tabela canônica (`lib/config/cargos.ts`); não é
   // um literal "2" solto aqui.
@@ -403,8 +473,16 @@ export function StateResultSheet({
   // tratamento próprio (RF-105) — ver o `<ul>` abaixo, onde as `vagas`
   // primeiras linhas ganham o MESMO marcador (`<VagaBadge>`), sem nenhuma
   // delas virar um parágrafo à parte.
-  const liderTop = row?.top_candidatos.find((tc) => tc.id === row.lider);
-  const liderCand = row ? candidatosById.get(row.lider) : undefined;
+  //
+  // 🔴 2026-09-21 — `liderIdPorBase`, e NÃO mais `row.lider`. `row.lider` NÃO
+  // é o líder apurado apesar do nome: `api/model/project.py` grava `lider` e
+  // `top_candidatos[0].id` a partir do mesmo `ordered[0]`, ordenado por
+  // `pct_projetado`. Mantê-lo aqui faria a folha DESTACAR alguém que, na base
+  // "Parcial", não é mais a primeira linha da sua própria lista — o defeito
+  // que esta mudança existe para fechar, na outra metade da tela.
+  const liderId = row ? liderIdPorBase(row, viewMode) : undefined;
+  const liderTop = liderId != null ? topPorBase.find((tc) => tc.id === liderId) : undefined;
+  const liderCand = liderId != null ? candidatosById.get(liderId) : undefined;
   const liderIdentidade = resolveIdentidade(liderTop, liderCand);
 
   return (
@@ -508,9 +586,15 @@ export function StateResultSheet({
               qualificação mais forte que uma frase geral no topo — ela viaja
               junto com o dado.
 
-              Sem `data-view-only`/`data-view-cell` DE PROPÓSITO: a ordem é por
-              projeção nas duas bases, e sumir na base "Projeção" tiraria o
-              aviso justamente de metade dos casos. Posição também é de
+              🔴 **2026-09-21 — este parágrafo dizia o contrário.** Ele
+              justificava a AUSÊNCIA de `data-view-only` assim: "a ordem é por
+              projeção nas duas bases, e sumir na base 'Projeção' tiraria o
+              aviso justamente de metade dos casos". Deixou de ser verdade no
+              mesmo commit que fez a folha reordenar. Continua sem
+              `data-view-only`, mas por outro motivo: o rótulo agora **nomeia a
+              base que a lista de fato usou** ({@link ordemLabel}, derivado de
+              `usouParcial`), então ele é informativo nas duas bases em vez de
+              ser um aviso sobre uma só. Posição inalterada e ainda de
               propósito — acima do `<ul>` e ABAIXO das `<Figure>`, que não são
               ordenadas por nada e pareceriam qualificadas por ele. */}
           <p
@@ -522,7 +606,7 @@ export function StateResultSheet({
               color: "var(--text-muted)",
             }}
           >
-            Em ordem de projeção
+            Em ordem de {ordemLabel}
           </p>
 
           <ul
@@ -530,11 +614,13 @@ export function StateResultSheet({
             /* A MESMA formulação do rótulo visível acima, não um sinônimo —
                "projeção" é a palavra do produto (`ViewModeSwitch.tsx:28`,
                `lib/utils/uf-descricao-candidaturas.ts:112`). Está no nome
-               acessível porque quem navega por lista salta o rótulo visível. */
-            aria-label={`Candidatos em ${nomeUf}, em ordem de projeção`}
+               acessível porque quem navega por lista salta o rótulo visível.
+               Desde 2026-09-21 as duas pontas leem a MESMA variável, para que
+               não possam divergir quando a base mudar. */
+            aria-label={`Candidatos em ${nomeUf}, em ordem de ${ordemLabel}`}
             style={{ listStyle: "none", margin: 0, padding: 0 }}
           >
-            {row.top_candidatos.map((tc, index) => {
+            {topPorBase.map((tc, index) => {
               const cand = candidatosById.get(tc.id);
               // 🔴 Identidade PRIMEIRO de `tc` (a própria linha da UF), nunca
               // de `cand` (nacional) como fonte primária — ver

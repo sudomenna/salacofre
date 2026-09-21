@@ -27,16 +27,21 @@ observado no código; (b) implicação; (c) decisão necessária.
 
 ---
 
-## 2. 🟡 Senador — pares podem divergir entre ficha e página
+## 2. ✅ RESOLVIDA (2026-09-21) — Senador: ficha e página nomeavam duplas de eleitos diferentes
 
-| Fato | Se duas cadeiras têm candidatos distintos e página ordena por uma base enquanto a ficha está em outra, o leitor vê nomes diferentes |
+| Fato | Senador elege **duas** cadeiras. A **página** da UF (`<ResultPanel>`) reordena pela base ativa desde `290b8de`; a **ficha** (`StateResultSheet.tsx:533-537`) lista sempre em ordem de projeção e põe o `<VagaBadge>` nas duas primeiras linhas DESSA ordem (`StateResultSheet.tsx:96-105`, que já documenta a divergência). Com o seletor em "Parcial", as duas superfícies nomeiam **duplas diferentes de eleitos** |
 |---|---|
-| Causa | `pct_atual` é campo **opcional** do payload; sem ele, não há ordenação honesta em mix de bases |
-| Custo | Incluir `pct_atual` para cargos 4/5 (+campo, recompute em Python, migração) |
-| **Decisão** | (a) reordena para duplas mesmo (investe em campo), ou (b) aceita divergência, documenta em RF |
-| Prioridade | P2 (edge case: dois candidatos ≥40% é raro; e se houver, é estado legítimo) |
-| Proprietário | Dono (decisão de produto) |
-| Link | `ef5c033` (análise de custo no commit) |
+| **Medido (2026-09-21)** | Acontece em **1 de 27 UFs** na fixture do simulado a 25% apurado: em **SC** a projeção dá `CAROL DE TONI + DÉCIO LIMA` e o apurado dá `CAROL DE TONI + CARLOS BOLSONARO`. Não é hipótese |
+| ~~Causa~~ | ~~`pct_atual` é campo **opcional** do payload; sem ele, não há ordenação honesta em mix de bases~~ |
+| ~~Custo~~ | ~~Incluir `pct_atual` para cargos 4/5 (+campo, recompute em Python, migração)~~ |
+| 🔴 **Custo CORRIGIDO (2026-09-21)** | As duas linhas acima estavam **vencidas**. `top_candidatos[].pct_atual` **já existe para o cargo 5**: `api/model/project.py:5140-5160` só o omite quando é `None`, e o único produtor de `None` é `impute_uf_from_national` — **cargo 1 apenas** (RF-013/017 2º nível), como a própria docstring do campo diz (`lib/edge-config/types.ts:600-611`). Conferido na fixture: **107 de 107** candidaturas a Senador têm `pct_atual`. Não há campo novo, nem recompute em Python, nem migração. O trabalho real é **só de UI**: fazer a ficha reordenar como a página já faz (reaproveitando `ordenarTopCandidatosPorBase`, `lib/utils/lider-por-base.ts`) e decidir o que o `<VagaBadge>` acompanha |
+| ✅ **Decisão do dono (2026-09-21)** | **(a) a ficha reordena pela base ativa, e o selinho SEGUE A BASE.** Em "Parcial" o `<VagaBadge>` marca os dois mais votados nos boletins chegados; em "Projeção", os dois da projeção. Cada tela fica coerente consigo mesma e a ficha passa a concordar com a página |
+| Alternativas descartadas | **Selinho preso à projeção** — a ordem da lista deixaria de significar "quem se elege", e em "Parcial" o selinho poderia cair na 3ª linha. **Sem selinho em "Parcial"** — a vista perderia a informação de quantas cadeiras estão em jogo |
+| ✅ Implementação | `StateResultSheet.tsx` recebe `viewMode` (de `NationalChoroplethMap.tsx`, que já o tem de `NationalMapBlock.tsx:179` via `useViewMode()`) e usa `ordenarTopCandidatosPorBase` + `liderIdPorBase` — o MESMO ponto único do coroplético e dos comparadores de `<ResultPanel>`. Condição (b) da constituição § 2 v1.5 satisfeita: uma derivação governa ordem, cor e destaque nas três superfícies |
+| Dois efeitos colaterais consertados junto | (1) A linha **"Líder:"** lia `row.lider`, que carrega **projeção** apesar do nome — em "Parcial" destacaria quem aparece por último na lista logo abaixo. Agora lê `liderIdPorBase`. (2) O rótulo da lista dizia "Em ordem de projeção" incondicionalmente; agora nomeia a base que a lista **de fato** usou, derivado de `usouParcial` e **não** de `viewMode` — com `pct_atual` ausente no corte a ordem degrada para projeção, e o rótulo tem de descrever a lista na tela, não o botão apertado |
+| Prova | `tests/unit/components/StateResultSheet.ordemPorBase.test.tsx` — 9 casos, fixture com as duas ordens **opostas por construção** (em "Projeção" elegem-se ALFA+BETA; em "Parcial", DELTA+GAMA; sem interseção). **4 mutações mortas, 1 equivalente.** ⚠️ A mutação `liderIdPorBase → row.lider` **sobreviveu à primeira versão do arquivo** (7 casos, todos verdes): a linha "Líder:" não era medida por ninguém. Os dois casos que a matam existem por causa disso |
+| Prioridade | ~~P2~~ → ~~P1~~ — **fechada** |
+| Link | `ef5c033` (análise de custo original, **superada**) |
 
 ---
 
@@ -334,9 +339,27 @@ O registro do problema fica abaixo, como histórico.
 |---|---|
 | Como mordeu | 2026-09-20: rodei `pnpm sim` para consertar as fotos de Governador e **quebrei 8 testes** (`tests/unit/dev/serie-fixtures.test.ts`, `serie-nacional-relogio.test.ts`). Os arquivos de município encolheram de ~9.500 linhas para um terço — o sinal estava no `git diff --stat`, não numa mensagem de erro. O conselho errado ("é só rodar `pnpm sim`") saiu de mim, apoiado na docstring de `gerar-governador-uf-fixture.py`, que fala do próximo `pnpm sim` **sem avisar que ele também apaga o resto** |
 | ✅ Mitigado em 2026-09-20 | **`pnpm sim:full`** encadeia gerador → série → `biome format` na ordem certa. A formatação entrou porque o gerador emite JSON que o `biome` reprova: sem ela, o pre-commit barra o commit seguinte. `CLAUDE.md § 12` documenta os dois comandos e a armadilha |
-| ⚠️ O que fica aberto | **Três scripts irmãos viraram obsoletos** e ninguém os removeu: `gerar-votos-pct-atual-fixtures.py`, `gerar-outros-fixtures.py` e `gerar-governador-uf-fixture.py`. Verificado em 20/09 que o gerador já emite `votos_atuais`, `pct_atual`, `outros`, `sqcand` e as 4 `top_candidatos` sozinho — rodá-los hoje é desnecessário, e rodá-los FORA de ordem pode reintroduzir o estado antigo. São a mesma família do que causou o defeito das fotos: **um cargo com gerador próprio, divergindo do padrão** |
-| Próximo passo | Decidir por script: remover, ou marcar como obsoleto no cabeçalho com a data em que deixou de ser necessário. Enquanto existirem sem aviso, alguém vai rodá-los |
-| Prioridade | P3 — o caminho certo agora é um comando só; o risco residual é alguém achar um script antigo e rodá-lo |
+| ~~⚠️ O que fica aberto~~ | ~~**Três scripts irmãos viraram obsoletos** e ninguém os removeu~~ |
+| ✅ **Fechado em 2026-09-21** | **Os três scripts foram REMOVIDOS** (`gerar-votos-pct-atual-fixtures.py`, `gerar-outros-fixtures.py`, `gerar-governador-uf-fixture.py`), por decisão do dono. Remover, e não "marcar como obsoleto": arquivo com aviso no cabeçalho continua sendo arquivo que alguém abre e roda — foi assim que o defeito das fotos nasceu |
+| Evidência de que nada se perdeu | (1) **Ninguém os chamava**: ausentes de `package.json`, de todo `tests/`, do CI — as únicas menções eram documentação e conversa entre eles. (2) **As fixtures em disco foram geradas só com `sim:full`** (`af6476f`). (3) **Cobertura medida campo a campo em 2026-09-21**: `pct_atual`, `votos_atuais` e `sqcand` em **108/108** (Presidente), **106/106** (Governador) e **107/107** (Senador) candidaturas; `outros` em 27, 26 e 25 UFs (as faltantes não têm cauda); `governador-uf.json` com **180/180** `sqcand`. (4) **3.556 vitest + 626 pytest verdes** contra essas fixtures |
+| Ponta solta amarrada junto | `data-pipeline/simulacao-gerar.ts:2308-2314` citava `gerar-outros-fixtures.py` como uma das três fontes de uma justificativa histórica. O ponteiro ficaria apontando para o nada — a linha foi anotada com a data da remoção em vez de apagada, porque a justificativa em si continua descrita ali mesmo |
+| Prioridade | ~~P3~~ — **fechada** |
+
+---
+
+## 21. ✅ DECIDIDA (2026-09-21) — o município fica SEM dado de projeção
+
+| Pergunta do dono | "O mapa de municípios não deve mudar, pois não existe projeção por município, ele é a base do cálculo para chegar na projeção de estados e nacional, correto? (na verdade são as zonas). Se for possível estimar projeção para os municípios através das zonas, investigue" |
+|---|---|
+| **Decisão** | **Descartado. O município continua sem dado de projeção**, e o mapa municipal segue sendo o único que não acompanha o seletor Parcial/Projeção — porque não há segunda base para onde alternar, não porque esteja quebrado |
+| Metade certa da premissa | **A zona é a base do cálculo** — `compute_uf_projections` (`api/model/project.py:2386-2612`) recebe só zonas; o bootstrap reamostra zonas (`api/model/extrapolation.py:190-370`); `merge_pairs_into_zonas` (`api/model/zona_merge.py`) é o único ponto que reconstitui a zona a partir dos pares, e dali em diante o município some do fluxo |
+| Metade errada | **O município NÃO é base de cálculo de nada.** Existem duas cadeias paralelas que não se falam: a da projeção (acima) e a da apresentação — `fetch_municipio_aggregates` (`api/model/project.py:1525-1684`), soma bruta de `cand[].vap` por município, **sem o fator `k`**, sem extrapolação e sem incerteza, buscada em paralelo a `compute_uf_projections` (`api/model/project.py:6265-6272`), nunca como insumo dela |
+| 🔴 Motivo de fundo (estatístico, não de engenharia) | A incerteza é medida reamostrando as zonas de cada grupo. **5.380 dos 5.569 municípios (96,6%) têm uma zona só** ([ADR-0035](../architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md), Contexto: 2.619 zonas, 5.569 municípios, 6.085 pares, 189 municípios com mais de uma zona). Reamostrar n=1 mil vezes devolve intervalo de **largura zero** — certeza absoluta sobre cidade onde quase nada foi contado. É a falsa precisão que o RF-015 já proíbe para zonas imputadas (`docs/specs/002-modelo-estatistico/spec.md:113`). E atinge justamente as cidades pequenas: mediana ~9.410 eleitores, 25,2% com <5.000, 52,5% com <10.000 |
+| Achado a favor, que fica registrado | A premissa de que o TSE informa corretamente a **fatia** de cada município dentro de uma zona compartilhada **deixou de ser suposição**: confirmada contra dado real do simulado de 15–17/09 no caso Rio Branco/Bujari (zona 0009, AC) — `tests/unit/tse/simulado-2026-real.test.ts:122-166`. ⚠️ A docstring de `check_zona_merge_sanity` (`api/model/zona_merge.py:526-541`) ainda diz "nunca foi confirmada" — **está vencida** |
+| Custo, se um dia reabrir | Tamanho: o detalhe municipal já vive em Blob, não no Edge Config ([ADR-0032](../architecture/adrs/0032-detalhe-municipal-vercel-blob.md)), então o teto de 1 MB do store não se aplica. Hoje ~206 B/município = **1,10 MB por cargo**. Só o líder projetado: **+~300 KB/cargo**. Por candidato: **+~3 MB/cargo** — e o próprio ADR-0032 desaconselha esse padrão por volume. Tempo: teto **duro** de `maxDuration: 60` (`vercel.ts:256-262`); hoje 27 UFs em <5s, e ir a ~5.570 municípios é ~200× mais grupos — **não medido**, exige protótipo antes de prometer prazo |
+| ⚠️ Se reabrir, o que NÃO fazer | Ratear a projeção da UF entre os municípios, por regra de três local ou proporcional ao eleitorado. Seria publicar número inventado com cara de apuração (constituição § 1 e § 6). O caminho estreito investigado é projetar **só o líder**, com incerteza herdada da zona, e exige ADR próprio |
+| Registrado no código | Bloco 🔴 na docstring de `EdgeUfMunicipio` (`lib/edge-config/types.ts`), para quem for mexer no mapa municipal encontrar a decisão antes de reabri-la |
+| Fica aberto | **Dizer ao leitor, na tela, que o mapa de municípios mostra apuração e não projeção.** Hoje o seletor simplesmente não surte efeito ali, e quem não souber vai achar que o controle quebrou. Barato; não decidido |
 
 ---
 

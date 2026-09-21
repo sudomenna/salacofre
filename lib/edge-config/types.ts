@@ -1054,6 +1054,46 @@ export interface EdgeUfCandidate {
  * `cod_ibge` é STRING (char(7) IBGE — preserva zero à esquerda;
  * data-model.md § Municípios usa o mesmo tipo). Manter aqui como
  * string é canônico — `00000NN` não cabe em `number` sem perda.
+ *
+ * ===========================================================================
+ * 🔴 NÃO existe campo projetado aqui, e isso é DECISÃO, não lacuna
+ * ===========================================================================
+ *
+ * **Decisão do dono, 2026-09-21: o município permanece sem dado de projeção.**
+ * Investigado a pedido dele antes de decidir; o relatório está resumido na
+ * dívida 21 (`docs/reference/dividas-tecnicas.md`).
+ *
+ * Por isso o mapa de municípios é o único que **não acompanha o seletor
+ * Parcial/Projeção** — não há uma segunda base para onde alternar. O que ele
+ * pinta é a soma exata dos boletins que chegaram, e só.
+ *
+ * O motivo NÃO é falta de código. `fetch_municipio_aggregates`
+ * (`api/model/project.py:1525-1684`) é uma soma bruta de `cand[].vap` por
+ * município, sem o fator `k` da regra de três — uma cadeia paralela à da
+ * projeção, que nunca lê município: `compute_uf_projections`
+ * (`api/model/project.py:2386-2612`) recebe só zonas, e o bootstrap
+ * (`api/model/extrapolation.py:190-370`) reamostra zonas.
+ *
+ * O motivo é estatístico. A incerteza é medida reamostrando as zonas de cada
+ * grupo, e **5.380 dos 5.569 municípios (96,6%) têm uma zona só**
+ * ([ADR-0035](../../docs/architecture/adrs/0035-par-municipio-zona-unidade-de-ingestao.md),
+ * Contexto: 189 municípios têm mais de uma). Reamostrar n=1 mil vezes devolve
+ * um intervalo de **largura zero** — o site afirmaria certeza absoluta sobre
+ * uma cidade onde quase nada foi contado. É exatamente a falsa precisão que o
+ * RF-015 já proíbe para zonas imputadas
+ * (`docs/specs/002-modelo-estatistico/spec.md:113`) e que a constituição § 1
+ * proíbe em geral. E são as cidades pequenas — mediana de ~9.400 eleitores,
+ * uma em cada quatro com menos de 5.000 — que cairiam nesse mecanismo
+ * degenerado.
+ *
+ * ⚠️ Se alguém reabrir isto: **não** ratear a projeção da UF entre os
+ * municípios, nem por regra de três local nem proporcional ao eleitorado.
+ * Seria publicar número inventado com cara de apuração (constituição § 1 e
+ * § 6). Reabrir custa ADR próprio, e o caminho estreito investigado foi
+ * projetar **só o líder** do município, com a incerteza herdada da zona — não
+ * uma série por candidato, que o
+ * [ADR-0032](../../docs/architecture/adrs/0032-detalhe-municipal-vercel-blob.md)
+ * já desaconselha por volume (+~3 MB por cargo).
  */
 export interface EdgeUfMunicipio {
   cod_ibge: string;

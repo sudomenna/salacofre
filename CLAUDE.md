@@ -393,10 +393,13 @@ pre-commit barra. O banco é lido **só** pelo primeiro passo, e **só com
 `SELECT`**: as nove consultas do gerador são de leitura, ele não importa
 `lib/edge-config/writer.ts` nem `lib/blob/write.ts`, e não faz rede.
 
-⚠️ Três scripts irmãos (`gerar-votos-pct-atual-fixtures.py`,
-`gerar-outros-fixtures.py`, `gerar-governador-uf-fixture.py`) ficaram
-**obsoletos**: o gerador já emite `votos_atuais`, `pct_atual`, `outros` e
-`sqcand` sozinho. Rodá-los hoje não é necessário. Ver dívida 20.
+✅ **`sim:full` é a cadeia INTEIRA** — não há mais elo avulso a rodar depois.
+Três scripts irmãos (`gerar-votos-pct-atual-fixtures.py`,
+`gerar-outros-fixtures.py`, `gerar-governador-uf-fixture.py`) faziam remendos
+que o gerador passou a emitir sozinho (`votos_atuais`, `pct_atual`, `outros`,
+`sqcand`) e foram **removidos em 2026-09-21** (decisão do dono, dívida 20). Se
+você encontrar um deles num branch antigo ou num worktree, **não rode**: fora
+de ordem eles reintroduzem o estado antigo.
 
 **🔴 `ALLOW_DB_WRITE_TESTS` — cinco testes escrevem no banco de `DATABASE_URL`.**
 São `tests/integration/model-edge-cases`, `model-cycle`, `ingest-cycle`,

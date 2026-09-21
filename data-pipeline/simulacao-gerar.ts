@@ -2309,7 +2309,8 @@ export function montarSenadorUf(
  * Até esta data, cargo 3 era o único majoritário sem arquivo por UF, e havia
  * uma justificativa escrita para isso em três lugares (`app/(gov)/uf/[sigla]/
  * governador/page.tsx`, `app/api/projection/route.ts` e o § de `sqcand` de
- * `scripts/gerar-outros-fixtures.py`): a síntese a partir do payload nacional
+ * `scripts/gerar-outros-fixtures.py` — este terceiro **removido em
+ * 2026-09-21**, ver dívida 20): a síntese a partir do payload nacional
  * **filtrada por `por_uf[].top_candidatos`** recorta a corrida daquela UF com a
  * votação dela, porque candidatura a governador só existe num estado. Isso é
  * verdade e continua sendo — mas responde à pergunta errada.

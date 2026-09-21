@@ -522,6 +522,11 @@ export function NationalChoroplethMap({
         candidatos={candidatos ?? []}
         side={isDesktop}
         cargo={cargo}
+        // 2026-09-21 — a folha reordena pela base ativa e o `<VagaBadge>` de
+        // Senador segue junto (dívida 2). `viewMode` chega aqui de
+        // `NationalMapBlock.tsx:179` (`useViewMode()`), a mesma assinatura viva
+        // que já alimenta o coroplético: uma fonte, três superfícies.
+        viewMode={viewMode}
       />
     </div>
   );
