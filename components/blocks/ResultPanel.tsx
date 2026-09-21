@@ -92,8 +92,9 @@ import {
   candidateResultRowProps,
 } from "@/components/atoms/tables/CandidateResultRow";
 import { candidateColor } from "@/components/blocks/_candidateColor";
+import { ATRIBUTO_LISTA } from "@/components/blocks/_lista-por-base";
 import { CandidateListCollapse } from "@/components/blocks/CandidateListCollapse";
-import { ATRIBUTO_LISTA, ReordenaListaPorBase } from "@/components/blocks/ReordenaListaPorBase";
+import { ReordenaListaPorBase } from "@/components/blocks/ReordenaListaPorBase";
 import { candidatoFotoUrl } from "@/lib/blob/paths";
 import type { EdgeCandidate } from "@/lib/edge-config/types";
 import { formatPp, formatVotesCompact } from "@/lib/utils/format";

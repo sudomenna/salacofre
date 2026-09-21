@@ -45,7 +45,7 @@
 
 import { useId, useState } from "react";
 import { Button } from "@/components/atoms/controls/Button";
-import { ATRIBUTO_LISTA } from "@/components/blocks/ReordenaListaPorBase";
+import { ATRIBUTO_LISTA } from "@/components/blocks/_lista-por-base";
 
 import styles from "./ResultPanel.module.css";
 

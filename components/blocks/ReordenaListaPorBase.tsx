@@ -60,65 +60,24 @@
  * Daí o par guardar/devolver com `preventScroll: true` — sem a flag, devolver
  * o foco rola a página até o elemento, e trocar de base daria um salto de
  * rolagem que ninguém pediu.
+ *
+ * ## 🔴 O contrato mora em outro arquivo, e o motivo é uma armadilha do RSC
+ *
+ * `ATRIBUTO_LISTA` e `reordenarLista` vivem em `_lista-por-base.ts`, **sem
+ * diretiva**. Estavam aqui na primeira versão, e `<ResultPanel>` (Server
+ * Component) importava a constante deste módulo `"use client"` — o Next
+ * converteu a STRING numa referência de cliente, o servidor recebeu um stub
+ * que lança, e o stub virou o nome do atributo da `<ol>`. Três erros no
+ * navegador e a lista sem reordenar. Ver o docblock daquele arquivo.
+ *
+ * O re-export abaixo existe só para não quebrar quem já importava daqui.
  */
 
 import { useEffect } from "react";
+import { ATRIBUTO_LISTA, reordenarLista } from "@/components/blocks/_lista-por-base";
 import { useViewMode } from "@/lib/state/view-mode-client";
 
-/**
- * Marca o `<ol>` cujas linhas devem seguir a base ativa.
- *
- * 🔴 A lista de IDENTIDADE (`data-testid="result-identidade-lista"`, fase pré)
- * **não** recebe este atributo, e isso é constitucional, não esquecimento:
- * sem voto contado não há métrica do leitor para seguir, e a constituição § 2
- * (v1.5) mantém a ordem fixa fora do caso do controle de base — ali é o número
- * na urna (spec 019, RF-161). A exceção da v1.5 é expressa e não a alcança.
- */
-export const ATRIBUTO_LISTA = "data-lista-por-base";
-
-/** A custom property que guarda a posição da linha em cada base. */
-function posicaoNaBase(li: HTMLElement, base: "parcial" | "proj"): number {
-  const bruto = li.style.getPropertyValue(`--ord-${base}`).trim();
-  const n = Number.parseInt(bruto, 10);
-  // Linha sem a propriedade fica onde está: `Number.MAX_SAFE_INTEGER` a manda
-  // para o fim sem embaralhar as demais, e `sort` é estável no V8. Não é caso
-  // esperado — `ResultPanel` sempre emite as duas —, mas um `NaN` no
-  // comparador embaralharia a lista inteira em silêncio.
-  return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
-}
-
-/**
- * Reordena uma lista. Exportada para o teste medir sem montar React.
- *
- * Idempotente: chamar duas vezes na mesma base não muda nada, o que é o que
- * permite montar o componente mais de uma vez por página sem coordenação.
- */
-export function reordenarLista(lista: HTMLElement, base: "parcial" | "proj"): void {
-  const linhas = [...lista.children].filter(
-    (el): el is HTMLElement => el instanceof HTMLElement && el.tagName === "LI",
-  );
-  if (linhas.length < 2) return;
-
-  const alvo = [...linhas].sort((a, b) => posicaoNaBase(a, base) - posicaoNaBase(b, base));
-  // Já está na ordem certa? Sai sem tocar no DOM — e sem mexer no foco.
-  if (alvo.every((li, i) => li === linhas[i])) return;
-
-  const focado = document.activeElement;
-  // `append` com a lista inteira move os nós existentes na ordem dada, numa
-  // única operação. Não clona: os mesmos nós, com o mesmo estado e os mesmos
-  // ouvintes, mudam de lugar.
-  lista.append(...alvo);
-
-  // Ver o docblock: mover o `<li>` do elemento focado tira o foco dele.
-  if (
-    focado instanceof HTMLElement &&
-    focado !== document.body &&
-    lista.contains(focado) &&
-    typeof focado.focus === "function"
-  ) {
-    focado.focus({ preventScroll: true });
-  }
-}
+export { ATRIBUTO_LISTA, reordenarLista };
 
 /**
  * Componente sem marcação. Montado por `<ResultPanel>`, reordena **todas** as

@@ -30,15 +30,14 @@
  * arquivo depende.
  */
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  ATRIBUTO_LISTA,
-  ReordenaListaPorBase,
-  reordenarLista,
-} from "@/components/blocks/ReordenaListaPorBase";
+import { ATRIBUTO_LISTA, reordenarLista } from "@/components/blocks/_lista-por-base";
+import { ReordenaListaPorBase } from "@/components/blocks/ReordenaListaPorBase";
 import { __resetViewModeForTests, setViewMode } from "@/lib/state/view-mode-client";
 
 // biome-ignore lint/suspicious/noExplicitAny: flag global do ambiente de `act`
@@ -89,6 +88,61 @@ afterEach(() => {
   host = null;
   document.body.innerHTML = "";
   __resetViewModeForTests();
+});
+
+/**
+ * 🔴 **O caso que faltava quando isto foi ao ar, e o defeito que ele guarda.**
+ *
+ * Na primeira versão, `ATRIBUTO_LISTA` era exportado de
+ * `ReordenaListaPorBase.tsx`, que é `"use client"`, e `<ResultPanel>` (Server
+ * Component) importava a constante de lá. **O Next transforma TODA exportação
+ * de um módulo `"use client"` numa referência de cliente, inclusive uma
+ * string**: no servidor a constante virava um stub que lança, o stub era usado
+ * como NOME DE ATRIBUTO da `<ol>`, e o navegador acusava três erros em
+ * sequência — `Invalid attribute name`, `React does not recognize the prop` e
+ * um `hydration mismatch`. A lista não recebia o atributo e não reordenava.
+ *
+ * ⚠️ **Os 8 casos abaixo passavam com o defeito no ar**, e não podiam pegar:
+ * no vitest não existe fronteira RSC — o import é um import normal e a
+ * constante é a string. O defeito só existe sob o build/dev do Next, e foi o
+ * DONO quem o viu, na tela.
+ *
+ * Este bloco é o que sobrou de verificável em teste: a separação de arquivos
+ * que torna o erro impossível.
+ */
+describe("a fronteira servidor/cliente — o que não dá para testar com React", () => {
+  const ler = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf-8");
+
+  it("🔴 o módulo do CONTRATO não tem `use client`", () => {
+    // Mutação que morre: acrescentar a diretiva em `_lista-por-base.ts`.
+    const fonte = ler("components/blocks/_lista-por-base.ts");
+    expect(fonte.split("\n").slice(0, 3).join("\n")).not.toContain("use client");
+    expect(fonte).toContain("export const ATRIBUTO_LISTA");
+  });
+
+  it("🔴 nenhum Server Component importa VALOR do módulo cliente", () => {
+    // Importar o COMPONENTE de um módulo `"use client"` é o padrão correto e
+    // continua permitido. O que não pode é importar constante ou função.
+    //
+    // Mutação que morre: devolver o import de `ATRIBUTO_LISTA` para
+    // `@/components/blocks/ReordenaListaPorBase` em qualquer dos dois.
+    for (const arquivo of [
+      "components/blocks/ResultPanel.tsx",
+      "components/blocks/CandidateListCollapse.tsx",
+    ]) {
+      const fonte = ler(arquivo);
+      const importaValorDoCliente =
+        /import\s*\{[^}]*\b(ATRIBUTO_LISTA|reordenarLista)\b[^}]*\}\s*from\s*"@\/components\/blocks\/ReordenaListaPorBase"/.test(
+          fonte,
+        );
+      expect({ arquivo, importaValorDoCliente }).toEqual({ arquivo, importaValorDoCliente: false });
+    }
+
+    // E o contrato vem mesmo do módulo sem diretiva.
+    expect(ler("components/blocks/ResultPanel.tsx")).toContain(
+      'from "@/components/blocks/_lista-por-base"',
+    );
+  });
 });
 
 describe("reordenarLista — a função pura", () => {
