@@ -142,16 +142,35 @@ describe("<ResultPanel /> — a ordem da lista acompanha a base ativa", () => {
     expect(linhas[2]?.textContent).toContain("Célia Mota");
   });
 
-  it("(d) a cascata que lê as duas propriedades existe, e não está trocada", () => {
-    // Contraparte obrigatória de (a)/(b): sem esta regra, as custom properties
-    // são decoração e a lista fica congelada na ordem do DOM.
+  // 🔴 **INVERTIDO em 2026-09-20.** Este caso exigia que a cascata de `order`
+  // existisse. Ela foi REMOVIDA: `order` movia pixel e deixava o documento na
+  // ordem da Projeção, e leitor de tela, teclado, `Ctrl+F` e copiar-colar
+  // recebiam a lista fora de ordem (WCAG SC 1.3.2, nível A — dívida 17).
+  // Quem reordena agora é `<ReordenaListaPorBase>`, no DOM.
+  //
+  // O caso vira guarda contra a REINTRODUÇÃO: com a reordenação no DOM, uma
+  // regra de `order` COMPÕE com ela e produz uma terceira ordem, que não é
+  // nenhuma das duas bases.
+  //
+  // ⚠️ Armadilha que me pegou ao escrever isto: o `replace(/\s+/g, " ")` faz o
+  // teste casar com o texto de COMENTÁRIO também. A primeira versão da
+  // remoção deixou a regra antiga reproduzida no comentário de `globals.css`,
+  // e o caso continuou passando pelo motivo errado.
+  it("(d) a cascata de `order` NÃO existe — quem reordena é o DOM", () => {
     const css = readFileSync(path.join(process.cwd(), "app", "globals.css"), "utf-8").replace(
       /\s+/g,
       " ",
     );
 
-    expect(css).toContain(':root[data-view="parcial"] [data-ord] { order: var(--ord-parcial); }');
-    expect(css).toContain(':root[data-view="proj"] [data-ord] { order: var(--ord-proj); }');
+    expect(css).not.toContain("[data-ord] { order: var(--ord-parcial); }");
+    expect(css).not.toContain("[data-ord] { order: var(--ord-proj); }");
+
+    // As custom properties CONTINUAM sendo emitidas — o que mudou é quem as
+    // lê: JavaScript, não a cascata. Sem elas não há o que reordenar.
+    const doc = renderPainel();
+    const li = doc.querySelector("li[data-ord]");
+    expect(li?.getAttribute("style")).toContain("--ord-parcial");
+    expect(li?.getAttribute("style")).toContain("--ord-proj");
   });
 });
 

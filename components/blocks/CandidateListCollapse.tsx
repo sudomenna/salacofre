@@ -44,8 +44,8 @@
  */
 
 import { useId, useState } from "react";
-
 import { Button } from "@/components/atoms/controls/Button";
+import { ATRIBUTO_LISTA } from "@/components/blocks/ReordenaListaPorBase";
 
 import styles from "./ResultPanel.module.css";
 
@@ -88,7 +88,16 @@ export function CandidateListCollapse({ children, total }: CandidateListCollapse
 
   return (
     <>
-      <ol className={styles.list} data-collapsed={aberto ? "false" : "true"} id={listaId}>
+      {/* `ATRIBUTO_LISTA`: marca esta `<ol>` para `<ReordenaListaPorBase>` mover
+          as linhas no DOM quando a base ativa muda. O colapso não é afetado —
+          ele clipa por `data-extra-row`, que é atributo de linha e não depende
+          de posição. */}
+      <ol
+        className={styles.list}
+        data-collapsed={aberto ? "false" : "true"}
+        id={listaId}
+        {...{ [ATRIBUTO_LISTA]: "" }}
+      >
         {children}
       </ol>
       <Button

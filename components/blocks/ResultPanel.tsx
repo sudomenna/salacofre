@@ -93,6 +93,7 @@ import {
 } from "@/components/atoms/tables/CandidateResultRow";
 import { candidateColor } from "@/components/blocks/_candidateColor";
 import { CandidateListCollapse } from "@/components/blocks/CandidateListCollapse";
+import { ATRIBUTO_LISTA, ReordenaListaPorBase } from "@/components/blocks/ReordenaListaPorBase";
 import { candidatoFotoUrl } from "@/lib/blob/paths";
 import type { EdgeCandidate } from "@/lib/edge-config/types";
 import { formatPp, formatVotesCompact } from "@/lib/utils/format";
@@ -846,6 +847,15 @@ export function ResultPanel({
           uma lista que já é curta é o negócio errado (RNF-007a). `<ul>` e não
           `<ol>`: a ordem é a do número na urna, e uma lista ordenada é
           anunciada com índice, que é o que o RF-155 manda não haver. */}
+      {/* 🔴 A reordenação da lista acontece no DOM, não só na pintura — é o que
+          faz leitor de tela, teclado, `Ctrl+F` e copiar-colar receberem a mesma
+          ordem que os olhos. Ver o docblock de `<ReordenaListaPorBase>`.
+
+          Não é renderizado em `identidade` (fase pré): sem voto contado a ordem
+          é a do número na urna e não segue base nenhuma — constituição § 2 v1.5,
+          cuja exceção é expressa e não alcança esta tela. */}
+      {identidade ? null : <ReordenaListaPorBase />}
+
       {identidade ? (
         <ul
           data-testid="result-identidade-lista"
@@ -856,7 +866,12 @@ export function ResultPanel({
       ) : excedentes > 0 ? (
         <CandidateListCollapse total={candidatos.length}>{linhas}</CandidateListCollapse>
       ) : (
-        <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}>{linhas}</ol>
+        <ol
+          {...{ [ATRIBUTO_LISTA]: "" }}
+          style={{ listStyle: "none", margin: 0, padding: 0, display: "grid" }}
+        >
+          {linhas}
+        </ol>
       )}
 
       {note ? (

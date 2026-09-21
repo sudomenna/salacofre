@@ -812,13 +812,32 @@ a:hover {
  * `order` só vale entre irmãos de um container flex/grid: a `<ol>` da lista é
  * `display: grid` (`ResultPanel.module.css`), e é isso que faz a regra pegar.
  * ------------------------------------------------------------------------- */
-:root[data-view="parcial"] [data-ord] {
-  order: var(--ord-parcial);
-}
-
-:root[data-view="proj"] [data-ord] {
-  order: var(--ord-proj);
-}
+/* 🔴 **A regra de `order` SAIU em 2026-09-20.** Era:
+ *
+ * duas regras que casavam `[data-ord]` sob `:root[data-view=...]` e aplicavam
+ * `order` a partir das custom properties de cada linha.
+ *
+ * ⚠️ As regras NÃO estão reproduzidas aqui de propósito: o teste (d) de
+ * `ResultPanel.ordemPorBase.test.tsx` lê este arquivo com espaços
+ * normalizados, e uma cópia literal em comentário faria o teste continuar
+ * achando a regra que acabou de ser removida — passando pelo motivo errado.
+ * Aconteceu na primeira tentativa desta mudança, em 2026-09-20.
+ *
+ * `order` movia pixel e deixava o documento na ordem da Projeção — leitor de
+ * tela, teclado, `Ctrl+F` e copiar-colar recebiam a lista fora de ordem
+ * (WCAG SC 1.3.2, nível A). A reordenação agora é no DOM, por
+ * `<ReordenaListaPorBase>`, e as duas ordens coincidem outra vez.
+ *
+ * ⚠️ **Não reintroduza `order` aqui.** Com a reordenação no DOM, uma regra de
+ * `order` COMPÕE com ela e produz uma terceira ordem, que não é nenhuma das
+ * duas bases. As custom properties `--ord-parcial`/`--ord-proj` continuam
+ * sendo emitidas em cada `<li>` — mas agora quem as lê é JavaScript, não a
+ * cascata.
+ *
+ * O texto que vinha acima sobre "por que `order` e não duas listas" fica de
+ * propósito: a conta dos +312 nós e ~42 KB continua sendo a razão de NÃO
+ * duplicar a lista, e essa alternativa segue descartada. O que mudou foi só o
+ * mecanismo de reposicionar a lista única. */
 
 /* O colapso da lista (decisão D21) TAMBÉM é por base: as 6 linhas visíveis são
  * as 6 primeiras DA BASE ATIVA, não as 6 primeiras do DOM. Sem isto, trocar

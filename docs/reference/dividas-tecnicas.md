@@ -215,7 +215,25 @@ observado no código; (b) implicação; (c) decisão necessária.
 
 ---
 
-## 17. ✅ DECIDIDA (2026-09-20) — a ordem visual da lista diverge da ordem do DOM
+## 17. ✅ RESOLVIDA (2026-09-20) — a ordem visual da lista divergia da ordem do DOM
+
+> **Implementada no mesmo dia**, por decisão do dono de antecipar o que estava
+> marcado para depois de 04/10. `components/blocks/ReordenaListaPorBase.tsx`
+> reordena os `<li>` **no DOM** quando a base muda; a regra de `order` saiu de
+> `app/globals.css`. Ordem visual e ordem do DOM voltaram a coincidir.
+>
+> Custo real: **zero nó a mais e zero payload no cliente** — o dado já estava
+> em cada linha (`--ord-parcial`/`--ord-proj`) e o gatilho já existia. As
+> alternativas de +312 nós / ~42 KB e de virar Client Component não foram
+> necessárias.
+>
+> ⚠️ **Falta o teste com leitor de tela real.** Os 8 casos novos medem ordem de
+> DOM e preservação de foco — provam o mecanismo, não a experiência. O bug bash
+> manual de `docs/nfr/accessibility.md` § Validação continua sendo o que fecha.
+>
+> O histórico fica abaixo.
+
+### Registro original (era: DECIDIDA, caminho (a))
 
 > **Decisão do dono: caminho (a) — aceitar e registrar, e avaliar (d) depois de
 > 04/10.** A não-conformidade está documentada em
