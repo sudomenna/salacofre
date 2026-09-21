@@ -375,6 +375,29 @@ ANALYZE=true pnpm build        # bundle analyzer (RNF-007a/b/c)
 .venv-model/bin/python3.14 -m pytest      # 576 verdes em 18/09
 ```
 
+**🔴 Modo simulado — use `pnpm sim:full`, NUNCA `pnpm sim` sozinho.**
+A fixture de `tests/fixtures/simulacao/` não sai de um programa só: o gerador
+monta a base e um script Python acrescenta a **série da evolução da apuração**
+por cima. `pnpm sim` reescreve a base e **apaga a série** — 8 testes quebram
+(`tests/unit/dev/serie-*.test.ts`) e o gráfico da spec 020 fica vazio no
+simulado. Aconteceu em 20/09, com o conselho errado saindo daqui mesmo.
+
+```bash
+set -a; . ./.env.local; set +a; pnpm sim:full   # gerador + série + formatação
+pnpm dev:sim                                    # sobe a tela com a fixture
+```
+
+`sim:full` (criado em 20/09) encadeia as três etapas na ordem e formata no fim
+— o gerador emite JSON que o `biome` reprova, então sem a formatação o
+pre-commit barra. O banco é lido **só** pelo primeiro passo, e **só com
+`SELECT`**: as nove consultas do gerador são de leitura, ele não importa
+`lib/edge-config/writer.ts` nem `lib/blob/write.ts`, e não faz rede.
+
+⚠️ Três scripts irmãos (`gerar-votos-pct-atual-fixtures.py`,
+`gerar-outros-fixtures.py`, `gerar-governador-uf-fixture.py`) ficaram
+**obsoletos**: o gerador já emite `votos_atuais`, `pct_atual`, `outros` e
+`sqcand` sozinho. Rodá-los hoje não é necessário. Ver dívida 20.
+
 **🔴 `ALLOW_DB_WRITE_TESTS` — cinco testes escrevem no banco de `DATABASE_URL`.**
 São `tests/integration/model-edge-cases`, `model-cycle`, `ingest-cycle`,
 `ingest-model-trigger` e o bloco de lock de `ingest-routes-auth-cargo`. Desde 17/09 eles só

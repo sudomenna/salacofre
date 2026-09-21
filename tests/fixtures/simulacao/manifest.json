@@ -1,6 +1,6 @@
 {
   "aviso": "DADO SIMULADO. Nomes, partidos, números de urna e eleitorado são reais; votos, percentuais de apuração e probabilidades são INVENTADOS por data-pipeline/simulacao-gerar.ts. Uso exclusivo de desenvolvimento local — estes arquivos nunca devem ser publicados em destino remoto.",
-  "gerado_ts": "2026-09-14T06:16:29.167Z",
+  "gerado_ts": "2026-09-21T01:15:04.217Z",
   "gerador": "data-pipeline/simulacao-gerar.ts",
   "pct_pedido": 25,
   "pct_efetivo": 25,
@@ -10,9 +10,12 @@
   "arquivos": [
     "deputado-uf.json",
     "deputado.json",
+    "governador-uf.json",
     "governador.json",
     "manifest.json",
+    "municipios-gov-t1.json",
     "municipios-pres-t1.json",
+    "municipios-sen-t1.json",
     "presidente-uf.json",
     "presidente.json",
     "senador-uf.json",
@@ -29,7 +32,7 @@
     "deputado_agremiacoes": 22,
     "deputado_cadeiras_atribuidas": 513,
     "deputado_cadeiras_total": 513,
-    "municipios": 5573
+    "municipios": 5571
   },
   "por_uf": [
     {
@@ -333,6 +336,7 @@
   "avisos": [
     "DF: sem linhas em 'eleitorado'. Eleitorado retrodeduzido de historical_results 2022 (1.762.575 votos ÷ comparecimento nacional 74.5%).",
     "eleitorado.comparecimento_pct_historico está NULL nas 6.085 linhas; o comparecimento por UF foi medido em historical_results 2022/1T/cargo 1.",
-    "4 município(s) sem eleitorado na tabela — peso rateado pela população: DF/Brasília, PE/Fernando de Noronha, RS/Lagoa Mirim, RS/Lagoa dos Patos."
+    "2 feição(ões) da malha do IBGE descartada(s) por não ser(em) município: RS/Lagoa Mirim, RS/Lagoa dos Patos.",
+    "2 município(s) sem eleitorado na tabela — peso rateado pela população: DF/Brasília, PE/Fernando de Noronha."
   ]
 }

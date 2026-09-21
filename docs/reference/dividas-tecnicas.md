@@ -263,6 +263,18 @@ observado no código; (b) implicação; (c) decisão necessária.
 
 ---
 
+## 20. 🟡 A fixture do simulado é montada por uma CADEIA, e três elos viraram obsoletos
+
+| Fato | `tests/fixtures/simulacao/` não sai de um programa só. `data-pipeline/simulacao-gerar.ts` (`pnpm sim`) monta a base; `scripts/gerar-serie-fixtures.py` acrescenta `serie_por_candidato` por cima. Rodar só o primeiro **apaga a série** |
+|---|---|
+| Como mordeu | 2026-09-20: rodei `pnpm sim` para consertar as fotos de Governador e **quebrei 8 testes** (`tests/unit/dev/serie-fixtures.test.ts`, `serie-nacional-relogio.test.ts`). Os arquivos de município encolheram de ~9.500 linhas para um terço — o sinal estava no `git diff --stat`, não numa mensagem de erro. O conselho errado ("é só rodar `pnpm sim`") saiu de mim, apoiado na docstring de `gerar-governador-uf-fixture.py`, que fala do próximo `pnpm sim` **sem avisar que ele também apaga o resto** |
+| ✅ Mitigado em 2026-09-20 | **`pnpm sim:full`** encadeia gerador → série → `biome format` na ordem certa. A formatação entrou porque o gerador emite JSON que o `biome` reprova: sem ela, o pre-commit barra o commit seguinte. `CLAUDE.md § 12` documenta os dois comandos e a armadilha |
+| ⚠️ O que fica aberto | **Três scripts irmãos viraram obsoletos** e ninguém os removeu: `gerar-votos-pct-atual-fixtures.py`, `gerar-outros-fixtures.py` e `gerar-governador-uf-fixture.py`. Verificado em 20/09 que o gerador já emite `votos_atuais`, `pct_atual`, `outros`, `sqcand` e as 4 `top_candidatos` sozinho — rodá-los hoje é desnecessário, e rodá-los FORA de ordem pode reintroduzir o estado antigo. São a mesma família do que causou o defeito das fotos: **um cargo com gerador próprio, divergindo do padrão** |
+| Próximo passo | Decidir por script: remover, ou marcar como obsoleto no cabeçalho com a data em que deixou de ser necessário. Enquanto existirem sem aviso, alguém vai rodá-los |
+| Prioridade | P3 — o caminho certo agora é um comando só; o risco residual é alguém achar um script antigo e rodá-lo |
+
+---
+
 ## Próximos passos
 
 **Sessão atual**: dívidas catalogadas, proprietários e timelines atribuídos.

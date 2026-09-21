@@ -1,5 +1,5 @@
 {
-  "ts": "2026-09-14T06:16:29.167Z",
+  "ts": "2026-09-21T01:15:04.217Z",
   "cargo": 5,
   "turno": 1,
   "pct_apurado_total": 25,
@@ -4575,23 +4575,23 @@
     "cenarios_2t": [],
     "chamadas_recentes": [
       {
-        "ts": "2026-09-14T06:16:29.167Z",
+        "ts": "2026-09-21T01:15:04.217Z",
         "texto": "DF chamada para MICHELLE BOLSONARO (PL) com 37,0% apurado."
       },
       {
-        "ts": "2026-09-14T06:16:29.167Z",
+        "ts": "2026-09-21T01:15:04.217Z",
         "texto": "ES chamada para MAGUINHA MALTA (PL) com 32,1% apurado."
       },
       {
-        "ts": "2026-09-14T06:16:29.167Z",
+        "ts": "2026-09-21T01:15:04.217Z",
         "texto": "GO chamada para OSÉIAS VARÃO (PL) com 30,9% apurado."
       },
       {
-        "ts": "2026-09-14T06:16:29.167Z",
+        "ts": "2026-09-21T01:15:04.217Z",
         "texto": "MG chamada para MARÍLIA CAMPOS (PT) com 32,4% apurado."
       },
       {
-        "ts": "2026-09-14T06:16:29.167Z",
+        "ts": "2026-09-21T01:15:04.217Z",
         "texto": "MS chamada para VANDER LOUBET (PT) com 39,3% apurado."
       }
     ],
@@ -4743,7 +4743,7 @@
         }
       ],
       "outros": {
-        "pct": 7.18,
+        "pct": 7.2,
         "pct_atual": 7.47,
         "votos_atuais": 17813,
         "n_candidatos": 5
@@ -4799,7 +4799,7 @@
         }
       ],
       "outros": {
-        "pct": 3.51,
+        "pct": 3.5,
         "pct_atual": 3.58,
         "votos_atuais": 1793,
         "n_candidatos": 5
@@ -4855,7 +4855,7 @@
         }
       ],
       "outros": {
-        "pct": 7.19,
+        "pct": 7.2,
         "pct_atual": 6.83,
         "votos_atuais": 66712,
         "n_candidatos": 6
@@ -4911,8 +4911,8 @@
         }
       ],
       "outros": {
-        "pct": 6.0,
-        "pct_atual": 5.87,
+        "pct": 6,
+        "pct_atual": 5.86,
         "votos_atuais": 36884,
         "n_candidatos": 4
       },
@@ -4967,8 +4967,8 @@
         }
       ],
       "outros": {
-        "pct": 3.49,
-        "pct_atual": 3.47,
+        "pct": 3.5,
+        "pct_atual": 3.48,
         "votos_atuais": 22669,
         "n_candidatos": 8
       },
@@ -5023,7 +5023,7 @@
         }
       ],
       "outros": {
-        "pct": 6.0,
+        "pct": 6,
         "pct_atual": 5.25,
         "votos_atuais": 37448,
         "n_candidatos": 7
@@ -5079,7 +5079,7 @@
         }
       ],
       "outros": {
-        "pct": 6.0,
+        "pct": 6,
         "pct_atual": 6.34,
         "votos_atuais": 72067,
         "n_candidatos": 7
@@ -5135,8 +5135,8 @@
         }
       ],
       "outros": {
-        "pct": 7.19,
-        "pct_atual": 7.36,
+        "pct": 7.2,
+        "pct_atual": 7.37,
         "votos_atuais": 32345,
         "n_candidatos": 6
       },
@@ -5191,8 +5191,8 @@
         }
       ],
       "outros": {
-        "pct": 7.19,
-        "pct_atual": 6.87,
+        "pct": 7.2,
+        "pct_atual": 6.88,
         "votos_atuais": 267725,
         "n_candidatos": 12
       },
@@ -5303,7 +5303,7 @@
         }
       ],
       "outros": {
-        "pct": 6.0,
+        "pct": 6,
         "pct_atual": 6.04,
         "votos_atuais": 30598,
         "n_candidatos": 5
@@ -5359,7 +5359,7 @@
         }
       ],
       "outros": {
-        "pct": 3.51,
+        "pct": 3.5,
         "pct_atual": 3.36,
         "votos_atuais": 18233,
         "n_candidatos": 4
@@ -5416,7 +5416,7 @@
       ],
       "outros": {
         "pct": 3.5,
-        "pct_atual": 3.45,
+        "pct_atual": 3.46,
         "votos_atuais": 9715,
         "n_candidatos": 6
       },
@@ -5472,7 +5472,7 @@
       ],
       "outros": {
         "pct": 7.2,
-        "pct_atual": 7.95,
+        "pct_atual": 7.94,
         "votos_atuais": 50236,
         "n_candidatos": 8
       },
@@ -5527,8 +5527,8 @@
         }
       ],
       "outros": {
-        "pct": 3.49,
-        "pct_atual": 3.46,
+        "pct": 3.5,
+        "pct_atual": 3.47,
         "votos_atuais": 8219,
         "n_candidatos": 14
       },
@@ -5633,7 +5633,7 @@
         }
       ],
       "outros": {
-        "pct": 5.98,
+        "pct": 6,
         "pct_atual": 5.92,
         "votos_atuais": 171301,
         "n_candidatos": 9
@@ -5689,7 +5689,7 @@
         }
       ],
       "outros": {
-        "pct": 7.22,
+        "pct": 7.2,
         "pct_atual": 7.7,
         "votos_atuais": 17925,
         "n_candidatos": 10
@@ -5745,7 +5745,7 @@
         }
       ],
       "outros": {
-        "pct": 6.0,
+        "pct": 6,
         "pct_atual": 5.97,
         "votos_atuais": 6260,
         "n_candidatos": 5
@@ -5802,7 +5802,7 @@
       ],
       "outros": {
         "pct": 3.5,
-        "pct_atual": 3.39,
+        "pct_atual": 3.38,
         "votos_atuais": 1170,
         "n_candidatos": 9
       },
@@ -5858,7 +5858,7 @@
       ],
       "outros": {
         "pct": 7.2,
-        "pct_atual": 7.26,
+        "pct_atual": 7.25,
         "votos_atuais": 132419,
         "n_candidatos": 8
       },
@@ -5913,7 +5913,7 @@
         }
       ],
       "outros": {
-        "pct": 7.18,
+        "pct": 7.2,
         "pct_atual": 6.64,
         "votos_atuais": 69004,
         "n_candidatos": 5
@@ -5969,8 +5969,8 @@
         }
       ],
       "outros": {
-        "pct": 6.0,
-        "pct_atual": 6.14,
+        "pct": 6,
+        "pct_atual": 6.15,
         "votos_atuais": 9261,
         "n_candidatos": 5
       },
@@ -6025,7 +6025,7 @@
         }
       ],
       "outros": {
-        "pct": 6.0,
+        "pct": 6,
         "pct_atual": 6.31,
         "votos_atuais": 566894,
         "n_candidatos": 11
@@ -6081,8 +6081,8 @@
         }
       ],
       "outros": {
-        "pct": 5.98,
-        "pct_atual": 5.59,
+        "pct": 6,
+        "pct_atual": 5.61,
         "votos_atuais": 5605,
         "n_candidatos": 9
       },
