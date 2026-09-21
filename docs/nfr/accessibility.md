@@ -244,12 +244,36 @@ resultado é a estrutura central das quatro telas. **Não é** avaliação de qu
 problema seja pequeno para quem depende de leitor de tela — é escolha de
 momento, com data para ser revista.
 
-**Revisão marcada: depois de 04/10.** Avaliar o caminho (d) da dívida 17 —
-reordenar o DOM de verdade na troca de base, que é o que o balão do mapa já
-faz (`buildHoverRows` reordena o array, e por isso ali ordem visual e ordem do
-DOM coincidem). Não foi prometido como barato: mover nós dentro de uma árvore
-React tem risco de reconciliação desfazer a mudança e de o foco de teclado
-saltar. Exige investigação própria antes de virar tarefa.
+**Revisão: o caminho (d) foi INVESTIGADO em 2026-09-20, e é viável.**
+Implementação marcada para depois de 04/10 — a lista é a estrutura central de
+quatro telas e não se mexe nela na véspera.
+
+Os dois riscos que faziam de (d) uma incógnita foram **medidos**, e o quadro é
+melhor do que a dívida supunha:
+
+| risco suposto | medido |
+|---|---|
+| a reconciliação do React desfaz a reordenação imperativa | ❌ **não desfaz.** Três cenários com o React 19 do próprio projeto — re-render do wrapper cliente, dois re-renders seguidos, e re-render do PAI com a mesma vdom. A ordem imperativa sobreviveu aos três. O React só toca na ordem do DOM quando **a ordem da vdom dele** muda, e aqui ela é fixa: `<ResultPanel>` e `<CandidateResultRow>` são Server Components, e o polling de `<PersistentMapFrame>` não alcança o painel |
+| o foco do teclado salta | ⚠️ **salta mesmo** — medido no Chrome: mover o `<li>` que contém o elemento focado joga o foco para o `<body>`. **Mitigação de 4 linhas, verificada**: guardar `document.activeElement`, reordenar, devolver com `focus({ preventScroll: true })`. Depois disso, foco preservado e sem salto de rolagem |
+
+E o terceiro risco — virar Client Component, que custaria bundle acima da
+dobra (RNF-007a) — **não se aplica**: não é preciso. O dado necessário para
+reordenar **já está no DOM**: cada `<li>` carrega `--ord-parcial` e
+`--ord-proj` como custom properties inline (`ResultPanel.tsx:710`), que é o
+que as regras de `order` já leem. E o gatilho já existe:
+`lib/state/view-mode-client.ts` escreve `data-view` no `<html>`.
+
+**O desenho que a investigação sugere**: um módulo cliente pequeno, assinando
+a store de base que já existe, que lê `--ord-<base>` de cada linha, reordena
+os nós e devolve o foco. Sem duplicar payload, sem arrastar
+`<CandidateResultRow>` nem `<PartyTag>` para o cliente. A regra de `order` em
+`app/globals.css` sairia, ou ficaria só como comportamento pré-hidratação.
+
+⚠️ **O que a investigação NÃO cobriu**: teste com leitor de tela real. As
+medições acima são de ordem do DOM e de foco — provam que o mecanismo
+funciona, não que a experiência de quem usa NVDA ou VoiceOver fica correta. O
+bug bash manual previsto na seção `## Validação` continua sendo o que fecha a
+questão.
 
 **Cross-refs**: dívida 17 em
 [`../reference/dividas-tecnicas.md`](../reference/dividas-tecnicas.md) ·

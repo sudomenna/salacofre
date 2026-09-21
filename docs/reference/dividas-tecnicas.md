@@ -231,12 +231,28 @@ observado no código; (b) implicação; (c) decisão necessária.
 > "Parcial", selecionar a lista de candidatos e colar num editor — vem na
 > ordem da Projeção. Copiar-colar lê o DOM, como o leitor de tela.
 >
-> **A avaliar depois de 04/10** — caminho (d), que não estava na lista
-> original das três opções: reordenar o DOM de verdade na troca de base, que é
-> o que `buildHoverRows` já faz no balão do mapa (por isso lá não há
-> divergência). Não prometido como barato — mover nós numa árvore React arrisca
-> reconciliação desfazendo a mudança e salto de foco de teclado. Precisa de
-> investigação antes de virar tarefa.
+> ✅ **Caminho (d) INVESTIGADO em 2026-09-20 — é viável.** Implementação
+> marcada para depois de 04/10. Os dois riscos foram medidos:
+>
+> - **React desfazendo a reordenação: não acontece.** Três cenários com o React
+>   19 do projeto (re-render do wrapper, dois seguidos, e re-render do pai com a
+>   mesma vdom) — a ordem imperativa sobreviveu aos três. `<ResultPanel>` e
+>   `<CandidateResultRow>` são Server Components e o polling não os alcança, então
+>   a vdom nunca muda de ordem.
+> - **Foco do teclado: salta mesmo** (medido no Chrome — vai para o `<body>`),
+>   **e tem conserto de 4 linhas**: guardar `document.activeElement`, reordenar,
+>   devolver com `focus({ preventScroll: true })`. Verificado.
+>
+> **Não precisa de Client Component** (o risco de RNF-007a some): o dado já está
+> no DOM — cada `<li>` traz `--ord-parcial`/`--ord-proj` inline
+> (`ResultPanel.tsx:710`) — e o gatilho também (`view-mode-client.ts` escreve
+> `data-view` no `<html>`). Basta um módulo cliente pequeno assinando a store.
+>
+> ⚠️ **Não coberto**: teste com leitor de tela real. As medições provam o
+> mecanismo, não a experiência. O bug bash manual continua necessário.
+>
+> Detalhe completo em [`../nfr/accessibility.md`](../nfr/accessibility.md),
+> seção "SC 1.3.2".
 
 O registro do problema fica abaixo, como histórico.
 
