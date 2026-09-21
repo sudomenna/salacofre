@@ -28,10 +28,23 @@
  *
  * ## A lista também reordena (2026-09-20)
  *
- * As linhas chegam na ordem da PROJEÇÃO e a cascata de `app/globals.css` as
- * reposiciona com `order` quando a base ativa é "Parcial". Este componente não
- * participa disso — mas o `data-collapsed` que ele escreve é metade do
- * seletor que decide quais 6 linhas ficam visíveis EM CADA BASE.
+ * As linhas chegam na ordem da PROJEÇÃO e `<ReordenaListaPorBase>` as
+ * **reposiciona no DOM** quando a base ativa é "Parcial" — por isso este
+ * componente marca a própria `<ol>` com `ATRIBUTO_LISTA`, que é como aquele
+ * módulo a encontra.
+ *
+ * ⚠️ **Esta frase dizia `order` de CSS até 2026-09-20**, e a cascata que ela
+ * citava foi REMOVIDA no mesmo commit que criou a reordenação por DOM:
+ * `order` movia pixel e deixava o documento na ordem antiga, violando a WCAG
+ * SC 1.3.2. Achado pelo `a11y-perf-auditor` no portão — e é o terceiro
+ * comentário desatualizado a morder esta mudança (ver `_lista-por-base.ts`
+ * sobre os outros dois). Comentário que descreve mecanismo morto vira
+ * "verdade" para quem ler daqui a três semanas.
+ *
+ * O `data-collapsed` que este componente escreve segue sendo metade do seletor
+ * que decide quais 6 linhas ficam visíveis EM CADA BASE — e isso **não** foi
+ * afetado: aquele seletor casa por `data-extra-row`, atributo de linha, nunca
+ * por posição.
  *
  * ## `aria-expanded` num conteúdo que nunca some
  *

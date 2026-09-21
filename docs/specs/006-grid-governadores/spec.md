@@ -6,7 +6,7 @@ shipped_date: 2026-05-18
 priority: M
 personas: [P1, P2, P3]
 screens: [T-02]
-requirements: [RF-021, RF-022, RF-025, RF-027, RF-029, RF-006.1, RF-006.2, RF-006.3, RF-006.4, RF-006.5, RF-062, RF-063]
+requirements: [RF-021, RF-022, RF-025, RF-027, RF-029, RF-006.1, RF-006.2, RF-006.3, RF-006.4, RF-006.5, RF-062, RF-063, RF-189]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 005-pagina-uf-governador]
 apis: [GET /api/projection?cargo=governador]
 components: [GovernorCard, HexCartogramBrasil, RaceStatsCards, BreakingNewsTicker, LiveBadge, Tabs, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader]

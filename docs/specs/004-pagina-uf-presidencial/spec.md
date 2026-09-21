@@ -5,7 +5,7 @@ status: shipped
 priority: M
 personas: [P1, P2, P3, P4]
 screens: [T-03]
-requirements: [RF-031, RF-032, RF-033, RF-034, RF-037, RF-043, RF-061, RF-062, RF-063, RF-182, RF-183]
+requirements: [RF-031, RF-032, RF-033, RF-034, RF-037, RF-043, RF-061, RF-062, RF-063, RF-182, RF-183, RF-180, RF-181]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 008-interatividade-brushing, 003-home-nacional]
 apis: [GET /api/projection?uf=<sigla>]
 components: [WinnerBanner, CandidateRow, ChoroplethMapUF, MunicipioTable, ForecastTransparency, Footer, ProjectionThermometer, TrilhaKicker, RaceHeader, CandidateResultRow, MunicipioExplorer, ResultPanel, CandidateListCollapse]

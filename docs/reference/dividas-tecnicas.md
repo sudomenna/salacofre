@@ -227,6 +227,12 @@ observado no código; (b) implicação; (c) decisão necessária.
 > alternativas de +312 nós / ~42 KB e de virar Client Component não foram
 > necessárias.
 >
+> ⚠️ **Correção do portão de a11y (20/09)**: "zero" vale para NÓS e para
+> PAYLOAD, não para bytes de código. Os dois módulos novos somam ~1,4 KB de
+> fonte sem comentários — algumas centenas de bytes depois de comprimir. O
+> `useSyncExternalStore` que eles reusam **já estava** no bundle (três outros
+> componentes o consomem). Direção certa, palavra errada.
+>
 > ⚠️ **Falta o teste com leitor de tela real.** Os 8 casos novos medem ordem de
 > DOM e preservação de foco — provam o mecanismo, não a experiência. O bug bash
 > manual de `docs/nfr/accessibility.md` § Validação continua sendo o que fecha.

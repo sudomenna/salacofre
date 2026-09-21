@@ -5,7 +5,7 @@ status: shipped
 priority: M
 personas: [P1, P2, P3]
 screens: [T-09, T-10]
-requirements: [RF-100, RF-101, RF-102, RF-103, RF-104, RF-105, RF-106, RF-107, RF-108, RF-179, RF-184, RF-181, RF-185, RF-186, RF-187, RF-188]
+requirements: [RF-100, RF-101, RF-102, RF-103, RF-104, RF-105, RF-106, RF-107, RF-108, RF-179, RF-184, RF-181, RF-185, RF-186, RF-187, RF-188, RF-180, RF-189]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico]
 apis: [GET /api/ingest/senador, POST /api/ingest/senador, GET /api/projection?cargo=senador]
 components: [ResultPanel, CandidateListCollapse, ChancesPanel, CargoTabs, RaceHeader, ForecastTransparency, NationalChoroplethMap, ChoroplethMapUF, StateResultSheet, UfHoverLink, MunicipioTable, MunicipioExplorer]

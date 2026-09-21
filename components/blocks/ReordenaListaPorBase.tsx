@@ -73,9 +73,34 @@
  * O re-export abaixo existe só para não quebrar quem já importava daqui.
  */
 
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import { ATRIBUTO_LISTA, reordenarLista } from "@/components/blocks/_lista-por-base";
 import { useViewMode } from "@/lib/state/view-mode-client";
+
+/**
+ * 🔴 `useLayoutEffect`, e não `useEffect` — a diferença é um QUADRO visível.
+ *
+ * `setViewMode` (`lib/state/view-mode-client.ts:78-86`) escreve `data-view` no
+ * `<html>` **de forma síncrona**, antes de notificar os assinantes. Ou seja,
+ * tudo que é cascata — a ênfase dos dois números, a cor, o badge de vaga, o
+ * corte do colapso — troca no instante do clique. A reordenação, se ficasse
+ * num efeito PASSIVO, poderia só acontecer depois da pintura: um quadro em que
+ * os números já são da base nova e a ORDEM ainda é da antiga.
+ *
+ * É o defeito original em miniatura (ordem discordando do resto), com ~16ms de
+ * duração em vez de uma sessão inteira. `useLayoutEffect` roda antes da
+ * pintura, então as duas coisas chegam ao olho no mesmo quadro.
+ *
+ * Achado pelo `a11y-perf-auditor` no portão de 2026-09-20, que classificou
+ * como polimento; medi a causa (a escrita síncrona do atributo) e concordei
+ * que vale.
+ *
+ * O ramo para `useEffect` no servidor é o padrão isomórfico de sempre:
+ * `useLayoutEffect` avisa em SSR. Este componente renderiza `null` e o efeito
+ * é só de cliente, então o ramo não produz diferença de marcação — não há
+ * risco de divergência de hidratação.
+ */
+const useEfeitoDeLayout = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export { ATRIBUTO_LISTA, reordenarLista };
 
@@ -92,7 +117,7 @@ export { ATRIBUTO_LISTA, reordenarLista };
 export function ReordenaListaPorBase() {
   const base = useViewMode();
 
-  useEffect(() => {
+  useEfeitoDeLayout(() => {
     for (const lista of document.querySelectorAll<HTMLElement>(`[${ATRIBUTO_LISTA}]`)) {
       reordenarLista(lista, base);
     }

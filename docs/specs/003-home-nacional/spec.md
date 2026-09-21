@@ -355,10 +355,22 @@ WHEN uma linha de candidato renderiza, the system SHALL desenhar o preenchimento
 
 **RF-181 — Lista de candidatos reordena ao trocar base ativa**
 
-WHEN um usuário alterna o seletor "Parcial / Projeção" do `<ShellControls />`, the system SHALL reordenar a lista de candidatos conforme a ranking da base agora ativa, atualizando também numeração sequencial, highlight de margem e (em Senado) ocupação de vagas — sem reescrever o DOM, apenas ajustando a ordem visual via CSS `order`.
+> 🔴 **Mecanismo reescrito em 2026-09-20** (`d1a9f16`). A redação anterior
+> exigia o contrário do que o produto faz hoje: *"sem reescrever o DOM, apenas
+> ajustando a ordem visual via CSS `order`"*. Aquele mecanismo movia pixel e
+> deixava o documento na ordem da Projeção — leitor de tela, teclado, `Ctrl+F`
+> e copiar-colar recebiam a lista fora de ordem, com a numeração da base nova.
+> É **WCAG SC 1.3.2 (Meaningful Sequence), nível A**, e era a dívida 17.
+> A reordenação agora é **no DOM**; a regra de `order` saiu de `globals.css`.
+
+WHEN um usuário alterna o seletor "Parcial / Projeção" do `<ShellControls />`, the system SHALL **reordenar os nós da lista no DOM** conforme o ranking da base agora ativa, atualizando também numeração sequencial, highlight de margem e (em Senado) ocupação de vagas — de modo que a ordem do documento e a ordem visual **coincidam sempre**.
 
 **Aceitação**:
-- Given lista emitida em ordem de Projeção, com custom properties `--ord-parcial` e `--ord-proj` em cada linha, when usuário seleciona "Parcial", then a cascata de `app/globals.css` muda a regra ativa de `order: var(--ord-proj)` para `order: var(--ord-parcial)`.
+- Given lista emitida em ordem de Projeção, com custom properties `--ord-parcial` e `--ord-proj` em cada linha, when usuário seleciona "Parcial", then os `<li>` são **reposicionados no DOM** por `<ReordenaListaPorBase>` na ordem de `--ord-parcial` — e uma leitura do documento (leitor de tela, `Ctrl+F`, copiar-colar) devolve a mesma sequência que a tela mostra.
+- Given foco de teclado dentro da lista, when a base muda, then o foco permanece no mesmo elemento (guardado e devolvido com `preventScroll`) — mover o `<li>` que o contém o descartaria para o `<body>`.
+- Given `--ord-<base>` ausente numa linha, when a lista reordena, then aquela linha vai para o fim sem embaralhar as demais — nunca é tratada como posição `0`.
+- Given a lista de identidade da fase pré, when a base muda, then **nada** é reordenado: ela não recebe `ATRIBUTO_LISTA`, porque sem voto contado não há métrica do leitor a seguir (constituição § 2 v1.5, cuja exceção exige controle de base).
+- 🔴 Given `app/globals.css`, when varrido, then **não existe** regra de `order` para `[data-ord]` — com a reordenação no DOM, uma regra dessas compõe com ela e produz uma terceira ordem, que não é nenhuma das duas bases.
 - Given candidato em 1º na Projeção e 3º na Parcial, when bases alternam, then a numeração de posição, a intensidade de cor de margem e (se Senado) o badge de vaga acompanham a nova base.
 
 **RF-185 — Painel de chances acompanha a base ativa**
