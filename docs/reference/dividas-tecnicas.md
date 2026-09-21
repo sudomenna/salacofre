@@ -215,7 +215,32 @@ observado no código; (b) implicação; (c) decisão necessária.
 
 ---
 
-## 17. 🔴 A ordem visual da lista de candidatos diverge da ordem do DOM — DECISÃO DO DONO PENDENTE
+## 17. ✅ DECIDIDA (2026-09-20) — a ordem visual da lista diverge da ordem do DOM
+
+> **Decisão do dono: caminho (a) — aceitar e registrar, e avaliar (d) depois de
+> 04/10.** A não-conformidade está documentada em
+> [`../nfr/accessibility.md`](../nfr/accessibility.md), seção "SC 1.3.2", no
+> formato do RNF-035: fato medido, o que se perde, por que foi construído
+> assim, por que nenhuma ferramenta pega, e a data de revisão.
+>
+> ⚠️ **Decidida não é resolvida.** O site descumpre, conscientemente, um
+> critério WCAG de **nível A**. O que mudou é que agora é escolha registrada
+> com data de revisão, não descuido silencioso.
+>
+> **Verificação manual mais rápida**, para quem for revisitar: na base
+> "Parcial", selecionar a lista de candidatos e colar num editor — vem na
+> ordem da Projeção. Copiar-colar lê o DOM, como o leitor de tela.
+>
+> **A avaliar depois de 04/10** — caminho (d), que não estava na lista
+> original das três opções: reordenar o DOM de verdade na troca de base, que é
+> o que `buildHoverRows` já faz no balão do mapa (por isso lá não há
+> divergência). Não prometido como barato — mover nós numa árvore React arrisca
+> reconciliação desfazendo a mudança e salto de foco de teclado. Precisa de
+> investigação antes de virar tarefa.
+
+O registro do problema fica abaixo, como histórico.
+
+### Registro original
 
 | Fato | Desde `290b8de`, `ResultPanel` monta as `<li>` **sempre na ordem da Projeção** e reposiciona visualmente por `order` de CSS conforme a base ativa. Leitor de tela e `Ctrl+F` seguem o DOM, não o CSS |
 |---|---|

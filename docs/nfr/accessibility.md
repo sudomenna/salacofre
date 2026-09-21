@@ -190,6 +190,73 @@ porque na primeira tentativa de medir isto o bloco lido foi o **escuro**
 achando que era o claro, e o resultado foi "71 cores reprovando" com toda
 `-text` idêntica à base.
 
+## SC 1.3.2 (Meaningful Sequence) — a ordem visual da lista diverge da ordem do DOM
+
+> **Decisão do dono, 2026-09-20: aceitar e registrar.** Escrito aqui no formato
+> do RNF-035 acima — fato medido, decisão, porquê — porque decidir por um
+> critério que não está escrito funciona só enquanto quem decidiu lembra.
+>
+> Esta seção **não** cria um RNF novo. Ela documenta uma **não-conformidade
+> conhecida e aceita** com um critério WCAG de **nível A**, que é o mais
+> básico da escala. Registrar não é o mesmo que resolver.
+
+**O fato.** Desde `290b8de` (2026-09-20), `<ResultPanel>` emite as `<li>` da
+lista de candidatos **sempre na ordem da Projeção** e reposiciona visualmente
+por `order` de CSS quando a base ativa é "Parcial" (`app/globals.css`, bloco
+"A ORDEM da lista de candidatos acompanha a base ativa"). `order` move pixel,
+não move documento.
+
+**O que se perde, e o que não se perde.** Nenhuma linha carrega número errado
+— cada uma traz a colocação da base ativa. O que diverge é a **sequência**: na
+base "Parcial", quem lê pelo DOM recebe as linhas em ordem de Projeção, com a
+numeração da Parcial. Ouve "3º, 1º, 2º".
+
+**Quem recebe o DOM e não a pintura**: leitor de tela, navegação por teclado,
+`Ctrl+F` e **copiar-colar**. O último é o teste mais rápido de reproduzir, e
+serve de verificação manual: na base "Parcial", selecionar a lista e colar num
+editor devolve a ordem da Projeção.
+
+**Quando ocorre.** Só depois de o leitor trocar para "Parcial". A página abre
+em `VIEW_MODE_DEFAULT = "proj"`, e nesse estado ordem visual e ordem do DOM
+**coincidem** — inclusive no primeiro paint, antes de qualquer hidratação.
+
+**Por que foi construído assim.** A home e as 54 rotas de UF são
+pré-renderizadas estáticas (ADR-0025 §§ 2 e 5) e `data-view` é estado de
+cliente: o servidor não sabe em que base o leitor está. Restavam emitir as
+duas listas ou reposicionar por CSS. Emitir as duas foi **medido**: +312 nós
+(a lista de 13 linhas é 312 dos 367 nós do painel, e a home tem 831 nós) e
+~42 KB de HTML acima da dobra, **em toda visita — inclusive nas noites em que
+as duas ordens coincidem e a cópia não serve para nada**. Client Component
+custaria bundle acima da dobra (RNF-007a) e arrastaria `<CandidateResultRow>`,
+`<PartyTag>` e o payload para o cliente.
+
+**Por que nenhuma ferramenta pega.** `axe-core` e Lighthouse **não detectam**
+divergência entre ordem visual e ordem do DOM. É um balde cego conhecido, da
+mesma família do contraste de texto em SVG que este projeto já documentou. A
+seção `## Validação` abaixo, que se apoia nas duas, **não cobre este item** —
+só teste manual com leitor de tela cobre.
+
+**A decisão, e o que ela não é.** Aceita porque: (1) só alcança quem troca de
+base; (2) nenhum dado individual fica falso, só fora de ordem; (3) o conserto
+completo custa peso em toda visita, inclusive nas em que não há divergência; e
+(4) faltavam 14 dias para 04/10 quando a decisão foi tomada, e a lista de
+resultado é a estrutura central das quatro telas. **Não é** avaliação de que o
+problema seja pequeno para quem depende de leitor de tela — é escolha de
+momento, com data para ser revista.
+
+**Revisão marcada: depois de 04/10.** Avaliar o caminho (d) da dívida 17 —
+reordenar o DOM de verdade na troca de base, que é o que o balão do mapa já
+faz (`buildHoverRows` reordena o array, e por isso ali ordem visual e ordem do
+DOM coincidem). Não foi prometido como barato: mover nós dentro de uma árvore
+React tem risco de reconciliação desfazer a mudança e de o foco de teclado
+saltar. Exige investigação própria antes de virar tarefa.
+
+**Cross-refs**: dívida 17 em
+[`../reference/dividas-tecnicas.md`](../reference/dividas-tecnicas.md) ·
+RF-181 e RF-177 em [`../specs/003-home-nacional/spec.md`](../specs/003-home-nacional/spec.md) ·
+[ADR-0051](../architecture/adrs/0051-ordem-de-candidatos-segue-base-de-apuracao-selecionada.md)
+(que legitimou a reordenação perante a constituição § 2 e **não** resolve este item).
+
 ## Validação
 
 - `axe-core` rodando em CI em cada PR.
