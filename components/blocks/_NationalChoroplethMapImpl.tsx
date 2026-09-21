@@ -130,6 +130,11 @@ import {
   computeHoverCardPlacement,
   HOVER_CARD_FALLBACK_SIZE,
 } from "@/lib/utils/hover-card-placement";
+import {
+  liderIdPorBase,
+  margemPorBase,
+  ordenarTopCandidatosPorBase,
+} from "@/lib/utils/lider-por-base";
 import { ariaRessalvaVagas, margemSegundaVaga } from "@/lib/utils/margem-senado";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 import {
@@ -353,11 +358,22 @@ function resolveColor(
   // universo. `--map-uncounted` é a resposta honesta (mesma cor do fallback
   // de UF sem row).
   if (parcial && row.pct_apurado === 0) return getCssVar("--map-uncounted") || "#e1e4e8";
-  // `row.lider` é o líder APURADO ("líder no momento", ver
-  // `lib/edge-config/types.ts`); `top_candidatos[0]` é o topo por
-  // `pct_projetado`. São bases diferentes e o controle do shell escolhe qual
-  // delas o mapa pinta (ADR-0029 § 2).
-  const liderId = parcial ? row.lider : (row.top_candidatos?.[0]?.id ?? row.lider);
+  // 🔴 2026-09-20 — `liderIdPorBase`, e NÃO mais `parcial ? row.lider : ...`.
+  //
+  // O ternário antigo dizia respeitar a base (comentário removido: "`row.lider`
+  // é o líder APURADO, `top_candidatos[0]` é o topo por `pct_projetado`"), mas
+  // media a coisa errada: `api/model/project.py` constrói `row.lider` E
+  // `top_candidatos[0].id` a partir do MESMO `ordered[0]` — a lista ordenada
+  // por `pct_projetado` desc (linhas ~5033–5266). Os dois braços do ternário
+  // avaliavam para o MESMO candidato em TODO caso; a cor nunca de fato mudava
+  // de partido ao trocar Parcial/Projeção (fora do `return` de zero apurado
+  // logo acima). `liderIdPorBase` (`lib/utils/lider-por-base.ts`, docstring
+  // completa lá) deriva o líder parcial de verdade, reordenando
+  // `top_candidatos` por `pct_atual` com o MESMO comparador de
+  // `rankByParcial` — o ponto único que `buildHoverRows`, mais abaixo, também
+  // usa. É o que mantém a cor do estado e a ordem do balão CONCORDANDO na
+  // mesma base — a falta disso é o defeito CAIADO de 19/09.
+  const liderId = liderIdPorBase(row, viewMode);
   // 🔴 RF-104 — em Senado (2 vagas) a margem que decide a corrida é a do 2º
   // para o 3º, não a de `row.margem_atual`/`row.margem_projetada` (sempre
   // 1º−2º). Sem esta troca, a view "margin" pintaria uma UF como "decidida"
@@ -373,8 +389,19 @@ function resolveColor(
   // devolve `NaN` com menos de 3 candidatos no top-3 (UF ainda sem dado
   // suficiente) — `intensityLevelForMargin`/`marginToRankColor` já tratam
   // `NaN` como "sem margem confiável", nunca como zero.
-  const margem =
-    cargo === "sen" ? margemSegundaVaga(row) : parcial ? row.margem_atual : row.margem_projetada;
+  // 🔴 2026-09-20 — `margemPorBase`, e NÃO `parcial ? row.margem_atual : ...`.
+  //
+  // Segundo braço do MESMO achado que trocou `liderId` acima:
+  // `api/model/project.py:5267-5268` grava `margem_atual` e `margem_projetada`
+  // com a MESMA variável, calculada sobre `pct_projetado`. O ternário antigo
+  // tinha os dois braços idênticos em todo payload — enquanto a MATIZ do mapa
+  // nunca trocava de partido, a INTENSIDADE nunca trocava de número. As duas
+  // metades da view "margin" eram cegas ao seletor, por motivos irmãos.
+  //
+  // `margemPorBase` deriva a margem parcial dos `pct_atual` por candidato (o
+  // único apurado por-candidato que o payload publica) e degrada para a
+  // projetada quando não há leitura completa — nunca inventa zero.
+  const margem = cargo === "sen" ? margemSegundaVaga(row) : margemPorBase(row, viewMode);
   const partido = candidatosById.get(liderId)?.partido;
   switch (view) {
     case "winner":
@@ -515,17 +542,35 @@ function applyColors(
  * `top_candidatos` só tem `id`+`pct`) e para Presidente antes desta safra de
  * payloads, onde o nome só existia no bloco nacional.
  *
- * 🔴 **Tratamento de "vencedor" (fundo cheio + ✓) só na linha 0 e só quando
- * `row.chamada === true`.** `row.chamada` é um fato sobre a UF inteira
- * (`EdgeUfRow.chamada`), não sobre um candidato — mas a UI só faz sentido
- * aplicado à linha do LÍDER, e `top_candidatos[0]` (ordenado por projeção
- * desc, tie-break por id ASC — ver o campo em `lib/edge-config/types.ts`) é
- * quem essa linha representa. Sem esta guarda de índice, uma UF chamada
- * pintaria as TRÊS linhas com fundo cheio — a constituição § 1 proíbe
- * publicar como decidido o que não foi (aqui, os 2º e 3º colocados). O par
- * (fundo, tinta) é resolvido AQUI, não em `<HoverCard>`: o átomo não conhece
- * partido (teste (h) de `HoverCard.test.tsx`) — `partyChipInk` já vem com o
- * contraste medido (≥4,5:1, docstring dele), inclusive para o par de `outros`.
+ * 🔴 **Tratamento de "vencedor" (fundo cheio + ✓) é sobre a IDENTIDADE do
+ * líder PROJETADO, nunca sobre a posição 0 da lista exibida.** `row.chamada`
+ * é calculado no produtor a partir da margem PROJETADA
+ * (`api/model/project.py`, `chamada = margem > 10.0`, onde `margem` vem de
+ * `pct_projetado`) — é uma leitura do MODELO, não do apurado. Até
+ * 2026-09-20 isto colava com "índice 0" porque o balão só existia numa ordem
+ * (a de projeção); agora que `ordenados` pode vir em ordem PARCIAL (ver
+ * `viewMode` abaixo), o líder projetado pode estar em qualquer posição da
+ * lista exibida, e o ✓ tem que segui-lo — nunca a linha do topo. `liderProjId`
+ * fixa essa identidade ANTES de reordenar. Sem esta correção, alternar para
+ * "Parcial" moveria o ✓ para quem quer que a apuração esteja favorecendo
+ * agora — inventando uma "chamada" que o modelo nunca fez. Mesmo assim,
+ * `isCalledWinner` marca no máximo UMA linha (`tc.id === liderProjId` só é
+ * verdadeiro pra um `id`): a constituição § 1 continua proibindo publicar como
+ * decidido o que não foi (2º e 3º colocados). O par (fundo, tinta) é resolvido
+ * AQUI, não em `<HoverCard>`: o átomo não conhece partido (teste (h) de
+ * `HoverCard.test.tsx`) — `partyChipInk` já vem com o contraste medido
+ * (≥4,5:1, docstring dele), inclusive para o par de `outros`.
+ *
+ * 🔴 **2026-09-20 — `viewMode` reordena as linhas (pedido do dono: "reordenar
+ * a posição dos candidatos conforme o seletor").** `ordenarTopCandidatosPorBase`
+ * (`lib/utils/lider-por-base.ts`) é o MESMO ponto único que `resolveColor`
+ * usa para escolher a cor do estado — reaproveitado aqui, não duplicado, para
+ * que a cor do estado e a ordem do balão NUNCA discordem sobre quem lidera
+ * (o defeito CAIADO de 19/09 era exatamente essa discordância entre duas
+ * superfícies vizinhas). Em `"proj"`, ou quando falta `pct_atual` em algum
+ * candidato do corte (`usouParcial === false` — ver a docstring daquela
+ * função), a ordem é a mesma de sempre (a de `top_candidatos`, por
+ * `pct_projetado`).
  *
  * ⚠️ `_rankByLider` é vestigial — ver {@link resolveColor}.
  */
@@ -533,13 +578,18 @@ function buildHoverRows(
   row: EdgeUfRow,
   candidatosById: Map<number, EdgeCandidate>,
   _rankByLider: Record<number, number> | undefined,
+  viewMode: ViewMode = "proj",
 ): HoverCardRow[] {
-  const linhas: HoverCardRow[] = row.top_candidatos.map((tc, index) => {
+  const { ordenados } = ordenarTopCandidatosPorBase(row.top_candidatos, viewMode);
+  // Ver o comentário grande acima: o ✓ segue a IDENTIDADE do líder projetado,
+  // não a posição 0 pós-reordenação.
+  const liderProjId = row.top_candidatos[0]?.id ?? row.lider;
+  const linhas: HoverCardRow[] = ordenados.map((tc) => {
     const cand = candidatosById.get(tc.id);
     const nomeBruto = tc.nome ?? cand?.nome;
     const partido = tc.partido ?? cand?.partido;
     const sqcand = tc.sqcand ?? cand?.sqcand;
-    const isCalledWinner = index === 0 && row.chamada === true;
+    const isCalledWinner = tc.id === liderProjId && row.chamada === true;
     // 🔴 2026-09-20 — `partyChipInk` sem desvio de rank. Ele já devolve o par
     // MEDIDO de `outros` (`--party-outros-chip` / `--party-outros-ink`) para
     // sigla ausente, desconhecida ou de federação; o desvio antigo caía em
@@ -1490,7 +1540,7 @@ export function NationalChoroplethMapImpl({
             title={ufTitleFor(tooltip.sigla)}
             kicker={tooltip.row.chamada ? "Chamada" : undefined}
             apurado={tooltip.row.pct_apurado}
-            rows={buildHoverRows(tooltip.row, candidatosById, effectiveRankByLider)}
+            rows={buildHoverRows(tooltip.row, candidatosById, effectiveRankByLider, viewMode)}
           />
         </div>
       )}

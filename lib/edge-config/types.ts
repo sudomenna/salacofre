@@ -469,9 +469,42 @@ export interface EdgeUfRow {
   /** Sigla de 2 letras maiúsculas (ex. "SP", "DF"). */
   sigla: string;
   pct_apurado: number; // 0–100
-  /** ID do candidato líder no momento. */
+  /**
+   * ID do candidato líder.
+   *
+   * 🔴 **NÃO é "o líder no momento", apesar de esta docstring ter afirmado
+   * isso até 2026-09-20.** É o líder por `pct_projetado` — uma leitura do
+   * MODELO, não da apuração. `api/model/project.py:5033,5266` grava
+   * `int(ordered[0]["candidato_id"])`, onde `ordered` é
+   * `sorted(rows, key=pct_projetado, reverse=True)`. O mesmo `ordered[0]`
+   * alimenta `top_candidatos[0]` (linha 5081), então
+   * **`lider === top_candidatos[0].id` em todo payload**.
+   *
+   * A frase antiga custou caro: `_NationalChoroplethMapImpl::resolveColor`
+   * escolhia a cor da UF com `parcial ? row.lider : top_candidatos[0].id`,
+   * acreditando nela — um ternário cujos dois braços dão o MESMO candidato.
+   * A cor do mapa nunca mudou ao alternar Parcial/Projeção, em nenhum cargo,
+   * desde que o seletor existe, e nenhum teste cobria a combinação.
+   *
+   * **Quem precisa do líder da base ATIVA usa `liderIdPorBase`**
+   * (`lib/utils/lider-por-base.ts`), que deriva a ordem parcial dos
+   * `top_candidatos[].pct_atual` — o único apurado por-candidato publicado.
+   * Não existe campo "líder apurado" no payload; criar um é trabalho de
+   * produtor (Python).
+   */
   lider: number;
-  /** Margem atual em pontos percentuais. */
+  /**
+   * Margem em pontos percentuais.
+   *
+   * 🔴 **Também não é "atual".** `api/model/project.py:5267-5268` grava
+   * `margem_atual` e `margem_projetada` com a MESMA variável
+   * (`margem = top_pct - second_pct`, ambos `pct_projetado`) — os dois campos
+   * carregam o mesmo número, e ele descreve a PROJEÇÃO. Mesmo desvio de
+   * {@link EdgeUfRow.lider}, na outra metade da view "margin" do mapa.
+   *
+   * Quem precisa da margem da base ativa usa `margemPorBase`
+   * (`lib/utils/lider-por-base.ts`).
+   */
   margem_atual: number;
   /** Margem projetada (pp). */
   margem_projetada: number;

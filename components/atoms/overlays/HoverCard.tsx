@@ -140,9 +140,17 @@ export interface HoverCardRow {
    * (h), `HoverCard.test.tsx`): quem sabe se a UF foi chamada e qual token
    * de contraste usar é `_NationalChoroplethMapImpl.buildHoverRows`
    * (`partyChipInk`/`strongForRank`, medidos ≥4,5:1). `undefined` (o caso
-   * comum — UF ainda não chamada) não pinta fundo nenhum; só a 1ª linha
-   * recebe um negrito sóbrio (ver `HoverCard`), nunca a marca de vitória.
-   * Só tem efeito na linha de ÍNDICE 0 (a líder, `top_candidatos[0]`).
+   * comum — UF ainda não chamada) não pinta fundo nenhum; a linha marcada
+   * recebe um negrito sóbrio (ver `HoverCard`) e a marca de vitória.
+   *
+   * 🔴 2026-09-20 — deixou de ser "só a linha de ÍNDICE 0". Desde que
+   * `buildHoverRows` passou a reordenar as linhas pelo seletor
+   * Parcial/Projeção (pedido do dono), o candidato CHAMADO (sempre o líder
+   * PROJETADO — `row.chamada` é calculado sobre a margem projetada, nunca a
+   * apurada) pode estar em qualquer posição da lista exibida. O caller marca
+   * este campo por IDENTIDADE (o `id` do candidato chamado, onde quer que ele
+   * caia depois de reordenar), nunca por posição — e o átomo obedece o campo,
+   * não o índice.
    */
   winnerBackground?: string;
   /** Tinta legível sobre `winnerBackground` — anda sempre em par com ele. */
@@ -485,24 +493,29 @@ export function HoverCard({
         {parcial ? <span style={HEAD_STYLE}>Parcial</span> : null}
         {proj ? <span style={{ ...HEAD_STYLE, color: "var(--accent-text)" }}>Proj.</span> : null}
         {rows.map((row, i) => {
-          // A linha de ÍNDICE 0 é sempre a líder (`top_candidatos[0]`,
-          // ordenado por projeção desc — ver `EdgeUfRow.top_candidatos`).
-          // `winnerBackground` só vem preenchido quando o CALLER decidiu que
-          // a UF foi CHAMADA para ela (ver docstring de `HoverCardRow`); é
-          // por isso que a checagem de índice basta e não precisa de mais
-          // nenhuma prop de "é a linha N".
-          const isLeading = i === 0;
+          // 🔴 2026-09-20 — `winnerBackground != null` sozinho, SEM checar
+          // `i === 0`. Até este commit a linha dizia "a líder é sempre a de
+          // índice 0" — verdade enquanto o balão só existia numa ordem (a de
+          // projeção). Desde que o caller (`buildHoverRows`,
+          // `_NationalChoroplethMapImpl.tsx`) passou a reordenar as linhas
+          // pelo seletor Parcial/Projeção, o líder CHAMADO (sempre o
+          // projetado — `row.chamada` é calculado sobre a margem projetada)
+          // pode aparecer em QUALQUER posição da lista exibida quando a base
+          // ativa é "Parcial". Uma guarda de índice apagaria o ✓ da tela
+          // inteira nesse caso — pior que mostrá-lo na linha errada, porque
+          // não mostra nada. `winnerBackground` já É a decisão do caller
+          // sobre QUEM foi chamado (ele resolve isso por IDENTIDADE, não por
+          // posição); o átomo só precisa obedecer.
+          //
           // 🔴 2026-09-19 — a linha "Outros" NUNCA recebe o tratamento de
           // vencedor chamado, nem que o caller mande `winnerBackground` nela.
-          // Hoje a guarda de índice já bastaria (o agregado é sempre a ÚLTIMA
-          // linha, e o par (fundo, tinta) só é resolvido para a 0ª), mas
-          // "bastaria" é o estado de que nascem os defeitos: basta alguém
-          // passar a lista invertida, ou um consumidor cortar o top com
-          // `.slice()` e deixar o agregado sozinho no índice 0, para uma UF
-          // chamada declarar "✓ Outros (7)" como vencedora da corrida. Um
-          // agregado de candidaturas não vence eleição (constituição § 1).
+          // Isso é o `!isOutros` abaixo: `buildHoverRows` nunca preenche
+          // `winnerBackground` na linha de Outros, mas basta alguém escrever
+          // um caller novo que preencha para uma UF chamada declarar "✓
+          // Outros (7)" como vencedora da corrida. Um agregado de
+          // candidaturas não vence eleição (constituição § 1).
           const isOutros = row.kind === "outros";
-          const isCalledWinner = !isOutros && isLeading && row.winnerBackground != null;
+          const isCalledWinner = !isOutros && row.winnerBackground != null;
           const ink = isCalledWinner ? row.winnerInk : undefined;
           return (
             <Fragment key={row.name}>

@@ -64,6 +64,9 @@ observado no código; (b) implicação; (c) decisão necessária.
 | Prioridade | P2 (afeta percepção de estado do mapa; gate já trava sem solução) |
 | Proprietário | `spec-syncer` (atualizar `docs/design-system/tokens.md` com recomendação) |
 | Documentação | Recomendação já em `docs/design-system/tokens.md:437-443` |
+| ⚠️ Remedido em 2026-09-20 | São **15 de 32**, não 14. Medição independente de ΔE76 contra `--map-uncounted` (`#e1e4e8`): DC 7,44 · PTB 7,56 · DEMOCRATA 7,72 · MOBILIZA 7,81 · PP 7,83 · REPUBLICANOS 7,91 · PRD 8,36 · UNIAO 8,36 · PSD 8,65 · AVANTE 8,67 · MISSAO 8,85 · PDT 8,90 · PCDOB 9,09 · PV 9,49 · PODE 9,69 |
+| 🔴 A exposição AUMENTOU em 2026-09-20 | A view `margin` passou a usar a margem **apurada** na base Parcial (antes as duas bases usavam a projetada — `project.py:5267-5268` grava a mesma variável nas duas chaves). Margem apurada no início da noite é menor, e nível 1 é `< 2pp`. Medido na fixture do simulado (apuração média 19,9%): **Governador vai de 0/27 para 3/27** UFs no tom mais claro (CE 0,88pp · MS 0,45pp em SP · MS 1,91pp), e **Presidente vai de 3/27 para 1/27** (melhora no total; SP entra com 1,11pp). **Senador não é afetado** — aquele cargo usa `margemSegundaVaga` (RF-104), que não passa por `margemPorBase` |
+| Veredito de prioridade | Continua **P2, não bloqueia 04/10**: são 3–4 UFs, numa das views do mapa, numa das duas bases. Mas deixou de ser risco teórico — com a correção da margem, alguém VAI ver isso na noite da apuração |
 
 ---
 
