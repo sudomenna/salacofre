@@ -5,7 +5,7 @@ status: shipped
 priority: M
 personas: [P1, P2, P3, P4]
 screens: [T-01]
-requirements: [RF-021, RF-022, RF-023, RF-025, RF-026, RF-027, RF-028, RF-029, RF-030, RF-030.1, RF-030.2, RF-030.3, RF-030.4, RF-030.5, RF-030.6, RF-030.7, RF-030.8, RF-061, RF-062, RF-063, RF-177, RF-178, RF-180, RF-181, RF-185, RF-186, RF-187, RF-188, RF-189]
+requirements: [RF-021, RF-022, RF-023, RF-025, RF-026, RF-027, RF-028, RF-029, RF-030, RF-030.1, RF-030.2, RF-030.3, RF-030.4, RF-030.5, RF-030.6, RF-030.7, RF-030.8, RF-061, RF-062, RF-063, RF-177, RF-178, RF-180, RF-181, RF-185, RF-186, RF-187, RF-188, RF-189, RF-190, RF-191]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 008-interatividade-brushing]
 apis: [GET /api/projection]
 components: [HeadlineScore, NationalChoroplethMap, MapViewToggle, StateGroupedTable, NationalNeedle, ChancesPanel, InsightCard, ForecastTransparency, LiveBadge, Tabs, MinorCandidatesList, RaceTypeIndicator, TurnoBadge, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader, ApuracaoMeta, BreakingNewsTicker, NationalWinnerBanner, TurnoOneRecap, ResultPanel, CandidateListCollapse]
@@ -299,12 +299,15 @@ WHERE a trilha é `gov`, the system SHALL exibir o breadcrumb **sem** nó nacion
 
 ### Balão do mapa e seletor de base (S08/2026-09-19/20)
 
-**RF-177 — Balão do mapa com 4 candidaturas + agregado "Outros"**
+**RF-177 — Balão do mapa com as candidaturas de `top_candidatos` + agregado "Outros"**
 
-WHEN o usuário passa o mouse sobre uma UF no mapa nacional, the system SHALL exibir um balão com os 4 candidatos com maior intenção de voto registrados em `top_candidatos[0..3]`, seguidos de uma linha agregada "Outros (N)" que resume o restante das candidaturas.
+WHEN o usuário passa o mouse sobre uma UF no mapa nacional, the system SHALL exibir um balão com **todas** as candidaturas publicadas em `EdgeUfRow.top_candidatos[]` — os 4 de maior projeção e, quando houver, os resgatados pela ordem do apurado (RF-190) —, seguidas de uma linha agregada "Outros (N)" que resume o restante das candidaturas.
+
+> **Emenda de 2026-09-21 (decisão do dono).** O enunciado anterior fixava "os 4 candidatos com maior intenção de voto registrados em `top_candidatos[0..3]`" e o 1º critério exigia "**exatamente 5 linhas**". Isso passou a ser incompatível com RF-190: quando quem lidera os boletins apurados está fora do corte por projeção, ele entra em `top_candidatos[4..5]`, e um balão travado em 5 linhas o esconderia justamente na tela em que a cor do estado o aponta. O dono escolheu **o balão crescer** (até 6 linhas + "Outros") em vez de (a) mantê-lo em 4 e empurrar o caso raro para a ficha, ou (b) trocar o conteúdo por base. O balão passa a refletir o comprimento do array, sem número mágico próprio.
 
 **Aceitação**:
-- Given um estado com 10+ candidaturas em `EdgeUfRow.candidatos`, when o tooltip renderiza, then exatamente 5 linhas aparecem (4 líderes + 1 agregado).
+- Given um estado com 10+ candidaturas em `EdgeUfRow.candidatos` e **nenhum resgate** (as duas ordens concordam — o caso normal, 133 de 133 observações no replay 2022), when o tooltip renderiza, then exatamente 5 linhas aparecem (4 líderes + 1 agregado).
+- Given um estado em que o 1º ou o 2º do apurado está fora do corte por projeção, when o tooltip renderiza, then aparecem `top_candidatos.length` linhas (até 6) + 1 agregado, e o resgatado **nunca** aparece também dentro de "Outros".
 - Given `EdgeUfRow.outros` ausente (payload pré-2026-09-19 ou legado), when o balão monta, then a linha "Outros" não aparece e nenhuma candidatura é omitida.
 - Given um estado com ≤4 candidaturas registradas, when renderiza, then nenhuma linha "Outros" aparece.
 - Given `top_candidatos[i].pct_atual` ausente (impute_uf ou payload em transição), when a coluna "Parcial" renderiza, then exibe "—" (ausência), não "0%" (zero medido).
@@ -326,7 +329,26 @@ WHEN o leitor alterna o seletor "Parcial / Projeção" do shell, the system SHAL
 - Given uma UF com `pct_apurado === 0` e base "Parcial", when renderiza, then a UF fica em `--map-uncounted`, nunca pintada pelo líder projetado sob rótulo de parcial (guarda anterior à escolha de líder — RF-157).
 - Given o cargo Senador, when a view é `Margem`, then a margem continua sendo a da 2ª vaga (`margemSegundaVaga`, RF-104), que não distingue base — limitação de dado, registrada.
 
-**Escopo**: nível Brasil dos três cargos (Presidente, Governador, Senador), que compartilham `<NationalMapBlock>` (ADR-0048). **Não** se aplica ao mapa MUNICIPAL: `EdgeUfMunicipio` não publica campo projetado algum, então não existe segunda base para alternar. Fabricar uma — por regra de três local ou rateando a da UF — violaria a constituição § 1.
+**Escopo**: nível Brasil dos três cargos (Presidente, Governador, Senador), que compartilham `<NationalMapBlock>` (ADR-0048). **Não** se aplica ao mapa MUNICIPAL: `EdgeUfMunicipio` não publica campo projetado algum, então não existe segunda base para alternar. Fabricar uma — por regra de três local ou rateando a da UF — violaria a constituição § 1 (decisão do dono, 2026-09-21, dívida 21).
+
+**RF-190 — O payload resgata quem lidera o apurado fora do corte por projeção**
+
+> Novo em 2026-09-21, decisão do dono. Pré-requisito de RF-189, RF-181 e
+> RF-177: todos os três derivam da base ativa, e nenhum deles consegue mostrar
+> uma candidatura que o payload não publica.
+
+`EdgeUfRow.top_candidatos[]` é um corte TOP-N **por projeção**. Quem lidera os boletins já apurados sem estar entre os N primeiros por `pct_projetado` ficava agregado em `outros`, que não carrega `id` nem nome — invisível para a UI e para `lib/utils/lider-por-base.ts`.
+
+WHEN o produtor monta `por_uf[].top_candidatos[]`, the system SHALL publicar a **união** entre as `TOP_CANDIDATOS_POR_UF` candidaturas de maior `pct_projetado` e as `RESGATE_POR_APURADO` de maior `pct_atual` da corrida inteira, anexando as resgatadas **ao fim** do array.
+
+**Aceitação**:
+- Given uma UF em que o 1º do apurado está fora do corte por projeção, when o payload é gerado, then ele aparece em `top_candidatos[]` com `id`, e `outros.n_candidatos` é decrementado — nunca publicado nos dois lugares.
+- Given as duas ordens concordando (o caso normal), when o payload é gerado, then **nada** é anexado e o array sai idêntico ao de antes desta data.
+- Given `pct_atual` ausente em toda a corrida (`impute_uf_from_national`, cargo 1), when o payload é gerado, then não há resgate — a ausência nunca é lida como `0`, que elegeria pelo número de urna no desempate.
+- Given um resgate, when a UI lê `top_candidatos[1]`/`[2]` por posição (`margemSegundaVaga`, RF-104), then o prefixo por projeção continua nos índices `0..TOP_CANDIDATOS_POR_UF-1`, inalterado.
+- Given `RESGATE_POR_APURADO = 2`, when o 3º do apurado também está fora do corte, then ele **não** entra — os dois postos resgatados são exatamente os que `liderIdPorBase` e `margemPorBase` consomem.
+
+**Escopo**: produtor (`api/model/project.py`) e o gerador do simulado (`data-pipeline/simulacao-gerar.ts`), que precisam concordar para que `pnpm dev:sim` não esconda a tela que produção mostra. **Fora de escopo**: o 3º colocado do apurado e a margem do 3º→4º; nenhum consumidor os usa.
 
 **RF-178 — Orientação vertical adaptativa do balão do mapa**
 
@@ -372,6 +394,31 @@ WHEN um usuário alterna o seletor "Parcial / Projeção" do `<ShellControls />`
 - Given a lista de identidade da fase pré, when a base muda, then **nada** é reordenado: ela não recebe `ATRIBUTO_LISTA`, porque sem voto contado não há métrica do leitor a seguir (constituição § 2 v1.5, cuja exceção exige controle de base).
 - 🔴 Given `app/globals.css`, when varrido, then **não existe** regra de `order` para `[data-ord]` — com a reordenação no DOM, uma regra dessas compõe com ela e produz uma terceira ordem, que não é nenhuma das duas bases.
 - Given candidato em 1º na Projeção e 3º na Parcial, when bases alternam, then a numeração de posição, a intensidade de cor de margem e (se Senado) o badge de vaga acompanham a nova base.
+
+**RF-191 — A ficha do mapa reordena pela base ativa, e o selinho de vaga segue junto**
+
+> Novo em 2026-09-21, decisão do dono (dívida 2).
+>
+> ⚠️ **Não é RF-181 com outro consumidor.** O `rf-coverage-checker` sugeriu
+> emendar o RF-181 para citar `<StateResultSheet>`, e isso estaria errado: o
+> RF-181 descreve um **mecanismo específico** — `<ReordenaListaPorBase>`
+> movendo `<li>` no DOM segundo as custom properties `--ord-<base>`, com
+> guarda de foco e com a proibição da regra de `order` em `globals.css`.
+> A ficha **não tem** `--ord-*`, não é marcada com `ATRIBUTO_LISTA` e não
+> passa por aquele componente: ela reordena no RENDER do React, antes do
+> `.map()`. Amarrá-la ao RF-181 faria os critérios daquele RF descreverem
+> atributos que esta tela não possui.
+
+WHEN o leitor alterna o seletor "Parcial / Projeção" com a ficha de UF aberta, the system SHALL reordenar as linhas de `<StateResultSheet>` pelo ranking da base ativa, SHALL resolver a linha "Líder:" pela mesma base, e — em corridas de mais de uma vaga (Senador, RF-105) — SHALL marcar com `<VagaBadge>` as `vagas` primeiras linhas **daquela** ordem.
+
+**Aceitação**:
+- Given uma UF cuja dupla líder no apurado difere da dupla líder na projeção, when o seletor está em "Parcial", then a ficha lista os dois mais votados nos boletins chegados e o `<VagaBadge>` marca esses dois; when está em "Projeção", os dois da projeção.
+- Given a base "Parcial", when a ficha renderiza a linha "Líder:", then ela nomeia o líder do APURADO — nunca `row.lider`, que carrega projeção apesar do nome e destacaria quem aparece por último na lista logo abaixo.
+- Given `pct_atual` ausente em algum candidato do corte, when a base é "Parcial", then a ordem inteira degrada para a de projeção — nunca se trata o ausente como `0`.
+- Given a degradação acima, when o rótulo da lista e o `aria-label` do `<ul>` renderizam, then os dois dizem "projeção" — eles nomeiam a base que a lista **de fato** usou (`usouParcial`), não a que o botão pediu (`viewMode`).
+- Given Presidente ou Governador (1 vaga), when a ficha renderiza em qualquer base, then **nenhum** `<VagaBadge>` aparece.
+
+**Escopo**: `<StateResultSheet>` nas quatro superfícies em que é aberta (home e as três rotas de UF). Deriva de `ordenarTopCandidatosPorBase`/`liderIdPorBase` (`lib/utils/lider-por-base.ts`), o mesmo ponto único do coroplético e dos comparadores de `<ResultPanel>` — é o que satisfaz a condição (b) da constituição § 2 v1.5.
 
 **RF-185 — Painel de chances acompanha a base ativa**
 

@@ -3,7 +3,7 @@
   "name": "SalaCofre Docs Index",
   "description": "Índice machine-readable da documentação SDD do SalaCofre. Carregar este arquivo dá a um agente o mapa completo das specs, NFRs, ADRs e fontes canônicas.",
   "version": "1.0",
-  "last_updated": "2026-09-20",
+  "last_updated": "2026-09-21",
   "source_prd": "docs/PRD.md",
   "constitution": "docs/constitution.md",
   "conventions": "docs/_meta/conventions.md",
@@ -784,7 +784,18 @@
         "RF-030.8",
         "RF-061",
         "RF-062",
-        "RF-063"
+        "RF-063",
+        "RF-177",
+        "RF-178",
+        "RF-180",
+        "RF-181",
+        "RF-185",
+        "RF-186",
+        "RF-187",
+        "RF-188",
+        "RF-189",
+        "RF-190",
+        "RF-191"
       ],
       "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "008-interatividade-brushing"],
       "apis": ["GET /api/projection"],
@@ -863,7 +874,13 @@
         "RF-043",
         "RF-061",
         "RF-062",
-        "RF-063"
+        "RF-063",
+        "RF-182",
+        "RF-183",
+        "RF-180",
+        "RF-181",
+        "RF-191",
+        "RF-186"
       ],
       "depends_on": [
         "001-ingestao-tse",
@@ -935,7 +952,13 @@
         "RF-005.4",
         "RF-061",
         "RF-062",
-        "RF-063"
+        "RF-063",
+        "RF-182",
+        "RF-183",
+        "RF-180",
+        "RF-181",
+        "RF-191",
+        "RF-186"
       ],
       "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "004-pagina-uf-presidencial"],
       "apis": ["GET /api/projection?cargo=governador&uf=<sigla>"],
@@ -1002,7 +1025,9 @@
         "RF-006.4",
         "RF-006.5",
         "RF-062",
-        "RF-063"
+        "RF-063",
+        "RF-189",
+        "RF-191"
       ],
       "depends_on": ["001-ingestao-tse", "002-modelo-estatistico", "005-pagina-uf-governador"],
       "apis": ["GET /api/projection?cargo=governador"],
@@ -1181,7 +1206,17 @@
         "RF-105",
         "RF-106",
         "RF-107",
-        "RF-108"
+        "RF-108",
+        "RF-179",
+        "RF-184",
+        "RF-181",
+        "RF-185",
+        "RF-186",
+        "RF-187",
+        "RF-188",
+        "RF-180",
+        "RF-189",
+        "RF-191"
       ],
       "depends_on": ["001-ingestao-tse", "002-modelo-estatistico"],
       "apis": [
@@ -1453,5 +1488,5 @@
     }
   ],
   "orquestracao_paralela": "docs/_meta/orquestracao-paralela.md",
-  "handoff_atual": "docs/_meta/handoff-2026-09-20-seletor.md"
+  "handoff_atual": "docs/_meta/handoff-2026-09-21.md"
 }

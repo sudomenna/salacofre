@@ -166,6 +166,44 @@ def _log(level: str, msg: str, **ctx: Any) -> None:
 #: podem divergir amanhã sem que nada quebre.
 TOP_CANDIDATOS_POR_UF = 4
 
+#: Quantas candidaturas são RESGATADAS pela ordem do APURADO quando não estão
+#: no corte por projeção (2026-09-21, decisão do dono).
+#:
+#: ## O defeito que isto fecha
+#:
+#: `top_candidatos` é um corte TOP-N **por projeção**. Quem lidera os boletins
+#: já apurados mas não está entre os 4 primeiros por `pct_projetado` some
+#: dentro de `outros`, que não tem `id` nem nome — e a UI, que desde
+#: 2026-09-20 pinta o mapa, ordena a lista e destaca o líder pela BASE ATIVA
+#: (`lib/utils/lider-por-base.ts`), não tem como mostrá-lo nem como saber que
+#: ele existe. O payload silenciava a pessoa que está ganhando a contagem.
+#:
+#: ## Por que 2, e não 1
+#:
+#: São exatamente os dois postos que a derivação por base consome:
+#:
+#:   - **#1** — `liderIdPorBase` (cor do mapa, topo do balão, linha "Líder:").
+#:   - **#2** — `margemPorBase` (intensidade do mapa: 1º−2º do apurado) e, em
+#:     Senador, a 2ª CADEIRA, que é o posto que decide quem se elege.
+#:
+#: Resgatar só o #1 deixaria a margem do apurado maior do que a real sempre
+#: que o 2º colocado estivesse fora do corte — furo já documentado na
+#: docstring de `margemPorBase`. Resgatar mais que 2 cresceria o balão sem
+#: nenhum consumidor que precise do 3º apurado.
+#:
+#: ## O que NÃO acontece
+#:
+#: O resgate **nunca inventa dado**: só entra quem tem `pct_atual` publicado,
+#: e a comparação é entre `pct_atual` de verdade. Sem leitura parcial, não há
+#: resgate e o payload sai byte a byte igual ao de antes desta data.
+#:
+#: 🔴 E os resgatados entram **DEPOIS** dos `TOP_CANDIDATOS_POR_UF` primeiros,
+#: nunca no meio: `margemSegundaVaga` (`lib/utils/margem-senado.ts:43`) lê
+#: `top_candidatos[1]`/`[2]` POSICIONALMENTE, assumindo que o prefixo continua
+#: ordenado por projeção. Inserir um resgatado no índice 1 trocaria, em
+#: silêncio, o par que decide a 2ª vaga do Senado.
+RESGATE_POR_APURADO = 2
+
 
 # ---------------------------------------------------------------------------
 # Pydantic schemas — contrato do endpoint
@@ -5077,8 +5115,59 @@ def build_edge_payload(
         # nunca coeridos para `0`/`0.0` — "não sabemos" e "medimos zero" são
         # estados diferentes (decisão do dono, 14/09; ver `swing_vs_2022`
         # alguns campos acima pela mesma regra).
+        #
+        # ── União com a ordem do APURADO (2026-09-21) ──────────────────────
+        #
+        # `ordered` está ordenado por `pct_projetado`. O prefixo continua sendo
+        # exatamente `ordered[:TOP_CANDIDATOS_POR_UF]` — ele NÃO muda de
+        # conteúdo nem de ordem, porque `margemSegundaVaga` o lê por posição.
+        # Ao fim dele são ANEXADOS os `RESGATE_POR_APURADO` primeiros por
+        # `pct_atual` que ficaram de fora (ver a docstring da constante).
+        #
+        # Guardas, na ordem em que importam:
+        #
+        #   1. **Sem `pct_atual`, sem resgate.** `rc.get("pct_atual") is None`
+        #      é o caso `impute_uf_from_national` (cargo 1, UF sem nenhuma zona
+        #      apurada): ali não existe ordem de apurado, e ordenar por um
+        #      `0.0` de conveniência elegeria o resgatado pelo id, não pelo
+        #      voto. Filtramos ANTES de ordenar.
+        #   2. **Empate desempata por id**, como o resto do arquivo — duas
+        #      execuções sobre o mesmo snapshot têm de emitir o mesmo payload
+        #      (constituição § 6: o modelo é determinístico).
+        #   3. **`cauda` é o complemento EXATO** do que entrou, por id — não
+        #      mais `ordered[TOP_CANDIDATOS_POR_UF:]`. Manter o fatiamento
+        #      antigo republicaria o resgatado duas vezes: como linha própria e
+        #      dentro de "Outros", e `Σtop + outros` passaria de 100% sem
+        #      exceção nenhuma ser levantada — é literalmente o defeito que a
+        #      docstring de `TOP_CANDIDATOS_POR_UF` descreve para dois
+        #      literais divergentes.
+        #   0. 🔴 **UNIÃO, e não "os 2 melhores DE FORA".** A ordem por apurado
+        #      é tirada da corrida INTEIRA (`ordered`), e só depois se remove
+        #      quem já está no prefixo. A diferença não é de estilo: pegar os 2
+        #      melhores entre os excluídos resgataria SEMPRE 2 pessoas em toda
+        #      UF com 6+ candidaturas — inclusive os dois ÚLTIMOS do apurado,
+        #      que é o oposto do objetivo — e apagaria a linha "Outros" de
+        #      corridas de exatamente 6. Foi assim que a primeira versão desta
+        #      mudança quebrou 7 casos de `test_uf_outros.py`, e os testes
+        #      antigos estavam certos. Com a união, no caso normal (as duas
+        #      ordens concordam) **nada é anexado** e o payload sai idêntico ao
+        #      de antes — que é o que o replay de 2022 mostra em 133 de 133
+        #      observações.
+        prefixo = ordered[:TOP_CANDIDATOS_POR_UF]
+        ids_prefixo = {int(r["candidato_id"]) for r in prefixo}
+        com_apurado = [rc for rc in ordered if rc.get("pct_atual") is not None]
+        top_por_apurado = sorted(
+            com_apurado,
+            key=lambda rc: (-float(rc["pct_atual"]), int(rc["candidato_id"])),
+        )[:RESGATE_POR_APURADO]
+        resgatados = [
+            rc for rc in top_por_apurado if int(rc["candidato_id"]) not in ids_prefixo
+        ]
+        selecionados = [*prefixo, *resgatados]
+        ids_selecionados = {int(r["candidato_id"]) for r in selecionados}
+
         top_candidatos: list[dict[str, Any]] = []
-        for r in ordered[:TOP_CANDIDATOS_POR_UF]:
+        for r in selecionados:
             cid_top = int(r["candidato_id"])
             item_top: dict[str, Any] = {
                 "id": cid_top,
@@ -5226,7 +5315,14 @@ def build_edge_payload(
         # simulação. Ordem de chave não muda semântica de JSON nenhuma — muda o
         # DIFF entre um payload de produção e uma fixture, que é onde alguém vai
         # comparar os dois a olho.
-        cauda = ordered[TOP_CANDIDATOS_POR_UF:]
+        #
+        # 🔴 2026-09-21 — complemento POR ID, e não mais
+        # `ordered[TOP_CANDIDATOS_POR_UF:]`. Com o resgate por apurado, top e
+        # cauda deixaram de ser dois fatiamentos do mesmo índice: quem foi
+        # resgatado está no top E estaria naquele fatiamento. A partição
+        # continua exata — sem sobra e sem sobreposição —, só que agora a
+        # chave é o id, que é o que de fato identifica a candidatura.
+        cauda = [r for r in ordered if int(r["candidato_id"]) not in ids_selecionados]
         outros_top: dict[str, Any] | None = None
         if cauda:
             outros_top = {

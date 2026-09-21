@@ -6,7 +6,7 @@ shipped_date: 2026-05-18
 priority: M
 personas: [P1, P2, P3]
 screens: [T-04]
-requirements: [RF-031, RF-032, RF-033, RF-034, RF-037, RF-043, RF-005.4, RF-061, RF-062, RF-063, RF-182, RF-183, RF-180, RF-181]
+requirements: [RF-031, RF-032, RF-033, RF-034, RF-037, RF-043, RF-005.4, RF-061, RF-062, RF-063, RF-182, RF-183, RF-180, RF-181, RF-191, RF-186]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 004-pagina-uf-presidencial]
 apis: [GET /api/projection?cargo=governador&uf=<sigla>]
 components: [WinnerBanner, CandidateRow, ChoroplethMapUF, MunicipioTable, ForecastTransparency, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader, CandidateResultRow, MunicipioExplorer, ResultPanel, CandidateListCollapse]

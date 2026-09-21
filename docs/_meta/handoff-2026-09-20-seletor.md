@@ -3,7 +3,7 @@ id: handoff-2026-09-20-seletor
 title: Handoff 20/09 (4ª sessão) — 10 commits: contraste, o traço, o seletor no mapa, constituição v1.5 e SC 1.3.2 resolvido
 date: 2026-09-20
 supersedes: handoff-2026-09-20.md
-status: current
+status: superseded
 baselines:
   vitest: 3556
   pytest: 626

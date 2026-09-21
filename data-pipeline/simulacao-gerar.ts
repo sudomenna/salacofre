@@ -729,6 +729,61 @@ const N_RESAMPLES = 2000;
  */
 const TOP_CANDIDATOS_POR_UF = 4;
 
+/**
+ * Quantas candidaturas são RESGATADAS pela ordem do APURADO quando ficam fora
+ * do corte por projeção.
+ *
+ * Espelha `RESGATE_POR_APURADO` de `api/model/project.py` (2026-09-21,
+ * decisão do dono), e existe aqui pelo MESMO motivo do irmão acima: a UI que
+ * lê esta fixture é a que lê o payload real. Um gerador sem o resgate faria
+ * `pnpm dev:sim` esconder exatamente a tela que esta mudança existe para
+ * mostrar — e o defeito só apareceria em produção, na noite da apuração.
+ *
+ * São 2 porque são os dois postos que a derivação por base consome: o #1
+ * (cor do mapa, topo do balão, linha "Líder:") e o #2 (intensidade do mapa e,
+ * em Senador, a 2ª cadeira). Ver a docstring da constante no Python.
+ */
+const RESGATE_POR_APURADO = 2;
+
+/**
+ * O prefixo por projeção (índices 0..N-1, ordem intacta) mais os resgatados
+ * por `pct_atual`, anexados ao FIM.
+ *
+ * 🔴 Anexados ao fim, nunca no meio: `margemSegundaVaga`
+ * (`lib/utils/margem-senado.ts:43`) lê `top_candidatos[1]`/`[2]` por POSIÇÃO,
+ * então um resgatado no índice 1 trocaria em silêncio o par que decide a 2ª
+ * vaga do Senado.
+ *
+ * ⚠️ Diferença legítima em relação ao Python: lá o filtro é
+ * `pct_atual is not None` (a imputação nacional de `impute_uf_from_national`
+ * produz `None`); aqui `shareAtual` é sempre um número — `sharesApurados`
+ * devolve `0` explícito quando `pctApurado <= 0`, e `0` É o fato. Por isso
+ * não há filtro de ausência: não existe ausência neste gerador.
+ */
+export function selecionarComResgate<T extends { shareAtual: number; cand: { id: number } }>(
+  resultados: readonly T[],
+): { selecionados: T[]; cauda: T[] } {
+  const prefixo = resultados.slice(0, TOP_CANDIDATOS_POR_UF);
+  const idsPrefixo = new Set(prefixo.map((r) => r.cand.id));
+  // 🔴 UNIÃO: a ordem por apurado sai da corrida INTEIRA, e só depois se
+  // remove quem já está no prefixo. Pegar "os 2 melhores entre os excluídos"
+  // resgataria sempre 2 em toda UF com 6+ candidaturas — inclusive os dois
+  // ÚLTIMOS do apurado — e apagaria a linha "Outros". Mesmo erro que a
+  // primeira versão do lado Python cometeu.
+  const resgatados = [...resultados]
+    // Empate desempata por id, como no Python: o mesmo insumo tem de gerar o
+    // mesmo arquivo, senão o `git diff` da fixture vira ruído.
+    .sort((a, b) => b.shareAtual - a.shareAtual || a.cand.id - b.cand.id)
+    .slice(0, RESGATE_POR_APURADO)
+    .filter((r) => !idsPrefixo.has(r.cand.id));
+  const selecionados = [...prefixo, ...resgatados];
+  const ids = new Set(selecionados.map((r) => r.cand.id));
+  // Complemento por ID, não por índice — com o resgate, topo e cauda deixaram
+  // de ser dois fatiamentos do mesmo número, e um `slice(N)` republicaria o
+  // resgatado dentro de "Outros" também.
+  return { selecionados, cauda: resultados.filter((r) => !ids.has(r.cand.id)) };
+}
+
 export interface ResultadoProbabilidades {
   pVitoria: number[];
   pTop2: number[];
@@ -1760,7 +1815,7 @@ function linhaUf(
     // `null`, nunca `0`: um zero aqui leria como "não mudou nada desde 2022",
     // que é uma afirmação. Não há dado de swing numa simulação.
     swing_vs_2022: null,
-    top_candidatos: resultados.slice(0, TOP_CANDIDATOS_POR_UF).map((r) => ({
+    top_candidatos: selecionarComResgate(resultados).selecionados.map((r) => ({
       id: r.cand.id,
       pct: r2(r.shareFinal),
       nome: r.cand.nome,
@@ -1804,7 +1859,11 @@ function linhaUf(
     // `undefined` quando a corrida tem ≤ 4 candidaturas: chave AUSENTE do
     // JSON emitido (`JSON.stringify` omite `undefined`), nunca `{ pct: 0 }` —
     // "não há mais ninguém" e "os demais somam 0%" são estados diferentes.
-    outros: outrosDaCauda(resultados.slice(TOP_CANDIDATOS_POR_UF)),
+    // 🔴 `cauda` de `selecionarComResgate`, e NÃO `resultados.slice(N)`: com o
+    // resgate por apurado, quem foi resgatado está no topo E estaria naquele
+    // fatiamento. Publicá-lo nos dois lugares faria `Σtop + outros` passar de
+    // 100% sem nenhuma exceção ser levantada.
+    outros: outrosDaCauda(selecionarComResgate(resultados).cauda),
     vai_a_2t: vaiA2t,
     bucket,
   };

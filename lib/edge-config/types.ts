@@ -534,6 +534,39 @@ export interface EdgeUfRow {
    * para chips e tooltips. `pct` é 0–100. Tie-breaker estável por
    * candidato_id ASC.
    *
+   * ===========================================================================
+   * 🔴 **NÃO é mais só "os N por projeção" (2026-09-21, RF-190)**
+   * ===========================================================================
+   *
+   * O array é a **união** de dois conjuntos: as `TOP_CANDIDATOS_POR_UF` de
+   * maior `pct_projetado` e as `RESGATE_POR_APURADO` de maior `pct_atual` da
+   * corrida inteira (constantes em `api/model/project.py`). Motivo: quem
+   * liderava os boletins apurados sem estar no corte por projeção caía dentro
+   * de {@link EdgeUfRow.outros}, que não tem `id` nem nome — e desde
+   * 2026-09-20 a UI pinta o mapa, ordena a lista e destaca o líder pela base
+   * ATIVA (`lib/utils/lider-por-base.ts`). O payload silenciava exatamente a
+   * pessoa que a tela precisava mostrar.
+   *
+   * **Três invariantes que o consumidor pode assumir:**
+   *
+   *   1. **Os `TOP_CANDIDATOS_POR_UF` primeiros índices continuam sendo o
+   *      prefixo por projeção, na mesma ordem de sempre.** É o que permite a
+   *      `margemSegundaVaga` (`lib/utils/margem-senado.ts`) seguir lendo
+   *      `[1]`/`[2]` por POSIÇÃO. Os resgatados entram depois, nos índices
+   *      `TOP_CANDIDATOS_POR_UF..`.
+   *   2. **Partição exata com `outros`** — quem foi resgatado sai da cauda e
+   *      de `outros.n_candidatos`. Ninguém aparece nos dois lados.
+   *   3. **No caso normal nada é anexado** e o array tem o comprimento de
+   *      sempre. No replay real de 2022 o resgate não dispararia em nenhuma
+   *      das 133 observações (5 instantes × 27 UFs, incluindo 16 com menos de
+   *      5% apurado) — 2022 foi uma corrida de dois.
+   *
+   * ⚠️ **O comprimento cresce.** Um consumidor que dependesse de "exatamente
+   * 4" quebraria. Os que cortam (`GovernorCard.tsx`, `StrongholdsPanel.tsx`)
+   * continuam corretos porque cortam o PREFIXO; o balão do mapa
+   * (`buildHoverRows`) renderiza o array inteiro e cresce até 6 linhas, que é
+   * a decisão do dono registrada na emenda de 2026-09-21 ao RF-177.
+   *
    * **N era 3 e virou 4 em 2026-09-19** (pedido do dono — o balão de hover
    * dos mapas mostra 4 candidaturas + a linha "Outros"). O número mora em
    * `TOP_CANDIDATOS_POR_UF`, em `api/model/project.py`, e é o MESMO que

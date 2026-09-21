@@ -29,7 +29,7 @@ observado no código; (b) implicação; (c) decisão necessária.
 
 ## 2. ✅ RESOLVIDA (2026-09-21) — Senador: ficha e página nomeavam duplas de eleitos diferentes
 
-| Fato | Senador elege **duas** cadeiras. A **página** da UF (`<ResultPanel>`) reordena pela base ativa desde `290b8de`; a **ficha** (`StateResultSheet.tsx:533-537`) lista sempre em ordem de projeção e põe o `<VagaBadge>` nas duas primeiras linhas DESSA ordem (`StateResultSheet.tsx:96-105`, que já documenta a divergência). Com o seletor em "Parcial", as duas superfícies nomeiam **duplas diferentes de eleitos** |
+| Fato (⚠️ **em 20/09 — o pretérito é o ponto**) | Senador elege **duas** cadeiras. A **página** da UF (`<ResultPanel>`) reordenava pela base ativa desde `290b8de`; a **ficha** (`StateResultSheet.tsx`) listava sempre em ordem de projeção e punha o `<VagaBadge>` nas duas primeiras linhas DAQUELA ordem. Com o seletor em "Parcial", as duas superfícies nomeavam **duplas diferentes de eleitos**. 🔴 **Hoje a ficha reordena** — ver "Implementação" abaixo. Esta linha descreve o defeito, não o produto |
 |---|---|
 | **Medido (2026-09-21)** | Acontece em **1 de 27 UFs** na fixture do simulado a 25% apurado: em **SC** a projeção dá `CAROL DE TONI + DÉCIO LIMA` e o apurado dá `CAROL DE TONI + CARLOS BOLSONARO`. Não é hipótese |
 | ~~Causa~~ | ~~`pct_atual` é campo **opcional** do payload; sem ele, não há ordenação honesta em mix de bases~~ |
@@ -360,6 +360,23 @@ O registro do problema fica abaixo, como histórico.
 | ⚠️ Se reabrir, o que NÃO fazer | Ratear a projeção da UF entre os municípios, por regra de três local ou proporcional ao eleitorado. Seria publicar número inventado com cara de apuração (constituição § 1 e § 6). O caminho estreito investigado é projetar **só o líder**, com incerteza herdada da zona, e exige ADR próprio |
 | Registrado no código | Bloco 🔴 na docstring de `EdgeUfMunicipio` (`lib/edge-config/types.ts`), para quem for mexer no mapa municipal encontrar a decisão antes de reabri-la |
 | Fica aberto | **Dizer ao leitor, na tela, que o mapa de municípios mostra apuração e não projeção.** Hoje o seletor simplesmente não surte efeito ali, e quem não souber vai achar que o controle quebrou. Barato; não decidido |
+
+---
+
+## 22. ✅ RESOLVIDA (2026-09-21) — o líder dos votos apurados sumia quando ficava fora do corte por projeção
+
+| Fato | `top_candidatos` era `ordered[:TOP_CANDIDATOS_POR_UF]` por `pct_projetado`. Quem liderava os boletins apurados sem estar entre os 4 caía em `outros`, **sem `id` e sem nome** — invisível para `lib/utils/lider-por-base.ts`, que desde 2026-09-20 decide cor do mapa, ordem da lista e destaque do líder pela base ativa. O payload silenciava quem estava ganhando a contagem |
+|---|---|
+| Prioridade do dono | "Precisamos resolver antes de 04/10" |
+| **Medido (2026-09-21), e refeito por mim de forma independente** | Apuração REAL de 2022, 5 instantes × 27 UFs = **133 observações**: o líder do apurado ficou fora do top-4 em **0** delas. Posição dele na ordem de projeção: 1ª em 127, 2ª em 6 — nunca pior. Inclui **16 observações abaixo de 5% apurado** |
+| ⚠️ Por que isso NÃO é "risco zero em 2026" | 2022 foi uma corrida de **dois**: o 3º ficava longe o bastante para o corte nunca importar — propriedade daquela eleição, não do mecanismo. A fixture de 2026 já modela topo mais fragmentado. E **o replay só cobre Presidente**: não há dado histórico de Governador (até 11 candidaturas/UF) nem de Senador (até 18, com 2 vagas), que são estruturalmente os cargos de maior risco |
+| ✅ Decisão e implementação | **União**: `top_candidatos` passa a ser top-4-por-projeção ∪ top-2-por-apurado (`RESGATE_POR_APURADO = 2`), resgatados anexados ao FIM. Formalizado como **RF-190** (spec 003). Espelhado no gerador do simulado (`selecionarComResgate`), senão `pnpm dev:sim` esconderia a tela que produção mostra |
+| Por que 2, e não 1 | São os dois postos que a derivação por base consome: **#1** (`liderIdPorBase` — cor, topo do balão, linha "Líder:") e **#2** (`margemPorBase` e, em Senador, a 2ª cadeira). Resgatar só o #1 deixaria a margem do apurado maior que a real — furo já documentado em `margemPorBase` e fechado junto |
+| Alternativas descartadas | **Aumentar o corte** (4→8/11/18): não garante nada a menos que cubra o campo inteiro, e aí o balão vira lista. **Campo `lider_apurado` isolado**: resgata só a 1ª posição e ficaria **invisível** para a função que decide cor e ordem — duas fontes discordando sobre quem lidera na mesma tela, que é o que a condição (b) da constituição § 2 v1.5 proíbe |
+| Decisão de UI do dono | O **balão cresce** até 6 linhas + "Outros". RF-177 emendado: o critério "exatamente 5 linhas" passou a valer só para o caso sem resgate |
+| 🔴 Erro de desenho meu, pego pelos testes ANTIGOS | A 1ª implementação pegava "os 2 melhores **entre os excluídos**" em vez da união com os 2 melhores da corrida inteira. Isso resgatava 2 pessoas em TODA UF com 6+ candidaturas — inclusive os dois ÚLTIMOS do apurado — e apagava a linha "Outros" de corridas de exatamente 6. Quebrou 7 casos de `test_uf_outros.py`, e **os testes antigos estavam certos** |
+| Prova | `tests/unit/model/test_resgate_por_apurado.py`, 9 casos. **6 mutações mortas** — ⚠️ duas delas (`pct_atual` ausente virando `0.0`; resgatar 3 em vez de 2) **sobreviveram à primeira versão** e só morreram depois de dois casos escritos por exigência da própria mutação: a fixture principal não as alcançava porque o 3º do apurado e o desempate por id caíam, por acaso, dentro do prefixo |
+| Fica aberto | Nenhum dado histórico de Governador/Senador para medir o risco nesses cargos — o número de 133/133 vale só para Presidente. Achado de passagem: o artefato do replay mostra **DF com 0% apurado** em 3 instantes enquanto as urnas do DF estão em 100% no dado bruto; parece defeito do arcabouço de replay, não do modelo, **não investigado** |
 
 ---
 
