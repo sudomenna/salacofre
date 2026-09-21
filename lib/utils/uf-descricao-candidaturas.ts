@@ -57,20 +57,36 @@ import { formatPercent } from "@/lib/utils/format";
 import { nomeExibicao } from "@/lib/utils/nome-candidato";
 
 /**
- * Quantas candidaturas a descrição nomeia.
+ * ⚠️ **`CANDIDATURAS_NOMEADAS = 4` foi REMOVIDA em 2026-09-21.** A descrição
+ * passa a nomear **todas** as entradas de `top_candidatos`.
  *
- * 🔴 **O mesmo 4 do balão do mapa** — `TOP_CANDIDATOS_POR_UF` em
- * `api/model/project.py` é quem particiona `top_candidatos` e `outros`, e o
- * `<HoverCard>` renderiza a lista inteira. Aqui o corte é EXPLÍCITO em vez de
- * implícito ("renderiza tudo que vier") porque um payload futuro com N maior
- * faria a descrição crescer sem ninguém decidir isso: são 27 células, e cada
- * nome a mais é falado em toda parada de tabulação.
+ * A constante existia com uma justificativa que estava certa e virou o
+ * problema. Ela dizia: *"o corte é EXPLÍCITO em vez de implícito ('renderiza
+ * tudo que vier') porque um payload futuro com N maior faria a descrição
+ * crescer sem ninguém decidir isso: são 27 células, e cada nome a mais é
+ * falado em toda parada de tabulação"*.
  *
- * Nada promete comprimento fixo do outro lado: payload gravado antes de
- * 2026-09-19 tem 3 entradas e nenhum `outros`, e o `.slice()` abaixo devolve
- * as 3 sem reclamar.
+ * 🔴 **O payload com N maior chegou, e a decisão FOI tomada** — RF-190
+ * (2026-09-21): `top_candidatos` virou a união top-4-por-projeção ∪
+ * top-2-por-apurado. Com o `4` fixo aqui, os dois RESGATADOS — exatamente as
+ * candidaturas que o RF-190 existe para deixar de esconder — apareciam no
+ * balão para quem enxerga e **sumiam do texto de quem usa leitor de tela**.
+ * Achado pelo `a11y-perf-auditor` no portão, medido numa UF de 6: a tela
+ * nomeava 6 e o `sr-only` nomeava 4, dizendo "Outros (6)".
+ *
+ * Trocar uma assimetria (apurado × projeção) por outra (visual × acessível) é
+ * o tipo de conserto que não conserta. E contraria o RF-025, cuja razão de
+ * existir é a lista textual ser **paralela** ao que a tela mostra.
+ *
+ * **O custo de verbosidade continua real, e continua pago só no caso raro**:
+ * sem resgate — o normal, 133 de 133 observações no replay 2022 — a lista tem
+ * 4 e nada muda. O crescimento acontece só na UF em que as duas ordens
+ * divergem, que é onde o nome a mais é a informação.
+ *
+ * ⚠️ **Quem for aumentar `TOP_CANDIDATOS_POR_UF`/`RESGATE_POR_APURADO`** não
+ * precisa mexer aqui — mas precisa lembrar que cada entrada nova é falada em
+ * toda parada de tabulação, em 27 células.
  */
-const CANDIDATURAS_NOMEADAS = 4;
 
 /**
  * Uma entrada da descrição: `"FERNANDA DA SILVA (PT) 45,0%"`.
@@ -94,11 +110,12 @@ function entrada(nome: string, partido: string | undefined, pct: number): string
  * anunciar a existência de uma descrição que não existe.
  */
 export function descricaoCandidaturasUf(row: EdgeUfRow): string {
-  const partes = (row.top_candidatos ?? [])
-    .slice(0, CANDIDATURAS_NOMEADAS)
-    .map((tc) =>
-      entrada(tc.nome ? nomeExibicao(tc.nome, tc.sqcand) : `Cand ${tc.id}`, tc.partido, tc.pct),
-    );
+  // Sem `.slice()` — ver a nota acima. O comprimento é decidido pelo produtor
+  // (`TOP_CANDIDATOS_POR_UF` + `RESGATE_POR_APURADO`), e esta lista tem de ser
+  // paralela ao que a tela mostra (RF-025).
+  const partes = (row.top_candidatos ?? []).map((tc) =>
+    entrada(tc.nome ? nomeExibicao(tc.nome, tc.sqcand) : `Cand ${tc.id}`, tc.partido, tc.pct),
+  );
 
   const outros = row.outros;
   if (outros) {
@@ -109,5 +126,10 @@ export function descricaoCandidaturasUf(row: EdgeUfRow): string {
   }
 
   if (partes.length === 0) return "";
-  return `Primeiras candidaturas, por projeção: ${partes.join("; ")}.`;
+  // ⚠️ "por projeção" saiu em 2026-09-21. O `pct` de cada entrada continua
+  // sendo `pct_projetado` — isso não mudou —, mas a ORDEM deixou de ser só a
+  // da projeção: os resgatados do RF-190 entram ao fim por terem o maior
+  // apurado, não a maior projeção. A frase antiga descreveria a lista errado
+  // exatamente na UF em que o resgate acontece, que é onde ela mais importa.
+  return `Principais candidaturas, com percentual projetado: ${partes.join("; ")}.`;
 }

@@ -21,10 +21,14 @@
  *
  * ## Mutações que estes casos matam
  *
- *   - `.slice(0, 4)` → `.slice(0, 1)`  (nomear só o líder, como antes)
- *   - `.slice(0, 4)` → sem corte       (payload com N maior estoura a célula)
+ *   - nomear só o líder, como antes de 2026-09-20
+ *   - ⚠️ **INVERTIDA em 2026-09-21**: era "sem corte → payload com N maior
+ *     estoura a célula"; virou "reintroduzir `.slice(0, 4)` → os resgatados
+ *     do RF-190 somem para quem usa leitor de tela". Ver o caso próprio
+ *     abaixo pelo porquê da inversão
  *   - ler nome de `national.candidatos` em vez de `top_candidatos` (ADR-0042)
  *   - renderizar "Outros" incondicionalmente quando `row.outros` é ausente
+ *   - dizer "por projeção" numa lista cuja ordem o resgate por apurado muda
  */
 
 import { describe, expect, it } from "vitest";
@@ -92,14 +96,48 @@ describe("descricaoCandidaturasUf — as 4 candidaturas viram texto", () => {
     expect(texto).not.toContain("Outros");
   });
 
-  it("🔴 o corte é em 4 mesmo com payload maior [mutação: remover o `.slice`]", () => {
-    const cinco: TopCandidatos = [
+  /**
+   * 🔴 **Este caso foi INVERTIDO em 2026-09-21.** Ele exigia o oposto:
+   * *"o corte é em 4 mesmo com payload maior [mutação: remover o `.slice`]"* —
+   * e travava um `.slice(0, CANDIDATURAS_NOMEADAS)` que, com o RF-190, passou
+   * a **esconder de quem usa leitor de tela exatamente as candidaturas que o
+   * RF-190 existe para deixar de esconder**.
+   *
+   * O RF-190 fez `top_candidatos` virar a união top-4-por-projeção ∪
+   * top-2-por-apurado. Numa UF em que as ordens divergem, a tela passou a
+   * nomear 6 e o `sr-only` continuava nomeando 4, dizendo "Outros (6)".
+   * Achado pelo `a11y-perf-auditor` no portão, medido em navegador.
+   *
+   * A justificativa do corte não era boba — "são 27 células, e cada nome a
+   * mais é falado em toda parada de tabulação" —, mas ela mesma dizia que um
+   * payload com N maior exigiria **alguém decidir**. O dono decidiu (o balão
+   * cresce), e o texto acessível tem de acompanhar: RF-025 existe para a
+   * lista falada ser **paralela** à visível.
+   *
+   * O caso agora guarda a AUSÊNCIA do corte, porque reintroduzi-lo reabre o
+   * defeito em silêncio — ninguém percebe um nome que não é falado.
+   */
+  it("🔴 nomeia TODO o `top_candidatos`, inclusive os resgatados do RF-190 [mutação: voltar o `.slice(0, 4)`]", () => {
+    const seis: TopCandidatos = [
       ...QUATRO,
-      { id: 77, pct: 2.2, nome: "QUINTO NOME", partido: "X" },
+      // Os dois resgatados: entram ao FIM, com `pct` (projeção) baixo, porque
+      // quem os trouxe foi o apurado. São eles que sumiam.
+      { id: 77, pct: 2.2, nome: "SAMARA RESGATADA", partido: "PV" },
+      { id: 88, pct: 1.1, nome: "EDMILSON RESGATADO", partido: "PCB" },
     ];
-    const texto = descricaoCandidaturasUf(mkRow(cinco));
+    const texto = descricaoCandidaturasUf(mkRow(seis));
     expect(texto).toContain("JOAO BATISTA");
-    expect(texto).not.toContain("QUINTO NOME");
+    expect(texto).toContain("SAMARA RESGATADA");
+    expect(texto).toContain("EDMILSON RESGATADO");
+  });
+
+  it("🔴 a frase de abertura não promete mais ORDEM de projeção — só o percentual é projetado", () => {
+    // Com um resgatado ao fim, a lista não está em ordem de `pct_projetado`:
+    // ele entrou por ter o maior APURADO. "por projeção" descreveria errado
+    // exatamente a UF em que o resgate acontece, que é onde importa.
+    const texto = descricaoCandidaturasUf(mkRow(QUATRO));
+    expect(texto).not.toContain("por projeção");
+    expect(texto).toContain("percentual projetado");
   });
 
   it('🔴 `nome` AUSENTE cai em "Cand {id}", nunca no nome de outro estado (ADR-0042)', () => {
