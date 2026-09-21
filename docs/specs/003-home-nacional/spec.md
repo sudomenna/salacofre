@@ -5,12 +5,12 @@ status: shipped
 priority: M
 personas: [P1, P2, P3, P4]
 screens: [T-01]
-requirements: [RF-021, RF-022, RF-023, RF-025, RF-026, RF-027, RF-028, RF-029, RF-030, RF-030.1, RF-030.2, RF-030.3, RF-030.4, RF-030.5, RF-030.6, RF-030.7, RF-030.8, RF-061, RF-062, RF-063, RF-177, RF-178, RF-180, RF-181, RF-185, RF-186, RF-187, RF-188]
+requirements: [RF-021, RF-022, RF-023, RF-025, RF-026, RF-027, RF-028, RF-029, RF-030, RF-030.1, RF-030.2, RF-030.3, RF-030.4, RF-030.5, RF-030.6, RF-030.7, RF-030.8, RF-061, RF-062, RF-063, RF-177, RF-178, RF-180, RF-181, RF-185, RF-186, RF-187, RF-188, RF-189]
 depends_on: [001-ingestao-tse, 002-modelo-estatistico, 008-interatividade-brushing]
 apis: [GET /api/projection]
 components: [HeadlineScore, NationalChoroplethMap, MapViewToggle, StateGroupedTable, NationalNeedle, ChancesPanel, InsightCard, ForecastTransparency, LiveBadge, Tabs, MinorCandidatesList, RaceTypeIndicator, TurnoBadge, ProjectionThermometer, ProjectionThermometers, TrilhaKicker, RaceHeader, ApuracaoMeta, BreakingNewsTicker, NationalWinnerBanner, TurnoOneRecap, ResultPanel, CandidateListCollapse]
 nfr: [RNF-001, RNF-002, RNF-003, RNF-007, RNF-008, RNF-022, RNF-023, RNF-024, RNF-025, RNF-026, RNF-028]
-adrs: [0001, 0002, 0003, 0004, 0005, 0010, 0012, 0013, 0014, 0017, 0018, 0019, 0025, 0033, 0034, 0038, 0050]
+adrs: [0001, 0002, 0003, 0004, 0005, 0010, 0012, 0013, 0014, 0017, 0018, 0019, 0025, 0033, 0034, 0038, 0050, 0051]
 shipped_with_carry_overs:
   - RF-025-UFForecastTable-completa-deferida-S05
   - RF-030.4-hachura-flip-MapLibre-sprite-deferida-S05
@@ -130,7 +130,10 @@ WHEN a home renderiza, the system SHALL exibir `pct_projetado` e intervalo `[pct
 
 **RF-030.1 — Mapa coroplético do Brasil em destaque**
 
-WHEN a home renderiza, the system SHALL exibir um mapa coroplético do Brasil em destaque (hero) com UFs coloridas pelo líder projetado.
+WHEN a home renderiza, the system SHALL exibir um mapa coroplético do Brasil em destaque (hero) com UFs coloridas pelo líder **da base ativa** (ver RF-189).
+
+> ⚠️ Até 2026-09-20 esta linha dizia "coloridas pelo líder **projetado**", e
+> era o que o código fazia — em ambas as bases. Ver RF-189.
 
 **RF-030.2 — Toggles de visualização**
 
@@ -159,7 +162,17 @@ WHEN a home renderiza, the system SHALL exibir tabela `<StateGroupedTable />` co
 
 ### Lista de UFs
 
-**RF-024 — UFs decisivas (top 6 por contribuição ao swing)**
+**RF-024 — UFs decisivas (top 6 por contribuição ao swing)** — 🔴 **CORTADO em 2026-09-08**
+
+> **Não é requisito vigente.** O bloco saiu da home pelo ADR-0033 (corte do
+> protótipo) e `app/(pres)/page.tsx:97-98` registra a remoção. O componente
+> `<DecisiveUFsGrid />` continua no repositório, com teste, mas **nenhuma
+> página o renderiza**.
+>
+> ⚠️ **Por isso RF-024 NÃO está em `requirements:` no frontmatter, e isso está
+> certo.** Uma varredura que compare o corpo com o frontmatter vai acusar a
+> divergência; a resposta é esta nota, não acrescentar o RF à lista. Verificado
+> em 2026-09-20, depois de eu quase "consertar" para o lado errado.
 
 WHEN a home renderiza, the system SHALL exibir grid com as 6 UFs com maior contribuição ao swing nacional.
 
@@ -213,7 +226,18 @@ Após [ADR-0018](../../architecture/adrs/0018-termometros-hero-1t.md), as camada
 - Given um payload de 1º turno com 11 candidatos, when a home renderiza, then todos os 11 aparecem no HTML servido, sem `<details>`, sem botão "ver mais" e sem `hidden`.
 - Given a mesma renderização, when os candidatos de rank ≥ 4 são inspecionados, then aparecem sob o heading "Composição de Outros".
 
-**RF-030.9 — Cenários de 2º turno (Should)**
+**RF-030.9 — Cenários de 2º turno (Should)** — 🔴 **CORTADO em 2026-09-08**
+
+> **Não é requisito vigente.** Mesmo corte de RF-024 (ADR-0033, protótipo):
+> `app/(pres)/page.tsx:97-98` registra a saída do `Panel "Cenários"`. O
+> componente `<RunoffScenarios />` continua no repositório, com teste, sem
+> nenhuma página que o renderize.
+>
+> ⚠️ **Ausente de `requirements:` de propósito** — ver a nota de RF-024.
+>
+> ⚠️ A linha 237 desta spec ainda o cita como "inalterado" na regra do modo
+> `multi-1t`. A citação descreve o estado ANTERIOR ao corte e vale como
+> histórico, não como requisito.
 
 IF `p_segundo_turno_overall ≥ 0,4` e a home está em modo `multi-1t`, the system SHOULD exibir `<RunoffScenarios />` com os até 3 duelos mais prováveis lidos de `national.cenarios_2t`, cada um com sua probabilidade.
 
@@ -284,6 +308,25 @@ WHEN o usuário passa o mouse sobre uma UF no mapa nacional, the system SHALL ex
 - Given `EdgeUfRow.outros` ausente (payload pré-2026-09-19 ou legado), when o balão monta, then a linha "Outros" não aparece e nenhuma candidatura é omitida.
 - Given um estado com ≤4 candidaturas registradas, when renderiza, then nenhuma linha "Outros" aparece.
 - Given `top_candidatos[i].pct_atual` ausente (impute_uf ou payload em transição), when a coluna "Parcial" renderiza, then exibe "—" (ausência), não "0%" (zero medido).
+- 🔴 **Ordem (2026-09-20)** — ✅ **Conflito com a constituição § 2 RESOLVIDO** pela emenda 1.4 → 1.5 de 2026-09-20 ([ADR-0051](../../architecture/adrs/0051-ordem-de-candidatos-segue-base-de-apuracao-selecionada.md)), que criou a exceção de ordem por base ativa sob três condições cumulativas. Este critério e RF-181 estão legitimados. Given a visão "Parcial", when o balão monta, then as linhas saem ordenadas por `pct_atual` desc; Given a visão "Projeção", por `pct_projetado` desc. A ordem é a MESMA derivação que pinta a UF (RF-189), para que a cor do estado e o topo do balão nunca discordem sobre quem lidera.
+- Given a visão "Parcial" com `pct_atual` ausente em ALGUM candidato do corte, when o balão monta, then a ordem inteira cai na de projeção — nunca se trata o ausente como `0`, que daria a ele a última posição sem dado que sustente.
+
+**RF-189 — A cor e a intensidade do mapa seguem a base ativa**
+
+> Novo em 2026-09-20. O comportamento que ele descreve **não existia**: a cor
+> do mapa nunca respondeu ao seletor Parcial/Projeção, em nenhum cargo. Ver a
+> análise em `lib/utils/lider-por-base.ts` e no commit `b3029e8`.
+
+WHEN o leitor alterna o seletor "Parcial / Projeção" do shell, the system SHALL repintar cada UF do mapa coroplético nacional com a cor do partido do líder **daquela base**, e SHALL usar a margem **daquela base** para escolher o nível de intensidade na view `Margem`.
+
+**Aceitação**:
+- Given uma UF cujo líder apurado difere do líder projetado, when o seletor está em "Parcial", then a UF é pintada com a cor do partido do líder APURADO; when está em "Projeção", com a do líder PROJETADO.
+- Given a view `Margem`, when a base muda, then o nível de intensidade é recalculado com a margem daquela base (1º − 2º), não com um valor fixo.
+- Given `pct_atual` ausente em algum candidato do corte, when a base é "Parcial", then a derivação cai inteira na de projeção — nunca se fabrica `0`.
+- Given uma UF com `pct_apurado === 0` e base "Parcial", when renderiza, then a UF fica em `--map-uncounted`, nunca pintada pelo líder projetado sob rótulo de parcial (guarda anterior à escolha de líder — RF-157).
+- Given o cargo Senador, when a view é `Margem`, then a margem continua sendo a da 2ª vaga (`margemSegundaVaga`, RF-104), que não distingue base — limitação de dado, registrada.
+
+**Escopo**: nível Brasil dos três cargos (Presidente, Governador, Senador), que compartilham `<NationalMapBlock>` (ADR-0048). **Não** se aplica ao mapa MUNICIPAL: `EdgeUfMunicipio` não publica campo projetado algum, então não existe segunda base para alternar. Fabricar uma — por regra de três local ou rateando a da UF — violaria a constituição § 1.
 
 **RF-178 — Orientação vertical adaptativa do balão do mapa**
 

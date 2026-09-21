@@ -250,7 +250,7 @@
       "status": "accepted",
       "date": "2026-09-08",
       "amends": "0024",
-      "note": "acrescenta gate de separação mútua entre as 31 cores da paleta (PARTY_SEPARATION_FLOOR=12) e gate de colapso de croma no nível 5 (LEVEL5_CHROMA_RATIO_FLOOR=0.6); propõe emenda ao § 2 (1.4 → 1.5), pendente de aprovação do usuário",
+      "note": "acrescenta gate de separação mútua entre as 31 cores da paleta (PARTY_SEPARATION_FLOOR=12) e gate de colapso de croma no nível 5 (LEVEL5_CHROMA_RATIO_FLOOR=0.6); propõe emenda ao § 2 (renumerada para 1.5 → 1.6 em 2026-09-20, quando o ADR-0051 ocupou a 1.5), pendente de aprovação do usuário",
       "path": "docs/architecture/adrs/0031-piso-separacao-entre-partidos.md"
     },
     {
@@ -415,6 +415,14 @@
       "supersedes": "0033 (parcial — apenas a premissa de clique da Decisão 1)",
       "note": "Decisão do dono 19/09. Reverte, só no desktop (min-width: 960px, DESKTOP_QUERY já existente em NationalChoroplethMap.tsx:61), a mudança de 08/09 que trocou clique-navega por clique-abre-StateResultSheet — RF-030.3 (spec 003) nunca foi emendado e continuou sendo a fonte de verdade; quem estava fora de conformidade era o código. Vale para os três mapas nacionais coropléticos (pres/gov/sen, ADR-0048), que compartilham NationalChoroplethMap. Mecanismo: router.push(ufHref(cargo, sigla)), não <a href> — soft nav preserva a moldura persistente do ADR-0033 § 1 (que este ADR NÃO toca), e não há nó de DOM por UF sobre o <canvas> MapLibre para ancorar um <a> real (27 âncoras invisíveis reprojetadas por map.project() reprovariam WCAG SC 2.4.7). useRouter volta a morar no impl (_NationalChoroplethMapImpl.tsx, next/dynamic ssr:false, ADR-0010), nunca no wrapper eager (home-page.test.tsx usa renderToStaticMarkup sem mock de next/navigation). Não é regressão de teclado: o canvas (role=img, _NationalChoroplethMapImpl.tsx:1020) nunca teve tabIndex nem handler de teclado — o caminho de teclado sempre foi o <UfPicker> (27 <Link> reais), inalterado. Mobile inalterado (gaveta continua). Regressão real aceita: risks.md:89 nomeava a <StateResultSheet> como única saída de quem lê cor em /governador e /senador (sem legenda, rank reinicia por UF) — essa saída some no desktop; mitigação parcial já existente é a coluna 'Part.' do <HoverCard> desde 18/09. risks.md:89 e RF-030.3 (cláusula de superfície) ficam como emenda pendente via spec-syncer.",
       "path": "docs/architecture/adrs/0050-clique-em-uf-desktop-navega-mobile-gaveta.md"
+    },
+    {
+      "id": "0051",
+      "title": "Ordem de candidatos segue a base de apuração selecionada pelo leitor, não é fixa por critério editorial — emenda ao § 2",
+      "status": "accepted",
+      "date": "2026-09-20",
+      "note": "Decisão do dono, caminho (a) de duas opções apresentadas (emendar vs. reverter). Formaliza RETROATIVAMENTE uma decisão já em produção: RF-181 (290b8de/3e83759, spec 003 shipped) e RF-177 (b3029e8, balão do mapa), achado pelo constitution-guard em auditoria de b3029e8 — sem ADR nem versionamento da constituição no momento em que o comportamento foi ao ar, inversão da ordem que o SDD deste projeto exige. Distingue 'ordem que o produto escolhe por critério editorial' (proibida) de 'ordem que reflete métrica de voto selecionada pelo leitor num controle explícito/visível/reversível' (permitida sob 3 condições cumulativas: métrica é sempre de voto; mesma derivação rege ordem+cor+destaque na mesma tela; dado ausente nunca produz zero fabricado que desloque candidato). Preserva sem exceção as duas leituras restritivas já registradas — spec 019 (RF-161, número de urna na fase pré) e design.md da spec 018 (numero ascendente, identidade de candidatura) — porque nenhuma das duas telas tem controle de base ativa. Propõe texto de emenda ao § 2 e nota de versão 1.4→1.5 para aplicação do dono (este ADR NÃO edita a constituição). Negativas nomeadas: ordem de leitura deixa de ser invariante (duas capturas da mesma UF em bases diferentes mostram ordens diferentes); decisão pós-implementação; não resolve a dívida de acessibilidade correlata (dividas-tecnicas.md item 17 — ordem visual via CSS order diverge do DOM, WCAG SC 1.3.2); condição 'controle explícito/visível/reversível' não é totalmente mecanizável como ΔE76. ⚠️ Colisão de numeração: ADR-0031 também propôs emenda ao § 2 rotulada '1.4 → 1.5' (piso ΔE76≥12 entre partidos), nunca aplicada à constituição vigente (ainda em ΔE76≥10) — as duas propostas não podem ocupar a mesma versão; quem aplicar por último vira 1.5→1.6.",
+      "path": "docs/architecture/adrs/0051-ordem-de-candidatos-segue-base-de-apuracao-selecionada.md"
     }
   ],
   "nfr": {

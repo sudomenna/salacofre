@@ -209,7 +209,7 @@ Atualizada a cada PR. Fonte de verdade para cobertura.
 | RF-010.6 | User-Agent honesto | [001](../specs/001-ingestao-tse/) |
 | RF-030.7 | Indicador P(2º turno) | [003](../specs/003-home-nacional/) |
 | RF-030.8 | Transparência total (sem collapsible) | [003](../specs/003-home-nacional/) |
-| RF-030.9 | Cenários 2º turno | [003](../specs/003-home-nacional/) |
+| RF-030.9 | Cenários 2º turno | [003](../specs/003-home-nacional/) — ⚠️ **cortado em 08/09** (ADR-0033); esta tabela registra a ORIGEM do RF, não que ele esteja vigente. Ver a linha dele na matriz principal |
 | RF-061 | Hero seis termômetros 1T | [003](../specs/003-home-nacional/) |
 | RF-063 | Identidade visual por trilha | [003](../specs/003-home-nacional/) |
 | RF-100 | Ingestão do cargo 5 em granularidade de zona | [016](../specs/016-senador/) |
@@ -383,10 +383,10 @@ Spec 016 (Senador) — `draft`, implementada em S07. Spec 017 (Deputado Federal)
 Além dos 66 RFs do PRD (RF-001..RF-060 + RF-030.1..RF-030.6), as specs adicionaram 88 RFs próprios.
 Vide frontmatters de cada spec (`requirements:` no YAML). Soma global: 154 RFs únicos.
 
-| RF-177 | Balão do mapa com 4 candidaturas + agregado "Outros" | M | [003](../specs/003-home-nacional/) | `<NationalChoroplethMap />`, `<HoverCard />` | unit (`NationalChoroplethMap.hoverOutros.test.tsx`, casos a–e: 5 linhas + 4 colunas, agregação + ausência, cruzamento pct↔pct_atual, "Outros" sem camada de vencedor) |
+| RF-177 | Balão do mapa com 4 candidaturas + agregado "Outros", **reordenado pela base ativa** | M | [003](../specs/003-home-nacional/) | `<NationalChoroplethMap />`, `<HoverCard />`, `lib/utils/lider-por-base.ts` | unit (`NationalChoroplethMap.hoverOutros.test.tsx`, casos a–e: 5 linhas + 4 colunas, agregação + ausência, cruzamento pct↔pct_atual, "Outros" sem camada de vencedor) + unit (`NationalChoroplethMap.hoverOrdemPorBase.test.tsx`, 4 casos: ordem por projeção, ordem INVERTE por parcial, `pct_atual` ausente degrada sem fabricar zero, ✓ segue a identidade do líder projetado) |
 | RF-178 | Orientação vertical adaptativa do balão do mapa | M | [003](../specs/003-home-nacional/) | `<HoverCard />`, `lib/utils/hover-card-placement.ts` | unit (`NationalChoroplethMap.hoverFlipVertical.test.tsx`, 5 casos: metade cima/baixo × dois eixos independentes, regra de altura não largura) |
 | RF-179 | Mapa municipal de Senador no nível UF | M | [016](../specs/016-senador/) | `<ChoroplethMapUF />`, `<MunicipioTable />`, `<MunicipioExplorer />` | integration (`tests/unit/pages/senador.test.tsx` — cobertura estrutural de `/uf/[sigla]/senador`; cobertura parcial por par município×zona apurado) |
-| RF-180 | Traço de comparação marca a base não-ativa | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<CandidateResultRow />` | unit (`CandidateResultRow.test.tsx`, caso a: dois traços, um por base, exclusividade de DOM) |
+| RF-180 | A barra é o apurado; o traço é a projeção, e só existe na visão de Projeção | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/) | `<CandidateResultRow />` | unit (`CandidateResultRow.test.tsx`, 27 casos: UM preenchimento sempre apurado, UM traço sempre projeção só na visão Projeção, coluna de projeção fora do DOM na Parcial, guarda do zero sobre `pct_projetado`, grade sem a 4ª faixa na Parcial) |
 | RF-181 | Lista de candidatos reordena ao trocar base ativa | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [016](../specs/016-senador/) | `<ResultPanel />`, `<CandidateRanking />` | unit (`ResultPanel.ordemPorBase.test.tsx`, 22 casos: ordem projeção/parcial, numeração, margem, vagas, cor invariante) |
 | RF-182 | Tabela de municípios paginada (20 inicial + 40 por toque) | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [016](../specs/016-senador/) | `<MunicipioTable />` | unit (`MunicipioTable.test.tsx`, casos de paginação: primeira leva 20, botão "Ver mais", +40 por toque) |
 | RF-183 | Ordem da tabela de municípios por eleitorado decrescente | M | [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [016](../specs/016-senador/) | `<MunicipioTable />` | unit (`MunicipioTable.ordem.test.tsx`, 13 casos: ordem eleitorado desc, município sem eleitorado no fim nunca filtrado, capital não força topo, payload legado, MG caso real) |
@@ -395,6 +395,7 @@ Vide frontmatters de cada spec (`requirements:` no YAML). Soma global: 154 RFs �
 | RF-186 | Ficha do mapa (StateResultSheet) exibe apurado E projetado por candidatura | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [016](../specs/016-senador/) | `<StateResultSheet />` | unit (`StateResultSheet.parcialEProjecao.test.tsx`, 4 cenários: completo, sem parcial, sem projeção, misto; nunca fabrica zero) |
 | RF-187 | Seletor Parcial/Projeção renderizado dentro do conteúdo (desktop) | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [016](../specs/016-senador/) | `<ShellControls />`, `<BaseToggle />` | unit (`ShellControls.test.tsx`, casos a/b/d: tablist + dois tabs com aria-selected, altura tap-min) |
 | RF-188 | Interação com o mapa segue capacidade de ponteiro, não viewport | M | [003](../specs/003-home-nacional/), [004](../specs/004-pagina-uf-presidencial/), [005](../specs/005-pagina-uf-governador/), [008](../specs/008-interatividade-brushing/), [016](../specs/016-senador/) | `<NationalChoroplethMap />`, `<ChoroplethMapUF />` | unit (`NationalChoroplethMap.toqueNaoAbreBalao.test.tsx`, 3 casos: toque NÃO abre balão, gaveta abre, mouse continua; `ChoroplethMapUF.toqueNaoAbreBalao.test.tsx` análogo) |
+| RF-189 | A cor e a intensidade do mapa coroplético seguem a base ativa | M | [003](../specs/003-home-nacional/), [005](../specs/005-pagina-uf-governador/), [016](../specs/016-senador/) | `<NationalChoroplethMap />`, `<NationalMapBlock />`, `lib/utils/lider-por-base.ts` | unit (`NationalChoroplethMap.corPorBase.test.tsx`, 4 casos: pré-condição de tokens, cor por partido muda na view `winner`, intensidade muda na view `margin` com líder constante, UF sem boletim segue cinza) + unit (`lider-por-base.test.ts`, 9 casos) |
 
 ---
 
@@ -413,6 +414,24 @@ têm RF correspondente. Registrados aqui para visibilidade — **cada um é uma 
 ### De 2026-09-20 (paginação, ordem, marca)
 
 Os itens 4–12 de 2026-09-20 foram formalizados como **RF-180 a RF-188**. Consulte a matriz acima.
+
+🔴 **Emenda da 4ª sessão de 20/09.** Três entradas acima descreviam o
+comportamento ANTERIOR e foram corrigidas, não acrescentadas:
+
+- **RF-180** dizia "o traço marca a base não-ativa" e citava "dois traços, um
+  por base". A 2ª rodada de decisões do dono, no mesmo dia, deixou UM
+  preenchimento (sempre o apurado) e UM traço (sempre a projeção, só na visão
+  Projeção). A spec foi reescrita em `4774f96`; esta matriz ficou uma sessão
+  atrás.
+- **RF-177** ganhou a reordenação do balão pela base ativa e o teste que a
+  cobre.
+- **RF-189** é novo: *a cor e a intensidade do mapa seguem a base ativa*. O
+  comportamento **não existia** — `row.lider` e `top_candidatos[0].id` vêm do
+  mesmo `ordered[0]` ordenado por `pct_projetado` (`api/model/project.py`),
+  então o ternário que "escolhia" a base tinha dois braços idênticos, e
+  `margem_atual`/`margem_projetada` recebem a mesma variável. Corrigido em
+  `b3029e8`, com o RF escrito depois do código — inversão da ordem que o SDD
+  pede, registrada aqui em vez de escondida.
 
 ### Comportamentos que NÃO foram formalizados como RF (2026-09-20)
 

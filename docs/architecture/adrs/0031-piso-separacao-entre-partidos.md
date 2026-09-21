@@ -13,7 +13,8 @@ Aceito. Este ADR **emenda o ADR-0024** — não o supersede. A decisão de ter u
 própria por partido/federação continua integralmente vigente; este ADR acrescenta um **segundo
 eixo de medição** que nem o ADR-0024 nem a constituição § 2 v1.3 cobriam: a distância entre as
 cores da própria paleta, e não só entre cada cor e a marca do partido que ela representa. Inclui
-proposta de emenda ao § 2 (v1.4 → v1.5) para o usuário aprovar; a edição de `docs/constitution.md`
+proposta de emenda ao § 2 (**renumerada para v1.5 → v1.6 em 2026-09-20** — ver a nota na
+seção de proposta) para o usuário aprovar; a edição de `docs/constitution.md`
 não é feita por este documento.
 
 ## Contexto
@@ -232,7 +233,18 @@ dos oficiais daquele partido, rampa monotônica em L\*, matiz constante, chip/ti
 
 ## Proposta de emenda ao § 2 da constituição
 
-Texto para aprovação do usuário — a edição de `docs/constitution.md` (versão 1.4 → 1.5, com nota de
+> 🔴 **RENUMERADA em 2026-09-20: esta proposta passa a ser `1.5 → 1.6`.**
+> Ela foi escrita como "1.4 → 1.5" e **nunca foi aprovada nem aplicada**. Em
+> 2026-09-20 o dono aprovou outra emenda ao mesmo § 2 — a exceção de ordem por
+> base ativa, [ADR-0051](0051-ordem-de-candidatos-segue-base-de-apuracao-selecionada.md) —
+> que ocupou a 1.5 e já está em `docs/constitution.md`. O texto abaixo continua
+> válido no mérito (piso ΔE76 ≥ 12 **entre** as cores da paleta, que o § 2
+> vigente ainda não menciona); só o rótulo de versão mudou. Quem aplicar deve
+> escrever "Mudança 1.5 → 1.6" e conferir se 1.6 ainda está livre.
+
+
+Texto para aprovação do usuário — a edição de `docs/constitution.md` (versão **1.5 → 1.6**, ver a
+nota de renumeração acima; com nota de
 cabeçalho análoga às mudanças anteriores) só deve ser feita **depois** da aprovação explícita, e não
 é feita por este ADR. A mudança acrescenta uma frase ao primeiro parágrafo do § 2, sem alterar mais
 nada:

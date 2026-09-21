@@ -66,6 +66,10 @@ observado no código; (b) implicação; (c) decisão necessária.
 | Documentação | Recomendação já em `docs/design-system/tokens.md:437-443` |
 | ⚠️ Remedido em 2026-09-20 | São **15 de 32**, não 14. Medição independente de ΔE76 contra `--map-uncounted` (`#e1e4e8`): DC 7,44 · PTB 7,56 · DEMOCRATA 7,72 · MOBILIZA 7,81 · PP 7,83 · REPUBLICANOS 7,91 · PRD 8,36 · UNIAO 8,36 · PSD 8,65 · AVANTE 8,67 · MISSAO 8,85 · PDT 8,90 · PCDOB 9,09 · PV 9,49 · PODE 9,69 |
 | 🔴 A exposição AUMENTOU em 2026-09-20 | A view `margin` passou a usar a margem **apurada** na base Parcial (antes as duas bases usavam a projetada — `project.py:5267-5268` grava a mesma variável nas duas chaves). Margem apurada no início da noite é menor, e nível 1 é `< 2pp`. Medido na fixture do simulado (apuração média 19,9%): **Governador vai de 0/27 para 3/27** UFs no tom mais claro (CE 0,88pp · MS 0,45pp em SP · MS 1,91pp), e **Presidente vai de 3/27 para 1/27** (melhora no total; SP entra com 1,11pp). **Senador não é afetado** — aquele cargo usa `margemSegundaVaga` (RF-104), que não passa por `margemPorBase` |
+| 🔴 A CAUSA, medida em 2026-09-20 | O cinza `--map-uncounted` (`#e1e4e8`) está em **L\* 90,5 / C\* 2,3**. O nível 1 dos 32 partidos está em **L\* 89,4–90,2 / C\* 6,6–10,5** — ou seja, **a MESMA claridade do cinza**; a única coisa que os distingue é um pouco de saturação. Não é coincidência de 15 cores: é o alvo do nível 1 ter sido posto em cima do cinza |
+| ✅ E TEM solução, que é um número | Baixar o alvo de L\* do nível 1: com **−7** o pior caso vai de 7,44 para **10,44** e os 32 passam; com −10, para 12,73. É **um parâmetro em `scripts/gen-party-scale.ts`** e regerar a paleta — não o "redesenho de rampa para 15+4 partidos" que esta dívida vinha estimando em ~1 sessão de design |
+| ⚠️ O custo da solução | Escurecer o nível 1 **comprime a faixa dinâmica** da rampa (nível 1 e nível 5 ficam mais perto), e muda o fundo sobre o qual traço e texto do mapa são lidos — RNF-035 tem de ser remedido depois. Não é ganho de graça, mas é uma troca conhecida em vez de um problema em aberto |
+| ⚠️ Não confundir com a impossibilidade já provada | `tests/unit/design-system/party-separation.test.ts:412-432` prova que separar os **31 partidos ENTRE SI** no nível 1 é aritmeticamente impossível (31 pontos num círculo de raio ~10 ficam a ≈2,02 um do outro). Isso é verdade e continua valendo — mas é **outra pergunta**. Separar o nível 1 **do cinza** é mover o círculo inteiro, não distribuir pontos dentro dele, e essa é solúvel. Os níveis ficam fora daquele gate de propósito, com a razão escrita lá |
 | Veredito de prioridade | Continua **P2, não bloqueia 04/10**: são 3–4 UFs, numa das views do mapa, numa das duas bases. Mas deixou de ser risco teórico — com a correção da margem, alguém VAI ver isso na noite da apuração |
 
 ---
@@ -220,6 +224,42 @@ observado no código; (b) implicação; (c) decisão necessária.
 | Por que nenhuma ferramenta pegou | axe-core e Lighthouse **não detectam** divergência entre ordem visual e ordem do DOM — é um balde cego conhecido, o mesmo tipo que este projeto já documentou para contraste em SVG. Só aparece em teste manual com leitor de tela |
 | 🔴 Decisão do dono | Três caminhos: **(a)** aceitar e documentar formalmente em `docs/nfr/accessibility.md`, no mesmo formato que o RNF-035 usou (fato medido + decisão + porquê) — é o que o auditor recomenda; **(b)** anunciar a nova ordem por `aria-live="polite"` ao trocar de base — mitigação barata, sem custo de nós permanentes; **(c)** duplicar a lista sob `data-view-only`, que resolve mas custa +312 nós (+85%) no painel |
 | Prioridade | P2 — não bloqueia D1, mas é a maior dívida de acessibilidade aberta hoje |
+
+---
+
+## 18. ✅ RESOLVIDA (2026-09-20) — a ordem que muda com o seletor contrariava a constituição § 2
+
+> **Decisão do dono: caminho (a), emendar.** A constituição foi para a **v1.5** com
+> uma exceção expressa (ordem PODE seguir a base que o leitor selecionou, sob três
+> condições cumulativas), justificada em
+> [ADR-0051](../architecture/adrs/0051-ordem-de-candidatos-segue-base-de-apuracao-selecionada.md).
+> RF-177 e RF-181 estão legitimados. As duas leituras restritivas das specs 018 e 019
+> (fase pré e identidade de candidatura, ambas sem controle de base) ficaram
+> **nomeadas dentro do próprio texto da constituição**, para a exceção não ser
+> ampliada depois. O registro do conflito fica abaixo, como histórico.
+
+| Fato | `docs/constitution.md:32`, texto literal e nunca emendado: *"Nomes de candidatos e siglas partidárias aparecem **sempre na mesma ordem** dentro de uma mesma corrida (sem favorecimento por ordem de leitura)."* |
+|---|---|
+| O que o produto faz hoje | A lista de candidatos **reordena** ao trocar Parcial/Projeção (RF-181, spec 003 **`shipped`**), e desde `b3029e8` o balão do mapa também. A mesma corrida mostra duas ordens diferentes na mesma sessão, conforme o controle |
+| 🔴 **NÃO nasceu no commit do mapa** | Entrou em **`290b8de`** (2026-09-20, decisão do dono: *"a lista de candidatos segue a base ativa"*), formalizado como RF-181 em `3e83759`. O commit do mapa (`b3029e8`) **estendeu** a decisão ao balão — o conflito já existia em quatro telas havia um dia. O relatório do portão descreveu como novidade do mapa; não é |
+| Por que não é leitura frouxa do § 2 | O próprio repositório já interpretou essa frase de forma restritiva DUAS vezes: `docs/specs/019-fase-pre-eleicao/spec.md:444-449` recusa ordenar por `pct_projetado` zerado porque *"o leitor lê como ranking (constituição § 2)"*, e `docs/specs/018-identidade-candidatura/design.md:192-195` recusa ordenar por nome ou partido pelo mesmo motivo. Nos dois casos a saída foi o número de urna |
+| O contra-argumento honesto | Aquelas duas telas não têm voto — qualquer ordem ali é escolha editorial. Numa noite de apuração, a ordem reflete a métrica que **o próprio leitor selecionou** no controle. "Favorecimento por ordem de leitura" descreve o produto escolhendo por ele, não o leitor escolhendo por si. Mas isso é uma **leitura do espírito** contra o **texto literal**, e o texto é que é invariante |
+| A regra de mudança | O preâmbulo (`docs/constitution.md:11`) exige, para mudar um princípio: *"justificativa explícita registrada em ADR + atualização desta constituição com versionamento (não silenciosamente)"*. Isso **não foi feito** para RF-181 |
+| 🔴 **Os dois caminhos, e a escolha é sua** | **(a) Emendar o § 2** via `adr-author` + bump de versão da constituição, distinguindo "reordenar por favoritismo editorial" (proibido) de "reordenar pela métrica que o leitor selecionou" (permitido). Legitima RF-181 e o balão, e é o caminho coerente com a sua decisão de ontem. **(b) Reverter a reordenação** — nas quatro telas E no balão —, mantendo só a cor e a intensidade seguindo o seletor. Desfaz uma decisão sua de ontem |
+| Prioridade | **P1.** Não é defeito de código — é conflito de hierarquia (`CLAUDE.md § 7`: constituição > specs). Enquanto não resolvido, RF-177 e RF-181 descrevem comportamento que o nível acima proíbe |
+| Achado por | `constitution-guard`, 2026-09-20, na auditoria de `b3029e8` |
+
+---
+
+## 19. 🟡 O degrade "sem leitura parcial" depende de um invariante do Python que o TypeScript não garante
+
+| Fato | `lib/utils/lider-por-base.ts:96-98,118` — falta `pct_atual` em QUALQUER candidato do corte ⇒ ordem e líder caem inteiros na base de projeção |
+|---|---|
+| Por que funciona hoje | Só ocorre quando a UF inteira caiu em `impute_uf_from_national` (`api/model/project.py:5142-5146`: *"em produção o `all(...)` abaixo é sempre 27-de-27 ou 0-de-27"*), restrito a `cargo == 1` — condição que coincide com `pct_apurado === 0`, já capturada por um `return` anterior em `resolveColor`, e no balão pelo degrade de `hasColumn` (`HoverCard.tsx:307`), que some com a coluna "Parcial" inteira |
+| O risco | É **tudo-ou-nada por UF hoje, por acidente do produtor**. Se um cargo diferente, ou uma mudança futura no Python, passar a imputar `pct_atual` por candidato individualmente, a tela mostraria ordem-por-projeção ao lado de uma coluna "Parcial" parcialmente preenchida — projeção sob rótulo de parcial, sem aviso |
+| O que falta | Um teste de contrato TS↔Python que trave o invariante, em vez da prosa em comentário que existe hoje dos dois lados |
+| Prioridade | P3 — não é violação hoje, é dependência não garantida por tipo nem por teste |
+| Achado por | `constitution-guard`, 2026-09-20 |
 
 ---
 
