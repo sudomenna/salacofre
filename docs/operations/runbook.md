@@ -66,6 +66,74 @@ em 9 POSTs antes da detecção.
 lsof -i :3000  # deve retornar vazio
 ```
 
+## Rodar os portões e2e na máquina (21/09/2026)
+
+Os dois portões canônicos — **peso de página** (`tests/e2e/perf-budget.spec.ts`,
+RNF-007a/b/c) e **acessibilidade** (`tests/e2e/a11y-audit.spec.ts`) — passaram a
+rodar contra um build local. Até 20/09 os dois só existiam por medição manual ou
+contra o site publicado.
+
+```bash
+pnpm build
+pnpm start:e2e      # 🔴 este, NUNCA `pnpm start` nem `pnpm dev`
+
+# noutro terminal
+pnpm test:e2e
+```
+
+🔴 **Por que existe um `start:e2e` em vez de `pnpm start`.** O Next carrega o
+`.env.local` **sozinho** — ele anuncia `Environments: .env.local` no build —, e a
+primeira variável de lá é o `DATABASE_URL` de **produção**. O `start:e2e` declara
+vazias as 13 variáveis que dão poder de escrita (banco, Blob, token do Edge
+Config, os dois segredos de rota e o deploy hook); o ambiente real vence o
+arquivo, então isso basta. **Confirme sempre pelo log do servidor**:
+
+```
+[db] DATABASE_URL ausente — db client não está pronto
+```
+
+Sem essa linha, você está servindo produção para a suíte de testes — pare.
+
+O `EDGE_CONFIG` (leitura) fica **de propósito**: é ele que faz o SSR renderizar
+a página cheia em vez do estado "Aguardando dados". Ver a ressalva 1 abaixo.
+
+Primeira execução (21/09): **10/10** no peso em 7 s, **64/64** na
+acessibilidade em 42,6 s, e a suíte e2e inteira em **98 passed / 14 skipped**
+(47,8 s), rodada exatamente por estes dois comandos.
+
+### O que estava quebrado, e o que o registro antigo dizia de errado
+
+`checkBotId()` (`proxy.ts`) **lança** fora da Vercel, o matcher do proxy é
+`/api/:path*`, e o Next responde **500 com um corpo que nunca fecha**. A
+requisição fica em voo para sempre, então `waitForLoadState("networkidle")`
+nunca resolve — testado até 60 s. E como `PersistentMapFrame` renderiza o
+esqueleto enquanto não tem payload, o mapa nunca montava e o **RNF-007b media
+0 B sem ninguém notar**.
+
+⚠️ O diagnóstico anterior (cabeçalho do spec de a11y, handoffs de 18 e 21/09)
+dizia "a página consulta em laço" e "o mapa fica pedindo tiles de domínio
+bloqueado". **As duas coisas são falsas**: a página consulta UMA vez, e nenhum
+tile é pedido. Está vencido; a versão medida vive em `tests/e2e/_apoio-local.ts`.
+
+### Por que o conserto não está em `proxy.ts`
+
+`checkBotId()` não tem como funcionar fora da Vercel — qualquer guarda no código
+de produção (`if (!process.env.VERCEL) pular`) some com a proteção em silêncio se
+a variável faltar num deploy real. O remendo fica na suíte, em
+`tests/e2e/_apoio-local.ts`, e **só é instalado quando o alvo é localhost**:
+contra o site publicado nada muda.
+
+### ⚠️ Duas ressalvas para quem for citar um número daqui
+
+1. **A página tem duas fontes de dado.** O stub intercepta só `fetch` do cliente;
+   o SSR continua lendo o **Global Config de produção** quando `EDGE_CONFIG` está
+   no ambiente. Sem essa variável o portão audita outra página (o estado
+   "Aguardando dados"), e duas execuções deixam de ser comparáveis.
+2. **Build local ≠ build da Vercel.** A referência continua sendo
+   `PLAYWRIGHT_BASE_URL=https://salacofre.vercel.app`. O cruzamento dá confiança:
+   o chunk do MapLibre mediu **285,0 KiB** local contra **285,3 KiB** publicados
+   em 18/09.
+
 ## 🔴 Regra operacional crítica — `ALLOW_DB_WRITE_TESTS` (17/09/2026)
 
 **Cinco testes de integração escrevem de verdade** no banco apontado por `DATABASE_URL`:
@@ -912,6 +980,233 @@ de credencial e fase, e remover a guarda de janela.
 (`"cego + payload de pré-eleição ainda é indeterminado"`). O defeito que passava: com um
 payload obsoleto em cache, o vigia relataria "não há o que apurar" quando na verdade não tinha
 conseguido ler nada.
+
+## Vigia de configuração — `pnpm vigia:armado` (incidente de 2026-09-22)
+
+```bash
+pnpm vigia:armado --modo simulado    # janelas de simulado de setembro
+pnpm vigia:armado --modo dia-d       # a partir de 25/09, e na noite de 04/10
+```
+
+Saída: **0** = armado · **2** = 🔴 desarmado · **1** = não deu para olhar (CLI sem login).
+
+### O incidente
+
+A janela de simulado de **22/09** (9h–17h BRT) passou **inteira** sem que uma única
+requisição nossa saísse para o TSE. Não foi o TSE, não foi rede, não foi código: foi
+**endereço**.
+
+Toda a configuração do simulado — `TSE_BASE_URL`, `TSE_COD_ELEICAO_FEDERAL`,
+`TSE_COD_ELEICAO_ESTADUAL`, `INGEST_WINDOW=9-17`, `CRON_ENABLED` — estava cadastrada no
+ambiente **Preview**. E o Vercel Cron **só invoca o deployment de produção**:
+
+> "To trigger a cron job, Vercel makes an HTTP GET request to your project's **production
+> deployment URL**" — [vercel.com/docs/cron-jobs](https://vercel.com/docs/cron-jobs), lido
+> em 2026-09-22.
+
+Preview nunca recebe invocação de cron. E não havia deployment de preview há 5+ dias — os
+~38 deployments recentes eram todos `Production`.
+
+Consequência medida, com os 19 crons registrados e disparando normalmente:
+
+| Faixa | O que a produção fez |
+|---|---|
+| 9h–17h BRT (12-20 UTC) | Sem `INGEST_WINDOW`, usa o default `"17-04"` (`lib/tse/ingest-window.ts:49`) → `{skipped:"out_of_window"}` em toda invocação. Registrado em **`logDebug`** (`lib/tse/ingest-handler.ts:415-422`), o nível mais baixo do arquivo — invisível. |
+| 17h BRT em diante (20-23 UTC) | Entra na janela e **quebra a cada ~30 s**: `listIngestTargets falhou — abortando ciclo` / `Nem TSE_COD_ELEICAO_FEDERAL nem TSE_COD_ELEICAO estão definidas`, `"env":"production"`. Observado ao vivo 17:29–17:33 em 22/09. **Acontecia todas as noites.** |
+
+⚠️ O `ts` do último payload publicado é `2026-09-17T09:03Z` = **06h03 BRT**, que está fora
+de `"17-04"` **e** de `"9-17"`. Nenhum cron poderia ter passado o portão de janela nesse
+horário — logo aquela publicação veio de disparo manual (`INGEST_WINDOW_OVERRIDE=true`) ou
+do semeador. **O cron automático provavelmente nunca publicou nada, nem em 15–17/09.**
+
+### Por que um vigia SEPARADO do `vigia:ciclo`
+
+`vigia:ciclo` responde "o boletim andou?" — a pergunta certa, e ele estava correto o tempo
+todo. Só não teve chance de perguntar dentro da janela: a tarefa agendada é cron **local**,
+e o Mac dormiu das 22h35 de 21/09 às 17h14 de 22/09 — **21h39 sem uma única corrida**,
+cobrindo a janela inteira.
+
+`vigia:armado` responde outra: **"a máquina está apontada para o lugar certo ANTES de a
+janela abrir?"**. É a única das duas que pode ser respondida na véspera, quando ainda dá
+tempo de consertar. Um vigia que só sabe dizer "não andou" chega sempre tarde demais.
+
+### O que ele confere, e o que não confere
+
+`vercel env ls production --json` devolve os valores **criptografados**. O script confere
+**presença e ambiente**, nunca valor — de propósito, e é suficiente: o defeito de 22/09 foi
+exatamente ausência, quatro variáveis que existiam só em `preview`.
+
+Conferir valor exigiria baixá-los para a máquina, e o `.env.local` já é armadilha conhecida
+(a primeira variável dele é o `DATABASE_URL` de produção — ver `scripts/_vigia-env.ts`).
+
+⚠️ `TSE_TARGETS_WHITELIST` **não** entra na lista de exigidas: ele é lido apenas no ramo
+`preview` de `lib/tse/targets.ts`. Exigi-lo em produção daria falsa sensação de contenção
+de fan-out.
+
+### As duas metades da lista
+
+`EXIGIDAS` pega o erro de 22/09 (falta de config). `PROIBIDAS` pega o **erro simétrico**,
+que é pior: chegar em 04/10 com `TSE_BASE_URL` de simulado ainda em produção — o site
+público serviria número de mentira na noite da eleição — ou com `INGEST_WINDOW=9-17`, que
+deixaria o ciclo mudo a partir das 17h, exatamente quando a apuração começa. Por isso
+`--modo dia-d` reprova por **sobra**, não só por falta.
+
+### Cobertura de teste
+
+`tests/unit/scripts/vigia-armado.test.ts` — 13 casos sobre o núcleo puro `avaliarArmado`,
+sem rede e sem processo. Mutação aplicada à mão em 22/09: trocar
+`envs.filter(e => alvos(e).includes("production"))` por `envs.map(...)`, isto é, ignorar o
+ambiente. **Três testes ficaram vermelhos**, entre eles o que reproduz a configuração exata
+de 22/09. Sem esses casos, a suíte inteira passaria com a verificação de ambiente removida —
+e o vigia diria "armado" na manhã em que a janela se perdeu.
+
+## Armar e desarmar produção para um simulado (procedimento, 2026-09-22)
+
+🔴 **Leia antes**: o simulado só roda se **produção** estiver armada — Preview nunca recebe
+cron (ver a seção anterior). E armar produção tem uma consequência que **não é opcional**,
+a menos que você use a variante B abaixo.
+
+### A consequência, medida
+
+Quando um ciclo publica, ele **sobrescreve a chave inteira** (`lib/edge-config/writer.ts:1098-1107`),
+e isso **apaga o campo `fase`** que o semeador grava. O orchestrator nunca escreve `fase` — a
+borda de escrita só aceita `z.literal("pre_eleicao").optional()`
+(`app/api/internal/edge-write/route.ts:159`), então quem grava é só
+`data-pipeline/projection-seed.ts:322`.
+
+Sem `fase`, `isPreEleicao` devolve `false` (`lib/config/fase.ts:109`, chamado em
+`app/(pres)/page.tsx:595`) e a home sai do ramo `AguardandoNacional` (`:586`). **Não existe
+campo, flag ou marca de "simulado" em nenhum ponto do read path** — o payload de simulado e o
+real têm o mesmo shape. O site passa a exibir "CANDIDATO 9991 · P 9990 · 8,6% · p_vitoria 0,819"
+com a mesma tipografia, o mesmo selo "ao vivo" e a mesma atribuição **"Fonte: TSE"** que usará
+em 04/10. Latência: ≤60 s nos painéis (ISR, `app/(pres)/page.tsx:227`) e ≤30 s no mapa
+(`/api/projection`).
+
+É a mesma família do incidente de 14/09 registrado em
+`docs/sprints/2026-S07-f6-simulado-hero-1t.md:328` ("o site público publicava resultados
+eleitorais inventados").
+
+### O que NÃO é problema: fan-out e rate limit
+
+Verificado em 22/09: o rate limiter é um token bucket **por cargo**
+(`lib/tse/rate-limiter.ts:203-233`), com teto vindo de `cargoInfo(cargo).rpsMax`. Mais alvos
+**não elevam o pico** — só alongam o ciclo. `piorCasoAgregadoRps()` (`lib/config/cargos.ts:312-314`)
+soma 25+25+25+5 = **80 rps**, contra o limite documentado do TSE de 100 rps/IP. É o mesmo volume
+já dimensionado para a noite real. **Não é preciso reduzir fan-out para rodar o simulado em
+produção**, e reduzir com `TSE_GRANULARIDADE=uf` custaria caro: deixaria de exercitar a
+granularidade `zona`, que é exatamente o que o Passo 0 precisa confirmar contra dado real.
+
+⚠️ `TSE_TARGETS_WHITELIST` **é no-op em produção** — só é lido nos ramos `buildPreviewTargets*`
+(`lib/tse/targets.ts:928,965`). Não conte com ele para conter escopo lá.
+
+### Variante A — armar e publicar (rehearsal completo)
+
+Exercita a cadeia inteira, incluindo a publicação. **O site público mostra os números do
+simulado durante a janela.** Fato atenuante medido em 19/09: `salacofre.com.br` não resolve
+(`docs/reference/risks.md`), então o único endereço no ar é `salacofre.vercel.app`.
+
+```bash
+printf 'https://resultados-sim.tse.jus.br/simulado/simulado2026' | vercel env add TSE_BASE_URL production
+printf 'ele2026/21270' | vercel env add TSE_COD_ELEICAO_FEDERAL production
+printf 'ele2026/21272' | vercel env add TSE_COD_ELEICAO_ESTADUAL production
+printf '9-17'          | vercel env add INGEST_WINDOW production
+vercel --prod          # 🔴 OBRIGATÓRIO: env var só vale a partir de um deployment novo
+pnpm vigia:armado --modo simulado   # tem de sair 0
+```
+
+### Variante B — armar SEM publicar no site público (recomendada)
+
+Mesma ingestão, mesmo modelo, mesma gravação — só que o payload cai num **store separado**, e
+o site continua lendo o antigo. Funciona porque leitura e escrita usam variáveis diferentes:
+o site lê `EDGE_CONFIG` (`lib/edge-config/reader.ts:252`) e o gravador resolve o destino por
+`EDGE_CONFIG_ID`, caindo no id extraído de `EDGE_CONFIG` só quando `EDGE_CONFIG_ID` está
+ausente (`lib/edge-config/writer.ts:201-209`) — que é o estado de produção hoje.
+
+Acrescente, além dos quatro comandos da variante A:
+
+```bash
+printf '<ecfg_do_store_de_ensaio>' | vercel env add EDGE_CONFIG_ID production
+```
+
+Custo: os números do simulado **não aparecem na tela**. Para vê-los, aponte um preview para o
+store de ensaio, ou leia o store direto.
+
+### Estado aplicado em 22/09 — variante B, com as duas gavetas que já existiam
+
+`vercel global-config list` em 22/09 revelou que **os dois stores já existiam**, e que a
+separação necessária já estava no lugar sem ninguém ter planejado:
+
+| id | slug | itens | atualizado |
+|---|---|---|---|
+| `ecfg_mcoa3usgvm5dbqb27vae8ptmpdxl` | `salacofre-edge-config` | **0** | 14/09 |
+| `ecfg_fdlfvusqgth3gc8eaxloahrvrsgh` | `salacofre-edge-config-preview` | 4 | **17/09 09:03** |
+
+O `EDGE_CONFIG` de **produção** aponta para o primeiro — **vazio**. É por isso que o site
+público mostra "Esta página ainda não recebeu dados de apuração": não é fase pré-eleição, é
+**ausência de payload** (`app/(pres)/page.tsx:586`, o ramo `AguardandoNacional`, que vem uma
+linha *antes* do teste de `fase`). O simulado de 17/09 caiu no segundo store, que é o que o
+`.env.local` e portanto o `pnpm vigia:ciclo` leem.
+
+Aplicado então, sem criar store novo:
+
+```
+TSE_BASE_URL             = https://resultados-sim.tse.jus.br/simulado/simulado2026
+TSE_COD_ELEICAO_FEDERAL  = ele2026/21270
+TSE_COD_ELEICAO_ESTADUAL = ele2026/21272
+INGEST_WINDOW            = 9-17
+EDGE_CONFIG_ID           = ecfg_fdlfvusqgth3gc8eaxloahrvrsgh   ← desvia a ESCRITA
+```
+
+seguido de `vercel redeploy <deployment de produção> --target production` — **redeploy do que
+já estava no ar**, não `vercel --prod`, que empacotaria a árvore local (havia 19 arquivos
+modificados e não commitados).
+
+**Verificação feita, sem um único GET ao TSE**: `GET /api/ingest/presidente` com
+`Authorization: Bearer $CRON_SECRET` respondeu `{"skipped":"out_of_window"}` às 17h50 BRT.
+Antes do redeploy, esse horário caía **dentro** do default `"17-04"` e a rota morria no código
+da eleição ausente — o `out_of_window` é prova de que o deployment leu a `INGEST_WINDOW` nova.
+O portão de janela vem **antes** de `listIngestTargets`, então a checagem não gera tráfego
+externo em nenhum dos desfechos possíveis.
+
+⚠️ **Consequência para o `vigia:ciclo` nestes dias**: ele lê o `EDGE_CONFIG` do `.env.local`,
+que é o store de **ensaio** — exatamente onde o simulado vai escrever. Isso é o que se quer
+em 23–24/09. **Mas depois de desarmar, ele passa a vigiar a gaveta errada**: o site público lê
+a outra. Repontar o `EDGE_CONFIG` do `.env.local` para `ecfg_mcoa3usgvm5dbqb27vae8ptmpdxl`
+faz parte do checklist abaixo.
+
+⚠️ **Resíduo no banco, a limpar antes de 04/10**: `DATABASE_URL` em produção é o banco real, e
+o ciclo grava `snapshots` e a série por candidatura a cada rodada. Dois dias de simulado
+deixam linhas de mentira lá. `fetch_snapshots` decide por frescor de `ts`, então as linhas de
+setembro provavelmente não contaminam o cálculo de outubro — mas a **série** (spec 020) desenha
+por candidatura e pode mostrar pontos do ensaio. Conferir com o procedimento de
+[resíduo de harness no banco](#conferir-resíduo-de-harness-no-banco).
+
+### Desarmar — 🔴 checklist obrigatório antes de 04/10
+
+```bash
+vercel env rm TSE_BASE_URL production --yes
+vercel env rm INGEST_WINDOW production --yes
+vercel env rm TSE_COD_ELEICAO_FEDERAL production --yes     # os do simulado NÃO servem ao dia D
+vercel env rm TSE_COD_ELEICAO_ESTADUAL production --yes
+vercel env rm EDGE_CONFIG_ID production --yes              # só se usou a variante B
+vercel --prod
+pnpm projection:seed                                       # devolve `fase: pre_eleicao` à tela
+pnpm vigia:armado --modo dia-d                             # tem de sair 0
+```
+
+E, fora da CLI: repontar o `EDGE_CONFIG` do `.env.local` para
+`ecfg_mcoa3usgvm5dbqb27vae8ptmpdxl` (o store que o site lê), senão o `vigia:ciclo`
+passa a vigiar a gaveta de ensaio e ficaria mudo na noite de 04/10.
+
+⚠️ **Os códigos reais da eleição ainda não existem.** Produção publicou `6257`/`6259` em 18/09
+e eles sumiram em 19/09; o TSE insere os parâmetros oficiais por volta de **03/10**. Portanto
+entre 25/09 e 03/10 `--modo dia-d` vai acusar os dois códigos como faltando, **e está certo** —
+é pendência real, não falso alarme.
+
+⚠️ `pnpm vigia:armado --modo dia-d` reprova por **sobra**, não só por falta: `TSE_BASE_URL`,
+`INGEST_WINDOW`, `INGEST_WINDOW_OVERRIDE`, `EDGE_CONFIG_ID`, `TSE_GRANULARIDADE`, `TSE_CARGOS`
+e `TSE_MAX_RPS` deixados para trás reprovam o check. É essa metade que impede o erro simétrico
+— chegar na noite da eleição buscando o CDN de teste, ou lendo um store que ninguém alimenta.
 
 ## Ferramentas do pipeline TSE
 

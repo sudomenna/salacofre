@@ -178,6 +178,11 @@ export async function insertSnapshot(args: {
         uf: target.uf,
         codMunicipioTse: target.codMunicipioTse,
         codZona: target.codZona,
+        // Migration 0010 (spec 021, RF-199) — a abrangência da linha viaja
+        // com ela. Sem isto, toda linha cairia no DEFAULT 'zona' da coluna
+        // (§ metadado do Postgres), inclusive as agregadas de UF/BR que
+        // `lib/tse/targets.ts` passou a somar aos alvos de zona.
+        nivel: target.nivel,
         etag: etag ?? null,
         hashPayload: hash,
         payload: payload as Record<string, unknown>,

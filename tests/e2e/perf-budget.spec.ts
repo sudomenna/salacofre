@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { expect, type Page, type Request, test } from "@playwright/test";
+import { esperarMapaMontado, esperarRedeOciosa, instalarProjecaoLocal } from "./_apoio-local";
 
 /**
  * RNF-007 — orçamento de bundle JS (docs/nfr/performance.md).
@@ -82,6 +83,19 @@ const ARTIFACT_PATH = path.join(process.cwd(), "test-results", "perf-budget.json
 const ROUTES = ["/", "/uf/SP", "/uf/SP/governador", "/uf/SP/senador", "/deputado-federal"] as const;
 
 /**
+ * Das rotas acima, as que renderizam um mapa MapLibre — medido em 2026-09-21
+ * contra o build local: `/` e `/governador` montam o coroplético nacional
+ * ("Mapa interativo do Brasil — …"); as três de UF montam o municipal ("Mapa de
+ * líder por município — SP"); `/deputado-federal` e `/uf/SP/deputado-federal`
+ * não têm mapa nenhum (0 nós com `role="img"`), e `/sobre-o-modelo` tem três
+ * `role="img"` que são diagramas, não mapa.
+ *
+ * Serve para o RNF-007b distinguir "0 B porque não há mapa" de "0 B porque o
+ * mapa não montou" — ver a asserção que a consome.
+ */
+const ROTAS_COM_MAPA = new Set<string>(["/", "/uf/SP", "/uf/SP/governador", "/uf/SP/senador"]);
+
+/**
  * Teto do corpo do documento HTML, em bytes.
  *
  * ⚠️ **PROVISÓRIO — calibrar na primeira execução real deste spec.** O número
@@ -90,11 +104,31 @@ const ROUTES = ["/", "/uf/SP", "/uf/SP/governador", "/uf/SP/senador", "/deputado
  * 91.124 B, dos quais 28.333 B são o hemiciclo com 513 cadeiras), dobrado para
  * cobrir o *payload* RSC que o Next embute no mesmo documento, mais folga.
  *
- * Não foi possível medir de verdade nesta rodada: o gate de e2e não roda contra
- * build local (o BotID derruba a navegação). O caso abaixo **imprime o número
- * medido** na anotação do Playwright — na primeira execução em ambiente que
- * funcione, leia a anotação e troque esta constante pelo valor real + ~25%.
- * Enquanto isso ele pega a regressão grosseira, não a fina.
+ * ✅ **MEDIDO em 2026-09-21**, na primeira execução deste spec contra um build
+ * local que funcionou (ver `_apoio-local.ts`). Corpo do documento, por rota:
+ *
+ *   `/` ....................... 217.310 B  (212,2 KiB)  ← o maior
+ *   `/deputado-federal` ........  81.638 B  ( 79,7 KiB)
+ *   `/uf/SP/governador` ........  44.787 B  ( 43,7 KiB)
+ *   `/uf/SP/senador` ...........  44.357 B  ( 43,3 KiB)
+ *   `/uf/SP` ...................  44.296 B  ( 43,3 KiB)
+ *
+ * 🔴 **E o teto NÃO foi apertado, de propósito** — contra a instrução que estava
+ * escrita aqui ("troque pelo valor real + ~25%", o que daria 265,3 KiB).
+ *
+ * O motivo é a DIREÇÃO da falha. Este documento cresce com o DADO: `/` mede
+ * 212,2 KiB com o payload de hoje, e a noite de 04/10 tem mais candidatura
+ * nomeada, mais município com número e a série da apuração acumulando pontos.
+ * Um teto calibrado em uma máquina, num dia de pouca apuração, reprova no pior
+ * momento possível por um crescimento que era esperado. Apertar exige medir o
+ * documento com payload de noite de eleição — o replay tem esse dado, este spec
+ * não. Fica como tarefa com insumo conhecido, não como palpite.
+ *
+ * ⚠️ A derivação antiga (`<main>` de `/deputado-federal` = 91.124 B por
+ * `renderToStaticMarkup`, dobrado) não reproduz: o documento INTEIRO daquela
+ * rota mede 81.638 B, **menos que o `<main>` sozinho** da medição de 18/09. As
+ * duas medem coisas diferentes e não são comparáveis — quem for recalibrar
+ * use a medição de rede, que é a que o portão faz.
  */
 const BUDGET_DOCUMENT_BYTES = 300 * KIB;
 
@@ -112,6 +146,26 @@ interface RouteMeasurement {
   mapChunkRequests: number;
   totalBytes: number;
   totalRequests: number;
+  /**
+   * `false` em rota sem mapa (`/deputado-federal`). Quando é `false` numa rota
+   * COM mapa, `mapChunkBytes` sai 0 por o chunk nunca ter sido pedido — um zero
+   * que não é medição, e por isso vai ao artefato em vez de passar por número.
+   */
+  mapaMontado: boolean;
+  /**
+   * `true` quando o chunk do MapLibre chegou ANTES do evento `load`. Não é
+   * defeito — é a corrida entre a hidratação e o `load`, que depende da latência
+   * da resposta de `/api/projection`. Fica registrado porque foi ela que, até
+   * 2026-09-21, decidia em qual dos dois orçamentos o chunk era contado.
+   */
+  mapaAntesDoLoad: boolean;
+  /**
+   * `false` quando a rede não ficou ociosa dentro do teto. A soma de
+   * `totalBytes` (RNF-007c) pode então estar INCOMPLETA — ver `emVoo`.
+   */
+  redeOciosa: boolean;
+  /** Quem continuava em voo quando o teto estourou. Vazio no caminho normal. */
+  emVoo: string[];
 }
 
 function isSameOrigin(request: Request, baseURL: string): boolean {
@@ -151,21 +205,27 @@ async function measureRoute(page: Page, baseURL: string, route: string): Promise
 
   await page.goto(route, { waitUntil: "load" });
   // O mapa carrega via `next/dynamic({ ssr: false })` (ADR-0010) — o import() só é
-  // disparado no efeito de montagem do componente cliente, depois da hidratação, e o
-  // container com `role="img"` só existe depois que o chunk do MapLibre já baixou e
-  // executou (o placeholder de loading não tem essa role). Esperar por ele é o sinal
-  // determinístico de "mapa montado" citado no protocolo — mais confiável que uma
-  // corrida contra `networkidle` sozinho, que pode fechar antes do import() começar.
-  await page
-    .getByRole("img", { name: /mapa/i })
-    .first()
-    .waitFor({ state: "visible", timeout: 15_000 })
-    .catch(() => {
-      // Rota sem mapa nesta página — segue só com o networkidle abaixo.
-    });
+  // disparado no efeito de montagem do componente cliente, depois da hidratação.
+  // Esperar o container montado é o sinal determinístico de "o chunk do MapLibre já
+  // baixou e executou", e é ele que faz o RNF-007b abaixo medir alguma coisa.
+  //
+  // 🔴 2026-09-21 — até esta data a espera era `getByRole("img", { name: /mapa/i })`,
+  // e o comentário aqui afirmava que "o placeholder de loading não tem essa role".
+  // Tem: `MapSkeleton.tsx:34-36` declara `role="img"` +
+  // `aria-label="Mapa do Brasil carregando"`. O `.first()` casava no ESQUELETO e
+  // retornava em **12 ms** — quem de fato segurava a medição do chunk era o
+  // `networkidle` logo abaixo, justamente o que o comentário dizia ser pouco
+  // confiável. `esperarMapaMontado` discrimina pelo `aria-busy`.
+  const mapaMontado = await esperarMapaMontado(page);
   // Rede ociosa: captura qualquer requisição residual (ex.: tiles PMTiles) disparada
   // logo após o mapa montar.
-  await page.waitForLoadState("networkidle");
+  //
+  // 🔴 Com TETO, e com o estouro reportado em vez de engolido: uma única requisição
+  // que nunca fecha o corpo trava o `networkidle` para sempre (foi o que matou este
+  // portão contra build local — ver `_apoio-local.ts`). Engolir o estouro em silêncio
+  // seria pior que travar: a soma sairia menor que a rota real e o portão ficaria
+  // VERDE. Quem ficou em voo vai para o artefato e para a anotação.
+  const rede = await esperarRedeOciosa(page);
 
   const samples: (ScriptSample & { afterLoad: boolean })[] = await Promise.all(
     order.map(async ({ request, afterLoad }) => {
@@ -189,8 +249,24 @@ async function measureRoute(page: Page, baseURL: string, route: string): Promise
 
   const sum = (list: ScriptSample[]) => list.reduce((acc, s) => acc + s.bytes, 0);
 
-  const aboveTheFold = samples.filter((s) => !s.afterLoad);
   const mapChunk = samples.filter((s) => s.isMapLibreChunk);
+  // 🔴 2026-09-21 — o chunk do mapa sai do RNF-007a por CONTEÚDO, não por corrida
+  // com o evento `load`.
+  //
+  // A receita no cabeçalho deste arquivo define 007a como "scripts até o `load`" e
+  // 007b como "scripts DEPOIS do `load` que contêm 'maplibre'". As duas definições
+  // colidem quando o `import()` do `next/dynamic` ganha a corrida do `load` — e aí o
+  // mesmo chunk era somado NAS DUAS, inflando o 007a com o peso que o ADR-0010 existe
+  // para tirar dele. Medido na primeira execução local em que o mapa de fato montou:
+  // `/` deu above-the-fold de 467.310 B com os 291.823 B do MapLibre dentro, contra
+  // 175.487 B sem ele.
+  //
+  // Até esta data a colisão nunca aparecia porque o mapa NUNCA montava localmente e,
+  // no site publicado, a latência de `/api/projection` empurrava o `import()` para
+  // depois do `load`. Ou seja: a classificação sempre dependeu de latência de rede,
+  // e foi por sorte que deu certo. `isMapLibreChunk` não depende.
+  const aboveTheFold = samples.filter((s) => !s.afterLoad && !s.isMapLibreChunk);
+  const mapaAntesDoLoad = mapChunk.some((s) => !s.afterLoad);
 
   return {
     route,
@@ -200,6 +276,10 @@ async function measureRoute(page: Page, baseURL: string, route: string): Promise
     mapChunkRequests: mapChunk.length,
     totalBytes: sum(samples),
     totalRequests: samples.length,
+    mapaMontado,
+    mapaAntesDoLoad,
+    redeOciosa: rede.ociosa,
+    emVoo: rede.emVoo,
   };
 }
 
@@ -244,6 +324,7 @@ test.describe("perf budget (RNF-007a/b/c)", () => {
 
   for (const route of ROUTES) {
     test(`bundle JS de script — ${route}`, async ({ page, baseURL }) => {
+      await instalarProjecaoLocal(page, baseURL);
       const result = await measureRoute(page, baseURL ?? "http://localhost:3000", route);
       writeArtifact(result);
 
@@ -274,8 +355,42 @@ test.describe("perf budget (RNF-007a/b/c)", () => {
         .soft(result.totalBytes, `RNF-007c total de script (${route}) deve ficar abaixo de 500 KiB`)
         .toBeLessThan(BUDGET_RNF_007C_BYTES);
 
+      // 🔴 A qualidade da MEDIÇÃO é asserção, não nota de rodapé (2026-09-21).
+      //
+      // Rede não ociosa ⇒ `totalBytes` pode estar incompleto, e o RNF-007c acima
+      // teria passado por medir MENOS do que a rota carrega. Um portão que fica
+      // verde medindo menos é pior que um portão vermelho.
+      expect
+        .soft(
+          result.redeOciosa,
+          `A rede não ficou ociosa em ${route} dentro do teto — o RNF-007c acima pode ` +
+            `estar somando MENOS script do que a rota carrega. Continuavam em voo: ` +
+            `${result.emVoo.slice(0, 3).join(", ") || "(nada registrado)"}`,
+        )
+        .toBe(true);
+
       // RNF-007b passou de 250 para 300 KiB em 2026-09-08 (ADR-0030), formalizando o
       // carry-over da S04 em vez de mantê-lo como teto operacional escondido no teste.
+      //
+      // 🔴 `ROTAS_COM_MAPA` existe porque `mapChunkBytes = 0` tem DUAS origens
+      // opostas e o `toBeLessThan` abaixo aprova as duas: "a rota não tem mapa"
+      // (correto) e "o mapa não montou, então o chunk nunca foi pedido" (medição
+      // que não aconteceu). Foi exatamente o segundo caso contra build local até
+      // 2026-09-21 — o portão registrava 0 B e passava. Numa rota que TEM mapa, o
+      // zero agora reprova.
+      if (ROTAS_COM_MAPA.has(route)) {
+        expect
+          .soft(
+            result.mapaMontado,
+            `O mapa de ${route} não montou — \`mapChunkBytes\` sai 0 B por ausência de ` +
+              "medição, não por leveza, e o teto do RNF-007b passaria sem medir nada.",
+          )
+          .toBe(true);
+        expect
+          .soft(result.mapChunkBytes, `RNF-007b (${route}): chunk do MapLibre medido em 0 B`)
+          .toBeGreaterThan(0);
+      }
+
       expect
         .soft(
           result.mapChunkBytes,

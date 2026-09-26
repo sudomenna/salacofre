@@ -178,6 +178,21 @@ export const snapshots = pgTable(
      */
     codMunicipioTse: integer("cod_municipio_tse").notNull().default(0),
     codZona: integer("cod_zona").notNull(),
+    /**
+     * Migration 0010 (spec 021, RF-199) — abrangência da linha:
+     * `"zona"` | `"uf"` | `"br"`. Antes desta coluna, o único jeito de
+     * distinguir uma linha agregada era o sentinela `cod_zona = 0` — e o
+     * pipeline nunca chegou a produzir uma, porque os 4 cargos ingerem só
+     * `"zona"` (`lib/config/cargos.ts`). Agora que `listIngestTargets`
+     * soma os alvos agregados de UF/BR aos de zona em produção
+     * (`lib/tse/targets.ts`), a linha precisa se declarar — sem isto ela
+     * cairia de volta no mesmo sentinela ambíguo. `NOT NULL DEFAULT 'zona'`
+     * (não anulável, ao contrário de `pct_atual`/0009): isto não é uma
+     * medição que pode faltar, é a NATUREZA da linha, e toda linha gravada
+     * até hoje sempre foi de zona — `ADD COLUMN` com default constante
+     * continua sendo só metadado em Postgres ≥ 11 (§ 10 intacto).
+     */
+    nivel: varchar("nivel", { length: 4 }).notNull().default("zona"),
     etag: text("etag"), // ETag do TSE para dedup
     pctApurado: numeric("pct_apurado", { precision: 5, scale: 2 }),
     votosTotal: integer("votos_total"),

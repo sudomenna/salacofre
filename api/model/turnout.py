@@ -119,7 +119,29 @@ class ZonaParticipacao(ZonaParticipacaoRaw):
     weight: int
 
 
-Metric = Literal["abstencao", "brancos_nulos"]
+Metric = Literal[
+    "abstencao",
+    "brancos_nulos",
+    "validos",
+    "brancos",
+    "nulos",
+]
+"""Métricas projetáveis por regra de três.
+
+`"abstencao"` e `"brancos_nulos"` são as originais da Fase 1a (ver docstring
+do módulo; `"brancos_nulos"` é a métrica AGREGADA e continua sem caller de
+produção desde a Fase 5).
+
+`"validos"`, `"brancos"` e `"nulos"` entraram com a spec 021 (RF-195): o
+círculo 3 precisa das fatias **separadas**, não do agregado — um gráfico não
+desenha "brancos+nulos" como uma fatia só se o leitor está olhando quatro.
+São irmãs de `"brancos_nulos"` na base (`comparecimento`), não substitutas:
+`brancos + nulos == brancos_nulos` por construção em
+{@link _metric_num_den}, e o agregado segue existindo para quem já o lê.
+
+🔴 Acrescentar membro a esta união **exige** acrescentar o ramo em
+`_metric_num_den` — ver o `raise` no fim daquela função e o porquê.
+"""
 
 
 class ParticipacaoEstimate(TypedDict):
@@ -171,10 +193,51 @@ def _metric_num_den(z: ZonaParticipacao, metric: Metric) -> tuple[float, float]:
       mesma ressalva documentada em
       `project.py::_extract_zone_participacao` (`e.esi`, não `e.te`).
     - `brancos_nulos` → `(brancos + nulos) / comparecimento`.
+    - `validos`       → `validos / comparecimento`. ⚠️ `validos` é `v.vv`,
+      **não** `v.vvc` (votáveis concorrentes) — ADR-0018. A diferença é
+      `anulados + sub_judice`, e ela não é pequena: medida em 14,20% do
+      comparecimento na captura real do simulado do TSE
+      (`tests/fixtures/tse/2026-sim/br-c0001-e021270-u.json`).
+    - `brancos`       → `brancos / comparecimento`.
+    - `nulos`         → `nulos / comparecimento`. ⚠️ `nulos` é `v.tvn`
+      (total), não `v.vn` — ver `project.py::_extract_zone_participacao`.
+
+    Base `comparecimento` para as três fatias de voto porque é a base do
+    próprio TSE (`v.pvb`/`v.ptvn` são percentuais sobre `v.tv`) e a mesma de
+    `brancos_nulos` — trocar a base de uma fatia e não das outras faria
+    quatro números que não dividem o mesmo inteiro.
+
+    🔴 **Por que o `raise` no fim, e não um `return` de fallback.** Até a
+    spec 021 esta função terminava em
+    `return float(z["brancos"] + z["nulos"]), float(z["comparecimento"])`
+    sem nenhuma condição — isto é, **toda** métrica que não fosse
+    `"abstencao"` recebia o numerador/denominador de brancos+nulos, em
+    silêncio. Medido antes da mudança: `_metric_num_den(z, "validos")`
+    devolvia `(20.0, 800.0)` num contexto em que válidos eram 780 de 800 —
+    2,5% no lugar de 97,5%, sem erro, sem log, sem teste vermelho (nenhum
+    teste chamava a função com uma métrica nova). Acrescentar `"validos"` à
+    união `Metric` e parar aí publicaria uma projeção de válidos errada por
+    um fator de 39.
+
+    É o padrão que esta base já pagou três vezes (ver o feedback
+    "default silencioso em conversor de enum"): ternário/`??`/`default`
+    perto de cargo, turno, granularidade — ou, aqui, de métrica. Uma união
+    fechada com ramo faltando tem de **estourar**, não adivinhar.
     """
     if metric == "abstencao":
         return float(z["abstencao"]), float(z["eleitores_instalados"])
-    return float(z["brancos"] + z["nulos"]), float(z["comparecimento"])
+    if metric == "brancos_nulos":
+        return float(z["brancos"] + z["nulos"]), float(z["comparecimento"])
+    if metric == "validos":
+        return float(z["validos"]), float(z["comparecimento"])
+    if metric == "brancos":
+        return float(z["brancos"]), float(z["comparecimento"])
+    if metric == "nulos":
+        return float(z["nulos"]), float(z["comparecimento"])
+    raise ValueError(
+        f"métrica de participação desconhecida: {metric!r} — acrescente o "
+        "ramo aqui ao acrescentar membro em `Metric` (ver docstring)"
+    )
 
 
 def metric_value(z: ZonaParticipacao, metric: Metric) -> float:
@@ -184,6 +247,10 @@ def metric_value(z: ZonaParticipacao, metric: Metric) -> float:
     caller (`estimate_uf_participacao`) é quem exclui essas zonas ANTES de
     agregar, então esse `0.0` nunca deveria, na prática, entrar em uma
     agregação real.
+
+    Propaga o `ValueError` de `_metric_num_den` para métrica fora de
+    `Metric` — o `0.0` acima cobre denominador vazio, NÃO métrica
+    desconhecida (que é erro de programação, não estado do dado).
     """
     num, den = _metric_num_den(z, metric)
     if den <= 0:

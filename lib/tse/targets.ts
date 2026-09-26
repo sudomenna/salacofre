@@ -771,6 +771,24 @@ export async function listIngestTargets(
           : buildProductionTargetsUf(codEleicao, baseUrl, cargo);
     }
 
+    // RF-199 (spec 021) — o agregado que o próprio TSE publica (targets
+    // "uf"/"br") se SOMA aos de zona em produção, sempre — nunca os
+    // substitui, e não depende de `TSE_GRANULARIDADE` (que continua
+    // proibida no dia D, `scripts/vigia-armado.ts`). Só entra quando a
+    // granularidade efetiva do cargo já é "zona" — quando é "uf" (via
+    // `TSE_GRANULARIDADE=uf`/`TSE_DEPUTADO_GRANULARIDADE=uf`), o branch
+    // acima JÁ devolveu o agregado, e somar de novo duplicaria as 27 UFs.
+    //
+    // Entra ANTES do fatiamento, de propósito: assim o cargo 6 particiona os
+    // 27 (+1 BR só para cargo 1) alvos agregados junto com os de zona, pela
+    // MESMA garantia de `sliceTargets` (cobertura exata, disjunção par a
+    // par, estabilidade) — sem tratamento especial por cargo. O custo é
+    // pequeno e concentrado numa única fatia por rodada, não multiplicado
+    // pelas 6 invocações do cron fatiado.
+    if (env === "production" && granularidade === "zona") {
+      targetsDoCargo = [...targetsDoCargo, ...buildProductionTargetsUf(codEleicao, baseUrl, cargo)];
+    }
+
     // Fatiamento só é válido em granularidade "zona" (ver docstring de
     // `ListIngestTargetsOptions.fatia`) — um cargo resolvido em "uf" (padrão
     // ou via `TSE_DEPUTADO_GRANULARIDADE=uf`) ignora `opts.fatia` por

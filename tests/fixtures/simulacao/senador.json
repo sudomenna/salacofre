@@ -1,9 +1,28 @@
 {
-  "ts": "2026-09-21T01:15:04.217Z",
+  "ts": "2026-09-26T17:34:17.979Z",
   "cargo": 5,
   "turno": 1,
   "pct_apurado_total": 25,
   "ufs_apuradas": 27,
+  "votacao": {
+    "contagens": {
+      "aptos": 158278193,
+      "instalados": 39569584,
+      "comparecimento": 31737578,
+      "abstencao": 7832006,
+      "validos": 24607620,
+      "brancos": 1166913,
+      "nulos": 1156999,
+      "anulados": 2246496,
+      "sub_judice": 2559550
+    },
+    "projetada": {
+      "validos": 98665173,
+      "brancos": 4716327,
+      "nulos": 4676259,
+      "abstencao": 30950413
+    }
+  },
   "national": {
     "candidatos": [
       {
@@ -4575,23 +4594,23 @@
     "cenarios_2t": [],
     "chamadas_recentes": [
       {
-        "ts": "2026-09-21T01:15:04.217Z",
+        "ts": "2026-09-26T17:34:17.979Z",
         "texto": "DF chamada para MICHELLE BOLSONARO (PL) com 37,0% apurado."
       },
       {
-        "ts": "2026-09-21T01:15:04.217Z",
+        "ts": "2026-09-26T17:34:17.979Z",
         "texto": "ES chamada para MAGUINHA MALTA (PL) com 32,1% apurado."
       },
       {
-        "ts": "2026-09-21T01:15:04.217Z",
+        "ts": "2026-09-26T17:34:17.979Z",
         "texto": "GO chamada para OSÉIAS VARÃO (PL) com 30,9% apurado."
       },
       {
-        "ts": "2026-09-21T01:15:04.217Z",
+        "ts": "2026-09-26T17:34:17.979Z",
         "texto": "MG chamada para MARÍLIA CAMPOS (PT) com 32,4% apurado."
       },
       {
-        "ts": "2026-09-21T01:15:04.217Z",
+        "ts": "2026-09-26T17:34:17.979Z",
         "texto": "MS chamada para VANDER LOUBET (PT) com 39,3% apurado."
       }
     ],

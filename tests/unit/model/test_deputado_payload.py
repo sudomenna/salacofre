@@ -903,12 +903,16 @@ class _FakeCursor:
     def execute(self, sql: str, params: tuple) -> None:
         self._conn.sqls.append(sql)
         if "FROM snapshots" in sql:
+            # 7 colunas desde a spec 021 — `nivel` entre `cod_zona` e
+            # `pct_apurado`, com default `"zona"` igual ao `COALESCE` da query
+            # (mantém as fixtures pré-021 válidas; agregado declara `"nivel"`).
             cargo, turno = params
             self._rows = [
                 (
                     s["uf"],
                     s.get("cod_municipio_tse", 0),
                     s["cod_zona"],
+                    s.get("nivel") or "zona",
                     s["pct_apurado"],
                     s["payload"],
                     s.get("ts", _DEFAULT_TS),

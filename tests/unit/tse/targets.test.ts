@@ -302,7 +302,11 @@ describe("listIngestTargets — cada cargo usa o código da SUA eleição", () =
     mockZonasRowsOnce([...PARES]);
     const targets = await listIngestTargets("production", { cargo: 1 });
 
-    expect(targets).toHaveLength(PARES.length);
+    // RF-199 (spec 021): produção soma 27 UF + 1 BR (só cargo 1) aos alvos
+    // de zona — não substitui nenhum. PARES.length continua a contagem de
+    // zona, agora só uma parcela do total.
+    expect(targets).toHaveLength(PARES.length + 27 + 1);
+    expect(targets.filter((t) => t.nivel === "zona")).toHaveLength(PARES.length);
     expect(new Set(targets.map((t) => t.codEleicao))).toEqual(new Set([FEDERAL]));
     expect(targets.every((t) => t.url.includes(`/${FEDERAL}/dados/`))).toBe(true);
     expect(targets.every((t) => t.url.endsWith("-e021270-u.json"))).toBe(true);
@@ -319,7 +323,10 @@ describe("listIngestTargets — cada cargo usa o código da SUA eleição", () =
     mockZonasRowsOnce([...PARES]);
     const targets = await listIngestTargets("production", { cargo });
 
-    expect(targets).toHaveLength(PARES.length);
+    // RF-199 (spec 021): +27 UF agregadas, sem BR (só cargo 1 tem arquivo
+    // nacional — `temArquivoBr`, lib/config/cargos.ts).
+    expect(targets).toHaveLength(PARES.length + 27);
+    expect(targets.filter((t) => t.nivel === "zona")).toHaveLength(PARES.length);
     expect(new Set(targets.map((t) => t.codEleicao))).toEqual(new Set([ESTADUAL]));
     expect(targets.every((t) => t.url.includes(`/${ESTADUAL}/dados/`))).toBe(true);
     expect(targets.every((t) => t.url.endsWith("-e021272-u.json"))).toBe(true);
@@ -631,14 +638,24 @@ describe("listIngestTargets — granularidade por cargo (ADR-0026 + emenda (b))"
 
     const targets = await listIngestTargets("production", { cargo });
 
-    // Um alvo por PAR — não por zona. Com a regra antiga (uma linha por zona)
-    // isto daria 2, e é assim que 56% dos votos sumiam em silêncio.
-    expect(targets).toHaveLength(pares.length);
-    expect(targets.every((t) => t.nivel === "zona" && t.cargo === cargo)).toBe(true);
-    expect(new Set(targets.map((t) => t.url)).size).toBe(pares.length);
-    expect(targets.map((t) => t.codMunicipioTse).sort()).toEqual(
+    // Um alvo de ZONA por PAR — não por zona. Com a regra antiga (uma linha
+    // por zona) isto daria 2, e é assim que 56% dos votos sumiam em silêncio.
+    // RF-199 (spec 021) soma os 27 agregados de UF (+1 BR para cargo 1) por
+    // cima — o total já não é mais só `pares.length`, mas a fatia de zona
+    // continua intacta e é o que este teste protege.
+    const zonaTargets = targets.filter((t) => t.nivel === "zona");
+    expect(zonaTargets).toHaveLength(pares.length);
+    expect(zonaTargets.every((t) => t.cargo === cargo)).toBe(true);
+    expect(new Set(zonaTargets.map((t) => t.url)).size).toBe(pares.length);
+    expect(zonaTargets.map((t) => t.codMunicipioTse).sort()).toEqual(
       pares.map((p) => p.codMunicipioTse).sort(),
     );
+
+    const ufTargets = targets.filter((t) => t.nivel === "uf");
+    expect(ufTargets).toHaveLength(27);
+    expect(ufTargets.every((t) => t.cargo === cargo)).toBe(true);
+    expect(targets.filter((t) => t.nivel === "br")).toHaveLength(cargo === 1 ? 1 : 0);
+    expect(targets).toHaveLength(pares.length + 27 + (cargo === 1 ? 1 : 0));
   });
 
   it("cargo 6 (Deputado Federal) com TSE_DEPUTADO_GRANULARIDADE=uf volta a enumerar 27 UFs, sem tocar o banco", async () => {
@@ -657,29 +674,38 @@ describe("listIngestTargets — granularidade por cargo (ADR-0026 + emenda (b))"
     expect(targets.some((t) => t.uf === "BR")).toBe(false);
   });
 
-  it("cargo 5 saiu de UF para zona — a regressão seria silenciosa", async () => {
-    // Se alguém devolver o cargo 5 para `uf`, ele passa a enumerar 27 alvos em
-    // vez de um por par. Nada quebra: a tela continua renderizando, o modelo
-    // continua rodando, e `p_eleito` volta a degenerar para 0%/100% porque o
-    // bootstrap fica com uma única unidade de reamostragem por estado.
+  it("cargo 5 saiu de UF para zona — a regressão de granularidade seria silenciosa", async () => {
+    // Se alguém devolver o cargo 5 INTEIRO para `uf` (perdendo a zona), a
+    // tela continua renderizando e o modelo continua rodando, mas `p_eleito`
+    // volta a degenerar para 0%/100% porque o bootstrap fica com uma única
+    // unidade de reamostragem por estado. Este teste protege que a zona
+    // continua a granularidade efetiva do cargo 5.
+    //
+    // ⚠️ Antes do RF-199 (spec 021), este teste também afirmava "nenhum
+    // alvo de nível uf" — isso deixou de ser verdade de propósito: produção
+    // agora SOMA o agregado de UF aos de zona (não troca um pelo outro).
+    // Um cargo em zona sem NENHUM alvo uf seria a regressão oposta: o
+    // agregado que RF-199 pediu nunca chegaria a ser pedido ao TSE.
     mockZonasRowsOnce([{ uf: "SP", codMunicipioTse: 71072, codZona: 1 }]);
 
     const targets = await listIngestTargets("production", { cargo: 5 });
 
-    expect(targets.every((t) => t.nivel === "zona")).toBe(true);
-    expect(targets.some((t) => t.nivel === "uf")).toBe(false);
+    expect(targets.some((t) => t.nivel === "zona")).toBe(true);
+    expect(targets.filter((t) => t.nivel === "uf")).toHaveLength(27);
   });
 
-  it("cargo 6 saiu de UF para zona em 2026-09-13 — a regressão seria silenciosa", async () => {
+  it("cargo 6 saiu de UF para zona em 2026-09-13 — a regressão de granularidade seria silenciosa", async () => {
     // Mesmo raciocínio do teste do cargo 5, aplicado ao cargo 6: sem
     // TSE_DEPUTADO_GRANULARIDADE setada, o padrão da tabela é quem decide, e
-    // desde 2026-09-13 esse padrão é "zona" — não "uf".
+    // desde 2026-09-13 esse padrão é "zona" — não "uf". E, desde o RF-199
+    // (spec 021), o agregado de UF soma-se por cima — ver o comentário do
+    // teste do cargo 5, acima, para o porquê da mudança de expectativa.
     mockZonasRowsOnce([{ uf: "SP", codMunicipioTse: 71072, codZona: 1 }]);
 
     const targets = await listIngestTargets("production", { cargo: 6 });
 
-    expect(targets.every((t) => t.nivel === "zona")).toBe(true);
-    expect(targets.some((t) => t.nivel === "uf")).toBe(false);
+    expect(targets.some((t) => t.nivel === "zona")).toBe(true);
+    expect(targets.filter((t) => t.nivel === "uf")).toHaveLength(27);
   });
 });
 
@@ -700,21 +726,26 @@ describe("listIngestTargets — pares (2 municípios na mesma zona)", () => {
 
     const targets = await listIngestTargets("production");
 
-    expect(targets).toHaveLength(2);
-    expect(targets.every((t) => t.nivel === "zona" && t.codZona === 1 && t.cargo === 1)).toBe(true);
-    expect(new Set(targets.map((t) => t.url)).size).toBe(2);
-    expect(targets.map((t) => t.codMunicipioTse).sort()).toEqual([12345, 71072]);
-    expect(targets.find((t) => t.codMunicipioTse === 71072)?.url).toContain("sp71072-");
-    expect(targets.find((t) => t.codMunicipioTse === 12345)?.url).toContain("sp12345-");
+    // RF-199 (spec 021): +27 UF + 1 BR (cargo 1) somados aos 2 de zona.
+    expect(targets).toHaveLength(2 + 27 + 1);
+    const zonaTargets = targets.filter((t) => t.nivel === "zona");
+    expect(zonaTargets.every((t) => t.codZona === 1 && t.cargo === 1)).toBe(true);
+    expect(zonaTargets).toHaveLength(2);
+    expect(new Set(zonaTargets.map((t) => t.url)).size).toBe(2);
+    expect(zonaTargets.map((t) => t.codMunicipioTse).sort()).toEqual([12345, 71072]);
+    expect(zonaTargets.find((t) => t.codMunicipioTse === 71072)?.url).toContain("sp71072-");
+    expect(zonaTargets.find((t) => t.codMunicipioTse === 12345)?.url).toContain("sp12345-");
   });
 
-  it("opts.cargo restringe a um único cargo mesmo com TSE_CARGOS=1,3 (2 pares → 2 targets, não 4)", async () => {
+  it("opts.cargo restringe a um único cargo mesmo com TSE_CARGOS=1,3 (2 pares → 2 targets de zona, não 4)", async () => {
     vi.stubEnv("TSE_CARGOS", "1,3");
     mockZonasRowsOnce([...PARES_MESMA_ZONA]);
 
     const targets = await listIngestTargets("production", { cargo: 3 });
 
-    expect(targets).toHaveLength(2);
+    // RF-199 (spec 021): +27 UF somados (cargo 3 não tem BR).
+    expect(targets).toHaveLength(2 + 27);
+    expect(targets.filter((t) => t.nivel === "zona")).toHaveLength(2);
     expect(targets.every((t) => t.cargo === 3)).toBe(true);
   });
 
@@ -933,6 +964,7 @@ describe("listIngestTargets — opts.fatia", () => {
     const pares = paresSinteticos(120);
 
     const uniao = new Set<string>();
+    let ufVistas = 0;
     for (let fatia = 1; fatia <= 6; fatia++) {
       mockZonasRowsOnce(pares);
       const targets = await listIngestTargets("production", {
@@ -943,10 +975,17 @@ describe("listIngestTargets — opts.fatia", () => {
         const chave = `${t.uf}|${t.codMunicipioTse}|${t.codZona}`;
         expect(uniao.has(chave), `par ${chave} apareceu em mais de uma fatia`).toBe(false);
         uniao.add(chave);
+        if (t.nivel === "uf") ufVistas++;
       }
     }
 
-    expect(uniao.size).toBe(pares.length);
+    // RF-199 (spec 021): as 27 UFs agregadas entram no MESMO pool que é
+    // fatiado — `sliceTargets` reparte cada UF em exatamente uma das 6
+    // fatias (mesma garantia de cobertura/disjunção que já vale para zona),
+    // então a varredura completa também as pede exatamente uma vez cada,
+    // sem repetir o agregado 6× por rodada.
+    expect(uniao.size).toBe(pares.length + 27);
+    expect(ufVistas).toBe(27);
   });
 
   it("fatia entra na chave do cache — fatia 1 e fatia 2 não reaproveitam a mesma entrada", async () => {
@@ -989,12 +1028,77 @@ describe("listIngestTargets — opts.fatia", () => {
     expect(vi.mocked(db.select)).not.toHaveBeenCalled();
   });
 
-  it("sem opts.fatia, cargo 6 em zona devolve a lista INTEIRA (comportamento inalterado)", async () => {
+  it("sem opts.fatia, cargo 6 em zona devolve a lista INTEIRA de zona (comportamento inalterado) + o agregado de UF (RF-199)", async () => {
     const pares = paresSinteticos(12);
     mockZonasRowsOnce(pares);
 
     const targets = await listIngestTargets("production", { cargo: 6 });
 
-    expect(targets).toHaveLength(pares.length);
+    expect(targets.filter((t) => t.nivel === "zona")).toHaveLength(pares.length);
+    // RF-199 (spec 021): sem fatia, nada é particionado — o agregado de UF
+    // sai inteiro (27), como qualquer cargo não-fatiado.
+    expect(targets.filter((t) => t.nivel === "uf")).toHaveLength(27);
+    expect(targets).toHaveLength(pares.length + 27);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listIngestTargets — RF-199 (spec 021): agregado UF/BR somado, aditivo,
+// só em produção, sem depender de TSE_GRANULARIDADE
+// ---------------------------------------------------------------------------
+
+describe("listIngestTargets — RF-199: agregado UF/BR aditivo em produção", () => {
+  beforeEach(() => {
+    vi.stubEnv("TSE_COD_ELEICAO", "ele2026/619");
+    // Nenhuma das variáveis de granularidade é setada aqui de propósito — o
+    // ponto do bloco é o caminho DEFAULT (nenhum opt-in, nenhuma escotilha
+    // de diagnóstico), que é o que roda em produção real.
+  });
+
+  it("TSE_GRANULARIDADE ausente: cada cargo continua em zona, e só o agregado é a novidade", async () => {
+    vi.stubEnv("TSE_GRANULARIDADE", "");
+    vi.stubEnv("TSE_CARGOS", "1");
+    mockZonasRowsOnce([{ uf: "SP", codMunicipioTse: 71072, codZona: 1 }]);
+
+    const targets = await listIngestTargets("production");
+
+    // A granularidade efetiva de zona não muda — continua "zona" (default
+    // da tabela canônica). O único fato novo é a soma do agregado.
+    expect(targets.filter((t) => t.nivel === "zona")).toHaveLength(1);
+    expect(targets.filter((t) => t.nivel === "uf")).toHaveLength(27);
+    expect(targets.filter((t) => t.nivel === "br")).toHaveLength(1);
+  });
+
+  it("preview NÃO ganha o agregado — RF-199 é escopo de produção (spec 021 § RF-199)", async () => {
+    vi.stubEnv("TSE_TARGETS_WHITELIST", "SP:1");
+
+    const targets = await listIngestTargets("preview");
+
+    expect(targets.every((t) => t.nivel === "zona")).toBe(true);
+    expect(targets.some((t) => t.nivel === "uf" || t.nivel === "br")).toBe(false);
+  });
+
+  it("TSE_GRANULARIDADE=uf (opt-in de diagnóstico) NÃO duplica o agregado — o branch uf já É o agregado", async () => {
+    // Regressão distinta da anterior: se a soma fosse aplicada sem checar a
+    // granularidade efetiva, um cargo já resolvido em "uf" ganharia 27 UFs
+    // do branch original + mais 27 da soma = 54, silenciosamente.
+    vi.stubEnv("TSE_GRANULARIDADE", "uf");
+    vi.stubEnv("TSE_CARGOS", "1");
+
+    const targets = await listIngestTargets("production");
+
+    expect(targets.filter((t) => t.nivel === "uf")).toHaveLength(27);
+    expect(targets.filter((t) => t.nivel === "br")).toHaveLength(1);
+    expect(vi.mocked(db.select)).not.toHaveBeenCalled();
+  });
+
+  it("cargo 3/5/6 nunca ganham BR — só Presidente tem arquivo agregado nacional", async () => {
+    vi.stubEnv("TSE_CARGOS", "3");
+    mockZonasRowsOnce([{ uf: "SP", codMunicipioTse: 71072, codZona: 1 }]);
+
+    const targets = await listIngestTargets("production");
+
+    expect(targets.filter((t) => t.nivel === "br")).toHaveLength(0);
+    expect(targets.filter((t) => t.nivel === "uf")).toHaveLength(27);
   });
 });

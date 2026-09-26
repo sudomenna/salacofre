@@ -32,21 +32,38 @@ def _zona(
     abstencao: int = 200,
     brancos: int = 10,
     nulos: int = 10,
+    eleitores_aptos: int | None = None,
+    anulados: int = 0,
+    sub_judice: int = 0,
 ) -> ZonaParticipacao:
     """Constrói uma `ZonaParticipacao` sintética com defaults razoáveis
-    (abstenção 20%, brancos+nulos 2.5% do comparecimento)."""
+    (abstenção 20%, brancos+nulos 2.5% do comparecimento).
+
+    ⚠️ `eleitores_aptos` default = `eleitores_instalados`, e isso é uma
+    COINCIDÊNCIA da fixture, não um fato do TSE. Durante apuração parcial
+    `aptos > instalados` (as seções ainda não instaladas contam no `e.te` e
+    não no `e.esi`). Medido em 2026-09-26: mutar o denominador de
+    `abstencao` de `eleitores_instalados` para `eleitores_aptos` deixava as
+    18 asserções deste arquivo **verdes**, porque nenhuma passava os dois
+    valores diferentes. Quem for testar base/denominador: passe
+    `eleitores_aptos` explicitamente (ver
+    `test_metric_value_abstencao_usa_instalados_nao_aptos`).
+    """
     return {
         "cod_zona": cod_zona,
         "weight": weight,
-        "eleitores_aptos": eleitores_instalados,
+        "eleitores_aptos": (
+            eleitores_instalados if eleitores_aptos is None else eleitores_aptos
+        ),
         "eleitores_instalados": eleitores_instalados,
         "comparecimento": comparecimento,
         "abstencao": abstencao,
         "brancos": brancos,
         "nulos": nulos,
-        "validos": comparecimento - brancos - nulos,
-        "anulados": 0,
-        "sub_judice": 0,
+        "validos": comparecimento - brancos - nulos - anulados - sub_judice,
+        "votaveis": comparecimento - brancos - nulos,
+        "anulados": anulados,
+        "sub_judice": sub_judice,
         "psa": 100.0,
     }
 
@@ -69,6 +86,120 @@ def test_metric_value_brancos_nulos() -> None:
 def test_metric_value_denominador_zero_retorna_zero() -> None:
     z = _zona(1, 1000, eleitores_instalados=0)
     assert metric_value(z, "abstencao") == 0.0
+
+
+# ---------------------------------------------------------------------------
+# metric_value — as três fatias de voto separadas (spec 021, RF-195)
+#
+# Números escolhidos para DISCRIMINAR: válidos, brancos e nulos têm três
+# valores distintos entre si, distintos do agregado `brancos_nulos`, e
+# distintos do que a função devolveria por qualquer troca de base. Uma
+# fixture com brancos == nulos deixaria passar um ramo que trocasse os dois.
+# ---------------------------------------------------------------------------
+
+
+def test_metric_value_validos() -> None:
+    z = _zona(1, 1000, comparecimento=800, brancos=24, nulos=16)
+    # 800 - 24 - 16 = 760 válidos sobre 800 de comparecimento.
+    assert metric_value(z, "validos") == pytest.approx(760.0 / 800.0)
+
+
+def test_metric_value_brancos() -> None:
+    z = _zona(1, 1000, comparecimento=800, brancos=24, nulos=16)
+    assert metric_value(z, "brancos") == pytest.approx(24.0 / 800.0)
+
+
+def test_metric_value_nulos() -> None:
+    z = _zona(1, 1000, comparecimento=800, brancos=24, nulos=16)
+    assert metric_value(z, "nulos") == pytest.approx(16.0 / 800.0)
+
+
+def test_brancos_e_nulos_separados_somam_o_agregado() -> None:
+    """A identidade que faz as fatias novas conviverem com `brancos_nulos`.
+
+    Se um dia alguém trocar a base de uma das duas fatias novas e não da
+    outra, esta asserção cai — é o que impede quatro números que não
+    dividem o mesmo inteiro.
+    """
+    z = _zona(1, 1000, comparecimento=800, brancos=24, nulos=16)
+    assert metric_value(z, "brancos") + metric_value(z, "nulos") == pytest.approx(
+        metric_value(z, "brancos_nulos")
+    )
+
+
+def test_metric_value_abstencao_usa_instalados_nao_aptos() -> None:
+    """🔴 O denominador de `abstencao` é `e.esi`, NUNCA `e.te`.
+
+    Este teste existe porque a mutação que troca um pelo outro **sobrevivia**
+    a todo o arquivo até 2026-09-26: o helper `_zona` fazia
+    `eleitores_aptos = eleitores_instalados`, então os dois denominadores
+    davam o mesmo número e nenhuma asserção podia distinguir. Aqui eles são
+    deliberadamente diferentes — `aptos > instalados`, que é o estado real de
+    toda apuração parcial (seções ainda não instaladas contam em `te` e não
+    em `esi`).
+
+    Se a base voltar a ser `aptos`, o valor cai de 0,25 para 0,125 e este
+    teste reprova. Ver `turnout.py` § denominador oficial, e o "Fora de
+    escopo" da spec 021 (a base de `abstencao` NÃO muda).
+    """
+    z = _zona(1, 1000, eleitores_instalados=1000, abstencao=250, eleitores_aptos=2000)
+    assert metric_value(z, "abstencao") == pytest.approx(0.25)  # 250/1000
+    assert metric_value(z, "abstencao") != pytest.approx(0.125)  # 250/2000
+
+
+def test_metric_value_validos_nao_e_votaveis_quando_ha_anulados() -> None:
+    """🔴 `validos` é `v.vv`, não `v.vvc` (votáveis) — ADR-0018.
+
+    A diferença é `anulados + sub_judice`, e ela não é decorativa: medida em
+    **14,20% do comparecimento** na captura real do simulado do TSE
+    (`tests/fixtures/tse/2026-sim/br-c0001-e021270-u.json`, `psa` 100%):
+    `van` 9.218.887 + `vansj` 10.503.573 = 19.722.460 sobre `tv`
+    138.863.131.
+
+    Sem `anulados`/`sub_judice` > 0 na fixture, `validos == votaveis` por
+    coincidência e um ramo que lesse `votaveis` passaria batido — é o mesmo
+    modo de falha do teste de `abstencao` acima.
+    """
+    z = _zona(1, 1000, comparecimento=800, brancos=24, nulos=16, anulados=60, sub_judice=40)
+    assert z["votaveis"] == 760  # 800 - 24 - 16
+    assert z["validos"] == 660  # 760 - 60 - 40
+    assert metric_value(z, "validos") == pytest.approx(660.0 / 800.0)
+    # A leitura errada (votáveis no lugar de válidos) daria 0,95.
+    assert metric_value(z, "validos") != pytest.approx(760.0 / 800.0)
+
+
+def test_as_quatro_fatias_nao_somam_o_comparecimento_quando_ha_anulados() -> None:
+    """A aritmética do TSE que a spec 021 nomeia, em forma de asserção.
+
+    `validos + brancos + nulos` fecha o comparecimento **só** quando
+    `anulados + sub_judice == 0`. Com eles > 0 sobra exatamente essa soma —
+    é o buraco de 14,2% que o círculo 3 da spec não tem fatia para nomear
+    (ver relatório da tarefa).
+    """
+    z = _zona(1, 1000, comparecimento=800, brancos=24, nulos=16, anulados=60, sub_judice=40)
+    soma = (
+        metric_value(z, "validos")
+        + metric_value(z, "brancos")
+        + metric_value(z, "nulos")
+    )
+    assert soma == pytest.approx(700.0 / 800.0)
+    falta = 1.0 - soma
+    assert falta == pytest.approx((60.0 + 40.0) / 800.0)
+
+
+def test_metrica_desconhecida_estoura_em_vez_de_adivinhar() -> None:
+    """🔴 Sem `raise`, `_metric_num_den` devolvia brancos+nulos para QUALQUER
+    métrica não-`abstencao`.
+
+    Medido em 2026-09-26, antes da mudança: `_metric_num_den(z, "validos")`
+    devolvia `(20.0, 800.0)` — 2,5% — num contexto em que válidos eram 780 de
+    800 (97,5%). Errado por um fator de 39, sem erro, sem log, sem teste
+    vermelho. É o padrão "default silencioso em conversor de enum" que esta
+    base já pagou três vezes.
+    """
+    z = _zona(1, 1000)
+    with pytest.raises(ValueError, match="desconhecida"):
+        metric_value(z, "metrica_que_nao_existe")  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------

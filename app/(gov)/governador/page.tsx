@@ -117,6 +117,7 @@ import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { GovernorCard } from "@/components/blocks/GovernorCard";
 import { ProjectionThermometers } from "@/components/blocks/ProjectionThermometers";
 import { UfLinksGrid } from "@/components/blocks/UfLinksGrid";
+import { VotacaoEleitorado } from "@/components/blocks/VotacaoEleitorado";
 import { Footer } from "@/components/layout/Footer";
 import { SeloFasePreStyle } from "@/components/layout/SeloFasePreStyle";
 import { isPreEleicao } from "@/lib/config/fase";
@@ -488,6 +489,25 @@ export default async function GovernadorGridPage({ searchParams }: PageProps) {
               linha "N corridas — <filtro>" dá o número de cada um. */}
         </div>
       </Panel>
+
+      {/* Spec 021 (RF-192) — "Votação": o eleitorado inteiro em três círculos.
+
+          ⚠️ **Esta rota é a exceção de posição, e é deliberada.** O RF-192 diz
+          "imediatamente após o painel com a lista de candidaturas"; aqui não
+          existe essa lista — `/governador` não tem `<ResultPanel>` de propósito
+          (ver o § "Por que esta rota NÃO recebeu o `<ResultPanel>` do kit", no
+          topo deste arquivo): são 27 corridas independentes, não uma. O
+          equivalente é o painel de resumo acima, e é depois dele que o bloco
+          entra — antes da grade das 27.
+
+          🔴 E o número aqui é legitimamente NACIONAL, ao contrário de tudo o
+          mais nesta tela: o eleitorado que compareceu é um fato do país, não a
+          soma de 27 disputas separadas. É a mesma razão pela qual o ADR-0022
+          admite participação nacional nesta rota.
+
+          `payload.votacao` é opcional — sem ele renderiza `<DetailUnavailable>`
+          (RF-198), nunca zeros. Os três estados estão no RF-193b. */}
+      <VotacaoEleitorado kicker="Governador · Brasil" votacao={payload.votacao} />
 
       {/* Seção 3 — as 27 corridas.
           🔴 RF-162 — em fase pré esta seção é **27 links e mais nada**.

@@ -714,6 +714,7 @@ def construir_payload_deputado(
     dado_ts: str | None = None,
     pares_atrasados: int | None = None,
     relogio_by_uf: dict[str, RelogioDoDado] | None = None,
+    votacao: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     """Monta `EdgePayloadDeputado` (D5) e o mapa `sigla → DeputadoUfDetail` (D6).
 
@@ -737,6 +738,17 @@ def construir_payload_deputado(
     na mesma tela. Todos `None` por default — o payload sai com os dois campos
     explicitamente nulos, que é "hora do dado indisponível", nunca a ausência
     da chave.
+
+    `votacao` (spec 021, RF-199/RF-195) chega pronto de
+    `project.py::build_votacao_payload` — este módulo transporta e nunca
+    deriva, pela mesma razão do relógio acima. ⚠️ Diferente de `dado_ts`, a
+    chave é **OMITIDA** quando `None`, não publicada nula: ausência é "não
+    sabemos" e faz a tela cair em `<DetailUnavailable>` (RF-198), enquanto um
+    `null` publicado seria um terceiro estado que o contrato não tem.
+
+    ⚠️ Nível `"br"` não existe no cargo 6 (`temArquivoBr` só é `true` no
+    cargo 1): o nacional aqui é a soma dos 27 agregados de UF — soma de
+    contagens inteiras, exata, sem projeção envolvida.
     """
     ordenadas = sorted(ufs, key=lambda d: d.uf)
     detalhes: dict[str, dict[str, Any]] = {}
@@ -774,6 +786,8 @@ def construir_payload_deputado(
         # mentira em silêncio quando a cadência muda).
         "atualizacao_min": atualizacao_min,
         "bancada": bancada,
+        # Spec 021 (RF-199/RF-195) — chave OMITIDA quando ausente; ver docstring.
+        **({"votacao": votacao} if votacao is not None else {}),
         "por_uf": [_linha_uf(detalhe, dados) for dados, detalhe in pares],
         # ADR-0005 — insights são template determinístico, nunca LLM. Vazio até
         # os templates da corrida proporcional existirem; lista vazia é a

@@ -419,23 +419,36 @@ def fetch_snapshots(conn, cargo: int, turno: int) -> list[LatestSnapshot]:
     (`compute_uf_projections`/`compute_participacao`) já tem
     `eleitorado_total_by_uf` disponível.
     """
+    # `nivel` entrou com a spec 021 (coluna nova em `snapshots`, migration
+    # numerada). `COALESCE(..., 'zona')` porque toda linha gravada antes da
+    # migration é de zona e vem com NULL — ver `nivel_do_snapshot`.
+    #
+    # 🔴 A PARTIÇÃO inclui `nivel`. Sem isso, o agregado de uma UF
+    # (`cod_zona = 0`) e uma eventual linha de zona `0` dividiriam a mesma
+    # chave e uma delas sumiria pelo `rn = 1`.
+    #
+    # ⚠️ Dependência de ordem de deploy: esta query exige a coluna. A
+    # migration é aditiva e idempotente, e tem de ser aplicada ANTES de o
+    # código subir (mesma disciplina da 0009).
     sql = """
         WITH ranked AS (
             SELECT
                 uf,
                 cod_municipio_tse,
                 cod_zona,
+                COALESCE(nivel, 'zona') AS nivel,
                 pct_apurado,
                 payload,
                 ts,
                 ROW_NUMBER() OVER (
-                    PARTITION BY uf, cod_municipio_tse, cod_zona
+                    PARTITION BY uf, cod_municipio_tse, cod_zona,
+                                 COALESCE(nivel, 'zona')
                     ORDER BY ts DESC, id DESC
                 ) AS rn
             FROM snapshots
             WHERE cargo = %s AND turno = %s
         )
-        SELECT uf, cod_municipio_tse, cod_zona, pct_apurado, payload, ts
+        SELECT uf, cod_municipio_tse, cod_zona, nivel, pct_apurado, payload, ts
         FROM ranked
         WHERE rn = 1
     """
@@ -447,13 +460,23 @@ def fetch_snapshots(conn, cargo: int, turno: int) -> list[LatestSnapshot]:
             "uf": r[0],
             "cod_municipio_tse": int(r[1]) if r[1] is not None else 0,
             "cod_zona": r[2],
-            "pct_apurado": float(r[3]) if r[3] is not None else 0.0,
-            "payload": r[4],
-            "ts": r[5],
+            "nivel": r[3],
+            "pct_apurado": float(r[4]) if r[4] is not None else 0.0,
+            "payload": r[5],
+            "ts": r[6],
         }
         for r in rows
     ]
-    return _discard_zero_zona_sentinel_when_real_zonas_exist(raw)
+    # O descarte por sentinela é assunto SÓ das zonas: ele resolve a
+    # convivência entre o modo `uf` e o modo `zona` da granularidade, não a
+    # do agregado aditivo da spec 021. Rodá-lo sobre o agregado faria as
+    # zonas reais de uma UF desaparecerem quando o agregado chegasse mais
+    # fresco — ver `particionar_por_nivel`.
+    zonas, agregados = particionar_por_nivel(raw)
+    return [
+        *_discard_zero_zona_sentinel_when_real_zonas_exist(zonas),
+        *agregados,
+    ]
 
 
 def fetch_historical_2022(conn, cargo: int, turno: int) -> list[HistoricalRow]:
@@ -2348,6 +2371,142 @@ def _eleitorado_total_by_uf(
     return out
 
 
+NIVEL_ZONA = "zona"
+NIVEL_UF = "uf"
+NIVEL_BR = "br"
+NIVEIS_AGREGADOS = (NIVEL_UF, NIVEL_BR)
+
+
+def nivel_do_snapshot(s: Mapping[str, Any]) -> str:
+    """Nível de abrangência de uma linha de `snapshots`, normalizado.
+
+    Ponto ÚNICO de leitura da coluna `nivel` (spec 021 / decisão do dono de
+    2026-09-26, que passou a ingerir o agregado do TSE **junto com** as
+    zonas). Antes dessa coluna, o único sinal era o sentinela `cod_zona = 0`,
+    e ele é ambíguo: a mesma linha `(uf, 0, 0)` pode ser o agregado ADITIVO
+    (que alimenta `votacao`) ou a granularidade `uf` inteira do modo de
+    diagnóstico `TSE_GRANULARIDADE=uf` (que alimenta o MODELO). Adivinhar
+    pelo sentinela confundiria os dois.
+
+    🔴 **Ausente/NULL ⇒ `"zona"`, e isso é deliberado.** Toda linha gravada
+    antes da migration não tem a coluna, e toda ela é de zona — as fixtures
+    de teste e os builders sintéticos também não a têm. O default preserva o
+    comportamento anterior bit a bit; o desvio para `votacao` só acontece
+    quando a ingestão nova grava `nivel` EXPLICITAMENTE.
+    """
+    raw = s.get("nivel")
+    if raw is None:
+        return NIVEL_ZONA
+    texto = str(raw).strip().lower()
+    return texto if texto in (NIVEL_ZONA, NIVEL_UF, NIVEL_BR) else NIVEL_ZONA
+
+
+def particionar_por_nivel(
+    snapshots: list[LatestSnapshot],
+) -> tuple[list[LatestSnapshot], list[LatestSnapshot]]:
+    """Separa `(zonas, agregados)` — a fronteira entre o que alimenta o
+    MODELO e o que alimenta o bloco `votacao` (spec 021, RF-199).
+
+    🔴 **Por que esta separação é a coisa mais perigosa desta spec.** O
+    agregado do TSE chega com `cod_zona = 0`. Sem separá-lo, ele entra na
+    lista de zonas da UF como uma "zona" do tamanho do estado inteiro, e
+    `compute_uf_projections` passa a contar cada voto DUAS vezes — uma pelas
+    zonas reais, outra pelo agregado que as resume.
+
+    E o modo de falha pior não é a dupla contagem, é o oposto:
+    `_discard_zero_zona_sentinel_when_real_zonas_exist` escolhe entre a
+    família `cod_zona = 0` e a família de zonas reais **por frescor**, com o
+    empate favorecendo a sentinela. O agregado é buscado no MESMO ciclo que
+    as zonas, então seu `ts` é ≥ o delas com facilidade — e nesse instante
+    **todas as zonas reais da UF são descartadas** e o modelo projeta o
+    estado a partir de uma única linha. Silenciosamente: sem erro, sem
+    alerta, só um número plausível e errado.
+
+    Por isso a partição é por `nivel` (fato declarado na ingestão) e roda
+    ANTES do descarte por sentinela, que passa a ver só zonas.
+
+    Esta função é **pura**: parte a lista e nada mais. A válvula de
+    degradação para o modo `uf` mora em `zonas_para_o_modelo`, separada de
+    propósito — misturar as duas aqui fez, na primeira versão, a lista de
+    agregados voltar duplicada.
+    """
+    zonas: list[LatestSnapshot] = []
+    agregados: list[LatestSnapshot] = []
+    for s in snapshots:
+        if nivel_do_snapshot(s) in NIVEIS_AGREGADOS:
+            agregados.append(s)
+        else:
+            zonas.append(s)
+    return zonas, agregados
+
+
+def zonas_para_o_modelo(
+    zonas: list[LatestSnapshot],
+    agregados: list[LatestSnapshot],
+) -> list[LatestSnapshot]:
+    """O que o MODELO consome, com a válvula do modo `uf`.
+
+    Normalmente devolve `zonas` intocado. Se não houver zona NENHUMA e
+    houver agregado, devolve os agregados: é exatamente o que o modo de
+    diagnóstico `TSE_GRANULARIDADE=uf` espera — ele grava uma linha
+    `(uf, 0, 0)` por UF e conta que o modelo a consuma como se fosse uma
+    zona do tamanho do estado (ver `compute_uf_projections`, § granularidade).
+
+    Sem esta válvula, ligar o interruptor de diagnóstico **cegaria** o
+    modelo por completo (zero zonas ⇒ zero projeção) em vez de degradá-lo
+    como hoje. É a lição da "rede de segurança de mão única": a guarda nova
+    tornou alcançável a direção inversa que ninguém tinha considerado.
+
+    O caso é logado em `warn` porque em produção é anômalo — a
+    granularidade padrão dos 4 cargos é `zona` e `TSE_GRANULARIDADE` é
+    proibida no dia D (`scripts/vigia-armado.ts`).
+    """
+    if zonas or not agregados:
+        return zonas
+    ufs_agregadas = {str(s.get("uf") or "").strip().upper() for s in agregados}
+    _log(
+        "warn",
+        "nenhum snapshot de nivel=zona; agregados tratados como zonas "
+        "(modo granularidade=uf?)",
+        n_agregados=len(agregados),
+        ufs=sorted(u for u in ufs_agregadas if u),
+    )
+    return agregados
+
+
+def _snapshots_por_uf(
+    snapshots: list[LatestSnapshot],
+) -> dict[str, list[LatestSnapshot]]:
+    """Agrupa snapshots por sigla de UF, **descartando `BR` e UF vazia**.
+
+    🔴 Ponto ÚNICO desse agrupamento para o modelo. Antes da spec 021,
+    `compute_uf_projections` e `compute_participacao` faziam
+    `snaps_by_uf.setdefault(s["uf"], []).append(s)` cru, sem filtro — e uma
+    linha `uf = "BR"` entrava como **28ª unidade federativa**, com peso de
+    eleitorado inexistente, dentro da agregação nacional. Era inofensivo
+    só porque nada produzia linha `BR`; a decisão do dono de 2026-09-26
+    (ingerir o agregado nacional do TSE) é exatamente o que passa a
+    produzi-la.
+
+    O cargo 6 (`_do_project_proporcional`) e `api/model/dado_ts.py` já
+    filtravam `"BR"` cada um por conta própria — este helper existe para
+    que o caminho majoritário (cargos 1/3/5) não fique sendo o único
+    desprotegido, e para que a regra viva em UM lugar.
+
+    ⚠️ É a SEGUNDA guarda, não a primeira: `particionar_por_nivel` já
+    deveria ter desviado o agregado nacional antes daqui. As duas são de
+    propósito — uma rede que só funciona numa direção não é rede
+    (`nivel` errado/ausente numa linha `BR` cairia direto no modelo).
+    """
+    out: dict[str, list[LatestSnapshot]] = {}
+    for s in snapshots:
+        sigla = str(s.get("uf") or "").strip().upper()
+        if not sigla or sigla == "BR":
+            continue
+        out.setdefault(sigla, []).append(s)
+    return out
+
+
 def _resolve_zone_weight(
     uf: str,
     cod_zona: int,
@@ -2487,9 +2646,9 @@ def compute_uf_projections(
     e a consequência estatística, documentada em `_uf_projection_row`.
     """
     granularidade = cargo_granularidade(int(cargo))
-    snaps_by_uf: dict[str, list[LatestSnapshot]] = {}
-    for s in snapshots:
-        snaps_by_uf.setdefault(s["uf"], []).append(s)
+    # `_snapshots_por_uf` (não `setdefault` cru): descarta `BR`/UF vazia —
+    # ver a docstring dele para o porquê de a linha nacional ser perigosa aqui.
+    snaps_by_uf = _snapshots_por_uf(snapshots)
 
     eleitorado_total_by_uf = _eleitorado_total_by_uf(eleitorado)
 
@@ -3557,6 +3716,203 @@ def _participacao_metric_payload(
     }
 
 
+def somar_contagens_agregadas(
+    agregados: list[LatestSnapshot],
+    cargo: int,
+) -> dict[str, int] | None:
+    """As 9 contagens absolutas do bloco `votacao.contagens` (spec 021,
+    RF-199), a partir das linhas de nível `"br"`/`"uf"` de `snapshots`.
+
+    Fonte: o agregado que o **próprio TSE** publica, lido pelo mesmo
+    `_extract_zone_participacao` que lê zona (ele opera sobre os objetos de
+    raiz `e`/`v` de qualquer envelope EA20 — BR, UF, município ou zona).
+    Não é soma nossa por zona: o TSE já entrega o total conferido.
+
+    Escolha da fonte:
+      - **cargo 1** tem arquivo de nível `"br"` (`targets.ts`, `temArquivoBr`).
+        Quando ele está presente, é ELE — um número do TSE, não uma soma.
+      - **cargos 3/5/6** não têm arquivo nacional: o total é a **soma dos 27
+        agregados de UF**. Soma de contagens inteiras, exata, sem projeção.
+      - cargo 1 sem a linha `"br"` (ciclo em que o arquivo faltou) cai na
+        soma das UFs, que é o mesmo número por identidade.
+
+    Devolve `None` quando não há nenhuma linha agregada utilizável — o
+    bloco `votacao` inteiro é OMITIDO, que é o estado **"não sabemos"**
+    (RF-198 ⇒ `<DetailUnavailable>`).
+
+    🔴 **Nunca devolve zeros de resgate.** `_extract_zone_participacao`
+    exige `e.te > 0` e devolve `None` sem ele, então um agregado sem
+    eleitorado não vira `aptos: 0`. A distinção importa: `aptos > 0` com o
+    resto zerado é **"não começou"** (RF-193b, círculo 100% cinza) e é um
+    estado LEGÍTIMO que este produtor publica de propósito; bloco ausente é
+    "não sabemos". São três estados, decisão do dono de 14/09 — e fabricar
+    zero colapsaria dois deles.
+    """
+    if not agregados:
+        return None
+
+    br = [
+        s
+        for s in agregados
+        if nivel_do_snapshot(s) == NIVEL_BR
+        and _extract_zone_participacao(s["payload"]) is not None
+    ]
+    if int(cargo) == 1 and br:
+        # Mais de uma linha `br` não deveria existir (a chave é única por
+        # cargo/turno/nível); se existir, a mais fresca ganha — `ts` desc.
+        escolhida = max(br, key=lambda s: (s.get("ts") is not None, s.get("ts")))
+        bruto = _extract_zone_participacao(escolhida["payload"])
+        assert bruto is not None  # filtrado acima
+        return _contagens_de_bruto(bruto)
+
+    # Soma dos agregados de UF. `BR` fica fora para não somar o país duas
+    # vezes — ele é o total, não uma parcela.
+    por_uf: dict[str, ZonaParticipacaoRaw] = {}
+    for s in agregados:
+        if nivel_do_snapshot(s) != NIVEL_UF:
+            continue
+        sigla = str(s.get("uf") or "").strip().upper()
+        if not sigla or sigla == "BR":
+            continue
+        bruto = _extract_zone_participacao(s["payload"])
+        if bruto is None:
+            continue
+        # Uma linha por UF: `fetch_snapshots` já devolve o `rn = 1` por
+        # (uf, município, zona, nível), mas a defesa é barata e o custo de
+        # somar a mesma UF duas vezes seria um `aptos` inflado em silêncio.
+        por_uf[sigla] = bruto
+
+    if not por_uf:
+        return None
+
+    total = {
+        "aptos": 0,
+        "instalados": 0,
+        "comparecimento": 0,
+        "abstencao": 0,
+        "validos": 0,
+        "brancos": 0,
+        "nulos": 0,
+        "anulados": 0,
+        "sub_judice": 0,
+    }
+    for bruto in por_uf.values():
+        parcela = _contagens_de_bruto(bruto)
+        for chave in total:
+            total[chave] += parcela[chave]
+    return total
+
+
+def _contagens_de_bruto(bruto: ZonaParticipacaoRaw) -> dict[str, int]:
+    """`ZonaParticipacaoRaw` → as 9 chaves de `EdgeVotacaoContagens`.
+
+    Só renomeia (`eleitores_aptos` → `aptos`, `eleitores_instalados` →
+    `instalados`) e descarta o que não entra no contrato (`votaveis`, `psa`).
+    Ponto único do mapeamento, para que o nome do campo do TSE e o nome do
+    campo do payload não sejam correlacionados na mão em dois lugares.
+    """
+    return {
+        "aptos": int(bruto["eleitores_aptos"]),
+        "instalados": int(bruto["eleitores_instalados"]),
+        "comparecimento": int(bruto["comparecimento"]),
+        "abstencao": int(bruto["abstencao"]),
+        "validos": int(bruto["validos"]),
+        "brancos": int(bruto["brancos"]),
+        "nulos": int(bruto["nulos"]),
+        "anulados": int(bruto["anulados"]),
+        "sub_judice": int(bruto["sub_judice"]),
+    }
+
+
+def projetar_fatias_em_contagens(
+    contagens: Mapping[str, int],
+    participacao: Mapping[str, ParticipacaoEstimate | None],
+) -> dict[str, int] | None:
+    """`votacao.projetada` (spec 021, RF-195): as quatro fatias do círculo 3
+    em CONTAGENS ABSOLUTAS, projetadas para o fim da apuração.
+
+    🔴 **CRUAS, sem reescala.** O contrato perdeu o `fator_normalizacao` em
+    2026-09-26 justamente para que ninguém se sinta convidado a esticar
+    estes quatro números até fecharem em `aptos`. Eles NÃO fecham, e o vão
+    não é ruído: medido na captura real de 100% apurado
+    (`tests/fixtures/tse/2026-sim/br-c0001-e021270-u.json`) o vão é
+    19.722.727, dos quais 19.722.460 (99,9986%) são `anulados + sub_judice`
+    e 267 são seções não instaladas. Fechar em `aptos` pediria fator 1,1376
+    e publicaria 13.892.945 válidos que não existem, ao lado do círculo 2
+    exibindo o número verdadeiro. O consumidor deriva o cinza por
+    subtração, e ele estaciona no tamanho dos votos anulados — a verdade.
+
+    Aritmética (a mesma extrapolação de sempre, só expressa em contagem):
+      - `abstencao` projeta sobre a base `eleitores_instalados`, e ao fim da
+        noite `instalados → aptos` (267 de diferença em 163 milhões). Logo
+        `abstencao_projetada = p_abstencao × aptos`.
+      - `validos`/`brancos`/`nulos` projetam sobre `comparecimento`, e o
+        comparecimento do fim da noite é `aptos − abstencao_projetada`.
+        Logo cada um é `p × (aptos − abstencao_projetada)`.
+
+    Precisão medida contra a verdade na mesma captura: +165, +15, +15 e +40
+    votos. É o ruído do bootstrap, e é 0,0001% do vão.
+
+    Devolve `None` se faltar QUALQUER uma das quatro projeções (ou `aptos`)
+    — o círculo 3 vai para "aguardando projeção" **inteiro**, no DOM
+    (ADR-0017/ADR-0018), em vez de desenhar três fatias e um buraco onde a
+    quarta deveria estar.
+    """
+    aptos = int(contagens.get("aptos", 0))
+    if aptos <= 0:
+        return None
+
+    fracoes: dict[str, float] = {}
+    for metrica in ("abstencao", "validos", "brancos", "nulos"):
+        est = participacao.get(metrica)
+        if est is None:
+            return None
+        # `pct_projetado` está em 0–100 (convenção do payload); aqui a conta
+        # é em fração.
+        fracoes[metrica] = float(est["pct_projetado"]) / 100.0
+
+    abstencao = fracoes["abstencao"] * aptos
+    comparecimento = aptos - abstencao
+    if comparecimento < 0:
+        # Abstenção projetada > 100% dos aptos é impossível, mas se a
+        # extrapolação estourar não publicamos comparecimento negativo.
+        return None
+
+    return {
+        "validos": int(round(fracoes["validos"] * comparecimento)),
+        "brancos": int(round(fracoes["brancos"] * comparecimento)),
+        "nulos": int(round(fracoes["nulos"] * comparecimento)),
+        "abstencao": int(round(abstencao)),
+    }
+
+
+def build_votacao_payload(
+    agregados: list[LatestSnapshot],
+    cargo: int,
+    participacao: Mapping[str, ParticipacaoEstimate | None] | None = None,
+) -> dict[str, Any] | None:
+    """O bloco `votacao` do payload (spec 021, RF-199 + RF-195).
+
+    `contagens` é obrigatório: sem ele não há bloco (RF-198 — a tela cai em
+    `<DetailUnavailable>`, nunca em zeros). `projetada` é opcional e só
+    aparece quando as quatro métricas existem — o círculo 3 tem seu próprio
+    estado "aguardando projeção".
+
+    Os dois estados do payload, que são DIFERENTES (decisão do dono, 14/09):
+      - bloco ausente ⇒ **"não sabemos"** (nada agregado chegou);
+      - `contagens` com `aptos > 0` e as fatias em zero ⇒ **"não começou"**
+        (RF-193b), e é publicado de propósito assim que `e.te` é conhecido.
+    """
+    contagens = somar_contagens_agregadas(agregados, cargo)
+    if contagens is None:
+        return None
+    bloco: dict[str, Any] = {"contagens": contagens}
+    projetada = projetar_fatias_em_contagens(contagens, participacao or {})
+    if projetada is not None:
+        bloco["projetada"] = projetada
+    return bloco
+
+
 def build_participacao_payload(
     abstencao: ParticipacaoEstimate | None,
     brancos_nulos: ParticipacaoEstimate | None,
@@ -3694,13 +4050,20 @@ def compute_participacao(
           - `nacional`: `{"abstencao": Estimate|None, "brancos_nulos":
             Estimate|None}` agregado via `aggregate_national_participacao`.
     """
-    snaps_by_uf: dict[str, list[LatestSnapshot]] = {}
-    for s in snapshots:
-        snaps_by_uf.setdefault(s["uf"], []).append(s)
+    # `_snapshots_por_uf` (não `setdefault` cru): descarta `BR`/UF vazia —
+    # ver a docstring dele. Uma linha nacional aqui entraria na agregação
+    # como 28ª UF.
+    snaps_by_uf = _snapshots_por_uf(snapshots)
 
     eleitorado_total_by_uf = _eleitorado_total_by_uf(eleitorado)
 
-    metrics: tuple[ParticipacaoMetric, ...] = ("abstencao", "brancos_nulos")
+    metrics: tuple[ParticipacaoMetric, ...] = (
+        "abstencao",
+        "brancos_nulos",
+        "validos",
+        "brancos",
+        "nulos",
+    )
     by_uf: dict[str, dict[str, ParticipacaoEstimate | None]] = {}
 
     for uf, snaps in snaps_by_uf.items():
@@ -4709,8 +5072,15 @@ def build_edge_payload(
     identidade_by_cand: dict[tuple[str, int], dict[str, str]] | None = None,
     serie_bruta: SeriePorCandidatoBruta | None = None,
     swing_by_uf: dict[str, float | None] | None = None,
+    votacao: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Monta o shape canônico `EdgePayload` (lib/edge-config/types.ts).
+
+    Spec 021 acrescenta `votacao` (opcional, já montado por
+    `build_votacao_payload`): as contagens absolutas do eleitorado e a
+    projeção crua das quatro fatias. Ausente ⇒ a chave não aparece no
+    payload, e o painel "Votação" cai em `<DetailUnavailable>` (RF-198) —
+    nunca em zeros.
 
     Spec 016 (Senador) acrescenta três parâmetros opcionais:
       - `partido_by_cand` (RF-107) — `{cand: sigla}` lido do próprio EA20
@@ -5480,6 +5850,9 @@ def build_edge_payload(
         "turno": int(turno),
         "pct_apurado_total": float(pct_apurado_total),
         "ufs_apuradas": int(ufs_apuradas),
+        # Spec 021 (RF-199/RF-195) — só presente quando o agregado do TSE
+        # chegou. Ausente ≠ zeros: ver `build_votacao_payload`.
+        **({"votacao": votacao} if votacao is not None else {}),
         "national": {
             "candidatos": national_candidatos,
             "needle_position": float(needle_position),
@@ -5901,6 +6274,13 @@ def _do_project_proporcional(
         # SOMADO por `combinar_entradas` — nunca uma escolhida e as outras
         # descartadas.
         snapshots = fetch_snapshots(conn, req.cargo, req.turno)
+        # Spec 021 — mesma separação do ciclo majoritário, e pelo mesmo
+        # motivo: o agregado de nível "uf" tem `cod_zona = 0` e entraria na
+        # guarda de sanidade (`check_zona_merge_sanity`) e no
+        # `_entradas_por_zona` como uma "zona" do tamanho do estado —
+        # multiplicando a bancada. Ver `particionar_por_nivel`.
+        zonas_prop, agregados = particionar_por_nivel(snapshots)
+        snapshots = zonas_para_o_modelo(zonas_prop, agregados)
         try:
             eleitorado = fetch_eleitorado(conn, ano=2026)
         except Exception as exc:  # noqa: BLE001 — pesa o pct, não decide cadeira
@@ -6221,6 +6601,12 @@ def _do_project_proporcional(
         dado_ts=relogio.dado_ts,
         pares_atrasados=relogio.pares_atrasados,
         relogio_by_uf=relogio_uf,
+        # Spec 021 (RF-199) — só `contagens`. O ciclo proporcional não calcula
+        # `compute_participacao` (o cargo 6 não tem bloco `participacao` no
+        # contrato), então não há as quatro projeções e `projetada` fica
+        # ausente: o círculo 3 exibe "aguardando projeção" — no DOM
+        # (ADR-0017/0018), nunca escondido.
+        votacao=build_votacao_payload(agregados, req.cargo),
     )
 
     try:
@@ -6300,6 +6686,13 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
             # é mantido para a guarda de sanidade logo abaixo — comparar o
             # ANTES e o DEPOIS do merge é o que detecta multiplicação.
             raw_snapshots = fetch_snapshots(conn, req.cargo, req.turno)
+            # Spec 021 — o agregado do TSE (nível "uf"/"br") sai da lista do
+            # MODELO aqui, ANTES do merge. Se ficasse, `merge_pairs_into_zonas`
+            # o trataria como um par de `cod_zona = 0` e ele viraria uma "zona"
+            # do tamanho do estado inteiro: cada voto contado duas vezes, uma
+            # pelas zonas reais e outra pelo agregado que as resume.
+            raw_zonas, agregados = particionar_por_nivel(raw_snapshots)
+            raw_snapshots = zonas_para_o_modelo(raw_zonas, agregados)
             # ADR-0038 D1/D2 — o relógio do dado sai daqui, do PRÉ-merge, e não
             # de `snapshots`: `merge_pairs_into_zonas` preserva `dg`/`hg` só do
             # par dominante de cada zona (`zona_merge.py:52`, metadado de
@@ -6607,6 +7000,12 @@ def _do_project(body_bytes: bytes) -> tuple[int, dict[str, Any]]:
                 # Fase 5 (E1) — swing descritivo vs 2022, `None` por UF sem
                 # número de 2022.
                 swing_by_uf=swing_by_uf,
+                # Spec 021 (RF-199/RF-195) — contagens absolutas do agregado
+                # do TSE + projeção CRUA das quatro fatias. `None` quando
+                # nenhum agregado chegou (⇒ chave ausente, RF-198).
+                votacao=build_votacao_payload(
+                    agregados, req.cargo, participacao_nacional
+                ),
             )
             # S04/F2 — payloads UF ricos (candidatos com votos, municípios,
             # séries temporais). Envia junto do nacional; endpoint Node

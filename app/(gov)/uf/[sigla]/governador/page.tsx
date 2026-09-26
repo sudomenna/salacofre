@@ -119,6 +119,7 @@ import { avaliarFrescorDado } from "@/lib/config/dado-freshness";
 import { isPreEleicao } from "@/lib/config/fase";
 import {
   resultadoEleitoral,
+  simulacaoGovernadorUf,
   simulacaoLigada,
   simulacaoMunicipiosUf,
   simulacaoNacional,
@@ -396,18 +397,43 @@ export default async function UFGovernadorPage({ params }: UFGovernadorPageProps
 
   // Só em `pnpm dev`: em teste (NODE_ENV=test) e em produção o caminho
   // "Aguardando dados" continua sendo exercitado de verdade.
+  // 🔴 A corrida INTEIRA da UF, antes de qualquer síntese (2026-09-21).
+  //
+  // `simulacaoGovernadorUf` lê `governador-uf.json`, que traz `candidatos[]`
+  // completo — e a própria docstring dele já dizia "tem PRIORIDADE sobre a
+  // síntese". A linha que exercia essa prioridade nunca foi escrita: o getter
+  // era chamado só por `GET /api/projection?uf=…&cargo=gov`, nunca pela página.
+  //
+  // O efeito, medido no simulado em 2026-09-21: **/uf/RS/governador mostrava 4
+  // das 6 candidaturas** (faltavam PRISCILA VOIGT/UP e REJANE DE OLIVEIRA/PSTU),
+  // e a lista NÃO tinha linha "Outros" — a tela afirmava, por omissão, que
+  // aquela era a corrida inteira. Não é caso isolado: MG e DF escondiam **7 de
+  // 11**, e as 27 UFs paravam em 4, que é `TOP_CANDIDATOS_POR_UF`. Ao mesmo
+  // tempo a API servia as 6 para o balão do mapa — duas superfícies do mesmo
+  // site discordando sobre quem está concorrendo, que é o defeito da ficha de
+  // Senador de 21/09 outra vez, na outra ponta.
+  //
+  // Espelha `app/(pres)/uf/[sigla]/page.tsx` (`simulacaoUfPresidente`) e o ramo
+  // de simulação de `app/(sen)/uf/[sigla]/senador/page.tsx`
+  // (`simulacaoSenadorUf`) — Governador era a única das três sem o equivalente.
+  //
+  // 🔴 Produção nunca teve isso: `build_uf_payloads` (`api/model/project.py`)
+  // percorre `ordered` INTEIRO, sem fatiar, e a rota lê o payload em vez de
+  // sintetizar. Era lacuna só do modo simulado — e é no simulado que o dono
+  // confere, então a lacuna estava exatamente na tela dele.
+  if (!payload) payload = simulacaoGovernadorUf(sigla);
+
   if (!payload) {
     // Origem escolhida por `resultadoEleitoral` — simulação quando ligada, a
     // fixture de governador caso contrário, nunca as duas. Com o modo desligado
     // o comportamento é idêntico ao de antes.
     //
-    // ⚠️ Aqui a síntese a partir do nacional é CORRETA, ao contrário da rota
-    // presidencial: cada candidatura a governador só existe num estado, e o
-    // filtro por `row.top_candidatos` dentro de `synthesizeGovUfFromFixture`
-    // recorta a corrida daquela UF com a votação dela. Não há o equivalente ao
-    // defeito de 2026-09-15 em `/uf/SP`, onde os 12 candidatos presidenciais
-    // são os mesmos nos 27 estados e a síntese servia a votação do país
-    // inteiro. Por isso esta rota NÃO precisa de um `governador-uf.json`.
+    // ⚠️ A síntese continua sendo o ÚLTIMO recurso, e continua incompleta por
+    // construção: ela filtra `national.candidatos` por `row.top_candidatos`, que
+    // é `ordered[:4]` (+ resgate do RF-190). Ela recorta a UF certa — cada
+    // candidatura a governador só existe num estado, ao contrário da cédula
+    // presidencial, que é a mesma nos 27 —, mas recorta só o pódio. Só roda
+    // quando não há nem payload real nem `governador-uf.json`.
     const nacional = await resultadoEleitoral(
       () => simulacaoNacional("gov"),
       () =>

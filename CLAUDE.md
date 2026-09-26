@@ -362,7 +362,8 @@ pnpm typecheck                 # tsc --noEmit
 pnpm lint                      # biome check .
 pnpm test                      # vitest
 pnpm test:py                   # ⚠️ QUEBRADO — ver "Python" logo abaixo
-pnpm test:e2e                  # playwright
+pnpm test:e2e                  # playwright — exige servidor de pé, ver abaixo
+pnpm start:e2e                 # servidor para os portões e2e (chaves de escrita raspadas)
 ANALYZE=true pnpm build        # bundle analyzer (RNF-007a/b/c)
 ```
 
@@ -374,6 +375,20 @@ ANALYZE=true pnpm build        # bundle analyzer (RNF-007a/b/c)
 ```bash
 .venv-model/bin/python3.14 -m pytest      # 576 verdes em 18/09
 ```
+
+✅ **Os portões e2e PASSARAM a rodar na máquina (21/09).** Até 20/09 peso de
+página e acessibilidade só existiam por medição manual. São dois comandos, em
+terminais separados:
+
+```bash
+pnpm build && pnpm start:e2e   # 🔴 start:e2e, NUNCA start nem dev
+pnpm test:e2e                  # 98 passed / 14 skipped em 47,8s (21/09)
+```
+
+`pnpm start` não serve: o Next carrega o `.env.local` sozinho e o `DATABASE_URL`
+de lá é **produção**. O `start:e2e` declara vazias as 13 variáveis de escrita.
+Confira no log: `[db] DATABASE_URL ausente`. Detalhe e ressalvas no
+[runbook § portões e2e](./docs/operations/runbook.md).
 
 **🔴 Modo simulado — use `pnpm sim:full`, NUNCA `pnpm sim` sozinho.**
 A fixture de `tests/fixtures/simulacao/` não sai de um programa só: o gerador

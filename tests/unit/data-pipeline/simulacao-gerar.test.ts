@@ -34,13 +34,16 @@ import {
   alocarMatriz,
   type CandidatoBruto,
   CLI_DEFAULT,
+  contagensVotacao,
   type DadosSimulacao,
   distribuirPctPorUf,
   gerarSimulacao,
   type Manifest,
   type MunicipioBruto,
+  PARAMETROS_VOTACAO,
   PERFIL_VELOCIDADE_2022,
   parseCli,
+  projetarVotacao,
   quocienteEleitoral,
   Rng,
   TOLERANCIA,
@@ -55,6 +58,8 @@ import type {
   EdgePayloadDeputado,
   EdgePayloadUf,
   EdgeUfCandidate,
+  EdgeVotacao,
+  EdgeVotacaoContagens,
 } from "@/lib/edge-config/types";
 
 /** Alias local só para encurtar as asserções de ordenação. */
@@ -1345,5 +1350,288 @@ describe("simulacao-gerar — os arquivos gravados", () => {
     expect(manifest.aviso).toMatch(/SIMULADO/);
     expect(manifest.por_uf.length).toBe(27);
     expect(manifest.contagens.deputado_cadeiras_total).toBe(513);
+  });
+});
+
+describe("simulacao-gerar — o bloco `votacao` (spec 021)", () => {
+  const s = gerar();
+  const nacionais = (() => {
+    const g = gerar();
+    return [
+      ["presidente", g.presidente.votacao],
+      ["governador", g.governador.votacao],
+      ["senador", g.senador.votacao],
+      ["deputado", g.deputado.votacao],
+    ] as const;
+  })();
+
+  /** O bloco do presidente, com o `undefined` já descartado pelo teste (1). */
+  function bloco(): EdgeVotacao {
+    const v = s.presidente.votacao;
+    if (v === undefined) throw new Error("presidente sem votacao — ver o teste (1)");
+    return v;
+  }
+
+  it("as QUATRO telas nacionais carregam o bloco [mutação: emitir só no presidente]", () => {
+    for (const [nome, v] of nacionais) {
+      expect(v, nome).toBeDefined();
+      expect(v?.contagens.aptos, nome).toBeGreaterThan(0);
+    }
+  });
+
+  it("as quatro telas contam o MESMO eleitorado [mutação: somar só as UFs apuradas num dos cargos]", () => {
+    const ref = JSON.stringify(nacionais[0][1]?.contagens);
+    for (const [nome, v] of nacionais) {
+      expect(JSON.stringify(v?.contagens), nome).toBe(ref);
+    }
+    // E o total é o eleitorado do país, não uma parcela dele.
+    expect(nacionais[0][1]?.contagens.aptos).toBe(s.manifest.eleitorado_total);
+  });
+
+  it("`comparecimento + abstencao = instalados`, exato em inteiro [mutação: arredondar a abstenção em vez de subtrair]", () => {
+    const c = bloco().contagens;
+    expect(c.comparecimento + c.abstencao).toBe(c.instalados);
+    expect(c.abstencao).toBeGreaterThan(0);
+  });
+
+  it("`validos+brancos+nulos+anulados+sub_judice = comparecimento` [mutação: anulados somados POR CIMA dos votáveis, não de dentro]", () => {
+    const c = bloco().contagens;
+    expect(c.validos + c.brancos + c.nulos + c.anulados + c.sub_judice).toBe(c.comparecimento);
+    // `validos` é MENOR que o voto a candidato contado, porque anulados e sub
+    // judice saem de dentro dele (`vvc = vv + van + vansj`).
+    expect(c.validos).toBeLessThan(c.validos + c.anulados + c.sub_judice);
+    // E o par brancos+nulos se reparte quase meio a meio, como no dado real
+    // (50,21% medidos na captura do simulado do TSE). Sem esta asserção, um
+    // default de 0 ou 1 em `brancosDoPar` passaria em todas as identidades e
+    // publicaria uma tela com a fatia de nulos — ou de brancos — sumida.
+    const pctBrancos = (100 * c.brancos) / (c.brancos + c.nulos);
+    expect(pctBrancos).toBeGreaterThan(45);
+    expect(pctBrancos).toBeLessThan(55);
+  });
+
+  it("🔴 as quatro fatias nomeadas NÃO somam o comparecimento [mutação: anulados: 0, subJudice: 0]", () => {
+    const c = bloco().contagens;
+    const quatro = c.validos + c.brancos + c.nulos;
+    expect(quatro).toBeLessThan(c.comparecimento);
+    expect(c.comparecimento - quatro).toBe(c.anulados + c.sub_judice);
+    // A ordem de grandeza medida no dado real do TSE: 14,2% do comparecimento.
+    // Um simulado com o buraco em 0,1% não exercitaria o RF-197 na tela.
+    const buraco = (100 * (c.anulados + c.sub_judice)) / c.comparecimento;
+    expect(buraco).toBeGreaterThan(10);
+    expect(buraco).toBeLessThan(20);
+  });
+
+  it("🔴 `aptos > instalados` durante a apuração, e o residual do círculo 1 é positivo [mutação: instalados = aptos]", () => {
+    const c = bloco().contagens;
+    expect(s.manifest.pct_efetivo).toBeLessThan(100);
+    expect(c.aptos).toBeGreaterThan(c.instalados);
+    const residual = c.aptos - (c.validos + c.brancos + c.nulos + c.abstencao);
+    expect(residual).toBeGreaterThan(0);
+    // A 25% apurado o vão é o país ainda não contado — a maior fatia do
+    // círculo 1, não um resíduo de arredondamento.
+    expect((100 * residual) / c.aptos).toBeGreaterThan(50);
+  });
+
+  it("`instalados` acompanha o pct apurado [mutação: instalados proporcional a 100% sempre]", () => {
+    const c = bloco().contagens;
+    const pctInstalado = (100 * c.instalados) / c.aptos;
+    expect(pctInstalado).toBeGreaterThan(s.manifest.pct_efetivo - 0.2);
+    expect(pctInstalado).toBeLessThan(s.manifest.pct_efetivo + 0.2);
+  });
+
+  it("no fim da noite o cinza ESTACIONA no tamanho dos anulados [mutação: normalizar as quatro fatias para fechar em aptos]", () => {
+    const cheio = gerar({ pct: 100 });
+    const v = cheio.presidente.votacao;
+    if (v === undefined) throw new Error("presidente sem votacao a 100%");
+    const c = v.contagens;
+    const residual = c.aptos - (c.validos + c.brancos + c.nulos + c.abstencao);
+    // Não vai a zero: sobra exatamente anulados + sub judice + as seções que
+    // nunca instalam. É a verdade, e é o que o RF-197 manda declarar.
+    expect(residual).toBe(c.anulados + c.sub_judice + (c.aptos - c.instalados));
+    expect(residual).toBeGreaterThan(0);
+    expect(c.aptos - c.instalados).toBeGreaterThan(0);
+    // ... e o vão permanente das seções é IRRELEVANTE ao lado dos anulados,
+    // como no dado real (267 contra 19,7 milhões).
+    expect(c.aptos - c.instalados).toBeLessThan((c.anulados + c.sub_judice) / 1000);
+  });
+
+  it("a projeção usa as bases certas: a 100% ela reencontra o contado [mutação: projetar válidos sobre `aptos` em vez do comparecimento]", () => {
+    const cheio = gerar({ pct: 100 });
+    const v = cheio.presidente.votacao;
+    if (v === undefined) throw new Error("presidente sem votacao a 100%");
+    const p = v.projetada;
+    if (p === undefined) throw new Error("presidente sem projetada a 100%");
+    const c = v.contagens;
+    for (const k of ["validos", "brancos", "nulos", "abstencao"] as const) {
+      const erroRel = Math.abs(p[k] - c[k]) / c[k];
+      expect(erroRel, `${k}: projetado ${p[k]} contra contado ${c[k]}`).toBeLessThan(0.001);
+    }
+  });
+
+  it("🔴 a projeção é CRUA: as quatro projetadas não fecham em `aptos` [mutação: fator de normalização]", () => {
+    const v = bloco();
+    const p = v.projetada;
+    if (p === undefined) throw new Error("presidente sem projetada a 25%");
+    const soma = p.validos + p.brancos + p.nulos + p.abstencao;
+    const aptos = v.contagens.aptos;
+    expect(soma).toBeLessThan(aptos);
+    expect(aptos - soma).toBeGreaterThan(0);
+    // O vão projetado é da ordem dos anulados projetados (14% do
+    // comparecimento), não de arredondamento.
+    expect((100 * (aptos - soma)) / aptos).toBeGreaterThan(5);
+  });
+
+  it('🔴 `--pct 0` publica o estado "não começou", não o "não sabemos" [mutação: omitir o bloco quando nada apurou]', () => {
+    const zero = gerar({ pct: 0 });
+    for (const [nome, v] of [
+      ["presidente", zero.presidente.votacao],
+      ["governador", zero.governador.votacao],
+      ["senador", zero.senador.votacao],
+      ["deputado", zero.deputado.votacao],
+    ] as const) {
+      expect(v, nome).toBeDefined();
+      const c = v?.contagens;
+      expect(c?.aptos, nome).toBeGreaterThan(0);
+      expect(c?.validos, nome).toBe(0);
+      expect(c?.brancos, nome).toBe(0);
+      expect(c?.nulos, nome).toBe(0);
+      expect(c?.abstencao, nome).toBe(0);
+      expect(c?.instalados, nome).toBe(0);
+      expect(c?.comparecimento, nome).toBe(0);
+      // RF-195: sem base amostral não há projeção — o círculo 3 vai inteiro
+      // para "aguardando", e é a AUSÊNCIA da chave que produz esse estado.
+      expect(v?.projetada, nome).toBeUndefined();
+    }
+  });
+
+  it("`projetarVotacao` devolve null sem base amostral e um objeto com ela [mutação: `some` virar `every`]", () => {
+    const paradas = s.ctxs.map((c) => ({ ...c, pctApurado: 0 }));
+    expect(projetarVotacao(paradas)).toBeNull();
+    const uma = paradas.map((c, i) => (i === 0 ? { ...c, pctApurado: 1 } : c));
+    expect(projetarVotacao(uma)).not.toBeNull();
+  });
+
+  it("`contagensVotacao` responde aos quatro parâmetros [mutação: parâmetro ignorado]", () => {
+    const base = contagensVotacao(s.ctxs);
+    const semAnulados = contagensVotacao(s.ctxs, {
+      ...PARAMETROS_VOTACAO,
+      anulados: 0,
+      subJudice: 0,
+    });
+    expect(semAnulados.anulados).toBe(0);
+    expect(semAnulados.sub_judice).toBe(0);
+    // Sem anulados, os votáveis viram TODOS válidos — e o comparecimento não
+    // muda, porque anulados saem de dentro dos votáveis.
+    expect(semAnulados.validos).toBe(base.validos + base.anulados + base.sub_judice);
+    expect(semAnulados.comparecimento).toBe(base.comparecimento);
+
+    const semNaoInstaladas = contagensVotacao(s.ctxs, {
+      ...PARAMETROS_VOTACAO,
+      naoInstaladas: 0,
+    });
+    expect(semNaoInstaladas.instalados).toBeGreaterThan(base.instalados);
+
+    const soBrancos = contagensVotacao(s.ctxs, { ...PARAMETROS_VOTACAO, brancosDoPar: 1 });
+    expect(soBrancos.nulos).toBe(0);
+    expect(soBrancos.brancos).toBe(base.brancos + base.nulos);
+  });
+
+  /**
+   * Aplica a mesma poda aos QUATRO payloads nacionais.
+   *
+   * Poluir só um deles não serve para provar as invariantes (12b)/(12c): a
+   * checagem de "as quatro telas contam o MESMO eleitorado" dispara primeiro e
+   * mascara a que se quer medir. Um defeito real do gerador sai igual nos
+   * quatro, porque os quatro chamam a mesma `blocoVotacao`.
+   */
+  function podarTodos(
+    saida: ReturnType<typeof gerar>,
+    f: (c: EdgeVotacaoContagens) => EdgeVotacaoContagens,
+  ): void {
+    for (const p of [saida.presidente, saida.governador, saida.senador, saida.deputado]) {
+      const v = p.votacao;
+      if (v === undefined) throw new Error("payload sem votacao");
+      v.contagens = f(v.contagens);
+    }
+  }
+
+  it("`validarSaida` reprova uma fixture sem anulados [mutação: a invariante (12b) não existir]", () => {
+    const podre = gerar();
+    // Move anulados e sub judice para dentro de `validos`: as duas identidades
+    // do EA20 continuam fechando exatamente, e é por isso que a invariante
+    // aritmética sozinha NÃO basta.
+    podarTodos(podre, (c) => ({
+      ...c,
+      validos: c.validos + c.anulados + c.sub_judice,
+      anulados: 0,
+      sub_judice: 0,
+    }));
+    expect(() => validarSaida(podre)).toThrow(/anulados \+ sub_judice = 0/);
+  });
+
+  it("`validarSaida` reprova `instalados = aptos` a meio da apuração [mutação: a invariante (12c) não existir]", () => {
+    const podre = gerar();
+    // `instalados = aptos` com a abstenção reequilibrada: as duas identidades
+    // do EA20 seguem fechando, e o círculo 1 fica sem fatia cinza.
+    podarTodos(podre, (c) => ({
+      ...c,
+      instalados: c.aptos,
+      abstencao: c.aptos - c.comparecimento,
+    }));
+    expect(() => validarSaida(podre)).toThrow(/não teria fatia 'Ainda não apurado'/);
+  });
+
+  it("`validarSaida` reprova a identidade `esi = c + a` quebrada [mutação: a invariante (12a) não existir]", () => {
+    const podre = gerar();
+    // +1 na abstenção: os quatro payloads seguem idênticos entre si, o `aptos`
+    // segue batendo o manifest, e a SEGUNDA identidade também fecha — só a
+    // primeira quebra. É a poda mais estreita que alcança esta linha.
+    podarTodos(podre, (c) => ({ ...c, abstencao: c.abstencao + 1 }));
+    expect(() => validarSaida(podre)).toThrow(/identidade 'esi = c \+ a'/);
+  });
+
+  it("`validarSaida` reprova a identidade `tv = vvc + vb + tvn` quebrada [mutação: a invariante (12a) não existir]", () => {
+    const podre = gerar();
+    // +1 nos válidos: a primeira identidade continua fechando (não mexe em
+    // comparecimento, abstenção nem instalados), só a segunda quebra.
+    podarTodos(podre, (c) => ({ ...c, validos: c.validos + 1 }));
+    expect(() => validarSaida(podre)).toThrow(/identidade 'tv = vvc \+ vb \+ tvn'/);
+  });
+
+  it("`validarSaida` reprova projeção que estoura `aptos` [mutação: a invariante do residual do círculo 3 não existir]", () => {
+    const podre = gerar();
+    // RF-195 avisa explicitamente: o residual do círculo 3 PODE sair negativo
+    // se as quatro projeções somarem mais que `aptos`, e um arco com fatia
+    // negativa desenha errado em silêncio.
+    for (const p of [podre.presidente, podre.governador, podre.senador, podre.deputado]) {
+      const v = p.votacao;
+      if (v === undefined || v.projetada === undefined) throw new Error("payload sem projetada");
+      v.projetada = { ...v.projetada, validos: v.contagens.aptos };
+    }
+    expect(() => validarSaida(podre)).toThrow(/residual do círculo 3/);
+  });
+
+  it("`validarSaida` reprova o bloco ausente e as contagens divergentes [mutação: checar só o presidente]", () => {
+    const semBloco = gerar();
+    semBloco.deputado.votacao = undefined;
+    expect(() => validarSaida(semBloco)).toThrow(/bloco 'votacao' ausente/);
+
+    const divergente = gerar();
+    const v = divergente.senador.votacao;
+    if (v === undefined) throw new Error("senador sem votacao");
+    v.contagens = { ...v.contagens, aptos: v.contagens.aptos + 1 };
+    expect(() => validarSaida(divergente)).toThrow(/MESMO eleitorado/);
+
+    // E a âncora que NÃO é recálculo: os quatro podem concordar entre si e
+    // ainda assim não somarem o eleitorado do país.
+    const todosErrados = gerar();
+    podarTodos(todosErrados, (c) => ({ ...c, aptos: c.aptos + 1 }));
+    expect(() => validarSaida(todosErrados)).toThrow(/eleitorado_total/);
+  });
+
+  it("`validarSaida` aceita a saída com votação em 0%, 25% e 100% [mutação: qualquer uma das invariantes (12)]", () => {
+    expect(() => validarSaida(gerar({ pct: 0 }))).not.toThrow();
+    expect(() => validarSaida(s)).not.toThrow();
+    expect(() => validarSaida(gerar({ pct: 100 }))).not.toThrow();
   });
 });

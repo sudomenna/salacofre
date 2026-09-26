@@ -232,6 +232,119 @@ export interface EdgeParticipacao {
 }
 
 // ---------------------------------------------------------------------------
+// Bloco "votacao" — contagens ABSOLUTAS do eleitorado (spec 021, RF-199)
+// ---------------------------------------------------------------------------
+
+/**
+ * As contagens absolutas do eleitorado de uma abrangência, **como o TSE as
+ * publica** — sem projeção, sem regra de três, sem bootstrap.
+ *
+ * 🔴 Por que um bloco NOVO em vez de campos em {@link EdgeParticipacao}:
+ * aquele bloco é de **estimativas** (cada métrica tem `pct_projetado`,
+ * `lower`, `upper` e uma `base` declarada, e nasce de
+ * `estimate_uf_participacao`). Este é de **fatos contados**. Misturar os dois
+ * num objeto só faria um consumidor futuro somar um número projetado com um
+ * apurado sem perceber a troca — o erro que `lider-por-base.ts` documenta
+ * para `row.lider` e `margem_atual`, na outra ponta do payload.
+ *
+ * Fonte: os objetos de raiz `e` (eleitores) e `v` (votos) do EA20, no
+ * agregado de nível `"br"`/`"uf"` que o pipeline já busca
+ * (`lib/tse/targets.ts:61,245,256`). ⚠️ Nível `"br"` só existe para cargo 1
+ * (`targets.ts:59`): nos demais cargos o nacional é a SOMA dos 27 agregados
+ * de UF — soma de inteiros, exata.
+ *
+ * ## A aritmética, do dicionário oficial do TSE
+ *
+ * (`tse_docs/txt/tse-ea20-arquivo-de-resultado-unificado.txt:459-468`)
+ *
+ *   `aptos` ──> totalizadas + não totalizadas
+ *     totalizadas ──> `instalados` + não instaladas
+ *       `instalados` ──> `comparecimento` + `abstencao`
+ *   `comparecimento` ──> votáveis + `brancos` + `nulos` (+ vscv)
+ *     votáveis ──> `validos` + `anulados` + `sub_judice`
+ *
+ * 🔴 **`validos + brancos + nulos + abstencao` NÃO soma `aptos`.** Soma
+ * `instalados`, menos `anulados` e `sub_judice`. Medido na captura real do
+ * simulado a 100% apurado (`tests/fixtures/tse/2026-sim/br-c0001-e021270-u.json`):
+ * `aptos` 163.079.139 contra `instalados` 163.078.872 (**267** de diferença,
+ * ou seja ~zero no fim da noite), e `anulados + sub_judice` = 19.722.460
+ * votos, **14,2% do comparecimento**. Quem for desenhar isto: o residual do
+ * RF-193 é derivado por SUBTRAÇÃO, nunca por um campo próprio.
+ *
+ * Todo campo é inteiro e não-negativo. O bloco inteiro é opcional para não
+ * quebrar payloads e fixtures anteriores à spec 021 — ausente ⇒ o painel
+ * renderiza `<DetailUnavailable>` (RF-198), nunca zeros.
+ */
+export interface EdgeVotacaoContagens {
+  /** `e.te` — eleitores aptos da abrangência. O total do círculo 1 e do 3. */
+  aptos: number;
+  /** `e.esi` — eleitorado das seções instaladas. É aqui que `comparecimento + abstencao` fecha. */
+  instalados: number;
+  /** `e.c` — quem compareceu. Igual a `v.tv`. */
+  comparecimento: number;
+  /** `e.a` — abstenção. `instalados − comparecimento`. */
+  abstencao: number;
+  /** `v.vv` — votos válidos. ⚠️ NÃO confundir com `v.vvc` (votáveis concorrentes), ADR-0018. */
+  validos: number;
+  /** `v.vb` — votos em branco. */
+  brancos: number;
+  /** `v.tvn` — TOTAL de nulos (`v.vn` + `v.vnt`), não o `v.vn` stricto sensu. */
+  nulos: number;
+  /** `v.van` — anulados. Fora das fatias nomeadas por decisão do dono; dentro do residual (RF-197). */
+  anulados: number;
+  /** `v.vansj` — anulados sub judice. Mesmo tratamento de `anulados`. */
+  sub_judice: number;
+}
+
+/**
+ * As mesmas quatro fatias do círculo 1, **projetadas** para o fim da apuração
+ * (spec 021, RF-195).
+ *
+ * 🔴 **Publicadas CRUAS, sem nenhuma reescala — e a versão anterior deste
+ * contrato estava errada.** Até 2026-09-26 este bloco tinha um campo
+ * `fator_normalizacao` e a regra mandava esticar as quatro para fechar em
+ * {@link EdgeVotacaoContagens.aptos}. A premissa era que o vão vinha do ruído
+ * dos bootstraps ("somam perto de 100%"). **Está errada por duas ordens de
+ * grandeza**, medido na captura real de 100% apurado
+ * (`tests/fixtures/tse/2026-sim/br-c0001-e021270-u.json`), onde a verdade é
+ * conhecida:
+ *
+ *   as 4 fatias ....... 143.356.412        aptos ....... 163.079.139
+ *   vão ............... 19.722.727
+ *     ├─ anulados + sub judice .. 19.722.460   (99,9986% do vão)
+ *     └─ seções não instaladas ..        267   (0,0014% do vão)
+ *
+ * O ruído do bootstrap responde por ~0,0001%: as quatro projeções batem a
+ * verdade com erro de +165, +15, +15 e +40 votos. O vão é **voto anulado**, e
+ * voto anulado não projeta para zero. Fechar em `aptos` exigiria o fator
+ * 1,1376 e publicaria **114.875.061 válidos contra os 100.982.116 reais —
+ * 13.892.945 votos fabricados**, ao lado do círculo 2 exibindo o número
+ * verdadeiro na mesma tela (constituição § 6).
+ *
+ * A resolução (decisão do dono, 2026-09-26) é a mesma regra do círculo 1: o
+ * consumidor deriva a fatia "Ainda não apurado" **por subtração**
+ * (`aptos − (validos + brancos + nulos + abstencao)`). O cinza não vai a zero
+ * no fim da noite — ele estaciona no tamanho dos votos anulados, que é a
+ * verdade, e o RF-197 já manda declarar essa soma na metodologia.
+ *
+ * ⚠️ Nenhum IC aqui, e não é esquecimento: a faixa de incerteza de cada
+ * métrica continua em {@link EdgeParticipacao}, publicada sobre a base dela.
+ */
+export interface EdgeVotacaoProjetada {
+  validos: number;
+  brancos: number;
+  nulos: number;
+  abstencao: number;
+}
+
+/** O bloco `votacao` do payload — contado e, quando há base, projetado. */
+export interface EdgeVotacao {
+  contagens: EdgeVotacaoContagens;
+  /** Ausente enquanto não houver zona apurada — o círculo 3 fica "aguardando" (RF-195). */
+  projetada?: EdgeVotacaoProjetada;
+}
+
+// ---------------------------------------------------------------------------
 // Bloco "nacional" — alimenta <HeadlineScore />, agulha e barras
 // ---------------------------------------------------------------------------
 
@@ -844,6 +957,14 @@ export interface EdgePayload {
   pct_apurado_total: number;
   /** Número de UFs com pelo menos 1 zona apurada (0–27). */
   ufs_apuradas: number;
+  /**
+   * Spec 021 (RF-199) — as contagens absolutas do eleitorado desta
+   * abrangência, e a projeção normalizada das quatro fatias.
+   *
+   * Opcional: payloads anteriores à spec 021 não o têm, e o painel "Votação"
+   * degrada para `<DetailUnavailable>` (RF-198) em vez de desenhar zeros.
+   */
+  votacao?: EdgeVotacao;
   national: EdgeNational;
   por_uf: EdgeUfRow[];
   /**
@@ -1692,6 +1813,14 @@ export interface EdgePayloadDeputado {
   fase?: "pre_eleicao";
   atualizacao_min: number;
   bancada: EdgeBancadaNacional;
+  /**
+   * Spec 021 (RF-199) — as contagens absolutas do eleitorado desta
+   * abrangência, e a projeção normalizada das quatro fatias.
+   *
+   * Opcional: payloads anteriores à spec 021 não o têm, e o painel "Votação"
+   * degrada para `<DetailUnavailable>` (RF-198) em vez de desenhar zeros.
+   */
+  votacao?: EdgeVotacao;
   por_uf: EdgeDeputadoUfRow[];
   /**
    * Frases curtas geradas por template — NUNCA LLM (ADR-0005,

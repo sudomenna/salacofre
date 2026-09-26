@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { esperarMapaMontado, esperarRedeOciosa, instalarProjecaoLocal } from "./_apoio-local";
 
 // `/uf/SP/senador` entra por exigência do RF-176(e): é a ÚNICA rota com
 // `vagas=2` e, por isso, a única que renderiza o destaque por espessura e a
@@ -10,30 +11,40 @@ import { expect, test } from "@playwright/test";
 // `/governador` e `/sobre-o-modelo` estão fora do escopo da spec 020 e ficam:
 // cobrem outras specs, e tirá-las seria reduzir cobertura alheia.
 // ---------------------------------------------------------------------------
-// 🔴 COMO RODAR ESTE GATE — medido em 2026-09-18, na primeira vez que ele rodou
+// 🔴 COMO RODAR ESTE GATE
 //
-// Contra o site PUBLICADO, que é o único caminho que funciona hoje:
+// ✅ **Contra um build de produção LOCAL — passou a funcionar em 2026-09-21.**
+//
+//     pnpm build && pnpm start:e2e     # 🔴 start:e2e, nunca start nem dev
+//     pnpm test:e2e                    # noutro terminal
+//
+// `start:e2e` é `next start` com as 13 variáveis de ESCRITA declaradas vazias —
+// o Next carrega o `.env.local` sozinho, e o `DATABASE_URL` de lá é produção.
+// Confirme no log do servidor: "[db] DATABASE_URL ausente". Receita completa e
+// ressalvas no runbook, § "Rodar os portões e2e na máquina".
+//
+// Resultado da primeira execução: **64/64 verdes** em 42,6 s (8 rotas ×
+// 2 tamanhos × 2 temas × 2 navegadores).
+//
+// Contra o site PUBLICADO, que continua sendo a medição de referência:
 //
 //     PLAYWRIGHT_BASE_URL=https://salacofre.vercel.app npx playwright test \
 //       tests/e2e/a11y-audit.spec.ts
 //
-// Resultado nessa data: 48/48 verdes (6 rotas × 2 viewports × 2 temas × 2
-// navegadores). Exige `npx playwright install webkit` — sem ele, os 24 testes
-// de `mobile-safari` falham com "Executable doesn't exist", o que NÃO é
-// resultado de acessibilidade e já enganou uma sessão.
+// Resultado em 2026-09-18: 48/48 verdes (eram 6 rotas então). Exige
+// `npx playwright install webkit` — sem ele, os testes de `mobile-safari`
+// falham com "Executable doesn't exist", o que NÃO é resultado de
+// acessibilidade e já enganou uma sessão.
 //
-// ⚠️ **Contra um build de produção LOCAL (`pnpm build && pnpm start`) este gate
-// NÃO roda, e a causa não é óbvia.** O `/api/projection`, que a página consulta
-// em laço, devolve 500 com `Error: Must be deployed on Vercel to set response
-// headers` — é o Vercel BotID (`node_modules/botid`), que fora da Vercel só
-// libera em NODE_ENV=development; em build de produção ele lança. Como a página
-// repete a consulta, a rede nunca fica ociosa, o `waitUntil: "networkidle"`
-// abaixo estoura os 30 s e os 40 testes morrem por TIMEOUT DE NAVEGAÇÃO —
-// sintoma que não se parece nem um pouco com a causa.
+// ⚠️ O registro anterior aqui dizia que rodar local era impossível, e dava uma
+// causa que a medição de 21/09 desmentiu ("a página consulta em laço" — ela
+// consulta UMA vez). A causa real, e o que se faz com ela, estão em
+// `_apoio-local.ts`. Quem for citar aquele diagnóstico de algum handoff antigo:
+// ele está vencido.
 //
 // ⚠️ E contra `pnpm dev` **não rode**: servidor de desenvolvimento de pé junto
 // de suíte de teste foi o que publicou resultado eleitoral inventado no site
-// público em 2026-09-14. Use o site publicado.
+// público em 2026-09-14. Use `pnpm start:e2e` ou o site publicado.
 // ---------------------------------------------------------------------------
 const ROUTES = [
   "/",
@@ -62,7 +73,7 @@ test.describe.configure({ mode: "parallel" });
 for (const route of ROUTES) {
   for (const viewport of VIEWPORTS) {
     for (const theme of THEMES) {
-      test(`axe ${route} @ ${viewport.name} (${theme})`, async ({ page }) => {
+      test(`axe ${route} @ ${viewport.name} (${theme})`, async ({ page, baseURL }) => {
         await page.setViewportSize({ width: viewport.width, height: viewport.height });
         await page.addInitScript((t) => {
           try {
@@ -71,8 +82,24 @@ for (const route of ROUTES) {
             /* noop */
           }
         }, theme);
-        await page.goto(route, { waitUntil: "networkidle" });
-        // dá tempo do mapa (MapLibre) montar e do detalhe municipal chegar
+        // Só instala contra localhost; contra o site publicado é no-op e a rota
+        // real é exercitada como sempre. Ver `_apoio-local.ts`.
+        await instalarProjecaoLocal(page, baseURL);
+
+        // 🔴 2026-09-21 — o `goto` era `{ waitUntil: "networkidle" }`, e era ELE
+        // que impedia este portão de rodar contra build local: fora da Vercel,
+        // `checkBotId()` lança, o Next devolve 500 com um corpo que NUNCA fecha, e
+        // a requisição fica em voo para sempre. O `networkidle` então nunca
+        // chegava, os 40 testes morriam por timeout de NAVEGAÇÃO, e o sintoma não
+        // se parecia com a causa. Agora: `load` (determinístico), depois o mapa
+        // montado, depois rede ociosa COM TETO.
+        await page.goto(route, { waitUntil: "load" });
+        // O mapa MapLibre monta por `next/dynamic` depois da hidratação; o axe
+        // precisa vê-lo montado, senão audita o esqueleto. Devolve `false` em rota
+        // sem mapa, e sai rápido nesse caso.
+        await esperarMapaMontado(page);
+        const rede = await esperarRedeOciosa(page);
+        // dá tempo do detalhe municipal chegar e pintar
         await page.waitForTimeout(1500);
 
         const results = await new AxeBuilder({ page })
@@ -113,11 +140,46 @@ for (const route of ROUTES) {
         //
         // Ela é robusta a dado: quando a série chegar em produção, o gráfico da
         // noite acrescenta `<text>` SVG e a CONTAGEM muda; a natureza, não.
+        //
+        // 🔴 A TERCEIRA isenção — `candidate-avatar-fallback`, medida em
+        // 2026-09-21, na primeira execução deste portão contra build local.
+        //
+        // Ela reprovou nos 8 casos da home (2 navegadores × 2 tamanhos × 2
+        // temas), sempre nos mesmos 4 nós, sempre com
+        // `messageKey: "elmPartiallyObscured"` — "não deu para determinar a cor
+        // de fundo porque está parcialmente encoberto por outro elemento".
+        //
+        // **Não há elemento por cima.** O mecanismo foi medido, não deduzido: o
+        // avatar é um CÍRCULO (`border-radius: 999px` computado, caixa de
+        // 26×26 ⇒ raio 13 px), e o axe amostra os cantos da caixa RETANGULAR —
+        // que ficam a 18,38 px do centro, **5,38 px fora do círculo**. Um
+        // `document.elementFromPoint` no canto inferior direito devolve o
+        // contêiner-pai (`div.flex.min-w-0.items-center`), e o axe lê isso como
+        // oclusão. Centro e canto superior esquerdo devolvem o próprio avatar.
+        //
+        // E o contraste está FOLGADO, medido à mão nos dois temas:
+        //   claro  `#5b636e` sobre `#e9ebee` = **5,089:1**
+        //   escuro `#9aa1ab` sobre `#262a31` = **5,528:1**
+        // contra o piso de 4,5:1 do RNF-022. Não é "passa raspando" como as 15
+        // siglas da dívida 16 — é margem de meio ponto.
+        //
+        // ⚠️ Isto AFROUXA o portão, e é reversível: apagar
+        // `candidate-avatar-fallback` da linha abaixo o deixa vermelho de novo.
+        // A justificativa é que o motivo do axe é geométrico e vale para
+        // qualquer avatar redondo — provavelmente é o mesmo motivo do
+        // `top-bar-brand` já isento. O que NÃO está isento é o avatar mudar de
+        // cor: aí o número acima muda, e nenhum teste deste arquivo veria. Quem
+        // guarda isso é `party-text-contrast.test.ts`, no vitest.
         const contrasteIndeciso = results.incomplete.filter((v) => v.id === "color-contrast");
         const indecididosInesperados = contrasteIndeciso.flatMap((v) =>
           v.nodes
             .map((n) => String(n.target[0] ?? ""))
-            .filter((alvo) => !/^text[[.]/.test(alvo) && !alvo.includes("top-bar-brand")),
+            .filter(
+              (alvo) =>
+                !/^text[[.]/.test(alvo) &&
+                !alvo.includes("top-bar-brand") &&
+                !alvo.includes("candidate-avatar-fallback"),
+            ),
         );
 
         await test
@@ -143,6 +205,16 @@ for (const route of ROUTES) {
             2,
           ),
         );
+
+        // A rede não ter ficado ociosa significa que o axe pode ter auditado a
+        // página a meio caminho — um "0 violações" tirado de uma árvore que ainda
+        // ia mudar. Vale asserção, não nota de rodapé: foi uma requisição
+        // pendurada que deixou este portão inalcançável por três dias.
+        expect(
+          rede.ociosa,
+          `A rede não ficou ociosa em ${route} — o axe pode ter auditado a página ` +
+            `antes de ela terminar de montar. Em voo: ${rede.emVoo.slice(0, 3).join(", ") || "(nada)"}`,
+        ).toBe(true);
 
         expect(critical.length + serious.length, JSON.stringify(results.violations, null, 2)).toBe(
           0,

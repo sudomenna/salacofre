@@ -184,16 +184,23 @@ class FakeCursor:
                 if s["cargo"] == cargo and s["turno"] == turno
             ]
         elif "FROM snapshots" in sql:
-            # fetch_snapshots — 6 colunas desde 2026-09-13 (cod_municipio_tse
+            # fetch_snapshots — 7 colunas desde 2026-09-26 (cod_municipio_tse
             # entre uf e cod_zona desde a migration 0006; `ts` entrou para o
             # desempate sentinela-vs-zona-real por FRESCOR, não mais só por
-            # presença — ver `_discard_zero_zona_sentinel_when_real_zonas_exist`).
+            # presença — ver `_discard_zero_zona_sentinel_when_real_zonas_exist`;
+            # `nivel` entrou com a spec 021, entre cod_zona e pct_apurado).
+            #
+            # ⚠️ `nivel` default `"zona"` quando a fixture não o declara — é o
+            # MESMO default do `COALESCE` da query e de `nivel_do_snapshot`, e
+            # é o que mantém as dezenas de fixtures pré-spec-021 válidas sem
+            # tocá-las. Fixture que quer agregado declara `"nivel": "uf"`/`"br"`.
             cargo, turno = params
             self._last_rows = [
                 (
                     s["uf"],
                     int(s.get("cod_municipio_tse") or 0),
                     s["cod_zona"],
+                    s.get("nivel") or "zona",
                     s["pct_apurado"],
                     s["payload"],
                     s.get("ts", _DEFAULT_TS),
@@ -2466,3 +2473,234 @@ def test_vigia_da_serie_cega_roda_antes_de_anexar_o_ponto(
         "rodar antes de `anexar_ponto_corrente`, ou o baseline inclui o "
         "próprio ciclo que ele julga"
     )
+
+
+# ---------------------------------------------------------------------------
+# Spec 021 — o bloco `votacao` no ciclo inteiro (RF-199 / RF-195)
+#
+# Os testes de unidade de `somar_contagens_agregadas` /
+# `projetar_fatias_em_contagens` vivem em `test_votacao.py`. O que se prova
+# AQUI é a fiação: que o agregado chega ao payload publicado, e — o ponto
+# perigoso — que ele NÃO entra no modelo pelo caminho.
+# ---------------------------------------------------------------------------
+
+
+def _agregado_uf(uf: str, *, te: int, ts: str = "2026-10-04T18:20:00Z") -> dict[str, Any]:
+    """Linha de `snapshots` de nível "uf": o agregado que o TSE publica.
+
+    `cod_zona = 0` e `cod_municipio_tse = 0` são os sentinelas de abrangência
+    sem município (`lib/tse/targets.ts::buildUfTarget`). `ts` propositalmente
+    MAIS FRESCO que o das zonas do `minimal_dataset` — é a condição em que o
+    descarte por sentinela mataria as zonas reais se a partição por `nivel`
+    não existisse.
+    """
+    return {
+        "cargo": 1,
+        "turno": 1,
+        "uf": uf,
+        "cod_municipio_tse": 0,
+        "cod_zona": 0,
+        "nivel": "uf",
+        "pct_apurado": 100.0,
+        "ts": ts,
+        # Aritmética do TSE FECHADA de propósito (senão o teste mede um mundo
+        # impossível): `c + a == esi == te`, e dentro do comparecimento
+        # `vv + vb + tvn + van + vansj == c`. Com 10% de anulados/sub judice
+        # sobre os aptos, as QUATRO fatias nomeadas somam 90% e o residual do
+        # círculo 1 é exatamente `van + vansj`.
+        "payload": {
+            "e": {
+                "te": str(te),
+                "esi": str(te),
+                "c": str(int(te * 0.80)),
+                "a": str(int(te * 0.20)),
+            },
+            "v": {
+                "tv": str(int(te * 0.80)),
+                "vv": str(int(te * 0.60)),
+                "vvc": str(int(te * 0.70)),
+                "vb": str(int(te * 0.05)),
+                "tvn": str(int(te * 0.05)),
+                "van": str(int(te * 0.06)),
+                "vansj": str(int(te * 0.04)),
+            },
+        },
+    }
+
+
+def test_votacao_chega_ao_payload_publicado(
+    fake_db, minimal_dataset, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """RF-199: as contagens absolutas do agregado do TSE saem no payload."""
+    from api.model import project as proj_mod
+
+    snapshots, historical, eleitorado = minimal_dataset
+    com_agregado = [
+        *snapshots,
+        _agregado_uf("SP", te=30_000_000),
+        _agregado_uf("RJ", te=12_000_000),
+    ]
+    fake_db(com_agregado, historical, eleitorado)
+
+    publicados: list[tuple[dict, dict]] = []
+    monkeypatch.setattr(
+        proj_mod,
+        "post_edge_write",
+        lambda payload, payloads_uf=None: publicados.append((payload, payloads_uf or {})),
+    )
+
+    status, _ = proj_mod._do_project(
+        json.dumps({"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}).encode()
+    )
+    assert status == 200
+    payload, _uf = publicados[0]
+
+    assert "votacao" in payload, "o bloco tem de chegar à tela"
+    contagens = payload["votacao"]["contagens"]
+    # Cargo 1 SEM linha "br" neste cenário ⇒ soma dos agregados de UF.
+    assert contagens["aptos"] == 42_000_000
+    assert contagens["anulados"] == int(30_000_000 * 0.06) + int(12_000_000 * 0.06)
+    assert contagens["sub_judice"] == int(30_000_000 * 0.04) + int(12_000_000 * 0.04)
+    # RF-197 — anulados e sub judice existem e NÃO estão dentro de `validos`.
+    quatro = (
+        contagens["validos"]
+        + contagens["brancos"]
+        + contagens["nulos"]
+        + contagens["abstencao"]
+    )
+    assert contagens["aptos"] - quatro == contagens["anulados"] + contagens["sub_judice"]
+
+
+def test_agregado_nao_contamina_o_modelo(
+    fake_db, minimal_dataset, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """🔴 O teste que discrimina: acrescentar o agregado NÃO pode mover um
+    número do modelo.
+
+    O agregado chega com `cod_zona = 0` e com `ts` mais fresco que as zonas.
+    Se ele entrasse na lista do modelo, duas coisas aconteceriam, ambas
+    silenciosas: (a) cada voto seria contado duas vezes — uma pelas zonas
+    reais, outra pelo agregado que as resume; (b) pior,
+    `_discard_zero_zona_sentinel_when_real_zonas_exist` descartaria a família
+    de zonas reais por ser MENOS fresca, e SP inteiro passaria a ser projetado
+    a partir de uma única linha.
+
+    A prova é por comparação: roda o ciclo sem o agregado e com ele, e exige
+    que a projeção saia **idêntica**. Um teste que só verificasse "o payload
+    tem votacao" passaria nos dois mundos.
+    """
+    from api.model import project as proj_mod
+
+    snapshots, historical, eleitorado = minimal_dataset
+
+    def _rodar(linhas: list[dict[str, Any]]) -> dict[str, Any]:
+        fake_db(linhas, historical, eleitorado)
+        publicados: list[dict[str, Any]] = []
+        monkeypatch.setattr(
+            proj_mod,
+            "post_edge_write",
+            lambda payload, payloads_uf=None: publicados.append(payload),
+        )
+        status, _ = proj_mod._do_project(
+            json.dumps(
+                {"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}
+            ).encode()
+        )
+        assert status == 200
+        return publicados[0]
+
+    sem = _rodar(list(snapshots))
+    com = _rodar([*snapshots, _agregado_uf("SP", te=30_000_000), _agregado_uf("RJ", te=12_000_000)])
+
+    assert "votacao" not in sem, "sem agregado, a chave nem aparece (RF-198)"
+    assert "votacao" in com
+
+    # O modelo tem de estar intocado — campo a campo.
+    assert com["pct_apurado_total"] == sem["pct_apurado_total"]
+    assert com["ufs_apuradas"] == sem["ufs_apuradas"]
+    assert [r["sigla"] for r in com["por_uf"]] == [r["sigla"] for r in sem["por_uf"]]
+    assert com["national"]["candidatos"] == sem["national"]["candidatos"]
+    assert com["national"]["needle_position"] == sem["national"]["needle_position"]
+    assert com["national"].get("participacao") == sem["national"].get("participacao")
+    # E nenhuma UF fantasma "BR" entrou na lista.
+    assert "BR" not in {r["sigla"] for r in com["por_uf"]}
+
+
+def test_linha_br_nao_entra_no_por_uf(
+    fake_db, minimal_dataset, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A linha de nível "br" (uf = "BR") é o país, não uma 28ª unidade
+    federativa. Ela alimenta `votacao` e mais nada."""
+    from api.model import project as proj_mod
+
+    snapshots, historical, eleitorado = minimal_dataset
+    br = {**_agregado_uf("BR", te=163_000_000), "nivel": "br", "uf": "BR"}
+    fake_db([*snapshots, br], historical, eleitorado)
+
+    publicados: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        proj_mod,
+        "post_edge_write",
+        lambda payload, payloads_uf=None: publicados.append(payload),
+    )
+    status, _ = proj_mod._do_project(
+        json.dumps({"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}).encode()
+    )
+    assert status == 200
+    payload = publicados[0]
+
+    assert "BR" not in {r["sigla"] for r in payload["por_uf"]}
+    # Cargo 1 COM linha "br": o número vem dela, não de uma soma.
+    assert payload["votacao"]["contagens"]["aptos"] == 163_000_000
+
+
+def test_agregado_mais_VELHO_que_as_zonas_sobrevive_ao_filtro_de_sentinela(
+    fake_db, minimal_dataset, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """🔴 O caso que discrimina o conserto do filtro de sentinela.
+
+    `_discard_zero_zona_sentinel_when_real_zonas_exist` escolhe entre a
+    família `cod_zona = 0` e a de zonas reais **por frescor**, e descarta a
+    perdedora. O agregado chega com `cod_zona = 0`, então antes da spec 021
+    ele era descartado **sempre que as zonas fossem mais recentes** — que é o
+    estado normal de operação. O dado entrava no banco e sumia antes de chegar
+    ao payload.
+
+    As duas famílias deixaram de ser concorrentes e passaram a ser
+    COMPLEMENTARES: a de zona alimenta o modelo, a agregada alimenta
+    `votacao`. A partição por `nivel` roda ANTES do filtro, então o filtro só
+    vê zonas e não tem mais como descartar o agregado.
+
+    ⚠️ O `ts` do agregado aqui é deliberadamente MAIS VELHO que o das zonas.
+    Um teste em que as duas famílias têm o mesmo `ts` não distinguiria nada:
+    o empate favorece a sentinela e ela sobreviveria mesmo sem o conserto.
+    """
+    from api.model import project as proj_mod
+
+    snapshots, historical, eleitorado = minimal_dataset
+    # As zonas do `minimal_dataset` usam `_DEFAULT_TS`; o agregado vem antes.
+    zonas_frescas = [{**s, "ts": "2026-10-04T21:00:00Z"} for s in snapshots]
+    agregado_velho = _agregado_uf("SP", te=30_000_000, ts="2026-10-04T17:00:00Z")
+    assert agregado_velho["ts"] < zonas_frescas[0]["ts"], "premissa do teste"
+
+    fake_db([*zonas_frescas, agregado_velho], historical, eleitorado)
+    publicados: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        proj_mod,
+        "post_edge_write",
+        lambda payload, payloads_uf=None: publicados.append(payload),
+    )
+    status, _ = proj_mod._do_project(
+        json.dumps({"cargo": 1, "turno": 1, "trigger_ts": "2026-10-04T18:23:15Z"}).encode()
+    )
+    assert status == 200
+    payload = publicados[0]
+
+    assert "votacao" in payload, (
+        "o agregado mais VELHO que as zonas foi descartado pelo filtro de "
+        "sentinela — era exatamente o buraco que a coluna `nivel` fecha"
+    )
+    assert payload["votacao"]["contagens"]["aptos"] == 30_000_000
+    # E as zonas reais continuam sendo o insumo do modelo: SP projetado a
+    # partir das suas 2 zonas, não da linha agregada.
+    assert {r["sigla"] for r in payload["por_uf"]} == {"SP", "RJ"}

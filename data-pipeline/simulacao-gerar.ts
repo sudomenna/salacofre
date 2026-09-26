@@ -185,6 +185,9 @@ import type {
   EdgeUfMunicipio,
   EdgeUfRow,
   EdgeUfSeriesTemporais,
+  EdgeVotacao,
+  EdgeVotacaoContagens,
+  EdgeVotacaoProjetada,
   NeedleBand,
 } from "@/lib/edge-config/types";
 import { colorForRank } from "@/lib/utils/cand-color";
@@ -1481,6 +1484,243 @@ function blocoParticipacao(
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// Votação — as contagens absolutas do eleitorado (spec 021, RF-199 + RF-195)
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * As três coisas que o modelo de votos deste gerador **não tem** e que o dado
+ * real do TSE tem. Sem elas o simulado seria mais POBRE que produção, e o
+ * painel "Votação" exibiria no `pnpm dev:sim` um estado que a noite real nunca
+ * produz — a armadilha que esta base já pagou duas vezes.
+ *
+ * O modelo do gerador é `comparecimento = votáveis + brancos + nulos`, com
+ * `instalados == aptos` e `validos == votáveis`. Faltam, portanto: a repartição
+ * do par brancos+nulos, os votos anulados/sub judice (que saem de DENTRO dos
+ * votáveis, `vvc = vv + van + vansj`) e as seções que nunca instalam.
+ *
+ * Os defaults são MEDIDOS na captura do simulado oficial do TSE a 100% apurado
+ * (`tests/fixtures/tse/2026-sim/br-c0001-e021270-u.json`) e reconferidos aqui
+ * campo a campo contra as identidades do dicionário EA20
+ * (`tse_docs/txt/tse-ea20-arquivo-de-resultado-unificado.txt:459-468`):
+ * `c + a = esi` ✓, `tv = c` ✓, `vvc = vv + van + vansj` ✓,
+ * `vv + vb + tvn + van + vansj = tv` ✓.
+ *
+ * | o que | medido | de onde |
+ * |---|---|---|
+ * | seções nunca instaladas | 267 de 163.079.139 = 1,6372e-6 | `(te − esi) / te` |
+ * | anulados | 7,6376% dos votáveis | `van / vvc` |
+ * | sub judice | 8,7019% dos votáveis | `vansj / vvc` |
+ * | brancos no par brancos+nulos | 50,2133% | `vb / (vb + tvn)` |
+ *
+ * 🔴 **Por que nenhum deles pode ser zero.** `anulados + sub_judice` são
+ * **14,2% do comparecimento** no dado real — é exatamente o buraco que as
+ * quatro fatias nomeadas do círculo 1 deixam de fora (RF-197). Zerá-los faria
+ * as quatro fecharem no comparecimento, e o simulado nunca exercitaria o caso
+ * que a spec 021 existe para representar. O mesmo vale para as seções não
+ * instaladas: com `instalados == aptos` o residual do círculo 1 seria zero no
+ * fim da noite, quando a verdade é que ele **estaciona** no tamanho dos votos
+ * anulados (RF-195).
+ *
+ * ⚠️ O par brancos+nulos deste gerador vale 6,2–8,9% do comparecimento
+ * (`montarContextos`), contra 13,08% medidos na captura real. Essa diferença é
+ * ANTERIOR a esta spec — ela vem de `ContextoUf.brancosNulos`, que alimenta o
+ * `participacao` já publicado — e mexer nela reescreveria números de outras
+ * telas. Fica registrada, fora de escopo.
+ */
+export interface ParametrosVotacao {
+  /** Fração de `aptos` em seções que nunca são instaladas: `(te − esi) / te`. */
+  naoInstaladas: number;
+  /** `van` como fração dos votáveis (`vvc`). */
+  anulados: number;
+  /** `vansj` como fração dos votáveis (`vvc`). */
+  subJudice: number;
+  /** `vb / (vb + tvn)` — como o par brancos+nulos do gerador se reparte. */
+  brancosDoPar: number;
+}
+
+/** Os quatro parâmetros medidos. Exportados para o teste usar os MESMOS. */
+export const PARAMETROS_VOTACAO: ParametrosVotacao = {
+  naoInstaladas: 1.6372e-6,
+  anulados: 0.076376,
+  subJudice: 0.087019,
+  brancosDoPar: 0.502133,
+};
+
+/**
+ * As 9 contagens de UMA UF no instante `ctx.pctApurado`.
+ *
+ * 🔴 **Toda identidade sai por SOMA ou SUBTRAÇÃO de inteiros.** O consumidor
+ * deriva o residual do círculo 1 subtraindo (RF-193), então um vão de
+ * arredondamento apareceria na tela como fatia que não fecha.
+ *
+ * ⚠️ Medido, para não sobrar crédito onde não há: as DUAS identidades valem por
+ * construção porque `comparecimento` é montado a partir das mesmas parcelas que
+ * a soma confere — não porque a subtração conserte arredondamento. Trocar
+ * `nulos = bnTotal − brancos` por um segundo `Math.round`, ou `comparecimento =
+ * votaveis + brancos + nulos` por `Math.round(votaveis / (1 − bn))`, produz
+ * saída BYTE A BYTE IDÊNTICA nos quatro cargos a 0%, 0,08%, 25% e 100%
+ * (conferido em 26/09): `votaveis` é inteiro, logo
+ * `round(votaveis + f) = votaveis + round(f)`. A subtração fica porque garante
+ * `brancos + nulos == bnTotal` na fronteira do 0,5 — não porque um teste
+ * discrimine as duas formas, e nenhum discrimina.
+ */
+function contagensDaUf(ctx: ContextoUf, par: ParametrosVotacao): EdgeVotacaoContagens {
+  const aptos = ctx.eleitores;
+  // `votosApurados` é voto A CANDIDATO já contado, isto é `vvc` do EA20 e não
+  // `vv`: anulados e sub judice saem de DENTRO dele (`vvc = vv + van + vansj`),
+  // nunca por cima. Somá-los por cima inflaria o comparecimento e faria a
+  // abstenção deste bloco contradizer o `pct_projetado` que
+  // `blocoParticipacao` publica na mesma tela (19,4% viraria ~6%).
+  const votaveis = ctx.votosApurados;
+  // brancos+nulos tal que a fração SOBRE O COMPARECIMENTO seja exatamente
+  // `ctx.brancosNulos` — a mesma base que `blocoParticipacao` declara.
+  const bnTotal = Math.round((votaveis * ctx.brancosNulos) / (1 - ctx.brancosNulos));
+  const brancos = Math.round(bnTotal * par.brancosDoPar);
+  const nulos = bnTotal - brancos;
+  const comparecimento = votaveis + brancos + nulos;
+  const anulados = Math.round(votaveis * par.anulados);
+  const subJudice = Math.round(votaveis * par.subJudice);
+  const validos = votaveis - anulados - subJudice;
+  // `esi` CRESCE com a apuração: uma seção só entra em `est` — e portanto em
+  // `esi` — quando o boletim dela é totalizado. É daí que vem o tamanho do vão
+  // do círculo 1 durante a noite (o país ainda não contado), encolhendo até o
+  // resíduo permanente das seções que nunca instalam.
+  const instalados = Math.round((aptos * ctx.pctApurado * (1 - par.naoInstaladas)) / 100);
+  if (instalados < comparecimento) {
+    // Sem clamp de propósito: `Math.max` aqui zeraria a abstenção em silêncio,
+    // e o que o clamp esconderia é uma contradição real entre o comparecimento
+    // contado de baixo para cima (votos) e o eleitorado instalado derivado de
+    // cima para baixo (pct). Só é alcançável com `eleitorado.comparecimento`
+    // acima de ~92%, que não existe no cadastro — se aparecer, o dono precisa
+    // ver, não ter o número consertado por baixo do pano.
+    throw new Error(
+      `[simulacao] ${ctx.uf}: comparecimento ${comparecimento} > instalados ${instalados} ` +
+        `(pctApurado ${ctx.pctApurado}, comparecimento medido ${ctx.comparecimento}). ` +
+        `A identidade 'comparecimento + abstencao = instalados' do EA20 não fecha.`,
+    );
+  }
+  return {
+    aptos,
+    instalados,
+    comparecimento,
+    abstencao: instalados - comparecimento,
+    validos,
+    brancos,
+    nulos,
+    anulados,
+    sub_judice: subJudice,
+  };
+}
+
+/**
+ * As contagens NACIONAIS: a soma dos 27 agregados de UF.
+ *
+ * Mesma escolha do produtor real (`somar_contagens_agregadas`,
+ * `api/model/project.py:3719`): nível `"br"` só existe para cargo 1
+ * (`lib/tse/targets.ts:59`), e nos outros três o nacional é a soma dos 27
+ * agregados — soma de contagens inteiras, exata, sem projeção. Para o cargo 1
+ * os dois caminhos dão o MESMO número por identidade, então aqui existe **um
+ * só**: um segundo caminho paralelo seria uma chance de os dois divergirem
+ * sem ninguém ver.
+ */
+export function contagensVotacao(
+  ctxs: readonly ContextoUf[],
+  par: ParametrosVotacao = PARAMETROS_VOTACAO,
+): EdgeVotacaoContagens {
+  const total: EdgeVotacaoContagens = {
+    aptos: 0,
+    instalados: 0,
+    comparecimento: 0,
+    abstencao: 0,
+    validos: 0,
+    brancos: 0,
+    nulos: 0,
+    anulados: 0,
+    sub_judice: 0,
+  };
+  const chaves = Object.keys(total) as Array<keyof EdgeVotacaoContagens>;
+  for (const ctx of ctxs) {
+    const c = contagensDaUf(ctx, par);
+    for (const k of chaves) total[k] += c[k];
+  }
+  return total;
+}
+
+/**
+ * As quatro fatias do círculo 3 (RF-195), em CONTAGEM ABSOLUTA e **cruas**.
+ *
+ * Espelha `projetar_fatias_em_contagens` (`api/model/project.py:3827`):
+ *   - a abstenção projeta sobre `instalados`, e no fim da noite
+ *     `instalados → aptos`, logo `abstencao = p_abstencao × aptos`;
+ *   - válidos/brancos/nulos projetam sobre o comparecimento, e o comparecimento
+ *     do fim da noite é `aptos − abstencao`.
+ *
+ * 🔴 **Nenhuma reescala.** As quatro NÃO fecham em `aptos`, e o vão não é ruído
+ * de bootstrap: é voto anulado, e voto anulado não projeta para zero. O
+ * consumidor deriva o cinza por subtração, a mesma regra do círculo 1.
+ *
+ * ⚠️ Divergência deliberada do produtor real: o Python lê `pct_projetado`, que
+ * é o percentual JÁ ARREDONDADO a 1 casa que `participacao` publica; aqui as
+ * frações vêm cruas das mesmas quantidades que `blocoParticipacao` usa. Meia
+ * casa decimal sobre 163 milhões de aptos valeria ±81 mil votos — e dois
+ * cargos deste gerador (5 e 6) nem publicam `participacao`, então não haveria
+ * de onde ler o número arredondado.
+ *
+ * Devolve `null` quando não há base amostral (nenhuma UF com apuração) — o
+ * círculo 3 vai INTEIRO para "aguardando projeção", no DOM
+ * (RF-195, ADR-0017/ADR-0018). `projetada` ausente é o que produz esse estado.
+ */
+export function projetarVotacao(
+  ctxs: readonly ContextoUf[],
+  par: ParametrosVotacao = PARAMETROS_VOTACAO,
+): EdgeVotacaoProjetada | null {
+  if (!ctxs.some((c) => c.pctApurado > 0)) return null;
+  const aptos = ctxs.reduce((a, c) => a + c.eleitores, 0);
+  const votaveisFinais = ctxs.reduce((a, c) => a + c.votosFinais, 0);
+  if (aptos <= 0 || votaveisFinais <= 0) return null;
+  const bnFrac = ctxs.reduce((a, c) => a + c.votosFinais * c.brancosNulos, 0) / votaveisFinais;
+  const compareceram = votaveisFinais / (1 - bnFrac);
+  const abstencao = Math.round(aptos - compareceram);
+  const comparecimento = aptos - abstencao;
+  if (comparecimento < 0) return null;
+  // `validos` é a fatia dos votáveis que sobra depois de anulados e sub judice
+  // — a mesma hierarquia de `contagensDaUf`, para que as duas pontas do painel
+  // (contado e projetado) não usem definições diferentes de "válido".
+  const pValidos = (1 - bnFrac) * (1 - par.anulados - par.subJudice);
+  return {
+    validos: Math.round(pValidos * comparecimento),
+    brancos: Math.round(bnFrac * par.brancosDoPar * comparecimento),
+    nulos: Math.round(bnFrac * (1 - par.brancosDoPar) * comparecimento),
+    abstencao,
+  };
+}
+
+/**
+ * O bloco `votacao` de um payload nacional (spec 021).
+ *
+ * `contagens` está SEMPRE presente, porque no simulado — como em produção — o
+ * `aptos` chega no mesmo envelope que todo o resto: `e.te` é conhecido antes do
+ * primeiro boletim. Com `--pct 0` isso publica de propósito o estado **"não
+ * começou"** (RF-193b): `aptos > 0` e as quatro fatias em zero, que a tela
+ * desenha como círculo 100% cinza.
+ *
+ * ⚠️ O terceiro estado — bloco AUSENTE, "não sabemos", `<DetailUnavailable>`
+ * (RF-198) — não é alcançável por este gerador, e é de propósito: ele é o
+ * estado de quem não recebeu nada do TSE, e o simulado sempre tem o cadastro
+ * de eleitorado em mão. Quem precisar dele na tela usa uma fixture anterior à
+ * spec 021, que não tem a chave.
+ */
+export function blocoVotacao(
+  ctxs: readonly ContextoUf[],
+  par: ParametrosVotacao = PARAMETROS_VOTACAO,
+): EdgeVotacao {
+  const bloco: EdgeVotacao = { contagens: contagensVotacao(ctxs, par) };
+  const projetada = projetarVotacao(ctxs, par);
+  if (projetada !== null) bloco.projetada = projetada;
+  return bloco;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // Presidente (cargo 1, turno 1)
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -2030,6 +2270,7 @@ export function montarPresidente(
       turno: 1,
       pct_apurado_total: r1(pct),
       ufs_apuradas: ufsApuradas(porUfLinhas),
+      votacao: blocoVotacao(ctxs),
       national,
       por_uf: porUfLinhas,
       insights: insightsPresidente(candidatos, prob.pSegundoTurno, pct, porUfLinhas),
@@ -2176,6 +2417,7 @@ export function montarPayloadEstadual(
     turno: 1,
     pct_apurado_total: r1(pct),
     ufs_apuradas: ufsApuradas(linhas),
+    votacao: blocoVotacao(ctxs),
     national,
     por_uf: linhas,
     insights: ehGov ? insightsGovernador(linhas) : insightsSenador(linhas, corridas),
@@ -3071,6 +3313,7 @@ export function montarDeputado(
       ufs_aguardando: ctxs.length - ufsCalculadas,
       por_agremiacao: porAgremiacao,
     },
+    votacao: blocoVotacao(ctxs),
     por_uf: linhas,
     insights: [
       `Câmara: ${pt(atribuidas)} de ${pt(totalCadeiras)} cadeiras já atribuídas — a soma é nossa, das ${ufsCalculadas} corridas estaduais com boletim, não um agregado nacional do TSE.`,
@@ -3846,6 +4089,117 @@ export function validarSaida(s: SaidaSimulacao): void {
     erro(
       `pct nacional efetivo ${manifest.pct_efetivo} está a ${manifest.erro_pp} pp do pedido ${manifest.pct_pedido}`,
     );
+  }
+
+  // (12) Votação (spec 021): as identidades do EA20 valem em CONTAGEM INTEIRA
+  // nos QUATRO payloads nacionais, e nenhum residual pode sair negativo — uma
+  // fatia negativa desenha errado em silêncio (RF-193, RF-195).
+  //
+  // As checagens de riqueza (b) e (c) existem porque o modelo de votos deste
+  // gerador NÃO tem anulados nem seções não instaladas: emitir zero nas duas
+  // passaria em toda checagem aritmética e ainda assim produziria uma fixture
+  // mais POBRE que produção, em que o painel nunca mostra a fatia cinza nem o
+  // buraco de 14,2% do comparecimento. É a armadilha registrada nesta base, e
+  // o único jeito de ela não voltar é uma invariante que reprove o zero.
+  const temBaseAmostral = ctxs.some((c) => c.pctApurado > 0);
+  const nacionais: Array<[string, EdgeVotacao | undefined]> = [
+    ["presidente", presidente.votacao],
+    ["governador", governador.votacao],
+    ["senador", senador.votacao],
+    ["deputado", deputado.votacao],
+  ];
+  // ⚠️ A referência é o PRIMEIRO payload, não uma segunda chamada a
+  // `contagensVotacao(ctxs)`. Recalcular com a mesma função aqui seria
+  // tautológico — e, pior, faria as invariantes (b) e (c) abaixo virarem código
+  // morto: um defeito de parâmetro sai igual nos dois lados e passaria batido,
+  // enquanto qualquer poda de teste esbarraria na comparação antes de chegar
+  // nelas. A âncora que NÃO é recálculo é o `eleitorado_total` do manifest, que
+  // soma `ctxs` por outro caminho.
+  let referencia: EdgeVotacaoContagens | undefined;
+  for (const [nome, v] of nacionais) {
+    if (v === undefined) {
+      erro(`${nome}: bloco 'votacao' ausente — a spec 021 emenda as QUATRO telas nacionais`);
+    }
+    const c = v.contagens;
+    for (const [campo, n] of Object.entries(c)) {
+      if (!Number.isInteger(n) || n < 0) {
+        erro(`${nome}: votacao.contagens.${campo} = ${n} não é inteiro ≥ 0`);
+      }
+      const esperado = (referencia ?? c)[campo as keyof EdgeVotacaoContagens];
+      if (n !== esperado) {
+        erro(
+          `${nome}: votacao.contagens.${campo} = ${n}, mas o país tem ${esperado} — ` +
+            `as quatro telas contam o MESMO eleitorado`,
+        );
+      }
+    }
+    referencia ??= c;
+    if (c.aptos !== manifest.eleitorado_total) {
+      erro(
+        `${nome}: votacao.contagens.aptos = ${c.aptos} ≠ eleitorado_total ` +
+          `${manifest.eleitorado_total} do manifest`,
+      );
+    }
+    // (a) as duas identidades do dicionário EA20, exatas em inteiro.
+    if (c.comparecimento + c.abstencao !== c.instalados) {
+      erro(
+        `${nome}: comparecimento ${c.comparecimento} + abstencao ${c.abstencao} ` +
+          `≠ instalados ${c.instalados} (identidade 'esi = c + a' do EA20)`,
+      );
+    }
+    const soma6 = c.validos + c.brancos + c.nulos + c.anulados + c.sub_judice;
+    if (soma6 !== c.comparecimento) {
+      erro(
+        `${nome}: validos+brancos+nulos+anulados+sub_judice = ${soma6} ` +
+          `≠ comparecimento ${c.comparecimento} (identidade 'tv = vvc + vb + tvn' do EA20)`,
+      );
+    }
+    if (c.instalados > c.aptos) {
+      erro(`${nome}: instalados ${c.instalados} > aptos ${c.aptos} — 'esi ≤ te' é hierarquia`);
+    }
+    // ⚠️ Piso do residual do círculo 1. É DERIVÁVEL das três checagens acima
+    // (`residual1 = (aptos − instalados) + anulados + sub_judice`, e as três
+    // parcelas já são forçadas ≥ 0), então nenhum teste o alcança sem primeiro
+    // desligar uma delas — fica como piso explícito para o dia em que alguém
+    // mexer na ordem, não como invariante coberta.
+    const residual1 = c.aptos - (c.validos + c.brancos + c.nulos + c.abstencao);
+    if (residual1 < 0) {
+      erro(`${nome}: residual do círculo 1 = ${residual1} < 0 — a quinta fatia desenharia errado`);
+    }
+    // (b) o buraco de anulados + sub judice TEM de existir: são 14,2% do
+    // comparecimento no dado real, e são o assunto do RF-197.
+    if (c.comparecimento > 0 && c.anulados + c.sub_judice === 0) {
+      erro(
+        `${nome}: anulados + sub_judice = 0 com comparecimento ${c.comparecimento} — ` +
+          `a fixture ficaria mais pobre que produção e o RF-197 nunca seria exercitado`,
+      );
+    }
+    // (c) enquanto a apuração não fecha, a fatia cinza do círculo 1 existe.
+    if (manifest.pct_efetivo < 100 && c.aptos <= c.instalados) {
+      erro(
+        `${nome}: aptos ${c.aptos} ≤ instalados ${c.instalados} a ${manifest.pct_efetivo}% ` +
+          `apurado — o círculo 1 não teria fatia 'Ainda não apurado'`,
+      );
+    }
+    // (d) `projetada` presente se e só se há base amostral (RF-195).
+    if (temBaseAmostral !== (v.projetada !== undefined)) {
+      erro(
+        `${nome}: votacao.projetada ${v.projetada === undefined ? "ausente" : "presente"} com ` +
+          `${temBaseAmostral ? "" : "nen"}huma UF apurada — RF-195`,
+      );
+    }
+    const p = v.projetada;
+    if (p !== undefined) {
+      for (const [campo, n] of Object.entries(p)) {
+        if (!Number.isInteger(n) || n < 0) {
+          erro(`${nome}: votacao.projetada.${campo} = ${n} não é inteiro ≥ 0`);
+        }
+      }
+      const residual3 = c.aptos - (p.validos + p.brancos + p.nulos + p.abstencao);
+      if (residual3 < 0) {
+        erro(`${nome}: residual do círculo 3 = ${residual3} < 0 — as projeções estouram aptos`);
+      }
+    }
   }
 }
 

@@ -61,6 +61,7 @@ import { Panel } from "@/components/atoms/surfaces/Panel";
 import { candidateColor as candidateColorDoPartido } from "@/components/blocks/_candidateColor";
 import { ForecastTransparency } from "@/components/blocks/ForecastTransparency";
 import { UfLinksGrid } from "@/components/blocks/UfLinksGrid";
+import { VotacaoEleitorado } from "@/components/blocks/VotacaoEleitorado";
 import { Footer } from "@/components/layout/Footer";
 import { SeloFasePreStyle } from "@/components/layout/SeloFasePreStyle";
 import { cargoInfo } from "@/lib/config/cargos";
@@ -355,6 +356,18 @@ export default async function SenadoPage() {
           )}
         </div>
       </Panel>
+
+      {/* Spec 021 (RF-192) — "Votação": o eleitorado inteiro em três círculos,
+          em `<Panel>` PRÓPRIO, imediatamente depois do painel de resultado.
+
+          🔴 Painel próprio, e não apêndice do de cima: aquele responde "quem
+          está ganhando", este "como o eleitorado se comportou". O dono pediu a
+          separação.
+
+          `payload.votacao` é opcional — sem ele o componente renderiza
+          `<DetailUnavailable>` (RF-198), nunca zeros. Os três estados que ele
+          distingue (ausente / "não começou" / apurando) estão no RF-193b. */}
+      <VotacaoEleitorado kicker="Senador · Brasil" votacao={payload.votacao} />
 
       {/* Seção 2 — RF-107. A composição é AGREGAÇÃO, não estimativa nacional:
           o TSE não publica arquivo agregado para cargo 5 (`temArquivoBr:

@@ -175,6 +175,7 @@ import { ResultPanel } from "@/components/blocks/ResultPanel";
 import { StateGroupedTable } from "@/components/blocks/StateGroupedTable";
 import { StrongholdsPanel } from "@/components/blocks/StrongholdsPanel";
 import { TurnoOneRecap } from "@/components/blocks/TurnoOneRecap";
+import { VotacaoEleitorado } from "@/components/blocks/VotacaoEleitorado";
 import { Footer } from "@/components/layout/Footer";
 import { SeloFasePreStyle } from "@/components/layout/SeloFasePreStyle";
 import { avaliarFrescorDado } from "@/lib/config/dado-freshness";
@@ -946,6 +947,19 @@ export default async function HomePage() {
           </div>
         </Panel>
       )}
+
+      {/* Spec 021 (RF-192) — "Votação": o eleitorado inteiro em três círculos,
+          em `<Panel>` PRÓPRIO, imediatamente depois do painel de resultado e
+          antes de tudo o mais.
+
+          🔴 Painel próprio, e não um apêndice do painel acima: aquele responde
+          "quem está ganhando", este responde "como o eleitorado se comportou".
+          São perguntas diferentes e o dono pediu a separação visual.
+
+          `payload.votacao` é opcional — sem ele o componente renderiza
+          `<DetailUnavailable>` (RF-198), nunca zeros. Os três estados que ele
+          distingue (ausente / "não começou" / apurando) estão no RF-193b. */}
+      <VotacaoEleitorado kicker="Presidente · Brasil" votacao={payload.votacao} />
 
       {/* Seção 3 — chances (`ChancesPanel` do protótipo, 2º painel de
           conteúdo em `App.jsx:350`). Aqui, ao contrário das rotas de UF, o
